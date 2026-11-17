@@ -51,12 +51,12 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 /// given, an `IndexFault` for a name no doc carries or a [codeTarget] the
 /// project does not name, and a `TemplateFault` for an unknown doc type; the
 /// last three come from the index lookup.
-CheckReport runCheck(
+Future<CheckReport> runCheck(
   ReadSession session, {
   String? target,
   String? docPath,
   String? codeTarget,
-}) {
+}) async {
   if (target != null && docPath != null) {
     throw ArgumentError('give either a target or a docPath, not both');
   }

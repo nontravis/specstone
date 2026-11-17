@@ -84,7 +84,9 @@ String _inline() => inlineBlock(cliVersion: specstoneVersion);
 /// Returns the `agent_block_stale` findings of a check over the fixture
 /// project plus [extra].
 Future<List<Finding>> _staleOf(Map<String, String> extra) async => [
-  for (final f in checkOf(await writeCheckProject(extra: extra)).findings)
+  for (final f in (await checkOf(
+    await writeCheckProject(extra: extra),
+  )).findings)
     if (f.kind == FindingKind.agentBlockStale) f,
 ];
 
@@ -113,7 +115,7 @@ Future<List<Finding>> _staleBeside({
     for (final MapEntry(:key, :value) in otherFiles.entries) '$top/$key': value,
   });
   return [
-    for (final f in checkOf(Directory('${base.path}/project')).findings)
+    for (final f in (await checkOf(Directory('${base.path}/project'))).findings)
       if (f.kind == FindingKind.agentBlockStale) f,
   ];
 }
@@ -138,7 +140,9 @@ void main() {
         ),
       });
       final findings = [
-        for (final f in checkOf(Directory('${base.path}/project')).findings)
+        for (final f in (await checkOf(
+          Directory('${base.path}/project'),
+        )).findings)
           if (f.kind == FindingKind.agentBlockStale &&
               f.path.endsWith('AGENTS.md'))
             f,
@@ -479,7 +483,7 @@ void main() {
         extra: {for (final e in files.entries) e.key: e.value!},
       );
       return [
-        for (final f in checkOf(project, target: target).findings)
+        for (final f in (await checkOf(project, target: target)).findings)
           if (f.kind == FindingKind.agentBlockStale) f,
       ];
     }
@@ -718,7 +722,7 @@ void main() {
       final project = await writeCheckProject(extra: files);
 
       expect([
-        for (final f in checkOf(project, target: 'login').findings)
+        for (final f in (await checkOf(project, target: 'login')).findings)
           if (f.kind == FindingKind.agentBlockStale) f,
       ], isEmpty);
     });

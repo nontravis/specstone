@@ -36,7 +36,7 @@ void main() {
   test(
     'f04/us01/s1, f04/us01/fr01/e01: the fixture project has zero findings',
     () async {
-      final report = checkOf(await writeCheckProject());
+      final report = await checkOf(await writeCheckProject());
       expect(report.findings, isEmpty);
       expect(report.exitStatus, 0);
     },
@@ -67,11 +67,11 @@ void main() {
       },
     );
     const missing = FindingKind.requiredFieldMissing;
-    expect(spots(checkOf(project), missing), [
+    expect(spots(await checkOf(project), missing), [
       '$loginFr:1: required_field_missing',
       'prds/features/f02_signup/us01_create/fr01_store.md:1: required_field_missing',
     ]);
-    expect(spots(checkOf(project, target: 'login'), missing), [
+    expect(spots(await checkOf(project, target: 'login'), missing), [
       '$loginFr:1: required_field_missing',
     ]);
   });
@@ -88,11 +88,11 @@ void main() {
         'docs/$siblingOrphanFr': orphanText,
       },
     );
-    expect(spots(checkOf(project), FindingKind.parentMissing), [
+    expect(spots(await checkOf(project), FindingKind.parentMissing), [
       '$orphanFr:1: parent_missing',
       '$siblingOrphanFr:1: parent_missing',
     ]);
-    final targeted = checkOf(project, target: 'login');
+    final targeted = await checkOf(project, target: 'login');
     expect(spots(targeted, FindingKind.parentMissing), [
       '$orphanFr:1: parent_missing',
     ]);
@@ -111,7 +111,7 @@ void main() {
       ..writeAsBytesSync(
         latin1.encode('---\nstatus: planned\n---\n\n# Café\n'),
       );
-    final report = checkOf(project, target: 'login');
+    final report = await checkOf(project, target: 'login');
     expect(spots(report, FindingKind.untypedDoc), ['$untyped:1: untyped_doc']);
     expect(spots(report, FindingKind.fileNotUtf8), ['$latin:1: file_not_utf8']);
     expect(report.warnings, isEmpty);
@@ -126,12 +126,12 @@ void main() {
       final path = '${project.path}/docs/$loginNf';
       Process.runSync('chmod', ['000', path]);
       addTearDown(() => Process.runSync('chmod', ['644', path]));
-      final targeted = checkOf(project, target: 'login');
+      final targeted = await checkOf(project, target: 'login');
       expect(spots(targeted, FindingKind.fileUnreadable), [
         '$loginNf:1: file_unreadable',
       ]);
       expect(targeted.warnings, isEmpty);
-      final fr = checkOf(
+      final fr = await checkOf(
         project,
         target: 'fr:login/email_login/check_password',
       );
@@ -148,15 +148,15 @@ void main() {
     );
     expect(
       spots(
-        checkOf(project, target: 'user_story:login/email_login'),
+        await checkOf(project, target: 'user_story:login/email_login'),
         FindingKind.untypedDoc,
       ),
       ['$own:1: untyped_doc'],
     );
-    expect(spots(checkOf(project, target: 'login'), FindingKind.untypedDoc), [
-      '$own:1: untyped_doc',
-      '$sibling:1: untyped_doc',
-    ]);
+    expect(
+      spots(await checkOf(project, target: 'login'), FindingKind.untypedDoc),
+      ['$own:1: untyped_doc', '$sibling:1: untyped_doc'],
+    );
   });
 
   test(
@@ -173,7 +173,7 @@ void main() {
           ),
         },
       );
-      final report = checkOf(
+      final report = await checkOf(
         project,
         target: 'fr:login/email_login/check_password',
       );
@@ -181,7 +181,7 @@ void main() {
       expect(spots(report, FindingKind.requiredFieldMissing), isEmpty);
       expect(
         spots(
-          checkOf(project, target: 'login'),
+          await checkOf(project, target: 'login'),
           FindingKind.requiredFieldMissing,
         ),
         ['$sibling:1: required_field_missing'],
@@ -205,10 +205,11 @@ void main() {
       },
     );
     const missing = FindingKind.linkTargetMissing;
-    expect(spots(checkOf(project, target: 'architecture:login'), missing), [
-      '$loginArchitecture:11: link_target_missing',
-    ]);
-    expect(spots(checkOf(project, target: 'api:login'), missing), [
+    expect(
+      spots(await checkOf(project, target: 'architecture:login'), missing),
+      ['$loginArchitecture:11: link_target_missing'],
+    );
+    expect(spots(await checkOf(project, target: 'api:login'), missing), [
       '$loginApi:19: link_target_missing',
     ]);
   });
@@ -227,7 +228,7 @@ void main() {
         'docs/prds/features/f02_signup/notes.md': '# Notes\n',
       },
     );
-    final report = checkOf(project, target: 'feature:login');
+    final report = await checkOf(project, target: 'feature:login');
     expect(spots(report, FindingKind.linkTargetMissing), [
       '$loginApi:19: link_target_missing',
     ]);
@@ -242,9 +243,10 @@ void main() {
     final project = await writeCheckProject(
       extra: {'docs/$notes': '# Notes\n', 'docs/$sibling': '# Other\n'},
     );
-    expect(spots(checkOf(project, target: notes), FindingKind.untypedDoc), [
-      '$notes:1: untyped_doc',
-    ]);
+    expect(
+      spots(await checkOf(project, target: notes), FindingKind.untypedDoc),
+      ['$notes:1: untyped_doc'],
+    );
   });
 
   test('a typed name checks that doc only', () async {
@@ -258,10 +260,13 @@ void main() {
         ),
       },
     );
-    expect(spots(checkOf(project), FindingKind.fieldUndeclared), hasLength(2));
+    expect(
+      spots(await checkOf(project), FindingKind.fieldUndeclared),
+      hasLength(2),
+    );
     expect(
       spots(
-        checkOf(project, target: 'fr:login/email_login/check_password'),
+        await checkOf(project, target: 'fr:login/email_login/check_password'),
         FindingKind.fieldUndeclared,
       ),
       ['$loginFr:5: field_undeclared'],
@@ -270,7 +275,7 @@ void main() {
 
   test('f04/us01/fr01/e05, f04/us01/fr01/e06: a name no doc carries, or an unknown doc type, is a fault', () async {
     final project = await writeCheckProject();
-    expect(
+    await expectLater(
       () => checkOf(project, target: 'login/emial_login'),
       throwsA(
         isA<IndexFault>().having(
@@ -280,7 +285,7 @@ void main() {
         ),
       ),
     );
-    expect(
+    await expectLater(
       () => checkOf(project, target: 'nope:login'),
       throwsA(
         isA<TemplateFault>().having(
@@ -294,14 +299,14 @@ void main() {
 
   test('cc-s03/inv1: a check writes no file of its own', () async {
     final project = await writeCheckProject();
-    checkOf(project); // the first open builds the index
+    await checkOf(project); // the first open builds the index
     Map<String, String> snapshot() => {
       for (final f in project.listSync(recursive: true).whereType<File>())
         if (!f.path.contains('index.sqlite'))
           f.path: base64.encode(f.readAsBytesSync()),
     };
     final before = snapshot();
-    checkOf(project);
+    await checkOf(project);
     expect(snapshot(), before);
   });
 
@@ -330,14 +335,14 @@ void main() {
         ]),
       },
     );
-    final story = checkOf(project, docPath: loginStory);
+    final story = await checkOf(project, docPath: loginStory);
     expect(story.findings, isNotEmpty);
     expect(story.findings.map((f) => f.path).toSet(), {loginStory});
     expect(
       story.findings.map((f) => f.kind),
       contains(FindingKind.linkUnresolved),
     );
-    final requirement = checkOf(project, docPath: _brokenRecord);
+    final requirement = await checkOf(project, docPath: _brokenRecord);
     expect(requirement.findings, isNotEmpty);
     expect(requirement.findings.where((f) => f.path == loginStory), isEmpty);
   });
@@ -349,9 +354,15 @@ void main() {
         'app/lib/extra.dart': 'class Extra {}\n',
       },
     );
-    expect(spots(checkOf(project), FindingKind.codeUncovered), isNotEmpty);
     expect(
-      spots(checkOf(project, docPath: projectDoc), FindingKind.codeUncovered),
+      spots(await checkOf(project), FindingKind.codeUncovered),
+      isNotEmpty,
+    );
+    expect(
+      spots(
+        await checkOf(project, docPath: projectDoc),
+        FindingKind.codeUncovered,
+      ),
       isEmpty,
     );
   });
@@ -359,11 +370,17 @@ void main() {
   test('a feature doc check leaves out the docs under it', () async {
     final project = await writeCheckProject(extra: _brokenRecordFiles());
     expect(
-      checkOf(project, target: 'feature:login').findings.map((f) => f.path),
+      (await checkOf(
+        project,
+        target: 'feature:login',
+      )).findings.map((f) => f.path),
       contains(_brokenRecord),
     );
     expect(
-      checkOf(project, docPath: loginFeature).findings.map((f) => f.path),
+      (await checkOf(
+        project,
+        docPath: loginFeature,
+      )).findings.map((f) => f.path),
       isNot(contains(_brokenRecord)),
     );
   });
@@ -382,13 +399,13 @@ void main() {
       () async {
         final project = await writeCheckProject(extra: oversize());
 
-        expect(spots(checkOf(project), FindingKind.bundleOverLimit), [
+        expect(spots(await checkOf(project), FindingKind.bundleOverLimit), [
           '$loginFeature:1: bundle_over_limit',
           '$signupFeature:1: bundle_over_limit',
         ]);
         expect(
           spots(
-            checkOf(project, target: 'feature:login'),
+            await checkOf(project, target: 'feature:login'),
             FindingKind.bundleOverLimit,
           ),
           ['$loginFeature:1: bundle_over_limit'],
@@ -404,7 +421,7 @@ void main() {
         for (final docPath in [loginFeature, loginStory]) {
           expect(
             spots(
-              checkOf(project, docPath: docPath),
+              await checkOf(project, docPath: docPath),
               FindingKind.bundleOverLimit,
             ),
             ['$loginFeature:1: bundle_over_limit'],
@@ -418,12 +435,15 @@ void main() {
       final project = await writeCheckProject(extra: oversize());
 
       expect(
-        spots(checkOf(project, docPath: loginFr), FindingKind.bundleOverLimit),
+        spots(
+          await checkOf(project, docPath: loginFr),
+          FindingKind.bundleOverLimit,
+        ),
         isEmpty,
       );
       expect(
         spots(
-          checkOf(project, target: 'login/email_login'),
+          await checkOf(project, target: 'login/email_login'),
           FindingKind.bundleOverLimit,
         ),
         isEmpty,
@@ -441,7 +461,7 @@ void main() {
           },
         );
 
-        final found = checkOf(project).findings
+        final found = (await checkOf(project)).findings
             .where((f) => f.kind == FindingKind.bundleOverLimit);
 
         expect(
@@ -473,7 +493,10 @@ void main() {
     test('a feature within the bound gets none', () async {
       final project = await writeCheckProject();
 
-      expect(spots(checkOf(project), FindingKind.bundleOverLimit), isEmpty);
+      expect(
+        spots(await checkOf(project), FindingKind.bundleOverLimit),
+        isEmpty,
+      );
     });
   });
 
@@ -482,7 +505,10 @@ void main() {
       extra: {'docs/prds/notes.md': '# Notes\n'},
     );
     expect(
-      spots(checkOf(project, docPath: 'prds/notes.md'), FindingKind.untypedDoc),
+      spots(
+        await checkOf(project, docPath: 'prds/notes.md'),
+        FindingKind.untypedDoc,
+      ),
       ['prds/notes.md:1: untyped_doc'],
     );
   });
@@ -491,7 +517,7 @@ void main() {
     'runCheck with both a target and a docPath throws ArgumentError',
     () async {
       final project = await writeCheckProject();
-      expect(
+      await expectLater(
         () => checkOf(project, target: 'login', docPath: loginStory),
         throwsArgumentError,
       );
@@ -508,7 +534,10 @@ void main() {
       },
     );
     final paths = {
-      for (final f in checkOf(project, target: 'feature:shop/cart').findings)
+      for (final f in (await checkOf(
+        project,
+        target: 'feature:shop/cart',
+      )).findings)
         f.path,
     };
     expect(paths, isNotEmpty);
@@ -524,11 +553,14 @@ void main() {
   test('E20: a check with a target holds no singular_doc_missing', () async {
     final project = await writeCheckProject(without: {'docs/$projectDoc'});
 
-    expect(spots(checkOf(project), FindingKind.singularDocMissing), [
+    expect(spots(await checkOf(project), FindingKind.singularDocMissing), [
       '$projectDoc:1: singular_doc_missing',
     ]);
     expect(
-      spots(checkOf(project, target: 'login'), FindingKind.singularDocMissing),
+      spots(
+        await checkOf(project, target: 'login'),
+        FindingKind.singularDocMissing,
+      ),
       isEmpty,
     );
   });
@@ -547,7 +579,7 @@ void main() {
         ]),
         without: {'docs/prds/GLOSSARY.md'},
       );
-      final report = checkOf(project);
+      final report = await checkOf(project);
 
       expect(
         [
@@ -578,11 +610,14 @@ void main() {
       extra: {'.specstone/AGENT.md': 'hand edit\n'},
     );
 
-    expect(spots(checkOf(project), FindingKind.agentBlockStale), [
+    expect(spots(await checkOf(project), FindingKind.agentBlockStale), [
       '.specstone/AGENT.md:1: agent_block_stale',
     ]);
     expect(
-      spots(checkOf(project, target: 'login'), FindingKind.agentBlockStale),
+      spots(
+        await checkOf(project, target: 'login'),
+        FindingKind.agentBlockStale,
+      ),
       isEmpty,
     );
   });
@@ -593,7 +628,7 @@ void main() {
       final project = await writeCheckProject(
         extra: {'.specstone/AGENT.md': 'hand edit\n'},
       );
-      final paths = [for (final f in checkOf(project).findings) f.path];
+      final paths = [for (final f in (await checkOf(project)).findings) f.path];
 
       expect(paths, contains('.specstone/AGENT.md'));
       expect(paths, [...paths]..sort());
@@ -608,7 +643,7 @@ void main() {
         'docs/prds/d01_context.md': '# Context\n',
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
 
     expect(
       {for (final f in report.findings) f.kind: f.waitsFor},
@@ -638,7 +673,7 @@ void main() {
         'docs/prds/features/f02_signup/FEATURE.md': '# Sign up\n',
       },
     );
-    final whole = checkOf(project);
+    final whole = await checkOf(project);
     final tbr = [
       for (final f in whole.findings)
         if (f.kind == FindingKind.tbrOpen) f,
@@ -652,11 +687,15 @@ void main() {
       whole.text,
       contains('${tbr.single.textLine} (waits for the Owner)\n'),
     );
-    expect(spots(checkOf(project, target: 'login'), FindingKind.tbrOpen), [
-      '$loginFr:${tbr.single.line}: tbr_open',
-    ]);
     expect(
-      spots(checkOf(project, target: 'feature:signup'), FindingKind.tbrOpen),
+      spots(await checkOf(project, target: 'login'), FindingKind.tbrOpen),
+      ['$loginFr:${tbr.single.line}: tbr_open'],
+    );
+    expect(
+      spots(
+        await checkOf(project, target: 'feature:signup'),
+        FindingKind.tbrOpen,
+      ),
       isEmpty,
     );
   });
@@ -667,14 +706,14 @@ void main() {
     const flutterArch = flutterArchitecture;
     const jasprArch = jasprArchitecture;
 
-    CheckReport runTwin(
+    Future<CheckReport> runTwin(
       Directory project, {
       String? target,
       String? codeTarget,
-    }) {
+    }) async {
       final session = openSession(project);
       addTearDown(session.close);
-      return runCheck(session, target: target, codeTarget: codeTarget);
+      return await runCheck(session, target: target, codeTarget: codeTarget);
     }
 
     Set<String> pathsOf(CheckReport report) => {
@@ -682,7 +721,7 @@ void main() {
     };
 
     test('the two-target fixture reads each doc once: only the planted links are findings', () async {
-      final report = runTwin(await writeTwinProject());
+      final report = await runTwin(await writeTwinProject());
       expect(pathsOf(report), {loginFeature, loginApi, flutterArch, jasprArch});
       expect(spots(report).length, 4, reason: spots(report).join('\n'));
     });
@@ -694,7 +733,7 @@ void main() {
         'E20: check $name with two targets reports the feature folder and each target spec folder',
         () async {
           final project = await writeTwinProject();
-          expect(pathsOf(runTwin(project, target: name)), {
+          expect(pathsOf(await runTwin(project, target: name)), {
             loginFeature,
             loginApi,
             flutterArch,
@@ -707,13 +746,14 @@ void main() {
         'E20: check $name --target jaspr keeps the PRD files, the shared docs, and that target spec folder',
         () async {
           final project = await writeTwinProject();
-          expect(pathsOf(runTwin(project, target: name, codeTarget: 'jaspr')), {
-            loginFeature,
-            loginApi,
-            jasprArch,
-          });
           expect(
-            pathsOf(runTwin(project, target: name, codeTarget: 'flutter')),
+            pathsOf(await runTwin(project, target: name, codeTarget: 'jaspr')),
+            {loginFeature, loginApi, jasprArch},
+          );
+          expect(
+            pathsOf(
+              await runTwin(project, target: name, codeTarget: 'flutter'),
+            ),
             {loginFeature, loginApi, flutterArch},
           );
         },
@@ -724,7 +764,7 @@ void main() {
       final project = await writeTwinProject(
         extra: {'.specstone/AGENT.md': 'hand edit\n'},
       );
-      final report = runTwin(project);
+      final report = await runTwin(project);
       expect(pathsOf(report), containsAll([flutterArch, jasprArch]));
       expect(spots(report, FindingKind.agentBlockStale), [
         '.specstone/AGENT.md:1: agent_block_stale',
@@ -735,7 +775,7 @@ void main() {
       final project = await writeTwinProject(
         extra: {'.specstone/AGENT.md': 'hand edit\n'},
       );
-      final report = runTwin(project, codeTarget: 'jaspr');
+      final report = await runTwin(project, codeTarget: 'jaspr');
       expect(pathsOf(report), containsAll([loginFeature, loginApi, jasprArch]));
       expect(pathsOf(report), isNot(contains(flutterArch)));
       expect(spots(report, FindingKind.agentBlockStale), [
@@ -746,7 +786,7 @@ void main() {
     test('E22: a --target name targets: lacks is argument_invalid naming the targets, alone or beside a doc target', () async {
       final project = await writeTwinProject();
       for (final target in [null, 'login']) {
-        expect(
+        await expectLater(
           () => runTwin(project, target: target, codeTarget: 'web'),
           throwsA(
             isA<IndexFault>()
@@ -766,7 +806,7 @@ void main() {
       'E22: an empty --target is argument_missing naming the targets',
       () async {
         final project = await writeTwinProject();
-        expect(
+        await expectLater(
           () => runTwin(project, codeTarget: ''),
           throwsA(
             isA<IndexFault>()
@@ -786,17 +826,20 @@ void main() {
       final project = await writeTwinProject(
         extra: {'docs/$notes': '# Notes\n'},
       );
-      expect(pathsOf(runTwin(project)), contains(notes));
+      expect(pathsOf(await runTwin(project)), contains(notes));
       expect(
-        pathsOf(runTwin(project, codeTarget: 'jaspr')),
+        pathsOf(await runTwin(project, codeTarget: 'jaspr')),
         isNot(contains(notes)),
       );
-      expect(pathsOf(runTwin(project, codeTarget: 'flutter')), contains(notes));
+      expect(
+        pathsOf(await runTwin(project, codeTarget: 'flutter')),
+        contains(notes),
+      );
     });
 
     test('E22: a --target name on a project with one unnamed target is argument_invalid', () async {
       final project = await writeCheckProject();
-      expect(
+      await expectLater(
         () => runTwin(project, codeTarget: 'web'),
         throwsA(
           isA<IndexFault>().having(

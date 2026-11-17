@@ -17,8 +17,9 @@ const _stampAttempts = 3;
 /// One command's view of a project: the project, a refreshed index, and one
 /// read snapshot of it.
 ///
-/// [run] opens a session, answers from it, and closes it. A session from
-/// [open] needs [close], which ends the snapshot and closes the index.
+/// [run] and [runAsync] open a session, answer from it, and close it. A
+/// session from [open] needs [close], which ends the snapshot and closes the
+/// index.
 final class ReadSession {
   new _({
     required this.project,
@@ -107,6 +108,39 @@ final class ReadSession {
     }
   }
 
+  /// Opens a session as [run] does and returns what [answer] awaits from it.
+  ///
+  /// Closes the session when [answer] completes or fails, and retries once on
+  /// a damage error as [run] does. For an answer that awaits a child process.
+  static Future<T> runAsync<T>(
+    Future<T> Function(ReadSession session) answer, {
+    required TemplateResolver templates,
+    required Directory workingDirectory,
+    required Directory? homeDirectory,
+    Duration busyTimeout = indexBusyTimeout,
+  }) async {
+    final session = open(
+      templates: templates,
+      workingDirectory: workingDirectory,
+      homeDirectory: homeDirectory,
+      busyTimeout: busyTimeout,
+    );
+    try {
+      return await _answerAsync(session, answer);
+    } on SqliteException catch (e) {
+      if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
+    }
+    // A page only the answer reads is lost: discard the index and answer again.
+    try {
+      return await _answerAsync(
+        _rebuilt(session.project, session.workingDirectory, busyTimeout, false),
+        answer,
+      );
+    } on SqliteException catch (e) {
+      throw IndexStore.faultOf(e);
+    }
+  }
+
   static ReadSession _rebuilt(
     DocsProject project,
     Directory workingDirectory,
@@ -131,6 +165,17 @@ final class ReadSession {
   ) {
     try {
       return answer(session);
+    } finally {
+      session.close();
+    }
+  }
+
+  static Future<T> _answerAsync<T>(
+    ReadSession session,
+    Future<T> Function(ReadSession session) answer,
+  ) async {
+    try {
+      return await answer(session);
     } finally {
       session.close();
     }

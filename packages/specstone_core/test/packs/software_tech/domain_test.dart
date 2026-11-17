@@ -152,7 +152,9 @@ void main() {
     String text,
     FindingKind kind,
   ) async {
-    final report = checkOf(await writeCheckProject(extra: {docPath: text}));
+    final report = await checkOf(
+      await writeCheckProject(extra: {docPath: text}),
+    );
     final finding = report.findings.singleWhere((f) => f.kind == kind);
     expect(finding.path, docPath.substring('docs/'.length));
     return finding.toJson();

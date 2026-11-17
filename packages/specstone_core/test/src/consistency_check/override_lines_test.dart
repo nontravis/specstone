@@ -69,7 +69,7 @@ Future<_Read> _read(Map<String, String> files, String docPath) async {
 }
 
 Future<List<Finding>> _runFindings(Map<String, String> files) async {
-  final report = checkOf(await _write(files));
+  final report = await checkOf(await _write(files));
   return [
     for (final finding in report.findings)
       if (finding.kind == FindingKind.overrideLineMalformed ||
@@ -227,7 +227,7 @@ void main() {
       '- Overrides: [INV-99]($_toRoot) — $_because',
     ]);
     expect(await _runFindings(files), isEmpty);
-    final report = checkOf(await _write(files));
+    final report = await checkOf(await _write(files));
     expect(
       report.findings.map((f) => f.kind),
       contains(FindingKind.linkItemMissing),
@@ -388,7 +388,7 @@ void main() {
     final type = context.typeOf(context.index.at(strictNf)!);
     expect(type?.id, 'strict_nf');
     expect(carriesOverrides(type), isFalse);
-    final report = checkOf(await _write(files), docPath: strictNf);
+    final report = await checkOf(await _write(files), docPath: strictNf);
     expect(
       report.findings.where(
         (f) => f.kind == FindingKind.confirmedEntryMalformed,

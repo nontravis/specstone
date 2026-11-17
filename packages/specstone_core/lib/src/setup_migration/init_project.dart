@@ -83,7 +83,7 @@ final class InitRequest {
 /// only once the Owner trusted it: the scaffold refuses `output_not_writable`
 /// naming the config before any write. Throws a `SpecstoneFault` for a
 /// refused run, `output_not_writable` naming the file the disk refuses.
-int runInit(InitRequest request) {
+Future<int> runInit(InitRequest request) async {
   final root = rootThroughDocsLink(request.workingDirectory);
   requireSpecstoneFolder(root);
   if (File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) {
@@ -95,7 +95,7 @@ int runInit(InitRequest request) {
     );
   }
   if (File.fromUri(root.uri.resolve(legacyContextPath)).existsSync()) {
-    return runLegacyAt(
+    return await runLegacyAt(
       root,
       _migrateRequestOf(root, request),
       linkFolder: _linkFolderOf(request.workingDirectory, root),

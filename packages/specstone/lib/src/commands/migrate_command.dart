@@ -61,7 +61,7 @@ class MigrateCommand extends SpecstoneCommand {
     final runner = specstoneRunner;
     final console = runner.console;
     try {
-      return runMigrate(
+      return await runMigrate(
         MigrateRequest(
           workingDirectory: runner.workingDirectory,
           homeDirectory: runner.homeDirectory,

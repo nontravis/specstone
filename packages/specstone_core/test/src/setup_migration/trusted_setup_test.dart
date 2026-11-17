@@ -59,30 +59,34 @@ Map<String, List<int>> _bytesUnder(Directory root) {
   return tree;
 }
 
-int _init(Directory root, {RunGit runGit = runRealGit}) => runInit(
-  InitRequest(
-    workingDirectory: root,
-    homeDirectory: testHome(),
-    templates: TemplateResolver(),
-    confirmation: OwnerConfirmation.missing,
-    readLine: () => null,
-    out: StringBuffer(),
-    runGit: runGit,
-  ),
-);
-
-int _migrate(Directory root, {bool dryRun = false, StringBuffer? out}) =>
-    runMigrate(
-      MigrateRequest(
+Future<int> _init(Directory root, {RunGit runGit = runRealGit}) async =>
+    await runInit(
+      InitRequest(
         workingDirectory: root,
         homeDirectory: testHome(),
         templates: TemplateResolver(),
-        dryRun: dryRun,
-        confirmation: OwnerConfirmation.prompt,
-        readLine: () => 'y',
-        out: out ?? StringBuffer(),
+        confirmation: OwnerConfirmation.missing,
+        readLine: () => null,
+        out: StringBuffer(),
+        runGit: runGit,
       ),
     );
+
+Future<int> _migrate(
+  Directory root, {
+  bool dryRun = false,
+  StringBuffer? out,
+}) async => await runMigrate(
+  MigrateRequest(
+    workingDirectory: root,
+    homeDirectory: testHome(),
+    templates: TemplateResolver(),
+    dryRun: dryRun,
+    confirmation: OwnerConfirmation.prompt,
+    readLine: () => 'y',
+    out: out ?? StringBuffer(),
+  ),
+);
 
 Matcher _refuses(String file, String what) => throwsA(
   isA<RenderFault>()
@@ -106,7 +110,7 @@ void main() {
       final (:base, :clone, :victim) = await _clone();
       final before = _bytesUnder(base);
 
-      expect(
+      await expectLater(
         () => _init(clone),
         _refuses(
           '.specstone/config.yaml',
@@ -123,7 +127,7 @@ void main() {
       final (:base, :clone, :victim) = await _clone();
       _trust(clone);
 
-      expect(_init(clone), 0);
+      expect(await _init(clone), 0);
 
       expect(
         File('${victim.path}/.specstone/config.yaml').existsSync(),
@@ -143,7 +147,7 @@ void main() {
       _trust(other);
       final before = _bytesUnder(base);
 
-      expect(() => _init(clone), throwsA(isA<RenderFault>()));
+      await expectLater(() => _init(clone), throwsA(isA<RenderFault>()));
 
       expect(_bytesUnder(base), before);
     }, skip: _linksUnavailable);
@@ -160,7 +164,7 @@ void main() {
       final outer = Directory('${base.path}/outer');
 
       expect(locateSetupTrust(outer, homeDirectory: null).needsRecord, isFalse);
-      expect(_init(outer), 0);
+      expect(await _init(outer), 0);
 
       expect(
         File('${base.path}/outer/below/.specstone/config.yaml').existsSync(),
@@ -172,7 +176,7 @@ void main() {
       final root = await writeTree({'keep.txt': 'x\n'});
 
       expect(locateSetupTrust(root, homeDirectory: null).needsRecord, isFalse);
-      expect(_init(root), 0);
+      expect(await _init(root), 0);
 
       expect(File('${root.path}/.specstone/config.yaml').existsSync(), isTrue);
     });
@@ -191,7 +195,7 @@ void main() {
       final code = Directory('${ws.path}/code');
       final before = _bytesUnder(ws);
 
-      expect(
+      await expectLater(
         () => _migrate(code),
         _refuses(
           '.specstone/trash/journal.json',
@@ -210,7 +214,7 @@ void main() {
       final before = _bytesUnder(ws);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _migrate(code, dryRun: true, out: out),
         _refuses(
           '.specstone/trash/journal.json',
@@ -233,7 +237,7 @@ void main() {
         final before = _bytesUnder(ws);
         final out = StringBuffer();
 
-        expect(_migrate(code, dryRun: true, out: out), 0);
+        expect(await _migrate(code, dryRun: true, out: out), 0);
 
         expect(out.toString(), contains('dry run: nothing written'));
         expect(_bytesUnder(ws), before);
@@ -248,7 +252,7 @@ void main() {
       writeJournal(ws, [const WriteStep.unguarded('docs/prds/x.md', 'text')]);
       final before = _bytesUnder(ws);
 
-      expect(
+      await expectLater(
         () => _migrate(code, dryRun: true),
         _refuses(
           '.specstone/trash/journal.json',
@@ -265,7 +269,7 @@ void main() {
       final code = Directory('${ws.path}/code');
       _trust(code);
 
-      expect(_migrate(code), 0);
+      expect(await _migrate(code), 0);
 
       expect(File('${ws.path}/.specstone/config.yaml').existsSync(), isTrue);
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
@@ -285,7 +289,7 @@ void main() {
       final outer = Directory('${tree.path}/outer');
 
       expect(locateSetupTrust(outer, homeDirectory: null).needsRecord, isFalse);
-      expect(_migrate(outer), 0);
+      expect(await _migrate(outer), 0);
 
       expect(File('${below.path}/.specstone/config.yaml').existsSync(), isTrue);
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
@@ -294,7 +298,7 @@ void main() {
       final root = await gitFixture(acmeLegacy);
 
       expect(locateSetupTrust(root, homeDirectory: null).needsRecord, isFalse);
-      expect(_migrate(root), 0);
+      expect(await _migrate(root), 0);
 
       expect(File('${root.path}/.specstone/config.yaml').existsSync(), isTrue);
     }, skip: hasGit ? null : 'git is not available');

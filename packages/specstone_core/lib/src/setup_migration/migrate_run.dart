@@ -101,7 +101,7 @@ final class MigrateRequest {
 /// printed plan or the listed steps. A `git add` or `git commit` that fails,
 /// or a git that cannot start past the git checks, throws `MigrateFault`
 /// `git_failed`, and the journal stays.
-int runMigrate(MigrateRequest request) =>
+Future<int> runMigrate(MigrateRequest request) =>
     _mappingGitFailures(() => _migrate(request));
 
 /// Runs [run], mapping a git failure to the fault a migrate run raises.
@@ -109,9 +109,9 @@ int runMigrate(MigrateRequest request) =>
 /// A [GitCommandFailed], or a [ProcessException] from a git that cannot start
 /// past the git checks, becomes `git_failed`; the checks map their own to
 /// `git_work_tree_required`.
-int _mappingGitFailures(int Function() run) {
+Future<int> _mappingGitFailures(Future<int> Function() run) async {
   try {
-    return run();
+    return await run();
   } on GitCommandFailed catch (error) {
     throw _gitFailed('git ${error.verb}', error.line);
   } on ProcessException catch (error) {
@@ -128,7 +128,7 @@ MigrateFault _gitFailed(String command, String line) => MigrateFault(
   '$ownerConfirmationWays, to finish the run',
 );
 
-int _migrate(MigrateRequest request) {
+Future<int> _migrate(MigrateRequest request) async {
   final (:root, :linkFolder) = locateMigrateRoot(request.workingDirectory);
   _warnOldPlugin(request, root);
   final trust = _trustOf(root, linkFolder, request);
@@ -162,9 +162,9 @@ int _migrate(MigrateRequest request) {
       return 0;
     case RunKind.legacy:
     case RunKind.upgrade:
-      return _plannedRun(request, root, kind, linkFolder: linkFolder);
+      return await _plannedRun(request, root, kind, linkFolder: linkFolder);
     case RunKind.resume:
-      return _resume(request, root, trust);
+      return await _resume(request, root, trust);
   }
 }
 
@@ -190,7 +190,7 @@ const _oldPluginLine =
 /// when its root holds the legacy context doc. [linkFolder] is the
 /// canonical folder whose `docs` link led to [root], or null. Maps git
 /// failures as [runMigrate] does.
-int runLegacyAt(
+Future<int> runLegacyAt(
   Directory root,
   MigrateRequest request, {
   Directory? linkFolder,
@@ -219,12 +219,12 @@ RootTrust _trustOf(
 /// deleted, or added), refuses `working_tree_dirty` with nothing written. A
 /// commit that leaves every input as it was does not refuse; the run then
 /// reads HEAD as each commit step's `base`. A legacy plan reads [linkFolder].
-int _plannedRun(
+Future<int> _plannedRun(
   MigrateRequest request,
   Directory root,
   RunKind kind, {
   required Directory? linkFolder,
-}) {
+}) async {
   final trust = _trustOf(root, linkFolder, request);
   _preflight(request, root, trust, checksCleanTree: !request.dryRun);
   final isTreeDirty = request.dryRun && isWorkTreeDirty(root, request.runGit);
@@ -259,7 +259,7 @@ int _plannedRun(
     _targetOf(root, request, trust, agentFiles: applied.agentFiles?.writeSet),
   );
   _printCommits(request, root, steps.whereType<CommitStep>().toList());
-  _printClosingLine(request, root);
+  await _printClosingLine(request, root);
   return 0;
 }
 
@@ -361,7 +361,11 @@ RunPlan _planOf(
 /// A resume, bare or dry, checks trust, the git work tree, and the version
 /// first, as its commits need them; the stopped run leaves the tree dirty, so
 /// it is not checked.
-int _resume(MigrateRequest request, Directory root, RootTrust trust) {
+Future<int> _resume(
+  MigrateRequest request,
+  Directory root,
+  RootTrust trust,
+) async {
   _preflight(request, root, trust, checksCleanTree: false);
   final target = _targetOf(root, request, trust);
   final inputs = PlanInputs(root);
@@ -392,7 +396,7 @@ int _resume(MigrateRequest request, Directory root, RootTrust trust) {
   final commits = MoveJournal.read(target)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
-  _printClosingLine(request, root);
+  await _printClosingLine(request, root);
   return 0;
 }
 
@@ -451,9 +455,9 @@ void _say(MigrateRequest request, String text, {bool endsLine = true}) {
 
 /// Says how many findings a whole-project `check` reports at [root] after the
 /// last commit.
-void _printClosingLine(MigrateRequest request, Directory root) {
-  final findings = ReadSession.run(
-    (session) => runCheck(session).findings.length,
+Future<void> _printClosingLine(MigrateRequest request, Directory root) async {
+  final findings = await ReadSession.runAsync(
+    (session) async => (await runCheck(session)).findings.length,
     templates: request.templates,
     workingDirectory: root,
     homeDirectory: request.homeDirectory,

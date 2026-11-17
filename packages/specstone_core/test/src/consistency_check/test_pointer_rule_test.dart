@@ -74,10 +74,10 @@ Future<Directory> _project(
   unstamped: {'docs/$_recordPath'},
 );
 
-CheckReport _run(Directory project, {String? codeTarget}) {
+Future<CheckReport> _run(Directory project, {String? codeTarget}) async {
   final session = openSession(project);
   try {
-    return runCheck(session, codeTarget: codeTarget);
+    return await runCheck(session, codeTarget: codeTarget);
   } finally {
     session.close();
   }
@@ -94,7 +94,7 @@ Finding _only(CheckReport report) =>
 
 void main() {
   test('a test field not named tests resolves its lines', () async {
-    final report = _run(
+    final report = await _run(
       await writeCheckProject(
         extra: {
           '.specstone/templates/implementation.yaml':
@@ -121,7 +121,9 @@ void main() {
   });
 
   test('a line naming a present file and no test gives no finding', () async {
-    final report = _run(await _project(_record(tests: ['$_fr:$_testFile'])));
+    final report = await _run(
+      await _project(_record(tests: ['$_fr:$_testFile'])),
+    );
 
     expect(_spots(report), isEmpty);
     expect(report.warnings, isEmpty);
@@ -152,7 +154,7 @@ void main() {
     Process.runSync('chmod', ['000', path]);
     addTearDown(() => Process.runSync('chmod', ['644', path]));
 
-    final report = _run(project);
+    final report = await _run(project);
 
     expect(_spots(report), isEmpty);
     expect(report.warnings, isEmpty);
@@ -160,7 +162,7 @@ void main() {
 
   test('a test name matches as written inside a longer name, colons and '
       'spaces included', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(tests: ['$_fr:$_testFile:shows a toast: then hides it']),
       ),
@@ -172,7 +174,7 @@ void main() {
   test(
     'a name the file does not hold is tests_unresolved with its name',
     () async {
-      final report = _run(
+      final report = await _run(
         await _project(_record(tests: ['$_fr:$_testFile:hides the toast'])),
       );
 
@@ -194,7 +196,7 @@ void main() {
 
   test('a folder, or a file not present, is tests_unresolved with no name '
       'key', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(
           tests: [
@@ -224,7 +226,7 @@ void main() {
 
   test('a planned entry names a test file not written yet and gives no '
       'finding', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(
           statuses: ['$_fr:planned'],
@@ -239,7 +241,7 @@ void main() {
   test(
     'a skipped entry and an item with no entry give no finding here',
     () async {
-      final report = _run(
+      final report = await _run(
         await _project(
           _record(
             statuses: ['$_fr:skipped:not in this client'],
@@ -253,7 +255,7 @@ void main() {
   );
 
   test('a line naming no item of the feature gives no finding here', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(tests: ['email_login/pin:app/test/gone_test.dart', 'no colon']),
       ),
@@ -263,7 +265,7 @@ void main() {
   });
 
   test('a deprecated entry resolves its lines', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(
           statuses: ['$_fr:deprecated'],
@@ -291,7 +293,7 @@ void main() {
     Process.runSync('chmod', ['000', path]);
     addTearDown(() => Process.runSync('chmod', ['644', path]));
 
-    final report = _run(project);
+    final report = await _run(project);
 
     expect(_spots(report), isEmpty);
     expect(report.warnings, [
@@ -302,7 +304,7 @@ void main() {
   test(
     'one file holds two names: each missing name is its own finding',
     () async {
-      final report = _run(
+      final report = await _run(
         await _project(
           _record(
             tests: [
@@ -333,14 +335,14 @@ void main() {
       },
     );
 
-    expect(_spots(_run(project)), [
+    expect(_spots(await _run(project)), [
       '$_jasprRecord:${_testLine(1, 0)}: tests_unresolved',
     ]);
-    expect(_spots(_run(project, codeTarget: 'flutter')), isEmpty);
+    expect(_spots(await _run(project, codeTarget: 'flutter')), isEmpty);
   });
 
   test('a project with no tests field runs no test rule', () async {
-    final report = _run(
+    final report = await _run(
       await writeCheckProject(
         extra: {
           '.specstone/config.yaml': shippedPinsConfig(['prd-core']),

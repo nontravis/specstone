@@ -17,7 +17,7 @@ import '../../helpers/nested_fixture.dart';
 
 void main() {
   test('f04/us01/s2, f04/us01/fr04/e01: a requirement with no Statement section names the file and the section', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr('## Statement\n\n$checkPasswordStatement\n\n', ''),
       ),
@@ -43,12 +43,12 @@ void main() {
       },
     );
     expect(
-      spots(checkOf(project), FindingKind.requiredSectionMissing),
+      spots(await checkOf(project), FindingKind.requiredSectionMissing),
       contains('$signupFr:1: required_section_missing'),
     );
     expect(
       spots(
-        checkOf(project, target: 'login'),
+        await checkOf(project, target: 'login'),
         FindingKind.requiredSectionMissing,
       ),
       ['$loginFr:1: required_section_missing'],
@@ -57,7 +57,7 @@ void main() {
 
   test('f04/us01/fr04/e02, f04/us01/fr04/e03: a header apart from letter case and whitespace is the section; an '
       'unknown one is section_undeclared', () async {
-    final spaced = checkOf(
+    final spaced = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginStory,
@@ -70,7 +70,7 @@ void main() {
       spaced.findings.where((f) => f.kind != FindingKind.formatDrift),
       isEmpty,
     );
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginStory, [
           ('## Acceptance Criteria', '## acceptance criteria'),
@@ -93,7 +93,7 @@ void main() {
   test(
     'a doc of 405 non-blank body lines is over its 400-line limit',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'docs/$loginFr':
@@ -118,7 +118,7 @@ void main() {
         '## Statement\n\nA wrong password must not sign in.\n\n';
     final fill = 'x\n' * 402;
     Future<CheckReport> reportOf(String text) async =>
-        checkOf(await writeCheckProject(extra: {'docs/$loginFr': text}));
+        await checkOf(await writeCheckProject(extra: {'docs/$loginFr': text}));
     Object? actualOf(CheckReport report) => report.findings
         .firstWhere((f) => f.kind == FindingKind.linesOverLimit)
         .toJson()['actual'];
@@ -134,7 +134,7 @@ void main() {
 
   test('invalid frontmatter counts its body from the closing '
       'delimiter; an unclosed one counts its whole text', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
           ('verify_method: test\n', 'verify_method: "test\n'),
@@ -143,7 +143,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.linesOverLimit), isEmpty);
-    final unclosed = checkOf(
+    final unclosed = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/$loginFr':
@@ -158,7 +158,7 @@ void main() {
 
   test('the blank lines format adds under ### headings never '
       'count toward a section limit', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/fr.yaml':
@@ -183,14 +183,14 @@ void main() {
         "---\nstatuses:\n  - 'email_login:implemented'\n"
         '${'  # comment filler\n' * 299}---\n\n# Login implementation\n'
         '${'x\n' * 40}';
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(extra: {loginRecord: record}),
     );
     expect(spots(report, FindingKind.linesOverLimit), isEmpty);
   });
 
   test('a section over its own limit is reported at its header, the doc limit aside', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/fr.yaml':
@@ -217,7 +217,7 @@ void main() {
   });
 
   test('a doc over its character limit, at line 1', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {'.specstone/templates/fr.yaml': 'lint:\n  max_chars: 300\n'},
       ),
@@ -228,7 +228,7 @@ void main() {
   });
 
   test('invalid frontmatter still gets its sections checked', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
           ('verify_method: test\n', 'verify_method: "test\n'),
@@ -245,7 +245,7 @@ void main() {
   test(
     'a vision entry with no quote line is vision_quote_missing at its heading',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: doc(
             projectDoc,
@@ -261,7 +261,7 @@ void main() {
   );
 
   test('a doc with no # title is title_missing at line 1', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(extra: fr('# Check the password\n\n', '')),
     );
     expect(spots(report, FindingKind.titleMissing), [
@@ -272,7 +272,7 @@ void main() {
   test(
     'an undeclared section over the doc-level limits is reported at its header',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/templates/fr.yaml':
@@ -301,7 +301,7 @@ void main() {
 
   test('a head line "# " with no text is title_missing at line 1', () async {
     for (final head in ['# \n\n', '#   \n\n']) {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: fr('# Check the password\n\n', head)),
       );
       expect(spots(report, FindingKind.titleMissing), [
@@ -313,7 +313,7 @@ void main() {
   test(
     'a section lint finding names the template section id, not the header slug',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/templates/user_story.yaml': 'sections:\n  - id: acceptance_criteria\n    lint:\n      max_lines: 3\n      max_chars: 40\n',
@@ -344,7 +344,7 @@ void main() {
   test(
     'a fenced example heading in the vision section is no vision entry',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: doc(
             projectDoc,
@@ -370,7 +370,7 @@ void main() {
         ),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.charsOverLimit), isEmpty);
     expect(spots(report, FindingKind.formatDrift), [
       '$loginFr:1: format_drift',
@@ -379,7 +379,7 @@ void main() {
 
   test('E09: a section counts the blank lines format adds under its ### headings', () async {
     final body = '${'### Head\ntext\n' * 3}${'filler\n' * 32}';
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/fr.yaml':
@@ -396,7 +396,7 @@ void main() {
   });
 
   test('E09: a doc format refuses counts its text on disk', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/fr.yaml': 'lint:\n  max_chars: 300\n',
@@ -421,8 +421,8 @@ void main() {
 
     String padded(String start, int length) => start.padRight(length, '.');
 
-    List<Finding> itemFindings(Directory project) =>
-        checkOf(project).findings
+    Future<List<Finding>> itemFindings(Directory project) async =>
+        (await checkOf(project)).findings
             .where((f) => f.kind == FindingKind.itemOverLimit)
             .toList();
 
@@ -448,7 +448,7 @@ void main() {
       'E10: an item over the default limit is item_over_limit with its ID',
       () async {
         final project = await withEdgeItem(640);
-        final finding = itemFindings(project).single;
+        final finding = (await itemFindings(project)).single;
 
         expect(finding.line, lineOf(project, loginFr, '3. E03'));
         expect(finding.waitsFor, WaitsFor.owner);
@@ -480,7 +480,7 @@ void main() {
         final project = await writeCheckProject(
           extra: fr(rationaleFrom, '${padded('A long rationale', 700)}\n'),
         );
-        final finding = itemFindings(project).single;
+        final finding = (await itemFindings(project)).single;
 
         expect(finding.line, lineOf(project, loginFr, 'A long rationale'));
         expect(finding.toJson(), isNot(contains('id')));
@@ -508,13 +508,13 @@ void main() {
           'lint:\n  max_chars: ${docChars - 1}\n'
           'sections:\n  - id: edge_cases\n    lint:\n      max_chars: 600\n',
         );
-      final sizeFindings = checkOf(project).findings
+      final sizeFindings = (await checkOf(project)).findings
           .where((f) => f.kind == FindingKind.charsOverLimit)
           .map((f) => f.toJson())
           .toList();
 
       expect(item.length, 625);
-      expect(itemFindings(project), isEmpty);
+      expect(await itemFindings(project), isEmpty);
       expect(
         sizeFindings,
         unorderedEquals([
@@ -538,8 +538,8 @@ void main() {
         },
       );
 
-      expect(itemFindings(project), isEmpty);
-      final over = checkOf(project).findings
+      expect(await itemFindings(project), isEmpty);
+      final over = (await checkOf(project)).findings
           .singleWhere((f) => f.kind == FindingKind.charsOverLimit);
       expect(over.toJson(), containsPair('section', 'verification'));
     });
@@ -553,7 +553,7 @@ void main() {
         ),
       );
       final disk = File('${project.path}/docs/$loginFr').readAsStringSync();
-      final finding = itemFindings(project).single;
+      final finding = (await itemFindings(project)).single;
 
       expect(layOutDoc(disk, fixtureDocTypeOf(loginFr)), disk);
       expect(finding.line, lineOf(project, loginFr, '2. E03'));
@@ -570,7 +570,7 @@ void main() {
           template: 'lint:\n  max_item_chars: 900\n',
         );
 
-        expect(itemFindings(project), isEmpty);
+        expect(await itemFindings(project), isEmpty);
       },
     );
 
@@ -581,19 +581,22 @@ void main() {
       );
 
       expect(
-        itemFindings(project).single.toJson(),
+        (await itemFindings(project)).single.toJson(),
         allOf(containsPair('limit', 900), containsPair('actual', 901)),
       );
     });
 
     test('E13, E14: an item of exactly the limit is no finding, one character more is one', () async {
-      expect(itemFindings(await withEdgeItem(600)), isEmpty);
+      expect(await itemFindings(await withEdgeItem(600)), isEmpty);
       expect(
-        itemFindings(await withEdgeItem(601)).single.toJson(),
+        (await itemFindings(await withEdgeItem(601))).single.toJson(),
         containsPair('actual', 601),
       );
       const raised = 'lint:\n  max_item_chars: 900\n';
-      expect(itemFindings(await withEdgeItem(900, template: raised)), isEmpty);
+      expect(
+        await itemFindings(await withEdgeItem(900, template: raised)),
+        isEmpty,
+      );
     });
 
     test('a glossary entry of 301 characters is item_over_limit and one of 300 '
@@ -606,8 +609,8 @@ void main() {
         },
       );
 
-      expect(itemFindings(await withTerm(300)), isEmpty);
-      final finding = itemFindings(await withTerm(301)).single;
+      expect(await itemFindings(await withTerm(300)), isEmpty);
+      final finding = (await itemFindings(await withTerm(301))).single;
       expect(finding.path, 'prds/GLOSSARY.md');
       expect(
         finding.toJson(),
@@ -637,7 +640,7 @@ void main() {
         },
       );
 
-      expect(itemFindings(project).map((f) => f.path), [loginStory]);
+      expect((await itemFindings(project)).map((f) => f.path), [loginStory]);
     });
 
     test('E15: a lead paragraph over the limit is item_over_limit in section _lead', () async {
@@ -648,7 +651,7 @@ void main() {
           '# Login architecture\n\n${padded('The lead says what the doc covers.', 687)}\n\n',
         ),
       );
-      final finding = itemFindings(project).single;
+      final finding = (await itemFindings(project)).single;
 
       expect(finding.path, loginArchitecture);
       expect(finding.line, lineOf(project, loginArchitecture, 'The lead says'));
@@ -668,7 +671,7 @@ void main() {
         final project = await writeCheckProject(
           extra: fr(edgeFrom, '${padded('3. E03a — A lettered case', 640)}\n'),
         );
-        final finding = itemFindings(project).single;
+        final finding = (await itemFindings(project)).single;
 
         expect(finding.toJson(), isNot(contains('id')));
         expect(
@@ -689,7 +692,7 @@ void main() {
       );
       final session = openSession(project);
       addTearDown(session.close);
-      final finding = runCheck(session).findings
+      final finding = (await runCheck(session)).findings
           .singleWhere((f) => f.kind == FindingKind.itemOverLimit);
       final sections =
           (answerStructure(session.index, target: loginFr).json['docs']!
@@ -707,7 +710,7 @@ void main() {
       expect(finding.line, item['line']);
       expect(finding.line, isNot(diskLine));
       expect(
-        checkOf(project).findings.map((f) => f.kind),
+        (await checkOf(project)).findings.map((f) => f.kind),
         contains(FindingKind.formatDrift),
       );
     });
@@ -728,7 +731,7 @@ void main() {
         final project = await writeCheckProject(
           extra: {layer: 'lint:\n  title_no_number: true\n', ...numbered},
         );
-        final found = checkOf(project).findings
+        final found = (await checkOf(project)).findings
             .where((f) => f.kind == FindingKind.titleNumbered)
             .toList();
         expect(found, hasLength(1));
@@ -745,7 +748,7 @@ void main() {
       () async {
         final project = await writeCheckProject(extra: numbered);
         expect(
-          checkOf(project).findings.map((f) => f.kind),
+          (await checkOf(project)).findings.map((f) => f.kind),
           isNot(contains(FindingKind.titleNumbered)),
         );
       },
@@ -756,7 +759,7 @@ void main() {
         extra: {layer: 'lint:\n  title_no_number: true\n'},
       );
       expect(
-        checkOf(project).findings.map((f) => f.kind),
+        (await checkOf(project)).findings.map((f) => f.kind),
         isNot(contains(FindingKind.titleNumbered)),
       );
     });
@@ -772,8 +775,8 @@ void main() {
       '## Input / Output\n\nA password.\n\n## Edge cases',
     );
 
-    List<Finding> found(Directory project, FindingKind kind) => [
-      for (final f in checkOf(project).findings)
+    Future<List<Finding>> found(Directory project, FindingKind kind) async => [
+      for (final f in (await checkOf(project)).findings)
         if (f.kind == kind) f,
     ];
 
@@ -782,7 +785,7 @@ void main() {
       final project = await writeCheckProject(
         extra: {layerPath: layer('test')},
       );
-      final missing = found(project, FindingKind.requiredSectionMissing);
+      final missing = await found(project, FindingKind.requiredSectionMissing);
       expect(missing, hasLength(1));
       expect(missing.single.toJson(), containsPair('section', 'input_output'));
       expect(missing.single.line, 1);
@@ -793,7 +796,7 @@ void main() {
       final project = await writeCheckProject(
         extra: {layerPath: layer('demo')},
       );
-      expect(found(project, FindingKind.requiredSectionMissing), isEmpty);
+      expect(await found(project, FindingKind.requiredSectionMissing), isEmpty);
     });
 
     test('a doc whose field holds none of the values and the section reports '
@@ -801,7 +804,10 @@ void main() {
       final project = await writeCheckProject(
         extra: {layerPath: layer('demo'), ...withSection},
       );
-      final outside = found(project, FindingKind.sectionOutsideFieldValue);
+      final outside = await found(
+        project,
+        FindingKind.sectionOutsideFieldValue,
+      );
       expect(outside, hasLength(1));
       expect(
         outside.single.line,
@@ -828,14 +834,14 @@ void main() {
         },
       );
       expect(
-        found(project, FindingKind.sectionOutsideFieldValue),
+        await found(project, FindingKind.sectionOutsideFieldValue),
         hasLength(1),
       );
       expect(
-        found(
+        (await found(
           project,
           FindingKind.requiredSectionMissing,
-        ).where((f) => f.toJson()['section'] == 'input_output'),
+        )).where((f) => f.toJson()['section'] == 'input_output'),
         isEmpty,
       );
     });
@@ -846,12 +852,15 @@ void main() {
         final project = await writeCheckProject(
           extra: {layerPath: layer('test'), ...withSection},
         );
-        expect(found(project, FindingKind.sectionOutsideFieldValue), isEmpty);
         expect(
-          found(
+          await found(project, FindingKind.sectionOutsideFieldValue),
+          isEmpty,
+        );
+        expect(
+          (await found(
             project,
             FindingKind.requiredSectionMissing,
-          ).where((f) => f.toJson()['section'] == 'input_output'),
+          )).where((f) => f.toJson()['section'] == 'input_output'),
           isEmpty,
         );
       },
@@ -875,9 +884,8 @@ void main() {
       },
     );
 
-    Finding docLevel(Directory project, String docPath) => checkOf(project)
-        .findings
-        .singleWhere(
+    Future<Finding> docLevel(Directory project, String docPath) async =>
+        (await checkOf(project)).findings.singleWhere(
           (f) =>
               f.kind == FindingKind.charsOverLimit &&
               f.path == docPath &&
@@ -903,7 +911,7 @@ void main() {
           '- **INV-3** Pay rule. ${cite('INV-3')}',
         ]),
       });
-      final finding = docLevel(project, shopDomain);
+      final finding = await docLevel(project, shopDomain);
       expect(finding.toJson()['candidates'], [
         {'id': 'INV-1', 'under': 'shop/cart'},
         {'id': 'INV-3', 'under': 'shop/pay'},
@@ -927,7 +935,7 @@ void main() {
             'docs/specs/f01_login/DOMAIN.md': invariants(shopItems),
           },
         );
-        final finding = docLevel(project, 'specs/f01_login/DOMAIN.md');
+        final finding = await docLevel(project, 'specs/f01_login/DOMAIN.md');
         expect(finding.toJson(), containsPair('split', 'sub_features'));
         expect(finding.toJson(), isNot(contains('candidates')));
         expect(
@@ -951,7 +959,7 @@ void main() {
             ]),
           },
         );
-        final sized = checkOf(project).findings.where(
+        final sized = (await checkOf(project)).findings.where(
           (f) =>
               f.kind == FindingKind.charsOverLimit ||
               f.kind == FindingKind.linesOverLimit,
@@ -972,7 +980,7 @@ void main() {
       'items no doc cites leave a sub-feature feature with neither key',
       () async {
         final project = await shopWith({shopDomain: invariants(shopItems)});
-        final finding = docLevel(project, shopDomain);
+        final finding = await docLevel(project, shopDomain);
         expect(finding.toJson(), isNot(contains('candidates')));
         expect(finding.toJson(), isNot(contains('split')));
         expect(finding.message, isNot(contains('cited only under')));
@@ -990,7 +998,7 @@ void main() {
             '- Overrides: [INV-1](../DOMAIN.md#invariants) — differs, because stock',
           ]),
         });
-        final finding = docLevel(project, shopDomain);
+        final finding = await docLevel(project, shopDomain);
         expect(finding.toJson()['candidates'], [
           {'id': 'INV-2', 'under': 'shop/cart'},
         ]);
@@ -1010,7 +1018,7 @@ void main() {
             '# Shop API\n\n## Operations\n### addItem\n'
             'See [INV-1](DOMAIN.md#invariants).\n',
       });
-      final finding = docLevel(project, shopDomain);
+      final finding = await docLevel(project, shopDomain);
       expect(finding.toJson(), isNot(contains('candidates')));
     });
 
@@ -1024,7 +1032,7 @@ void main() {
             '- **INV-3** Cart rule. ${cite('INV-3')}',
           ]),
         });
-        final finding = docLevel(project, shopDomain);
+        final finding = await docLevel(project, shopDomain);
         expect(finding.toJson()['candidates'], [
           {'id': 'INV-1', 'under': 'shop/cart'},
           {'id': 'INV-3', 'under': 'shop/cart'},
@@ -1044,7 +1052,7 @@ void main() {
           'docs/specs/f03_empty/DOMAIN.md': invariants(shopItems),
         },
       );
-      final finding = docLevel(project, 'specs/f03_empty/DOMAIN.md');
+      final finding = await docLevel(project, 'specs/f03_empty/DOMAIN.md');
       expect(finding.toJson(), isNot(contains('candidates')));
       expect(finding.toJson(), isNot(contains('split')));
       expect(

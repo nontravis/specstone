@@ -238,7 +238,7 @@ void main() {
           hasDoc(root, 'specs/f03_other/f03_shop/f01_cart/DOMAIN.md'),
           isTrue,
         );
-        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
       },
     );
   }
@@ -557,7 +557,7 @@ void main() {
         readDoc(root, '$landed/us01_add_item/USER_STORY.md'),
         contains('[card](../../../f02_shop/f02_pay/us01_card/USER_STORY.md)'),
       );
-      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
     });
 
     test('a doc-name mention and a typed link text follow', () async {
@@ -627,7 +627,7 @@ void main() {
       });
       final cartApiBefore = readDoc(root, cartApi);
       expect(
-        spots(checkOf(root), FindingKind.frTraceUnresolved),
+        spots(await checkOf(root), FindingKind.frTraceUnresolved),
         isNot(contains(startsWith('$cartApi:'))),
       );
       moveAll(root, ['feature:shop/cart'], under: 'other');
@@ -635,7 +635,10 @@ void main() {
       expect(api, contains('| cart/add_item/check_stock | `addItem` |'));
       expect(api, contains('  - cart/add_item/check_stock '));
       expect(readDoc(root, '$landedSpecs/API.md'), cartApiBefore);
-      final unresolved = spots(checkOf(root), FindingKind.frTraceUnresolved);
+      final unresolved = spots(
+        await checkOf(root),
+        FindingKind.frTraceUnresolved,
+      );
       expect(unresolved, contains(startsWith('$shopApi:')));
       expect(
         unresolved.where((s) => s.startsWith('$landedSpecs/API.md:')),
@@ -659,7 +662,7 @@ void main() {
         );
         expect(readDoc(root, payRecord), payBefore);
         expect(
-          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
           isEmpty,
         );
       },
@@ -761,7 +764,7 @@ void main() {
       expect(hash.firstMatch(after)?.group(1), isNot(before));
       expect(after, isNot(contains('draft: true')));
       expect(
-        spots(checkOf(root), FindingKind.approvalStale),
+        spots(await checkOf(root), FindingKind.approvalStale),
         isNot(contains(startsWith('$shopDomain:'))),
       );
     });

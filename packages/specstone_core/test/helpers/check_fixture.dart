@@ -422,10 +422,14 @@ String _withEndings(String original, String lf) =>
 /// Opens a session on [project], runs the check, closes the session.
 ///
 /// A [docPath] limits the run to that one doc.
-CheckReport checkOf(Directory project, {String? target, String? docPath}) {
+Future<CheckReport> checkOf(
+  Directory project, {
+  String? target,
+  String? docPath,
+}) async {
   final session = openSession(project);
   try {
-    return runCheck(session, target: target, docPath: docPath);
+    return await runCheck(session, target: target, docPath: docPath);
   } finally {
     session.close();
   }

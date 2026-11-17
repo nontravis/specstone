@@ -20,7 +20,7 @@ String fr(int n) => 'FR-$n';
 String path(String first, String second) => '$first/$second';
 
 Future<List<Finding>> labelFindings(Map<String, String> extra) async {
-  final report = checkOf(await writeCheckProject(extra: extra));
+  final report = await checkOf(await writeCheckProject(extra: extra));
   return [
     for (final finding in report.findings)
       if (finding.kind == FindingKind.numberLabel) finding,
@@ -185,7 +185,7 @@ void main() {
     final project = await writeCheckProject(
       extra: doc(loginFeature, _line, 'Cite ${f(1)}.'),
     );
-    final report = checkOf(project, docPath: loginFeature);
+    final report = await checkOf(project, docPath: loginFeature);
     expect(spots(report, FindingKind.numberLabel), [
       '$loginFeature:$_lineNumber: number_label',
     ]);

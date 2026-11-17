@@ -265,7 +265,7 @@ void main() {
       expect(readDoc(root, loginArch), contains(approved));
       expect(readDoc(root, signupArch), contains('draft: true'));
       expect(readDoc(root, signupArch), isNot(contains('ENG-42')));
-      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
     });
 
     test('a task_ref field under another id is found by its type', () async {

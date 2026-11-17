@@ -25,7 +25,7 @@ Future<({Directory project, List<Finding> found})> _run(
   return (
     project: project,
     found: [
-      for (final finding in checkOf(project).findings)
+      for (final finding in (await checkOf(project)).findings)
         if (finding.kind == FindingKind.tbrOpen) finding,
     ],
   );
@@ -294,7 +294,7 @@ void main() {
     final project = await writeCheckProject(
       extra: fr('verify_method: test', 'verify_method: ${_marker}later'),
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
 
     expect(spots(report, FindingKind.tbrOpen), isEmpty);
     expect(spots(report, FindingKind.fieldValueMismatch), [
@@ -344,7 +344,7 @@ void main() {
     final project = await writeCheckProject(
       extra: {'docs/$untyped': '# Notes\n\nValue ${_marker}later.\n'},
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
 
     expect(spots(report, FindingKind.tbrOpen), isEmpty);
     expect(spots(report, FindingKind.untypedDoc), ['$untyped:1: untyped_doc']);

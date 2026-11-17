@@ -321,7 +321,7 @@ void main() {
     final root = await writeWriteProject(
       extra: {'docs/prds/d01_context.md': '# Context\n\nSee $link.\n'},
     );
-    expect(spots(checkOf(root), FindingKind.linkAnchorMissing), isEmpty);
+    expect(spots(await checkOf(root), FindingKind.linkAnchorMissing), isEmpty);
     const target = 'user_story:login/email_login#acceptance_criteria';
     writeIn(
       root,
@@ -336,7 +336,7 @@ void main() {
       contains('### Scenario 1 — [happy] Sign in again'),
     );
     expect(readDoc(root, 'prds/d01_context.md'), contains(link));
-    expect(spots(checkOf(root), FindingKind.linkAnchorMissing), [
+    expect(spots(await checkOf(root), FindingKind.linkAnchorMissing), [
       'prds/d01_context.md:3: link_anchor_missing',
     ]);
   });
@@ -1338,7 +1338,7 @@ void main() {
         '- app/lib/src/login/\n',
       ),
     );
-    final stale = spots(checkOf(root), FindingKind.approvalStale);
+    final stale = spots(await checkOf(root), FindingKind.approvalStale);
     expect(stale, isEmpty);
   });
   test('f02/us01/fr03/e05: status on a feature is field_not_writable; on a story it is written', () async {
@@ -1729,7 +1729,7 @@ void main() {
     );
     final session = openSession(root);
     try {
-      final report = runCheck(session);
+      final report = await runCheck(session);
       expect(
         spots(
           report,
@@ -2917,7 +2917,7 @@ void main() {
           expect(written.contains('draft: true'), isDraft, reason: address);
           expect(before.contains('draft: true'), isDraft, reason: address);
         }
-        expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
       },
     );
 
@@ -3455,7 +3455,7 @@ void main() {
       );
       expect(answer.json['draft'], isFalse);
       expect(readDoc(root, flutterRecord), flutterBefore);
-      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
 
       final status = writeIn(
         root,
@@ -3478,7 +3478,7 @@ void main() {
           isNot(contains('draft')),
         ),
       );
-      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
     });
 
     test(
@@ -3607,7 +3607,10 @@ void main() {
       expect(answer.json['base'], emptyBaseHash);
       expect(answer.json['draft'], isTrue);
       expect(readDoc(root, check.loginFeature), isNot(contains('status:')));
-      expect(spots(checkOf(root), FindingKind.featureStatusWritten), isEmpty);
+      expect(
+        spots(await checkOf(root), FindingKind.featureStatusWritten),
+        isEmpty,
+      );
     });
 
     test('f02/us01/s1, f02/us01/fr01: a section of one twin is written and the other twin keeps its text', () async {

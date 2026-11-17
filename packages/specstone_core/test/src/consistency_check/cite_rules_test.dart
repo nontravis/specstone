@@ -36,7 +36,7 @@ const _subFeature = {
 };
 
 Future<List<Finding>> _citeFindings(Map<String, String> extra) async {
-  final report = checkOf(
+  final report = await checkOf(
     await writeCheckProject(extra: {..._domainFile, ...extra}),
   );
   return [
@@ -243,7 +243,7 @@ void main() {
 
   test('a no-lookup name that resolves to no doc gives doc_name_unresolved, '
       'never cite_unlinked', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           ..._domainFile,
@@ -417,7 +417,7 @@ void main() {
         ...doc(loginFeature, _line, 'Users forget; `domain:login` INV-6.'),
       },
     );
-    final report = checkOf(project, docPath: loginFeature);
+    final report = await checkOf(project, docPath: loginFeature);
     expect(spots(report, FindingKind.citeUnlinked), [
       '$loginFeature:$_lineNumber: cite_unlinked',
     ]);

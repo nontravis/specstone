@@ -708,4 +708,101 @@ void main() {
       expect(sessions, closed());
     });
   });
+
+  group('ReadSession.runAsync', () {
+    Future<T> runSession<T>(
+      Directory p,
+      Future<T> Function(ReadSession s) answer,
+    ) => ReadSession.runAsync(
+      answer,
+      templates: TemplateResolver(),
+      workingDirectory: p,
+      homeDirectory: null,
+    );
+    Matcher closed() => everyElement(
+      isA<ReadSession>().having(
+        (s) =>
+            () => s.store.readStamp(),
+        'store read',
+        throwsStateError,
+      ),
+    );
+
+    test('runAsync answers from a fresh session and closes it', () async {
+      final project = await writeLoginProject();
+      final sessions = <ReadSession>[];
+      final answered = await runSession(project, (s) async {
+        await Future<void>.delayed(Duration.zero);
+        sessions.add(s);
+        return answers(s);
+      });
+      expect(answered, hasLength(25));
+      expect(sessions, hasLength(1));
+      expect(sessions, closed());
+    });
+    test('runAsync rebuilds a damaged index once and answers again', () async {
+      final project = await writeLoginProject();
+      final expected = await runSession(project, (s) async => answers(s));
+      final index = inProject(project, indexFilePath);
+      final db = sqlite3.open(index.path);
+      final pageSize = db.select('PRAGMA page_size').single.columnAt(0) as int;
+      final roots = [
+        for (final row in db.select(
+          'SELECT rootpage FROM sqlite_master '
+          "WHERE name IN ('sections', 'links', 'doc_search_content')",
+        ))
+          row.columnAt(0) as int,
+      ];
+      db.close();
+      final bytes = index.readAsBytesSync();
+      for (final root in roots) {
+        bytes.fillRange((root - 1) * pageSize, root * pageSize, 0);
+      }
+      index.writeAsBytesSync(bytes);
+      final sessions = <ReadSession>[];
+      final answered = await runSession(project, (s) async {
+        await Future<void>.delayed(Duration.zero);
+        sessions.add(s);
+        return answers(s);
+      });
+      expect(answered, expected);
+      expect(sessions, hasLength(2));
+      expect(sessions.last.warnings.first, damagedIndexWarning);
+      expect(sessions, closed());
+    });
+    test('runAsync reports a second damage error as an index fault and closes both sessions', () async {
+      final project = await writeLoginProject();
+      final sessions = <ReadSession>[];
+      await expectLater(
+        runSession<void>(project, (s) async {
+          sessions.add(s);
+          throw SqliteException(
+            extendedResultCode: SqlError.SQLITE_CORRUPT,
+            message: 'test error',
+          );
+        }),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.indexNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73),
+        ),
+      );
+      expect(sessions, hasLength(2));
+      expect(sessions, closed());
+    });
+    test('runAsync passes a fault from the answer unchanged and closes the session', () async {
+      final project = await writeLoginProject();
+      final fault = IndexFault(IndexFaultCode.sectionNotFound, 'no section');
+      final sessions = <ReadSession>[];
+      await expectLater(
+        runSession<void>(project, (s) async {
+          sessions.add(s);
+          throw fault;
+        }),
+        throwsA(same(fault)),
+      );
+      expect(sessions, hasLength(1));
+      expect(sessions, closed());
+    });
+  });
 }

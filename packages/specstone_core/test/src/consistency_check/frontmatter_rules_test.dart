@@ -17,7 +17,7 @@ Map<String, String> _frWithKey(String line) => fr(
 
 void main() {
   test('f04/us01/fr03/e01, f04/us01/fr03: a missing required field is reported at line 1', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(extra: fr('verify_method: test\n', '')),
     );
     final finding = report.findings.single;
@@ -29,7 +29,7 @@ void main() {
   });
 
   test('f04/us01/s3, f04/us01/fr03/e02: a value off its enum names the field, the line, and the four values', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr('verify_method: test', 'verify_method: maybe'),
       ),
@@ -44,7 +44,7 @@ void main() {
   test(
     'a list field written as a scalar, and a date that is not a date, mismatch',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             ...fr('traced_from:\n  - S2\n', 'traced_from: S2\n'),
@@ -60,7 +60,7 @@ void main() {
   );
 
   test('a key no layer defines is field_undeclared at its line', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(extra: _frWithKey('priority: high')),
     );
     expect(spots(report), ['$loginFr:8: field_undeclared']);
@@ -77,7 +77,7 @@ void main() {
         .fields
         .any((f) => f.id == 'approved');
     expect(
-      spots(runCheck(session), FindingKind.fieldUndeclared),
+      spots(await runCheck(session), FindingKind.fieldUndeclared),
       builtIn ? isEmpty : ['$loginFr:8: field_undeclared'],
     );
   });
@@ -90,7 +90,7 @@ void main() {
     ('E10, a number', 'approved: 7'),
   ]) {
     test('$label: approved raises no field finding', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: _frWithKey(written)),
       );
       expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
@@ -99,7 +99,7 @@ void main() {
   }
 
   test('a status written in a FEATURE is feature_status_written, whatever its stories hold', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
@@ -131,7 +131,7 @@ void main() {
     };
 
     test('a story or FR writing status is requirement_status_written while the merged set holds the record doc type', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           unstamped: {recordPath},
           extra: {...recordProject(''), ...withStatus},
@@ -155,7 +155,7 @@ void main() {
     test(
       'the same docs with no record doc type in the merged set take no finding',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: {
               ...withStatus,
@@ -168,7 +168,7 @@ void main() {
     );
 
     test('a story or FR with no status written takes no finding', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           unstamped: {recordPath},
           extra: recordProject(''),
@@ -180,7 +180,7 @@ void main() {
     test(
       'a feature still takes feature_status_written, not the requirement kind',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             unstamped: {recordPath},
             extra: {
@@ -200,7 +200,7 @@ void main() {
     );
 
     test('the record doc type is found by its record_status field, whatever its id', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           unstamped: {recordPath},
           extra: {
@@ -227,7 +227,7 @@ void main() {
     });
 
     test('an implements line with a space after the colon reads as a map and mismatches', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           unstamped: {recordPath},
           extra: recordProject('implements:\n  - show_toast: lib/toast.dart\n'),
@@ -245,7 +245,7 @@ void main() {
     test(
       'an implements line with no space stays one string and gives no finding',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             unstamped: {recordPath},
             extra: recordProject(
@@ -258,7 +258,7 @@ void main() {
     );
 
     test('a statuses line giving an item the status wip mismatches, naming the field and the four statuses', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           unstamped: {recordPath},
           extra: recordProject('statuses:\n  - login:wip\n'),
@@ -282,7 +282,7 @@ void main() {
       'login/email_login/check_password:skipped:no UI here',
     ]) {
       test('the statuses line $line fits', () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             unstamped: {recordPath},
             extra: recordProject('statuses:\n  - "$line"\n'),
@@ -293,7 +293,7 @@ void main() {
     }
 
     test('a statuses line with no status, or no colon, mismatches', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           unstamped: {recordPath},
           extra: recordProject('statuses:\n  - login\n  - "login:"\n'),
@@ -325,7 +325,7 @@ void main() {
     };
     for (final MapEntry(key: label, value: entry) in mismatches.entries) {
       test('$label mismatches, naming the field', () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             unstamped: {recordPath},
             extra: projectWith('tasks:\n  - $entry\n'),
@@ -341,7 +341,7 @@ void main() {
 
     for (final entry in ['"login/email_login:T-1"', 'T-1']) {
       test('the entry $entry fits', () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             unstamped: {recordPath},
             extra: projectWith('tasks:\n  - $entry\n'),
@@ -352,7 +352,7 @@ void main() {
     }
 
     test('a scalar in place of the list mismatches', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           unstamped: {recordPath},
           extra: projectWith('tasks: T-1\n'),
@@ -365,7 +365,7 @@ void main() {
   });
 
   test('an FR that still writes implements under the shipped pack, which declares no such field on fr, is field_undeclared naming the field', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: _frWithKey('implements:\n  - app/lib/login.dart:checkPassword'),
       ),
@@ -380,7 +380,7 @@ void main() {
   test(
     'a story that still writes implements is field_undeclared the same way',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: edit(loginStory, [
             (
@@ -397,7 +397,7 @@ void main() {
   );
 
   test('invalid frontmatter is frontmatter_invalid only, and its warning is not printed', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr('verify_method: test\n', 'verify_method: "test\n'),
       ),
@@ -407,7 +407,7 @@ void main() {
   });
 
   test('an untyped doc gets no field rule', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {'docs/notes/idea.md': '---\npriority: high\n---\n\n# Idea\n'},
       ),
@@ -417,7 +417,7 @@ void main() {
 
   test('review focus 3: a requirement with no frontmatter misses each required field at line 1', () async {
     final text = checkProjectFiles()['docs/$loginFr']!;
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {'docs/$loginFr': text.substring(text.indexOf('# Check'))},
       ),
@@ -431,7 +431,7 @@ void main() {
   test(
     'an undeclared key with an empty value is still field_undeclared',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: _frWithKey('priority:')),
       );
       expect(spots(report), ['$loginFr:8: field_undeclared']);
@@ -450,7 +450,7 @@ void main() {
     test(
       'with no value in any member is one field_group_missing at line 1',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: {layer: groups, 'docs/$loginFeature': noKeys},
           ),
@@ -467,7 +467,7 @@ void main() {
     );
 
     test('with one member holding a value is no finding', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             layer: groups,
@@ -484,7 +484,7 @@ void main() {
     test(
       'on a doc with invalid frontmatter is frontmatter_invalid only',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: {
               layer: groups,
@@ -505,7 +505,7 @@ void main() {
     'e17: a feature system naming no Systems row is no field finding',
     () async {
       final feature = checkProjectFiles()['docs/$loginFeature']!;
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'docs/$loginFeature': feature.replaceFirst(
