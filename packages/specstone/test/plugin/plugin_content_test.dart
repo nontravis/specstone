@@ -4274,6 +4274,7 @@ const _readabilityRewritePoints = [
   'it never turns into a sub-list',
   "Give a split proposal or the report's why, as `size-fix.md` gives it",
   'no rewrite keeps the meaning or a size finding is left',
+  'The finding waits for the Owner.',
 ];
 
 void _readabilityFixTests() {
@@ -4330,7 +4331,7 @@ void _readabilityFixTests() {
       for (final file in agentSourceFiles(agentAssetsRoot()))
         if (file.readAsStringSync().contains('readability-fix.md'))
           shippedPathOf(file),
-    ]..remove(_readabilityFix);
+    ];
     expect(namers, unorderedEquals(_droppedTextReasons.keys));
     for (final file in _droppedTextReasons.keys) {
       expect(
@@ -4346,7 +4347,7 @@ void _readabilityFixTests() {
     final namers = [
       for (final file in agentSourceFiles(agentAssetsRoot()))
         if (file.readAsStringSync().contains('writes.md')) shippedPathOf(file),
-    ]..remove(_writes);
+    ];
     expect(namers, unorderedEquals(_droppedTextReasons.keys));
     for (final file in _droppedTextReasons.keys) {
       final text = _pluginText(file);
