@@ -95,9 +95,11 @@ ReadAnswer answerNew(
   final parentDoc = parent == null
       ? null
       : session.parentTarget(parent, parentTypeId!, codeTarget: codeTarget);
-  final (parentShape, parentValues) = parentDoc == null
-      ? (null, const <String>[])
+  final parentLayout = parentDoc == null
+      ? null
       : _shapeOfParent(set, parentTypeId!, parentDoc);
+  final parentShape = parentLayout?.shape;
+  final parentValues = parentLayout?.values ?? const <String>[];
   final depth = _depthOf(docType, set, parentDoc, parentShape);
   final placed =
       DocPathShape.of(docType, set, depth: depth, target: placedIn) ??
@@ -132,7 +134,7 @@ ReadAnswer answerNew(
     final String docPath;
     var lfText = given;
     try {
-      (docPath, claimed) = _claim(
+      final claim = _claim(
         session,
         placed,
         docType,
@@ -142,6 +144,8 @@ ReadAnswer answerNew(
         created,
         placedIn,
       );
+      docPath = claim.docPath;
+      claimed = claim.file;
       if (generators != null) {
         lfText = fillGeneratedBlocks(
           lfText,
@@ -242,9 +246,17 @@ String? _placedInOf(MergedDocType docType, DocIndex index, String? codeTarget) {
   );
 }
 
+/// The path shape of a parent doc and the placeholder values its path holds.
+final class _ParentShape {
+  const new({required this.shape, required this.values});
+
+  final DocPathShape shape;
+  final List<String> values;
+}
+
 /// Returns the shape of [parentDoc], the doc of type [parentTypeId] that the
 /// new doc hangs under, with the placeholder values its path holds.
-(DocPathShape, List<String>) _shapeOfParent(
+_ParentShape _shapeOfParent(
   MergedSet set,
   String parentTypeId,
   IndexedDoc parentDoc,
@@ -262,7 +274,7 @@ String? _placedInOf(MergedDocType docType, DocIndex index, String? codeTarget) {
   if (shape == null || values == null) {
     throw StateError('${parentDoc.docPath} does not match its doc type');
   }
-  return (shape, values);
+  return _ParentShape(shape: shape, values: values);
 }
 
 /// Returns the nesting depth the new doc takes: its parent's, or one deeper
@@ -333,13 +345,21 @@ String _docPathOfSibling(
   ...shape.segments.skip(shape.ownIndex + 1),
 ].join('/');
 
+/// The DocPath of a claimed doc and its newly made, empty file.
+final class _Claimed {
+  const new({required this.docPath, required this.file});
+
+  final String docPath;
+  final File file;
+}
+
 /// Creates the folders and the empty file of the new doc, trying the next
 /// number each time the file turns out to be there.
 ///
 /// Returns the DocPath and the file; every folder made joins [created].
 /// Throws [RenderFault] `output_not_writable` when the disk refuses, and
 /// [WriteFault] `doc_exists` when a doc with no number to bump is there.
-(String, File) _claim(
+_Claimed _claim(
   WriteSession session,
   DocPathShape shape,
   MergedDocType docType,
@@ -360,7 +380,7 @@ String _docPathOfSibling(
     try {
       _createFolders(file.parent, created);
       file.createSync(exclusive: true);
-      return (docPath, file);
+      return _Claimed(docPath: docPath, file: file);
     } on PathExistsException {
       if (!shape.numbered) {
         throw WriteFault(
