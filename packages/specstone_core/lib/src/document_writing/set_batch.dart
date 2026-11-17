@@ -5,7 +5,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
-    show approvalHashOf, isOutsideApproval, withoutMatrixSection;
+    show approvalHashOf, isOutsideApproval;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart';
 import 'package:specstone_core/src/document_writing/models/batch_block.dart';
@@ -21,6 +21,8 @@ import 'package:specstone_core/src/index_query/get_docs.dart'
     show basesOf, printedPart, sectionBaseOf;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart'
+    show withoutMatrixSection;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -591,10 +593,11 @@ bool _marksDraft(
   };
   final onlyOutsideFields =
       changedFields.isNotEmpty && changedFields.every(outsideFields.contains);
+  String withoutMatrix(String text) =>
+      withoutMatrixSection(Doc.parse(text), block.docType);
   final onlyMatrixChanged =
       changedFields.isEmpty &&
-      withoutMatrixSection(heldText, block.docType) ==
-          withoutMatrixSection(proposedText, block.docType);
+      withoutMatrix(heldText) == withoutMatrix(proposedText);
   return !(onlyOutsideFields || onlyMatrixChanged) ||
       hashOf(heldText) != hashOf(proposedText);
 }

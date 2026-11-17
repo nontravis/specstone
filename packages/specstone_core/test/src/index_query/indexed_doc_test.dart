@@ -715,6 +715,23 @@ void main() {
       expect(crlf.charCount, lf.charCount);
     });
 
+    test('name one section the matrix for its rows, counts, and approval hash '
+        'whatever its header spelling', () {
+      const spelled = '\n##  VERIFICATION   Matrix\n\n$rows';
+      final parsed = parseRecord('$head$notesBody$spelled$questionsBody');
+      final plain = parseRecord('$head$notesBody$questionsBody');
+      expect(parsed.doc.matrixLines, hasLength(3));
+      expect(parsed.doc.approvalHash, plain.doc.approvalHash);
+      expect(
+        parsed.content.lineFacts.lineCount,
+        plain.content.lineFacts.lineCount,
+      );
+      expect(
+        parsed.content.lineFacts.charCount,
+        plain.content.lineFacts.charCount,
+      );
+    });
+
     test("keep the matrix section's own counts", () {
       const section = '## Verification matrix\n\n$rows';
       final facts = parseRecord('$head$notesBody$matrixBody$questionsBody')

@@ -1310,7 +1310,7 @@ void main() {
       );
     });
 
-    test('a doc type with no matrix keeps its exact hash', () {
+    test('a doc with no matrix section to cut keeps its exact hash', () {
       const nonRecord = MergedDocType(
         id: 'feature',
         fields: [],
@@ -1318,15 +1318,19 @@ void main() {
         lint: MergedLint(),
         files: [],
       );
-      for (final docType in [
-        recordDocType(sections: [notes]),
-        nonRecord,
+      for (final (name, docType, text) in [
+        (
+          'a record type with no matrix',
+          recordDocType(sections: [notes]),
+          record(),
+        ),
+        ('a doc type that is no record', nonRecord, record()),
+        ('a record with no matrix header', type, record(hasMatrix: false)),
       ]) {
-        final text = record();
         expect(
           approvalHashOf(text, docType, statusesOutside: false),
           _referenceHashOf(text, docType),
-          reason: docType.id,
+          reason: name,
         );
       }
     });

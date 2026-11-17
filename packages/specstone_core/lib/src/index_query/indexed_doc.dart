@@ -2,8 +2,6 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_splice.dart'
-    show withoutSection;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart'
     show numberLabelLinesInMarkdown;
@@ -21,7 +19,6 @@ import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show mermaidSourcesOf;
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
-import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
@@ -331,15 +328,15 @@ ParsedDoc parseIndexedDoc({
     for (final section in doc.sections) _sectionOf(section, templates),
   ];
   final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
+  final counted = laid is Formatted ? laid.doc : doc;
   final matrixLines = docType == null
       ? const <MatrixLine>[]
       : matrixLinesOfDoc(doc, lfText, docType);
   final lineFacts = LineFacts.of(
     lfText: lfText,
-    countedText: _withoutMatrixSection(
-      laid is Formatted ? laid.doc : doc,
-      docType,
-    ),
+    countedText: docType == null
+        ? counted.text
+        : withoutMatrixSection(counted, docType),
     docPath: docPath,
     doc: doc,
     sectionCounts: _countsOf(sections, laid, templates),
@@ -409,18 +406,6 @@ ParsedDoc parseIndexedDoc({
     matrixLines: matrixLines,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
-}
-
-/// Returns the text of [doc] as the size counts read it: without the
-/// Verification matrix section when [recordType] has one and [doc] holds it.
-///
-/// The cut is [withoutSection].
-String _withoutMatrixSection(Doc doc, MergedDocType? recordType) {
-  if (recordType == null || verificationMatrixOf(recordType) == null) {
-    return doc.text;
-  }
-  final at = sectionIndexOf(doc, recordType, verificationMatrixKey);
-  return at == null ? doc.text : withoutSection(doc.text, at);
 }
 
 /// Returns the content of [lfText], a doc of [docType], as far as a reader of

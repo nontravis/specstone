@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
-    show isFingerprint;
+    show isFingerprint, withoutSection;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -282,6 +282,23 @@ SkipRow? _skipRowOf(String text, int line) {
   );
 }
 
+// The one finder of the matrix section: the rows, the size counts, and the
+// approval hash all read the section it names.
+int? _matrixSectionIndex(Doc doc, MergedDocType recordType) =>
+    verificationMatrixOf(recordType) == null
+    ? null
+    : sectionIndexOf(doc, recordType, verificationMatrixKey);
+
+/// Returns the text of [doc], a doc of [recordType], less its Verification
+/// matrix section: the one [matrixLinesOfDoc] reads.
+///
+/// The cut is [withoutSection]; the text as it is when [recordType] has no
+/// enabled matrix section or [doc] holds none.
+String withoutMatrixSection(Doc doc, MergedDocType recordType) {
+  final at = _matrixSectionIndex(doc, recordType);
+  return at == null ? doc.text : withoutSection(doc.text, at);
+}
+
 /// Returns each non-blank line of the Verification matrix section of
 /// [lfText], a doc of [recordType], through [parseMatrixLine], in file order.
 ///
@@ -298,8 +315,7 @@ List<MatrixLine> matrixLinesOfDoc(
   String lfText,
   MergedDocType recordType,
 ) {
-  if (verificationMatrixOf(recordType) == null) return const [];
-  final at = sectionIndexOf(doc, recordType, verificationMatrixKey);
+  final at = _matrixSectionIndex(doc, recordType);
   if (at == null) return const [];
   final headerLine =
       linesBeforeBodyOf(doc, lfText) + doc.sectionLineIndexes[at] + 1;

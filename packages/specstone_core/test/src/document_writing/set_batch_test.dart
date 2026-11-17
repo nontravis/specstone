@@ -1483,6 +1483,26 @@ void main() {
       expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
     });
 
+    test('a whole-doc block that changes only the layout writes nothing and '
+        'keeps the approved record approved', () async {
+      final root = await recordProject();
+      final before = readDoc(root, loginRecord);
+
+      final answer = runBatch(
+        root,
+        edit(
+          getText(root, [loginRecord]),
+          '## Notes\n\nSee',
+          '## Notes\n\n\nSee',
+        ),
+      );
+
+      expect(readDoc(root, loginRecord), before);
+      expect(answer.json['blocks'], [
+        allOf(containsPair('written', false), containsPair('draft', false)),
+      ]);
+    });
+
     test('a whole-doc block that changes the matrix and another section marks '
         'the approved record draft', () async {
       final root = await recordProject();
