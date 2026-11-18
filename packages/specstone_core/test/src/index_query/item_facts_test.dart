@@ -678,7 +678,7 @@ void main() {
       final parsed = parse(_frPath, '# V\n\n## Statement\n\n$rule\n');
 
       expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [15]);
-      expect(sectionCharsOf(parsed), '## Statement\n\n$rule'.length);
+      expect(sectionCharsOf(parsed), '\n$rule'.length);
     });
 
     test('definition line adds nothing to its paragraph', () {
@@ -686,7 +686,7 @@ void main() {
       final parsed = parse(_frPath, '# V\n\n## Statement\n\n$paragraph\n');
 
       expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [13]);
-      expect(sectionCharsOf(parsed), '## Statement\n\n$paragraph'.length);
+      expect(sectionCharsOf(parsed), '\n$paragraph'.length);
     });
 
     test('code span link counts whole', () {
@@ -694,7 +694,7 @@ void main() {
       final parsed = parse(_frPath, '# V\n\n## Statement\n\n$item\n');
 
       expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [23]);
-      expect(sectionCharsOf(parsed), '## Statement\n\n$item'.length);
+      expect(sectionCharsOf(parsed), '\n$item'.length);
     });
 
     test('failed parse stores raw item counts', () {
@@ -753,7 +753,7 @@ void main() {
       final parsed = parse(_frPath, '# V\n\n## Statement\n\n$paragraph\n');
 
       expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [6]);
-      expect(sectionCharsOf(parsed), '## Statement\n\n$paragraph'.length);
+      expect(sectionCharsOf(parsed), '\n$paragraph'.length);
     });
 
     test('undefined shortcut stores every character', () {

@@ -158,20 +158,27 @@ void main() {
     ]);
   });
 
-  test('the blank lines format adds under ### headings never '
-      'count toward a section limit', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/fr.yaml':
-              'sections:\n  - id: statement\n    lint:\n      max_lines: 39\n',
-          ...fr(
-            '$checkPasswordStatement\n',
-            '$checkPasswordStatement\n\n${'### Head\ntext\n' * 3}${'filler\n' * 32}',
-          ),
-        },
-      ),
-    );
+  Future<CheckReport> statementOf(int fillerLines) async => await checkOf(
+    await writeCheckProject(
+      extra: {
+        '.specstone/templates/fr.yaml':
+            'sections:\n  - id: statement\n    lint:\n      max_lines: 39\n',
+        ...fr(
+          '$checkPasswordStatement\n',
+          '$checkPasswordStatement\n\n${'### Head\ntext\n' * 3}${'filler\n' * fillerLines}',
+        ),
+      },
+    ),
+  );
+
+  test('39 body lines at max_lines 39, the blank lines format adds under '
+      '### headings and the header line left out, have no finding', () async {
+    final report = await statementOf(32);
+    expect(spots(report, FindingKind.linesOverLimit), isEmpty);
+  });
+
+  test('40 body lines at max_lines 39 report limit 39 and actual 40', () async {
+    final report = await statementOf(33);
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.linesOverLimit,
     );
@@ -244,7 +251,7 @@ void main() {
         allOf(
           containsPair('section', 'verification_matrix'),
           containsPair('limit', 5),
-          containsPair('actual', 7),
+          containsPair('actual', 6),
         ),
       );
     });
@@ -300,19 +307,21 @@ void main() {
     });
   });
 
+  Future<CheckReport> fiveLineLimitOf(int moreLines) async => await checkOf(
+    await writeCheckProject(
+      extra: {
+        '.specstone/templates/fr.yaml':
+            'sections:\n  - id: statement\n    lint:\n      max_lines: 5\n',
+        ...fr(
+          '$checkPasswordStatement\n',
+          '$checkPasswordStatement\n${'More.\n' * moreLines}',
+        ),
+      },
+    ),
+  );
+
   test('a section over its own limit is reported at its header, the doc limit aside', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/fr.yaml':
-              'sections:\n  - id: statement\n    lint:\n      max_lines: 5\n',
-          ...fr(
-            '$checkPasswordStatement\n',
-            '$checkPasswordStatement\n${'More.\n' * 4}',
-          ),
-        },
-      ),
-    );
+    final report = await fiveLineLimitOf(5);
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.linesOverLimit,
     );
@@ -325,6 +334,12 @@ void main() {
         containsPair('actual', 6),
       ),
     );
+  });
+
+  test('a section of 5 body lines at max_lines 5, its header line counting '
+      'none, has no finding', () async {
+    final report = await fiveLineLimitOf(4);
+    expect(spots(report, FindingKind.linesOverLimit), isEmpty);
   });
 
   test('a doc over its character limit, at line 1', () async {
@@ -494,7 +509,7 @@ void main() {
       await writeCheckProject(
         extra: {
           '.specstone/templates/fr.yaml':
-              'sections:\n  - id: statement\n    lint:\n      max_lines: 38\n',
+              'sections:\n  - id: statement\n    lint:\n      max_lines: 37\n',
           ...fr('$checkPasswordStatement\n', body),
         },
       ),
@@ -502,8 +517,8 @@ void main() {
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.linesOverLimit,
     );
-    expect(finding.toJson(), containsPair('limit', 38));
-    expect(finding.toJson(), containsPair('actual', 39));
+    expect(finding.toJson(), containsPair('limit', 37));
+    expect(finding.toJson(), containsPair('actual', 38));
   });
 
   test('a doc format refuses counts its text on disk', () async {
@@ -628,7 +643,7 @@ void main() {
         unorderedEquals([
           allOf(
             containsPair('section', 'edge_cases'),
-            containsPair('actual', '## Edge cases\n\n$item'.length),
+            containsPair('actual', '\n$item'.length),
           ),
           allOf(isNot(contains('section')), containsPair('actual', docChars)),
         ]),

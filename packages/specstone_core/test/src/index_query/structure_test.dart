@@ -194,9 +194,9 @@ void main() {
       expect(
         answerStructure(e09, target: _frTarget).text,
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_e09Fr)} tokens\n'
-        '  statement · 179 chars\n'
+        '  statement · 166 chars\n'
         '    line 11 · 165 chars\n'
-        '  edge_cases · 243 chars\n'
+        '  edge_cases · 229 chars\n'
         '    E01 · 106 chars\n'
         '    E02 · 121 chars\n',
       );
@@ -222,14 +222,14 @@ void main() {
         expect(doc['sections'], [
           {
             'key': 'statement',
-            'chars': 179,
+            'chars': 166,
             'items': [
               {'line': 11, 'chars': 165},
             ],
           },
           {
             'key': 'edge_cases',
-            'chars': 243,
+            'chars': 229,
             'items': [
               {'id': 'E01', 'line': 15, 'chars': 106},
               {'id': 'E02', 'line': 16, 'chars': 121},
@@ -256,12 +256,12 @@ void main() {
         ).text.split('\n');
 
         expect(lines.skip(1).take(2), [
-          '  statement · ${'## Statement\n\n$item'.length} chars',
+          '  statement · ${'\n$item'.length} chars',
           '    line 11 · 15 chars',
         ]);
         expect(_jsonSections(index, _frTarget).first, {
           'key': 'statement',
-          'chars': '## Statement\n\n$item'.length,
+          'chars': '\n$item'.length,
           'items': [
             {'line': 11, 'chars': 15},
           ],
@@ -276,9 +276,9 @@ void main() {
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_leadFr)} tokens\n'
         '  _lead · 681 chars\n'
         '    line 9 · 681 chars\n'
-        '  statement · 179 chars\n'
+        '  statement · 166 chars\n'
         '    line 13 · 165 chars\n'
-        '  edge_cases · 243 chars\n'
+        '  edge_cases · 229 chars\n'
         '    E01 · 106 chars\n'
         '    E02 · 121 chars\n',
       );
@@ -344,14 +344,14 @@ void main() {
         },
         {
           'key': 'statement',
-          'chars': 179,
+          'chars': 166,
           'items': [
             {'line': 11, 'chars': 165},
           ],
         },
         {
           'key': 'edge_cases',
-          'chars': 243,
+          'chars': 229,
           'items': [
             {'id': 'E01', 'line': 15, 'chars': 106},
             {'id': 'E02', 'line': 16, 'chars': 121},
@@ -372,7 +372,7 @@ void main() {
       expect(_jsonSections(index, _frTarget), [
         {
           'key': 'edge_cases',
-          'chars': 243,
+          'chars': 229,
           'items': [
             {'id': 'E01', 'line': 15, 'chars': 106},
             {'id': 'E02', 'line': 16, 'chars': 121},
@@ -380,7 +380,7 @@ void main() {
         },
         {
           'key': 'statement',
-          'chars': 179,
+          'chars': 166,
           'items': [
             {'line': 11, 'chars': 165},
           ],
@@ -398,21 +398,21 @@ void main() {
       expect(_jsonSections(index, _frTarget), [
         {
           'key': 'statement',
-          'chars': 178,
+          'chars': 165,
           'items': [
             {'line': 10, 'chars': 165},
           ],
         },
         {
           'key': 'statement',
-          'chars': 19,
+          'chars': 6,
           'items': [
             {'line': 13, 'chars': 6},
           ],
         },
         {
           'key': 'edge_cases',
-          'chars': 242,
+          'chars': 228,
           'items': [
             {'id': 'E01', 'line': 16, 'chars': 106},
             {'id': 'E02', 'line': 17, 'chars': 121},
@@ -828,7 +828,7 @@ void main() {
       expect(
         answerStructure(index, target: 'feature:feedback/toast').text,
         '$featureLine\n'
-        '  problem · 24 chars\n'
+        '  problem · 13 chars\n'
         '    line 9 · 12 chars\n'
         '$storyLine\n',
       );

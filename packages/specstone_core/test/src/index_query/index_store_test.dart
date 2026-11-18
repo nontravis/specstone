@@ -511,7 +511,7 @@ void main() {
         expect(facts.sectionCounts, written.content.lineFacts.sectionCounts);
         expect(facts.sectionLines, [7, 13]);
         expect(facts.fenced, [(first: 9, last: 11)]);
-        expect(facts.sectionCounts.last, (lines: 2, chars: 12));
+        expect(facts.sectionCounts.last, (lines: 1, chars: 7));
       },
     );
     test('a stored doc loads '

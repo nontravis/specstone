@@ -27,7 +27,7 @@ const frKey =
     'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
 const frTarget = 'fr:login/email_login/validate_credentials';
 
-// A requirement whose sections count 179, 243 chars and whose items 165, 106, 121.
+// A requirement whose sections count 166, 229 chars and whose items 165, 106, 121.
 String frWithSizes() =>
     '---\nstatus: implemented\ntraced_from:\n  - S1\n  - S2\n'
     'implements:\n  - app/lib/src/login/credential_validator.dart:CredentialValidator\n---\n\n'
@@ -277,7 +277,7 @@ void main() {
 
       expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
       expect((run.stdout as String).split('\n').skip(1).take(2), [
-        '  statement · ${'## Statement\n\n$item'.length} chars',
+        '  statement · ${'\n$item'.length} chars',
         '    line 14 · 15 chars',
       ]);
     });
