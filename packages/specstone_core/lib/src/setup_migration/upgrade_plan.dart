@@ -5,8 +5,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
@@ -200,7 +199,7 @@ RunPlan _upgradeRunOf(
   );
   final moves = orderedMoves([
     for (final path in docPaths)
-      if (planned[path] != path) (from: path, to: planned[path]!),
+      if (planned[path] != path) PathMove(from: path, to: planned[path]!),
   ]);
 
   final matcher = DocTypeMatcher(finalSet, targetNames: config.targetNames);
@@ -1082,7 +1081,7 @@ _plannedPaths(
   final movedAt = <int, List<String>>{};
   final movedBy = <String, int>{};
   final treeMoved = <String>{};
-  for (final (:from, :to) in treeMoves) {
+  for (final PathMove(:from, :to) in treeMoves) {
     planned[from] = to;
     treeMoved.add(from);
   }

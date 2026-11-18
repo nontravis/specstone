@@ -1592,4 +1592,84 @@ void main() {
       }
     });
   });
+
+  group('the verification matrix of a record', () {
+    const recordFile = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const validateRow =
+        '- email_login/validate_credentials E01: `a wrong password`';
+    const resetRow = '- reset_password/send_reset_link E01: `a link is mailed`';
+    const resetStory =
+        'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md';
+    const resetFr =
+        'docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md';
+
+    Future<Directory> project() => writeReadProject(
+      extra: {
+        resetStory: '# Agent resets a password\n\n## Use Case\nReset it.\n',
+        resetFr:
+            '---\nverify_method: test\n---\n\n# Send a reset link\n\n'
+            '## Statement\nThe system shall mail a link.\n',
+        '.specstone/templates/implementation.yaml':
+            'sections:\n  - id: notes\n    header: Notes\n',
+        recordFile:
+            "---\nstatuses:\n  - 'email_login:planned'\ntests:\n"
+            "  - 'email_login/validate_credentials:test/login_test.dart'\n"
+            "  - 'reset_password/send_reset_link:test/reset_test.dart'\n"
+            '---\n\n# Login implementation\n\n## Verification matrix\n\n'
+            '$validateRow\n$resetRow\n\n## Notes\n\nSee the rows.\n',
+        'test/login_test.dart': '',
+        'test/reset_test.dart': '',
+      },
+    );
+
+    test('context --code on a test file prints the matrix rows of its bundled FRs alone', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+
+      expect(
+        await runner.run([
+          'context',
+          '--code',
+          'test/login_test.dart',
+          '--for',
+          'implement',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(out.toString(), contains(validateRow));
+      expect(out.toString(), isNot(contains('send_reset_link E01')));
+    });
+
+    test('the --out index lines match the trimmed record', () async {
+      final folder = await project();
+      final (:runner, :out, :err) = readRunner(folder);
+
+      expect(
+        await runner.run([
+          'context',
+          'login/email_login',
+          '--for',
+          'implement',
+          '--out',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      final fileLines = File(
+        '${folder.path}/.specstone/bundles/login-email_login.implement.txt',
+      ).readAsLinesSync();
+      final index = RegExp(
+        r'^- login \(implementation\) · (\d+)-(\d+) · '
+        r'verification_matrix (\d+), notes (\d+)$',
+        multiLine: true,
+      ).firstMatch(out.toString())!;
+      int at(int group) => int.parse(index.group(group)!) - 1;
+
+      expect(fileLines.join('\n'), isNot(contains('send_reset_link E01')));
+      expect(fileLines[at(1)], startsWith('==> login (implementation) · '));
+      expect(fileLines[at(3)], '## Verification matrix');
+      expect(fileLines[at(4)], '## Notes');
+      expect(fileLines[at(2)], 'See the rows.');
+    });
+  });
 }

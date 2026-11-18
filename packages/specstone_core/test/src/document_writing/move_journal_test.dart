@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
@@ -1474,7 +1475,7 @@ void main() {
             for (final (from, to) in moves) ...[from, to],
           ],
           base: base,
-          moves: [for (final (from, to) in moves) (from: from, to: to)],
+          moves: [for (final (from, to) in moves) PathMove(from: from, to: to)],
         ),
       ]).run(_target(root));
 
@@ -1523,7 +1524,7 @@ void main() {
             for (final (from, to) in moves) ...[from, to],
           ],
           base: base,
-          moves: [for (final (from, to) in moves) (from: from, to: to)],
+          moves: [for (final (from, to) in moves) PathMove(from: from, to: to)],
         ),
       ]).run(_target(root));
 
@@ -1817,7 +1818,7 @@ void main() {
         message: 'm',
         paths: ['docs/a.md', 'docs/b.md'],
         base: 'b',
-        moves: [(from: 'docs/a.md', to: 'docs/b.md')],
+        moves: [PathMove(from: 'docs/a.md', to: 'docs/b.md')],
       );
 
       expect(step.toJson(), {
@@ -2342,7 +2343,7 @@ void main() {
           message: 'move',
           paths: const [from, to],
           base: base,
-          moves: const [(from: from, to: to)],
+          moves: const [PathMove(from: from, to: to)],
         ),
       ]).run(_target(root));
 
@@ -2380,7 +2381,7 @@ void main() {
           message: 'move',
           paths: const [from, to],
           base: base,
-          moves: const [(from: from, to: to)],
+          moves: const [PathMove(from: from, to: to)],
         ),
       ]).run(_target(root));
 
@@ -2411,7 +2412,7 @@ void main() {
           message: 'move',
           paths: const [from, to],
           base: base,
-          moves: const [(from: from, to: to)],
+          moves: const [PathMove(from: from, to: to)],
         ),
       ]).run(_target(root));
 
@@ -2441,7 +2442,7 @@ void main() {
           message: 'move',
           paths: const [from, to],
           base: base,
-          moves: const [(from: from, to: to)],
+          moves: const [PathMove(from: from, to: to)],
         ),
       ]).run(_target(root));
 

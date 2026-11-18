@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show withSectionAdded;
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -118,6 +120,33 @@ int? sectionIndexOf(Doc doc, MergedDocType docType, String sectionId) {
   return index < 0 ? null : index;
 }
 
+/// Returns [lfText], a doc of [docType], with the template section [sectionId]
+/// added holding [body]: before the first section the doc holds that follows it
+/// in [docType], else at the end.
+///
+/// Throws a [StateError] when [docType] has no section [sectionId].
+String withTemplateSection(
+  String lfText,
+  MergedDocType docType,
+  String sectionId,
+  String body,
+) {
+  final template = docType.sections.firstWhere((s) => s.id == sectionId);
+  final doc = Doc.parse(lfText);
+  int? before;
+  for (final later
+      in docType.sections.skipWhile((s) => s.id != sectionId).skip(1)) {
+    before = sectionIndexOf(doc, docType, later.id);
+    if (before != null) break;
+  }
+  return withSectionAdded(
+    lfText,
+    headerLine: '## ${template.header}',
+    body: body,
+    before: before,
+  );
+}
+
 /// Returns, per line of [lines], whether it is a marker line or inner line of
 /// a closed generated block of one of [kinds].
 List<bool> generatedBlockLines(List<String> lines, Set<String> kinds) {
@@ -152,23 +181,12 @@ List<GeneratedBlock> runGenerators<R>(
     ...?registry[kind]?.call(doc, docPath, docType, resolver),
 ];
 
-/// Writes [blocks] into [lfText].
-///
-/// A block rewrites the pair of its kind at its place, or inserts one when
-/// none is there; an inserted pair also writes the layout whitespace around
-/// itself as layout does. Every other byte, a pair outside every block's
-/// place and a pair of a kind [docType] does not list included, stays as
-/// written. Returns [OpenBlock] when an opening marker of a listed kind has
-/// no end marker.
-BlockWrite writeGeneratedBlocks(
-  String lfText,
-  MergedDocType docType,
-  List<GeneratedBlock> blocks,
-) => _writeBlocks(lfText, Doc.parse(lfText), docType, blocks);
-
 /// Returns [lfText], the doc at [docPath], with the blocks of [docType]'s
 /// listed generators written.
 ///
+/// A block rewrites the pair of its kind at its place, or inserts one that
+/// writes its own layout whitespace. Every other byte stays as written, a pair
+/// outside every block's place and a pair of an unlisted kind included.
 /// [lfText] comes back unchanged when [docType] lists no generator and when
 /// it holds an opening marker with no end marker.
 String fillGeneratedBlocks<R>(

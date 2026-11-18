@@ -2,8 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -100,6 +99,25 @@ List<SiblingEntry> siblingsOnDisk(
   });
 }
 
+/// A child doc type of a spec folder, and the code target it is per, if any.
+final class _ChildFolderKey {
+  const new({required this.childTypeId, required this.target});
+
+  final String childTypeId;
+  final String? target;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _ChildFolderKey &&
+      other.childTypeId == childTypeId &&
+      other.target == target;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(childTypeId, target);
+}
+
 /// Returns the spec folder moves that follow [docType]'s doc from
 /// [oldValues] to [newValues], each folder paired with the one its child type
 /// holds after the move, sorted by old folder; an unchanged one is left out.
@@ -119,7 +137,7 @@ List<PathMove> specFolderMovesOf(
   final oldShape = DocPathShape.of(docType, set, depth: depth);
   final newShape = DocPathShape.of(docType, set, depth: newDepth ?? depth);
   if (oldShape == null || newShape == null) return const [];
-  Map<(String, String?), String> foldersAt(
+  Map<_ChildFolderKey, String> foldersAt(
     DocPathShape shape,
     List<String> values,
   ) => {
@@ -130,7 +148,7 @@ List<PathMove> specFolderMovesOf(
       values,
       targetNames: targetNames,
     ))
-      (child.id, target): folder,
+      _ChildFolderKey(childTypeId: child.id, target: target): folder,
   };
   final newFolders = foldersAt(newShape, newValues);
   final moves = <String, PathMove>{};
@@ -140,7 +158,7 @@ List<PathMove> specFolderMovesOf(
   ).entries) {
     final to = newFolders[key];
     if (to == null || to == from) continue;
-    moves[from] = (from: from, to: to);
+    moves[from] = PathMove(from: from, to: to);
   }
   return [for (final key in moves.keys.toList()..sort()) moves[key]!];
 }

@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show RuleItemWords;
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show mermaidSourcesOf;
 import 'package:specstone_core/src/index_query/section_counts.dart';
@@ -122,6 +123,7 @@ final class IndexedDoc {
     this.approvalHash,
     this.order = 0,
     this.warnings = const [],
+    this.matrixLines = const [],
   });
 
   /// The path of the doc relative to the docs root.
@@ -173,6 +175,10 @@ final class IndexedDoc {
 
   /// What went wrong while reading the doc, one sentence each.
   final List<String> warnings;
+
+  /// The lines of the doc's Verification matrix section, in file order; empty
+  /// for a doc that is no record, or whose record holds no such section.
+  final List<MatrixLine> matrixLines;
 
   /// Whether exactly one doc type matches [docPath].
   bool get isTyped => docTypeId != null;
@@ -346,13 +352,15 @@ ParsedDoc parseIndexedDoc({
     for (final section in doc.sections) _sectionOf(section, templates),
   ];
   final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
-  final laidText = switch (laid) {
-    Formatted(:final text) => text,
-    _ => lfText,
-  };
+  final counted = laid is Formatted ? laid.doc : doc;
+  final matrixLines = docType == null
+      ? const <MatrixLine>[]
+      : matrixLinesOfDoc(doc, lfText, docType);
   final lineFacts = LineFacts.of(
     lfText: lfText,
-    countedText: laidText,
+    countedText: docType == null
+        ? counted.text
+        : withoutMatrixSection(counted, docType),
     docPath: docPath,
     doc: doc,
     sectionCounts: _countsOf(sections, laid, templates),
@@ -361,7 +369,11 @@ ParsedDoc parseIndexedDoc({
     bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
     citeCandidates: docType == null
         ? const []
-        : citeCandidatesOf(lfText, idPrefixes: idPrefixes),
+        : citeCandidatesOf(
+            lfText,
+            idPrefixes: idPrefixes,
+            skipLines: testRowLinesOf(matrixLines),
+          ),
     mermaidBlocks: docType == null
         ? const []
         : [for (final s in mermaidSourcesOf(doc, lfText)) s.block],
@@ -427,6 +439,7 @@ ParsedDoc parseIndexedDoc({
             statusesOutside: statusesOutside,
           ),
     warnings: warnings,
+    matrixLines: matrixLines,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
 }

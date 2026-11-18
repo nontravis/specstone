@@ -93,6 +93,10 @@ enum RecordStatus {
   /// The name the record format uses for this status.
   final String wire;
 
+  /// Whether the item has code or tests to resolve: it is `implemented` or
+  /// `deprecated`.
+  bool get isBuilt => this == implemented || this == deprecated;
+
   /// Returns the status named [wire], or null when [wire] names none.
   static RecordStatus? byWire(String wire) =>
       values.where((s) => s.wire == wire).firstOrNull;
@@ -272,6 +276,7 @@ final class SectionEntry {
     this.summaryRows,
     this.skeleton,
     this.whenField,
+    this.outputRef,
     required this.disabled,
   });
 
@@ -317,6 +322,9 @@ final class SectionEntry {
   /// The doc field and values that bind the section's `required`, when
   /// written.
   final WhenField? whenField;
+
+  /// Whether the section's lines are pointers the CLI checks, when written.
+  final bool? outputRef;
 
   /// Whether the section is turned off by this layer.
   final bool disabled;
@@ -739,6 +747,7 @@ const _sectionKeys = {
   'summary_rows',
   'skeleton',
   'when_field',
+  'output_ref',
 };
 
 const _docLintKeys = {
@@ -1031,6 +1040,12 @@ SectionEntry _parseSection(
       prefix: 'sections[$index].',
     ),
     whenField: _parseWhenField(entry, file: file, prefix: prefix),
+    outputRef: optionalValue<bool>(
+      entry,
+      'output_ref',
+      file: file,
+      prefix: 'sections[$index].',
+    ),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
         false,

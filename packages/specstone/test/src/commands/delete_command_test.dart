@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
@@ -322,6 +323,59 @@ void main() {
     expect(await runner.run(['delete', spaced]), 0);
     expect(out.toString(), '$spaced\n');
     expect(File('${root.path}/docs/$spaced').existsSync(), isFalse);
+  });
+
+  group('matrix rows of a deleted item', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const item = 'reset_password/expire_reset_link';
+    const target = 'fr:login/$item';
+
+    Future<Directory> projectWithRows() => writeWriteProject(
+      extra: {
+        '.specstone/config.yaml': oneTargetConfig(),
+        '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+        record:
+            '${recordText()}\n## Verification matrix\n\n'
+            '- $item E01: `expires a link` 5d1e0c4b7a92\n'
+            '- $item E02 skipped: needs a clock  9a1c03be55d2\n',
+      },
+    );
+
+    Future<List<String>> matrixKindsOn(Directory root) async {
+      final (:runner, :out, :err) = writeRunner(root);
+      await runner.run(['check', '--json']);
+      final findings = (jsonDecode(out.toString()) as Map)['findings']! as List;
+      return [
+        for (final f in findings.cast<Map<String, Object?>>())
+          if (f['docPath'] == record &&
+              (f['kind']! as String).startsWith('matrix_'))
+            f['kind']! as String,
+      ];
+    }
+
+    test('delete --dry-run --json lists an item whose rows leave', () async {
+      final root = await projectWithRows();
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['delete', target, '--dry-run', '--json']), 0);
+
+      expect((jsonDecode(out.toString()) as Map)['records'], [
+        {
+          'path': record,
+          'entries': [item],
+        },
+      ]);
+    });
+
+    test('check after the delete gives no matrix finding', () async {
+      final root = await projectWithRows();
+      expect(await matrixKindsOn(root), isNotEmpty);
+
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['delete', target]), 0, reason: err.toString());
+
+      expect(await matrixKindsOn(root), isEmpty);
+    });
   });
 
   group('with two code targets', () {

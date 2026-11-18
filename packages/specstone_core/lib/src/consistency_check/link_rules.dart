@@ -56,7 +56,6 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
   yield* _missingAnchors(context, doc);
   yield* _missingItems(context, doc);
   yield* _selfLinks(context, doc);
-  yield* _malformedLinks(context, doc);
   yield* _missingFileLinks(context, doc);
   if (context.index.hasTwins && doc.target == null) {
     yield* _perTargetReferences(context, doc, values);
@@ -303,22 +302,6 @@ Iterable<Finding> _selfLinks(CheckContext context, IndexedDoc doc) sync* {
           'link target ${place.shown.isEmpty ? _emptyTarget : place.shown} '
           'names the doc that holds it',
       keys: {'target': place.shown},
-    );
-  }
-}
-
-/// Yields a finding per link of [doc] whose target the reference grammar
-/// cannot read, so no such link is skipped silently.
-Iterable<Finding> _malformedLinks(CheckContext context, IndexedDoc doc) sync* {
-  for (final place in context.contentOf(doc).lineFacts.unreadableLinks) {
-    yield context.finding(
-      doc,
-      FindingKind.referenceMalformed,
-      line: place.line,
-      message:
-          'link target ${place.shown} cannot be read: the WHATWG URL parser '
-          'fails on it',
-      keys: {'form': 'link_target', 'text': place.shown},
     );
   }
 }

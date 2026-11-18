@@ -98,7 +98,6 @@ final class LineFacts {
     required this.links,
     required this.fileLinks,
     required this.selfLinks,
-    required this.unreadableLinks,
     required this.linkTexts,
     required this.nameMentions,
     required this.numberLabels,
@@ -167,7 +166,6 @@ final class LineFacts {
       links: links?.docLinks ?? const [],
       fileLinks: links?.fileLinks ?? const [],
       selfLinks: links?.selfLinks ?? const [],
-      unreadableLinks: links?.unreadableLinks ?? const [],
       linkTexts: links?.texts ?? const [],
       nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
       numberLabels: [
@@ -206,7 +204,6 @@ final class LineFacts {
       links: const [],
       fileLinks: const [],
       selfLinks: const [],
-      unreadableLinks: const [],
       linkTexts: const [],
       nameMentions: const [],
       numberLabels: const [],
@@ -236,7 +233,6 @@ final class LineFacts {
       links: _placesOfJson(json['links']!),
       fileLinks: _placesOfJson(json['file_links']!),
       selfLinks: _placesOfJson(json['self_links']!),
-      unreadableLinks: _placesOfJson(json['unreadable_links']!),
       linkTexts: _linkTextsOfJson(json['link_texts']!),
       nameMentions: _mentionsOfJson(json['name_mentions']!),
       numberLabels: [
@@ -285,10 +281,6 @@ final class LineFacts {
   /// The links that name the doc itself, a bare `#anchor` included, in source
   /// order.
   final List<LinkPlace> selfLinks;
-
-  /// The links whose target the grammar cannot read, in source order; each
-  /// target is the href as written.
-  final List<LinkPlace> unreadableLinks;
 
   /// The text and place of each doc link and self link whose text reads as an
   /// item ID, in source order.
@@ -359,7 +351,6 @@ final class LineFacts {
     'links': _placesToJson(links),
     'file_links': _placesToJson(fileLinks),
     'self_links': _placesToJson(selfLinks),
-    'unreadable_links': _placesToJson(unreadableLinks),
     'link_texts': [
       for (final t in linkTexts)
         [

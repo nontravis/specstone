@@ -3,20 +3,23 @@ import 'dart:convert';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/record_doc_type.dart';
+
 /// The record doc type `domain:template_packs` INV-31 gives: found by its
 /// `record_status` field, per-target.
-const _recordType = MergedDocType(
-  id: 'implementation',
-  path: 'specs/f{nn}_{slug}/IMPLEMENTATION.md',
+final MergedDocType _recordType = recordDocType(
+  sections: const [],
   isPerTarget: true,
-  fields: [
-    MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
+  fields: const [
+    statusesField,
     MergedField(
       id: 'implements',
       type: FieldType.outputRef,
@@ -30,22 +33,41 @@ const _recordType = MergedDocType(
       pointer: PointerKind.itemTest,
     ),
   ],
-  sections: [],
-  lint: MergedLint(),
-  files: [],
 );
 
-/// Parses the record at [path] with [text] under a two-target project.
-IndexedDoc _record(String path, String text) => parseIndexedDoc(
-  docPath: path,
-  bytes: utf8.encode(text),
-  match: DocTypeMatcher(
-    MergedSet(docTypes: [_recordType]),
-    targetNames: const ['flutter', 'jaspr'],
-  ).match(path),
-  statusesOutside: true,
-  codeTarget: 'jaspr',
-).doc;
+/// [_recordType] with the matrix section the record doc type may carry.
+final MergedDocType _matrixRecordType = _recordType.copyWith(
+  sections: const [matrixSection],
+);
+
+const _matrixPath = 'specs/jaspr/f02_feedback/IMPLEMENTATION.md';
+
+/// A record text whose matrix section holds [rows], the first on file line 10.
+String _matrixRecord(
+  List<String> rows, {
+  String header = 'Verification matrix',
+}) =>
+    '---\n'
+    'statuses:\n'
+    '  - show_toast/queue_toasts:implemented\n'
+    '---\n\n'
+    '# Feedback implementation\n\n'
+    '## $header\n\n'
+    '${rows.join('\n')}\n';
+
+/// Parses the record at [path] with [text] under a two-target project whose
+/// record doc type is [type].
+IndexedDoc _record(String path, String text, {MergedDocType? type}) =>
+    parseIndexedDoc(
+      docPath: path,
+      bytes: utf8.encode(text),
+      match: DocTypeMatcher(
+        MergedSet(docTypes: [type ?? _recordType]),
+        targetNames: const ['flutter', 'jaspr'],
+      ).match(path),
+      statusesOutside: true,
+      codeTarget: 'jaspr',
+    ).doc;
 
 void main() {
   test('domain:index_query RecordEntry: a record indexes its entries, the '
@@ -282,6 +304,392 @@ void main() {
     expect(recordEntriesOf(doc, _recordType), isEmpty);
   });
 
+  group('matrix rows', () {
+    // The record text puts its first matrix line on file line 10.
+    const firstRowLine = 10;
+
+    List<MatrixLine> linesOf(List<String> rows) =>
+        matrixLinesIn(_matrixRecord(rows), _matrixRecordType);
+
+    test('a test row reads its item, edge case, literal, and fingerprint', () {
+      final lines = linesOf([
+        '- show_toast/queue_toasts E01: `queues a second toast` 3f9a1c0b7e2d',
+        '- show_toast/queue_toasts E02: `drops a toast past the limit`',
+      ]);
+
+      expect(lines, const [
+        TestRow(
+          item: 'show_toast/queue_toasts',
+          edgeCase: 'E01',
+          literal: 'queues a second toast',
+          fingerprint: '3f9a1c0b7e2d',
+          line: firstRowLine,
+        ),
+        TestRow(
+          item: 'show_toast/queue_toasts',
+          edgeCase: 'E02',
+          literal: 'drops a toast past the limit',
+          line: firstRowLine + 1,
+        ),
+      ]);
+      expect((lines.first as MatrixRow).label, 'show_toast/queue_toasts#E01');
+    });
+
+    test('an uppercase hex tail makes a test row malformed', () {
+      const row = '- show_toast E01: `queues a toast` 3F9A1C0B7E2D';
+
+      expect(linesOf([row]), const [
+        MalformedRow(line: firstRowLine, text: row),
+      ]);
+    });
+
+    test('a skip row takes its last token as a fingerprint only when it is '
+        '12 lowercase hex', () {
+      final lines = linesOf([
+        '- show_toast E04 skipped: needs root on CI 9a1c03be55d2',
+        '- show_toast E05 skipped: needs root on CI',
+      ]);
+
+      expect(lines, const [
+        SkipRow(
+          item: 'show_toast',
+          edgeCase: 'E04',
+          reason: 'needs root on CI',
+          fingerprint: '9a1c03be55d2',
+          line: firstRowLine,
+        ),
+        SkipRow(
+          item: 'show_toast',
+          edgeCase: 'E05',
+          reason: 'needs root on CI',
+          line: firstRowLine + 1,
+        ),
+      ]);
+    });
+
+    test('a skip row left with no reason after its fingerprint is '
+        'malformed', () {
+      const row = '- show_toast E04 skipped: 9a1c03be55d2';
+
+      expect(linesOf([row]), const [
+        MalformedRow(line: firstRowLine, text: row),
+      ]);
+    });
+
+    test('a skip row keeps no space after its reason', () {
+      expect(
+        linesOf([
+          '- show_toast E04 skipped: needs root on CI  9a1c03be55d2',
+          '- show_toast E05 skipped: needs root on CI ',
+        ]),
+        const [
+          SkipRow(
+            item: 'show_toast',
+            edgeCase: 'E04',
+            reason: 'needs root on CI',
+            fingerprint: '9a1c03be55d2',
+            line: firstRowLine,
+          ),
+          SkipRow(
+            item: 'show_toast',
+            edgeCase: 'E05',
+            reason: 'needs root on CI',
+            line: firstRowLine + 1,
+          ),
+        ],
+      );
+    });
+
+    for (final tail in const ['9a1c03be55d', '9a1c03be55d29']) {
+      test('a ${tail.length}-hex tail is no fingerprint', () {
+        const head = '- show_toast E01';
+        final testRow = '$head: `queues a toast` $tail';
+
+        expect(linesOf([testRow, '$head skipped: needs root $tail']), [
+          MalformedRow(line: firstRowLine, text: testRow),
+          SkipRow(
+            item: 'show_toast',
+            edgeCase: 'E01',
+            reason: 'needs root $tail',
+            line: firstRowLine + 1,
+          ),
+        ]);
+      });
+    }
+
+    test('the section is found by the key of the record type, whatever its '
+        'header or output_ref flag', () {
+      const row = '- show_toast E01: `queues a toast`';
+      const expected = [
+        TestRow(
+          item: 'show_toast',
+          edgeCase: 'E01',
+          literal: 'queues a toast',
+          line: firstRowLine,
+        ),
+      ];
+      MergedDocType typeWith(MergedSection section) =>
+          _recordType.copyWith(sections: [section]);
+
+      expect(
+        matrixLinesIn(
+          _matrixRecord([row], header: 'Test evidence'),
+          typeWith(
+            const MergedSection(
+              id: verificationMatrixKey,
+              header: 'Test evidence',
+              isOutputRef: true,
+            ),
+          ),
+        ),
+        expected,
+      );
+      expect(
+        matrixLinesIn(
+          _matrixRecord([row]),
+          typeWith(
+            const MergedSection(
+              id: verificationMatrixKey,
+              header: 'Verification matrix',
+            ),
+          ),
+        ),
+        expected,
+      );
+      expect(
+        matrixLinesIn(
+          _matrixRecord([row]),
+          typeWith(
+            const MergedSection(
+              id: 'other_section',
+              header: 'Verification matrix',
+              isOutputRef: true,
+            ),
+          ),
+        ),
+        isEmpty,
+      );
+    });
+
+    for (final (written, literal) in const [
+      (r'`` a`b$c\d ``', r'a`b$c\d'),
+      ('``a`b``', 'a`b'),
+      ('`` `edge ``', '`edge'),
+      (r'`ends in \`', r'ends in \'),
+    ]) {
+      test('a literal read from $written is $literal', () {
+        final lines = linesOf(['- show_toast E01: $written 3f9a1c0b7e2d']);
+
+        expect(lines, [
+          TestRow(
+            item: 'show_toast',
+            edgeCase: 'E01',
+            literal: literal,
+            fingerprint: '3f9a1c0b7e2d',
+            line: firstRowLine,
+            written: 'show_toast E01: $written',
+          ),
+        ]);
+      });
+    }
+
+    for (final row in const [
+      'A paragraph about the toast.',
+      '- show_toast E01 queues a toast',
+      '- show_toast E01: `queues a toast` (flaky)',
+      '- show_toast E01: `queues a toast` `a second span`',
+      '- show_toast E01: no span here',
+      '- show_toast E01 skipped:',
+      '- show_toast E1x: `queues a toast`',
+    ]) {
+      test('the line "$row" is a malformed line', () {
+        expect(linesOf([row]), [MalformedRow(line: firstRowLine, text: row)]);
+      });
+    }
+
+    test('blank lines give no line, and a later section stays out', () {
+      final lines = matrixLinesIn(
+        '${_matrixRecord(['- show_toast E01: `queues a toast`', '', 'stray'])}'
+        '\n## Other\n\nnot a row\n',
+        _matrixRecordType,
+      );
+
+      expect(lines, const [
+        TestRow(
+          item: 'show_toast',
+          edgeCase: 'E01',
+          literal: 'queues a toast',
+          line: firstRowLine,
+        ),
+        MalformedRow(line: firstRowLine + 2, text: 'stray'),
+      ]);
+    });
+
+    test('a record without the section has no rows', () {
+      const text =
+          '---\nstatuses:\n  - show_toast:planned\n---\n\n# Feedback\n';
+
+      expect(matrixLinesIn(text, _matrixRecordType), isEmpty);
+      expect(matrixLinesIn(text, _recordType), isEmpty);
+    });
+
+    test('an empty section has no rows', () {
+      expect(linesOf(const []), isEmpty);
+      expect(linesOf(const ['']), isEmpty);
+    });
+
+    test('a record type without the section reads no rows', () {
+      expect(
+        matrixLinesIn(
+          _matrixRecord(['- show_toast E01: `queues a toast`']),
+          _recordType,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('rows read the same from a CRLF record', () {
+      final rows = [
+        '- show_toast E01: `queues a toast` 3f9a1c0b7e2d',
+        '- show_toast E02 skipped: no clock on CI',
+        'stray',
+      ];
+      final crlf = _matrixRecord(rows).replaceAll('\n', '\r\n');
+
+      expect(matrixLinesIn(toLf(crlf), _matrixRecordType), linesOf(rows));
+    });
+
+    test('recordEntriesOf hangs each row on its item', () {
+      final text = _matrixRecord([
+        '- show_toast/queue_toasts E01: `queues a toast` 3f9a1c0b7e2d',
+        '- show_toast/queue_toasts E02 skipped: no clock on CI',
+        'stray',
+        '- show_toast/queue_toasts E03: `drops a toast`',
+      ]);
+      final doc = _record(_matrixPath, text, type: _matrixRecordType);
+
+      expect(recordEntriesOf(doc, _matrixRecordType), const [
+        RecordEntry(
+          item: 'show_toast/queue_toasts',
+          status: RecordStatus.implemented,
+          matrixRows: [
+            TestRow(
+              item: 'show_toast/queue_toasts',
+              edgeCase: 'E01',
+              literal: 'queues a toast',
+              fingerprint: '3f9a1c0b7e2d',
+              line: firstRowLine,
+            ),
+            SkipRow(
+              item: 'show_toast/queue_toasts',
+              edgeCase: 'E02',
+              reason: 'no clock on CI',
+              line: firstRowLine + 1,
+            ),
+            TestRow(
+              item: 'show_toast/queue_toasts',
+              edgeCase: 'E03',
+              literal: 'drops a toast',
+              line: firstRowLine + 3,
+            ),
+          ],
+        ),
+      ]);
+    });
+
+    test('an item that only rows name gets an entry', () {
+      final text = _matrixRecord(['- show_toast/pin_toast E01: `pins`']);
+      final doc = _record(_matrixPath, text, type: _matrixRecordType);
+
+      expect(recordEntriesOf(doc, _matrixRecordType), const [
+        RecordEntry(
+          item: 'show_toast/queue_toasts',
+          status: RecordStatus.implemented,
+        ),
+        RecordEntry(
+          item: 'show_toast/pin_toast',
+          matrixRows: [
+            TestRow(
+              item: 'show_toast/pin_toast',
+              edgeCase: 'E01',
+              literal: 'pins',
+              line: firstRowLine,
+            ),
+          ],
+        ),
+      ]);
+    });
+
+    test('a record of a type without the section holds no matrix lines', () {
+      final doc = _record(
+        _matrixPath,
+        _matrixRecord(['- show_toast/queue_toasts E01: `queues`']),
+      );
+
+      expect(doc.matrixLines, isEmpty);
+      expect(recordEntriesOf(doc, _recordType), const [
+        RecordEntry(
+          item: 'show_toast/queue_toasts',
+          status: RecordStatus.implemented,
+        ),
+      ]);
+    });
+
+    test('an indexed CRLF record holds the lines of its LF twin, malformed '
+        'lines included', () {
+      final rows = ['- show_toast E01: `queues a toast` 3f9a1c0b7e2d', 'stray'];
+      final crlf = _matrixRecord(rows).replaceAll('\n', '\r\n');
+
+      expect(
+        _record(_matrixPath, crlf, type: _matrixRecordType).matrixLines,
+        linesOf(rows),
+      );
+    });
+
+    test('entries with rows that differ in any field are not equal', () {
+      RecordEntry entryOf(MatrixRow row) =>
+          RecordEntry(item: 'show_toast', matrixRows: [row]);
+      const base = TestRow(
+        item: 'show_toast',
+        edgeCase: 'E01',
+        literal: 'queues',
+        line: 11,
+      );
+
+      expect(entryOf(base), entryOf(base));
+      expect(entryOf(base).hashCode, entryOf(base).hashCode);
+      for (final other in const [
+        TestRow(
+          item: 'show_toast',
+          edgeCase: 'E01',
+          literal: 'drops',
+          line: 11,
+        ),
+        TestRow(
+          item: 'show_toast',
+          edgeCase: 'E01',
+          literal: 'queues',
+          fingerprint: '3f9a1c0b7e2d',
+          line: 11,
+        ),
+        TestRow(
+          item: 'show_toast',
+          edgeCase: 'E01',
+          literal: 'queues',
+          line: 12,
+        ),
+        SkipRow(
+          item: 'show_toast',
+          edgeCase: 'E01',
+          reason: 'queues',
+          line: 11,
+        ),
+      ]) {
+        expect(entryOf(other), isNot(entryOf(base)));
+      }
+    });
+  });
+
   group('rewriteRecordItems', () {
     const record =
         '---\n'
@@ -468,6 +876,104 @@ void main() {
       expect(seen, ['b']);
       expect(text, '---\nimplements:\n  - ":lib/a.dart"\n---\n\n# R\n');
     });
+
+    group('matrix rows', () {
+      const header = '## Verification matrix\n\n';
+
+      String? Function(String) rename(String from, String to) =>
+          (item) => item == from ? to : item;
+
+      String sectionOf(String? text) => text!.substring(text.indexOf(header));
+
+      test('a renamed item sets each row of it and keeps the rest of the row, '
+          'the literal, the edge case, the fingerprint, and every other '
+          'line', () {
+        final text = rewriteRecordItems(
+          _matrixRecord([
+            '- show_toast/queue_toasts E01: `queues a second toast` 3f9a1c0b7e2d',
+            '- show_toast/queue_toasts E02 skipped: needs root on CI  9a1c03be55d2 ',
+            '- show_toast E03: `shows a toast`',
+            'A paragraph that names show_toast/queue_toasts E01.',
+          ]),
+          _matrixRecordType,
+          rename('show_toast/queue_toasts', 'toast/queue'),
+        );
+
+        expect(
+          sectionOf(text),
+          '$header'
+          '- toast/queue E01: `queues a second toast` 3f9a1c0b7e2d\n'
+          '- toast/queue E02 skipped: needs root on CI  9a1c03be55d2 \n'
+          '- show_toast E03: `shows a toast`\n'
+          'A paragraph that names show_toast/queue_toasts E01.\n',
+        );
+      });
+
+      test('a row whose item the rewrite drops leaves the section', () {
+        final text = rewriteRecordItems(
+          _matrixRecord([
+            '- show_toast/queue_toasts E01: `queues a second toast`',
+            '- show_toast E03: `shows a toast`',
+            '- show_toast/queue_toasts E02 skipped: needs root on CI',
+          ]),
+          _matrixRecordType,
+          (item) => item == 'show_toast/queue_toasts' ? null : item,
+        );
+
+        expect(sectionOf(text), '$header- show_toast E03: `shows a toast`\n');
+      });
+
+      test('a malformed line is left unchanged', () {
+        const malformed = '- show_toast/queue_toasts E01 `no colon`';
+        final text = rewriteRecordItems(
+          _matrixRecord([malformed, '- show_toast/queue_toasts E02: `ok`']),
+          _matrixRecordType,
+          rename('show_toast/queue_toasts', 'toast/queue'),
+        );
+
+        expect(sectionOf(text), '$header$malformed\n- toast/queue E02: `ok`\n');
+      });
+
+      test('a literal holding a backtick, a colon, a dollar sign, and a '
+          'backslash keeps its span exactly', () {
+        const literal = r'a `b`: $c \d';
+        const tail = 'E01: ``$literal`` 3f9a1c0b7e2d';
+        final text = rewriteRecordItems(
+          _matrixRecord(['- show_toast/queue_toasts $tail']),
+          _matrixRecordType,
+          rename('show_toast/queue_toasts', 'toast/queue'),
+        );
+
+        expect(sectionOf(text), '$header- toast/queue $tail\n');
+      });
+
+      test('a record without rows is untouched by the row rewrite', () {
+        expect(
+          rewriteRecordItems(
+            _matrixRecord(const []),
+            _matrixRecordType,
+            rename('show_toast', 'toast'),
+          ),
+          isNull,
+        );
+        expect(
+          rewriteRecordItems(
+            _matrixRecord(['- show_toast E01: `shows a toast`']),
+            _matrixRecordType,
+            (item) => item,
+          ),
+          isNull,
+        );
+        expect(
+          rewriteRecordItems(
+            _matrixRecord(['- show_toast E01: `shows a toast`']),
+            _recordType,
+            rename('show_toast', 'toast'),
+          ),
+          isNull,
+        );
+      });
+    });
   });
   group('recordLinesCarried and addRecordLines', () {
     const record =
@@ -522,7 +1028,7 @@ void main() {
       final text = addRecordLines(
         '---\nstatuses:\n  - c:planned\n---\n\n# R\n',
         _recordType,
-        (
+        const RecordLines(
           statuses: ['k/a:implemented'],
           code: ['k/a:lib/a.dart:A'],
           tests: ['k/a:test/a_test.dart:holds'],
@@ -541,7 +1047,7 @@ void main() {
       final text = addRecordLines(
         '---\ndraft: true\nstatuses:\n---\n\n# R\n',
         _recordType,
-        (statuses: ['k/a:implemented'], code: const [], tests: const []),
+        const RecordLines(statuses: ['k/a:implemented']),
       );
 
       expect(
@@ -551,14 +1057,117 @@ void main() {
     });
 
     test('E20: no line to add leaves the text and returns null', () {
-      expect(
-        addRecordLines(record, _recordType, (
-          statuses: const [],
-          code: const [],
-          tests: const [],
-        )),
-        isNull,
-      );
+      expect(addRecordLines(record, _recordType, const RecordLines()), isNull);
+    });
+
+    group('matrix rows', () {
+      const quoted = '- a/x E01: `shows a toast` 5d1e0c4b7a92';
+      const skipped = '- a/x E02 skipped: needs a device 9a1c03be55d2';
+
+      test('the rows of the carried items come back with the new item and '
+          'the rest of the row as written', () {
+        final lines = recordLinesCarried(
+          _matrixRecord([quoted, skipped, '- b E01: `stays`']),
+          _matrixRecordType,
+          (item) => item == 'a/x' ? 'k/a/x' : null,
+        );
+
+        expect(lines.rows, [
+          '- k/a/x E01: `shows a toast` 5d1e0c4b7a92',
+          '- k/a/x E02 skipped: needs a device 9a1c03be55d2',
+        ]);
+      });
+
+      test('a malformed line and a record without the section carry no '
+          'row', () {
+        final malformed = _matrixRecord(['- a/x', 'stray']);
+        expect(
+          recordLinesCarried(malformed, _matrixRecordType, (_) => 'k').rows,
+          isEmpty,
+        );
+        expect(
+          recordLinesCarried(
+            _matrixRecord([quoted]),
+            _recordType,
+            (_) => 'k',
+          ).rows,
+          isEmpty,
+        );
+      });
+
+      test('added rows follow the rows the section holds', () {
+        final text = addRecordLines(
+          _matrixRecord(['- k/b E01: `holds`']),
+          _matrixRecordType,
+          const RecordLines(rows: ['- k/a/x E01: `shows a toast`']),
+        );
+
+        expect(
+          text,
+          _matrixRecord(['- k/b E01: `holds`', '- k/a/x E01: `shows a toast`']),
+        );
+      });
+
+      test('added rows keep the blank line before the next section', () {
+        const held = '- k/b E01: `holds`';
+        const added = '- k/a/x E01: `shows a toast`';
+        const notes = '\n## Notes\n\nSee rows.\n';
+        final text = addRecordLines(
+          '${_matrixRecord([held])}$notes',
+          _matrixRecordType,
+          const RecordLines(rows: [added]),
+        );
+
+        expect(text, '${_matrixRecord([held, added])}$notes');
+      });
+
+      test('a record with no section gains it at the end, holding the '
+          'rows', () {
+        final text = addRecordLines(
+          '---\ndraft: true\n---\n\n# R\n',
+          _matrixRecordType,
+          const RecordLines(rows: ['- k/a/x E01: `shows a toast`']),
+        );
+
+        expect(
+          text,
+          '---\ndraft: true\n---\n\n# R\n\n'
+          '## Verification matrix\n\n- k/a/x E01: `shows a toast`\n',
+        );
+      });
+
+      test('a record with no section gains it before a later section it '
+          'holds', () {
+        final type = _recordType.copyWith(
+          sections: const [
+            matrixSection,
+            MergedSection(id: 'notes', header: 'Notes'),
+          ],
+        );
+        final text = addRecordLines(
+          '---\ndraft: true\n---\n\n# R\n\n## Notes\n\nSee rows.\n',
+          type,
+          const RecordLines(rows: ['- k/a/x E01: `shows a toast`']),
+        );
+
+        expect(
+          text,
+          '---\ndraft: true\n---\n\n# R\n\n'
+          '## Verification matrix\n\n- k/a/x E01: `shows a toast`\n\n'
+          '## Notes\n\nSee rows.\n',
+        );
+      });
+
+      test('rows with no matrix section on the doc type add nothing', () {
+        expect(
+          addRecordLines(
+            _matrixRecord(const []),
+            _recordType,
+            const RecordLines(rows: ['- k/a/x E01: `shows a toast`']),
+          ),
+          isNull,
+        );
+      });
     });
   });
 
@@ -579,11 +1188,11 @@ void main() {
       'E19: addRecordLines refuses rather than drop the lines held there',
       () {
         expect(
-          () => addRecordLines(broken, _recordType, (
-            statuses: const [],
-            code: const ['k/a:lib/a.dart'],
-            tests: const [],
-          )),
+          () => addRecordLines(
+            broken,
+            _recordType,
+            const RecordLines(code: ['k/a:lib/a.dart']),
+          ),
           unreadable,
         );
       },
@@ -591,11 +1200,11 @@ void main() {
 
     test('E19: addRecordLines adds to a readable field beside it', () {
       expect(
-        addRecordLines(broken, _recordType, (
-          statuses: const ['k/a:planned'],
-          code: const [],
-          tests: const [],
-        )),
+        addRecordLines(
+          broken,
+          _recordType,
+          const RecordLines(statuses: ['k/a:planned']),
+        ),
         contains('  - k/a:planned\n'),
       );
     });

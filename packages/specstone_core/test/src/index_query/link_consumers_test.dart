@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
@@ -231,7 +232,7 @@ void main() {
         final moved = rewriteDocLinks(
           domain,
           docPath: _domainPath,
-          moves: [(from: _topicPath, to: _movedTopicPath)],
+          moves: [const PathMove(from: _topicPath, to: _movedTopicPath)],
         );
 
         expect(moved, isNotNull);
@@ -274,7 +275,7 @@ void main() {
         rewriteDocLinks(
           domain,
           docPath: _domainPath,
-          moves: [(from: _topicPath, to: _movedTopicPath)],
+          moves: [const PathMove(from: _topicPath, to: _movedTopicPath)],
         ),
         domain.replaceFirst(
           '[t]: $_topicLink',
@@ -309,7 +310,7 @@ void main() {
         rewriteDocLinks(
           domain,
           docPath: _domainPath,
-          moves: [(from: _topicPath, to: _movedTopicPath)],
+          moves: [const PathMove(from: _topicPath, to: _movedTopicPath)],
         ),
         isNull,
       );

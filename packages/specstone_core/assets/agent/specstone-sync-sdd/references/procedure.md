@@ -6,8 +6,8 @@ and fix only that target's record and `covers:` entries.
 ## 2. Take the work list
 
 Your gate `check` gives it: each `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
-`implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, and `tests_unresolved` finding, never a
-`tests_missing` one. A feature named: every code link of it that takes a state instead, a waiting code target's left
+`implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row
+finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that takes a state instead, a waiting code target's left
 out, each keeping its state.
 
 ## 3. Find the covering docs
@@ -15,7 +15,7 @@ out, each keeping its state.
 A finding's `path` is relative to its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`;
 default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
 
-For each listed code path but a `tests_unresolved` line's (step 4.4), run
+For each listed code path but a `tests_unresolved` line's or a matrix row's (steps 4.4, 4.5), run
 `specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
 `--target`; read parts of its read-first and refs files per `specstone-read-sdd`.
 
@@ -57,23 +57,19 @@ For each listed code path but a `tests_unresolved` line's (step 4.4), run
    `specstone set implementation:<feature> --field tests --target <name> --base <hash>` to the moved file of step 4.3
    or the test's current name in it; one you cannot place stays as written, among the waiting pointers. Write no
    `tests` line for a test a change adds or moves.
-5. Report under `Mismatches:`, by file and line, each rule meaning a changed AGENT.md asset holds that the
+5. A matrix-row finding: follow `matrix-rows.md`.
+6. Report under `Mismatches:`, by file and line, each rule meaning a changed AGENT.md asset holds that the
    agent-files FR's rule list lacks, and each bare item ID (`E21`) or number label in changed code or a test file
    read for step 4.4.
 
 ## 5. Spec drafts
 
-On the Owner's write-a-spec or fix-the-spec pick sent to you, a story or FR it needs goes to
-`specstone-brainstorming-sdd`. Else write the draft: `specstone new <type>` (`--target <name>`, the path's code
-target, as the type takes it) for a new doc, or `specstone set <doc>#<section key> --base <hash>`
-(hash: the `base` of `specstone get <doc>#<key>`) for a section;
-it waits for approval. Write no record code path or `covers:` entry that names this code
-until it is approved. Then add it at once by step 4.3, on the path's target's record.
+Follow `spec-drafts.md` on the Owner's write-a-spec or fix-the-spec pick sent to you.
 
 ## Report to the Owner
 
 After your last write, run one `specstone approve --dry-run --json`, the source of every count.
 Your drafts are the docs your own list names: list them with their count, each one's dropped and new sentence counts,
 and one sentence on why it changed, never its text; name each other draft it lists, never counted; one of yours it
-shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, each pointer fixed, each
-task removed, each behavior handed to `specstone-brainstorming-sdd`, and each waiting pointer: its code target, and its doc and code path, or its tasks.
+shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, each pointer or row fixed, each
+task removed, each behavior handed to `specstone-brainstorming-sdd`, and each waiting pointer or row: its code target, and its doc and code path, or its tasks.

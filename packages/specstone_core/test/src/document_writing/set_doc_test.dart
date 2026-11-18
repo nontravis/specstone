@@ -10,7 +10,11 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
+import 'package:specstone_core/src/document_writing/batch_file.dart'
+    show parseBatchFile;
 import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
+import 'package:specstone_core/src/document_writing/set_batch.dart'
+    show answerSetBatch;
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -26,9 +30,10 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show checkOf, spots;
+import '../../helpers/check_fixture.dart' show checkOf, loginRecord, spots;
 import '../../helpers/check_fixture.dart' as check show edit, loginFeature;
 import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/matrix_record_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart'
     show pinStatusesBelow, statusesBelowResolver;
@@ -4077,5 +4082,150 @@ void main() {
       );
       expect(readDoc(root, story1), before);
     });
+  });
+
+  group('a record matrix section write', () {
+    const address = 'implementation:login';
+    const matrix = '$address#verification_matrix';
+    const notes = '$address#notes';
+    SetRequest replaceOf(String target, String base) =>
+        SetRequest.parse(target, base: base, replace: true);
+
+    for (final isDraft in [false, true]) {
+      final state = isDraft ? 'a draft' : 'an approved';
+
+      test('a set leaves $state record as it was', () async {
+        final root = await writeMatrixRecordProject(isDraft: isDraft);
+        final before = readDoc(root, loginRecord);
+
+        final answer = writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(matrix, sectionBase(root, matrix)),
+            '$matrixRow- email_login/check_password E02: `an empty password`\n',
+          ),
+        );
+
+        expect(
+          readDoc(root, loginRecord),
+          before.replaceFirst(
+            matrixRow,
+            '$matrixRow- email_login/check_password E02: `an empty password`\n',
+          ),
+        );
+        expect(answer.json['draft'], isDraft);
+      });
+    }
+
+    test('a stale base is still refused and writes nothing', () async {
+      final root = await writeMatrixRecordProject(isDraft: false);
+      final stale = sectionBase(root, matrix);
+      writeIn(root, (s) => answerSet(s, req(matrix, stale), '$matrixRow- a\n'));
+      final before = readDoc(root, loginRecord);
+
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(s, req(matrix, stale), '$matrixRow- b\n'),
+        ),
+        throwsWriteFault(WriteFaultCode.baseMismatch),
+      );
+      expect(readDoc(root, loginRecord), before);
+    });
+
+    test('a replace leaves the approved record as it was', () async {
+      final root = await writeMatrixRecordProject(isDraft: false);
+      final before = readDoc(root, loginRecord);
+
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          replaceOf(matrix, sectionBase(root, matrix)),
+          '==> old <==\na wrong password\n==> new <==\na wrong email\n',
+        ),
+      );
+
+      expect(
+        readDoc(root, loginRecord),
+        before.replaceFirst('a wrong password', 'a wrong email'),
+      );
+      expect(answer.json['draft'], isFalse);
+    });
+
+    test(
+      'a set of any other section marks the approved record draft',
+      () async {
+        final root = await writeMatrixRecordProject(isDraft: false);
+
+        final answer = writeIn(
+          root,
+          (s) =>
+              answerSet(s, req(notes, sectionBase(root, notes)), 'Changed.\n'),
+        );
+
+        expect(answer.json['draft'], isTrue);
+        expect(readDoc(root, loginRecord), contains('draft: true\n'));
+      },
+    );
+
+    test(
+      'empty text for a matrix section the record lacks leaves it approved',
+      () async {
+        final root = await writeMatrixRecordProject(
+          isDraft: false,
+          hasMatrix: false,
+        );
+        final before = readDoc(root, loginRecord);
+
+        final answer = writeIn(
+          root,
+          (s) => answerSet(s, req(matrix, emptyBaseHash), ''),
+        );
+
+        expect(readDoc(root, loginRecord), before);
+        expect(answer.json['draft'], isFalse);
+      },
+    );
+
+    test('empty text for a held matrix section removes it and leaves the record approved', () async {
+      final root = await writeMatrixRecordProject(isDraft: false);
+      final before = readDoc(root, loginRecord);
+
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(matrix, sectionBase(root, matrix)), ''),
+      );
+
+      expect(
+        readDoc(root, loginRecord),
+        before.replaceFirst('## Verification matrix\n\n$matrixRow\n', ''),
+      );
+      expect(answer.json['draft'], isFalse);
+    });
+
+    test(
+      'a batch writing the matrix and another section marks the record draft',
+      () async {
+        final root = await writeMatrixRecordProject(isDraft: false);
+        final text =
+            writeIn(root, (s) => answerGet(s.index, [matrix, notes]).text)
+                .replaceFirst('a wrong password', 'a wrong email')
+                .replaceFirst('See the rows.', 'See the table.');
+
+        final answer = writeIn(
+          root,
+          (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+        );
+
+        expect(readDoc(root, loginRecord), contains('draft: true\n'));
+        expect(answer.json['blocks'], hasLength(2));
+        expect(
+          answer.json['blocks'],
+          everyElement(containsPair('draft', true)),
+        );
+      },
+    );
   });
 }

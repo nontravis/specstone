@@ -7,6 +7,8 @@ import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/record_edit.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/record_edit.dart';
@@ -23,8 +25,13 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 typedef _UnitFiles = Map<String, List<int>>;
 
 /// What one delete removes and rewrites: the files of the unit, and each
-/// record outside it that loses entries, sorted by DocPath.
-typedef _DeletePlan = ({_UnitFiles files, List<RecordEdit> records});
+/// record outside it that loses entries or rows, sorted by DocPath.
+final class _DeletePlan {
+  const new({required this.files, required this.records});
+
+  final _UnitFiles files;
+  final List<RecordEdit> records;
+}
 
 /// Moves the docs [targets] name, with everything each owns, to the trash.
 ///
@@ -49,10 +56,10 @@ typedef _DeletePlan = ({_UnitFiles files, List<RecordEdit> records});
 /// mention of a removed doc in a code file or an agent file is listed after the
 /// removed paths, and no such file is written.
 ///
-/// Each record, in every code target, outside the unit that holds an entry of
-/// a story or FR of it loses that entry and becomes a draft, through the same
-/// journal as the file moves; no record's approval guards the delete. A
-/// feature's own records leave with its spec folder.
+/// Each record, in every code target, outside the unit that holds an entry or a
+/// matrix row of a story or FR of it loses that entry and row and becomes a
+/// draft, through the same journal as the file moves; no record's approval
+/// guards the delete. A feature's own records leave with its spec folder.
 ///
 /// [codeTarget] keeps a name to that code target's docs and the shared docs.
 ///
@@ -128,15 +135,17 @@ ReadAnswer answerDelete(
 ///
 /// The list is the one the terminal prompt shows before its `y`, and nothing
 /// is removed. The text is the files, each guarded one's line ended with
-/// ` (guarded)`, one `rewrites <DocPath>: <entry>, …` line per record, one
+/// ` (guarded)`, one `rewrites <DocPath>: <item>, …` line per record, naming
+/// each item whose entries or rows leave, one
 /// `mentions <path>:<line> <mention>` line per mention of a removed doc in a
 /// code file or an agent file, the `guarded: <n> docs` count line when any
 /// file is guarded, the `plan <hash>` line, and
 /// `dry run: nothing removed`; the JSON holds `files`, `guarded` (the guarded
-/// files' paths), `records` (each with its `path` and `entries`), `mentions`,
-/// and `plan`. The plan hash covers the paths and their content hashes alone,
-/// so the marks change no hash. Warns of each link left to dangle, and
-/// throws, as [answerDelete] does before its prompt.
+/// files' paths), `records` (each with its `path` and `entries`, the items
+/// whose entries or rows leave), `mentions`, and `plan`. The plan hash covers
+/// the paths and their content hashes alone, so the marks change no hash.
+/// Warns of each link left to dangle, and throws, as [answerDelete] does before
+/// its prompt.
 ReadAnswer answerDeleteDryRun(
   WriteSession session,
   List<String> targets, {
@@ -214,16 +223,29 @@ String _rewritesOf(_DeletePlan plan) => [
 /// removes.
 List<StaleMention> _mentionsOf(WriteSession session, _DeletePlan plan) =>
     staleMentions(session, [
-      for (final docPath in plan.files.keys) (from: docPath, to: removedPath),
+      for (final docPath in plan.files.keys)
+        PathMove(from: docPath, to: removedPath),
     ], namesChange: true);
 
 String _mentionLinesOf(List<StaleMention> mentions) =>
     mentions.map(mentionLineOf).join();
 
+/// A delete target as given, the DocPath it resolves to, and the roots of its
+/// unit.
+final class _DeleteTarget {
+  const new({
+    required this.address,
+    required this.docPath,
+    required this.roots,
+  });
+
+  final String address;
+  final String docPath;
+  final List<String> roots;
+}
+
 /// The resolved targets of a delete call, in the order given.
-class _DeleteSet(
-  final List<({String address, String docPath, List<String> roots})> targets,
-) {
+class _DeleteSet(final List<_DeleteTarget> targets) {
   /// The roots of every target, each once, in the order given.
   List<String> get roots =>
       {for (final target in targets) ...target.roots}.toList();
@@ -246,7 +268,7 @@ _DeleteSet _resolveTargets(
   return _DeleteSet([
     for (final address in targets)
       switch (_untypedDocAt(session, address, codeTarget)) {
-        final untyped? => (
+        final untyped? => _DeleteTarget(
           address: address,
           docPath: untyped.docPath,
           roots: [untyped.docPath],
@@ -256,13 +278,13 @@ _DeleteSet _resolveTargets(
   ]);
 }
 
-({String address, String docPath, List<String> roots}) _typedTarget(
+_DeleteTarget _typedTarget(
   WriteSession session,
   String address,
   String? codeTarget,
 ) {
   final doc = session.target(address, codeTarget: codeTarget);
-  return (
+  return _DeleteTarget(
     address: address,
     docPath: doc.docPath,
     roots: _unitRootsOf(session, doc),
@@ -462,10 +484,14 @@ Iterable<String> _foldersUnder(WriteSession session, String root) sync* {
   }
 }
 
-/// Reads the files of the unit and the records that lose entries with it.
+/// Reads the files of the unit and the records that lose entries or rows with
+/// it.
 _DeletePlan _planOf(WriteSession session, List<String> roots) {
   final files = _readUnit(session, roots);
-  return (files: files, records: recordEditsOf(session, files.keys.toSet()));
+  return _DeletePlan(
+    files: files,
+    records: recordEditsOf(session, files.keys.toSet()),
+  );
 }
 
 /// Reads every file of the unit; the keys are sorted by code point.
@@ -534,7 +560,7 @@ bool _sameFiles(_UnitFiles a, _UnitFiles b) {
 
 /// Returns the journal steps: each file to the trash, then the pruning of
 /// every folder the move may leave empty, the deepest first, then the write
-/// of each record that loses entries.
+/// of each record that loses entries or rows.
 List<JournalStep> _stepsFor(
   WriteSession session,
   List<String> roots,

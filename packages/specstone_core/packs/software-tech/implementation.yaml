@@ -48,6 +48,17 @@ fields:
       Add `:<test or group name>` after the path only to pin one test, written as a quoted YAML string when the name holds `: ` or ` #`.
       Write each path relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
       This field sits outside the approval hash, so a write of test lines alone marks no draft.
+sections:
+  - id: verification_matrix
+    header: Verification matrix
+    output_ref: true
+    description: |-
+      `## Verification matrix` maps each FR edge case to the tests that prove it, one line per edge case and test.
+      Name a test by one string literal of its name, in a code span, as the test file writes it.
+      Take the first literal of the test's name.
+      The literal must occur in a file that one of the item's `tests` lines names.
+      Copy each fingerprint from `specstone check`; never compute one.
+      Write a skip row with a reason for an edge case that no test can prove.
 lint:
   max_chars: 60000
   max_lines: 400

@@ -21,6 +21,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
+import '../../helpers/record_doc_type.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -261,17 +262,22 @@ void main() {
     });
 
     test('mark_doc_approved E09: a block a format run inserts keeps it', () {
-      final inserted = switch (writeGeneratedBlocks(body, _docType, [
-        const GeneratedBlock(
-          kind: 'scenario_copy',
-          sectionId: 'statement',
-          place: SectionTop(),
-          text: 'Copied text.\n',
-        ),
-      ])) {
-        BlocksWritten(:final lfText) => lfText,
-        OpenBlock() => fail('the body holds no open block'),
-      };
+      final inserted = fillGeneratedBlocks(
+        body,
+        _docType,
+        GeneratorRegistry<int>({
+          'scenario_copy': (_, _, _, _) => [
+            const GeneratedBlock(
+              kind: 'scenario_copy',
+              sectionId: 'statement',
+              place: SectionTop(),
+              text: 'Copied text.\n',
+            ),
+          ],
+        }),
+        0,
+        docPath: 'prds/x.md',
+      );
       expect(inserted, isNot(body));
       expect(hash(inserted), hash(body));
     });
@@ -1251,6 +1257,80 @@ void main() {
           countsAsApprovedCopy(restatused, record),
           outside,
           reason: '$outside',
+        );
+      }
+    });
+  });
+
+  group('a record matrix section', () {
+    const notes = MergedSection(id: 'notes', header: 'Notes');
+    const rows =
+        '- email_login/check_password E01: `a wrong password`\n'
+        '- email_login/check_password E02: `an empty password`\n';
+    String record({String matrix = rows, bool hasMatrix = true}) =>
+        '---\nstatuses:\n  - email_login:implemented\n---\n\n'
+        '# Login implementation\n\n'
+        '${hasMatrix ? '## Verification matrix\n\n$matrix\n' : ''}'
+        '## Notes\n\nSee the rows.\n';
+    final type = recordDocType(sections: [matrixSection, notes]);
+    String hash(String text) =>
+        approvalHashOf(text, type, statusesOutside: true);
+
+    test("a record's approval hash ignores its matrix section", () {
+      final unchanged = hash(record());
+      for (final (name, text) in [
+        ('a row added', record(matrix: '$rows- email_login/other E01: `x`\n')),
+        ('a row edited', record(matrix: rows.replaceFirst('a wrong', 'a bad'))),
+        ('a row removed', record(matrix: rows.split('\n').first)),
+        ('every row removed', record(matrix: '')),
+        ('the section removed', record(hasMatrix: false)),
+      ]) {
+        expect(hash(text), unchanged, reason: name);
+      }
+    });
+
+    test('every other section of a record still counts', () {
+      expect(
+        hash(record().replaceFirst('See the rows.', 'See the table.')),
+        isNot(hash(record())),
+      );
+    });
+
+    test('an approved record stays clean after a row write', () {
+      final stamped = withApprovalHash(record(), type, statusesOutside: true);
+      final edited = stamped.replaceFirst('a wrong', 'a bad');
+      expect(edited, isNot(stamped));
+      expect(
+        awaitsApproval(
+          ApprovalFields.of(Doc.parse(edited)),
+          comparedApprovalHash(edited, type, statusesOutside: true),
+          stampsHaveRun: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a doc with no matrix section to cut keeps its exact hash', () {
+      const nonRecord = MergedDocType(
+        id: 'feature',
+        fields: [],
+        sections: [matrixSection],
+        lint: MergedLint(),
+        files: [],
+      );
+      for (final (name, docType, text) in [
+        (
+          'a record type with no matrix',
+          recordDocType(sections: [notes]),
+          record(),
+        ),
+        ('a doc type that is no record', nonRecord, record()),
+        ('a record with no matrix header', type, record(hasMatrix: false)),
+      ]) {
+        expect(
+          approvalHashOf(text, docType, statusesOutside: false),
+          _referenceHashOf(text, docType),
+          reason: name,
         );
       }
     });

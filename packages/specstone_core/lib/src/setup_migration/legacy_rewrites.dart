@@ -4,12 +4,13 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
     show rewritePathMentions;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove, rewriteDocLinksCounted;
+    show rewriteDocLinksCounted;
 import 'package:specstone_core/src/document_writing/write_session.dart'
     show cannotRead;
 import 'package:specstone_core/src/plan_hash.dart';

@@ -1262,6 +1262,47 @@ sections:
     });
   });
 
+  group('DocTypeMerger.apply output_ref', () {
+    bool outputRefOf(MergedDocType docType, String id) =>
+        docType.sections.firstWhere((s) => s.id == id).isOutputRef;
+
+    test("an upper layer's output_ref wins over the lower layer's, and an "
+        'upper layer that writes none keeps it', () {
+      final lower = project(
+        shipped(),
+        'sections: [{id: goal, output_ref: true}]\n',
+      );
+      final upper = project(
+        lower,
+        'sections: [{id: goal, output_ref: false}]\n',
+      );
+      final silent = project(
+        lower,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      final restored = project(
+        upper,
+        'sections: [{id: goal, output_ref: true}]\n',
+      );
+      expect(outputRefOf(lower, 'goal'), isTrue);
+      expect(outputRefOf(upper, 'goal'), isFalse);
+      expect(outputRefOf(silent, 'goal'), isTrue);
+      expect(outputRefOf(restored, 'goal'), isTrue);
+    });
+
+    test('an added section reads its output_ref, false when unwritten', () {
+      final added = project(
+        shipped(),
+        'sections:\n'
+        '  - {id: matrix, header: Matrix, output_ref: true}\n'
+        '  - {id: notes, header: Notes}\n',
+      );
+      expect(outputRefOf(added, 'matrix'), isTrue);
+      expect(outputRefOf(added, 'notes'), isFalse);
+      expect(outputRefOf(shipped(), 'goal'), isFalse);
+    });
+  });
+
   group('DocTypeMerger.apply summary_rows and summary_for', () {
     SummaryRows? rowsOf(MergedDocType docType) =>
         docType.sections.firstWhere((s) => s.id == 'goal').summaryRows;

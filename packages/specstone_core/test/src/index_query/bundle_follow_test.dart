@@ -546,6 +546,55 @@ void main() {
     },
   );
 
+  test('an appended matrix section keeps the rows in scope', () async {
+    const matrixLink =
+        '../../../../../.specstone/records/jaspr/f01_login/IMPLEMENTATION.md#verification-matrix';
+    final session = openSession(
+      await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+        _story: '# Agent signs in with email\n\n## Use Case\nSign in.\n',
+        _fr: _frWith(
+          'The system shall check it, as the [rows]($matrixLink) say.',
+        ),
+        'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md':
+            '# Agent resets a password\n\n## Use Case\nReset it.\n',
+        'docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md':
+            _frWith('The system shall mail a link.'),
+        '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md':
+            "---\nstatuses:\n  - 'email_login:planned'\n---\n\n"
+            '# Login implementation\n\n## Verification matrix\n\n'
+            '- email_login/validate_credentials E01: `a wrong password`\n'
+            '- reset_password/send_reset_link E01: `a link is mailed`\n',
+      }),
+    );
+    addTearDown(session.close);
+    final parts = followLinks(
+      session.index,
+      pickBundle(
+        session.index,
+        'login/email_login',
+        BundleMode.implement,
+        noProject: false,
+        codeTarget: 'flutter',
+      ),
+    );
+
+    expect(parts.map(_id), [
+      '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md#verification_matrix',
+    ]);
+    expect(
+      parts.single.text,
+      '## Verification matrix\n\n'
+      '- email_login/validate_credentials E01: `a wrong password`',
+    );
+  });
+
   group('a doc whose type lists summary_for', () {
     final linkedFromProject = {
       _project: _projectLinking('[resets]($_measurementFromProject)'),

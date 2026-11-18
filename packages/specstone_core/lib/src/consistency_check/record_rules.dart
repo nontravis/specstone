@@ -3,6 +3,7 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -11,11 +12,13 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _featureItem = '';
 
 /// Returns the findings of a record doc's `statuses`, `implements`, and
-/// `tests` lines.
+/// `tests` lines and its Verification matrix rows.
 ///
-/// Every line gives at most one finding, the first its behavior order reaches,
-/// so no other rule reports a line this one does. A doc that is no record,
-/// whose frontmatter is invalid, or whose feature is missing has none.
+/// Every line and row gives at most one finding, the first its behavior order
+/// reaches, so no other rule reports a line this one does. A row is read as a
+/// `tests` line of its item, except a row naming a story, which the matrix
+/// rule reports. A doc that is no record, whose frontmatter is invalid, or
+/// whose feature is missing has none.
 Iterable<Finding> checkRecordEntries(
   CheckContext context,
   IndexedDoc record,
@@ -73,11 +76,10 @@ final class _RecordWalk {
     final fieldId = _statusFieldId;
     if (fieldId == null) return;
     final seen = <String>{};
-    for (final (:value, :line, text: _) in _lines.entriesOf(fieldId)) {
-      if (value is! String) continue;
-      final parsed = recordStatusLineOf(value);
-      final item = parsed?.item ?? value;
-      if (parsed == null || !_docs.containsKey(item)) {
+    for (final entry in statusLinesOf(_lines, fieldId)) {
+      final line = entry.line;
+      final item = entry.item ?? entry.text;
+      if (entry.item == null || !_docs.containsKey(item)) {
         yield _unresolved(item, line);
       } else if (!seen.add(item)) {
         yield _finding(
@@ -86,8 +88,8 @@ final class _RecordWalk {
           '${_nameOf(item)} has a second statuses line',
           {'entry': _nameOf(item)},
         );
-      } else if (parsed.status == RecordStatus.skipped) {
-        if ((parsed.reason ?? '').trim().isEmpty) {
+      } else if (entry.status == RecordStatus.skipped) {
+        if ((entry.reason ?? '').trim().isEmpty) {
           yield _finding(
             FindingKind.skipReasonMissing,
             line,
@@ -105,25 +107,40 @@ final class _RecordWalk {
     for (final (:id, :noun) in _codeFields) {
       if (id != null) yield* _lineFindings(id, noun);
     }
+    for (final row in _record.matrixLines.whereType<MatrixRow>()) {
+      // A row naming a story is the matrix rule's alone.
+      final doc = _docs[row.item];
+      if (doc != null && doc.docTypeId != frType) continue;
+      yield* _itemFindings(row.item, row.line, 'matrix row');
+    }
   }
 
   Iterable<Finding> _lineFindings(String fieldId, String noun) sync* {
     for (final (:value, :line, text: _) in _lines.entriesOf(fieldId)) {
       if (value is! String) continue;
       final parsed = recordCodeLineOf(value);
-      final item = parsed?.item ?? value;
-      if (parsed == null || !_docs.containsKey(item)) {
-        yield _unresolved(item, line);
-      } else if (_entries[item]?.status == RecordStatus.skipped) {
-        yield _finding(
-          FindingKind.skipWithCode,
-          line,
-          '${_nameOf(item)} is skipped but names a $noun',
-          {'entry': _nameOf(item)},
-        );
+      if (parsed == null) {
+        yield _unresolved(value, line);
       } else {
-        yield* _asNonSkipped(item, line, noun: noun);
+        yield* _itemFindings(parsed.item, line, noun);
       }
+    }
+  }
+
+  /// The finding of a code, test, or matrix line of [item]; [noun] names what
+  /// the line holds.
+  Iterable<Finding> _itemFindings(String item, int line, String noun) sync* {
+    if (!_docs.containsKey(item)) {
+      yield _unresolved(item, line);
+    } else if (_entries[item]?.status == RecordStatus.skipped) {
+      yield _finding(
+        FindingKind.skipWithCode,
+        line,
+        '${_nameOf(item)} is skipped but names a $noun',
+        {'entry': _nameOf(item)},
+      );
+    } else {
+      yield* _asNonSkipped(item, line, noun: noun);
     }
   }
 

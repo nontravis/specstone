@@ -3,11 +3,10 @@ import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show rebasedHref;
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show TextEdit;
 import 'package:specstone_core/src/document_writing/scenario_items.dart'
     show landedScenarioHeading;
 import 'package:specstone_core/src/document_writing/set_doc.dart'
@@ -21,7 +20,8 @@ import 'package:specstone_core/src/index_query/item_facts.dart'
 import 'package:specstone_core/src/index_query/item_links.dart'
     show CitedSection, citedSectionsOf;
 import 'package:specstone_core/src/index_query/override_chain.dart';
-import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show withTemplateSection;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -514,7 +514,12 @@ TextEdit _destinationEdit(
     var text = lines.join('\n');
     for (final insertion in insertions) {
       if (insertion.anchor != null) continue;
-      text = _withTemplateSection(text, type, insertion.key, insertion.lines);
+      text = withTemplateSection(
+        text,
+        type,
+        insertion.key,
+        insertion.lines.join('\n'),
+      );
     }
     text = _withEntries(destination.docPath, text, added, type);
     return markDraft(text, type);
@@ -612,33 +617,4 @@ List<String> _stacked(List<_Cut> cuts, SectionItemKind? previous) {
     before = cut.kind;
   }
   return lines;
-}
-
-/// Returns [lfText] with the template section [key] added before the first
-/// held section that follows it in the template, else at the end.
-String _withTemplateSection(
-  String lfText,
-  MergedDocType type,
-  String key,
-  List<String> body,
-) {
-  final template = type.sections.firstWhere((section) => section.id == key);
-  final held = [
-    for (final section in Doc.parse(lfText).sections)
-      headerKey(section.headerText),
-  ];
-  int? before;
-  for (final later in type.sections.skipWhile((s) => s.id != key).skip(1)) {
-    final at = held.indexOf(headerKey(later.header));
-    if (at >= 0) {
-      before = at;
-      break;
-    }
-  }
-  return withSectionAdded(
-    lfText,
-    headerLine: '## ${template.header}',
-    body: body.join('\n'),
-    before: before,
-  );
 }

@@ -21,6 +21,9 @@ const _reservedTargetName = 'refs';
 const _agentFileRootsKey = 'agent_file_roots';
 const _agentFilesVersionKey = 'agent_files_version';
 
+/// The config key that turns on `check`'s coverage finding.
+const verificationCoverageKey = 'verification_coverage';
+
 /// One slug of lowercase letters, digits, and underscores.
 final _targetNamePattern = RegExp(r'^[a-z][a-z0-9_]*$');
 
@@ -111,7 +114,8 @@ Directory? findProjectRoot(Directory start) => matchProjectRoot(start)?.root;
 
 /// The project config: the pack version each pack is pinned to, the code
 /// targets code paths are written from, the repository tops already offered
-/// agent files, and the Version stamp of the run that wrote them.
+/// agent files, the Version stamp of the run that wrote them, and whether
+/// `check` reports unproven edge cases.
 final class ProjectConfig {
   new _({
     required this.pins,
@@ -119,21 +123,24 @@ final class ProjectConfig {
     required this.hasCodeRoot,
     required this.agentFileRoots,
     required this.agentFilesVersion,
+    required this.verificationCoverage,
   });
 
   /// Reads `.specstone/config.yaml` under the project [root].
   ///
   /// Throws `unknown_value` first when `.specstone` is a link or a file, since
   /// no byte is read through it, then `unknown_key` for a key other than
-  /// `packs`, `code_root`, `targets`, `agent_file_roots`, and
-  /// `agent_files_version` or a `packs` key that is not kebab-case,
+  /// `packs`, `code_root`, `targets`, `agent_file_roots`,
+  /// `agent_files_version`, and `verification_coverage` or a `packs` key that
+  /// is not kebab-case,
   /// `missing_key` when `packs` is absent, `pack_version_invalid` for a bad
   /// pin, `prd_core_missing` when `packs` pins no `prd-core`, and
   /// `unknown_value` for a `code_root` that is not a string, is empty, is
   /// absolute, or holds a backslash, for an `agent_file_roots` that is not a
   /// list of such strings, for an `agent_files_version` that is not a Version,
-  /// and for a `targets` that is empty, sits beside `code_root:`, or holds two
-  /// targets on one code folder.
+  /// for a `verification_coverage` that is not a boolean, and for a `targets`
+  /// that is empty, sits beside `code_root:`, or holds two targets on one code
+  /// folder.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
@@ -152,6 +159,7 @@ final class ProjectConfig {
         _targetsKey,
         _agentFileRootsKey,
         _agentFilesVersionKey,
+        verificationCoverageKey,
       },
       file: projectConfigPath,
       format: 'config',
@@ -189,6 +197,13 @@ final class ProjectConfig {
       hasCodeRoot: map.containsKey(_codeRootKey),
       agentFileRoots: _readAgentFileRoots(map),
       agentFilesVersion: _readAgentFilesVersion(map),
+      verificationCoverage:
+          optionalValue<bool>(
+            map,
+            verificationCoverageKey,
+            file: projectConfigPath,
+          ) ??
+          false,
     );
   }
 
@@ -223,6 +238,10 @@ final class ProjectConfig {
   /// The last Version whose run left the agent files as it writes them; null
   /// when the config has no `agent_files_version`.
   final ReleaseVersion? agentFilesVersion;
+
+  /// Whether `check` reports the unproven edge cases of a record's matrix;
+  /// `false` when the config has no `verification_coverage`.
+  final bool verificationCoverage;
 
   /// The config path, relative to the project root.
   String get file => projectConfigPath;

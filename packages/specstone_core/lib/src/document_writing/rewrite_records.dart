@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/models/new_record.dart';
+import 'package:specstone_core/src/document_writing/models/record_plan.dart';
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
+import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show TextEdit;
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -17,15 +19,41 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
-/// What a rename or a move does to the record entries of every code target:
-/// the edit of each record that renames or loses entries or gains some, by
-/// its DocPath before the moves, and the record it creates, as a draft, for
-/// entries that land where no record is.
-typedef RecordPlan = ({Map<String, TextEdit> edits, List<CreateStep> creates});
-
 /// Where a story or FR entry goes: the feature whose record takes it, and its
 /// name relative to that feature.
-typedef _Landing = ({IndexedDoc feature, String name});
+final class _Landing {
+  const new({required this.feature, required this.name});
+
+  final IndexedDoc feature;
+  final String name;
+}
+
+/// The items of a record that stay under a new name, and those that leave.
+final class _RecordItemMoves {
+  const new({required this.inPlace, required this.leaving});
+
+  final Map<String, String> inPlace;
+  final Map<String, _Landing> leaving;
+}
+
+/// The feature a record's arrivals land in, by DocPath, and their code target.
+final class _ArrivalKey {
+  const new({required this.featurePath, required this.target});
+
+  final String featurePath;
+  final String? target;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _ArrivalKey &&
+      other.featurePath == featurePath &&
+      other.target == target;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(featurePath, target);
+}
 
 /// The entries bound for one feature's record in one target.
 final class _Arrival {
@@ -36,11 +64,13 @@ final class _Arrival {
   final statuses = <String>[];
   final code = <String>[];
   final tests = <String>[];
+  final rows = <String>[];
 
   void take(RecordLines lines) {
     statuses.addAll(lines.statuses);
     code.addAll(lines.code);
     tests.addAll(lines.tests);
+    rows.addAll(lines.rows);
   }
 }
 
@@ -49,23 +79,20 @@ final class _Arrival {
 ///
 /// An entry names its item relative to its record's feature, so it changes
 /// only when the item's name changes inside that feature: the entry is
-/// renamed in place. An item that left the feature moves its lines, as
-/// written but for the item, to the record of the feature it landed in, in
-/// the same target, and the line leaves the old record; a target whose old
+/// renamed in place. An item that left the feature moves its lines and matrix
+/// rows, as written but for the item, to the record of the feature it landed
+/// in, in the same target, and they leave the old record; a target whose old
 /// record holds no line of it changes nothing, and a landing feature with no
-/// record in that target gets one, as a draft, holding the lines. The feature
+/// record in that target gets one, as a draft, holding them. The feature
 /// itself keeps its own entry.
 ///
 /// Throws [RenderFault] `output_not_writable` before the journal for a record
 /// whose field block is not valid YAML, and for a file at a record path the
 /// index lacks that is no UTF-8 record, so no line is dropped.
-RecordPlan planRecordRewrites(
-  WriteSession session,
-  Map<(String, String), String> renamed,
-) {
+RecordPlan planRecordRewrites(WriteSession session, RenamedNames renamed) {
   final recordType = session.index.set.recordDocType;
   if (recordType == null || renamed.isEmpty) {
-    return (edits: const {}, creates: const []);
+    return const RecordPlan(edits: {}, creates: []);
   }
   return _Planner(session, recordType, renamed).plan();
 }
@@ -76,9 +103,9 @@ final class _Planner {
 
   final WriteSession session;
   final MergedDocType recordType;
-  final Map<(String, String), String> renamed;
+  final RenamedNames renamed;
   final _edits = <String, TextEdit>{};
-  final _arrivals = <(String, String?), _Arrival>{};
+  final _arrivals = <_ArrivalKey, _Arrival>{};
 
   DocIndex get _index => session.index;
 
@@ -92,13 +119,17 @@ final class _Planner {
     for (final arrival in _arrivals.values) {
       if (_land(arrival) case final step?) creates.add(step);
     }
-    return (edits: _edits, creates: creates);
+    return RecordPlan(edits: _edits, creates: creates);
   }
 
   /// Plans the in-place renames and the departures of [record], the record of
   /// [feature], and notes the lines that arrive elsewhere.
   void _planSource(IndexedDoc record, IndexedDoc feature) {
-    final (:inPlace, :leaving) = _itemMovesOf(_index, feature, renamed);
+    final _RecordItemMoves(:inPlace, :leaving) = _itemMovesOf(
+      _index,
+      feature,
+      renamed,
+    );
     if (inPlace.isEmpty && leaving.isEmpty) return;
     _edits[record.docPath] = (text) => readRecord(
       record.docPath,
@@ -124,10 +155,8 @@ final class _Planner {
               : null;
         }),
       );
-      if (lines.statuses.isEmpty && lines.code.isEmpty && lines.tests.isEmpty) {
-        continue;
-      }
-      final key = (path, record.target);
+      if (lines.isEmpty) continue;
+      final key = _ArrivalKey(featurePath: path, target: record.target);
       _arrivals
           .putIfAbsent(key, () => _Arrival(landing, record.target))
           .take(lines);
@@ -140,10 +169,11 @@ final class _Planner {
   /// The session's index is a snapshot, so a record path it lacks is read on
   /// disk: a record there takes the lines as an indexed one does.
   CreateStep? _land(_Arrival arrival) {
-    final lines = (
+    final lines = RecordLines(
       statuses: arrival.statuses,
       code: arrival.code,
       tests: arrival.tests,
+      rows: arrival.rows,
     );
     final held = _index
         .ofTypeNamed(recordType.id, arrival.feature.name)
@@ -210,10 +240,10 @@ T readRecord<T>(String docPath, T Function() read) {
 ///
 /// An item stays when its new name puts it in [feature] itself, so one that
 /// moves into a sub-feature of [feature] leaves.
-({Map<String, String> inPlace, Map<String, _Landing> leaving}) _itemMovesOf(
+_RecordItemMoves _itemMovesOf(
   DocIndex index,
   IndexedDoc feature,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) {
   final inPlace = <String, String>{};
   final leaving = <String, _Landing>{};
@@ -230,11 +260,11 @@ T readRecord<T>(String docPath, T Function() read) {
       leaving[item] = landing;
     }
   }
-  return (inPlace: inPlace, leaving: leaving);
+  return _RecordItemMoves(inPlace: inPlace, leaving: leaving);
 }
 
-String _nameAfter(IndexedDoc doc, Map<(String, String), String> renamed) =>
-    renamed[(doc.docTypeId, doc.name)] ?? doc.name;
+String _nameAfter(IndexedDoc doc, RenamedNames renamed) =>
+    renamed.newNameOf(doc.docTypeId, doc.name) ?? doc.name;
 
 /// Returns where [item], a story or an FR, lands: the feature its new name
 /// puts it in and its name relative to that feature; null when that feature
@@ -242,22 +272,21 @@ String _nameAfter(IndexedDoc doc, Map<(String, String), String> renamed) =>
 ///
 /// An FR's story is its new name less the last segment, so an FR moved to
 /// another story lands where that story is.
-_Landing? _landingOf(
-  DocIndex index,
-  IndexedDoc item,
-  Map<(String, String), String> renamed,
-) {
+_Landing? _landingOf(DocIndex index, IndexedDoc item, RenamedNames renamed) {
   final featureName = _featureNameOf(item, renamed);
   if (featureName == null) return null;
   final feature = index.ofTypeNamed(featureType, featureName).firstOrNull;
   if (feature == null) return null;
   final name = _nameAfter(item, renamed);
-  return (feature: feature, name: name.substring(featureName.length + 1));
+  return _Landing(
+    feature: feature,
+    name: name.substring(featureName.length + 1),
+  );
 }
 
 /// Returns the name of the feature [item]'s new name puts it in; null when the
 /// name has no feature segment.
-String? _featureNameOf(IndexedDoc item, Map<(String, String), String> renamed) {
+String? _featureNameOf(IndexedDoc item, RenamedNames renamed) {
   final name = _nameAfter(item, renamed);
   final storyName = item.docTypeId == storyType ? name : _parentName(name);
   return storyName == null ? null : _parentName(storyName);
@@ -275,7 +304,7 @@ String? _parentName(String name) {
 /// targets, as the doc type matcher reads it. Throws [IndexFault]
 /// `argument_invalid` when the record doc type has no path of its own for the
 /// feature, as `new` does, so the lines never leave the old record unplaced.
-({String docPath, String text}) _newRecordFor(
+NewRecord _newRecordFor(
   WriteSession session,
   MergedDocType recordType,
   _Arrival arrival,
@@ -310,7 +339,7 @@ String? _parentName(String name) {
 ///
 /// The one builder of a new record, for a move or rename and for a migration.
 /// [target] reads the path in that code target's folder.
-({String docPath, String text})? newRecordOf(
+NewRecord? newRecordOf(
   MergedSet set,
   MergedDocType recordType, {
   required MergedDocType featureType,
@@ -332,5 +361,8 @@ String? _parentName(String name) {
   if (values == null || shape == null || !isSpecDocShape(shape)) return null;
   final skeleton = skeletonOf(recordType, featureName.split('/').last);
   final text = addRecordLines(skeleton, recordType, lines) ?? skeleton;
-  return (docPath: shape.build(values), text: layOutDoc(text, recordType));
+  return NewRecord(
+    docPath: shape.build(values),
+    text: layOutDoc(text, recordType),
+  );
 }

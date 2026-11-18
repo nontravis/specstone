@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
@@ -522,7 +523,9 @@ Let a user sign in.
       final result = rewriteLinks(
         '[code](../../../lib/a.dart)\n',
         docPath: 'specs/f01/s01.md',
-        moves: [(from: 'specs/f01/s01.md', to: 'specs/f01/sub/s01.md')],
+        moves: [
+          const PathMove(from: 'specs/f01/s01.md', to: 'specs/f01/sub/s01.md'),
+        ],
       );
 
       expect(result.lf, '[code](../../../../lib/a.dart)\n');
@@ -823,7 +826,7 @@ name: login
       final result = rewriteMentions(
         'See b/c.md and ../../src/x.dart.\n',
         docPath: 'prds/a.md',
-        moves: [(from: 'prds/a.md', to: 'prds/sub/a.md')],
+        moves: [const PathMove(from: 'prds/a.md', to: 'prds/sub/a.md')],
         exists: (path) {
           asked.add(path);
           return true;
@@ -839,7 +842,7 @@ name: login
       final result = rewriteMentions(
         'See b/c.md.\n',
         docPath: 'prds/a.md',
-        moves: [(from: 'prds/a.md', to: 'prds/sub/a.md')],
+        moves: [const PathMove(from: 'prds/a.md', to: 'prds/sub/a.md')],
         exists: (path) => false,
       );
 

@@ -45,16 +45,29 @@ MergedDocType builtIn(String id) => MergedDocType(
   files: const [],
 );
 
+/// [base] with each of [layers] applied through the merger, lowest first.
+MergedDocType mergeLayers(MergedDocType base, DocTypeLayers layers) {
+  var type = base;
+  for (final entry in layers) {
+    type = const DocTypeMerger().apply(type, entry.layer);
+  }
+  return type;
+}
+
 /// [checkMergedSet] over [docTypes], loading [layers] in map order.
-void check(List<MergedDocType> docTypes, Map<String, DocTypeLayers> layers) =>
-    checkMergedSet(
-      docTypes,
-      layers,
-      loadIndex: loadIndexOf([
-        for (final list in layers.values)
-          for (final entry in list) entry.layer,
-      ]),
-    );
+void check(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layers, {
+  bool verificationCoverage = false,
+}) => checkMergedSet(
+  docTypes,
+  layers,
+  loadIndex: loadIndexOf([
+    for (final list in layers.values)
+      for (final entry in list) entry.layer,
+  ]),
+  verificationCoverage: verificationCoverage,
+);
 
 void main() {
   group('checkMergedSet', () {
@@ -610,6 +623,301 @@ void main() {
     });
   });
 
+  group('checkMergedSet record matrix section', () {
+    const recordKeys =
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: entries\n'
+        '    type: record_status\n';
+    const matrixOn =
+        '$recordKeys'
+        'sections:\n'
+        '  - {id: verification_matrix, header: Matrix, output_ref: true}\n';
+    const matrixKey = 'verification_matrix';
+
+    MergedSection matrix({required bool outputRef}) =>
+        MergedSection(id: matrixKey, header: 'Matrix', isOutputRef: outputRef);
+
+    MergedDocType record({List<MergedSection> sections = const []}) =>
+        builtIn('runbook').copyWith(
+          isPerTarget: true,
+          fields: [
+            const MergedField(id: 'entries', type: FieldType.recordStatus),
+          ],
+          sections: sections,
+        );
+
+    TypeMatcher<TemplateFault> refusedAt(String file, String key) =>
+        isA<TemplateFault>()
+            .having((f) => f.code, 'code', FaultCode.unknownValue)
+            .having((f) => f.file, 'file', file)
+            .having((f) => f.key, 'key', key);
+
+    test('output_ref on the record matrix section is accepted', () {
+      final docType = record(sections: [matrix(outputRef: true)]);
+      expect(
+        () => check(
+          [docType],
+          {
+            'runbook': [layerOf('runbook', matrixOn)],
+          },
+        ),
+        returnsNormally,
+      );
+      expect(verificationMatrixOf(docType)?.isOutputRef, isTrue);
+    });
+
+    test('output_ref on any other section is refused', () {
+      const otherSection =
+          'sections:\n'
+          '  - {id: goal, header: Goal}\n'
+          '  - {id: notes, header: Notes, output_ref: true}\n';
+      expect(
+        () => check(
+          [record()],
+          {
+            'runbook': [layerOf('runbook', '$recordKeys$otherSection')],
+          },
+        ),
+        throwsA(refusedAt(_runbookFile, 'sections[1].output_ref')),
+      );
+      expect(
+        () => check(
+          [record(), builtIn('playbook')],
+          {
+            'runbook': [layerOf('runbook', matrixOn)],
+            'playbook': [
+              layerOf('playbook', otherSection, file: _playbookFile),
+            ],
+          },
+        ),
+        throwsA(refusedAt(_playbookFile, 'sections[1].output_ref')),
+      );
+    });
+
+    test('output_ref on a matrix section of a doc type that holds no '
+        'record_status field is accepted and inert', () {
+      final playbook = builtIn('playbook')
+          .copyWith(sections: [matrix(outputRef: true)]);
+      expect(
+        () => check(
+          [record(), playbook],
+          {
+            'runbook': [layerOf('runbook', matrixOn)],
+            'playbook': [
+              layerOf(
+                'playbook',
+                'sections:\n'
+                    '  - {id: verification_matrix, header: Matrix, '
+                    'output_ref: true}\n',
+                file: _playbookFile,
+              ),
+            ],
+          },
+        ),
+        returnsNormally,
+      );
+      expect(verificationMatrixOf(playbook), isNull);
+    });
+
+    test('a record matrix section without output_ref true is refused', () {
+      const absent =
+          '$recordKeys'
+          'sections:\n'
+          '  - {id: verification_matrix, header: Matrix}\n';
+      expect(
+        () => check(
+          [
+            record(sections: [matrix(outputRef: false)]),
+          ],
+          {
+            'runbook': [layerOf('runbook', absent)],
+          },
+        ),
+        throwsA(refusedAt(_runbookFile, 'sections[0].output_ref')),
+      );
+      const lowered =
+          'sections:\n'
+          '  - {id: goal, header: Goal}\n'
+          '  - {id: verification_matrix, output_ref: false}\n';
+      expect(
+        () => check(
+          [
+            record(sections: [matrix(outputRef: false)]),
+          ],
+          {
+            'runbook': [
+              layerOf('runbook', matrixOn, file: _epicFile),
+              layerOf('runbook', lowered),
+            ],
+          },
+        ),
+        throwsA(refusedAt(_runbookFile, 'sections[1].output_ref')),
+      );
+    });
+
+    test('a disabled record matrix section is accepted', () {
+      expect(
+        () => check(
+          [record()],
+          {
+            'runbook': [
+              layerOf('runbook', matrixOn, file: _epicFile),
+              layerOf(
+                'runbook',
+                'sections:\n  - {id: $matrixKey, disabled: true}\n',
+              ),
+            ],
+          },
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('the matrix is the enabled section of its key on the record doc '
+        'type, else null', () {
+      final docType = record(sections: [matrix(outputRef: true)]);
+      expect(verificationMatrixOf(docType)?.id, matrixKey);
+      expect(verificationMatrixOf(record()), isNull);
+      expect(
+        verificationMatrixOf(
+          builtIn('playbook').copyWith(sections: [matrix(outputRef: true)]),
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('checkMergedSet verification coverage', () {
+    const recordKeys =
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: entries\n'
+        '    type: record_status\n';
+    const matrixOn =
+        '$recordKeys'
+        'sections:\n'
+        '  - {id: verification_matrix, header: Matrix, output_ref: true}\n';
+    const personalFile = '~/.specstone/packs/runbook.yaml';
+
+    MergedDocType record({List<MergedSection> sections = const []}) =>
+        builtIn('runbook').copyWith(
+          isPerTarget: true,
+          fields: [
+            const MergedField(id: 'entries', type: FieldType.recordStatus),
+          ],
+          sections: sections,
+        );
+
+    const enabledMatrix = MergedSection(
+      id: 'verification_matrix',
+      header: 'Matrix',
+      isOutputRef: true,
+    );
+
+    TypeMatcher<TemplateFault> refusedInConfig(String messagePart) =>
+        isA<TemplateFault>()
+            .having((f) => f.code, 'code', FaultCode.unknownValue)
+            .having((f) => f.code.exitStatus, 'exitStatus', 78)
+            .having((f) => f.file, 'file', '.specstone/config.yaml')
+            .having((f) => f.key, 'key', 'verification_coverage')
+            .having((f) => f.message, 'message', contains(messagePart));
+
+    test('coverage on with an enabled matrix section is accepted', () {
+      expect(
+        () => check(
+          [
+            record(sections: [enabledMatrix]),
+          ],
+          {
+            'runbook': [layerOf('runbook', matrixOn)],
+          },
+          verificationCoverage: true,
+        ),
+        returnsNormally,
+      );
+    });
+
+    /// The runbook merged over [layers], as the resolver folds them.
+    MergedDocType mergedRunbook(DocTypeLayers layers) =>
+        mergeLayers(const DocTypeMerger().builtInBase('runbook'), layers);
+
+    test('coverage on after a layer disables the matrix section is refused '
+        'naming the pack version', () {
+      final shipped = [layerOf('runbook', matrixOn, file: _epicFile)];
+      final layers = [
+        ...shipped,
+        layerOf(
+          'runbook',
+          'sections:\n  - {id: verification_matrix, disabled: true}\n',
+        ),
+      ];
+      // The section was there and the project layer took it away.
+      expect(verificationMatrixOf(mergedRunbook(shipped)), isNotNull);
+      final disabled = mergedRunbook(layers);
+      expect(verificationMatrixOf(disabled), isNull);
+
+      expect(
+        () =>
+            check([disabled], {'runbook': layers}, verificationCoverage: true),
+        throwsA(refusedInConfig('software-tech 1.13.0')),
+      );
+    });
+
+    test('coverage on with a record doc type that never had the matrix '
+        'section is refused naming the pack version', () {
+      final layers = [layerOf('runbook', recordKeys, file: personalFile)];
+      final lacking = mergedRunbook(layers);
+      expect(lacking.sections, isEmpty);
+
+      expect(
+        () => check([lacking], {'runbook': layers}, verificationCoverage: true),
+        throwsA(refusedInConfig('software-tech 1.13.0')),
+      );
+    });
+
+    test('coverage on with no record doc type is refused', () {
+      expect(
+        () => check(
+          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
+          {
+            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+          },
+          verificationCoverage: true,
+        ),
+        throwsA(
+          refusedInConfig(
+            'verification coverage reads a record, and this merged set holds '
+            'no record doc type',
+          ),
+        ),
+      );
+    });
+
+    test('coverage off is accepted with no record doc type or no matrix', () {
+      for (final (docTypes, layers) in [
+        (
+          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
+          {
+            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+          },
+        ),
+        (
+          [record()],
+          {
+            'runbook': [layerOf('runbook', recordKeys)],
+          },
+        ),
+      ]) {
+        expect(() => check(docTypes, layers), returnsNormally);
+        expect(
+          () => check(docTypes, layers, verificationCoverage: false),
+          returnsNormally,
+        );
+      }
+    });
+  });
+
   group('checkMergedSet targets', () {
     test('E30, '
         'INV-29: a targets config in a merged set with no record doc type is '
@@ -710,10 +1018,10 @@ void main() {
         for (final (i, text) in texts.indexed)
           layerOf('runbook', text, file: i == 0 ? lowerFile : upperFile),
       ];
-      var type = const DocTypeMerger().builtInBase('runbook');
-      for (final entry in layers) {
-        type = const DocTypeMerger().apply(type, entry.layer);
-      }
+      final type = mergeLayers(
+        const DocTypeMerger().builtInBase('runbook'),
+        layers,
+      );
       return (type: type, layers: layers);
     }
 
@@ -776,10 +1084,10 @@ void main() {
         for (final (i, text) in texts.indexed)
           layerOf('runbook', text, file: i == 0 ? lowerFile : upperFile),
       ];
-      var type = const DocTypeMerger().builtInBase('runbook');
-      for (final entry in layers) {
-        type = const DocTypeMerger().apply(type, entry.layer);
-      }
+      final type = mergeLayers(
+        const DocTypeMerger().builtInBase('runbook'),
+        layers,
+      );
       check([type], {'runbook': layers});
     }
 
@@ -838,19 +1146,13 @@ void main() {
         layerOf(id, text, file: layerFile(id, i)),
     ];
 
-    /// [base] with each of [layers] applied through the merger.
-    MergedDocType merged(MergedDocType base, DocTypeLayers layers) {
-      var type = base;
-      for (final entry in layers) {
-        type = const DocTypeMerger().apply(type, entry.layer);
-      }
-      return type;
-    }
-
     /// The runbook merged over [texts], one layer each, lowest first.
     void checkRunbook(List<String> texts) {
       final layers = layersOf('runbook', texts);
-      final type = merged(const DocTypeMerger().builtInBase('runbook'), layers);
+      final type = mergeLayers(
+        const DocTypeMerger().builtInBase('runbook'),
+        layers,
+      );
       check([type], {'runbook': layers});
     }
 
@@ -862,12 +1164,12 @@ void main() {
       List<String> epicTexts = const [],
     ]) {
       final featureLayers = layersOf('feature', featureTexts);
-      final feature = merged(
+      final feature = mergeLayers(
         const DocTypeMerger().builtInBase('feature'),
         featureLayers,
       );
       final epicLayers = layersOf('epic', ['extends: feature\n', ...epicTexts]);
-      final epic = merged(
+      final epic = mergeLayers(
         MergedDocType(
           id: 'epic',
           extendsId: 'feature',

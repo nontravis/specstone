@@ -114,6 +114,35 @@ void main() {
     );
   });
 
+  group('matrix rows', () {
+    const item = 'email_login/validate_credentials';
+    const row = '$item E02: `refuses a wrong password`';
+
+    Future<Directory> projectWithRow() => writeReadProject(
+      extra: {
+        '.specstone/records/f01_login/IMPLEMENTATION.md':
+            "---\nstatuses:\n  - '$item:implemented'\n---\n\n"
+            '# Login implementation\n\n## Verification matrix\n\n'
+            '- $row 5d1e0c4b7a92\n',
+      },
+    );
+
+    test(
+      'refs prints a row as a verifies line without its fingerprint',
+      () async {
+        final (:runner, :out, :err) = readRunner(await projectWithRow());
+
+        expect(await runner.run(['refs', 'implementation:login']), 0);
+
+        expect(
+          out.toString(),
+          contains('Outbound\n- verifies: $row\nInbound\n'),
+        );
+        expect(out.toString(), isNot(contains('5d1e0c4b7a92')));
+      },
+    );
+  });
+
   for (final folder in ['measurements', 'plans']) {
     test('a mention in an untyped .md under $folder/ lists under untyped '
         'mentions, never under mentions', () async {

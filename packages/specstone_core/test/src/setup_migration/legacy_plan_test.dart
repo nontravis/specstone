@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
@@ -11,6 +12,8 @@ import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     show newRecordOf;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show StaleMention;
+import 'package:specstone_core/src/index_query/record_entries.dart'
+    show RecordLines;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
@@ -513,10 +516,12 @@ name: Login API
 
     expect(
       plan.moves,
-      contains((
-        from: 'prds/features/ai_module/ai05_chat/FEATURE.md',
-        to: 'prds/features/ai_module/f05_chat/FEATURE.md',
-      )),
+      contains(
+        const PathMove(
+          from: 'prds/features/ai_module/ai05_chat/FEATURE.md',
+          to: 'prds/features/ai_module/f05_chat/FEATURE.md',
+        ),
+      ),
     );
     expect(
       plan.moves.map((m) => m.from),
@@ -577,10 +582,12 @@ name: Login API
 
     expect(
       plan.moves,
-      contains((
-        from: 'specs/shared/logo.png',
-        to: 'specs/topics/shared/logo.png',
-      )),
+      contains(
+        const PathMove(
+          from: 'specs/shared/logo.png',
+          to: 'specs/topics/shared/logo.png',
+        ),
+      ),
     );
     expect(plan.rewrites.where((r) => r.path.endsWith('.png')), isEmpty);
   });
@@ -610,10 +617,12 @@ name: Login API
 
       expect(
         plan.moves,
-        contains((
-          from: 'specs/shared/notes.md',
-          to: 'specs/topics/shared/notes.md',
-        )),
+        contains(
+          const PathMove(
+            from: 'specs/shared/notes.md',
+            to: 'specs/topics/shared/notes.md',
+          ),
+        ),
       );
       expect(
         plan.toText(),
@@ -1866,13 +1875,12 @@ name: Login API
         featureType: set.lookup('feature')!,
         featureDocPath: 'prds/features/f01_login/FEATURE.md',
         featureName: 'login',
-        lines: (
+        lines: const RecordLines(
           statuses: [
             'email_login:implemented',
             'email_login/validate_credentials:planned',
           ],
           code: ['email_login:lib/a.dart:A'],
-          tests: const [],
         ),
       )!;
       expect(record.text, expected.text);

@@ -29,6 +29,10 @@ fields:
     description: The Owner approved the doc at least once; written only by approve and the hash stamps.
   - id: reference
     description: Reference docs the doc cites.
+  - id: summary
+    type: string
+    required: true
+    description: One line on what the feature does.
 sections:
   - id: goal
     header: Feature goal
@@ -79,7 +83,7 @@ MergedDocType _merge(String shipped, [String? project]) {
 }
 
 /// The doc type behind the s02 `specstone guide <type> --json` example, with
-/// the `scope` section the s02 `specstone guide <type>` example adds.
+/// the `scope` section the s02 examples drop.
 MergedDocType featureDocType() => _merge(_featureLayer);
 
 /// The s02 `specstone guide <type> --json` success example, with its `scope`
@@ -120,6 +124,12 @@ final s02FeatureJson = <String, Object>{
       'list': true,
       'description': 'Reference docs the doc cites.',
     },
+    {
+      'id': 'summary',
+      'type': 'string',
+      'required': true,
+      'description': 'One line on what the feature does.',
+    },
   ],
   'sections': [
     {
@@ -147,8 +157,12 @@ A feature groups the stories that serve one goal.
 
 Banned words: `fast`, `robust`
 
+Fields:
+- `summary` (required, string) — One line on what the feature does.
+
 ## Feature goal
 
+Required section.
 Why, problem, and audience, one sentence each.
 
 Template:
@@ -157,10 +171,6 @@ Template:
 - **Problem:**
 - **Audience:**
 ```
-
-## Out-of-scope
-
-At most five one-line bullets, each naming its owner.
 
 Guide sources:
 - NASA Systems Engineering Handbook, Appendix C
@@ -722,8 +732,14 @@ sections:
 
   group('MergedDocType.renderGuide', () {
     test('f03/us01/s1, f03/us01/fr02: the guide matches the s02 example for '
-        'goal and scope, with the doc banned words and the goal template', () {
-      expect(featureDocType().renderGuide(), _s02Guide);
+        'goal, with the doc banned words, the field block, and the goal '
+        'template', () {
+      final guide = _merge(
+        _featureLayer,
+        'sections: [{id: scope, disabled: true}]',
+      ).renderGuide();
+
+      expect(guide, _s02Guide);
     });
 
     test("a section's own banned words follow its description, "
@@ -746,6 +762,7 @@ sections:
         guide,
         'Avoid the listed words.\n\n'
         '## Statement\n\n'
+        'Optional section.\n'
         'Remove the listed words.\n\n'
         'Banned words on `- **Statement:**` lines: `fast`, `etc.`\n',
       );
@@ -759,7 +776,7 @@ sections:
         'sections: [{id: s, header: S, lint: {banned_words: [fast]}}]',
       ).renderGuide();
 
-      expect(guide, 'A.\n\n## S\n');
+      expect(guide, 'A.\n\n## S\n\nOptional section.\n');
     });
 
     test('a template that holds a code fence prints inside a '
@@ -778,7 +795,7 @@ sections:
 
       expect(
         guide,
-        'A.\n\n## Flow\n\n'
+        'A.\n\n## Flow\n\nOptional section.\n\n'
         'Template:\n````markdown\n```mermaid\nflowchart TD\n```\n````\n',
       );
     });
@@ -789,37 +806,38 @@ sections:
         "sections: [{id: s, header: S, template: ''}]",
       ).renderGuide();
 
-      expect(guide, 'A.\n\n## S\n');
+      expect(guide, 'A.\n\n## S\n\nOptional section.\n');
     });
 
-    test('f03/us01/s3, f03/us01/fr02/e02: a disabled section has no ## '
-        'line', () {
+    test('f03/us01/s3, f03/us01/fr02/e02: a disabled section prints neither '
+        'header nor mark', () {
       final guide = _merge(
         _featureLayer,
         'sections: [{id: goal, disabled: true}]',
       ).renderGuide();
 
       expect(guide, isNot(contains('Feature goal')));
-      expect(guide, contains('## Out-of-scope'));
+      expect(guide, isNot(contains('Required section.')));
+      expect(guide, contains('## Out-of-scope\n\nOptional section.\n'));
     });
 
-    test('a section with no description prints its header '
+    test('a section with no description prints its mark '
         'alone', () {
       final guide = _merge(
         'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
       ).renderGuide();
 
-      expect(guide, 'A.\n\n## S\n');
+      expect(guide, 'A.\n\n## S\n\nOptional section.\n');
     });
 
     test('a section with an empty description prints its '
-        'header alone', () {
+        'mark alone', () {
       final guide = _merge(
         'description: A.\npath: a.md\n'
         "sections: [{id: s, header: S, description: ''}]",
       ).renderGuide();
 
-      expect(guide, 'A.\n\n## S\n');
+      expect(guide, 'A.\n\n## S\n\nOptional section.\n');
     });
 
     test('an empty doc description adds no blank paragraph', () {
@@ -827,7 +845,7 @@ sections:
         "description: ''\npath: a.md\nsections: [{id: s, header: S}]",
       ).renderGuide();
 
-      expect(guide, '## S\n');
+      expect(guide, '## S\n\nOptional section.\n');
     });
 
     test('a doc type with an empty description and no sections '
@@ -889,6 +907,106 @@ sections:
       ).renderGuide();
 
       expect(guide, 'Guide sources:\n- T\n');
+    });
+
+    test('a declared field prints in the field block ahead of the '
+        'sections', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'fields: [{id: summary, type: string, required: true, '
+        'description: One line.}]\n'
+        'sections: [{id: s, header: S}]',
+      ).renderGuide();
+
+      expect(
+        guide,
+        'A.\n\nFields:\n- `summary` (required, string) — One line.\n\n'
+        '## S\n\nOptional section.\n',
+      );
+    });
+
+    test('a list field adds list after its type, and a description of two '
+        'lines indents the second by two spaces', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'fields:\n'
+        '  - id: traced_from\n'
+        '    type: string\n'
+        '    list: true\n'
+        '    required: true\n'
+        '    description: |-\n'
+        '      First line.\n'
+        '      Second line.',
+      ).renderGuide();
+
+      expect(
+        guide,
+        'A.\n\nFields:\n'
+        '- `traced_from` (required, string list) — First line.\n'
+        '  Second line.\n',
+      );
+    });
+
+    test('an undescribed field line ends at its closing parenthesis', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\nfields: [{id: note, type: string}]',
+      ).renderGuide();
+
+      expect(guide, 'A.\n\nFields:\n- `note` (optional, string)\n');
+    });
+
+    test('an enum field lists its values in declared order', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'fields: [{id: verify_method, type: enum, required: true, '
+        'enum: [test, analysis, inspection, demonstration], '
+        'description: Names how the requirement is proven.}]',
+      ).renderGuide();
+
+      expect(
+        guide,
+        contains(
+          '- `verify_method` (required, enum: test, analysis, inspection, '
+          'demonstration) — Names how the requirement is proven.',
+        ),
+      );
+    });
+
+    test('a built-in field is never listed', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'fields: [{id: status, description: Lifecycle of the doc.}]',
+      ).renderGuide();
+
+      expect(guide, isNot(contains('status')));
+      expect(guide, isNot(contains('Fields:')));
+    });
+
+    test('a type that declares only built-ins prints no field block', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
+      ).renderGuide();
+
+      expect(guide, isNot(contains('Fields:')));
+    });
+
+    test('a required and an optional section each carry their mark under '
+        'the header', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'sections:\n'
+        '  - {id: r, header: R, required: true, description: Why.}\n'
+        '  - {id: o, header: O, description: What.}\n'
+        '  - {id: n, header: N, required: true}',
+      ).renderGuide();
+
+      expect(
+        guide,
+        'A.\n\n'
+        '## R\n\nRequired section.\nWhy.\n\n'
+        '## O\n\nOptional section.\nWhat.\n\n'
+        '## N\n\nRequired section.\n',
+      );
     });
   });
 

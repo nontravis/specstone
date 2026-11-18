@@ -13,13 +13,12 @@ import 'package:specstone_core/src/document_writing/body_scan.dart';
 import 'package:specstone_core/src/document_writing/item_landing.dart';
 import 'package:specstone_core/src/document_writing/item_moves.dart';
 import 'package:specstone_core/src/document_writing/item_ref_entries.dart';
+import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show rebasedHref, relativeHref;
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
     show MovedFingerprints, rewriteScenarioSteps, rewriteScenarioTraces;
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show TextEdit;
 import 'package:specstone_core/src/document_writing/scenario_items.dart'
     show landedScenarioHeading;
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -339,6 +338,23 @@ final class _ReadLink {
   };
 }
 
+/// A place in a doc's file: its 1-based line and its column.
+final class _LineColumn {
+  const new({required this.line, required this.column});
+
+  final int line;
+  final int column;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _LineColumn && other.line == line && other.column == column;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(line, column);
+}
+
 /// One replacement in a line: the characters from [start] up to [end] take
 /// [text].
 final class _Edit {
@@ -434,7 +450,7 @@ _LinkPlan _linkPlanOf(
     if (read != null) (byLine[link.line] ??= []).add(_ReadLink(link, read));
   }
   final users = <String, List<_RefUser>>{};
-  final itemLinks = <(int, int), _ReadLink>{};
+  final itemLinks = <_LineColumn, _ReadLink>{};
   for (final MapEntry(key: number, value: links) in byLine.entries) {
     final line = _Line(
       index: index,
@@ -448,7 +464,7 @@ _LinkPlan _linkPlanOf(
     }
     for (final read in links) {
       if (read.cite == null) continue;
-      itemLinks[(number, read.link.column)] = read;
+      itemLinks[_LineColumn(line: number, column: read.link.column)] = read;
       if (_isPlain(line.text, read.link)) continue;
       if (_refUserOf(line, read) case final user?) {
         (users[user.label] ??= []).add(user);
@@ -726,7 +742,7 @@ void _planRebased(
   BodyScan body,
   IndexedDoc doc,
   ItemMoves moves,
-  Set<(int, int)> covered,
+  Set<_LineColumn> covered,
 ) {
   for (final destination in body.scan.destinations) {
     final number = body.fileLineOf(destination.start);
@@ -734,9 +750,11 @@ void _planRebased(
     if (span == null || moves.isOwnLine(doc.docPath, number)) continue;
     if (destination.link case final at?) {
       final source = body.scan.sources[at];
-      if (covered.contains((source.line, body.columnOf(source.offset)))) {
-        continue;
-      }
+      final place = _LineColumn(
+        line: source.line,
+        column: body.columnOf(source.offset),
+      );
+      if (covered.contains(place)) continue;
     }
     final text = body.body.substring(destination.start, destination.end);
     if (readLinkTarget(text) case RelativeLink(:final pathEnd)) {
@@ -769,7 +787,7 @@ String _withEdits(String text, List<_Edit> edits) {
 void _planRebasedReferences(
   _LinkPlan plan,
   _References refs,
-  Map<(int, int), _ReadLink> itemLinks,
+  Map<_LineColumn, _ReadLink> itemLinks,
 ) {
   final converted = <String, int>{};
   for (final link in refs.links) {
@@ -782,7 +800,7 @@ void _planRebasedReferences(
       plan.listed.add(_Listed(link.line, link.column, link.end));
       continue;
     }
-    final item = itemLinks[(link.line, link.column)];
+    final item = itemLinks[_LineColumn(line: link.line, column: link.column)];
     plan.add(
       link.line,
       item == null
@@ -897,7 +915,7 @@ String _destinationFrom(String destination, String from, String to) {
 ///
 /// Returns the file line and column of each such inline link. [scanOf] reads
 /// the body only when a link of [doc] reaches such a heading.
-Set<(int, int)> _planHeadingLinks(
+Set<_LineColumn> _planHeadingLinks(
   _LinkPlan plan,
   IndexedDoc doc,
   ItemMoves moves,
@@ -909,14 +927,16 @@ Set<(int, int)> _planHeadingLinks(
     ...facts.links,
     ...facts.selfLinks,
   ].any((place) => _movedHeadingAt(moves, place.target, place.anchor) != null);
-  if (!isCited) return const {};
+  if (!isCited) return const <_LineColumn>{};
   final body = scanOf();
-  final covered = <(int, int)>{};
+  final covered = <_LineColumn>{};
   for (final source in body.scan.sources) {
     final edit = _headingEdit(moves, doc, body, lines, source);
     if (edit == null) continue;
     plan.add(source.line, edit);
-    covered.add((source.line, body.columnOf(source.offset)));
+    covered.add(
+      _LineColumn(line: source.line, column: body.columnOf(source.offset)),
+    );
   }
   for (final definition in _definitionsOf(body).values) {
     if (definition == null) continue;

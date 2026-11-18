@@ -12,8 +12,7 @@ final _linkSyntax = LinkSyntax();
 /// its destination as written, and its decoded `#anchor`, null with no `#`.
 ///
 /// The target is a docPath for a doc link and a self link, and the path under
-/// the docs root for a file link; an unreadable link's target is its href as
-/// written.
+/// the docs root for a file link.
 typedef LinkPlace = ({String target, int line, String shown, String? anchor});
 
 /// A doc link or self link whose text reads as an item ID:
@@ -38,16 +37,14 @@ typedef LinkText = ({
 
 /// The links of a doc: the doc links, which resolve to a `.md` doc other than
 /// the doc itself, the file links, every other relative link, the self links,
-/// which name the doc itself, a bare `#anchor` included, and the unreadable
-/// links, whose target the grammar cannot read; the [LinkText] of each doc
-/// link and self link the scan placed; and whether the scan and `markdown`
-/// agree on them (see [readersAgree]), without which a move, the see rule, and
-/// the renumber pass read no href of an inline link.
+/// which name the doc itself, a bare `#anchor` included; the [LinkText] of
+/// each doc link and self link the scan placed; and whether the scan and
+/// `markdown` agree on them (see [readersAgree]), without which a move, the
+/// see rule, and the renumber pass read no href of an inline link.
 typedef LinkPlaces = ({
   List<LinkPlace> docLinks,
   List<LinkPlace> fileLinks,
   List<LinkPlace> selfLinks,
-  List<LinkPlace> unreadableLinks,
   List<LinkText> texts,
   bool readersAgree,
 });
@@ -57,7 +54,6 @@ const LinkPlaces noLinks = (
   docLinks: [],
   fileLinks: [],
   selfLinks: [],
-  unreadableLinks: [],
   texts: [],
   readersAgree: true,
 );
@@ -113,7 +109,6 @@ LinkPlaces? linkPlacesOf(
     docLinks: placesOf(_LinkKind.doc),
     fileLinks: placesOf(_LinkKind.file),
     selfLinks: placesOf(_LinkKind.self),
-    unreadableLinks: placesOf(_LinkKind.unreadable),
     texts: [
       for (final (i, (:place, :source)) in located.indexed)
         if (placed[i].kind == _LinkKind.doc || placed[i].kind == _LinkKind.self)
@@ -359,7 +354,7 @@ String? _hrefOfLink(String destination) {
 }
 
 /// The class a placed href falls into.
-enum _LinkKind { doc, file, self, unreadable }
+enum _LinkKind { doc, file, self }
 
 /// A placed href together with its index among the hrefs, the path it
 /// resolved to, its class, and its decoded anchor.
@@ -376,10 +371,8 @@ typedef _PlacedHref = ({
 ///
 /// A link to a `.md` doc other than [docPath] is a doc link; a link to
 /// [docPath] itself is a self link, a bare `#anchor` and an empty path with
-/// no anchor (`[x]()`, `[x](?q)`) included; a link whose target the grammar
-/// cannot read is an unreadable link, its target the href as written; a web
-/// address, another scheme, and a rooted path are left out; every other
-/// relative link is a file link.
+/// no anchor (`[x]()`, `[x](?q)`) included; a web address, another scheme, and
+/// a rooted path are left out; every other relative link is a file link.
 ///
 /// Each href resolves exactly once: the caller reads the path from here
 /// instead of resolving again. A null href, a link `markdown` drops, is no
@@ -390,16 +383,6 @@ List<_PlacedHref> _placedHrefs(String docPath, List<String?> hrefs) {
     final href = hrefs[index];
     if (href == null) continue;
     final target = resolveDocLink(href, docPath);
-    if (target is UnreadableTarget) {
-      placed.add((
-        index: index,
-        href: href,
-        target: href,
-        kind: _LinkKind.unreadable,
-        anchor: null,
-      ));
-      continue;
-    }
     if (target is DocTarget && target.docPath.endsWith('.md')) {
       final kind = target.docPath == docPath ? _LinkKind.self : _LinkKind.doc;
       placed.add((

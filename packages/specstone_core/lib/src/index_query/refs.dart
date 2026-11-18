@@ -3,6 +3,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
@@ -13,6 +14,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _frType = 'fr';
 const _tracedFromKey = 'traced_from';
+const _verifiesKind = 'verifies';
 
 /// The inbound story maps of each index, built on first use: an index is
 /// one read snapshot, so a delete unit's [referrersOf] calls share them.
@@ -52,8 +54,8 @@ final class _Ref {
 ///
 /// Outbound holds each `doc_ref` field value that resolves, each doc the doc
 /// links to, each story a journey step or an `fr`'s `traced_from` entry names,
-/// and its `output_ref` pointers without a fingerprint: a record's code paths,
-/// `covers`.
+/// its `output_ref` pointers without a fingerprint (a record's code paths and
+/// test paths, `covers`), then a record's matrix rows as written.
 /// Inbound holds the docs whose `doc_ref` value reaches the doc, then those
 /// linking to it, then the journeys with a step naming it, then the `fr` docs
 /// tracing it, each group in tree order of the referring docs. Mentions holds
@@ -130,8 +132,8 @@ ReadAnswer answerRefs(DocIndex index, String address, {String? codeTarget}) {
 
 /// Returns the outbound references of [doc]: its `doc_ref` fields in field
 /// order, the docs it links to, the stories its steps and `traced_from` entries
-/// name, then its `output_ref` pointers. A value naming [doc] itself is left
-/// out.
+/// name, then its `output_ref` pointers and matrix rows. A value naming [doc]
+/// itself is left out.
 List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
   final refs = <_Ref>[];
   for (final field in _docRefFields(index, doc)) {
@@ -152,12 +154,13 @@ List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
 }
 
 /// Returns the `output_ref` pointers of [doc], one field after another in
-/// field order, each without a code fingerprint.
+/// field order, each without a code fingerprint, then each row of its
+/// Verification matrix as [MatrixRow.written], in file order.
 ///
 /// An `item_exact` field belongs to a record: it gives each line's code path
 /// with the item left off, in line order, as [recordCodeLinesOf] reads them.
 /// An `item_test` field gives each line's test path alone, as
-/// [recordTestLinesOf] reads it.
+/// [recordTestLinesOf] reads it. A malformed matrix line is no row.
 List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
   final type = index.typeOf(doc);
   if (type == null) return const [];
@@ -176,6 +179,8 @@ List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
               field.id,
               isCodeLinkField(field) ? CodeLinkEntry(value).pointer : value,
             ),
+    for (final row in doc.matrixLines.whereType<MatrixRow>())
+      _Ref.toPointer(_verifiesKind, row.written),
   ];
 }
 

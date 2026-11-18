@@ -3,8 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
-import 'package:specstone_core/src/document_writing/moved_paths.dart'
-    show PathMove;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/merged_set.dart';
 
@@ -40,7 +39,7 @@ List<PathMove> treeMovesOf(
       ...olderPatterns,
     ];
     if (_inTargetFolder(path, patterns, first) case final to?) {
-      moves.add((from: path, to: to));
+      moves.add(PathMove(from: path, to: to));
     }
   }
   return moves;
