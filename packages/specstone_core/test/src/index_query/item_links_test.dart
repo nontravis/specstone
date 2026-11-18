@@ -5,7 +5,11 @@ import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:test/test.dart';
 
 /// The line facts of [text], as refresh computes them.
@@ -17,7 +21,7 @@ LineFacts _factsOf(String text) => parseIndexedDoc(
 ).content.lineFacts;
 
 /// A link of [text] to [anchor] of other.md, placed on file line 8.
-LinkText _link(String text, String? anchor) => (
+LinkText _link(String text, String? anchor) => LinkText(
   line: 8,
   column: 0,
   endLine: 8,
@@ -32,7 +36,7 @@ LinkText _link(String text, String? anchor) => (
 /// it.
 LinkText _linkIn(String line, String text, String anchor) {
   final column = line.indexOf('[$text](');
-  return (
+  return LinkText(
     line: 8,
     column: column,
     endLine: 8,
@@ -105,8 +109,12 @@ void main() {
     final facts = _factsOf('---\nx: 1\n---\n\n$doc');
 
     CitedSection? sectionAt(int index) => switch (index) {
-      0 => (key: 'invariants', prefixId: 'INV-', isAcceptanceCriteria: false),
-      1 => (
+      0 => const CitedSection(
+        key: 'invariants',
+        prefixId: 'INV-',
+        isAcceptanceCriteria: false,
+      ),
+      1 => const CitedSection(
         key: 'acceptance_criteria',
         prefixId: null,
         isAcceptanceCriteria: true,
@@ -243,7 +251,7 @@ void main() {
     List<String> rangesIn(String line, List<(String, String)> links) => [
       for (final r in itemRangesOn(line, [
         for (final (text, anchor) in links)
-          (
+          ClassifiedLink(
             link: _linkIn(line, text, anchor),
             cite: text.startsWith('RULE-')
                 ? ItemCite(sectionKey: anchor, itemId: text)
@@ -308,7 +316,7 @@ void main() {
 
     test('links on two lines never pair', () {
       const line = '[RULE-14](other.md#rules) to';
-      const second = (
+      const second = LinkText(
         line: 9,
         column: 0,
         endLine: 9,
@@ -319,13 +327,13 @@ void main() {
         shown: 'other.md#rules',
       );
       final ranges = itemRangesOn(line, [
-        (
+        ClassifiedLink(
           link: _linkIn(line, 'RULE-14', 'rules'),
           cite: const ItemCite(sectionKey: 'rules', itemId: 'RULE-14'),
         ),
-        (
+        const ClassifiedLink(
           link: second,
-          cite: const ItemCite(sectionKey: 'rules', itemId: 'RULE-19'),
+          cite: ItemCite(sectionKey: 'rules', itemId: 'RULE-19'),
         ),
       ]);
       expect(ranges, isEmpty);
@@ -502,7 +510,7 @@ void main() {
         _body('### Notes\n\ntext\n\n#### Deeper\n\nmore\n\n### Next\n'),
         20,
       );
-      expect(extent, (first: 20, last: 26));
+      expect(extent, const LineRange(first: 20, last: 26));
     });
 
     test('a heading inside fenced code ends nothing', () {
@@ -510,7 +518,7 @@ void main() {
         _body('### Notes\n```\n### no\n```\ntail\n'),
         20,
       );
-      expect(extent, (first: 20, last: 24));
+      expect(extent, const LineRange(first: 20, last: 24));
     });
 
     test('a line that is no heading has no block', () {

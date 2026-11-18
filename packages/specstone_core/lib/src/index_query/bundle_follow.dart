@@ -14,6 +14,12 @@ import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show linkSourcesOf;
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
+import 'package:specstone_core/src/index_query/models/item_range.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
@@ -236,7 +242,8 @@ final class _Walk {
     ];
     final itemLinks = [
       for (final (:link, :cited) in classified)
-        if (link.shaped && cited != null) (link: link.text, cite: cited.cite),
+        if (link.shaped && cited != null)
+          ClassifiedLink(link: link.text, cite: cited.cite),
     ];
     final rangeFrom = {
       if (itemLinks.where((link) => link.cite is ItemCite).length > 1)
@@ -619,7 +626,7 @@ final class _DocView {
     final last = at + 1 < starts.length
         ? starts[at + 1] - 1
         : bodyLinesOf(at).last.line;
-    return (first: starts[at], last: last);
+    return LineRange(first: starts[at], last: last);
   }
 
   /// Returns the index of the section that holds file line [line], or null
@@ -646,7 +653,7 @@ final class _DocView {
   /// Returns the ranges a whole print of the doc holds: its head, then each
   /// kept section in print order.
   List<LineRange> wholeRanges(BundleMode mode) => [
-    (
+    LineRange(
       first: 1,
       last: facts.sectionLines.isEmpty
           ? _pastLastLine
@@ -675,7 +682,10 @@ final class _DocView {
     if (rows == null) return range;
     final cut = cutToRows(content.sections[at].body, rows);
     final last = range.first + cut.lineCount;
-    return (first: range.first, last: last < range.last ? last : range.last);
+    return LineRange(
+      first: range.first,
+      last: last < range.last ? last : range.last,
+    );
   }
 
   /// Returns the ID of the stored item of the section at [at], whose body is

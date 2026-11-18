@@ -7,11 +7,10 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/mention.dart';
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
+import 'package:specstone_core/src/index_query/models/written_path.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-
-/// A doc line that names another doc's file in text or holds a doc-name
-/// mention of it: the doc holding the line and its 1-based file line.
-typedef Mention = ({IndexedDoc doc, int line});
 
 /// A character that ends a path written in prose.
 final pathBreak = RegExp(r'''[\s`'"()\[\]<>{}|,;*~!?=]''');
@@ -30,7 +29,7 @@ String _withoutDestinations(String lf) {
   if (!body.contains('](') && !body.contains(']:')) return lf;
   final bodyStart = lf.length - body.length;
   final units = lf.codeUnits.toList();
-  for (final (:start, :end, link: _, kind: _) in linkScanOf(
+  for (final ScannedDestination(:start, :end) in linkScanOf(
     body,
     firstLine: 1,
   ).destinations) {
@@ -68,11 +67,6 @@ Map<String, List<Mention>> mentionsOfEach(
       target.docPath: _mentionsIn(index, target, readOf),
   };
 }
-
-/// A path written in a doc's text and the doc it names: the 1-based file line,
-/// the path as written, less any `#anchor` or closing sentence mark, and the
-/// doc.
-typedef WrittenPath = ({int line, String written, IndexedDoc named});
 
 /// The docs of an index by file name, each with the segments of its DocPath;
 /// one read per index, since an index is one read snapshot.
@@ -114,18 +108,18 @@ List<WrittenPath> pathsWrittenIn(DocIndex index, IndexedDoc doc) {
   return [
     for (final (i, text) in lines.indexed)
       if (!content.lineFacts.isFenced(i + 1))
-        for (final (:written, :named) in _pathsOnLine(
+        for (final _PathOnLine(:written, :named) in _pathsOnLine(
           index,
           doc,
           text,
           namesakes,
         ))
           if (!linked.contains((i + 1, named.docPath)))
-            (line: i + 1, written: written, named: named),
+            WrittenPath(line: i + 1, written: written, named: named),
   ];
 }
 
-Iterable<({String written, IndexedDoc named})> _pathsOnLine(
+Iterable<_PathOnLine> _pathsOnLine(
   DocIndex index,
   IndexedDoc from,
   String line,
@@ -148,9 +142,17 @@ Iterable<({String written, IndexedDoc named})> _pathsOnLine(
     if (candidates == null) continue;
     final docPath = docNamedBy(written, from.docPath, candidates);
     if (index.at(docPath ?? '') case final named?) {
-      yield (written: written, named: named);
+      yield _PathOnLine(written: written, named: named);
     }
   }
+}
+
+/// A path written on a line, and the doc it names.
+final class _PathOnLine {
+  const new({required this.written, required this.named});
+
+  final String written;
+  final IndexedDoc named;
 }
 
 /// A doc's line facts and, on first use, its LF lines with link destinations
@@ -199,7 +201,7 @@ List<Mention> _mentionsIn(
         if (_namesDoc(mention.address, target)) mention.line,
     }.difference(linking).toList()..sort();
     for (final line in lines) {
-      mentions.add((doc: doc, line: line));
+      mentions.add(Mention(doc: doc, line: line));
     }
   }
   return mentions;

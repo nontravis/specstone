@@ -1,10 +1,8 @@
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 
 const _lf = 0x0A;
-
-/// The non-blank line count and code point count of a held section's body.
-typedef SectionCounts = ({int lines, int chars});
 
 /// Returns the sizes of `section.body`.
 ///
@@ -16,7 +14,10 @@ SectionCounts sectionCountsOf(IndexedSection section) {
   final endsInBreak =
       body.isNotEmpty && body.codeUnitAt(body.length - 1) == _lf;
   final units = body.length - (endsInBreak ? 1 : 0);
-  return (lines: _nonBlankLines(body), chars: units - scanText(body).pairs);
+  return SectionCounts(
+    lines: _nonBlankLines(body),
+    chars: units - scanText(body).pairs,
+  );
 }
 
 /// Returns the non-blank lines of [text], split on `\n`, a final empty line

@@ -2,11 +2,14 @@ import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show maxMarkdownDepth, parseMarkdownTree;
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind;
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/href_destination.dart';
+import 'package:specstone_core/src/index_query/models/href_destinations.dart';
+import 'package:specstone_core/src/index_query/models/link_place.dart';
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:test/test.dart';
 
@@ -46,7 +49,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end, link: _, kind: _) in scan.destinations)
+          for (final ScannedDestination(:start, :end) in scan.destinations)
             body.substring(start, end),
         ]..sort(),
         [
@@ -64,7 +67,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end, link: _, kind: _) in scan.destinations)
+          for (final ScannedDestination(:start, :end) in scan.destinations)
             angled.substring(start, end),
         ],
         ['b c.md#x'],
@@ -79,7 +82,8 @@ void main() {
 
       expect(
         {
-          for (final (:start, :end, :link, kind: _) in scan.destinations)
+          for (final ScannedDestination(:start, :end, :link)
+              in scan.destinations)
             linked.substring(start, end): link,
         },
         {'a.md': 0, 'b.md': null, 'c.png': 1, 'd.md': null},
@@ -95,7 +99,8 @@ void main() {
 
       expect(
         {
-          for (final (:start, :end, link: _, :kind) in scan.destinations)
+          for (final ScannedDestination(:start, :end, :kind)
+              in scan.destinations)
             linked.substring(start, end): kind,
         },
         {
@@ -235,7 +240,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end, :href, kind: _) in movingOf(
+          for (final HrefDestination(:start, :end, :href) in movingOf(
             body,
           ).destinations)
             (body.substring(start, end), href),
@@ -253,7 +258,9 @@ void main() {
       expect(readOf(unparsable).linksRead, isFalse);
     });
     List<(String, String)> placedOf(String body) => [
-      for (final (:start, :end, :href, kind: _) in readOf(body).destinations)
+      for (final HrefDestination(:start, :end, :href) in readOf(
+        body,
+      ).destinations)
         (body.substring(start, end), href),
     ];
 
@@ -282,9 +289,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, end: _, href: _, kind: _) in readOf(
-            body,
-          ).destinations)
+          for (final HrefDestination(:start) in readOf(body).destinations)
             start,
         ],
         [body.indexOf('c.png'), body.lastIndexOf('b.md')],
@@ -327,14 +332,24 @@ void main() {
       )!;
 
       expect(places.docLinks, [
-        (target: 'b.md', line: 1, shown: 'b.md#x', anchor: 'x'),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md#x', anchor: 'x'),
       ]);
       expect(places.selfLinks, [
-        (target: 'x.md', line: 2, shown: '#rules', anchor: 'rules'),
-        (target: 'x.md', line: 3, shown: 'x.md', anchor: null),
+        const LinkPlace(
+          target: 'x.md',
+          line: 2,
+          shown: '#rules',
+          anchor: 'rules',
+        ),
+        const LinkPlace(target: 'x.md', line: 3, shown: 'x.md', anchor: null),
       ]);
       expect(places.fileLinks, [
-        (target: 'img.png', line: 5, shown: 'img.png', anchor: null),
+        const LinkPlace(
+          target: 'img.png',
+          line: 5,
+          shown: 'img.png',
+          anchor: null,
+        ),
       ]);
     });
 
@@ -347,8 +362,8 @@ void main() {
       )!;
 
       expect(places.selfLinks, [
-        (target: 'x.md', line: 1, shown: '', anchor: null),
-        (target: 'x.md', line: 1, shown: '?q', anchor: null),
+        const LinkPlace(target: 'x.md', line: 1, shown: '', anchor: null),
+        const LinkPlace(target: 'x.md', line: 1, shown: '?q', anchor: null),
       ]);
     });
 
@@ -367,7 +382,12 @@ void main() {
         firstLine: 3,
       )!;
       expect(written.selfLinks, [
-        (target: 'x.md', line: 3, shown: '#fn-1', anchor: 'fn-1'),
+        const LinkPlace(
+          target: 'x.md',
+          line: 3,
+          shown: '#fn-1',
+          anchor: 'fn-1',
+        ),
       ]);
     });
 
@@ -383,14 +403,19 @@ void main() {
 
       expect(places.docLinks.map((p) => p.target), ['prds/f/b.md']);
       expect(places.fileLinks, [
-        (
+        const LinkPlace(
           target: 'prds/f/flow chart.png',
           line: 3,
           shown: 'flow%20chart.png#top',
           anchor: null,
         ),
-        (target: 'prds/f/a.png', line: 3, shown: 'a.png?raw=1', anchor: null),
-        (
+        const LinkPlace(
+          target: 'prds/f/a.png',
+          line: 3,
+          shown: 'a.png?raw=1',
+          anchor: null,
+        ),
+        const LinkPlace(
           target: '../x/g.dart',
           line: 5,
           shown: '../../../x/g.dart',
@@ -484,7 +509,9 @@ void main() {
 
       final places = placesOf(bodyOf(10000));
 
-      expect(places, [(target: 'b.md', line: 1, shown: 'b.md', anchor: null)]);
+      expect(places, [
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+      ]);
       expectLinearTime(bodyOf, 10000, placesOf);
     });
 
@@ -494,7 +521,9 @@ void main() {
 
       final places = placesOf(bodyOf(10000));
 
-      expect(places, [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)]);
+      expect(places, [
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+      ]);
       expectLinearTime(bodyOf, 10000, placesOf);
     });
 
@@ -504,7 +533,9 @@ void main() {
 
       final places = placesOf(bodyOf(10000));
 
-      expect(places, [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)]);
+      expect(places, [
+        const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null),
+      ]);
       expectLinearTime(bodyOf, 10000, placesOf);
     });
 
@@ -514,7 +545,9 @@ void main() {
 
       final places = placesOf(bodyOf(40000));
 
-      expect(places, [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)]);
+      expect(places, [
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+      ]);
       expectLinearTime(bodyOf, 40000, placesOf);
     });
 
@@ -522,7 +555,9 @@ void main() {
         'capitals is placed at its use', () {
       final places = placesOf('[foo bar]: b.md\n\n[Foo   Bar]\n');
 
-      expect(places, [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)]);
+      expect(places, [
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+      ]);
     });
 
     test('an angle-bracket destination with a space is '
@@ -530,7 +565,12 @@ void main() {
       final places = placesOf('x\n\n[a](<b c.md>)\n');
 
       expect(places, [
-        (target: 'b c.md', line: 3, shown: 'b c.md', anchor: null),
+        const LinkPlace(
+          target: 'b c.md',
+          line: 3,
+          shown: 'b c.md',
+          anchor: null,
+        ),
       ]);
     });
 
@@ -539,7 +579,12 @@ void main() {
       final places = placesOf('[l](b\u0085c.md)\n');
 
       expect(places, [
-        (target: 'b\u0085c.md', line: 1, shown: 'b\u0085c.md', anchor: null),
+        const LinkPlace(
+          target: 'b\u0085c.md',
+          line: 1,
+          shown: 'b\u0085c.md',
+          anchor: null,
+        ),
       ]);
     });
 
@@ -547,7 +592,9 @@ void main() {
         'does not fall back to the link text', () {
       final places = placesOf('[k]: .md\n[k][ ]\n[k]\n');
 
-      expect(places, [(target: '.md', line: 3, shown: '.md', anchor: null)]);
+      expect(places, [
+        const LinkPlace(target: '.md', line: 3, shown: '.md', anchor: null),
+      ]);
     });
 
     test('a link whose escape is not UTF-8 is placed '
@@ -559,7 +606,7 @@ void main() {
       );
 
       expect(places!.docLinks, [
-        (
+        const LinkPlace(
           target: 'prds/f/us/\u{FFFD}.md',
           line: 3,
           shown: '%DB.md',
@@ -606,13 +653,13 @@ void main() {
     placed(
       'an escaped bracket before a link is no use',
       '\\[a](b.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a link after an escaped bang is placed at its line',
       'x\n\\![a](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
@@ -620,8 +667,8 @@ void main() {
           'as text',
       '[a [x](y.md)](b.md)\n[c](b.md)\n',
       [
-        (target: 'y.md', line: 1, shown: 'y.md', anchor: null),
-        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'y.md', line: 1, shown: 'y.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -630,61 +677,75 @@ void main() {
           'later opener',
       '[a [b](c.md) [d] e](f.md)\n[g](f.md)\n',
       [
-        (target: 'c.md', line: 1, shown: 'c.md', anchor: null),
-        (target: 'f.md', line: 2, shown: 'f.md', anchor: null),
+        const LinkPlace(target: 'c.md', line: 1, shown: 'c.md', anchor: null),
+        const LinkPlace(target: 'f.md', line: 2, shown: 'f.md', anchor: null),
       ],
     );
 
     placed(
       'brackets inside a destination are no use',
       '[a](x[q](b.md))\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a link in an image description is no use',
       '![x [a](b.md)](i.png)\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a link in an image turns off the link around the '
           'image',
       '[![a [b](c.md)](i.png)](d.md)\n[e](d.md)\n',
-      [(target: 'd.md', line: 2, shown: 'd.md', anchor: null)],
+      [const LinkPlace(target: 'd.md', line: 2, shown: 'd.md', anchor: null)],
     );
 
     placed(
       'parens that hold no valid title make no use',
       '[a](b.md x)\n[d](b.md c.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'brackets never pair across a blank line',
       '[a\n\nb](b.md)\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a failed inline link falls back to its shortcut '
           'reference',
       'x\n[r](no link\n\n[r]: b.md\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a tab stays in a bare destination, as markdown '
           'reads it',
       'x\n[a](b\tc.md)\n',
-      [(target: 'b\tc.md', line: 2, shown: 'b\tc.md', anchor: null)],
+      [
+        const LinkPlace(
+          target: 'b\tc.md',
+          line: 2,
+          shown: 'b\tc.md',
+          anchor: null,
+        ),
+      ],
     );
 
     placed(
       'a title after an open paren keeps the destination '
           'open, as markdown reads it',
       'x\n[a](b(c "t").md)\n',
-      [(target: 'b(c.md', line: 2, shown: 'b(c.md', anchor: null)],
+      [
+        const LinkPlace(
+          target: 'b(c.md',
+          line: 2,
+          shown: 'b(c.md',
+          anchor: null,
+        ),
+      ],
     );
 
     placed(
@@ -692,8 +753,8 @@ void main() {
           'link',
       '*[a*](b.md)\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -702,8 +763,8 @@ void main() {
           'at their uses',
       '[r][]\n[r]\n\n[r]: b.md\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -711,28 +772,28 @@ void main() {
       'a body that starts after frontmatter keeps each '
           'link on its line',
       '\\[a](b.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
       firstLine: 5,
     );
 
     placed(
       'a code span of two backticks holds no use',
       '``[a](b.md)``\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a code span over two lines holds no use',
       '`x\n[a](b.md)`\n[c](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'an escaped backtick opens no code span',
       '\\`[a](b.md)`\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -745,8 +806,8 @@ void main() {
           'span, as markdown reads it',
       '`[a](b.md)${lineSeparator}x`\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -754,7 +815,7 @@ void main() {
       'a line separator may end a code span, as markdown '
           'reads it',
       '`[a](b.md)$lineSeparator`\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     test('a bare URL gives back the closing parens it '
@@ -768,56 +829,70 @@ void main() {
     });
 
     placed('an autolink holds no use', '<http://x.y/[a](b.md)>\n[c](b.md)\n', [
-      (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+      const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
     ]);
 
     placed(
       'a bare URL runs through the brackets after it, as '
           'markdown reads it',
       'see http://x.y/[a](b.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       "a bare URL in link text runs through the link's "
           'close, as markdown reads it',
       '[see http://x.y/](b.md)\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a raw HTML attribute holds no use',
       'x <span title="[a](b.md)">y</span>\n[c](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     test('an HTML comment holds no use, on one line or '
         'over lines', () {
       expect(placesOf('x <!-- [a](b.md) -->\n[c](b.md)\n'), [
-        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('x <!--\n[a](b.md)\n-->\n[c](b.md)\n'), [
-        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ]);
     });
 
     placed(
       'a destination with an entity is placed at its use',
       'x\n[a](b&#46;md)\n',
-      [(target: 'b.md', line: 2, shown: 'b&#46;md', anchor: null)],
+      [
+        const LinkPlace(
+          target: 'b.md',
+          line: 2,
+          shown: 'b&#46;md',
+          anchor: null,
+        ),
+      ],
     );
 
     placed(
       'a destination with an escape is placed at its use',
       'x\n[a](b\\_c.md)\n',
-      [(target: 'b_c.md', line: 2, shown: r'b\_c.md', anchor: null)],
+      [
+        const LinkPlace(
+          target: 'b_c.md',
+          line: 2,
+          shown: r'b\_c.md',
+          anchor: null,
+        ),
+      ],
     );
 
     placed(
       'pin: an email in link text leaves the link at its '
           'line',
       'x\n[a@b.md](c.md)\n',
-      [(target: 'c.md', line: 2, shown: 'c.md', anchor: null)],
+      [const LinkPlace(target: 'c.md', line: 2, shown: 'c.md', anchor: null)],
     );
 
     placed(
@@ -825,8 +900,8 @@ void main() {
           'fallback',
       'x[^1]\n\n[^1]: see [a](b.md)\n\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 5, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -835,8 +910,8 @@ void main() {
           'destinations',
       '[a](./b.md)\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: './b.md', anchor: null),
-        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: './b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -855,26 +930,26 @@ void main() {
     placed(
       'pin: an HTML comment block holds no use',
       '<!--\n[a](b.md)\n-->\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     group('an HTML block runs to its end condition', () {
       placed(
         'a block of <details> runs to its closing tag',
         '<details>\n[a](b.md)\n</details>\n\n[c](b.md)\n',
-        [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
+        [const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
       );
 
       placed(
         'a block of an unknown tag runs to the next blank line',
         '<x-y>\n[a](b.md)\n\n[c](b.md)\n',
-        [(target: 'b.md', line: 4, shown: 'b.md', anchor: null)],
+        [const LinkPlace(target: 'b.md', line: 4, shown: 'b.md', anchor: null)],
       );
 
       placed(
         'a block of <pre> runs past a blank line to its closing tag',
         '<pre>\n\n[a](b.md)\n</pre>\n\n[c](b.md)\n',
-        [(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
+        [const LinkPlace(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
       );
     });
 
@@ -891,71 +966,71 @@ void main() {
     placed(
       'pin: a tag line cannot interrupt a paragraph',
       'x\n<x-y>\n[a](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'an indented code block holds no use',
       '    [a](b.md)\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'pin: an indented line after a paragraph line is '
           'paragraph text',
       'x\n    [a](b.md)\n',
-      [(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a definition-shaped line inside a paragraph '
           'defines nothing',
       'x\n[r]: b.md\n\n[d][r]\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     group('a heading and a thematic break end the '
         'brackets before them', () {
       placed('a heading ends them', '# [a\nb](b.md)\n[c](b.md)\n', [
-        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ]);
 
       placed('a thematic break ends them', '[a\n***\nb](b.md)\n[c](b.md)\n', [
-        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ]);
     });
 
     placed(
       'pin: a fence ends the brackets before it',
       '[a\n```\nb](b.md)\n```\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a table cell ends at an unescaped pipe',
       '| [a | b](b.md) |\n|---|---|\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 4, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 4, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'pin: an escaped pipe stays in its cell',
       '| [a \\| b](b.md) |\n|---|\n',
-      [(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'pin: a GFM list item takes a lone dash as markdown '
           'does, so the paragraph above it reads no link',
       'x\n\n[a](b.md)\n-\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 6, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'pin: a setext underline keeps the link above it',
       '[a](b.md)\n===\n[c](b.md)\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -963,7 +1038,7 @@ void main() {
       'pin: of two definitions of one label the first '
           'wins',
       '[t][r]\n\n[r]: b.md\n[r]: c.md\n',
-      [(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
     );
 
     placed(
@@ -971,8 +1046,8 @@ void main() {
           'their lines',
       '# [a](b.md)\n\n| h |\n|---|\n| [c](b.md) |\n',
       [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 5, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null),
       ],
     );
 
@@ -980,7 +1055,7 @@ void main() {
       "pin: a definition's title on the next line is "
           'read with it',
       '[r]: b.md\n"t"\n[d][r]\n',
-      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     void within(
@@ -1130,8 +1205,8 @@ void main() {
     test('a definition in a blockquote or a list item is '
         'read', () {
       const expected = [
-        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
+        LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        LinkPlace(target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ];
 
       expect(placesOf('> [r]: b.md\n\n[c](b.md)\n[d][r]\n'), expected);
@@ -1141,15 +1216,15 @@ void main() {
     placed(
       'pin: a lazy line defines nothing',
       '- x\n[r]: b.md\n\n[t][r]\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     test('list items end the brackets before them', () {
       expect(placesOf('- [a\n- b](b.md)\n- [c](b.md)\n'), [
-        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('x [a\n1. b](b.md)\n\n[c](b.md)\n'), [
-        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ]);
     });
 
@@ -1157,38 +1232,38 @@ void main() {
       'pin: an ordered item numbered 2 does not interrupt '
           'a paragraph',
       'x [a\n2. b](b.md)\n',
-      [(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'a checkbox is no shortcut reference',
       '- [x] task\n\n[x]: b.md\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null)],
     );
 
     placed(
       'indented code in a blockquote holds no use',
       '>     [a](b.md)\n\n[c](b.md)\n',
-      [(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
+      [const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null)],
     );
 
     test('pin: blockquote and list lines keep their '
         'links', () {
       expect(placesOf('> ```\n> [a](b.md)\n> ```\n\n[c](b.md)\n'), [
-        (target: 'b.md', line: 5, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 5, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('> [a](b.md\n> "t")\n\n[c](b.md)\n'), [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
-        (target: 'b.md', line: 4, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 4, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('> [a\nb](b.md)\n'), [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('- x\n\n    [a](b.md)\n'), [
-        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('- a\n  [b](c.md)\n'), [
-        (target: 'c.md', line: 2, shown: 'c.md', anchor: null),
+        const LinkPlace(target: 'c.md', line: 2, shown: 'c.md', anchor: null),
       ]);
     });
 
@@ -1197,8 +1272,8 @@ void main() {
           'keep their lines',
       '- a\n  - [b](c.md)\n    [d](c.md)\n',
       [
-        (target: 'c.md', line: 2, shown: 'c.md', anchor: null),
-        (target: 'c.md', line: 3, shown: 'c.md', anchor: null),
+        const LinkPlace(target: 'c.md', line: 2, shown: 'c.md', anchor: null),
+        const LinkPlace(target: 'c.md', line: 3, shown: 'c.md', anchor: null),
       ],
     );
   });
@@ -1219,20 +1294,20 @@ void main() {
         'matches no definition', () {
       for (final blank in ['\u00A0', '\v', '\f']) {
         expect(placesOf('[a${blank}b]\n[c](b.md)\n\n[a b]: b.md\n'), [
-          (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+          const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
         ], reason: blank);
       }
     });
 
     test('a lone CR ends a line as it does for markdown', () {
       expect(placesOf('```\r[a](b.md)\r```\n[c](b.md)\n'), [
-        (target: 'b.md', line: 2, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 2, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('    x\r    [a](b.md)\n\n[c](b.md)\n'), [
-        (target: 'b.md', line: 3, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 3, shown: 'b.md', anchor: null),
       ]);
       expect(placesOf('x\r[a](b.md)\n'), [
-        (target: 'b.md', line: 1, shown: 'b.md', anchor: null),
+        const LinkPlace(target: 'b.md', line: 1, shown: 'b.md', anchor: null),
       ]);
     });
 
@@ -1241,7 +1316,7 @@ void main() {
       final body = toLf('x\r\r\n[a\r\r\nb](c.md)\r\r\n');
 
       expect(placesOf(body), [
-        (target: 'c.md', line: 2, shown: 'c.md', anchor: null),
+        const LinkPlace(target: 'c.md', line: 2, shown: 'c.md', anchor: null),
       ]);
     });
   });

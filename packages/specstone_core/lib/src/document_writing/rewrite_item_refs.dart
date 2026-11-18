@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_anchors.dart'
     show anchorsOfBody;
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, projectFilePathOf, relativeFilePathOf, resolveDocLink;
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
@@ -30,8 +31,11 @@ import 'package:specstone_core/src/index_query/item_facts.dart'
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart'
     show leafTextOf, linkLabel;
-import 'package:specstone_core/src/index_query/link_places.dart' show LinkText;
-import 'package:specstone_core/src/index_query/link_scan.dart' show LinkSource;
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
+import 'package:specstone_core/src/index_query/models/item_range.dart';
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart'
     show journeyTypeId;
@@ -1064,7 +1068,8 @@ List<_Edit> _editsOn(_Line line, List<_ReadLink> links, List<_Listed> listed) {
   links.sort((a, b) => a.link.column.compareTo(b.link.column));
   final byLink = {for (final read in links) read.link: read};
   final ranges = itemRangesOn(line.text, [
-    for (final read in links) (link: read.link, cite: read.read.cite),
+    for (final read in links)
+      ClassifiedLink(link: read.link, cite: read.read.cite),
   ]);
   final edits = <_Edit>[];
   final consumed = <LinkText>{};

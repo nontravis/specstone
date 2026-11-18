@@ -5,49 +5,22 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind, itemIdRunAt, proseTrimmedPath;
+    show itemIdRunAt, proseTrimmedPath;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart'
+import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
+import 'package:specstone_core/src/index_query/models/cite_form.dart';
+import 'package:specstone_core/src/index_query/models/cite_item_at.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart'
     show MatrixLine, TestRow;
-
-/// A cite candidate of a typed doc's body: the doc name or
-/// path as written, less its `#<section key>`, at its 1-based file `line`,
-/// with the section key it names, null when it names none, and the item IDs
-/// of the run right after it.
-///
-/// A candidate holds no resolution: `check` and the cite pass judge it when
-/// they run.
-typedef CiteCandidate = ({
-  int line,
-  String written,
-  String? sectionKey,
-  List<String> itemIds,
-});
-
-/// One item ID of a cite form: its 0-based column on the form's line and the
-/// ID as written.
-typedef CiteItemAt = ({int column, String itemId});
-
-/// A cite candidate with its place on its line, which the cite pass rewrites.
-///
-/// `start` and `end` are the 0-based columns the doc part spans, its code
-/// span's backticks, `#key`, and header span included; `runAt` is the column
-/// of the first ID of its run, a lettered one included, or `end` when the run
-/// is empty; `items` holds each item ID it owns, repeats included.
-typedef CiteForm = ({
-  CiteCandidate candidate,
-  int start,
-  int end,
-  int runAt,
-  List<CiteItemAt> items,
-});
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 
 /// Returns the cite candidates of [lfText], a typed doc with LF line ends, in
 /// file order.
@@ -108,46 +81,60 @@ List<CiteForm> citeFormsOf(
     final spans = codeSpansOf(line);
     final extent = _extentOf(mention, line, spans);
     if (_isInSpan(spans, mention, extent.end)) continue;
-    kept.add((
-      mention: mention,
-      offset: offset,
-      line: line,
-      spans: spans,
-      extent: extent,
-    ));
+    kept.add(
+      _Kept(
+        mention: mention,
+        offset: offset,
+        line: line,
+        spans: spans,
+        extent: extent,
+      ),
+    );
   }
   return [for (final it in kept) _formOf(it, idPrefixes: idPrefixes)];
 }
 
 /// A mention that is a candidate, with the line and code spans it sits on, and
 /// its body offset.
-typedef _Kept = ({
-  NameMention mention,
-  int offset,
-  String line,
-  List<CodeSpan> spans,
-  ({String? key, int end}) extent,
-});
+final class _Kept {
+  const new({
+    required this.mention,
+    required this.offset,
+    required this.line,
+    required this.spans,
+    required this.extent,
+  });
+
+  final NameMention mention;
+  final int offset;
+  final String line;
+  final List<CodeSpan> spans;
+  final _Extent extent;
+}
+
+/// The `#key` a doc part names, null for none, and the column after the part.
+final class _Extent {
+  const new({required this.key, required this.end});
+
+  final String? key;
+  final int end;
+}
 
 /// Returns the `#key` and the end column of [mention]'s doc part on [line],
 /// its closing backticks and a header span right after a path included.
-({String? key, int end}) _extentOf(
-  NameMention mention,
-  String line,
-  List<CodeSpan> spans,
-) {
+_Extent _extentOf(NameMention mention, String line, List<CodeSpan> spans) {
   var end = mention.column + mention.text.length;
   var key = _nonEmpty(mention.address.sectionKey);
   if (key == null) {
     final keyed = _keyAfter(line, end);
-    if (keyed != null) (key, end) = keyed;
+    if (keyed != null) _Extent(key: key, end: end) = keyed;
   }
   end = _closedBy(spans, mention.column, end) ?? end;
   if (key == null && mention.text.endsWith(markdownExtension)) {
     final header = _headerSpanAfter(line, spans, end);
-    if (header != null) (key, end) = header;
+    if (header != null) _Extent(key: key, end: end) = header;
   }
-  return (key: key, end: end);
+  return _Extent(key: key, end: end);
 }
 
 /// Whether [mention], whose doc part ends at [end], sits inside a code span it
@@ -161,15 +148,16 @@ bool _fills(CodeSpan holder, int column, int end) =>
     holder.start + holder.ticks == column && holder.end <= end;
 
 CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
-  final (:mention, :line, :spans, extent: (:key, :end), offset: _) = kept;
+  final _Kept(:mention, :line, :spans, extent: _Extent(:key, :end)) = kept;
   final run = itemIdRunAt(line, end, prefixes: idPrefixes);
   final items = [
     for (final item in run)
-      if (item.id is ItemId) (column: item.at, itemId: item.id.written),
+      if (item.id is ItemId)
+        CiteItemAt(column: item.at, itemId: item.id.written),
   ];
   final holder = _spanHolding(spans, mention.column);
-  return (
-    candidate: (
+  return CiteForm(
+    candidate: CiteCandidate(
       line: mention.line,
       written: mention.address.docPart,
       sectionKey: key,
@@ -196,14 +184,14 @@ String? _nonEmpty(String? text) => text == null || text.isEmpty ? null : text;
 
 /// Returns the `#key` of a path written at [end] of [line] and the offset
 /// after it, or null when none follows.
-(String, int)? _keyAfter(String line, int end) {
+_Extent? _keyAfter(String line, int end) {
   if (end >= line.length || line.codeUnitAt(end) != _hash) return null;
   var stop = end + 1;
   while (stop < line.length && !endsDocPath(line.codeUnitAt(stop))) {
     stop++;
   }
   final key = proseTrimmedPath(line.substring(end + 1, stop));
-  return key.isEmpty ? null : (key, end + 1 + key.length);
+  return key.isEmpty ? null : _Extent(key: key, end: end + 1 + key.length);
 }
 
 /// Returns the offset after the closing backticks of the code span that holds
@@ -221,11 +209,11 @@ int? _closedBy(List<CodeSpan> spans, int column, int end) {
 /// Returns the offset after the section header span right after the path that
 /// ends at [end] of [line], or null when none follows.
 int? headerSpanEndAfter(String line, List<CodeSpan> spans, int end) =>
-    _headerSpanAfter(line, spans, end)?.$2;
+    _headerSpanAfter(line, spans, end)?.end;
 
 /// Returns the section key of the header the code span right after [end]
 /// holds, such as `## Error envelope`, and the offset after that span.
-(String, int)? _headerSpanAfter(String line, List<CodeSpan> spans, int end) {
+_Extent? _headerSpanAfter(String line, List<CodeSpan> spans, int end) {
   var at = end;
   while (at < line.length && line.codeUnitAt(at) == _space) {
     at++;
@@ -236,7 +224,7 @@ int? headerSpanEndAfter(String line, List<CodeSpan> spans, int end) =>
       line.substring(start + ticks, spanEnd - ticks),
     );
     final key = heading == null ? '' : sectionKeyOf(heading.text);
-    return key.isEmpty ? null : (key, spanEnd);
+    return key.isEmpty ? null : _Extent(key: key, end: spanEnd);
   }
   return null;
 }
@@ -277,7 +265,7 @@ _LinkRanges _linkRangesOf(String body, int firstLine) {
   return _LinkRanges([
     for (final source in scan.sources)
       TextRange(start: source.offset, end: source.end),
-    for (final (:start, :end, link: _, :kind) in scan.destinations)
+    for (final ScannedDestination(:start, :end, :kind) in scan.destinations)
       if (kind == DestinationKind.definition) TextRange(start: start, end: end),
   ]);
 }

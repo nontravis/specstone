@@ -13,8 +13,11 @@ import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathsWrittenIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
-    show ItemCite, SectionTarget, anchorTargetOf, classifyLink;
+    show SectionTarget, anchorTargetOf, classifyLink;
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/written_path.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -265,7 +268,7 @@ Iterable<Finding> _missingItems(CheckContext context, IndexedDoc doc) sync* {
     final cite = classifyLink(
       link,
       target: anchorTarget,
-      sectionAt: (_) => (
+      sectionAt: (_) => CitedSection(
         key: template?.id ?? content.sections[at].key,
         prefixId: template?.prefixId,
         isAcceptanceCriteria: template?.id == acceptanceSectionId,
@@ -404,7 +407,10 @@ Iterable<Finding> _perTargetReferences(
     final named = [?context.index.at(place.target)];
     yield* _perTargetFinding(context, doc, named, place.line, place.shown);
   }
-  for (final (:line, :written, :named) in pathsWrittenIn(context.index, doc)) {
+  for (final WrittenPath(:line, :written, :named) in pathsWrittenIn(
+    context.index,
+    doc,
+  )) {
     yield* _perTargetFinding(context, doc, [named], line, written);
   }
 }

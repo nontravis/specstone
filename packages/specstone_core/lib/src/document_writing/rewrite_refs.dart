@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, projectFilePathOf, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
@@ -27,8 +28,11 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf, sourceHrefsOf;
-import 'package:specstone_core/src/index_query/link_scan.dart'
-    show LinkScan, LinkSource, linkScanOf;
+import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/index_query/models/href_destination.dart';
+import 'package:specstone_core/src/index_query/models/href_destinations.dart';
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
@@ -166,13 +170,13 @@ List<_TextEdit> _pathEdits(
   LinkScan scan,
   String? Function(String href) newPathOf,
 ) {
-  final (:destinations, linksRead: _) = hrefDestinationsOf(
+  final HrefDestinations(:destinations) = hrefDestinationsOf(
     body,
     scan,
     canMove: (href) => newPathOf(href) != null,
   );
   return [
-    for (final (:start, :end, :href, :kind) in destinations)
+    for (final HrefDestination(:start, :end, :href, :kind) in destinations)
       if (newPathOf(href) case final newPath?)
         _TextEdit(
           start: start,

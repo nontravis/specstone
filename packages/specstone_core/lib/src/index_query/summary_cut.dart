@@ -1,7 +1,9 @@
 import 'package:specstone_core/src/doc_model/doc.dart' show fencedLines;
 import 'package:specstone_core/src/doc_model/doc_items.dart' show firstTableOf;
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/html_comments.dart';
+import 'package:specstone_core/src/index_query/models/row_cut.dart';
 
 final _carriageReturn = RegExp(r'\r$');
 
@@ -13,13 +15,13 @@ final _carriageReturn = RegExp(r'\r$');
 /// HTML comments, in a blockquote or a list item as anywhere else. A body
 /// with no table stays whole, and a table of fewer than [rows] body rows
 /// keeps every row.
-({String body, int lineCount}) cutToRows(String body, int rows) {
+RowCut cutToRows(String body, int rows) {
   final lines = body.split('\n');
   final tableEnd = firstTableOf(_scannedLines(body, lines), rows);
   if (tableEnd == null) {
-    return (body: body, lineCount: _lineCountOf(body.trimRight()));
+    return RowCut(body: body, lineCount: _lineCountOf(body.trimRight()));
   }
-  return (body: lines.take(tableEnd).join('\n'), lineCount: tableEnd);
+  return RowCut(body: lines.take(tableEnd).join('\n'), lineCount: tableEnd);
 }
 
 /// Returns the lines of [body] as the doc model reads them, each comment
@@ -41,7 +43,7 @@ List<BodyLine> _scannedLines(String body, List<String> lines) {
 String _blankComments(String text) {
   final blanked = StringBuffer();
   var from = 0;
-  for (final (:start, :end) in commentRangesOf(text)) {
+  for (final TextRange(:start, :end) in commentRangesOf(text)) {
     blanked
       ..write(text.substring(from, start))
       ..write(text.substring(start, end).replaceAll(RegExp(r'[^\n]'), ' '));

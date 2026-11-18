@@ -10,7 +10,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart'
     show recordItemsOf;

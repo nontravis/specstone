@@ -17,8 +17,11 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show DocContent, IndexedSection, indexedSectionsOf;
 import 'package:specstone_core/src/index_query/item_words.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/index_query/section_counts.dart'
-    show SectionCounts;
+import 'package:specstone_core/src/index_query/models/item_fact.dart';
+import 'package:specstone_core/src/index_query/models/readability_facts.dart';
+import 'package:specstone_core/src/index_query/models/rule_item_words.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
+import 'package:specstone_core/src/index_query/models/sentence_fact.dart';
 import 'package:specstone_core/src/index_query/visible_text.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show Formatted;
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
@@ -26,43 +29,7 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart'
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// One sentence of an item as `check` counts it: its language and counts, and
-/// whether a `###` heading ends it.
-///
-/// `countsChars` says which counts the language reads; see [SentenceMeasure].
-typedef SentenceFact = ({
-  String language,
-  bool countsChars,
-  int words,
-  int chars,
-  int runs,
-  bool isHeading,
-});
-
-/// What `check` reads of an item's readability.
-///
-/// `cells` holds the sentences of the item, one list for an item that is no
-/// table row and one per cell for a table row; `notes` holds its trace notes.
-/// A doc with no doc type holds none of either.
-typedef ReadabilityFacts = ({
-  List<List<SentenceFact>> cells,
-  List<TraceNote> notes,
-});
-
-const ReadabilityFacts _noReadability = (cells: [], notes: []);
-
-/// One item of a doc: the key `check` holds it by when it reads one, its
-/// first line, its visible code points, and its readability facts.
-///
-/// `line`, `visibleChars`, and `readability` are those of the text the doc's
-/// counts cover; `visibleChars` leaves out what a link or a link reference
-/// definition hides, as [HiddenText] reads it.
-typedef ItemFact = ({
-  String? id,
-  int line,
-  int visibleChars,
-  ReadabilityFacts readability,
-});
+const _noReadability = ReadabilityFacts(cells: [], notes: []);
 
 /// The readability facts of one prose field value, read as one item.
 final class FieldFact {
@@ -88,7 +55,7 @@ final class ItemFacts {
     return ItemFacts(
       lead: lead == null
           ? null
-          : (lines: lead[0]! as int, chars: lead[1]! as int),
+          : SectionCounts(lines: lead[0]! as int, chars: lead[1]! as int),
       leadItems: _itemsOfJson(map['lead_items']),
       sectionItems: [
         for (final items in map['sections']! as List<Object?>)
@@ -176,7 +143,7 @@ ItemFacts itemFactsOf({
     countedText,
     type?.listedGenerators.toSet() ?? const {},
   );
-  final (:counts, :items) = _leadOf(
+  final _Lead(:counts, :items) = _leadOf(
     counted,
     countedText,
     lines,
@@ -211,7 +178,10 @@ Map<String, FieldFact> _fieldFactsOf(
     if (field.isProse)
       if (frontmatter[field.id] case final String value)
         field.id: FieldFact(
-          readability: (cells: [_sentencesIn(value)], notes: const []),
+          readability: ReadabilityFacts(
+            cells: [_sentencesIn(value)],
+            notes: const [],
+          ),
         ),
 };
 
@@ -361,7 +331,7 @@ List<BodyLine> leadBodyLinesOf(
 /// last with the line feeds between, and its items.
 ///
 /// The counts are null when the lead holds no text.
-({SectionCounts? counts, List<ItemFact> items}) _leadOf(
+_Lead _leadOf(
   Doc doc,
   String text,
   LineFacts lines,
@@ -371,16 +341,24 @@ List<BodyLine> leadBodyLinesOf(
   final body = leadBodyLinesOf(doc, text, lines, isGenerated);
   bool holdsText(BodyLine line) => line.text.trim().isNotEmpty;
   final first = body.indexWhere(holdsText);
-  if (first < 0) return (counts: null, items: const []);
+  if (first < 0) return const _Lead(counts: null, items: []);
   final last = body.lastIndexWhere(holdsText);
   var chars = last - first;
   for (var k = first; k <= last; k++) {
     chars += _codePointsOf(body[k].text);
   }
-  return (
-    counts: (lines: last - first + 1, chars: chars),
+  return _Lead(
+    counts: SectionCounts(lines: last - first + 1, chars: chars),
     items: _itemFactsIn(body, null, reads),
   );
+}
+
+/// The counts of a lead, null when it holds no text, and its items.
+final class _Lead {
+  const new({required this.counts, required this.items});
+
+  final SectionCounts? counts;
+  final List<ItemFact> items;
 }
 
 /// What an item's visible count and readability facts are read against.
@@ -409,14 +387,15 @@ List<ItemFact> _itemFactsIn(
     _itemFactOf(item, _idReadOf(item, template), reads),
 ];
 
-ItemFact _itemFactOf(SectionItem item, _ItemIdRead? read, _Reads reads) => (
-  id: read == null ? null : itemKeyOf(read.id, isScenario: read.isScenario),
-  line: item.line,
-  visibleChars: _visibleCharsOf(item, reads.hidden),
-  readability: reads.isTyped
-      ? _readabilityOf(item, read, reads.idPrefixes)
-      : _noReadability,
-);
+ItemFact _itemFactOf(SectionItem item, _ItemIdRead? read, _Reads reads) =>
+    ItemFact(
+      id: read == null ? null : itemKeyOf(read.id, isScenario: read.isScenario),
+      line: item.line,
+      visibleChars: _visibleCharsOf(item, reads.hidden),
+      readability: reads.isTyped
+          ? _readabilityOf(item, read, reads.idPrefixes)
+          : _noReadability,
+    );
 
 /// Returns the code points of [item] less those [hidden] hides on its lines.
 int _visibleCharsOf(SectionItem item, HiddenText hidden) {
@@ -443,7 +422,7 @@ ReadabilityFacts _readabilityOf(
   );
   // A scenario number is not an item ID; only an item ID is stripped.
   final id = read != null && !read.isScenario ? read.id.written : null;
-  return (
+  return ReadabilityFacts(
     cells: isRow
         ? _rowCells(counted, id)
         : [
@@ -525,14 +504,15 @@ List<SentenceFact> _sentencesIn(String text) => [
     _factOf(measureSentence(sentence.text), isHeading: sentence.isHeading),
 ];
 
-SentenceFact _factOf(SentenceMeasure measure, {required bool isHeading}) => (
-  language: measure.language,
-  countsChars: measure.countsChars,
-  words: measure.words,
-  chars: measure.chars,
-  runs: measure.runs,
-  isHeading: isHeading,
-);
+SentenceFact _factOf(SentenceMeasure measure, {required bool isHeading}) =>
+    SentenceFact(
+      language: measure.language,
+      countsChars: measure.countsChars,
+      words: measure.words,
+      chars: measure.chars,
+      runs: measure.runs,
+      isHeading: isHeading,
+    );
 
 /// Returns the ID and kind [item] holds at its start, or null when it holds
 /// none.
@@ -572,7 +552,12 @@ String? itemKeyOfHead(
 
 /// An item ID read at the start of an item, and whether it is the number of a
 /// `### Scenario <N>` heading.
-typedef _ItemIdRead = ({ItemId id, bool isScenario});
+final class _ItemIdRead {
+  const new({required this.id, required this.isScenario});
+
+  final ItemId id;
+  final bool isScenario;
+}
 
 _ItemIdRead? _idReadOfHead(
   String head, {
@@ -582,11 +567,13 @@ _ItemIdRead? _idReadOfHead(
 }) {
   if (isHeading && isAcceptanceCriteria) {
     final scenario = readScenarioHead(head);
-    if (scenario is ItemId) return (id: scenario, isScenario: true);
+    if (scenario is ItemId) {
+      return _ItemIdRead(id: scenario, isScenario: true);
+    }
   }
   if (prefixId == null) return null;
   return switch (readItemId(head, prefixId)) {
-    final ItemId id => (id: id, isScenario: false),
+    final ItemId id => _ItemIdRead(id: id, isScenario: false),
     _ => null,
   };
 }
@@ -616,7 +603,7 @@ List<Object?> _notesToJson(List<TraceNote> notes) => [
 
 List<ItemFact> _itemsOfJson(Object? json) => [
   for (final item in (json! as List<Object?>).cast<List<Object?>>())
-    (
+    ItemFact(
       id: item[0] as String?,
       line: item[1]! as int,
       visibleChars: item[2]! as int,
@@ -625,12 +612,12 @@ List<ItemFact> _itemsOfJson(Object? json) => [
 ];
 
 /// Reads the `[cells, notes]` pair [_cellsToJson] and [_notesToJson] wrote.
-ReadabilityFacts _readabilityOfJson(List<Object?> json) => (
+ReadabilityFacts _readabilityOfJson(List<Object?> json) => ReadabilityFacts(
   cells: [
     for (final cell in (json[0]! as List<Object?>).cast<List<Object?>>())
       [
         for (final s in cell.cast<List<Object?>>())
-          (
+          SentenceFact(
             language: s[0]! as String,
             countsChars: s[1]! as bool,
             words: s[2]! as int,

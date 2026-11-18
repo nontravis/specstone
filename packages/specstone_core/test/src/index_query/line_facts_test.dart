@@ -8,6 +8,12 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart';
+import 'package:specstone_core/src/index_query/models/label_place.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/link_place.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
+import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -50,8 +56,8 @@ void main() {
           '```dart\n// FR-05\n```\n';
       final facts = _factsOf(labelled);
       expect(facts.numberLabels, [
-        (line: 6, written: 'F-01 US-02'),
-        (line: 6, written: 'FR-04'),
+        const LabelPlace(line: 6, written: 'F-01 US-02'),
+        const LabelPlace(line: 6, written: 'FR-04'),
       ]);
       expect(
         LineFacts.fromJson(
@@ -72,8 +78,8 @@ void main() {
           'And `TBR \u2014 x` then TBR \u2014 later.\n';
       final facts = _factsOf(marked);
       expect(facts.tbrMarkers, [
-        (line: 6, rest: 'pick a value.'),
-        (line: 10, rest: 'later.'),
+        const TbrMarkerPlace(line: 6, rest: 'pick a value.'),
+        const TbrMarkerPlace(line: 10, rest: 'later.'),
       ]);
       expect(
         LineFacts.fromJson(
@@ -133,7 +139,7 @@ void main() {
         'doc stores the markers of its LF text', () {
       const lf = '---\na: 1\n---\n# T\n\nTBR \u2014 gap\n';
       expect(_factsOf(lf.replaceAll('\n', '\r\n')).tbrMarkers, [
-        (line: 6, rest: 'gap'),
+        const TbrMarkerPlace(line: 6, rest: 'gap'),
       ]);
     });
 
@@ -141,7 +147,7 @@ void main() {
         '1-based file lines', () {
       final facts = _factsOf(text);
       expect(facts.sectionLines, [7, 13]);
-      expect(facts.fenced, [(first: 9, last: 11)]);
+      expect(facts.fenced, [const LineRange(first: 9, last: 11)]);
       expect(facts.lineCount, 8);
       expect(facts.charCount, text.runes.length);
       expect(facts.frontmatterErrorLine, isNull);
@@ -154,7 +160,7 @@ void main() {
           '[w](https://e.com) [t](#top)\n';
       const docPath = 'prds/f01_a/FEATURE.md';
       const expected = [
-        (
+        LinkPlace(
           target: 'prds/f01_a/us01_x/USER_STORY.md',
           line: 6,
           shown: 'us01_x/USER_STORY.md',
@@ -177,7 +183,7 @@ void main() {
         'prds/f01_a/us01_x/USER_STORY.md',
       ]);
       expect(facts.fileLinks, [
-        (
+        const LinkPlace(
           target: 'prds/f01_a/flow.png',
           line: 6,
           shown: 'flow.png',
@@ -208,7 +214,7 @@ void main() {
         expect(counts[i].chars, section.text.runes.length - headerSize);
       }
       expect(counts[0].lines, 4);
-      expect(counts[1], (lines: 1, chars: 7));
+      expect(counts[1], const SectionCounts(lines: 1, chars: 7));
     });
 
     test('a section count is the non-blank lines of its body, its header line '
@@ -272,7 +278,7 @@ void main() {
 
     test('an unclosed fence runs to the end of the file', () {
       final facts = _factsOf('# T\n\n```\n## hidden\nmore\n');
-      expect(facts.fenced, [(first: 3, last: 5)]);
+      expect(facts.fenced, [const LineRange(first: 3, last: 5)]);
       expect(facts.sectionLines, isEmpty);
     });
 
@@ -342,20 +348,20 @@ void main() {
     test('a fence indented up to three spaces counts, four spaces is code, and '
         'the last line may open one', () {
       expect(_factsOf('# T\n   ```\n## no\n   ```\n').fenced, [
-        (first: 2, last: 4),
+        const LineRange(first: 2, last: 4),
       ]);
       expect(_factsOf('# T\n    ```\n## yes\n').fenced, isEmpty);
-      expect(_factsOf('# T\n```').fenced, [(first: 2, last: 2)]);
+      expect(_factsOf('# T\n```').fenced, [const LineRange(first: 2, last: 2)]);
     });
 
     test('a tilde fence and a CRLF fence hide their ## lines', () {
       final tilde = _factsOf('# T\n~~~\n## no\n~~~\n## yes\n');
-      expect(tilde.fenced, [(first: 2, last: 4)]);
+      expect(tilde.fenced, [const LineRange(first: 2, last: 4)]);
       expect(tilde.sectionLines, [5]);
       final crlf = _factsOf(
         '---\r\na: 1\r\n---\r\n# T\r\n```\r\n## no\r\n```\r\n',
       );
-      expect(crlf.fenced, [(first: 5, last: 7)]);
+      expect(crlf.fenced, [const LineRange(first: 5, last: 7)]);
       expect(crlf.sectionLines, isEmpty);
     });
   });
@@ -373,7 +379,7 @@ void main() {
       expect(back.links, facts.links);
       expect(back.fileLinks, facts.fileLinks);
       expect(back.sectionLines, [7, 13]);
-      expect(back.fenced, [(first: 9, last: 11)]);
+      expect(back.fenced, [const LineRange(first: 9, last: 11)]);
       expect(back.isFenced(10), isTrue);
       expect(back.isFenced(12), isFalse);
     });
@@ -396,7 +402,12 @@ void main() {
         docPath: 'doc.md',
       );
       expect(facts.selfLinks, [
-        (target: 'doc.md', line: 3, shown: '#rules', anchor: 'rules'),
+        const LinkPlace(
+          target: 'doc.md',
+          line: 3,
+          shown: '#rules',
+          anchor: 'rules',
+        ),
       ]);
       expect(facts.anchors, isNotNull);
       expect(facts.anchors!.holds('t'), isTrue);
@@ -487,7 +498,7 @@ void main() {
       final first = line.indexOf('[RULE-14]');
       final second = line.indexOf('[RULE-19]');
       expect(facts.linkTexts, [
-        (
+        LinkText(
           line: 3,
           column: first,
           endLine: 3,
@@ -497,7 +508,7 @@ void main() {
           anchor: 'rules',
           shown: 'doc_model.md#rules',
         ),
-        (
+        LinkText(
           line: 3,
           column: second,
           endLine: 3,
@@ -507,7 +518,7 @@ void main() {
           anchor: 'rules',
           shown: 'doc_model.md#rules',
         ),
-        (
+        LinkText(
           line: 3,
           column: line.indexOf('[S1]'),
           endLine: 3,
@@ -622,7 +633,10 @@ void main() {
         countedText: 'one\ntwo\n\nthree\n',
         docPath: 'doc.md',
         doc: Doc.parse(disk),
-        sectionCounts: const [(lines: 3, chars: 9), (lines: 2, chars: 4)],
+        sectionCounts: const [
+          SectionCounts(lines: 3, chars: 9),
+          SectionCounts(lines: 2, chars: 4),
+        ],
         frontmatterErrorLine: null,
         bodyNumberLabels: const [],
         bodyTbrMarkers: const [],
@@ -633,7 +647,10 @@ void main() {
       expect(facts.sectionLines, [3, 7]);
       expect(facts.lineCount, 3);
       expect(facts.charCount, 15);
-      expect(facts.sectionCounts, [(lines: 3, chars: 9), (lines: 2, chars: 4)]);
+      expect(facts.sectionCounts, [
+        const SectionCounts(lines: 3, chars: 9),
+        const SectionCounts(lines: 2, chars: 4),
+      ]);
     });
   });
 }

@@ -13,6 +13,8 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show sourceHrefsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_index.dart';
@@ -305,7 +307,7 @@ final class RenumberBodyRewrite {
     final citations = <int, List<_Citation>>{};
     final hrefs = _hrefs;
     if (hrefs == null) return citations;
-    for (final (index, (:offset, :line, shown: _, :end, angle: _, textEnd: _))
+    for (final (index, LinkSource(:offset, :line, :end))
         in _scan.sources.indexed) {
       final href = hrefs[index];
       if (href == null) continue;

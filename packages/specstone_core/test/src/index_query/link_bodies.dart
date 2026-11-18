@@ -5,6 +5,7 @@ import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:test/test.dart';
 
 /// Makes one random body from [random].

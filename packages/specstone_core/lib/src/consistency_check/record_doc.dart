@@ -4,9 +4,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart'
     show recordStatusLineOf;
 import 'package:specstone_core/src/index_query/status_tree.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/record_status.dart';
 
 /// A record doc read as a rule needs it: its doc type, its feature, and its
 /// lines.

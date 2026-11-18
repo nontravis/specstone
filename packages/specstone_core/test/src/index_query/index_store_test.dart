@@ -9,7 +9,10 @@ import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -510,8 +513,11 @@ void main() {
         expect(facts.toJson(), written.content.lineFacts.toJson());
         expect(facts.sectionCounts, written.content.lineFacts.sectionCounts);
         expect(facts.sectionLines, [7, 13]);
-        expect(facts.fenced, [(first: 9, last: 11)]);
-        expect(facts.sectionCounts.last, (lines: 1, chars: 7));
+        expect(facts.fenced, [const LineRange(first: 9, last: 11)]);
+        expect(
+          facts.sectionCounts.last,
+          const SectionCounts(lines: 1, chars: 7),
+        );
       },
     );
     test('a stored doc loads '
@@ -530,7 +536,7 @@ void main() {
       });
       final facts = store.loadContent('A.md').itemFacts;
 
-      expect(facts.lead, (lines: 1, chars: 5));
+      expect(facts.lead, const SectionCounts(lines: 1, chars: 5));
       expect(facts.sectionItems, hasLength(2));
       expect(
         jsonEncode(facts.toJson()),
@@ -732,7 +738,7 @@ void main() {
           binaryVersion: specstoneVersion,
           docTypes: 'x',
         );
-        const key = (
+        const key = FileStatKey(
           size: 4,
           modified: 1700000000123456,
           changed: 1700000000654321,

@@ -6,28 +6,13 @@ import 'package:markdown/markdown.dart'
         AutolinkSyntax,
         EmailAutolinkSyntax,
         InlineHtmlSyntax;
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/index_query/models/written_destination.dart';
-
-/// A source of an `a` or `img` element markdown makes: the body offsets of its
-/// first character and after its last, its file line, and, for an inline or
-/// reference link or image, its destination as written (null for an autolink,
-/// an email autolink, or a GFM bare URL or email), angle brackets dropped, and
-/// whether angle brackets enclose it, and the body offset of the `]` that ends
-/// its text (null for an autolink, an email autolink, or a GFM bare URL or
-/// email, which have no bracketed text); the text starts after the `[`, or
-/// after the `![` of an image.
-typedef LinkSource = ({
-  int offset,
-  int end,
-  int line,
-  String? shown,
-  bool angle,
-  int? textEnd,
-});
 
 /// Returns the sources of the links in [lfBody], in source order.
 ///
@@ -66,33 +51,6 @@ List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
   return _sourcesOf(lfBody, reader, firstLine);
 }
 
-/// A link destination as written: its body range, angle brackets left out,
-/// the index in the scan's sources of the link written with it, null for a
-/// definition's and for one in an image description, which drops its link,
-/// and how `markdown` reads it.
-typedef ScannedDestination = ({
-  int start,
-  int end,
-  int? link,
-  DestinationKind kind,
-});
-
-/// What one link scan of a body reads: its link sources, its prose, and the
-/// range of each link destination as written.
-///
-/// `prose` is the body with every code unit that is no prose blanked to a
-/// space, line ends and length kept: what `markdown` never reads as inline
-/// text (see [leafTextOf]), and in the inline text each code span, autolink,
-/// GFM bare URL or email, raw HTML run, and inline link's parenthesized
-/// destination and title. Link text, a full reference's label, and a
-/// definition's label stay. `destinations` hold each inline link's
-/// destination and each definition's.
-typedef LinkScan = ({
-  List<LinkSource> sources,
-  String prose,
-  List<ScannedDestination> destinations,
-});
-
 /// Returns the link scan of [lfBody] as [linkSourcesOf] reads it, with the
 /// prose and destination ranges that scan passes over.
 LinkScan linkScanOf(String lfBody, {required int firstLine}) {
@@ -120,19 +78,25 @@ LinkScan linkScanOf(String lfBody, {required int firstLine}) {
     for (final (index, found) in reader.found.indexed)
       if (found.destination case final destination?) destination.start: index,
   };
-  return (
+  return LinkScan(
     sources: sources,
     prose: String.fromCharCodes(prose),
     destinations: [
-      for (final (:start, :end, :angle) in reader.destinations)
-        (
+      for (final _InlineDestination(:start, :end, :angle)
+          in reader.destinations)
+        ScannedDestination(
           start: start,
           end: end,
           link: linkAt[start],
           kind: angle ? DestinationKind.angleInline : DestinationKind.inline,
         ),
       for (final TextRange(:start, :end) in leaf.definitionDestinations)
-        (start: start, end: end, link: null, kind: DestinationKind.definition),
+        ScannedDestination(
+          start: start,
+          end: end,
+          link: null,
+          kind: DestinationKind.definition,
+        ),
     ],
   );
 }
@@ -143,19 +107,20 @@ List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
   final sources = <LinkSource>[];
   var line = firstLine;
   var counted = 0;
-  for (final (:offset, :end, :shown, :angle, :textEnd, destination: _)
-      in found) {
+  for (final _Found(:offset, :end, :shown, :angle, :textEnd) in found) {
     for (; counted < offset; counted++) {
       if (lfBody.codeUnitAt(counted) == _lineFeed) line++;
     }
-    sources.add((
-      offset: offset,
-      end: end,
-      line: line,
-      shown: shown,
-      angle: angle,
-      textEnd: textEnd,
-    ));
+    sources.add(
+      LinkSource(
+        offset: offset,
+        end: end,
+        line: line,
+        shown: shown,
+        angle: angle,
+        textEnd: textEnd,
+      ),
+    );
   }
   return sources;
 }
@@ -164,14 +129,23 @@ List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
 /// after its last, its destination, whether angle brackets enclose it, the
 /// offset of the `]` that ends its text (null with no bracketed text), and
 /// the range of its destination as written when that is one run of the text.
-typedef _Found = ({
-  int offset,
-  int end,
-  String? shown,
-  bool angle,
-  int? textEnd,
-  TextRange? destination,
-});
+final class _Found {
+  const new({
+    required this.offset,
+    required this.end,
+    required this.shown,
+    required this.angle,
+    required this.textEnd,
+    required this.destination,
+  });
+
+  final int offset;
+  final int end;
+  final String? shown;
+  final bool angle;
+  final int? textEnd;
+  final TextRange? destination;
+}
 
 /// Where a `]` ends the link it closes, and the link's destination: whether
 /// angle brackets enclose it, whether it is an inline link, whose parens
@@ -180,14 +154,33 @@ typedef _Found = ({
 ///
 /// A footnote reference closes too, with no destination: `markdown` makes it
 /// a link of its own, which is no source (see [linkSourcesOf]).
-typedef _Close = ({
-  int end,
-  String? shown,
-  bool angle,
-  bool inline,
-  TextRange? destination,
-  bool footnote,
-});
+final class _Close {
+  const new({
+    required this.end,
+    required this.shown,
+    required this.angle,
+    required this.inline,
+    required this.destination,
+    required this.footnote,
+  });
+
+  final int end;
+  final String? shown;
+  final bool angle;
+  final bool inline;
+  final TextRange? destination;
+  final bool footnote;
+}
+
+/// An inline link's destination range as written, and whether angle brackets
+/// enclose it.
+final class _InlineDestination {
+  const new({required this.start, required this.end, required this.angle});
+
+  final int start;
+  final int end;
+  final bool angle;
+}
 
 /// An open `[` or `![` of the bracket procedure.
 final class _Opener {
@@ -239,7 +232,7 @@ final class _Reader {
 
   /// The range of each inline link's destination as written, and whether
   /// angle brackets enclose it.
-  final destinations = <({int start, int end, bool angle})>[];
+  final destinations = <_InlineDestination>[];
   late final _Tables _tables = _Tables(text);
   late final _Next _angleClose = _Next(text, '>');
   late final _Next _angleOrSpace = _Next(text, _angleOrSpacePattern);
@@ -274,14 +267,16 @@ final class _Reader {
   /// Adds the source with no destination that runs from [at] to [end], an
   /// autolink or a GFM bare URL or email, as an atom, and returns [end].
   int _destinationless(int at, int end) {
-    found.add((
-      offset: at,
-      end: end,
-      shown: null,
-      angle: false,
-      textEnd: null,
-      destination: null,
-    ));
+    found.add(
+      _Found(
+        offset: at,
+        end: end,
+        shown: null,
+        angle: false,
+        textEnd: null,
+        destination: null,
+      ),
+    );
     return _atom(at, end);
   }
 
@@ -344,21 +339,25 @@ final class _Reader {
         }
         if (opener.image) found.length = opener.found;
         final destination = close.destination;
-        found.add((
-          offset: opener.offset,
-          end: close.end,
-          shown: close.shown,
-          angle: close.angle,
-          textEnd: i,
-          destination: destination,
-        ));
+        found.add(
+          _Found(
+            offset: opener.offset,
+            end: close.end,
+            shown: close.shown,
+            angle: close.angle,
+            textEnd: i,
+            destination: destination,
+          ),
+        );
         if (close.inline) _atom(i + 1, close.end);
         if (recordsAtoms && destination != null) {
-          destinations.add((
-            start: destination.start,
-            end: destination.end,
-            angle: close.angle,
-          ));
+          destinations.add(
+            _InlineDestination(
+              start: destination.start,
+              end: destination.end,
+              angle: close.angle,
+            ),
+          );
         }
         if (!opener.image) linksClosed++;
         i = close.end;
@@ -551,7 +550,7 @@ final class _Reader {
         final collapsed = _shortcut(opener, close);
         return collapsed == null
             ? null
-            : (
+            : _Close(
                 end: next + 2,
                 shown: collapsed.shown,
                 angle: collapsed.angle,
@@ -581,7 +580,7 @@ final class _Reader {
   _Close? _referenceTo(String label, int end) {
     final dest = definitions[linkLabel(label)];
     if (dest != null) {
-      return (
+      return _Close(
         end: end,
         shown: dest.shown,
         angle: dest.angle,
@@ -594,7 +593,7 @@ final class _Reader {
         label.startsWith('^') &&
         footnoteLabels.contains(label.substring(1).trim().toLowerCase());
     return names
-        ? (
+        ? _Close(
             end: end,
             shown: null,
             angle: false,
@@ -664,7 +663,7 @@ final class _Reader {
     } else {
       return null;
     }
-    return (
+    return _Close(
       end: paren + 1,
       shown: text.substring(open + 1, close),
       angle: true,
@@ -686,7 +685,7 @@ final class _Reader {
     final match = tables.partner[open];
     final space = tables.nextSpace[start];
     if (match >= 0 && (space >= end || match < space)) {
-      return (
+      return _Close(
         end: match + 1,
         shown: text.substring(start, match),
         angle: false,
@@ -706,7 +705,7 @@ final class _Reader {
       shown.write(text.substring(pieceStart, pos));
       depth--;
       if (depth == 0) {
-        return (
+        return _Close(
           end: paren + 1,
           shown: shown.toString(),
           angle: false,
@@ -728,7 +727,7 @@ final class _Reader {
             depth--;
             if (depth == 0) {
               shown.write(text.substring(pieceStart, pos));
-              return (
+              return _Close(
                 end: pos + 1,
                 shown: shown.toString(),
                 angle: false,

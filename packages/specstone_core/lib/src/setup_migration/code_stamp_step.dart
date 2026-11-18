@@ -21,10 +21,9 @@ import 'package:specstone_core/src/setup_migration/run_plan.dart'
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/record_status.dart';
 
 // MARK: - Types
 

@@ -3,7 +3,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/move_hints.dart';
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/models/item_fact.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show WhenField, verificationMatrixOf;
 
@@ -109,7 +110,8 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         : (docMaxLines, docMaxChars);
     final maxLines = template?.maxLines ?? fallbackLines;
     final maxChars = template?.maxChars ?? fallbackChars;
-    final (lines: actualLines, chars: actualChars) = lines.sectionCounts[i];
+    final SectionCounts(lines: actualLines, chars: actualChars) =
+        lines.sectionCounts[i];
     if (maxLines != null && actualLines > maxLines) {
       yield context.finding(
         doc,

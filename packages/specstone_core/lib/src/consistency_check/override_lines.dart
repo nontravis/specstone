@@ -7,7 +7,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show itemKeyOfHead;
 import 'package:specstone_core/src/index_query/item_links.dart'
-    show ItemCite, SectionTarget, UnresolvedCite;
+    show SectionTarget;
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 
 const _howSeparator = ' — ';

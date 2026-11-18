@@ -4,8 +4,7 @@ import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show RecordStatus;
+import 'package:specstone_core/src/templates/models/record_status.dart';
 
 /// Returns the error-catalog findings of the run's scope.
 ///
