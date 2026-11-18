@@ -1,17 +1,16 @@
-Step 1, the gate, ran before you were sent here.
-As `specstone-sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
+Step 1, the gate, already ran.
+As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
 Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming canonicalization
 sections go to `specstone-bootstrap-spec`. Follow the `specstone-expert-sdd` skill for every write; before the first,
-run `specstone guide <type> …` once, naming every type you write; a type met later gets its own call before its first
-write.
+run `specstone guide <type> …` once, naming every type you write; a type met later gets its own call before its first write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
 doc carries `--target <name>`, the finding DocPath's code target, else the first listed one.
 
 ## 2. One finding at a time
 
-Fix the first unhandled finding under `prds/` or `measurements/`, then run `specstone check` again. Stop when each
+Fix the first unhandled finding under `prds/` or `measurements/`, then rerun `specstone check`. Stop when each
 finding left goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an
 unanswered size finding.
 
@@ -33,7 +32,7 @@ whole section.
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
-| `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
+| `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit`, `subsections_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
 | `words_over_limit`, `sentence_chars_over_limit`, `trace_note_not_last`, `sentences_over_limit` | `../../specstone-expert-sdd/references/readability-fix.md` |
 | any other under `prds/` or `measurements/` | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
