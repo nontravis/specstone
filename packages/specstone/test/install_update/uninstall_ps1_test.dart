@@ -87,7 +87,7 @@ void main() {
       // keeps its image file locked until it is killed.
       final running = await Process.start(
         exe,
-        const ['mcp'],
+        const ['check'],
         environment: sb.env(),
         includeParentEnvironment: false,
         workingDirectory: sb.root.path,

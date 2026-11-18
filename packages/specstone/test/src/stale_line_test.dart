@@ -169,12 +169,6 @@ void main() {
       }
     });
 
-    test('mcp', () async {
-      final result = await run(await project(), ['mcp']);
-
-      expect(result.stderr, isNot(contains(_lead)));
-    });
-
     test('a command refused on a pin prints the refusal alone', () async {
       final root = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig().replaceFirst(

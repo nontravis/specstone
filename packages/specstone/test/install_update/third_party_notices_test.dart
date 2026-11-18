@@ -19,14 +19,7 @@ void main() {
     ], workingDirectory: repoRoot().path);
     expect(r.exitCode, 0, reason: '${r.stderr}');
     final text = out.readAsStringSync();
-    for (final name in [
-      'args',
-      'dart_mcp',
-      'markdown',
-      'crypto',
-      'yaml',
-      'sqlite3',
-    ]) {
+    for (final name in ['args', 'markdown', 'crypto', 'yaml', 'sqlite3']) {
       expect(text, contains('\n## $name '));
     }
     final mermaid = RegExp(

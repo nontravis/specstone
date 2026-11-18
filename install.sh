@@ -12,6 +12,8 @@ release_url='https://github.com/nontravis/specstone/releases/latest/download'
 version=${SPECSTONE_VERSION:-}
 tmp=''
 install_dir=''
+other_stn=''
+stn_removal_failed=''
 
 fail() {
   printf 'specstone: %s\n' "$1" >&2
@@ -94,10 +96,11 @@ fetch_and_verify() {
   fi
 }
 
-# Replaces ~/.specstone/lib and bin with the archive's, bin last. Each folder
-# is copied aside first and moved in, so a failed copy leaves the old install
-# runnable and no existing file is written (`specstone upgrade` runs from the
-# binary being replaced).
+# Replaces ~/.specstone/lib and bin with the archive's, bin last, without the
+# archive's stn when another stn was found. Each folder is copied aside first
+# and moved in, so a failed copy leaves the old install runnable and no
+# existing file is written (`specstone upgrade` runs from the binary being
+# replaced).
 place() {
   install_dir=$1
   mkdir -p "$install_dir" || fail "could not place $install_dir: run the install again"
@@ -106,6 +109,9 @@ place() {
     fail "could not place $install_dir/lib: run the install again"
   cp -R "$tmp/unpack/bin" "$install_dir/.bin.new" ||
     fail "could not place $install_dir/bin: run the install again"
+  if [ -n "$other_stn" ]; then
+    rm -f -- "$install_dir/.bin.new/stn"
+  fi
   rm -rf "${install_dir:?}/lib"
   mv "$install_dir/.lib.new" "$install_dir/lib" ||
     fail "could not place $install_dir/lib: run the install again"
@@ -234,14 +240,12 @@ absolute_path_only() {
   export PATH
 }
 
-# Prints one notice naming the first `stn` on an absolute PATH entry other
-# than the install folder's bin, which the Owner then types the specstone
-# command in place of; the walk and the test of a `stn` mirror bin/stn.
-# Always returns 0: the notice never changes the run's exit status.
-name_other_stn() {
-  other_stn_dir=$(cd "$install_dir/bin" 2>/dev/null && pwd -P) ||
-    other_stn_dir=''
-  [ -n "$other_stn_dir" ] || return 0
+# Sets other_stn to the first `stn` on an absolute PATH entry other than the
+# install folder's bin, or to nothing. A first install has no bin yet, so every
+# absolute entry counts.
+find_other_stn() {
+  other_stn=''
+  own_bin=$(cd "$install_dir/bin" 2>/dev/null && pwd -P) || own_bin=''
   rest=${PATH:-}:
   while [ -n "$rest" ]; do
     entry=${rest%%:*}
@@ -251,12 +255,27 @@ name_other_stn() {
       *) continue ;;
     esac
     resolved=$(cd "$entry" 2>/dev/null && pwd -P) || continue
-    if [ "$resolved" != "$other_stn_dir" ] &&
+    if [ "$resolved" != "$own_bin" ] &&
       [ -f "$entry/stn" ] && [ -x "$entry/stn" ]; then
-      printf 'specstone: another stn is at %s/stn; type specstone to run the CLI\n' "${entry%/}"
+      other_stn=${entry%/}/stn
       return 0
     fi
   done
+}
+
+# Removes the stn an earlier run placed; a failure sets stn_removal_failed to
+# its path, and the run goes on.
+remove_placed_stn() {
+  rm -f -- "$install_dir/bin/stn" 2>/dev/null ||
+    stn_removal_failed=$install_dir/bin/stn
+}
+
+# Prints one notice naming other_stn, which the Owner then types the specstone
+# command in place of. Always returns 0: the notice never changes the run's
+# exit status.
+name_other_stn() {
+  [ -n "$other_stn" ] || return 0
+  printf 'specstone: another stn is at %s; stn is not installed, type specstone to run the CLI\n' "$other_stn"
 }
 
 # Succeeds when the git version text $1 is 2.25 or later; a text that names no
@@ -319,12 +338,16 @@ main() {
     probe_reason=$(first_line <"$tmp/probe.err") || probe_reason=''
     fail "the downloaded specstone does not run (exit $probe_status${probe_reason:+: $probe_reason}); if TMPDIR is mounted noexec, set TMPDIR to another folder; the install is unchanged"
   fi
+  find_other_stn
   old_version=$("$install_dir/bin/specstone" --version 2>/dev/null || true)
   if [ -n "$old_version" ] && [ "$old_version" = "$new_version" ]; then
     if [ -n "$version" ]; then
       printf '%s\n' "specstone $new_version is already installed"
     else
       printf '%s\n' "specstone $new_version is already the latest release"
+    fi
+    if [ -n "$other_stn" ]; then
+      remove_placed_stn
     fi
   else
     place "$install_dir"
@@ -333,6 +356,9 @@ main() {
 
   add_path_entry
   name_other_stn
+  if [ -n "$stn_removal_failed" ]; then
+    printf 'specstone: could not remove %s: delete it yourself\n' "$stn_removal_failed" >&2
+  fi
   warn_missing_prerequisites
 }
 

@@ -66,10 +66,6 @@ void main() {
       expect(out.toString(), contains(usageLine));
       expect(out.toString(), contains('--version'));
       expect(out.toString(), contains('guide'));
-      expect(
-        out.toString(),
-        isNot(matches(RegExp(r'^\s+mcp\s', multiLine: true))),
-      );
       expect(out.toString(), contains('upgrade'));
     });
 
@@ -87,20 +83,18 @@ void main() {
       );
     });
 
-    test('mcp --help prints the mcp usage to out and exits 0', () async {
-      expect(await runner.run(['mcp', '--help']), 0);
-      expect(
-        out.toString(),
-        contains('Run the Specstone MCP server over stdio.'),
-      );
-      expect(err.toString(), isEmpty);
-    });
-
-    test('help mcp prints the mcp usage to out and exits 0', () async {
-      expect(await runner.run(['help', 'mcp']), 0);
-      expect(out.toString(), contains('Usage: specstone mcp'));
-      expect(err.toString(), isEmpty);
-    });
+    test(
+      'mcp is no command: mcp --help prints usage to stderr and exits 64',
+      () async {
+        expect(await runner.run(['mcp', '--help']), usageExitCode);
+        expect(
+          err.toString(),
+          contains('Could not find a command named "mcp"'),
+        );
+        expect(err.toString(), contains(usageLine));
+        expect(out.toString(), isEmpty);
+      },
+    );
 
     test('an unknown command prints usage to stderr and exits 64', () async {
       expect(await runner.run(['nope']), usageExitCode);
@@ -123,16 +117,6 @@ void main() {
       expect(err.toString(), contains('Could not find a command named "nope"'));
       expect(out.toString(), isEmpty);
     });
-
-    test(
-      'mcp with an extra argument exits 64 and never starts the server',
-      () async {
-        expect(await runner.run(['mcp', 'extra']), usageExitCode);
-        expect(out.toString(), isEmpty);
-        expect(err.toString(), isNotEmpty);
-      },
-      timeout: const Timeout(Duration(seconds: 10)),
-    );
   });
 
   group('homeFrom', () {
