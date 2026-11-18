@@ -289,6 +289,15 @@ sections:
       expect(replaced.whenField?.values, ['z']);
     });
 
+    test('copyWith keeps maxItemLines it is not given and replaces it', () {
+      final section = sectionOf(
+        _merge(lower),
+        'scope',
+      ).copyWith(maxItemLines: 5);
+      expect(section.copyWith(minLines: 2).maxItemLines, 5);
+      expect(section.copyWith(maxItemLines: 8).maxItemLines, 8);
+    });
+
     test('toJson prints maxSubsections in lint, whenField on the section, and '
         'perSubsection on a required pattern that sets it', () {
       final json = sectionOf(_merge(lower), 'scope').toJson();

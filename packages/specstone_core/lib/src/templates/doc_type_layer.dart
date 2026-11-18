@@ -248,6 +248,7 @@ final class SectionLint {
     this.maxSentences,
     this.itemCount,
     this.maxSubsections,
+    this.maxItemLines,
   });
 
   /// The section's character limit, when written.
@@ -299,6 +300,9 @@ final class SectionLint {
 
   /// The most `###` subsections the section holds, when written.
   final int? maxSubsections;
+
+  /// The most non-blank lines one item of the section holds, when written.
+  final int? maxItemLines;
 }
 
 /// One guide section of a doc type, as one layer writes it.
@@ -832,6 +836,7 @@ const _sectionLintKeys = {
   'max_sentences',
   'item_count',
   'max_subsections',
+  'max_item_lines',
 };
 
 List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
@@ -952,20 +957,12 @@ FieldCaps? _fieldCaps(
     format: 'doc-type',
     prefix: lintPrefix,
   );
-  final maxSentences = optionalValue<int>(
+  final maxSentences = _wholeNumberFromOne(
     map,
     'max_sentences',
     file: file,
     prefix: lintPrefix,
   );
-  if (maxSentences != null && maxSentences < 1) {
-    throw TemplateFault(
-      FaultCode.unknownValue,
-      'the key max_sentences must be a whole number of 1 or more',
-      file: file,
-      key: '${lintPrefix}max_sentences',
-    );
-  }
   final words = _sentenceCaps(
     map,
     'max_sentence_words',
@@ -1275,28 +1272,35 @@ SectionLint _parseSectionLint(
     diagram: _parseDiagram(map, file: file, prefix: keyPrefix),
     maxSentences: _parseMaxSentences(map, file: file, prefix: keyPrefix),
     itemCount: _parseItemCount(map, file: file, prefix: keyPrefix),
-    maxSubsections: _parseMaxSubsections(map, file: file, prefix: keyPrefix),
+    maxSubsections: _wholeNumberFromOne(
+      map,
+      'max_subsections',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    maxItemLines: _wholeNumberFromOne(
+      map,
+      'max_item_lines',
+      file: file,
+      prefix: keyPrefix,
+    ),
   );
 }
 
-/// Reads `lint.max_subsections` as a whole number of 1 or more.
-int? _parseMaxSubsections(
-  YamlMap map, {
+/// Reads [key] as a whole number of 1 or more; null when absent.
+int? _wholeNumberFromOne(
+  YamlMap map,
+  String key, {
   required String file,
   required String prefix,
 }) {
-  final count = optionalValue<int>(
-    map,
-    'max_subsections',
-    file: file,
-    prefix: prefix,
-  );
+  final count = optionalValue<int>(map, key, file: file, prefix: prefix);
   if (count == null || count >= 1) return count;
   throw TemplateFault(
     FaultCode.unknownValue,
-    'the key max_subsections must be a whole number of 1 or more',
+    'the key $key must be a whole number of 1 or more',
     file: file,
-    key: '${prefix}max_subsections',
+    key: '$prefix$key',
   );
 }
 

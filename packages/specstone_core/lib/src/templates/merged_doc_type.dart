@@ -354,6 +354,7 @@ final class MergedSection {
     this.maxSentences,
     this.itemCount,
     this.maxSubsections,
+    this.maxItemLines,
     this.whenField,
     this.isOutputRef = false,
   });
@@ -454,6 +455,9 @@ final class MergedSection {
   /// The most `###` subsections the section holds; null when no layer sets it.
   final int? maxSubsections;
 
+  /// The most non-blank lines one item holds; null when no layer sets it.
+  final int? maxItemLines;
+
   /// The doc field and values that bind [required]; null when no layer sets
   /// it.
   final WhenField? whenField;
@@ -489,6 +493,7 @@ final class MergedSection {
     List<SentenceLimit>? maxSentences,
     ItemCountLint? itemCount,
     int? maxSubsections,
+    int? maxItemLines,
     WhenField? whenField,
     bool? isOutputRef,
   }) => MergedSection(
@@ -518,6 +523,7 @@ final class MergedSection {
     maxSentences: maxSentences ?? this.maxSentences,
     itemCount: itemCount ?? this.itemCount,
     maxSubsections: maxSubsections ?? this.maxSubsections,
+    maxItemLines: maxItemLines ?? this.maxItemLines,
     whenField: whenField ?? this.whenField,
     isOutputRef: isOutputRef ?? this.isOutputRef,
   );
@@ -546,6 +552,7 @@ final class MergedSection {
       'maxSentences': ?maxSentences?.map((l) => l.toJson()).toList(),
       'itemCount': ?itemCount?.toJson(),
       'maxSubsections': ?maxSubsections,
+      'maxItemLines': ?maxItemLines,
     };
     return {
       'id': id,

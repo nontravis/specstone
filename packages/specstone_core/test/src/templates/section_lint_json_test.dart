@@ -64,6 +64,16 @@ void main() {
     });
   });
 
+  test("a section's json lint holds maxItemLines when a layer sets it", () {
+    const section = MergedSection(
+      id: 'errors',
+      header: 'Errors',
+      maxItemLines: 4,
+    );
+
+    expect(section.toJson()['lint'], {'maxItemLines': 4});
+  });
+
   test('a section that sets no guide-rule key prints none', () {
     const section = MergedSection(id: 'plain', header: 'Plain', maxChars: 9);
 
