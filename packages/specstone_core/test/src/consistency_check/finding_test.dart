@@ -76,6 +76,8 @@ void main() {
       'doc_name_unresolved',
       'per_target_reference',
       'shared_doc_code_path',
+      'source_path_missing',
+      'source_path_outside_project',
       'number_label',
       'cite_unlinked',
       'reference_doc_unresolved',

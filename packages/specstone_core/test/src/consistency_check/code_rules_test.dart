@@ -13,6 +13,7 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -670,6 +671,72 @@ void main() {
       expect(_of(await _run(project), FindingKind.codeUncovered), [
         '$_flutterTech: lib/a.dart',
         '$_jasprTech: lib/b.dart',
+      ]);
+    });
+  });
+
+  group('a root: project covers entry', () {
+    const gone = '.claude/skills/gone/SKILL.md';
+
+    test('naming nothing from the project root is covers_path_missing, with '
+        'an implemented record and with none', () async {
+      Future<Directory> project(Set<String> without) => writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': '${skillPinsConfig()}code_root: code\n',
+          'code/app/lib/login.dart': checkProjectFiles()['app/lib/login.dart']!,
+          ...skillDocFile([skillFile, gone]),
+          skillFile: skillText,
+        },
+        without: {'app/lib/login.dart', ...without},
+      );
+
+      for (final without in [
+        <String>{},
+        {loginRecord},
+      ]) {
+        final report = await checkOf(await project(without));
+        expect(_of(report, FindingKind.coversPathMissing), [
+          '$skillDoc: $gone',
+        ], reason: 'without $without');
+      }
+    });
+
+    test('with two targets gives no shared_doc_code_path, while a missing '
+        'entry and a changed file of the same doc still report', () async {
+      final project = await _twin(
+        extra: {
+          '.specstone/config.yaml':
+              '${skillPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_ws\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          ...skillDocFile(['$skillFile 0123456789ab', gone]),
+          skillFile: skillText,
+        },
+      );
+
+      final report = await _run(project);
+
+      expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
+      expect(_of(report, FindingKind.coversPathMissing), ['$skillDoc: $gone']);
+      expect(_of(report, FindingKind.codeSuspect), ['$skillDoc: $skillFile']);
+    });
+
+    test('covers no target code, so a skill file under a code root stays '
+        'code_uncovered', () async {
+      const skillUnderRoot = 'skills/review/SKILL.md';
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': skillPinsConfig(),
+            ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
+            ...skillDocFile([skillUnderRoot]),
+            skillUnderRoot: skillText,
+          },
+        ),
+      );
+
+      expect(_of(report, FindingKind.codeUncovered), [
+        '$techStack: $skillUnderRoot',
       ]);
     });
   });

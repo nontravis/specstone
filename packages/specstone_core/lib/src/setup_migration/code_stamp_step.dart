@@ -37,14 +37,28 @@ typedef CodeStampDoc = ({
   String? target,
 });
 
-/// One value a doc's field takes: the field id, the value as written, the
-/// value with its fingerprint, and the target whose count it adds to.
-typedef _Stamp = ({
-  String field,
-  String value,
-  String stamped,
-  CodeTarget target,
-});
+/// One value a doc's field takes.
+final class _Stamp {
+  const new({
+    required this.field,
+    required this.value,
+    required this.stamped,
+    required this.target,
+  });
+
+  /// The id of the field that holds the value.
+  final String field;
+
+  /// The value as written.
+  final String value;
+
+  /// The value with its fingerprint.
+  final String stamped;
+
+  /// The target whose count the stamp adds to; null for a `root: project`
+  /// entry, which counts for no target.
+  final CodeTarget? target;
+}
 
 // MARK: - CodeStampStep
 
@@ -64,9 +78,11 @@ final class CodeStampStep {
   /// them, in each of [targets], their code roots read from [projectRoot].
   ///
   /// A link takes its fingerprint after one space, in place of any it ends
-  /// in. A `planned` entry, a waiting target's `covers:` entry, an entry
-  /// whose path names nothing, and one whose code cannot be read stay as
-  /// written and are not counted; no other entry of a doc changes.
+  /// in. A `root: project` entry reads from [projectRoot], whatever its doc's
+  /// target, and counts for no target. A `planned` entry, a waiting target's
+  /// `covers:` entry, an entry whose path names nothing, and one whose code
+  /// cannot be read stay as written and are not counted; no other entry of a
+  /// doc changes.
   ///
   /// With [restamp], a link that records no fingerprint, or one that differs
   /// from its code's fingerprint under the earlier rule, stays as written too.
@@ -91,7 +107,9 @@ final class CodeStampStep {
       final (:lf, :applied) = _withStamps(doc.lf, stamps);
       if (lf != doc.lf) rewrites[doc.docPath] = lf;
       for (final stamp in applied) {
-        entries[stamp.target] = entries[stamp.target]! + 1;
+        if (stamp.target case final target?) {
+          entries[target] = entries[target]! + 1;
+        }
       }
     }
     return CodeStampStep._(
@@ -118,6 +136,7 @@ final class CodeStampStep {
   ///
   /// The counts read `; <k> entries`, or `; <target>: <k> entries` per target
   /// with two or more, then `; unreadable: <u>` when a file cannot be read.
+  /// A `root: project` entry counts in neither form.
   UpgradeStepLine stepLine({required String from, required String step}) {
     final counts = _entries.length > 1
         ? [
@@ -148,30 +167,27 @@ List<_Stamp> _stampsOf(
 }) {
   final indexed = read.tree.at(doc.docPath);
   final type = doc.type;
-  final target = indexed == null ? null : work.targetOf(indexed);
-  if (indexed == null || type == null || target == null) return const [];
-  final codeRoot = reader.codeRootOf(target);
+  if (indexed == null || type == null) return const [];
   final links = codeLinksOf(
     read.tree,
     work,
     indexed,
     type: type,
-    target: target,
-    codeRoot: codeRoot,
+    projectRoot: reader.projectRoot,
+    codeRootOf: reader.codeRootOf,
     linesOf: () => read.linesOf(doc.docPath),
   );
   return [
     for (final link in links)
       if (link.status != RecordStatus.planned)
-        if (_fingerprintToTake(reader, target, link, restamp: restamp)
-            case final fp?)
+        if (_fingerprintToTake(reader, link, restamp: restamp) case final fp?)
           if (_stampedValue(link, fp) case final stamped
               when stamped != link.value)
-            (
+            _Stamp(
               field: link.field,
               value: link.value,
               stamped: stamped,
-              target: target,
+              target: link.target,
             ),
   ];
 }
@@ -183,17 +199,15 @@ List<_Stamp> _stampsOf(
 /// before comment and blank lines were dropped.
 String? _fingerprintToTake(
   _CodeReader reader,
-  CodeTarget target,
   CodeLink link, {
   required bool restamp,
 }) {
-  final current = reader.fingerprintOf(target, link.path);
+  final current = reader.fingerprintOf(link);
   if (!restamp || current == null) return current;
   final recorded = link.recorded;
   if (recorded == null) return null;
   final earlier = reader.fingerprintOf(
-    target,
-    link.path,
+    link,
     fileHash: (bytes, _) => legacyFileCodeFingerprint(bytes),
   );
   return recorded == earlier ? current : null;
@@ -260,7 +274,8 @@ final class _CodeReader {
 
   final Map<CodeTarget, Directory> _codeRoots;
   late final Map<CodeTarget, List<String>> _nestedRoots;
-  final _bytes = <(CodeTarget, String), List<int>?>{};
+  // A null target keys a read from the project root.
+  final _bytes = <(CodeTarget?, String), List<int>?>{};
 
   /// Each code file a read failed on, as a path from the project root.
   final unreadable = <String>{};
@@ -269,20 +284,21 @@ final class _CodeReader {
   Directory codeRootOf(CodeTarget target) =>
       _codeRoots[target] ?? (throw _unknownTarget(target));
 
-  /// Returns the fingerprint of [path] of [target], as the check reads it
-  /// under [fileHash] (its current rule when null), null when its code
-  /// cannot be read.
+  /// Returns the fingerprint of [link]'s code, read from its root as the
+  /// check reads it under [fileHash] (its current rule when null), null when
+  /// its code cannot be read.
   String? fingerprintOf(
-    CodeTarget target,
-    String path, {
+    CodeLink link, {
     String Function(List<int> bytes, String path)? fileHash,
   }) {
-    final codeRoot = codeRootOf(target);
+    final target = link.target;
     return currentCodeFingerprint(
-      path,
-      codeRoot: codeRoot,
-      nestedRoots: _nestedRoots[target] ?? (throw _unknownTarget(target)),
-      bytesOf: (file) => _read(target, codeRoot, file),
+      link.path,
+      codeRoot: link.root,
+      nestedRoots: target == null
+          ? const []
+          : _nestedRoots[target] ?? (throw _unknownTarget(target)),
+      bytesOf: (file) => _read(target, link.root, file),
       onUnlistable: (_) {},
       fileHash: fileHash,
     );
@@ -291,9 +307,9 @@ final class _CodeReader {
   ArgumentError _unknownTarget(CodeTarget target) =>
       ArgumentError.value(target, 'target', 'is not a target of the run');
 
-  List<int>? _read(CodeTarget target, Directory codeRoot, String file) =>
+  List<int>? _read(CodeTarget? target, Directory root, String file) =>
       _bytes.putIfAbsent((target, file), () {
-        final read = File('${codeRoot.path}/$file');
+        final read = File('${root.path}/$file');
         try {
           return readPlanInput(read);
         } on FileSystemException {

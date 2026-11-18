@@ -100,17 +100,75 @@ void main() {
       expect(layer.fields.single.type, FieldType.taskRef);
     });
 
-    test('an unknown field type is unknown_value counting nine types', () {
+    test('an unknown field type is unknown_value counting ten types', () {
       expect(
         () => _parse('fields: [{id: tasks, type: ticket}]'),
         throwsA(
           _fault(FaultCode.unknownValue, key: 'fields.tasks.type').having(
             (f) => f.message,
             'message',
-            'the key type must be one of the nine field types',
+            'the key type must be one of the ten field types',
           ),
         ),
       );
+    });
+
+    test('source_ref is an accepted field type', () {
+      final layer = _parse('fields: [{id: source, type: source_ref}]');
+      expect(layer.fields.single.type, FieldType.sourceRef);
+    });
+
+    test('a doc type and a field that write export: false load', () {
+      final layer = _parse(
+        'export: false\nfields: [{id: note, type: string, export: false}]',
+      );
+      expect(layer.export, isFalse);
+      expect(layer.fields.single.export, isFalse);
+    });
+
+    test('a doc type and a field that write no export read null', () {
+      final layer = _parse('fields: [{id: note, type: string}]');
+      expect(layer.export, isNull);
+      expect(layer.fields.single.export, isNull);
+    });
+
+    test('an export that is no boolean is unknown_value at that key', () {
+      expect(
+        () => _parse('export: no\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'export')),
+      );
+      expect(
+        () => _parse('fields: [{id: note, type: string, export: no}]'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'fields.note.export')),
+      );
+    });
+
+    test('root: project and root: code load on an output_ref field', () {
+      final layer = _parse(
+        'fields: [{id: a, type: output_ref, pointer: exact, root: project}, '
+        '{id: b, type: output_ref, pointer: exact, root: code}]',
+      );
+      expect(layer.fields.map((f) => f.root), ['project', 'code']);
+    });
+
+    test('a root other than code or project is unknown_value', () {
+      expect(
+        () => _parse(
+          'fields: [{id: a, type: output_ref, pointer: exact, root: repo}]',
+        ),
+        throwsA(_fault(FaultCode.unknownValue, key: 'fields.a.root')),
+      );
+      expect(
+        () => _parse(
+          'fields: [{id: a, type: output_ref, pointer: exact, root: 3}]',
+        ),
+        throwsA(_fault(FaultCode.unknownValue, key: 'fields.a.root')),
+      );
+    });
+
+    test('a root on a string field loads', () {
+      final layer = _parse('fields: [{id: a, type: string, root: repo}]');
+      expect(layer.fields.single.type, FieldType.string);
     });
 
     test('item_exact is an accepted pointer kind', () {

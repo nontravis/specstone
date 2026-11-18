@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/table_cell.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_diff.dart';
 import 'package:specstone_core/src/document_writing/models/changed_unit.dart';
@@ -283,9 +284,8 @@ void _writeList(StringBuffer out, String heading, List<String> sentences) {
 
 /// Returns one table row; a `|` in either cell is escaped so it splits none.
 String _row(String field, String value) =>
-    '| ${_escapePipes(field.padRight(7))} | ${_escapePipes(value)} |';
-
-String _escapePipes(String cell) => cell.replaceAll('|', r'\|');
+    '| ${escapeTableCellPipes(field.padRight(7))} '
+    '| ${escapeTableCellPipes(value)} |';
 
 /// Returns the `status` cell for [byTarget]: each `'<target> <status>'` pair
 /// in map order joined by ` · `.

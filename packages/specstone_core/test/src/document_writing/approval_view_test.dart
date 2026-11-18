@@ -474,6 +474,15 @@ void main() {
       expect(view, contains('|         | `## A \\| B` |\n'));
     });
 
+    test(r'a \| in a table cell stays one escape', () {
+      const oldText = '---\n"a\\\\|b": 1\n---\n# T\n\n## A\nA.\n';
+      const newText = '---\n"a\\\\|b": 2\n---\n# T\n\n## A\nB.\n';
+
+      final view = _render(_draft(text: newText, lookup: _copy(oldText)));
+
+      expect(view, contains(r'| changes | field `a\|b` |'));
+    });
+
     test('a name or path holding backticks prints in '
         'a longer span', () {
       final view = _render(

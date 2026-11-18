@@ -21,6 +21,7 @@ import '../../helpers/counting_io.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/write_fixture.dart' show docFile, writeIn;
 
@@ -392,6 +393,62 @@ void main() {
         );
       },
     );
+  });
+
+  group('a root: project covers entry', () {
+    final skillFingerprint = _fingerprintOf(skillText, skillFile);
+
+    test('of a doc in no code target takes the fingerprint of its file '
+        'from the project root, so the next check finds no code link to '
+        'compare, and counts in no entry count', () async {
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': '${skillPinsConfig()}code_root: code\n',
+          'code/$_login': _loginText,
+          ...skillDocFile([skillFile]),
+          skillFile: skillText,
+        },
+        without: {_login, loginRecord},
+        unfingerprinted: {..._linkedDocs, 'docs/$skillDoc'},
+      );
+      expect(_codeFindings(await _check(project)), isNotEmpty);
+
+      final step = _planAt(project);
+      _write(project, step);
+
+      expect(
+        step.stepLine(from: _from, step: _step).text,
+        'from 1.6.0: stamp_code_fingerprints: 1 docs; 0 entries',
+      );
+      expect(
+        _read(project, skillDoc),
+        contains('covers:\n  - $skillFile $skillFingerprint\n'),
+      );
+      expect(_codeFindings(await _check(project)), isEmpty);
+    });
+
+    test("with two code targets counts in no target's entry count", () async {
+      final project = await writeTwinProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${skillPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_ws\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          ...skillDocFile([skillFile]),
+          skillFile: skillText,
+        },
+        unfingerprinted: {'docs/$skillDoc'},
+      );
+
+      final step = _planAt(project);
+
+      expect(
+        step.stepLine(from: _from, step: _step).text,
+        'from 1.6.0: stamp_code_fingerprints: 1 docs; flutter: 0 entries; '
+        'jaspr: 0 entries',
+      );
+      expect(step.paths, [skillDoc]);
+    });
   });
 
   group('the step line', () {

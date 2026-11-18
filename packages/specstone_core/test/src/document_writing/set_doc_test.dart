@@ -2957,6 +2957,20 @@ void main() {
       },
     );
 
+    test('a source_ref field takes a string and refuses a list', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/templates/feature.yaml':
+              'fields:\n  - id: origin\n    type: source_ref\n',
+        },
+      );
+      checkFieldIn(root, 'feature:login', 'origin', 'docs/a.md');
+      expect(
+        () => checkFieldIn(root, 'feature:login', 'origin', '- docs/a.md'),
+        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+      );
+    });
+
     test(
       'a task_ref write keeps an approved doc approved and a draft a draft',
       () async {

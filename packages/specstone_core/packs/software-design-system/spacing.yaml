@@ -1,0 +1,12 @@
+id: spacing
+description: |-
+  The spacing doc: the spacing scale and its tokens.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# Spacing`, with no number.
+path: specs/design_system/foundations/SPACING.md
+sections:
+  - id: spacing_scale
+    header: Spacing scale
+    required: true
+    description: |-
+      Write one row per step of the scale: its name, its value, and the token that holds it.

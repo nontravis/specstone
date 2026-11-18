@@ -35,6 +35,7 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/repeat_listing.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/shape_count_rules.dart';
+import 'package:specstone_core/src/consistency_check/source_rules.dart';
 import 'package:specstone_core/src/consistency_check/task_ref_rules.dart';
 import 'package:specstone_core/src/consistency_check/tbr_rules.dart';
 import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
@@ -118,6 +119,7 @@ Future<CheckReport> runCheck(
       ..addAll(checkMatrixRows(context, doc))
       ..addAll(checkUnprovenEdgeCases(context, doc))
       ..addAll(checkCoversAndCodeRoots(context, work, doc))
+      ..addAll(checkDesignSources(context, doc))
       ..addAll(checkCodeLinks(context, work, doc))
       ..addAll(checkDocLinks(context, doc))
       ..addAll(checkTaskRefs(context, doc))

@@ -3,6 +3,7 @@ import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf, isTableDelimiterRow, isThematicBreak, startsTable;
 import 'package:specstone_core/src/doc_model/models/text_block.dart';
+import 'package:specstone_core/src/doc_model/table_cell.dart';
 
 const _space = 0x20;
 
@@ -16,7 +17,6 @@ const _firstTextHeadingLevel = 3;
 
 final _quotePrefix = RegExp(r'^[ \t]*>[ \t]?');
 final _listMarker = RegExp(r'^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)');
-final _unescapedPipe = RegExp(r'(?<!\\)\|');
 
 const _tab = 0x09;
 const _carriageReturn = 0x0D;
@@ -190,7 +190,7 @@ final class _BlockReader {
 
   void _readTableRow(String row) {
     if (isTableDelimiterRow(row)) return;
-    _trimPipes(row).split(_unescapedPipe).forEach(_add);
+    _trimPipes(row).split(tableCellPipe).forEach(_add);
   }
 }
 

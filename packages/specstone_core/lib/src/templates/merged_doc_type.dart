@@ -28,9 +28,12 @@ final class MergedField {
     this.enumValues,
     this.docTypes,
     PointerKind? pointer,
+    PointerRoot? root,
+    this.export,
     this.description,
     this.lint,
-  }) : pointer = type == FieldType.outputRef ? pointer : null;
+  }) : pointer = type == FieldType.outputRef ? pointer : null,
+       root = type == FieldType.outputRef ? root : null;
 
   /// The field id.
   final String id;
@@ -53,6 +56,16 @@ final class MergedField {
   /// How an `output_ref` field's value matches a path; null for any other type.
   final PointerKind? pointer;
 
+  /// The folder an `output_ref` field's pointers resolve against; null when no
+  /// layer sets it, which reads as `code`, and for any other type.
+  final PointerRoot? root;
+
+  /// Whether the field joins an export; null when no layer sets it.
+  final bool? export;
+
+  /// Whether the field joins an export: [export], else `true`.
+  bool get exported => export ?? true;
+
   /// What the field holds.
   final String? description;
 
@@ -69,7 +82,8 @@ final class MergedField {
   ///
   /// A list the new type does not use is dropped unless the call writes it:
   /// [enumValues] belongs to `enum` only, [docTypes] to `doc_ref` only, and
-  /// [pointer] to `output_ref` only. [lint] replaces the whole caps value.
+  /// [pointer] and [root] to `output_ref` only. [lint] replaces the whole caps
+  /// value.
   MergedField copyWith({
     FieldType? type,
     bool? list,
@@ -77,6 +91,8 @@ final class MergedField {
     List<String>? enumValues,
     List<String>? docTypes,
     PointerKind? pointer,
+    PointerRoot? root,
+    bool? export,
     String? description,
     FieldCaps? lint,
   }) {
@@ -92,6 +108,8 @@ final class MergedField {
       docTypes:
           docTypes ?? (newType == FieldType.docRef ? this.docTypes : null),
       pointer: pointer ?? this.pointer,
+      root: root ?? this.root,
+      export: export ?? this.export,
       description: description ?? this.description,
       lint: lint ?? this.lint,
     );
@@ -99,7 +117,8 @@ final class MergedField {
 
   /// Returns the JSON object of this field with only the keys set.
   ///
-  /// `list` and `required` print only when true.
+  /// `list` and `required` print only when true; `root` and `export` print
+  /// only when a layer writes them.
   Map<String, Object> toJson() => {
     'id': id,
     'type': type.wire,
@@ -108,6 +127,8 @@ final class MergedField {
     'enum': ?enumValues,
     'docTypes': ?docTypes,
     'pointer': ?pointer?.wire,
+    'root': ?root?.wire,
+    'export': ?export,
     'description': ?description,
     'lint': ?lint?.toJson(),
   };
@@ -738,6 +759,7 @@ final class MergedDocType {
     this.path,
     this.maxDepth,
     this.isPerTarget = false,
+    this.export,
     this.nestedPaths,
     this.bundle,
     this.bundleRefs,
@@ -788,6 +810,12 @@ final class MergedDocType {
 
   /// Whether the doc type reads its patterns once per target.
   final bool isPerTarget;
+
+  /// Whether the doc type joins an export; null when no layer sets it.
+  final bool? export;
+
+  /// Whether the doc type joins an export: [export], else `true`.
+  bool get exported => export ?? true;
 
   /// Whether the doc type's own folder segment may repeat.
   bool get nests => (maxDepth ?? 0) > 0;
@@ -860,6 +888,7 @@ final class MergedDocType {
     String? path,
     int? maxDepth,
     bool? isPerTarget,
+    bool? export,
     List<String>? nestedPaths,
     List<String>? bundle,
     bool? bundleRefs,
@@ -882,6 +911,7 @@ final class MergedDocType {
     path: path ?? this.path,
     maxDepth: maxDepth ?? this.maxDepth,
     isPerTarget: isPerTarget ?? this.isPerTarget,
+    export: export ?? this.export,
     nestedPaths: nestedPaths,
     bundle: bundle ?? this.bundle,
     bundleRefs: bundleRefs ?? this.bundleRefs,
@@ -911,6 +941,7 @@ final class MergedDocType {
       'path': ?path,
       'maxDepth': ?maxDepth,
       if (isPerTarget) 'perTarget': true,
+      'export': ?export,
       'bundle': ?bundle,
       'bundleRefs': ?bundleRefs,
       'summaryFor': ?summaryFor,

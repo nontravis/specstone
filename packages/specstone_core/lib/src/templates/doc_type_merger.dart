@@ -91,6 +91,7 @@ final class DocTypeMerger {
       path: layer.path,
       maxDepth: layer.maxDepth,
       isPerTarget: layer.perTarget,
+      export: layer.export,
       bundle: mergeList<String>(
         base.bundle,
         layer.bundle,
@@ -281,6 +282,8 @@ final class DocTypeMerger {
             enumValues: _frozen(entry.enumValues),
             docTypes: _frozen(entry.docTypes),
             pointer: _pointerOf(entry, type, layer),
+            root: _rootOf(entry, type, layer),
+            export: entry.export,
             description: entry.description,
             lint: entry.lint,
           ),
@@ -301,6 +304,8 @@ final class DocTypeMerger {
         enumValues: _frozen(entry.enumValues),
         docTypes: _frozen(entry.docTypes),
         pointer: _pointerOf(entry, entry.type ?? current.type, layer),
+        root: _rootOf(entry, entry.type ?? current.type, layer),
+        export: entry.export,
         description: entry.description,
         lint: _mergedCaps(current.lint, entry.lint),
       );
@@ -323,6 +328,19 @@ final class DocTypeMerger {
     final written = entry.pointer;
     if (type != FieldType.outputRef || written == null) return null;
     return PointerKind.read(
+      written,
+      file: layer.file,
+      prefix: 'fields.${entry.id}.',
+    );
+  }
+
+  /// Returns the root [entry] writes, read only when [type] is `output_ref`.
+  ///
+  /// A root on any other type has no effect and is not checked.
+  PointerRoot? _rootOf(FieldEntry entry, FieldType type, DocTypeLayer layer) {
+    final written = entry.root;
+    if (type != FieldType.outputRef || written == null) return null;
+    return PointerRoot.read(
       written,
       file: layer.file,
       prefix: 'fields.${entry.id}.',

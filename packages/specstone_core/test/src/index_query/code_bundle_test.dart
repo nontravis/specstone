@@ -15,6 +15,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 void main() {
@@ -598,5 +599,58 @@ void main() {
         ),
       );
     });
+  });
+  group('a skill doc whose covers entry reads from the project root', () {
+    Future<Bundle Function()> skillCall({String? codeRoot}) async {
+      final root = await writeLoginProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${skillPinsConfig()}${codeRoot == null ? '' : 'code_root: $codeRoot\n'}',
+          ...skillDocFile([skillFile]),
+          skillFile: skillText,
+          if (codeRoot != null) '$codeRoot/keep.txt': '',
+        },
+      );
+      final opened = openSession(root);
+      addTearDown(opened.close);
+      return () => pickCodeBundle(
+        opened.index,
+        resolveCodePath(
+          skillFile,
+          workingDirectory: root,
+          targets: opened.project.targets,
+          codeRootOf: opened.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
+    }
+
+    test(
+      'is never a spec match, so its file gets the no-doc warning',
+      () async {
+        final bundle = (await skillCall())();
+
+        expect(bundle.docPaths, isNot(contains(skillDoc)));
+        expect(bundle.warnings, ['no doc covers or implements $skillFile']);
+      },
+    );
+    test(
+      'leaves its file outside the code root, which refuses the path',
+      () async {
+        final pick = await skillCall(codeRoot: 'specstone');
+
+        expect(
+          pick,
+          throwsA(
+            isA<IndexFault>().having(
+              (x) => x.code,
+              'code',
+              IndexFaultCode.codePathOutsideProject,
+            ),
+          ),
+        );
+      },
+    );
   });
 }
