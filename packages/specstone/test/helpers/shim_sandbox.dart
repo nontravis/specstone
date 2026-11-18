@@ -356,9 +356,9 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
 // exit status is FAKE_EXIT for specstone, else 0. Each run also writes its
 // whole environment to <name>.env. Given `upgrade`, specstone.exe renames the
 // stn.exe beside it to stn.exe.old, writes a new stn.exe (the old bytes and a
-// trailing marker), prints `upgraded`, then exits. With STUB_HOLD=1 a run writes its pid to
-// <name>.pid, starts one detached child that writes grandchild.pid and sleeps
-// 30 s, then sleeps 30 s itself, before it exits.
+// trailing marker), prints `upgraded`, then exits. With STUB_HOLD=1 a run
+// writes its pid to <name>.pid, starts one detached child that writes
+// grandchild.pid and sleeps 30 s, then sleeps 30 s itself, before it exits.
 final String _recorderSource =
     r'''
 import 'dart:io';
