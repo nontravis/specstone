@@ -4,12 +4,9 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, resolveDocLink;
+import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show
-        NameMention,
-        extensionOfCodePath,
-        nameMentionsInFile,
-        readsNameMentions;
+    show extensionOfCodePath, nameMentionsInFile, readsNameMentions;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/document_writing/body_scan.dart';

@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax, parseMarkdownTreeByBlock;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
+import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
@@ -402,7 +403,7 @@ typedef TbrMarkerPlace = ({int line, String rest});
 /// `bodyStart + 1`.
 List<NameMention> _mentionsFrom(String body, int bodyStart) => [
   for (final m in nameMentionsInMarkdown(body))
-    (
+    NameMention(
       line: bodyStart + m.line,
       column: m.column,
       text: m.text,
@@ -413,7 +414,7 @@ List<NameMention> _mentionsFrom(String body, int bodyStart) => [
 /// Returns the mentions [json] holds, as `LineFacts.toJson` wrote them.
 List<NameMention> _mentionsOfJson(Object json) => [
   for (final m in (json as List<Object?>).cast<List<Object?>>())
-    (
+    NameMention(
       line: m[0]! as int,
       column: m[1]! as int,
       text: m[2]! as String,
