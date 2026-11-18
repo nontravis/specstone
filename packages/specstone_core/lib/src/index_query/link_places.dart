@@ -58,6 +58,55 @@ const LinkPlaces noLinks = (
   readersAgree: true,
 );
 
+/// Returns, for each of [places], the [LinkText] in [stored] that is its own,
+/// or null when the index keeps none.
+///
+/// A stored text joins the nth place of its line, target, anchor, and
+/// destination as written, so each link is read once.
+List<LinkText?> storedLinkTextsOf(
+  List<LinkPlace> places,
+  List<LinkText> stored,
+) {
+  final texts = <(int, String, String?, String), List<LinkText>>{};
+  for (final text in stored) {
+    (texts[(text.line, text.target, text.anchor, text.shown)] ??= []).add(text);
+  }
+  final taken = <(int, String, String?, String), int>{};
+  return [
+    for (final place in places)
+      _nthStoredText(texts, taken, (
+        place.line,
+        place.target,
+        place.anchor,
+        place.shown,
+      )),
+  ];
+}
+
+LinkText? _nthStoredText(
+  Map<(int, String, String?, String), List<LinkText>> texts,
+  Map<(int, String, String?, String), int> taken,
+  (int, String, String?, String) key,
+) {
+  final nth = taken[key] ?? 0;
+  taken[key] = nth + 1;
+  final found = texts[key];
+  return found != null && nth < found.length ? found[nth] : null;
+}
+
+/// Returns the [LinkText] of [place] when the index keeps no text for it: an
+/// empty text, which reads as no item ID.
+LinkText textFreeLinkOf(LinkPlace place) => (
+  line: place.line,
+  column: 0,
+  endLine: place.line,
+  endColumn: 0,
+  text: '',
+  target: place.target,
+  anchor: place.anchor,
+  shown: place.shown,
+);
+
 /// Returns the links of [lfBody], doc links and file links, each in source
 /// order.
 ///

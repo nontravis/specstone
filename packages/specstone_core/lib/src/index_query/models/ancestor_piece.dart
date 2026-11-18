@@ -29,7 +29,8 @@ final class AncestorPiece {
 
   final IndexedDoc doc;
 
-  /// The key of the `##` section that holds the piece.
+  /// The key of the `##` section that holds the piece; empty for the doc's
+  /// lead, the head before its first section.
   final String sectionKey;
 
   /// The ID of the item the piece is, or whose `###` block it is; null for a

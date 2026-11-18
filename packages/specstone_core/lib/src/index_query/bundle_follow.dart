@@ -775,39 +775,16 @@ Map<_SourceKey, List<int>> _sourceColumnsOf(DocContent content) {
 /// order, each with the stored [LinkText] of its place when the index keeps
 /// one.
 List<_Link> _linksOf(LineFacts facts) {
-  final texts = <(int, String, String?, String), List<LinkText>>{};
-  for (final text in facts.linkTexts) {
-    (texts[(text.line, text.target, text.anchor, text.shown)] ??= []).add(text);
-  }
-  final taken = <(int, String, String?, String), int>{};
-  _Link linkOf(LinkPlace place, {required bool file}) {
-    final key = (place.line, place.target, place.anchor, place.shown);
-    final nth = taken[key] ?? 0;
-    taken[key] = nth + 1;
-    final stored = texts[key];
-    if (!file && stored != null && nth < stored.length) {
-      return _Link(text: stored[nth], shaped: true, file: false);
-    }
-    return _Link(
-      text: (
-        line: place.line,
-        column: 0,
-        endLine: place.line,
-        endColumn: 0,
-        text: '',
-        target: place.target,
-        anchor: place.anchor,
-        shown: place.shown,
-      ),
-      shaped: false,
-      file: file,
-    );
-  }
-
+  final places = [...facts.links, ...facts.selfLinks];
+  final stored = storedLinkTextsOf(places, facts.linkTexts);
   final links = [
-    for (final place in [...facts.links, ...facts.selfLinks])
-      linkOf(place, file: false),
-    for (final place in facts.fileLinks) linkOf(place, file: true),
+    for (final (i, place) in places.indexed)
+      if (stored[i] case final text?)
+        _Link(text: text, shaped: true, file: false)
+      else
+        _Link(text: textFreeLinkOf(place), shaped: false, file: false),
+    for (final place in facts.fileLinks)
+      _Link(text: textFreeLinkOf(place), shaped: false, file: true),
   ];
   return _byLine(links);
 }

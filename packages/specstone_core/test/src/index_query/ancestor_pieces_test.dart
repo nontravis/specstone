@@ -47,11 +47,16 @@ Map<String, String> _files({
 
 /// Opens the nested project with [files] written as given, so a file line of
 /// a doc is the line its text puts it on.
-Future<DocIndex> _indexWith(Map<String, String> files) async {
+///
+/// A key in [stamped] keeps the approval frontmatter the fixture writes.
+Future<DocIndex> _indexWith(
+  Map<String, String> files, {
+  Set<String> stamped = const {},
+}) async {
   final session = openSession(
     await writeCheckProject(
       extra: {...nestedFiles(), ...files},
-      unstamped: files.keys.toSet(),
+      unstamped: files.keys.toSet().difference(stamped),
     ),
   );
   addTearDown(session.close);
@@ -60,10 +65,11 @@ Future<DocIndex> _indexWith(Map<String, String> files) async {
 
 Future<List<AncestorPiece>> _piecesOf(
   Map<String, String> files, {
+  Set<String> stamped = const {},
   String target = 'shop/cart/add_item',
   BundleMode mode = BundleMode.design,
 }) async {
-  final index = await _indexWith(files);
+  final index = await _indexWith(files, stamped: stamped);
   return ancestorPiecesOf(
     index,
     pickBundle(index, target, mode, noProject: false),
@@ -143,6 +149,9 @@ void main() {
     );
     expect(pieces.map(_show), [
       '$shopDomain#invariants id=INV-1 heading=null outbound 4-4',
+    ]);
+    expect(pieces.single.text.split('\n'), [
+      '- **INV-1** An order holds a line, see [the fr]($_toFr).',
     ]);
   });
 
@@ -256,10 +265,12 @@ void main() {
         '$shopDomain#invariants id=INV-3 heading=null outbound 6-6',
         '$shopDomain#known_limits id=null heading=null outbound 9-11',
       ]);
-      expect(pieces.last.text.split('\n'), [
-        '## Known limits',
-        'Nothing is refunded.',
-        'No partial orders.',
+      expect(pieces.map((piece) => piece.text.split('\n')), [
+        ['### Checkout flow', 'It pays.'],
+        ['- **INV-1** First.'],
+        ['- **INV-2** Second.'],
+        ['- **INV-3** Third.'],
+        ['## Known limits', 'Nothing is refunded.', 'No partial orders.'],
       ]);
     },
   );
@@ -326,6 +337,12 @@ void main() {
     expect(block.map(_show), [
       '$shopDomain#invariants id=null heading=order-rules inbound 4-7',
     ]);
+    expect(block.single.text.split('\n'), [
+      '### Order rules',
+      'Orders obey [the fr]($_toFr).',
+      '- **INV-1** An order holds a line.',
+      '- **INV-2** Another.',
+    ]);
   });
 
   test('a link to an anchor no section places gives no piece', () async {
@@ -356,17 +373,52 @@ void main() {
       '- **INV-2** Second, see [the fr]($_toFr).',
     ]);
     final fr = _fr('Holds [INV-1]($_toDomain#invariants).');
-    final lf = await _piecesOf(_files(fr: fr, domain: domain));
+    const stamped = {'docs/$shopDomain'};
+    final lf = await _piecesOf(
+      _files(fr: fr, domain: domain),
+      stamped: stamped,
+    );
     final crlf = await _piecesOf(
       _files(fr: fr, domain: domain.replaceAll('\n', '\r\n')),
+      stamped: stamped,
+    );
+    final frontmatterLines = lf.first.first - 4;
+    expect(frontmatterLines, greaterThan(0));
+    final (a, b, c) = (
+      4 + frontmatterLines,
+      5 + frontmatterLines,
+      6 + frontmatterLines,
     );
     expect(lf.map(_show), [
-      '$shopDomain#invariants id=INV-1 heading=null outbound 4-5',
-      '$shopDomain#invariants id=INV-2 heading=null inbound 6-6',
+      '$shopDomain#invariants id=INV-1 heading=null outbound $a-$b',
+      '$shopDomain#invariants id=INV-2 heading=null inbound $c-$c',
     ]);
     expect(crlf.map(_show), lf.map(_show));
     expect(crlf.map((piece) => piece.text), lf.map((piece) => piece.text));
     expect(crlf.any((piece) => piece.text.contains('\r')), isFalse);
+  });
+
+  test('a lead paragraph linking the fr gives an inbound paragraph piece with an empty section key', () async {
+    final pieces = await _piecesOf(
+      _files(
+        domain: _lines([
+          '# Shop domain',
+          '',
+          'This doc backs [the fr]($_toFr)',
+          'and its order rules.',
+          '',
+          '## Invariants',
+          '- **INV-1** One.',
+        ]),
+      ),
+    );
+    expect(pieces.map(_show), [
+      '$shopDomain# id=null heading=null inbound 3-4',
+    ]);
+    expect(pieces.single.text.split('\n'), [
+      'This doc backs [the fr]($_toFr)',
+      'and its order rules.',
+    ]);
   });
 
   test('no piece without ancestor spec docs', () async {

@@ -1,5 +1,6 @@
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_items.dart'
-    show SectionItem, SectionItemKind;
+    show SectionItem, SectionItemKind, sectionItemsOf;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show startsTable;
 import 'package:specstone_core/src/index_query/bundle.dart';
@@ -7,7 +8,11 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
-    show sectionItemsAt;
+    show
+        generatedLineTest,
+        leadBodyLinesOf,
+        sectionItemsAt,
+        withGeneratedFenced;
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
@@ -20,12 +25,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 /// Returns the pieces of each ancestor spec doc of [bundle] that link to or
 /// from its target subtree, cut from the stored text with no file read.
 ///
-/// Outbound pieces are what a target-subtree doc's links cite in an ancestor
-/// spec doc; inbound pieces are the places of an ancestor spec doc that link
-/// to a target-subtree doc. A piece inside another printed piece is left out,
-/// and a piece reached both ways is outbound. The pieces come in the print
-/// order of their docs, then by file line, so the order of the links never
-/// changes them. Empty when the bundle holds no ancestor spec doc.
+/// A piece inside another is left out; one reached both ways is outbound.
+/// Pieces come in the docs' print order, then by file line.
 List<AncestorPiece> ancestorPiecesOf(DocIndex index, Bundle bundle) {
   final targets = bundle.targetSubtreePaths;
   final ancestors = bundle.ancestorSpecPaths.difference(targets);
@@ -286,12 +287,14 @@ final class _View {
 
   /// Returns the inbound piece that holds file line [line]: the ID item with
   /// its nested items; else the `###` block; else the table row, the list
-  /// item, or the paragraph. Null when none holds it.
+  /// item, or the paragraph. A line of the lead gives the list item or the
+  /// paragraph, with an empty section key. Null when none holds it.
   AncestorPiece? inboundPieceAt(int line) {
     if (facts.sectionLines.contains(line)) return null;
     final at = _sectionHolding(line);
-    final section = at == null ? null : sectionAt(at);
-    if (at == null || section == null) return null;
+    if (at == null) return _leadPieceAt(line);
+    final section = sectionAt(at);
+    if (section == null) return null;
     const direction = PieceDirection.inbound;
     if (_idItemHolding(at, line) case final item?) {
       return _piece(section.key, direction, item.extent, itemId: item.id);
@@ -299,12 +302,42 @@ final class _View {
     if (_blockHeadingHolding(at, line) case final headingLine?) {
       return blockPiece(headingLine, null, direction);
     }
-    return _plainPieceAt(at, section.key, line);
+    return _plainPieceIn(_bodyOf(at), _itemsAt(at), section.key, line);
   }
 
-  AncestorPiece? _plainPieceAt(int at, String sectionKey, int line) {
+  AncestorPiece? _leadPieceAt(int line) {
+    final body = _leadBody;
+    if (body.isEmpty || line < body.first.line) return null;
+    return _plainPieceIn(body, _leadItems, '', line);
+  }
+
+  /// The lines of the lead, the head after its title line.
+  late final List<BodyLine> _leadBody = _leadBodyOf();
+
+  late final List<SectionItem> _leadItems = sectionItemsOf(
+    withGeneratedFenced(_leadBody, _isGenerated),
+  );
+
+  late final Doc _doc = Doc.parse(toLf(content.text));
+
+  late final bool Function(int line) _isGenerated = generatedLineTest(
+    _doc,
+    toLf(content.text),
+    type?.listedGenerators.toSet() ?? const {},
+  );
+
+  List<BodyLine> _leadBodyOf() =>
+      leadBodyLinesOf(_doc, toLf(content.text), facts, _isGenerated);
+
+  /// Returns the table row, list item, or paragraph of [items], the items of
+  /// [body], that holds [line], or null.
+  AncestorPiece? _plainPieceIn(
+    List<BodyLine> body,
+    List<SectionItem> items,
+    String sectionKey,
+    int line,
+  ) {
     const direction = PieceDirection.inbound;
-    final items = _itemsAt(at);
     for (final (i, item) in items.indexed) {
       final last = _lastLineOf(item);
       if (line < item.line || last < line) continue;
@@ -312,11 +345,11 @@ final class _View {
         SectionItemKind.tableRow => _piece(sectionKey, direction, (
           first: line,
           last: line,
-        ), above: _tableHeadAbove(_bodyOf(at), line)),
+        ), above: _tableHeadAbove(body, line)),
         SectionItemKind.listItem => _piece(
           sectionKey,
           direction,
-          _bulletExtent(_bodyOf(at), items, i),
+          _bulletExtent(body, items, i),
         ),
         SectionItemKind.paragraph => _piece(sectionKey, direction, (
           first: item.line,
@@ -500,34 +533,9 @@ int _withFencesBefore(List<BodyLine> body, int end, int? before, int base) {
 /// [LinkText] the index stored for it, or a text-free one that reads as no
 /// item ID.
 List<LinkText> _linkTextsOf(LineFacts facts) {
-  final stored = <(int, String, String?, String), List<LinkText>>{};
-  for (final text in facts.linkTexts) {
-    (stored[(text.line, text.target, text.anchor, text.shown)] ??= []).add(
-      text,
-    );
-  }
-  final taken = <(int, String, String?, String), int>{};
-  return [for (final place in facts.links) _storedOr(stored, taken, place)];
-}
-
-LinkText _storedOr(
-  Map<(int, String, String?, String), List<LinkText>> stored,
-  Map<(int, String, String?, String), int> taken,
-  LinkPlace place,
-) {
-  final key = (place.line, place.target, place.anchor, place.shown);
-  final nth = taken[key] ?? 0;
-  taken[key] = nth + 1;
-  final texts = stored[key];
-  if (texts != null && nth < texts.length) return texts[nth];
-  return (
-    line: place.line,
-    column: 0,
-    endLine: place.line,
-    endColumn: 0,
-    text: '',
-    target: place.target,
-    anchor: place.anchor,
-    shown: place.shown,
-  );
+  final stored = storedLinkTextsOf(facts.links, facts.linkTexts);
+  return [
+    for (final (i, place) in facts.links.indexed)
+      stored[i] ?? textFreeLinkOf(place),
+  ];
 }
