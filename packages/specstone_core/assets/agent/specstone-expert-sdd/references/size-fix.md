@@ -7,8 +7,8 @@ This covers the four size findings `specstone check` raises, `chars_over_limit`,
 
 Answer each `chars_over_limit` or `lines_over_limit` finding once in your report, though `check` tags it
 `(waits for the Owner)`: a split proposal, or why none applies. Give `item_over_limit` neither: it needs no
-answer; `An item over its limit` covers it. A `bundle_over_limit` finding skips steps 1, 3, and 4 and takes only the
-split; `A bundle over its limit` covers it.
+answer; `An item over its limit` covers it. A `bundle_over_limit` finding skips steps 1 to 3 and takes the fix its
+`doc` key gives, with step 4 for each moved item; `A bundle over its limit` covers it.
 
 1. **Layout.** Every write lays its doc out. A size finding `check` still lists takes the next step; `check` counts
    the laid-out doc.
@@ -63,9 +63,21 @@ Say why in your report and leave the finding as it is: it waits for the Owner.
 
 ## A bundle over its limit
 
-`bundle_over_limit` on a feature: propose the sub-feature split, as above, with no layout step and no text moved: the
-size is the feature's design read-first file, never one doc's text, so no layout or move shrinks it. Run the split only
-after the Owner's ok. The finding waits for the Owner; answer it once in your report, as the other split findings.
+The size is the design read-first file of the finding's `doc`, never one doc's text, so no layout step shrinks it. The
+fix follows the `doc` key; a story's file never takes a sub-feature split. Propose the fix with its ready commands, as
+the split does, and run none before the Owner's ok. The finding waits for the Owner; answer it once in your report.
+
+- `doc` is a story: split it in its feature into two stories, one `specstone new user_story --parent <feature> --slug
+  <slug>`, then one `specstone move <fr> … --under <new story>` per FR and nf that goes to it, so the FRs and nfs are
+  shared between the two stories.
+- `doc` is a feature whose children are sub-features: one `specstone move <doc>#<ID> … --under <sub-feature>` per
+  spec item that one sub-feature alone uses. With no such item, no fix applies.
+- `doc` is a feature whose children are stories: the sub-feature split above, then the same moves for each spec item
+  one sub-feature alone uses.
+- No fix applies to a feature at its doc type's `max_depth`, since no sub-feature nests below it, nor to a feature of
+  fewer than 4 stories, since no grouping gives it 2 sub-features of 2 stories each.
+
+Where no fix applies, say why in your report and leave the finding as it is: it waits for the Owner.
 
 ## An item over its limit
 
