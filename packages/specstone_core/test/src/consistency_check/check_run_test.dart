@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/bundle_size_rule.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
@@ -22,6 +23,10 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart';
+
+/// Letters that put a story or doc over the bound by a margin of 2,000 est.
+/// tokens (characters / 4).
+const int _overBound = (bundleTokenLimit + 2000) * 4;
 
 const _brokenRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
@@ -415,9 +420,9 @@ void main() {
     const signupFeature = 'prds/features/f02_signup/FEATURE.md';
     Map<String, String> oversize() => {
       ...edit(loginFeature, [
-        ('## Problem\n\n', '## Problem\n\n${'a' * 90000}\n\n'),
+        ('## Problem\n\n', '## Problem\n\n${'a' * _overBound}\n\n'),
       ]),
-      'docs/$signupFeature': '# Sign up\n\n## Problem\n\n${'a' * 90000}\n',
+      'docs/$signupFeature': '# Sign up\n\n## Problem\n\n${'a' * _overBound}\n',
     };
 
     test(
@@ -483,7 +488,8 @@ void main() {
         final project = await writeCheckProject(
           extra: {
             ...oversize(),
-            'docs/$twin': '# Login again\n\n## Problem\n\n${'a' * 90000}\n',
+            'docs/$twin':
+                '# Login again\n\n## Problem\n\n${'a' * _overBound}\n',
           },
         );
 

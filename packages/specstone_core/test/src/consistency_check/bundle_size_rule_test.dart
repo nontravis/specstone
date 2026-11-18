@@ -14,6 +14,10 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 
+/// Letters that put a story or doc over the bound by a margin of 2,000 est.
+/// tokens (characters / 4).
+const int _overBound = (bundleTokenLimit + 2000) * 4;
+
 const _otherStory = 'prds/features/f01_login/us02_reset_password/USER_STORY.md';
 const _emptyFeature = 'prds/features/f03_empty/FEATURE.md';
 
@@ -49,6 +53,43 @@ Map<String, String> _bigShop(int letters) => {
     '## Problem\n${'a' * letters}\n',
   ),
 };
+
+const _toDomain = '../../../../../specs/f02_shop/DOMAIN.md';
+
+/// Returns the nested project's files where the story `shop/cart/drop_item`
+/// cites the invariant INV-2 of the parent domain doc and the story
+/// `shop/cart/add_item` cites INV-3, each of [linked] letters, while INV-9
+/// holds [unlinked] letters and no doc of the subtree cites it.
+Map<String, String> _citedInvariants({
+  required int linked,
+  required int unlinked,
+}) => {
+  'docs/$cartDrop':
+      '# Agent drops an item\n\n## Use Case\n'
+      'Drops [INV-2]($_toDomain#invariants).\n',
+  'docs/$cartAdd':
+      '# Agent adds an item\n\n## Use Case\n'
+      'Adds [INV-3]($_toDomain#invariants).\n',
+  'docs/$cartAddFr': '# Check the stock\n\n## Statement\nRefuses.\n',
+  'docs/$shopApi': '# Shop API\n\n## Operations\nNone.\n',
+  'docs/$shopDomain':
+      '# Shop domain\n\n## Invariants\n'
+      '- **INV-1** An order holds a line.\n'
+      '- **INV-2** ${'a' * linked}\n'
+      '- **INV-3** ${'b' * linked}\n'
+      '- **INV-9** ${'c' * unlinked}\n',
+};
+
+Future<Directory> _writeCitedInvariants({
+  required int linked,
+  required int unlinked,
+}) {
+  final files = _citedInvariants(linked: linked, unlinked: unlinked);
+  return writeCheckProject(
+    extra: {...nestedFiles(), ...files},
+    unstamped: files.keys.toSet(),
+  );
+}
 
 ContextAnswer _answerOf(DocIndex index, String name, {required bool summary}) =>
     answerContext(
@@ -111,7 +152,7 @@ void main() {
     test('a feature over the bound gets one finding on line 1, waiting for the '
         'Owner', () async {
       final session = openSession(
-        await writeNestedProject(extra: _bigShop(90000)),
+        await writeNestedProject(extra: _bigShop(_overBound)),
       );
       addTearDown(session.close);
 
@@ -135,10 +176,10 @@ void main() {
         'line': 1,
         'message':
             'the design read-first file of shop holds $actual est. tokens; '
-            'the limit is 20000',
+            'the limit is 24000',
         'waitsFor': 'owner',
         'doc': 'shop',
-        'limit': 20000,
+        'limit': 24000,
         'actual': actual,
       });
     });
@@ -146,7 +187,7 @@ void main() {
     test('one finding per feature, naming the largest file', () async {
       final session = openSession(
         await writeCheckProject(
-          extra: _padded(story: 90000, otherStory: 100000),
+          extra: _padded(story: _overBound, otherStory: _overBound + 40000),
         ),
       );
       addTearDown(session.close);
@@ -166,7 +207,7 @@ void main() {
       expect(_sizeFindings(session, loginStory), isEmpty);
     });
 
-    test('exactly 20000 gets none, and one more token gets one', () async {
+    test('exactly the bound gets none, and one more token gets one', () async {
       final chars = await _criteriaFor(bundleTokenLimit);
       final exact = openSession(
         await writeCheckProject(extra: _padded(story: chars)),
@@ -181,12 +222,12 @@ void main() {
       addTearDown(over.close);
       final found = _sizeFindings(over, loginFeature).single;
       expect(found.keys['doc'], 'login/email_login');
-      expect(found.keys['actual'], 20001);
+      expect(found.keys['actual'], bundleTokenLimit + 1);
     });
 
     test('the size equals the context --out header', () async {
       final withStory = await writeCheckProject(
-        extra: _padded(story: 90000, empty: 90000),
+        extra: _padded(story: _overBound, empty: _overBound),
       );
       final storySession = openSession(withStory);
       addTearDown(storySession.close);
@@ -209,20 +250,90 @@ void main() {
         _headerSizeOf(storySession, withStory, 'empty', summary: false),
       );
 
-      final nested = await writeNestedProject(extra: _bigShop(90000));
+      final nested = await writeNestedProject(extra: _bigShop(_overBound));
       final nestedSession = openSession(nested);
       addTearDown(nestedSession.close);
       expect(
         _sizeFindings(nestedSession, shopFeature).single.keys['actual'],
         _headerSizeOf(nestedSession, nested, 'shop', summary: true),
       );
+
+      final cited = await _writeCitedInvariants(
+        linked: _overBound ~/ 2,
+        unlinked: 1000,
+      );
+      final citedSession = openSession(cited);
+      addTearDown(citedSession.close);
+      final citing = _sizeFindings(citedSession, cartFeature).single;
+      expect(citing.keys['doc'], 'shop/cart');
+      expect(
+        citing.keys['actual'],
+        _headerSizeOf(citedSession, cited, 'shop/cart', summary: true),
+      );
+    });
+
+    test('a story file over the bound names the story as doc', () async {
+      final project = await writeNestedProject(
+        extra: {
+          'docs/$cartAdd': nestedFiles()['docs/$cartAdd']!.replaceFirst(
+            '## Acceptance Criteria\n',
+            '## Acceptance Criteria\n${'a' * _overBound}\n',
+          ),
+        },
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+
+      final found = _sizeFindings(session, cartFeature).single;
+
+      expect(found.path, cartFeature);
+      expect(found.keys['doc'], 'shop/cart/add_item');
+      expect(
+        found.keys['actual'],
+        _headerSizeOf(session, project, 'shop/cart/add_item', summary: false),
+      );
+      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      expect(
+        _answerOf(session.index, 'shop/cart', summary: true).readFirst.tokens,
+        lessThanOrEqualTo(bundleTokenLimit),
+      );
+    });
+
+    test('a sub-feature sized by its pieces of the parent spec docs gets the '
+        'finding', () async {
+      final project = await _writeCitedInvariants(
+        linked: _overBound ~/ 2,
+        unlinked: _overBound * 4,
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+
+      final found = _sizeFindings(session, cartFeature).single;
+
+      expect(found.keys['doc'], 'shop/cart');
+      expect(
+        found.keys['actual'],
+        _headerSizeOf(session, project, 'shop/cart', summary: true),
+      );
+      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      expect(found.keys['actual'], lessThan(_overBound));
+    });
+
+    test('an ancestor spec doc no link of the subtree cites adds nothing to '
+        'the size', () async {
+      final session = openSession(
+        await _writeCitedInvariants(linked: 400, unlinked: _overBound * 4),
+      );
+      addTearDown(session.close);
+
+      expect(_sizeFindings(session, cartFeature), isEmpty);
     });
 
     test('an FR, NFR, or spec doc gets no size', () async {
       final session = openSession(
         await writeCheckProject(
           extra: edit(loginFr, [
-            ('## Rationale\n\n', '## Rationale\n\n${'a' * 90000}\n\n'),
+            ('## Rationale\n\n', '## Rationale\n\n${'a' * _overBound}\n\n'),
           ]),
         ),
       );

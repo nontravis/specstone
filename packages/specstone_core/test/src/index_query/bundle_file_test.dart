@@ -951,6 +951,139 @@ void main() {
     });
   });
 
+  group('ancestor spec pieces in the index and its --json', () {
+    const apiPath = 'docs/specs/f01_login/API.md';
+    const domainPath = 'docs/specs/f01_login/DOMAIN.md';
+    const frPath =
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+
+    Future<ContextAnswer> designLogin({required bool split}) async {
+      final index = await indexWith({
+        frPath:
+            '# Validate credentials\n\n## Statement\nThe system shall check '
+            'the email, by [INV-1](../../../../specs/f01_login/DOMAIN.md#invariants).\n',
+        domainPath:
+            '# Login domain\n\n## Invariants\n- **INV-1** An account has an email.\n'
+            '- **INV-2** An account has a password.\n',
+        apiPath:
+            '# Login API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+            '| [validate](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md) | `signIn` |\n'
+            '| other | `signOut` |\n',
+      });
+      return answerContext(
+        index,
+        pickBundle(
+          index,
+          'login/email_login',
+          BundleMode.design,
+          noProject: false,
+        ),
+        label: 'login/email_login',
+        byCode: false,
+        split: split,
+      );
+    }
+
+    List<Map<String, Object?>> docsOf(
+      Map<String, Object?> json,
+      String name,
+    ) => [
+      for (final doc in (json['docs']! as List).cast<Map<String, Object?>>())
+        if (doc['name'] == name) doc,
+    ];
+
+    test('the read-first index lists an outbound piece as cited and an inbound one as cites', () async {
+      final answer = await designLogin(split: true);
+      final lines = bundleIndex(answer, '/p', refsPath: '/p.refs').split('\n');
+
+      expect(
+        lines.where(
+          RegExp(r'^- login \(domain\) · \d+-\d+ · cited invariants \[INV-1\]')
+              .hasMatch,
+        ),
+        hasLength(1),
+      );
+      expect(
+        lines.where(
+          RegExp(r'^- login \(api\) · \d+-\d+ · cites fr_trace').hasMatch,
+        ),
+        hasLength(1),
+      );
+    });
+    test(
+      'the read-first index line of a lead paragraph piece ends at cites',
+      () async {
+        final index = await indexWith({
+          domainPath:
+              '# Login domain\n\nThis doc backs [validate](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md).\n\n'
+              '## Invariants\n- **INV-1** An account has an email.\n',
+        });
+        final answer = answerContext(
+          index,
+          pickBundle(
+            index,
+            'login/email_login',
+            BundleMode.design,
+            noProject: false,
+          ),
+          label: 'login/email_login',
+          byCode: false,
+          split: true,
+        );
+        final lines = bundleIndex(
+          answer,
+          '/p',
+          refsPath: '/p.refs',
+        ).split('\n');
+
+        expect(
+          lines.where(
+            RegExp(r'^- login \(domain\) · \d+-\d+ · cites$').hasMatch,
+          ),
+          hasLength(1),
+        );
+      },
+    );
+    test('the out json marks an inbound piece cites and not cited', () async {
+      final answer = await designLogin(split: true);
+      final json = bundleIndexJson(answer, '/p', refsPath: '/p.refs');
+
+      final [inbound] = docsOf(
+        json,
+        'login',
+      ).where((doc) => doc['docType'] == 'api').toList();
+      expect(inbound, containsPair('cited', false));
+      expect(inbound, containsPair('cites', true));
+      expect(inbound, isNot(contains('section')));
+      expect(inbound, isNot(contains('item')));
+      final [outbound] = docsOf(
+        json,
+        'login',
+      ).where((doc) => doc['docType'] == 'domain').toList();
+      expect(outbound, containsPair('cited', true));
+      expect(outbound, isNot(contains('cites')));
+    });
+    test('a design json call with no out lists no piece', () async {
+      final answer = await designLogin(split: false);
+
+      expect(
+        answer.entries.where((e) => e.kind == BundleEntryKind.cites),
+        isEmpty,
+      );
+      final docs = (answer.json['docs']! as List).cast<Map<String, Object?>>();
+      final ancestors = docs.where((doc) => doc['name'] == 'login').toList();
+      expect(
+        ancestors.map((doc) => doc['docType']),
+        containsAll(['api', 'domain']),
+      );
+      for (final doc in ancestors) {
+        expect(doc, isNot(contains('cites')));
+        expect(doc, isNot(contains('cited')));
+        expect(doc, isNot(contains('item')));
+      }
+    });
+  });
+
   group('cited-by parts of a split design answer', () {
     const domain = 'docs/specs/f01_login/DOMAIN.md';
     const domainName = 'login (domain)';
