@@ -18,8 +18,12 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/build_output.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
@@ -618,6 +622,82 @@ void main() {
       expect(treeBytes(other), before);
     }, skip: _linksUnavailable);
 
+    test('a record that is no JSON object of two strings counts as none, and '
+        'a new trust writes it anew', () async {
+      final (:clone, :ext, base: _) = await _fallThroughClone();
+      final before = treeBytes(ext);
+      final key = digestOf(
+        utf8.encode(
+          RootTrust.locate(clone, homeDirectory: testHome()).folder.path,
+        ),
+      );
+      final recordFile = File('${testHome().path}/.specstone/trusted/$key');
+
+      for (final content in [
+        'not json at all',
+        '[]',
+        '"a string"',
+        '{"projectRoot": 1, "docsRoot": 2}',
+        '{"projectRoot": "${clone.resolveSymbolicLinksSync()}", '
+            '"docsRoot": null}',
+      ]) {
+        recordFile
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(content);
+
+        expect(
+          RootTrust.locate(clone, homeDirectory: testHome()).isTrusted,
+          isFalse,
+          reason: content,
+        );
+        expect(
+          () => writeIn(
+            clone,
+            (s) => answerNew(s, docTypeId: 'persona', slug: 'team'),
+          ),
+          _refusesOutside('docs/rules/team.md'),
+          reason: content,
+        );
+        expect(treeBytes(ext), before, reason: content);
+
+        _trust(clone);
+
+        final trust = RootTrust.locate(clone, homeDirectory: testHome());
+        expect(trust.isTrusted, isTrue, reason: content);
+        expect(jsonDecode(recordFile.readAsStringSync()), {
+          'projectRoot': trust.projectRoot.path,
+          'docsRoot': trust.docsRoot.path,
+        });
+      }
+    }, skip: _linksUnavailable);
+
+    test('a fresh clone at the trusted path, with the same resolved roots, is '
+        'trusted with no new record', () async {
+      final (:clone, :ext, base: _) = await _fallThroughClone();
+      _trust(clone);
+      final record = treeBytes(Directory('${testHome().path}/.specstone'));
+      clone.deleteSync(recursive: true);
+      for (final MapEntry(:key, :value) in writeProject.entries) {
+        if (key.startsWith('docs/')) continue;
+        File('${clone.path}/$key')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(value);
+      }
+      File('${clone.path}/.specstone/templates/persona.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(_cloneTemplate);
+      createRelativeLink('${clone.path}/docs', '../../ext');
+
+      expect(
+        RootTrust.locate(clone, homeDirectory: testHome()).isTrusted,
+        isTrue,
+      );
+      writeIn(clone, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
+
+      expect(File('${ext.path}/rules/team.md').existsSync(), isTrue);
+      expect(treeBytes(Directory('${testHome().path}/.specstone')), record);
+    }, skip: _linksUnavailable);
+
     test('is ignored when it holds only one of the roots', () async {
       final (:clone, base: _, ext: _) = await _fallThroughClone();
       final trust = RootTrust.locate(clone, homeDirectory: testHome());
@@ -805,6 +885,62 @@ void main() {
         isFalse,
       );
     }, skip: _linksUnavailable);
+  });
+
+  group('format and the default build output on roots the Owner has not '
+      'recorded', () {
+    const unformatted =
+        '---\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\nUsers sign in.\n';
+
+    test(
+      'refuse with output_not_writable and exit 73, and write no record',
+      () async {
+        final fall = await _fallThroughClone();
+        final linked = await _linkedClone();
+        final layouts = [
+          (fall.clone, fall.ext),
+          (linked.clone, Directory('${linked.victim.path}/docs')),
+        ];
+
+        for (final (clone, docs) in layouts) {
+          File('${docs.path}/$loginFeature').writeAsStringSync(unformatted);
+          final before = treeBytes(docs);
+          final project = DocsProject.open(
+            templates: TemplateResolver(),
+            workingDirectory: clone,
+            homeDirectory: testHome(),
+          );
+          final target = project.resolveTarget(
+            null,
+            workingDirectory: clone,
+            defaultsToDocsRoot: true,
+          );
+          final output = defaultOutputFile(project, target, OutputFormat.html);
+
+          expect(
+            () => runFormat<void>(project, target, check: false),
+            _refusesOutside('docs/$loginFeature'),
+          );
+          expect(
+            () => writeBuildOutput(
+              output,
+              const [1],
+              displayPath: '.specstone/build/docs.html',
+              within: project,
+            ),
+            _refusesOutside('.specstone/build/docs.html'),
+          );
+
+          expect(treeBytes(docs), before);
+          expect(output.existsSync(), isFalse);
+        }
+        expect(
+          Directory('${testHome().path}/.specstone/trusted').existsSync(),
+          isFalse,
+        );
+      },
+      skip: _linksUnavailable,
+    );
   });
 
   group('approve in a layout the Owner has not recorded', () {
