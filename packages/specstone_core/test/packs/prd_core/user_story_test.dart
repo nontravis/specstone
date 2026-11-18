@@ -31,6 +31,31 @@ void main() {
     ]);
   });
 
+  test('the description states no number a lint key holds', () {
+    final acceptance = sectionOf(story, 'acceptance_criteria');
+    expect(story.description, isNot(contains('more than 6 scenarios')));
+    for (final id in ['vision', 'goals']) {
+      expect(
+        fieldOf(story, id).description,
+        isNot(contains('at least one ID')),
+        reason: id,
+      );
+    }
+    expect(
+      sectionOf(story, 'rules').description,
+      isNot(contains('two or more rules')),
+    );
+    expect(acceptance.description, isNot(contains('3 to 5 steps')));
+    expect(acceptance.description, isNot(contains('use one When')));
+    expect(acceptance.description, isNot(contains('at least one `[error]`')));
+    expect(acceptance.template, isNot(contains('one trigger')));
+  });
+
+  test('rules carries its item floor', () {
+    final items = sectionOf(story, 'rules').itemCount!;
+    expect((items.min, items.max), (2, null));
+  });
+
   test('user_story marks use_case and rules summary', () {
     expect(
       [

@@ -9,7 +9,6 @@ description: |-
   Keep a bound in the step it limits, never in the prose.
   State the present truth; history lives in git.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
   Put a cite or an ownership note at the item's end.
   Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
@@ -36,9 +35,11 @@ sections:
     header: Goal
     required: true
     description: |-
-      One line: the result the persona wants at the end of the journey.
+      The result the persona wants at the end of the journey.
     template: |-
       <the result the persona wants>
+    lint:
+      max_lines: 1
   - id: flow
     header: Flow
     required: true

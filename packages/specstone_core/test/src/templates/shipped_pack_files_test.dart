@@ -588,6 +588,19 @@ void main() {
         final snapshot = section(docType, 'snapshot');
         expect((snapshot.minLines, snapshot.maxLines), (2, 4), reason: docType);
       }
+      final rules = section('user_story', 'rules').itemCount!;
+      expect((rules.min, rules.max), (2, null));
+      final alternatives = section('persona', 'alternatives').itemCount!;
+      expect((alternatives.min, alternatives.max), (1, null));
+      expect(section('journey', 'goal').maxLines, 1);
+      for (final (docType, id) in [
+        ('feature', 'out_of_scope'),
+        ('glossary', 'terms'),
+        ('project', 'name'),
+        ('project', 'roles'),
+      ]) {
+        expect(section(docType, id).maxItemLines, 1, reason: '$docType.$id');
+      }
     });
 
     test('the story scenario cap is 6 and no other section sets one', () {
@@ -630,16 +643,24 @@ void main() {
             if (s.maxSentences != null ||
                 s.itemCount != null ||
                 s.minLines != null ||
-                s.maxLines != null)
+                s.maxLines != null ||
+                s.maxItemLines != null)
               '${docType.id}.${s.id}',
       };
       expect(found, {
         'project.vision',
+        'project.name',
+        'project.roles',
         'fr.statement',
         'user_story.acceptance_criteria',
+        'user_story.rules',
         'persona.jobs',
         'persona.snapshot',
+        'persona.alternatives',
         'anti_persona.snapshot',
+        'journey.goal',
+        'feature.out_of_scope',
+        'glossary.terms',
       });
     });
 

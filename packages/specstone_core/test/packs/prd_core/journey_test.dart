@@ -33,4 +33,12 @@ void main() {
       'first_project_to_html',
     );
   });
+
+  test('the description states no number a lint key holds', () {
+    expect(sectionOf(journey, 'goal').description, isNot(contains('One line')));
+  });
+
+  test('goal carries its line cap', () {
+    expect(sectionOf(journey, 'goal').maxLines, 1);
+  });
 }

@@ -55,6 +55,10 @@ void main() {
     expectTemplatesFreeOfListedWords(fr);
   });
 
+  test('the description states no number a lint key holds', () {
+    expect(fr.description, isNot(contains('Statement as one sentence')));
+  });
+
   test('fr marks statement summary', () {
     expect(
       [

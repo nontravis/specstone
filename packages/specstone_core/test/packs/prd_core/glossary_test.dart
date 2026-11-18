@@ -1,7 +1,13 @@
+import 'dart:io';
+
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
+
+const glossaryDoc = 'prds/GLOSSARY.md';
 
 void main() {
   late MergedDocType glossary;
@@ -15,6 +21,36 @@ void main() {
     expect(glossary.parent, isNull);
     expectOwnFields(glossary, const []);
     expectSections(glossary, const [SectionSpec('terms', 'Terms')]);
+  });
+
+  test('the description states no number a lint key holds', () {
+    final terms = sectionOf(glossary, 'terms');
+    expect(glossary.description, isNot(contains('one line each')));
+    expect(glossary.description, isNot(contains('300 characters')));
+    expect(terms.description, isNot(contains('one line')));
+    expect(terms.template, isNot(contains('one-line')));
+  });
+
+  test('terms carries its item line cap', () {
+    expect(sectionOf(glossary, 'terms').maxItemLines, 1);
+  });
+
+  test('a term of two lines gets item_lines_over_limit', () async {
+    Future<(Directory, List<String>)> checked(String terms) async {
+      final project = await writeCheckProject(
+        extra: {'docs/$glossaryDoc': '# Domain glossary\n\n## Terms\n\n$terms'},
+      );
+      final report = await checkOf(project);
+      return (project, spots(report, FindingKind.itemLinesOverLimit));
+    }
+
+    final (_, oneLine) = await checked('- **Agent** — the coding agent.\n');
+    expect(oneLine, isEmpty);
+    final (project, twoLines) = await checked(
+      '- **Agent** — the coding agent\n  that writes the docs.\n',
+    );
+    final line = lineOfFirst(project, glossaryDoc, '**Agent**');
+    expect(twoLines, ['$glossaryDoc:$line: item_lines_over_limit']);
   });
 
   test('glossary joins the query, implement, and design bundles and sits '

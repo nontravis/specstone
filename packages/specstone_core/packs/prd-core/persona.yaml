@@ -13,7 +13,6 @@ description: |-
   Keep a bound in the item it limits, and the research trace in `basis:` and the Sources section, never in the prose.
   State the present truth; history lives in git.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
   Put a cite or an ownership note at the item's end.
   Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
@@ -63,11 +62,11 @@ sections:
     header: Snapshot
     required: true
     description: |-
-      Write 2 to 4 lines: role, experience level, and one memorable detail.
+      Write role, experience level, and one memorable detail.
       Add a personal name only to make the persona memorable; the title stays the archetype role.
       Include a detail only if it would change a product decision; cut the rest.
     template: |-
-      <Role, experience level, and one memorable detail, in 2 to 4 lines.>
+      <Role, experience level, and one memorable detail.>
     lint:
       max_lines: 4
       min_lines: 2
@@ -75,7 +74,7 @@ sections:
     header: Jobs to be done
     required: true
     description: |-
-      Write 3 to 4 goals: mostly end goals, an experience goal where feelings matter, a life goal only if needed.
+      Write goals: mostly end goals, an experience goal where feelings matter, a life goal only if needed.
       Write each job as verb + object + context, with no solution or product name in it.
       Reference a shared job statement by its ID instead of copying it into each persona.
     template: |-
@@ -130,9 +129,11 @@ sections:
     required: true
     description: |-
       List what the persona does today, including manual workarounds and doing nothing.
-      There is always at least one.
     template: |-
       - <What the persona does today, or does nothing.>
+    lint:
+      item_count:
+        min: 1
   - id: success
     header: Success looks like
     required: true
