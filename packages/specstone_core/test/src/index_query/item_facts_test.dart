@@ -681,6 +681,18 @@ void main() {
       expect(sectionCharsOf(parsed), '\n$rule'.length);
     });
 
+    test('link item leaves the doc token count at every character of the '
+        'link', () {
+      final target = 'a/${'b' * 78}.md#rules';
+      final text = '# V\n\n## Statement\n\n- See [the rule]($target).\n';
+      const visible = '# V\n\n## Statement\n\n- See the rule.\n';
+
+      final parsed = parse(_frPath, text);
+
+      expect(parsed.doc.tokens, tokenSizeOf(text));
+      expect(parsed.doc.tokens, greaterThan(tokenSizeOf(visible)));
+    });
+
     test('definition line adds nothing to its paragraph', () {
       const paragraph = '[r]: a/b.md\nSee [the rule][r].';
       final parsed = parse(_frPath, '# V\n\n## Statement\n\n$paragraph\n');
