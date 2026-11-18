@@ -244,7 +244,7 @@ Iterable<Finding> _countIn(
       FindingKind.itemCountOutOfRange,
       line: line,
       message: message,
-      waitsFor: lint.waitsForOwner ? WaitsFor.owner : null,
+      waitsFor: itemCountWait(waitsForOwner: lint.waitsForOwner),
       keys: {'limit': bound, 'actual': actual},
     );
   }
