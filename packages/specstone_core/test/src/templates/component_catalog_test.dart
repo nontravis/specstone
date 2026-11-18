@@ -155,6 +155,21 @@ void main() {
       expect(_cells(row)[2], r'Picks a \| b for you.');
     });
 
+    test('a pipe after an escaped backslash is escaped', () async {
+      final index = await _open(
+        _component(
+          'buttons',
+          'primary_button',
+          purpose: r'Matches `a\\|b` here. Next.',
+        ),
+      );
+
+      final row = _rows(_text(index)).single;
+
+      expect(_cells(row), hasLength(5));
+      expect(_cells(row)[2], r'Matches `a\\\|b` here.');
+    });
+
     test('a component with no lifecycle reads a dash', () async {
       final index = await _open(
         _component('buttons', 'primary_button', lifecycle: null),

@@ -42,15 +42,10 @@ String softwareDesignSystemConfig() =>
 /// Resolves a temp project that pins the shipped `prd-core`, `software-tech`,
 /// and `software-design-system`.
 ///
-/// Each [templates] entry lands at `.specstone/templates/<key>`. Calls
-/// `writeTree`, so call it from a test or `setUpAll`.
-Future<MergedSet> resolveSoftwareDesignSystem({
-  Map<String, String> templates = const {},
-}) async {
+/// Calls `writeTree`, so call it from a test or `setUpAll`.
+Future<MergedSet> resolveSoftwareDesignSystem() async {
   final project = await writeTree({
     '.specstone/config.yaml': softwareDesignSystemConfig(),
-    for (final MapEntry(:key, :value) in templates.entries)
-      '.specstone/templates/$key': value,
   });
   final home = await writeTree({});
   return TemplateResolver().resolve(

@@ -183,6 +183,11 @@ void main() {
         'readme (`../../../../../README.md`)',
       ),
       (
+        'a path outside the docs root shows decoded',
+        '[notes](<../../../../../My Notes.md>)',
+        'notes (`../../../../../My Notes.md`)',
+      ),
+      (
         'a web link stays as written',
         '[site](https://example.com/a.md)',
         '[site](https://example.com/a.md)',

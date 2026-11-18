@@ -17,6 +17,7 @@ import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show RelativeLink, readLinkTarget;
@@ -660,7 +661,7 @@ LinkAction _actionOf(String href, String docPath, Set<String> sourceDocPaths) {
     DocTarget(docPath: final target) when sourceDocPaths.contains(target) =>
       RetargetLink(_hrefOf(relativeHref(docPath, target))),
     DocTarget(docPath: final target) => LinkAsText(target),
-    OutsideTarget(:final shown) => LinkAsText(shown),
+    OutsideTarget(:final shown) => LinkAsText(percentDecoded(shown)),
     WebTarget() => const KeepLink(),
   };
 }

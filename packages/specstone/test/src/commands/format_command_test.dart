@@ -10,6 +10,8 @@ import '../../../../specstone_core/test/helpers/agent_skills.dart'
 import '../../../../specstone_core/test/helpers/check_fixture.dart'
     show writeCheckProject;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../../specstone_core/test/helpers/software_design_system.dart'
+    show softwareDesignSystemConfig;
 import '../../helpers/built_cli.dart';
 import '../../helpers/fixture_packs.dart';
 import '../../helpers/read_fixture.dart';
@@ -559,11 +561,7 @@ sections:
         '(components/$group/$name.md) |';
 
     Map<String, String> catalogFiles({String block = ''}) => {
-      '.specstone/config.yaml': shippedPinsConfig([
-        'prd-core',
-        'software-tech',
-        'software-design-system',
-      ]),
+      '.specstone/config.yaml': softwareDesignSystemConfig(),
       discoveryFile:
           '# Discovery\n\n## Finding a component\n\nLook in a group.\n\n'
           '## Component catalog\n\n$block',

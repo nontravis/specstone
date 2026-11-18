@@ -268,6 +268,17 @@ void main() {
       expect(_cells(row), hasLength(5));
     });
 
+    test('a pipe after an escaped backslash in a summary is escaped', () async {
+      final index = await _open(
+        _feature('f01_a', 'A', front: 'summary: "Reads \\\\\\\\| writes."\n'),
+      );
+
+      final row = _rows(_text(index)).single;
+
+      expect(row, contains(r'Reads \\\| writes.'));
+      expect(_cells(row), hasLength(5));
+    });
+
     test('a summary that spans lines stays in one row', () async {
       final index = await _open(
         _feature('f01_a', 'A', front: 'summary: "One\\ntwo."\n'),

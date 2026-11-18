@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart' show sentencesOf;
+import 'package:specstone_core/src/doc_model/table_cell.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show relativeHref;
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -20,7 +21,6 @@ const _tableHead =
     '|---|---|---|---|---|';
 
 final _lineBreak = RegExp(r'\s*\n\s*');
-final _unescapedPipe = RegExp(r'(?<!\\)\|');
 
 // MARK: - Generator
 
@@ -80,7 +80,7 @@ String _docLink(IndexedDoc component, String discoveryDocPath) {
   return '[${_cell(component.docPath)}]($href)';
 }
 
-/// Returns [text] as one table cell: line breaks become spaces and each `|` not
-/// written `\|` is escaped.
+/// Returns [text] as one table cell: line breaks become spaces and each `|`
+/// that splits a row is escaped.
 String _cell(String text) =>
-    text.trim().replaceAll(_lineBreak, ' ').replaceAll(_unescapedPipe, r'\|');
+    escapeTableCellPipes(text.trim().replaceAll(_lineBreak, ' '));
