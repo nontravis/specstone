@@ -394,6 +394,28 @@ void main() {
       });
     }
 
+    test('the mismatch message names the entry form', () async {
+      for (final entry in ['""', '"login:"', '":T-1"']) {
+        final report = await checkOf(
+          await writeCheckProject(
+            unstamped: {recordPath},
+            extra: projectWith('tasks:\n  - $entry\n'),
+          ),
+        );
+
+        final mismatch = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.fieldValueMismatch,
+        );
+        expect(
+          mismatch.message,
+          endsWith(
+            'it takes a list of: an entry <item>:<task id> or a task id alone, with no empty part',
+          ),
+          reason: entry,
+        );
+      }
+    });
+
     test('a scalar in place of the list mismatches', () async {
       final report = await checkOf(
         await writeCheckProject(
@@ -545,6 +567,38 @@ void main() {
         expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
       },
     );
+
+    test(
+      'on a doc with invalid frontmatter gives no field rule finding',
+      () async {
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: {
+              layer: groups,
+              'docs/$loginFeature': feature.replaceFirst(
+                'vision:',
+                'vision: "x',
+              ),
+            },
+          ),
+        );
+        const fieldRules = {
+          FindingKind.requiredFieldMissing,
+          FindingKind.fieldGroupMissing,
+          FindingKind.fieldValueMismatch,
+          FindingKind.fieldUndeclared,
+          FindingKind.featureStatusWritten,
+          FindingKind.requirementStatusWritten,
+        };
+        expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
+        expect(
+          report.findings.where(
+            (f) => f.path == loginFeature && fieldRules.contains(f.kind),
+          ),
+          isEmpty,
+        );
+      },
+    );
   });
 
   test('a feature system naming no Systems row is no field finding', () async {
@@ -572,5 +626,135 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('a status equal to the one its stories compute is still feature_status_written', () async {
+    final plain = openSession(await writeCheckProject());
+    addTearDown(plain.close);
+    final computed = plain.index.statusOf(plain.index.at(loginFeature)!);
+    expect(computed, isNotNull);
+
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
+              .replaceFirst(
+                '---\nsummary:',
+                '---\nstatus: $computed\nsummary:',
+              ),
+        },
+      ),
+    );
+
+    expect(spots(report), ['$loginFeature:2: feature_status_written']);
+  });
+
+  test('approved: true raises no field finding under a config that pins another pack set', () async {
+    for (final (label, config) in [
+      ('prd-core alone', shippedPinsConfig(['prd-core'])),
+      (
+        'prd-core with agent-skills',
+        shippedPinsConfig(['prd-core', 'agent-skills']),
+      ),
+    ]) {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            ..._frWithKey('approved: true'),
+            '.specstone/config.yaml': config,
+          },
+        ),
+      );
+
+      expect(
+        spots(report, FindingKind.fieldValueMismatch),
+        isEmpty,
+        reason: label,
+      );
+      expect(
+        spots(report, FindingKind.fieldUndeclared),
+        isEmpty,
+        reason: label,
+      );
+    }
+  });
+
+  test('a built-in field is read from the merged set, so a layer that requires approved makes its absence a finding', () async {
+    const layer = {
+      '.specstone/templates/fr.yaml':
+          'fields:\n  - id: approved\n    required: true\n',
+    };
+
+    final plain = await checkOf(
+      await writeCheckProject(unstamped: {'docs/$loginFr'}),
+    );
+    final required = await checkOf(
+      await writeCheckProject(unstamped: {'docs/$loginFr'}, extra: layer),
+    );
+
+    expect(spots(plain, FindingKind.requiredFieldMissing), isEmpty);
+    expect(spots(required, FindingKind.requiredFieldMissing), [
+      '$loginFr:1: required_field_missing',
+    ]);
+    expect(
+      required.findings
+          .singleWhere((f) => f.kind == FindingKind.requiredFieldMissing)
+          .toJson()['field'],
+      'approved',
+    );
+  });
+
+  for (final summary in ['[a, b]', '42']) {
+    test(
+      'a feature summary of $summary is field_value_mismatch naming summary',
+      () async {
+        final project = await writeCheckProject(
+          extra: {
+            'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
+                .replaceFirst(
+                  'summary: Lets an agent sign in.',
+                  'summary: $summary',
+                ),
+          },
+        );
+
+        final report = await checkOf(project);
+
+        final line = lineOfFirst(project, loginFeature, 'summary:');
+        expect(spots(report, FindingKind.fieldValueMismatch), [
+          '$loginFeature:$line: field_value_mismatch',
+        ]);
+        final finding = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.fieldValueMismatch,
+        );
+        expect(finding.toJson()['field'], 'summary');
+      },
+    );
+  }
+
+  test('a feature system naming no Systems row is system_unresolved, no field finding', () async {
+    final feature = checkProjectFiles()['docs/$loginFeature']!;
+    final project = await writeCheckProject(
+      extra: {
+        'docs/$loginFeature': feature.replaceFirst(
+          '---\nsummary:',
+          '---\nsystem: Watch app\nsummary:',
+        ),
+      },
+    );
+
+    final report = await checkOf(project);
+
+    final line = lineOfFirst(project, loginFeature, 'system:');
+    expect(spots(report, FindingKind.systemUnresolved), [
+      '$loginFeature:$line: system_unresolved',
+    ]);
+    for (final kind in [
+      FindingKind.fieldUndeclared,
+      FindingKind.fieldValueMismatch,
+      FindingKind.requiredFieldMissing,
+    ]) {
+      expect(spots(report, kind), isEmpty, reason: kind.wire);
+    }
   });
 }
