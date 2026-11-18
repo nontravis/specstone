@@ -24,7 +24,9 @@ import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
 import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
     show LabelTree;
 
-final _numberedTitle = RegExp(r'^[A-Z][A-Z0-9]*-\d+ — ');
+final _numberedTitle = RegExp(
+  r'^(?:[A-Z][A-Z0-9]*-\d+|[a-z][a-z0-9_]*(?:/[a-z][a-z0-9_]*)+) — ',
+);
 final _humanLine = RegExp(r'^- \*\*Human:\*\* (.+)$', multiLine: true);
 
 const _featureNameHeader = 'Feature name';

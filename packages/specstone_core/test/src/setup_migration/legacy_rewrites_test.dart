@@ -77,6 +77,27 @@ None.
       expect(domainResult.changes, ['title', 'name', 'feature_id']);
     });
 
+    test('a title whose label is a doc name loses the label', () {
+      const fr = '''
+# setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes — Check pack pins
+
+## Statement
+
+The system checks the pins.
+''';
+
+      final result = rewriteLegacyDoc(fr, LegacyKind.fr);
+
+      expect(result.lf, '''
+# Check pack pins
+
+## Statement
+
+The system checks the pins.
+''');
+      expect(result.changes, ['title']);
+    });
+
     test('a doc with no title line or no number keeps its '
         'title line', () {
       const noTitle = '''
@@ -428,6 +449,46 @@ Goal.
       expect(result.lf, contains('\n## Data integrity\n'));
     });
 
+    test('a category that is no GNFR section keeps its NFR IDs', () {
+      const nfr = '''
+---
+name: Acme non-functional requirements
+---
+
+# D-03 — Project-wide non-functional requirements
+
+## Availability
+
+| ID | Requirement |
+|---|---|
+| NFR-03 | The service is up 99.9 % of a month. |
+
+## Scalability
+
+- NFR-04 — The service holds 10 000 users.
+
+## Data integrity
+
+| ID | Requirement |
+|---|---|
+| NFR-02 | A credential is never lost. |
+''';
+
+      final result = rewriteLegacyDoc(
+        nfr,
+        LegacyKind.gnfr,
+        gnfrHeaders: gnfrHeaders,
+      );
+
+      expect(
+        result.lf,
+        contains('| NFR-03 | The service is up 99.9 % of a month. |'),
+      );
+      expect(result.lf, contains('- NFR-04 — The service holds 10 000 users.'));
+      expect(result.lf, contains('| NFR-02 | A credential is never lost. |'));
+      expect(result.lf, contains('\n## Data integrity\n'));
+    });
+
     test("a feature doc's implements entries "
         'stay', () {
       const feature = '''
@@ -556,6 +617,31 @@ See [story](../USER_STORY.md) and [index](../../../../../specs/INDEX.md).
               '(../../../../../specs/INDEX.md)',
               '(../../../../specs/INDEX.md)',
             ),
+      );
+      expect(result.label, '2 links');
+    });
+
+    test('a link to a moved file that is no .md file points at its new '
+        'path', () {
+      final result = rewriteLinks(
+        'See [schema](schema.dbml) and [spec](api.apidog.json).\n',
+        docPath: 'specs/INDEX.md',
+        moves: [
+          const PathMove(
+            from: 'specs/schema.dbml',
+            to: 'specs/f01_login/schema.dbml',
+          ),
+          const PathMove(
+            from: 'specs/api.apidog.json',
+            to: 'specs/f01_login/API.apidog.json',
+          ),
+        ],
+      );
+
+      expect(
+        result.lf,
+        'See [schema](f01_login/schema.dbml) and '
+        '[spec](f01_login/API.apidog.json).\n',
       );
       expect(result.label, '2 links');
     });
