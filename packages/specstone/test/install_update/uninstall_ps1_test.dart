@@ -79,8 +79,7 @@ void main() {
       );
     });
 
-    pathTest('a running '
-        'specstone.exe stops the uninstall', () async {
+    pathTest('a running specstone.exe stops the uninstall', () async {
       final sb = await installedSandbox();
       final exe = '${binDir(sb)}\\specstone.exe';
       // The fake exe sleeps for any argument but `--version`, so the process
@@ -227,8 +226,7 @@ void main() {
       );
     });
 
-    pathTest("irm | iex leaves the session's "
-        'ErrorActionPreference as it was', () async {
+    pathTest('ErrorActionPreference is as it was after irm | iex', () async {
       final sb = await createScriptSandbox();
       final script = '${repoRoot().path}\\uninstall.ps1';
       // The script runs at the top scope, as `irm | iex` runs it; a leaked
@@ -254,7 +252,7 @@ void main() {
 
     // The script starts no program by name, so a planted one cannot show the
     // search; what a run shows is that the session's PATH comes back whole.
-    pathTest("irm | iex leaves the session's PATH as it was", () async {
+    pathTest('PATH is as it was after irm | iex runs the script', () async {
       final sb = await createScriptSandbox();
       final script = '${repoRoot().path}\\uninstall.ps1';
       final path = '.;;planted;${sb.env()['PATH']}';
