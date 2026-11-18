@@ -108,14 +108,15 @@ void main() {
       }
     }
     const recordPath = '.specstone/records/f09_big/IMPLEMENTATION.md';
+    String lines(String key, Iterable<String> entries) =>
+        '$key:\n${[for (final e in entries) "  - '$e'\n"].join()}';
+    const path = 'app/lib/login.dart';
+    final statuses = [for (final i in items) '$i:implemented'];
+    final code = [for (final i in items) '$i:$path:checkPassword'];
+    final tests = [for (final i in items.take(testLines)) '$i:$path'];
     final record =
-        '---\nstatuses:\n'
-        '${[for (final item in items) "  - '$item:implemented'"].join('\n')}\n'
-        'implements:\n'
-        '${[for (final item in items) "  - '$item:app/lib/login.dart:checkPassword'"].join('\n')}\n'
-        'tests:\n'
-        '${[for (final item in items.take(testLines)) "  - '$item:app/lib/login.dart'"].join('\n')}\n'
-        '---\n\n# Big implementation\n';
+        '---\n${lines('statuses', statuses)}${lines('implements', code)}'
+        '${lines('tests', tests)}---\n\n# Big implementation\n';
     docs[recordPath] = record;
     expect(items.length, greaterThan(testLines));
     expect(record.length, lessThan(60000));
