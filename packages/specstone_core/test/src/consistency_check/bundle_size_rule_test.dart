@@ -14,6 +14,10 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 
+/// Letters that put a story or doc over the bound by a margin of 2,000 est.
+/// tokens (characters / 4).
+const int _overBound = (bundleTokenLimit + 2000) * 4;
+
 const _otherStory = 'prds/features/f01_login/us02_reset_password/USER_STORY.md';
 const _emptyFeature = 'prds/features/f03_empty/FEATURE.md';
 
@@ -148,7 +152,7 @@ void main() {
     test('a feature over the bound gets one finding on line 1, waiting for the '
         'Owner', () async {
       final session = openSession(
-        await writeNestedProject(extra: _bigShop(110000)),
+        await writeNestedProject(extra: _bigShop(_overBound)),
       );
       addTearDown(session.close);
 
@@ -183,7 +187,7 @@ void main() {
     test('one finding per feature, naming the largest file', () async {
       final session = openSession(
         await writeCheckProject(
-          extra: _padded(story: 110000, otherStory: 120000),
+          extra: _padded(story: _overBound, otherStory: _overBound + 40000),
         ),
       );
       addTearDown(session.close);
@@ -223,7 +227,7 @@ void main() {
 
     test('the size equals the context --out header', () async {
       final withStory = await writeCheckProject(
-        extra: _padded(story: 110000, empty: 110000),
+        extra: _padded(story: _overBound, empty: _overBound),
       );
       final storySession = openSession(withStory);
       addTearDown(storySession.close);
@@ -246,7 +250,7 @@ void main() {
         _headerSizeOf(storySession, withStory, 'empty', summary: false),
       );
 
-      final nested = await writeNestedProject(extra: _bigShop(110000));
+      final nested = await writeNestedProject(extra: _bigShop(_overBound));
       final nestedSession = openSession(nested);
       addTearDown(nestedSession.close);
       expect(
@@ -254,7 +258,10 @@ void main() {
         _headerSizeOf(nestedSession, nested, 'shop', summary: true),
       );
 
-      final cited = await _writeCitedInvariants(linked: 60000, unlinked: 1000);
+      final cited = await _writeCitedInvariants(
+        linked: _overBound ~/ 2,
+        unlinked: 1000,
+      );
       final citedSession = openSession(cited);
       addTearDown(citedSession.close);
       final citing = _sizeFindings(citedSession, cartFeature).single;
@@ -270,7 +277,7 @@ void main() {
         extra: {
           'docs/$cartAdd': nestedFiles()['docs/$cartAdd']!.replaceFirst(
             '## Acceptance Criteria\n',
-            '## Acceptance Criteria\n${'a' * 110000}\n',
+            '## Acceptance Criteria\n${'a' * _overBound}\n',
           ),
         },
       );
@@ -295,8 +302,8 @@ void main() {
     test('a sub-feature sized by its pieces of the parent spec docs gets the '
         'finding', () async {
       final project = await _writeCitedInvariants(
-        linked: 60000,
-        unlinked: 400000,
+        linked: _overBound ~/ 2,
+        unlinked: _overBound * 4,
       );
       final session = openSession(project);
       addTearDown(session.close);
@@ -309,13 +316,13 @@ void main() {
         _headerSizeOf(session, project, 'shop/cart', summary: true),
       );
       expect(found.keys['actual'], greaterThan(bundleTokenLimit));
-      expect(found.keys['actual'], lessThan(400000 ~/ 4));
+      expect(found.keys['actual'], lessThan(_overBound));
     });
 
     test('an ancestor spec doc no link of the subtree cites adds nothing to '
         'the size', () async {
       final session = openSession(
-        await _writeCitedInvariants(linked: 400, unlinked: 400000),
+        await _writeCitedInvariants(linked: 400, unlinked: _overBound * 4),
       );
       addTearDown(session.close);
 
@@ -326,7 +333,7 @@ void main() {
       final session = openSession(
         await writeCheckProject(
           extra: edit(loginFr, [
-            ('## Rationale\n\n', '## Rationale\n\n${'a' * 90000}\n\n'),
+            ('## Rationale\n\n', '## Rationale\n\n${'a' * _overBound}\n\n'),
           ]),
         ),
       );
