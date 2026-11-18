@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
-import 'package:specstone_core/src/index_query/bundle_prune.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
     show featurePatternDocAddress, featurePatternListName;
+import 'package:specstone_core/src/index_query/folder_prune.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show tokenSizeOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
@@ -18,6 +18,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart'
 import 'package:specstone_core/src/rendering/build_output.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 
 /// The most lines an index keeps its sections within, its header included.
 const _indexLineCap = 200;
@@ -40,9 +41,6 @@ const _cutNameByteCap = 250;
 
 /// The hex characters of a cut name's hash.
 const _nameHashLength = 8;
-
-/// The `/`-separated path of the bundles folder below a project root.
-const _bundlesBelowRoot = '.specstone/bundles';
 
 const _refsIsReadFirst = 'the refs file is the read-first file';
 
@@ -249,21 +247,16 @@ BundleEntry _shifted(BundleEntry entry, int lines) => BundleEntry(
   ],
 );
 
-/// Prunes the project's `.specstone/bundles/`, keeping [keep].
-///
-/// A `bundles/` that is a link, or lies below one, is left alone: its real
-/// folder is not the project's own.
+/// Prunes the project's `.specstone/bundles/` and `reports/` by the default
+/// bounds, keeping [keep].
 void _pruneBundlesOf(Directory projectRoot, {required Set<String> keep}) {
-  final real = canonicalPath(bundlesFolderOf(projectRoot).path);
-  if (!isBundlesFolderOf(canonicalPath(projectRoot.path), real)) return;
-  pruneBundles(Directory(real), keep: keep, now: DateTime.now());
+  pruneSpecstoneFolder(
+    projectRoot,
+    keep: keep,
+    bounds: CleanupBounds.defaults,
+    now: DateTime.now(),
+  );
 }
-
-/// Whether [path] is `.specstone/bundles` right below [root], both canonical.
-///
-/// [isWindows] picks the path style; it defaults to the running platform.
-bool isBundlesFolderOf(String root, String path, {bool? isWindows}) =>
-    pathInside(root, path, isWindows: isWindows) == _bundlesBelowRoot;
 
 // MARK: - Index
 
