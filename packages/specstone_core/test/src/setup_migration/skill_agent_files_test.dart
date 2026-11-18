@@ -1,19 +1,26 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
+import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
     show runsOneTimePasses;
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/forwarding_entities.dart';
 import '../../helpers/skill_files.dart' show settingsFilePath, settingsFileText;
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart' show testHome;
 
 final List<RenderedFile> _rendered = renderHostFiles();
 
@@ -990,6 +997,24 @@ void main() {
       expect(skillAndAgentFileDrifts(_inputs(base)), isEmpty);
     });
 
+    test('every group opted out leaves no write, no trash, no skipped line, '
+        'and no handler', () async {
+      final base = await _base({
+        for (final folder in AgentFolder.values)
+          'proj/${folder.path}/own/keep.txt': 'own\n',
+      });
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.writes, isEmpty);
+      expect(plan.trash, isEmpty);
+      expect(plan.topTrash, isEmpty);
+      expect(plan.skipped, isEmpty);
+      expect(plan.malformedSettings, isEmpty);
+      expect(plan.writeSet, isEmpty);
+      expect(skillAndAgentFileDrifts(_inputs(base)), isEmpty);
+    });
+
     test(
       'a full run records a malformed file though no skill is there',
       () async {
@@ -1018,6 +1043,79 @@ void main() {
       expect(plan.skipped, hasLength(1));
       expect(plan.malformedSettings, isEmpty);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+  });
+
+  group('the plan hash', () {
+    Future<String> hashWith(String skillText) async {
+      final path = _firstPathIn(AgentFolder.claudeSkills);
+      final base = await _base({
+        ..._under('proj', _allRendered),
+        'proj/$path': skillText,
+      });
+      final inputs = PlanInputs(_at(base, 'proj/'))
+        ..collect(() => planSkillAndAgentFiles(_inputs(base), full: false));
+      return planHashOf('plan', inputs);
+    }
+
+    test('changes when the bytes of a skill file change', () async {
+      final path = _firstPathIn(AgentFolder.claudeSkills);
+      final shipped = _allRendered[path]!;
+
+      final current = await hashWith(shipped);
+      final edited = await hashWith('${shipped}an edit\n');
+      final other = await hashWith('${shipped}another edit\n');
+
+      expect(edited, isNot(current));
+      expect(other, isNot(edited));
+      expect(await hashWith(shipped), current);
+    });
+  });
+
+  test('settings.json is written whole through a temporary file and a '
+      'rename', () async {
+    final root = await writeTree({
+      'keep.txt': 'x\n',
+      settingsFilePath:
+          '{\n  "permissions": {\n    "allow": ["Bash(ls)"]\n  }\n}\n',
+    });
+    final renames = <(String, String)>[];
+
+    final status = await IOOverrides.runWithIOOverrides(
+      () => runInit(
+        InitRequest(
+          workingDirectory: root,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.missing,
+          readLine: () => null,
+          out: StringBuffer(),
+        ),
+      ),
+      _RenameLog(renames),
+    );
+
+    expect(status, 0);
+    final settingsRenames = [
+      for (final (from, to) in renames)
+        if (to.replaceAll(r'\', '/').endsWith('.claude/settings.json')) from,
+    ];
+    expect(settingsRenames, hasLength(1));
+    expect(
+      settingsRenames.single.split(Platform.pathSeparator).last,
+      matches(RegExp(r'^\.settings\.json\.\d+\.[0-9a-f]{16}\.specstone\.tmp$')),
+    );
+    final written = jsonDecode(
+      File('${root.path}/$settingsFilePath').readAsStringSync(),
+    ) as Map<String, Object?>;
+    expect(written, containsPair('permissions', isA<Map<String, Object?>>()));
+    expect(written, contains('hooks'));
+    expect(
+      Directory('${root.path}/.claude')
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.specstone.tmp')),
+      isEmpty,
+    );
   });
 
   group('shipsSkillFiles', () {
@@ -1060,4 +1158,27 @@ void main() {
     expect(runsCitePass([upgrade]), isFalse);
     expect(shipsSkillFiles([upgrade]), isFalse);
   });
+}
+
+/// Records each `renameSync` of a file: its path, then its new path.
+final class _RenameLog extends IOOverrides {
+  new(this._renames);
+
+  final List<(String, String)> _renames;
+
+  @override
+  File createFile(String path) =>
+      _LoggedRenameFile(super.createFile(path), _renames);
+}
+
+final class _LoggedRenameFile extends ForwardingFile {
+  const new(super.inner, this._renames);
+
+  final List<(String, String)> _renames;
+
+  @override
+  File renameSync(String newPath) {
+    _renames.add((path, newPath));
+    return super.renameSync(newPath);
+  }
 }

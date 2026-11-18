@@ -233,7 +233,7 @@ void main() {
           ],
         ),
       ]) {
-        test(command, () async {
+        test('$command on a whole-doc target with a #<section key>', () async {
           final root = await writeWriteProject();
           final before = _docsText(root);
           final run = await _run(
@@ -249,6 +249,37 @@ void main() {
       }
     });
 
+    test('rename with an @<hash> on the target is refused', () async {
+      final root = await writeWriteProject();
+      final before = _docsText(root);
+      final run = await _run(root, [
+        'rename',
+        'login@0123456789ab',
+        '--to',
+        'signin',
+      ], console: FakeConsole(input: 'x\n'));
+      expect(run.status, 64);
+      expect(run.out, isEmpty);
+      expect(run.err, contains('takes no #<section key> or @<hash>'));
+      expect(_docsText(root), before);
+    });
+
+    test(
+      'delete of an unknown name with a #<section key> is refused',
+      () async {
+        final root = await writeWriteProject();
+        final before = _docsText(root);
+        final run = await _run(root, [
+          'delete',
+          'nosuch#problem',
+        ], console: FakeConsole(input: 'x\n'));
+        expect(run.status, 64);
+        expect(run.out, isEmpty);
+        expect(run.err, 'no doc carries the name nosuch\n');
+        expect(_docsText(root), before);
+      },
+    );
+
     group('a bare name 2 docs carry refuses, exit 64, nothing written', () {
       const listed = 'login names 2 docs: feature:login, architecture:login\n';
       for (final (command, args) in [
@@ -259,7 +290,7 @@ void main() {
         ('move', ['move', 'login', '--under', 'feature:signup']),
         ('approve --yes', ['approve', 'login@7e11fc4a24d2', '--yes']),
       ]) {
-        test(command, () async {
+        test('$command on a bare name 2 docs carry', () async {
           final root = await writeWriteProject();
           final before = _docsText(root);
           final run = await _run(

@@ -224,23 +224,26 @@ void main() {
         await expectQuiet(_notice(home, site), site, home, before: oldKept);
       });
 
-      for (final command in [
-        ['upgrade'],
-        ['hook', 'post-edit'],
-      ]) {
-        test(command.join(' '), () async {
-          final home = await _home(record: oldKept);
-          final site = await _Site.open();
+      Future<void> expectNoCheckFor(List<String> command) async {
+        final home = await _home(record: oldKept);
+        final site = await _Site.open();
 
-          await expectQuiet(
-            _notice(home, site),
-            site,
-            home,
-            command: command,
-            before: oldKept,
-          );
-        });
+        await expectQuiet(
+          _notice(home, site),
+          site,
+          home,
+          command: command,
+          before: oldKept,
+        );
       }
+
+      test('the upgrade command sends nothing and writes no record', () {
+        return expectNoCheckFor(const ['upgrade']);
+      });
+
+      test('the hook post-edit command sends nothing and writes no record', () {
+        return expectNoCheckFor(const ['hook', 'post-edit']);
+      });
 
       test(
         'a record from less than 24 hours ago, kept latest or not',
@@ -524,6 +527,152 @@ void main() {
         expect(_read(home)['latest'], _newest);
       },
     );
+
+    test('a request that finds no network writes no end write and the kept '
+        'latest decides', () async {
+      final home = await _home(
+        record: _recordText(_now.subtract(_day * 2), _newest),
+      );
+      final site = await _Site.open();
+      final url = site.url;
+      await site.server.close(force: true);
+      final notice = UpdateNotice(
+        console: FakeConsole(stdoutIsTerminal: true, stderrIsTerminal: true),
+        environment: const {},
+        home: home,
+        executable: '${home.path}/.specstone/bin/specstone',
+        latestReleaseUrl: url,
+        runningVersion: _running,
+        clock: () => _now,
+      )..start(const ['folder']);
+      await _settle();
+
+      expect(_read(home), {
+        'checkedAt': _now.toIso8601String(),
+        'latest': _newest,
+      });
+      expect(notice.lineAfter(), _line);
+    });
+
+    test('a reply over 1 MiB writes no end write and the kept latest '
+        'decides', () async {
+      final home = await _home(
+        record: _recordText(_now.subtract(_day * 2), _newest),
+      );
+      final site = await _Site.open()
+        ..body = '{"tag_name":"v9.0.0"}${' ' * (1024 * 1024)}';
+      final notice = _notice(home, site)..start(const ['folder']);
+      await _until(() => site.requests.isNotEmpty);
+      await _settle();
+
+      expect(_read(home), {
+        'checkedAt': _now.toIso8601String(),
+        'latest': _newest,
+      });
+      expect(notice.lineAfter(), _line);
+    });
+
+    test('a reply that claims gzip and is not gzip writes no end write and '
+        'the kept latest decides', () async {
+      final home = await _home(
+        record: _recordText(_now.subtract(_day * 2), _newest),
+      );
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      var requests = 0;
+      server.listen((request) async {
+        requests++;
+        request.response
+          ..headers.set('content-encoding', 'gzip')
+          ..add(utf8.encode('{"tag_name":"v9.0.0"}'));
+        await request.response.close();
+      });
+      final notice = UpdateNotice(
+        console: FakeConsole(stdoutIsTerminal: true, stderrIsTerminal: true),
+        environment: const {},
+        home: home,
+        executable: '${home.path}/.specstone/bin/specstone',
+        latestReleaseUrl: Uri.parse('http://127.0.0.1:${server.port}/'),
+        runningVersion: _running,
+        clock: () => _now,
+      )..start(const ['folder']);
+      await _until(() => requests > 0);
+      await _settle();
+
+      expect(_read(home), {
+        'checkedAt': _now.toIso8601String(),
+        'latest': _newest,
+      });
+      expect(notice.lineAfter(), _line);
+    });
+
+    test('a reply that sends no data for 60 s writes no end write and the '
+        'kept latest decides', () async {
+      final home = await _home(
+        record: _recordText(_now.subtract(_day * 2), _newest),
+      );
+      final silent = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(silent.close);
+      silent.listen((socket) => socket.listen(null, onError: (Object _) {}));
+      // Every timer runs 100 times shorter, so 60 s fires in 600 ms.
+      final notice = runZoned(
+        () => UpdateNotice(
+          console: FakeConsole(stdoutIsTerminal: true, stderrIsTerminal: true),
+          environment: const {},
+          home: home,
+          executable: '${home.path}/.specstone/bin/specstone',
+          latestReleaseUrl: Uri.parse('http://127.0.0.1:${silent.port}/'),
+          runningVersion: _running,
+          clock: () => _now,
+        )..start(const ['folder']),
+        zoneSpecification: ZoneSpecification(
+          createTimer: (self, parent, zone, duration, callback) =>
+              parent.createTimer(zone, duration ~/ 100, callback),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+
+      expect(_read(home), {
+        'checkedAt': _now.toIso8601String(),
+        'latest': _newest,
+      });
+      expect(notice.lineAfter(), _line);
+    });
+
+    test('a check run outside any project reads no project and still '
+        'prints the notice', () async {
+      final home = await _home(
+        record: _recordText(_now.subtract(_day * 2), _newest),
+      );
+      final outside = await writeTree({'notes.txt': 'x'});
+      final broken = await writeTree({
+        '.specstone/config.yaml': 'packs: [unclosed\n',
+      });
+      final site = await _Site.open();
+      final before = File('${broken.path}/.specstone/config.yaml')
+          .readAsStringSync();
+      late UpdateNotice notice;
+
+      await IOOverrides.runZoned(() async {
+        notice = _notice(home, site)..start(const ['folder']);
+        await _until(() => site.requests.isNotEmpty);
+      }, getCurrentDirectory: () => outside);
+
+      await _until(() => _read(home)['latest'] == _newest);
+      expect(site.requests, hasLength(1));
+      expect(notice.lineAfter(), _line);
+      expect(
+        Directory(outside.path)
+            .listSync()
+            .map((e) => e.uri.pathSegments.where((x) => x.isNotEmpty).last)
+            .toList(),
+        ['notes.txt'],
+      );
+      expect(
+        File('${broken.path}/.specstone/config.yaml').readAsStringSync(),
+        before,
+      );
+    });
 
     test('a start that did not run has no notice', () async {
       final site = await _Site.open();

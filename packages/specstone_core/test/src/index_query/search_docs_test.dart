@@ -71,6 +71,50 @@ void main() {
       expect(answerSearch(index, query, const SearchOptions()).exitStatus, 0);
     }
   });
+  test('a query inside two words hits the doc of each', () async {
+    final both = await searchIndexWith({
+      'docs/m/login_note.md': '# Entry\n\n## Body\nlogin here\n',
+      'docs/m/catalog_note.md': '# Shelf\n\n## Body\ncatalog here\n',
+    });
+    expect(
+      heads(answerSearch(both, 'log', const SearchOptions())),
+      containsAll([
+        'm/login_note.md#body — Entry',
+        'm/catalog_note.md#body — Shelf',
+      ]),
+    );
+  });
+  test('operator characters and words match the literal text only', () async {
+    final literal = await searchIndexWith({
+      'docs/m/quote_yes.md': '# QY\n\n## Body\nsay "ember" twice\n',
+      'docs/m/quote_no.md': '# QN\n\n## Body\nsay ember twice\n',
+      'docs/m/star_yes.md': '# SY\n\n## Body\ncat*dog\n',
+      'docs/m/star_no.md': '# SN\n\n## Body\ncatdog and cats\n',
+      'docs/m/and_yes.md': '# AY\n\n## Body\nrock AND roll\n',
+      'docs/m/and_no.md': '# AN\n\n## Body\nrock roll\n',
+      'docs/m/near_yes.md': '# NY\n\n## Body\nNEAR(fox\n',
+      'docs/m/near_no.md': '# NN\n\n## Body\nNEAR fox\n',
+    });
+    for (final (query, hit) in [
+      ('"ember"', 'm/quote_yes.md#body — QY'),
+      ('cat*', 'm/star_yes.md#body — SY'),
+      ('rock AND roll', 'm/and_yes.md#body — AY'),
+      ('NEAR(fox', 'm/near_yes.md#body — NY'),
+    ]) {
+      expect(heads(answerSearch(literal, query, const SearchOptions())), [
+        hit,
+      ], reason: query);
+    }
+  });
+  test('a title hit on a doc with sections names its first section', () async {
+    final titled = await searchIndexWith({
+      'docs/m/titled.md': '# Quokkas\n\n## First\nxx\n\n## Second\nyy\n',
+    });
+    final answer = answerSearch(titled, 'Quokkas', const SearchOptions());
+    expect(heads(answer), ['m/titled.md#first — Quokkas']);
+    final hit = (answer.json['hits']! as List).single as Map;
+    expect(hit['section'], 'first');
+  });
   test('no hit is an empty answer and success', () async {
     final answer = answerSearch(index, 'zzqqxx', const SearchOptions());
     expect(answer.text, isEmpty);

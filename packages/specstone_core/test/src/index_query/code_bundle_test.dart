@@ -215,6 +215,22 @@ void main() {
       containsAll(['$f/FEATURE.md', 'prds/features/f02_signup/FEATURE.md']),
     );
   });
+  test('two features matched by one folder print in tree order', () async {
+    final b = code('app/lib/src', BundleMode.implement);
+    final printed = [for (final doc in b.printOrder(index)) doc.docPath];
+    for (final (login, signup) in [
+      ('$f/FEATURE.md', 'prds/features/f02_signup/FEATURE.md'),
+      ('$s/ARCHITECTURE.md', 'specs/f02_signup/ARCHITECTURE.md'),
+      (
+        '.specstone/records/f01_login/IMPLEMENTATION.md',
+        '.specstone/records/f02_signup/IMPLEMENTATION.md',
+      ),
+    ]) {
+      expect(printed, contains(login));
+      expect(printed, contains(signup));
+      expect(printed.indexOf(login), lessThan(printed.indexOf(signup)));
+    }
+  });
   test('an architecture match with no trace gives feature, spec docs, and story names', () async {
     final b = code('app/lib/src/login/login_form.dart', BundleMode.implement);
     expect(b.docPaths, {'$f/FEATURE.md', ...specs});
@@ -309,6 +325,53 @@ void main() {
       ),
     );
   });
+  test('a code root beside the project holds its own path, and the project docs folder is outside', () async {
+    final workspace = await writeTree({
+      'proj/docs/x.md': '',
+      'stratum_ui/example/lib/a.dart': '',
+    });
+    final proj = Directory(
+      Directory.fromUri(workspace.uri.resolve('proj'))
+          .resolveSymbolicLinksSync(),
+    );
+    final codeRoot = Directory(
+      Directory.fromUri(workspace.uri.resolve('stratum_ui/example'))
+          .resolveSymbolicLinksSync(),
+    );
+    const targets = [CodeTarget('example', codeRoot: '../stratum_ui/example')];
+    final separator = Platform.pathSeparator;
+
+    final inside = resolveCodePath(
+      '..${separator}stratum_ui${separator}example${separator}lib${separator}a.dart',
+      workingDirectory: proj,
+      targets: targets,
+      codeRootOf: (_) => codeRoot,
+    );
+
+    expect(inside.path, 'lib/a.dart');
+    expect(
+      () => resolveCodePath(
+        'docs${separator}x.md',
+        workingDirectory: proj,
+        targets: targets,
+        codeRootOf: (_) => codeRoot,
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having(
+              (x) => x.code,
+              'code',
+              IndexFaultCode.codePathOutsideProject,
+            )
+            .having((x) => x.exitStatus, 'exit', 64)
+            .having(
+              (x) => x.message,
+              'message',
+              'the code path docs${separator}x.md lies outside the code root',
+            ),
+      ),
+    );
+  });
   test('a path outside the code root is code_path_outside_project', () async {
     expect(
       () => code('../', BundleMode.implement),
@@ -332,6 +395,40 @@ void main() {
       'no doc covers or implements docs/specs/schema.dbml',
     ]);
   });
+  test(
+    'a .dbml file whose own text names a doc or a path still matches nothing',
+    () async {
+      const schema = 'docs/specs/schema.dbml';
+      final project = await writeLoginProject(
+        extra: {
+          schema:
+              'Table accounts {}\n'
+              '// covers: app/lib/main.dart\n'
+              '// implements: email_login/validate_credentials:app/lib/main.dart\n'
+              '// see prds/features/f01_login/FEATURE.md\n',
+        },
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+      Bundle at(String path) => pickCodeBundle(
+        session.index,
+        resolveCodePath(
+          path,
+          workingDirectory: project,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
+
+      for (final path in [schema, 'app/lib/main.dart']) {
+        final bundle = at(path);
+        expect(bundle.docPaths, isEmpty, reason: path);
+        expect(bundle.warnings, ['no doc covers or implements $path']);
+      }
+    },
+  );
   test('--no-project with no match holds no doc and still warns', () async {
     final b = code('app/lib/main.dart', BundleMode.implement, noProject: true);
     expect(b.docPaths, isEmpty);
@@ -648,6 +745,25 @@ void main() {
               'code',
               IndexFaultCode.codePathOutsideProject,
             ),
+          ),
+        );
+      },
+    );
+    test(
+      'refuses the path with exit status 64, naming the path and the code root',
+      () async {
+        final pick = await skillCall(codeRoot: 'specstone');
+
+        expect(
+          pick,
+          throwsA(
+            isA<IndexFault>()
+                .having((x) => x.exitStatus, 'exit', 64)
+                .having(
+                  (x) => x.message,
+                  'message',
+                  'the code path $skillFile lies outside the code root',
+                ),
           ),
         );
       },

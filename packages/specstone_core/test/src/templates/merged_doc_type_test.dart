@@ -504,6 +504,64 @@ sections:
       expect(lint['bannedWords'], ['robust', 'simply']);
     });
 
+    test('a field a layer disables is absent from the printed '
+        'object', () {
+      final json = _merge(
+        _featureLayer,
+        'fields: [{id: summary, disabled: true}]',
+      ).toJson();
+
+      final fields = (json['fields']! as List<Object?>)
+          .cast<Map<String, Object>>();
+      expect(fields.map((f) => f['id']), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+      ]);
+    });
+
+    test('a reference list that layers change with add and remove prints as '
+        'one merged list', () {
+      final json = _merge(
+        _featureLayer,
+        'reference: {add: [{title: Team Guide, url: "https://x.dev/guide"}], '
+        'remove: [NASA Systems Engineering Handbook]}',
+      ).toJson();
+
+      expect(json['reference'], [
+        {'title': 'Team Guide', 'url': 'https://x.dev/guide'},
+      ]);
+    });
+
+    test('a banned pattern entry prints its scope and a field group prints '
+        'its ids', () {
+      final json = _merge(_featureLayer, '''
+lint:
+  banned_patterns:
+    - {id: a, pattern: 'x+', message: m, in: code, except: [xx]}
+    - {id: b, pattern: 'y', message: n, in: all}
+  required_field_groups:
+    - [status, summary]
+''').toJson();
+
+      final lint = json['lint']! as Map<String, Object?>;
+      expect(lint['bannedPatterns'], [
+        {
+          'id': 'a',
+          'pattern': 'x+',
+          'message': 'm',
+          'in': 'code',
+          'except': ['xx'],
+        },
+        {'id': 'b', 'pattern': 'y', 'message': 'n', 'in': 'all'},
+      ]);
+      expect(lint['requiredFieldGroups'], [
+        ['status', 'summary'],
+      ]);
+    });
+
     test('extends and prefixId are absent when unset, and '
         'no value is null', () {
       final json = featureDocType().toJson();
