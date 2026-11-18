@@ -7,12 +7,10 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/mention.dart';
 import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
+import 'package:specstone_core/src/index_query/models/written_path.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-
-/// A doc line that names another doc's file in text or holds a doc-name
-/// mention of it: the doc holding the line and its 1-based file line.
-typedef Mention = ({IndexedDoc doc, int line});
 
 /// A character that ends a path written in prose.
 final pathBreak = RegExp(r'''[\s`'"()\[\]<>{}|,;*~!?=]''');
@@ -70,11 +68,6 @@ Map<String, List<Mention>> mentionsOfEach(
   };
 }
 
-/// A path written in a doc's text and the doc it names: the 1-based file line,
-/// the path as written, less any `#anchor` or closing sentence mark, and the
-/// doc.
-typedef WrittenPath = ({int line, String written, IndexedDoc named});
-
 /// The docs of an index by file name, each with the segments of its DocPath;
 /// one read per index, since an index is one read snapshot.
 final _namesakesOf = Expando<Map<String, Map<String, List<String>>>>();
@@ -122,7 +115,7 @@ List<WrittenPath> pathsWrittenIn(DocIndex index, IndexedDoc doc) {
           namesakes,
         ))
           if (!linked.contains((i + 1, named.docPath)))
-            (line: i + 1, written: written, named: named),
+            WrittenPath(line: i + 1, written: written, named: named),
   ];
 }
 
@@ -200,7 +193,7 @@ List<Mention> _mentionsIn(
         if (_namesDoc(mention.address, target)) mention.line,
     }.difference(linking).toList()..sort();
     for (final line in lines) {
-      mentions.add((doc: doc, line: line));
+      mentions.add(Mention(doc: doc, line: line));
     }
   }
   return mentions;

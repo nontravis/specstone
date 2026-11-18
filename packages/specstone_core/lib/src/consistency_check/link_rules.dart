@@ -16,6 +16,7 @@ import 'package:specstone_core/src/index_query/item_links.dart'
     show SectionTarget, anchorTargetOf, classifyLink;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/written_path.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -405,7 +406,10 @@ Iterable<Finding> _perTargetReferences(
     final named = [?context.index.at(place.target)];
     yield* _perTargetFinding(context, doc, named, place.line, place.shown);
   }
-  for (final (:line, :written, :named) in pathsWrittenIn(context.index, doc)) {
+  for (final WrittenPath(:line, :written, :named) in pathsWrittenIn(
+    context.index,
+    doc,
+  )) {
     yield* _perTargetFinding(context, doc, [named], line, written);
   }
 }

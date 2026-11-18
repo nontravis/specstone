@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
+import 'package:specstone_core/src/index_query/models/mention.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -85,7 +86,7 @@ void main() {
         index.resolve(path).single,
     ];
     List<(String, int)> spots(List<Mention> mentions) => [
-      for (final (:doc, :line) in mentions) (doc.docPath, line),
+      for (final Mention(:doc, :line) in mentions) (doc.docPath, line),
     ];
 
     final each = mentionsOfEach(index, targets);
