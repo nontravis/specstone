@@ -249,8 +249,7 @@ void main() {
       }
     });
 
-    test('rename on a target with an @<hash> refuses naming @<hash>, nothing '
-        'written', () async {
+    test('rename with an @<hash> on the target is refused', () async {
       final root = await writeWriteProject();
       final before = _docsText(root);
       final run = await _run(root, [
@@ -265,19 +264,21 @@ void main() {
       expect(_docsText(root), before);
     });
 
-    test('delete on a name no doc carries with a #<section key> is '
-        'doc_not_found, exit 64', () async {
-      final root = await writeWriteProject();
-      final before = _docsText(root);
-      final run = await _run(root, [
-        'delete',
-        'nosuch#problem',
-      ], console: FakeConsole(input: 'x\n'));
-      expect(run.status, 64);
-      expect(run.out, isEmpty);
-      expect(run.err, 'no doc carries the name nosuch\n');
-      expect(_docsText(root), before);
-    });
+    test(
+      'delete of an unknown name with a #<section key> is refused',
+      () async {
+        final root = await writeWriteProject();
+        final before = _docsText(root);
+        final run = await _run(root, [
+          'delete',
+          'nosuch#problem',
+        ], console: FakeConsole(input: 'x\n'));
+        expect(run.status, 64);
+        expect(run.out, isEmpty);
+        expect(run.err, 'no doc carries the name nosuch\n');
+        expect(_docsText(root), before);
+      },
+    );
 
     group('a bare name 2 docs carry refuses, exit 64, nothing written', () {
       const listed = 'login names 2 docs: feature:login, architecture:login\n';
