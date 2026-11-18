@@ -419,22 +419,36 @@ void main() {
         expect(cleanup.reportsMaxAge, const Duration(days: 30));
       });
 
-      test(
-        'a count past the microsecond range clamps and stays positive',
-        () async {
+      for (final (name, hours, mb, days) in [
+        (
+          'a count past the date range',
+          '9000000000000',
+          '9000000000000000',
+          '9000000000000',
+        ),
+        (
+          'a 20-digit count',
+          '99999999999999999999',
+          '99999999999999999999',
+          '99999999999999999999',
+        ),
+      ]) {
+        test('$name clamps and keeps the age subtractable', () async {
           final root = await withCleanup(
-            'cleanup: {bundles_max_age_hours: 9000000000000, '
-            'bundles_max_mb: 9000000000000000, '
-            'reports_max_age_days: 9000000000000}\n',
+            'cleanup: {bundles_max_age_hours: $hours, bundles_max_mb: $mb, '
+            'reports_max_age_days: $days}\n',
           );
 
           final cleanup = ProjectConfig.read(root).cleanup;
 
+          final now = DateTime.now();
+          expect(() => now.subtract(cleanup.bundlesMaxAge), returnsNormally);
+          expect(() => now.subtract(cleanup.reportsMaxAge), returnsNormally);
           expect(cleanup.bundlesMaxAge, greaterThan(const Duration(days: 365)));
           expect(cleanup.bundlesMaxBytes, greaterThan(256 * 1000 * 1000));
           expect(cleanup.reportsMaxAge, greaterThan(const Duration(days: 365)));
-        },
-      );
+        });
+      }
 
       for (final (name, line) in [
         ('a scalar', 'cleanup: 7'),

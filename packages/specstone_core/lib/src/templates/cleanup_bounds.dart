@@ -16,14 +16,27 @@ const _defaultReportsMaxAgeDays = 7;
 /// One MB is 1,000,000 bytes.
 const _bytesPerMb = 1000000;
 
-const _maxMicroseconds = 0x7fffffffffffffff;
+/// The span of a `DateTime`, 8.64e15 ms either side of the epoch;
+/// `now.subtract` throws past it.
+const _maxAgeMicroseconds = 8640000000000000000;
 
-/// The largest hour or day count whose microseconds fit an `int`.
-const int _maxHours = _maxMicroseconds ~/ Duration.microsecondsPerHour;
-const int _maxDays = _maxMicroseconds ~/ Duration.microsecondsPerDay;
+/// The largest hour or day count whose age `DateTime.subtract` accepts.
+const int _maxHours = _maxAgeMicroseconds ~/ Duration.microsecondsPerHour;
+const int _maxDays = _maxAgeMicroseconds ~/ Duration.microsecondsPerDay;
+
+const int _maxInt = 0x7fffffffffffffff;
 
 /// The largest MB count whose bytes fit an `int`.
-const int _maxMb = _maxMicroseconds ~/ _bytesPerMb;
+const int _maxMb = _maxInt ~/ _bytesPerMb;
+
+final _digitsOnly = RegExp(r'^[0-9]+$');
+
+/// Whether [node] is an integer literal past `int` range, which the yaml
+/// package reads as a double.
+bool _isOverflowedInteger(YamlNode? node) =>
+    node is YamlScalar &&
+    node.value is double &&
+    _digitsOnly.hasMatch(node.span.text);
 
 /// The three bounds that keep `.specstone/bundles/` and `reports/` small.
 final class CleanupBounds {
@@ -45,8 +58,8 @@ final class CleanupBounds {
   ///
   /// Throws `unknown_value` for a `cleanup` that is not a map and for a bound
   /// that is not a positive integer, and `unknown_key` for a key other than the
-  /// three bounds. A count too large for its unit clamps to the largest that
-  /// fits.
+  /// three bounds. An age too long for `DateTime.subtract`, and a size too
+  /// large for an `int`, clamp to the largest that fits.
   static CleanupBounds fromConfig(YamlMap map, {required String file}) {
     final bounds = optionalValue<YamlMap>(map, _cleanupKey, file: file);
     if (bounds == null) return defaults;
@@ -106,6 +119,7 @@ CleanupBounds _build(int? Function(String key) read) {
 }
 
 int? _readBound(YamlMap bounds, String key, {required String file}) {
+  if (_isOverflowedInteger(bounds.nodes[key])) return _maxInt;
   final value = optionalValue<int>(
     bounds,
     key,
