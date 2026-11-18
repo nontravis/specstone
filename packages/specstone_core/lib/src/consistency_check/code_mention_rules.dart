@@ -12,14 +12,12 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/rendering/skill_references.dart'
-    show skillDocTypeId;
+    show skillDocTypeId, skillOutputFieldId, skillReferencesPrefixOf;
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show isSingularLayoutPath, singularLayoutPathsOf;
 import 'package:specstone_core/src/templates/code_target.dart';
 
 const _codeField = 'code';
-const _outputField = 'output';
-const _referencesFolder = 'references';
 const _separator = '/';
 const _byteOrderMark = '﻿';
 
@@ -78,21 +76,14 @@ Set<String> _codeEntriesOf(
         if (value is String) value,
 };
 
-/// Returns the `<output>/references/` folder of each `skill` doc, as a
-/// project-relative prefix ending in `/`.
+/// Returns the `<output>/references/` folder of each `skill` doc, as the
+/// writer derives it.
 Set<String> _skillReferenceFoldersOf(CheckContext context) => {
   for (final doc in context.index.docs)
     if (context.typeOf(doc)?.id == skillDocTypeId)
       for (final (:value, line: _, text: _)
-          in context.linesOf(doc).entriesOf(_outputField))
-        if (value is String)
-          [
-                ...value
-                    .split(_separator)
-                    .where((segment) => segment.isNotEmpty),
-                _referencesFolder,
-              ].join(_separator) +
-              _separator,
+          in context.linesOf(doc).entriesOf(skillOutputFieldId))
+        if (value is String) ?skillReferencesPrefixOf(value),
 };
 
 /// Reads the mentions of docs in code files, against one index.

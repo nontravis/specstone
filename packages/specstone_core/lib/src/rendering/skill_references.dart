@@ -36,8 +36,10 @@ import 'package:yaml/yaml.dart';
 /// The id of the doc type whose docs name a skill's reference files.
 const skillDocTypeId = 'skill';
 
+/// The id of the field that holds a skill doc's output folder.
+const skillOutputFieldId = 'output';
+
 const _sourcesSectionId = 'sources';
-const _outputFieldId = 'output';
 const _referencesFolder = 'references';
 const _frontmatterOpenLine = '---\n';
 final _rootedOutput = RegExp(r'^(?:[/\\]|[A-Za-z]:)');
@@ -205,7 +207,7 @@ final class _SkillDoc {
   final Doc doc;
 
   /// The `output:` value, or null when it is no string.
-  late final String? output = _stringField(doc, _outputFieldId);
+  late final String? output = _stringField(doc, skillOutputFieldId);
 }
 
 /// A doc a Sources link names, read as on disk.
@@ -448,6 +450,15 @@ List<String>? _segmentsOf(String output) {
     }
   }
   return segments;
+}
+
+/// Returns the `<output>/references/` prefix of a skill doc's [output], from
+/// the project root and ending in `/`, or null when the writer refuses the
+/// path as outside the project root.
+String? skillReferencesPrefixOf(String output) {
+  final segments = _segmentsOf(output);
+  if (segments == null) return null;
+  return '${[...segments, _referencesFolder].join('/')}/';
 }
 
 bool _overlaps(String folder, String other) =>
