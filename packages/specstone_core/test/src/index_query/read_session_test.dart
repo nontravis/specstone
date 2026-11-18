@@ -392,7 +392,7 @@ void main() {
       expect(session.docs, hasLength(25));
       expect(
         inProject(project, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
       expect(inProject(project, '.gitignore').existsSync(), isFalse);
     });

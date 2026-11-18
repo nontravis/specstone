@@ -2343,6 +2343,11 @@ void main() {
       });
     }
 
+    refuses(
+      'a reorder that re-stamps an approved doc',
+      (s) => answerReorder(s, 'feature:signup', place: '1'),
+    );
+
     test('a reorder to the same place writes no journal and is unaffected', () {
       final answer = writeInNoHome(
         root,

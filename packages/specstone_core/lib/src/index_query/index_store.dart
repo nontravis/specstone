@@ -36,6 +36,7 @@ const specstoneGitignoreLines = [
   'trash/',
   'bundles/',
   'reports/',
+  'approved/',
 ];
 
 /// The message of the fault raised when another call holds the index.

@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart' show sentencesOf;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/document_writing/approved_copy_store.dart';
 import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -12,6 +14,8 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/doc_tree.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart' show Target;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -29,7 +33,8 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// writes only when its bytes are those the Owner saw, else the draft shows
 /// again at the same position. `n` moves on; `q` and the end of input from
 /// [readLine] end the walk; any other answer asks again. An approval removes
-/// `draft` and writes the doc's ApprovalHash as `approved:`.
+/// `draft` and writes the doc's ApprovalHash as `approved:`, and saves the
+/// approved text in an [ApprovedCopyStore], which the walk's end prunes.
 /// Reads every selected draft, the approved copy of each, and every doc of the
 /// tree once, before the first view shows; with no draft waiting it reads none
 /// of them.
@@ -68,8 +73,9 @@ void approveDrafts(
       color: color,
       codeTarget: codeTarget,
     );
-    if (!_approveOne(session, doc, viewOf, readLine, out)) return;
+    if (!_approveOne(session, doc, viewOf, readLine, out)) break;
   }
+  _pruneApprovedCopies(session);
 }
 
 /// Returns the approval view of each typed draft, for the chat; writes nothing.
@@ -195,6 +201,7 @@ ReadAnswer approveNamed(
     for (final doc in drafts) {
       _writeApproval(session, doc, current[doc.docPath]!);
     }
+    _pruneApprovedCopiesLocked(session);
     return drafts.map(_addressOf).toList();
   });
   return ReadAnswer(
@@ -344,8 +351,10 @@ final class _RunReads {
     : _tree = _unionOf(_treeSentences.values),
       _runCopies = sentenceSetOf(_approved.values);
 
-  /// Reads the approved copy of each of [drafts] through [history], then the
-  /// text of every doc the index lists, typed or not, as on disk.
+  /// Reads the approved copy of each of [drafts], through [history] from the
+  /// commit that holds the `approved:` mark the doc carries, else from the
+  /// saved copy that mark names, else as git reports it, then the text of every
+  /// doc the index lists, typed or not, as on disk.
   ///
   /// Throws `RenderFault` `output_not_writable` for a doc that cannot be read.
   factory read(
@@ -355,18 +364,24 @@ final class _RunReads {
   ) {
     final lookups = <String, ApprovalLookup>{};
     final approved = <String, String>{};
-    for (final _ShownDraft(:doc) in drafts) {
-      final lookup = history.lastApproved(
+    final store = ApprovedCopyStore(session.project.projectRoot);
+    for (final _ShownDraft(:doc, :bytes) in drafts) {
+      final type = session.index.typeOf(doc);
+      final markOnDisk = ApprovalFields.of(Doc.parse(toLf(utf8.decode(bytes))))
+          .approvedValue;
+      final committed = history.lastApproved(
         session.project.projectRoot,
         session.projectPathOf(doc.docPath),
-        docType: session.index.typeOf(doc),
+        docType: type,
       );
+      final lookup = _holdsMark(committed, markOnDisk)
+          ? committed
+          : store.find(markOnDisk, type) ?? committed;
       lookups[doc.docPath] = lookup;
-      if (lookup case ApprovedCopy(:final text)) {
-        approved[doc.docPath] = comparableTextOf(
-          text,
-          session.index.typeOf(doc),
-        );
+      switch (lookup) {
+        case ApprovedCopy(:final text) || SavedApprovedCopy(:final text):
+          approved[doc.docPath] = comparableTextOf(text, type);
+        case NoApprovedCopy() || UnknownHistory():
       }
     }
     return _RunReads._(lookups, approved, {
@@ -389,7 +404,8 @@ final class _RunReads {
   /// The sentences of the approved copy of each draft the run shows.
   final Set<String> _runCopies;
 
-  /// Returns what git said about the approved copy of [doc].
+  /// Returns where the approved copy of [doc] was found, the saved copy or
+  /// git's history, or that none was.
   ApprovalLookup lookupOf(IndexedDoc doc) => _lookups[doc.docPath]!;
 
   /// Returns the sentences [doc] dropped and added, [text] being its draft as
@@ -410,6 +426,11 @@ final class _RunReads {
     );
   }
 }
+
+/// Whether [lookup] is a committed copy whose own `approved:` value is [mark].
+bool _holdsMark(ApprovalLookup lookup, Object? mark) =>
+    lookup is ApprovedCopy &&
+    ApprovalFields.of(Doc.parse(toLf(lookup.text))).approvedValue == mark;
 
 Set<String> _unionOf(Iterable<Set<String>> sets) => {
   for (final set in sets) ...set,
@@ -514,7 +535,58 @@ void _writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
     session.index.typeOf(doc),
     statusesOutside: session.project.statusesOutsideApproval,
   );
-  session.writeDoc(doc.docPath, approved, LineEnding.of(text));
+  final written = session.writeDoc(doc.docPath, approved, LineEnding.of(text));
+  ApprovedCopyStore(session.project.projectRoot).save(written);
+}
+
+/// Takes the lock and prunes the saved approved copies (see
+/// [_pruneApprovedCopiesLocked]); a busy lock skips it, as the next run prunes.
+void _pruneApprovedCopies(WriteSession session) {
+  try {
+    session.locked(() => _pruneApprovedCopiesLocked(session));
+  } on IndexFault catch (fault) {
+    if (fault.code != IndexFaultCode.indexBusy) rethrow;
+  }
+}
+
+/// Deletes each saved approved copy whose hash no doc on disk carries as its
+/// `approved:` value; runs under the lock.
+///
+/// The docs are listed and read as they are on disk now, not as the session's
+/// snapshot held them, so a doc another session made or approved meanwhile
+/// keeps its copy. A folder or doc that cannot be read, and a doc whose
+/// frontmatter is not valid YAML, leave every copy in place.
+void _pruneApprovedCopiesLocked(WriteSession session) {
+  final project = session.project;
+  final carried = <String>{};
+  for (final root in [
+    if (project.docsRoot.existsSync()) Target(project.docsRoot, ''),
+    ?project.recordsTarget,
+  ]) {
+    for (final entry in collectDocEntries(root, project.matcher)) {
+      switch (entry) {
+        case UnreadableFolder():
+          return;
+        case DocFile(:final file, :final docPath) when docPath.endsWith('.md'):
+          final String text;
+          try {
+            text = toLf(
+              utf8.decode(file.readAsBytesSync(), allowMalformed: true),
+            );
+          } on FileSystemException {
+            return;
+          }
+          final isReadable =
+              comparedApprovalHash(text, null, statusesOutside: true) != null;
+          if (!isReadable) return;
+          final mark = ApprovalFields.of(Doc.parse(text)).approvedValue;
+          if (mark is String) carried.add(mark);
+        case DocFile():
+          break;
+      }
+    }
+  }
+  ApprovedCopyStore(project.projectRoot).prune(carried);
 }
 
 bool _sameBytes(List<int> a, List<int> b) {

@@ -46,7 +46,7 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
       expect(file(r, '.specstone/index.sqlite').existsSync(), isTrue);
     });
@@ -60,7 +60,7 @@ void main() {
         ]);
         expect(
           file(r, '.specstone/.gitignore').readAsStringSync(),
-          'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+          'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
         );
       }
     });
@@ -164,12 +164,12 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
-    test('a file holding all five lines is left untouched', () async {
+    test('a file holding all six lines is left untouched', () async {
       const text =
-          'reports/\nbuild/\n# mine\ntrash/\nbundles/\nindex.sqlite*\n';
+          'reports/\nbuild/\n# mine\ntrash/\nbundles/\napproved/\nindex.sqlite*\n';
       final r = await writeTree({
         '.specstone/config.yaml': '',
         '.specstone/.gitignore': text,
@@ -177,7 +177,7 @@ void main() {
       IndexStore.open(r).close();
       expect(file(r, '.specstone/.gitignore').readAsStringSync(), text);
     });
-    test('a file holding the index and build lines gains trash/, bundles/, and reports/ at its end', () async {
+    test('a file holding the index and build lines gains trash/, bundles/, reports/, and approved/ at its end', () async {
       final r = await writeTree({
         '.specstone/config.yaml': '',
         '.specstone/.gitignore': 'index.sqlite*\nbuild/\n',
@@ -185,7 +185,7 @@ void main() {
       ensureSpecstoneGitignore(Directory('${r.path}/.specstone'));
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
     for (final (tag, staleMeta) in [
@@ -193,7 +193,7 @@ void main() {
       ('a binary-version rebuild', "binary_version = 'older'"),
     ]) {
       test(
-        '$tag appends bundles/ and reports/ and keeps the Owner lines in their order',
+        '$tag appends bundles/, reports/, and approved/ and keeps the Owner lines in their order',
         () async {
           const older = 'trash/\n# mine\n*.tmp\nindex.sqlite*\nbuild/\n';
           final project = await writeLoginProject();
@@ -218,12 +218,12 @@ void main() {
           expect(result.fullBuild, isTrue);
           expect(
             file(project, '.specstone/.gitignore').readAsStringSync(),
-            '${older}bundles/\nreports/\n',
+            '${older}bundles/\nreports/\napproved/\n',
           );
         },
       );
     }
-    test('a rebuild for a changed stamp checks the five lines', () async {
+    test('a rebuild for a changed stamp checks the six lines', () async {
       final r = await root();
       final store = IndexStore.open(r);
       addTearDown(store.close);
@@ -235,7 +235,7 @@ void main() {
       );
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
     test(
@@ -245,7 +245,7 @@ void main() {
         final r = await writeTree({
           '.specstone/config.yaml': '',
           '.specstone/.gitignore':
-              'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+              'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
         });
         final store = IndexStore.open(r);
         addTearDown(store.close);
@@ -351,7 +351,7 @@ void main() {
       expect(store.readStamp(), isNull);
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
     test('a database with tables but no meta table is deleted, '
