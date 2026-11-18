@@ -1381,7 +1381,7 @@ esac''');
     group('name another stn at install', () {
       String notice(String path) =>
           'specstone: another stn is at $path; '
-          'type specstone to run the CLI\n';
+          'stn is not installed, type specstone to run the CLI\n';
 
       // Writes another tool's recording `stn` in [folder] and returns the
       // entry's path.
@@ -1398,42 +1398,134 @@ esac''');
         return folder;
       }
 
-      test('another stn on a later absolute entry prints one '
-          'notice line; bin/stn is installed and executable; exit 0', () async {
+      // The absolute entries of a run: the install folder's bin, then [tools].
+      String pathWith(ScriptSandbox sb, [String? tools]) => [
+        '${sb.home.path}/.specstone/bin',
+        ?tools,
+        sb.stubs.path,
+        '/usr/bin:/bin',
+      ].join(':');
+
+      String binStn(ScriptSandbox sb) => '${sb.home.path}/.specstone/bin/stn';
+
+      test('another stn on the PATH leaves no bin/stn and prints the '
+          'notice once', () async {
         final sb = await sandboxWith();
         final tools = Directory('${sb.root.path}/space tools')..createSync();
         otherStn(tools.path, exit: 7);
 
         final r = await sb.run(
           'install.sh',
-          extra: {
-            ...archiveEnv(sb),
-            'PATH': [
-              '${sb.home.path}/.specstone/bin',
-              tools.path,
-              sb.stubs.path,
-              '/usr/bin:/bin',
-            ].join(':'),
-          },
+          extra: {...archiveEnv(sb), 'PATH': pathWith(sb, tools.path)},
         );
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(r.stdout, contains(notice('${tools.path}/stn')));
         final occurrences = 'another stn'.allMatches(r.stdout as String).length;
         expect(occurrences, 1);
-        final shim = File('${sb.home.path}/.specstone/bin/stn');
-        expect(shim.existsSync(), isTrue);
-        // The run keeps the runner's PATH out, so the shim beside the fake
-        // specstone is the program that runs, not a stn on this machine.
-        final run = Process.runSync(
-          shim.path,
-          ['--version'],
-          environment: const {'PATH': '/usr/bin:/bin'},
-          includeParentEnvironment: false,
+        expect(
+          File('${sb.home.path}/.specstone/bin/specstone').existsSync(),
+          isTrue,
         );
-        expect(run.exitCode, 0, reason: '${run.stderr}');
+        expect(File(binStn(sb)).existsSync(), isFalse);
         expect(sb.logOf('other'), isEmpty);
       });
+
+      test('a rerun after another stn appears removes the placed '
+          'stn', () async {
+        for (final sameVersion in [true, false]) {
+          final sb = await sandboxWith();
+          final first = await sb.run(
+            'install.sh',
+            extra: {...archiveEnv(sb), 'PATH': pathWith(sb)},
+          );
+          expect(first.exitCode, 0, reason: '${first.stderr}');
+          expect(File(binStn(sb)).existsSync(), isTrue);
+          final specstone = File('${sb.home.path}/.specstone/bin/specstone');
+          final before = specstone.readAsBytesSync();
+          final tools = Directory('${sb.root.path}/tools')..createSync();
+          otherStn(tools.path);
+          if (!sameVersion) {
+            await sb.writeArchive('linux-x64', version: '0.3.0');
+          }
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {...archiveEnv(sb), 'PATH': pathWith(sb, tools.path)},
+          );
+
+          final reason = 'same Version: $sameVersion; ${r.stderr}';
+          expect(r.exitCode, 0, reason: reason);
+          expect(
+            r.stdout,
+            contains(notice('${tools.path}/stn')),
+            reason: reason,
+          );
+          expect(File(binStn(sb)).existsSync(), isFalse, reason: reason);
+          if (sameVersion) {
+            expect(
+              r.stdout,
+              contains('specstone 0.2.0 is already the latest release'),
+            );
+            expect(specstone.readAsBytesSync(), before);
+          } else {
+            expect(installedVersion(sb), '0.3.0');
+          }
+        }
+      });
+
+      test('no other stn at the installed version with stn missing leaves '
+          'bin as it is', () async {
+        final sb = await sandboxWith();
+        final first = await sb.run(
+          'install.sh',
+          extra: {...archiveEnv(sb), 'PATH': pathWith(sb)},
+        );
+        expect(first.exitCode, 0, reason: '${first.stderr}');
+        File(binStn(sb)).deleteSync();
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {...archiveEnv(sb), 'PATH': pathWith(sb)},
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, isNot(contains('another stn')));
+        expect(File(binStn(sb)).existsSync(), isFalse);
+      });
+
+      test(
+        'a placed stn that will not unlink reports the failed delete',
+        () async {
+          final sb = await sandboxWith();
+          final first = await sb.run(
+            'install.sh',
+            extra: {...archiveEnv(sb), 'PATH': pathWith(sb)},
+          );
+          expect(first.exitCode, 0, reason: '${first.stderr}');
+          final tools = Directory('${sb.root.path}/tools')..createSync();
+          otherStn(tools.path);
+          final bin = '${sb.home.path}/.specstone/bin';
+          Process.runSync('chmod', ['555', bin]);
+          addTearDown(() => Process.runSync('chmod', ['755', bin]));
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {...archiveEnv(sb), 'PATH': pathWith(sb, tools.path)},
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, contains(notice('${tools.path}/stn')));
+          expect(
+            r.stderr,
+            contains(
+              'specstone: could not remove ${binStn(sb)}: '
+              'delete it yourself\n',
+            ),
+          );
+        },
+        skip: runsAsRoot ? rootSkip : false,
+      );
 
       test('two other stn name the earlier entry only', () async {
         final sb = await sandboxWith();
@@ -1476,6 +1568,7 @@ esac''');
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(r.stdout, isNot(contains('another stn')));
+        expect(File(binStn(sb)).existsSync(), isTrue);
       });
 
       test('a stn on a relative entry only prints no notice', () async {
@@ -1492,6 +1585,7 @@ esac''');
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(r.stdout, isNot(contains('another stn')));
+        expect(File(binStn(sb)).existsSync(), isTrue);
       });
 
       test('the install folder with a trailing slash or through a '
@@ -1511,6 +1605,7 @@ esac''');
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
           expect(r.stdout, isNot(contains('another stn')), reason: entry);
+          expect(File(binStn(sb)).existsSync(), isTrue, reason: entry);
         }
       });
 
@@ -1533,6 +1628,7 @@ esac''');
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(r.stdout, isNot(contains('another stn')));
+        expect(File(binStn(sb)).existsSync(), isTrue);
       });
 
       test('a non-executable file named stn prints no notice', () async {
@@ -1556,6 +1652,7 @@ esac''');
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(r.stdout, isNot(contains('another stn')));
+        expect(File(binStn(sb)).existsSync(), isTrue);
       });
 
       test('a missing absolute entry is skipped with nothing '
