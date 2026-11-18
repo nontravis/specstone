@@ -15,6 +15,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/href_destination.dart';
+import 'package:specstone_core/src/index_query/models/href_destinations.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 
 // MARK: - Constants
@@ -135,7 +137,7 @@ LinkAnchorRewrite withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
   if (!_mayMoveAnchors(body, moves)) return (moved: null, linksRead: true);
   final bodyStart = lf.length - body.length;
   final scan = linkScanOf(body, firstLine: 1);
-  final (destinations: found, :linksRead) = hrefDestinationsOf(
+  final HrefDestinations(destinations: found, :linksRead) = hrefDestinationsOf(
     body,
     scan,
     canMove: (href) => _anchorMoveOf(href, docPath, moves) != null,
@@ -143,7 +145,7 @@ LinkAnchorRewrite withAnchorsMoved(String lf, String docPath, SlugMoves moves) {
   final destinations = [...found]..sort((a, b) => b.start - a.start);
   var text = body;
   var citesOthers = false;
-  for (final (:start, :end, :href, :kind) in destinations) {
+  for (final HrefDestination(:start, :end, :href, :kind) in destinations) {
     final move = _anchorMoveOf(href, docPath, moves);
     if (move == null) continue;
     final written = body.substring(start, end);

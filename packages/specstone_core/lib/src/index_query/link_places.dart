@@ -6,56 +6,20 @@ import 'package:specstone_core/src/doc_model/models/source_order_nodes.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show parsedDestinationOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/href_destination.dart';
+import 'package:specstone_core/src/index_query/models/href_destinations.dart';
+import 'package:specstone_core/src/index_query/models/link_place.dart';
+import 'package:specstone_core/src/index_query/models/link_places.dart';
 import 'package:specstone_core/src/index_query/models/link_scan.dart';
 import 'package:specstone_core/src/index_query/models/link_source.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 
 /// The syntax that makes `markdown`'s link elements, whose href it decodes.
 final _linkSyntax = LinkSyntax();
 
-/// A link of a doc: the path it resolves to, the file line it is written on,
-/// its destination as written, and its decoded `#anchor`, null with no `#`.
-///
-/// The target is a docPath for a doc link and a self link, and the path under
-/// the docs root for a file link.
-typedef LinkPlace = ({String target, int line, String shown, String? anchor});
-
-/// A doc link or self link whose text reads as an item ID:
-/// the text as written, where the link sits, and what it points at.
-///
-/// `column` is the 0-based offset of the link's first character in its line
-/// `line`; `endColumn` the offset after its last character in its line
-/// `endLine`, so a reader tests what lies between two links on one line. A
-/// link text reads as an item ID when it holds no whitespace and a digit; the
-/// reader that knows the target section's prefix judges it. `shown` is the
-/// link's destination as written, the `shown` of its [LinkPlace].
-typedef LinkText = ({
-  int line,
-  int column,
-  int endLine,
-  int endColumn,
-  String text,
-  String target,
-  String? anchor,
-  String shown,
-});
-
-/// The links of a doc: the doc links, which resolve to a `.md` doc other than
-/// the doc itself, the file links, every other relative link, the self links,
-/// which name the doc itself, a bare `#anchor` included; the [LinkText] of
-/// each doc link and self link the scan placed; and whether the scan and
-/// `markdown` agree on them (see [readersAgree]), without which a move, the
-/// see rule, and the renumber pass read no href of an inline link.
-typedef LinkPlaces = ({
-  List<LinkPlace> docLinks,
-  List<LinkPlace> fileLinks,
-  List<LinkPlace> selfLinks,
-  List<LinkText> texts,
-  bool readersAgree,
-});
-
 /// The links of a body that holds no link syntax: none of any class.
-const LinkPlaces noLinks = (
+const LinkPlaces noLinks = LinkPlaces(
   docLinks: [],
   fileLinks: [],
   selfLinks: [],
@@ -72,36 +36,39 @@ List<LinkText?> storedLinkTextsOf(
   List<LinkPlace> places,
   List<LinkText> stored,
 ) {
-  final texts = <(int, String, String?, String), List<LinkText>>{};
-  for (final text in stored) {
-    (texts[(text.line, text.target, text.anchor, text.shown)] ??= []).add(text);
-  }
-  final taken = <(int, String, String?, String), int>{};
-  return [
-    for (final place in places)
-      _nthStoredText(texts, taken, (
-        place.line,
-        place.target,
-        place.anchor,
-        place.shown,
-      )),
-  ];
+  final texts = _StoredTexts(stored);
+  return [for (final place in places) texts.nextFor(place)];
 }
 
-LinkText? _nthStoredText(
-  Map<(int, String, String?, String), List<LinkText>> texts,
-  Map<(int, String, String?, String), int> taken,
-  (int, String, String?, String) key,
-) {
-  final nth = taken[key] ?? 0;
-  taken[key] = nth + 1;
-  final found = texts[key];
-  return found != null && nth < found.length ? found[nth] : null;
+/// The stored link texts by the place each is the text of, handing the nth
+/// text of a place out once.
+class _StoredTexts {
+  new(List<LinkText> stored) {
+    for (final text in stored) {
+      final place = LinkPlace(
+        target: text.target,
+        line: text.line,
+        shown: text.shown,
+        anchor: text.anchor,
+      );
+      (_texts[place] ??= []).add(text);
+    }
+  }
+
+  final _texts = <LinkPlace, List<LinkText>>{};
+  final _taken = <LinkPlace, int>{};
+
+  LinkText? nextFor(LinkPlace place) {
+    final nth = _taken[place] ?? 0;
+    _taken[place] = nth + 1;
+    final found = _texts[place];
+    return found != null && nth < found.length ? found[nth] : null;
+  }
 }
 
 /// Returns the [LinkText] of [place] when the index keeps no text for it: an
 /// empty text, which reads as no item ID.
-LinkText textFreeLinkOf(LinkPlace place) => (
+LinkText textFreeLinkOf(LinkPlace place) => LinkText(
   line: place.line,
   column: 0,
   endLine: place.line,
@@ -145,7 +112,7 @@ LinkPlaces? linkPlacesOf(
       ? [
           for (final (:index, :href, :target, kind: _, :anchor) in placed)
             (
-              place: (
+              place: LinkPlace(
                 target: target,
                 line: sources[index].line,
                 shown: sources[index].shown ?? href,
@@ -159,7 +126,7 @@ LinkPlaces? linkPlacesOf(
     for (final (i, (:place, source: _)) in located.indexed)
       if (placed[i].kind == kind) place,
   ];
-  return (
+  return LinkPlaces(
     docLinks: placesOf(_LinkKind.doc),
     fileLinks: placesOf(_LinkKind.file),
     selfLinks: placesOf(_LinkKind.self),
@@ -187,7 +154,7 @@ List<_Located> _placedByUse(
     for (final (i, (:href, :target, :anchor, index: _, kind: _))
         in placed.indexed)
       (
-        place: (
+        place: LinkPlace(
           target: target,
           line: uses[i]?.line ?? 1,
           shown: uses[i]?.shown ?? href,
@@ -256,7 +223,7 @@ LinkText? _linkTextOf(String lfBody, LinkSource source, LinkPlace place) {
   if (textEnd == null || lfBody.codeUnitAt(offset) == _bang) return null;
   final text = lfBody.substring(offset + 1, textEnd);
   if (!_itemIdShapedText.hasMatch(text)) return null;
-  return (
+  return LinkText(
     line: source.line,
     column: offset - _lineStartAt(lfBody, offset),
     endLine: source.line + _lineFeeds(lfBody, offset, end),
@@ -310,25 +277,6 @@ List<String?>? sourceHrefsOf(String lfBody, List<LinkSource> sources) {
   return hrefs != null && readersAgree(sources, hrefs) ? hrefs : null;
 }
 
-/// A link destination as written, by its body range, the href `markdown`
-/// gives it, and how `markdown` reads it.
-typedef HrefDestination = ({
-  int start,
-  int end,
-  String href,
-  DestinationKind kind,
-});
-
-/// The destinations of a link scan that have an href, and whether `markdown`
-/// read the links: false when it fails on the body, which leaves every
-/// destination without one, or the readers disagree (see [readersAgree]),
-/// which leaves each inline link's without one; true when no destination
-/// needed the read.
-typedef HrefDestinations = ({
-  List<HrefDestination> destinations,
-  bool linksRead,
-});
-
 /// Returns each destination of [scan], the link scan of [lfBody], that has an
 /// href [canMove] holds for, with that href, in [scan]'s order.
 ///
@@ -354,9 +302,13 @@ HrefDestinations hrefDestinationsOf(
           when canMove(href))
         destination,
   ];
-  if (movable.isEmpty) return (destinations: [], linksRead: true);
+  if (movable.isEmpty) {
+    return const HrefDestinations(destinations: [], linksRead: true);
+  }
   final tree = parseMarkdownTree(lfBody);
-  if (tree == null) return (destinations: [], linksRead: false);
+  if (tree == null) {
+    return const HrefDestinations(destinations: [], linksRead: false);
+  }
   final hrefs = _hrefsIn(tree.inSourceOrder);
   final linkHrefs = readersAgree(scan.sources, hrefs) ? hrefs : null;
   final definitionHrefs = {
@@ -371,11 +323,11 @@ HrefDestinations hrefDestinationsOf(
     return link == null ? null : linkHrefs?[link];
   }
 
-  return (
+  return HrefDestinations(
     destinations: [
       for (final destination in movable)
         if (hrefOf(destination) case final href?)
-          (
+          HrefDestination(
             start: destination.start,
             end: destination.end,
             href: href,

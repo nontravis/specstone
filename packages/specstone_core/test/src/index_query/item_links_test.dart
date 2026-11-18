@@ -5,9 +5,9 @@ import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:test/test.dart';
 
 /// The line facts of [text], as refresh computes them.
@@ -19,7 +19,7 @@ LineFacts _factsOf(String text) => parseIndexedDoc(
 ).content.lineFacts;
 
 /// A link of [text] to [anchor] of other.md, placed on file line 8.
-LinkText _link(String text, String? anchor) => (
+LinkText _link(String text, String? anchor) => LinkText(
   line: 8,
   column: 0,
   endLine: 8,
@@ -34,7 +34,7 @@ LinkText _link(String text, String? anchor) => (
 /// it.
 LinkText _linkIn(String line, String text, String anchor) {
   final column = line.indexOf('[$text](');
-  return (
+  return LinkText(
     line: 8,
     column: column,
     endLine: 8,
@@ -310,7 +310,7 @@ void main() {
 
     test('links on two lines never pair', () {
       const line = '[RULE-14](other.md#rules) to';
-      const second = (
+      const second = LinkText(
         line: 9,
         column: 0,
         endLine: 9,

@@ -8,6 +8,8 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf, sourceHrefsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/index_query/models/href_destination.dart';
+import 'package:specstone_core/src/index_query/models/href_destinations.dart';
 import 'package:specstone_core/src/index_query/models/link_scan.dart';
 import 'package:specstone_core/src/rendering/skill_references.dart';
 
@@ -108,13 +110,13 @@ List<_Edit> _retargetedPaths(
   LinkScan scan,
   LinkAction Function(String href) actionOf,
 ) {
-  final (:destinations, linksRead: _) = hrefDestinationsOf(
+  final HrefDestinations(:destinations) = hrefDestinationsOf(
     body,
     scan,
     canMove: (href) => actionOf(href) is RetargetLink,
   );
   return [
-    for (final (:start, :end, :href, :kind) in destinations)
+    for (final HrefDestination(:start, :end, :href, :kind) in destinations)
       if (actionOf(href) case RetargetLink(:final path))
         _Replaced(
           start,

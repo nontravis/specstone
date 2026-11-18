@@ -2,8 +2,8 @@ import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
-import 'package:specstone_core/src/index_query/link_places.dart' show LinkText;
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// Id of the doc type whose `overrides` field is one NFR id, no override line.

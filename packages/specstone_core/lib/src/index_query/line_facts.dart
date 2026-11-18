@@ -19,6 +19,9 @@ import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
 import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/models/label_place.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/link_place.dart';
+import 'package:specstone_core/src/index_query/models/link_places.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:yaml/yaml.dart';
@@ -414,7 +417,7 @@ List<NameMention> _mentionsOfJson(Object json) => [
 /// Returns the link texts [json] holds, as `LineFacts.toJson` wrote them.
 List<LinkText> _linkTextsOfJson(Object json) => [
   for (final t in (json as List<Object?>).cast<List<Object?>>())
-    (
+    LinkText(
       line: t[0]! as int,
       column: t[1]! as int,
       endLine: t[2]! as int,
@@ -446,7 +449,7 @@ List<MermaidBlock> _mermaidBlocksOfJson(Object json) => [
 /// Returns the places [json] holds, as [_placesToJson] wrote them.
 List<LinkPlace> _placesOfJson(Object json) => [
   for (final place in (json as List<Object?>).cast<List<Object?>>())
-    (
+    LinkPlace(
       target: place[0]! as String,
       line: place[1]! as int,
       shown: place[2]! as String,

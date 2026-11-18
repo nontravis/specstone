@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/models/link_place.dart';
+import 'package:specstone_core/src/index_query/models/link_places.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -258,14 +260,14 @@ void main() {
     'the warning of a doc names the parser failing on it, or the link '
     'scan and the parser reading its links differently, and nothing else',
     () {
-      const agreeing = (
+      const agreeing = LinkPlaces(
         docLinks: <LinkPlace>[],
         fileLinks: <LinkPlace>[],
         selfLinks: <LinkPlace>[],
         texts: <LinkText>[],
         readersAgree: true,
       );
-      final disagreeing = (
+      final disagreeing = LinkPlaces(
         docLinks: agreeing.docLinks,
         fileLinks: agreeing.fileLinks,
         selfLinks: agreeing.selfLinks,
