@@ -537,6 +537,23 @@ void main() {
       }
     });
 
+    test('a quote mark with no text after it adds no line', () async {
+      const intro = 'A wrong password must not sign in.';
+      final quotedHeading = await _found(
+        _frLayer,
+        _sectionLint('rationale', cap),
+        edits: fr(intro, '> ### Group\n>\n> Refuse it.'),
+      );
+      expect(quotedHeading, isEmpty);
+      final quotedItem = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', cap),
+        edits: _frWith('> - E01 — Refuse it\n>   twice.'),
+      );
+      expect(quotedItem.map((f) => f.kind), [FindingKind.itemLinesOverLimit]);
+      expect(quotedItem.single.toJson(), containsPair('actual', 2));
+    });
+
     test('a heading item counts its paragraph alone', () async {
       final lint = _sectionLint('rationale', cap);
       const intro = 'A wrong password must not sign in.';

@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show ownTextLineCountOf;
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
@@ -49,7 +51,7 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
     final section = _Block(_heldItemsIn(context, doc, i));
     if (maxItemLines != null) {
       yield* _itemLineFindings(context, doc, template.id, [
-        for (final held in section.readable) held.item,
+        for (final entry in section.readable) entry.item,
       ], maxItemLines);
     }
     if (maxSubsections != null) {
@@ -103,9 +105,7 @@ Iterable<Finding> _itemLineFindings(
   int limit,
 ) sync* {
   for (final item in items) {
-    final lines = item.text.split('\n');
-    final own = item.kind == SectionItemKind.heading ? lines.skip(1) : lines;
-    final actual = own.where((line) => line.trim().isNotEmpty).length;
+    final actual = ownTextLineCountOf(item);
     if (actual <= limit) continue;
     yield context.finding(
       doc,
