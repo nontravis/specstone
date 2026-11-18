@@ -1291,7 +1291,7 @@ void main() {
       );
     });
 
-    test('a record whose frontmatter entries push its file past 60000 characters is chars_over_limit, its lines under the limit', () async {
+    test('a record whose frontmatter lines push its file past 60000 characters is chars_over_limit, its lines under the limit', () async {
       final record =
           "---\nstatuses:\n  - 'email_login:implemented'\n"
           '${'  # ${'c' * 200}\n' * 300}---\n\n# Login implementation\n${'x\n' * 40}';

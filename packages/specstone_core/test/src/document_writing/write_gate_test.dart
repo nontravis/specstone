@@ -693,6 +693,27 @@ void main() {
     );
 
     test(
+      'new refuses a doc folder linked to a .. after a missing name',
+      () async {
+        final root = await projectWithOpenIndex();
+        Link('${root.path}/docs/$folder').createSync('gone/../shelf');
+        final before = _snapshot(Directory('${root.path}/docs'));
+
+        expect(
+          () => writeIn(root, newStory),
+          _refuses(
+            storyPath,
+            'it cannot be resolved: a . or .. after a name that does not '
+            'exist cannot be resolved',
+          ),
+        );
+
+        expect(_snapshot(Directory('${root.path}/docs')), before);
+      },
+      skip: _linksUnavailable,
+    );
+
+    test(
       'new on an untrusted dangling docs link refuses, then once trusted',
       () async {
         final root = await writeWriteProject(
