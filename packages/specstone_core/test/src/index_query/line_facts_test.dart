@@ -197,29 +197,28 @@ void main() {
       },
     );
 
-    test('a section count is what split and runes count on its text, a '
+    test('a section count is what split and runes count on its body, a '
         'surrogate pair counting once', () {
       final content = _contentOf(text);
       final counts = content.lineFacts.sectionCounts;
       expect(counts, hasLength(2));
       for (final (i, section) in content.sections.indexed) {
-        expect(counts[i].lines, section.text.split('\n').length);
-        expect(counts[i].chars, section.text.runes.length);
+        final headerSize = section.headerLine.runes.length + 1;
+        expect(counts[i].lines, section.text.split('\n').length - 1);
+        expect(counts[i].chars, section.text.runes.length - headerSize);
       }
-      expect(counts[0].lines, 5);
-      expect(counts[1], (lines: 2, chars: 17));
+      expect(counts[0].lines, 4);
+      expect(counts[1], (lines: 1, chars: 7));
     });
 
-    test(
-      'a section count is the non-blank lines of its header line and body',
-      () {
-        final counts = _contentOf(text).lineFacts.sectionCounts;
-        expect(counts[0].lines, 5);
-        expect(counts[1].lines, 2);
-        final blanks = _factsOf('---\na: 1\n---\n# T\n\n## S\n\n\nx\n\n\n');
-        expect(blanks.sectionCounts.single.lines, 2);
-      },
-    );
+    test('a section count is the non-blank lines of its body, its header line '
+        'left out', () {
+      final counts = _contentOf(text).lineFacts.sectionCounts;
+      expect(counts[0].lines, 4);
+      expect(counts[1].lines, 1);
+      final blanks = _factsOf('---\na: 1\n---\n# T\n\n## S\n\n\nx\n\n\n');
+      expect(blanks.sectionCounts.single.lines, 1);
+    });
 
     test('a CRLF file has the facts of its LF twin', () {
       final lf = _factsOf(text);

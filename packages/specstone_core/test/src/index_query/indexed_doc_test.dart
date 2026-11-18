@@ -502,8 +502,7 @@ void main() {
     const laidOut =
         '# F\n\n## Problem\n\n### Sub\n\ntext\n\n'
         '| a | b |\n|---|---|\n| 1 | 22 |\n';
-    const problemText =
-        '## Problem\n\n### Sub\n\ntext\n\n| a | b |\n|---|---|\n| 1 | 22 |';
+    const problemBody = '\n### Sub\n\ntext\n\n| a | b |\n|---|---|\n| 1 | 22 |';
 
     test('a doc that differs '
         'from its layout is not formatted and counts the laid-out text', () {
@@ -513,7 +512,7 @@ void main() {
       expect(counts.lineCount, nonBlankLinesOf(laidOut));
       expect(counts.charCount, laidOut.length);
       expect(counts.sectionCounts, [
-        (lines: nonBlankLinesOf(problemText), chars: problemText.length),
+        (lines: nonBlankLinesOf(problemBody), chars: problemBody.length),
       ]);
       expect(counts.sectionLines, [3]);
       final after = parse(featurePath, laidOut);
@@ -590,8 +589,8 @@ void main() {
           '## Flow\n\n$open\n$block\n$generatedEndMarker\n';
       final parsed = parse('prds/journeys/buy/JOURNEY.md', disk);
       expect(parsed.doc.formatted, isFalse);
-      const goal = '## Goal\n\n| x | y |\n|---|---|';
-      final flow = '## Flow\n\n$open\n$block\n$generatedEndMarker';
+      const goal = '\n| x | y |\n|---|---|';
+      final flow = '\n$open\n$block\n$generatedEndMarker';
       expect(parsed.content.lineFacts.sectionCounts, [
         (lines: nonBlankLinesOf(goal), chars: goal.length),
         (lines: nonBlankLinesOf(flow), chars: flow.length),
@@ -715,7 +714,7 @@ void main() {
     });
 
     test("keep the matrix section's own counts", () {
-      const section = '## Verification matrix\n\n$rows';
+      const section = '\n$rows';
       final facts = parseRecord('$head$notesBody$matrixBody$questionsBody')
           .content
           .lineFacts;
