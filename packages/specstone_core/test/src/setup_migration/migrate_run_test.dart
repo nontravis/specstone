@@ -140,6 +140,47 @@ String _planHashIn(String text) => text
     .firstWhere((line) => line.startsWith('plan '))
     .substring('plan '.length);
 
+/// Writes a legacy `ws` whose `code/docs` links to its `docs`, with [files]
+/// over it; null, marking the test skipped, where links need privileges.
+Future<Directory?> _linkedTree([Map<String, String> files = const {}]) async {
+  final tree = await writeTree(linkedAcme(files));
+  return linkCodeDocs(tree) ? tree : null;
+}
+
+/// Expects the refusal a write at the untrusted `ws/code` of [tree] draws: the
+/// project folder `ws` was reached through the docs link in `ws/code`.
+Matcher _untrustedRefusal(Directory tree) {
+  final project = Directory('${tree.path}/ws').resolveSymbolicLinksSync();
+  final linked = Directory('${tree.path}/ws/code').resolveSymbolicLinksSync();
+  return throwsA(
+    isA<RenderFault>()
+        .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+        .having((f) => f.exitStatus, 'exit', 73)
+        .having((f) => f.file, 'file', MoveJournal.journalPath)
+        .having(
+          (f) => f.message,
+          'message',
+          'cannot write ${MoveJournal.journalPath}: the project folder '
+              '$project was reached through the docs link in $linked; run '
+              'specstone trust at a terminal to allow it',
+        ),
+  );
+}
+
+/// Expects the refusal of a journal for [reason], as every write command
+/// gives it.
+Matcher _journalRefusal(String reason) => throwsA(
+  isA<RenderFault>()
+      .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+      .having((f) => f.exitStatus, 'exit', 73)
+      .having((f) => f.file, 'file', MoveJournal.journalPath)
+      .having(
+        (f) => f.message,
+        'message',
+        '$reason; check .specstone/trash/ and delete it to go on',
+      ),
+);
+
 Future<int> _run(
   Directory root,
   StringBuffer out, {
@@ -1025,6 +1066,160 @@ sections:
         '// See F-01 US-01\n',
       );
     }, skip: skipGit);
+
+    test('a tree made dirty while the prompt waits refuses with the message of '
+        'the first clean-tree check, and nothing is written', () async {
+      final root = await gitFixture(acmeLegacy);
+      final head = headOf(root);
+
+      await expectLater(
+        () => answerAfter(
+          root,
+          () => File('${root.path}/notes.txt').writeAsStringSync('x\n'),
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having((f) => f.exitStatus, 'exit', 75)
+              .having(
+                (f) => f.message,
+                'message',
+                'the repository that holds the docs has uncommitted changes; '
+                    'commit or stash them, then run specstone migrate again',
+              ),
+        ),
+      );
+
+      expect(headOf(root), head);
+      expect(_bytesUnder(root), {...acmeLegacy, 'notes.txt': 'x\n'});
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('a file that changes only the plan text, committed while the prompt '
+        'waits, refuses naming the plan alone, and nothing is '
+        'written', () async {
+      final root = await gitFixture(acmeLegacy);
+      const added = 'docs/specs/schema.dbml';
+      late final String head;
+
+      await expectLater(
+        () => answerAfter(root, () {
+          File('${root.path}/$added').writeAsStringSync('Table t {}\n');
+          commitAll(root, 'meanwhile');
+          head = headOf(root);
+        }),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having((f) => f.exitStatus, 'exit', 75)
+              .having(
+                (f) => f.message,
+                'message',
+                'the plan changed while the plan was shown; run specstone '
+                    'migrate again to plan from it',
+              ),
+        ),
+      );
+
+      expect(headOf(root), head);
+      expect(_bytesUnder(root), {...acmeLegacy, added: 'Table t {}\n'});
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('two inputs committed changed while the prompt waits refuse naming '
+        'the first in code point order, an upper-case name before a '
+        'lower-case one', () async {
+      final root = await gitFixture(acmeLegacy);
+      const first = 'docs/specs/INDEX.md';
+      const second = 'docs/specs/api/auth/s02_api_login.md';
+
+      await expectLater(
+        () => answerAfter(root, () {
+          for (final path in [second, first]) {
+            final file = File('${root.path}/$path');
+            file.writeAsStringSync('${file.readAsStringSync()}\nedit\n');
+          }
+          commitAll(root, 'meanwhile');
+        }),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having(
+                (f) => f.message,
+                'message',
+                '$first, an input of the plan, changed while the plan was '
+                    'shown; run specstone migrate again to plan from it',
+              ),
+        ),
+      );
+
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('a committed .specstone/config.yaml that cannot parse, made while an '
+        'upgrade prompt waits, refuses naming it as an input', () async {
+      final (:project, :home) = await _upgradeFixture();
+      const config = '.specstone/config.yaml';
+      late final String head;
+
+      await expectLater(
+        () => answerAfter(project, () {
+          File('${project.path}/$config')
+              .writeAsStringSync('packs: [unclosed\n');
+          commitAll(project, 'meanwhile');
+          head = headOf(project);
+        }, home: home),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having(
+                (f) => f.message,
+                'message',
+                '$config, an input of the plan, changed while the plan was '
+                    'shown; run specstone migrate again to plan from it',
+              ),
+        ),
+      );
+
+      expect(headOf(project), head);
+      expect(git(project, ['status', '--porcelain']).stdout, isEmpty);
+      expect(MoveJournal.pending(project), isFalse);
+    }, skip: skipGit);
+
+    test('the next bare run after a refused re-check plans again from the '
+        'tree as it then is, and applies it', () async {
+      final root = await gitFixture(acmeLegacy);
+      final hashBefore = await _dryRunPlanHash(root);
+      await expectLater(
+        () => answerAfter(root, () {
+          File('${root.path}/docs/prds/d01_context.md')
+              .writeAsStringSync('# edited\n');
+          commitAll(root, 'meanwhile');
+        }),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
+      expect(await _dryRunPlanHash(root), isNot(hashBefore));
+
+      expect(await _run(root, StringBuffer(), answers: ['y']), 0);
+
+      final subjects = (git(root, ['log', '--format=%s']).stdout as String)
+          .trim()
+          .split('\n');
+      expect(subjects, [
+        _commit2Message,
+        _commit1Message,
+        'meanwhile',
+        'legacy',
+      ]);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
   });
 
   test('commit 2 holds the agent files, a CLAUDE.md block appended', () async {
@@ -1316,6 +1511,59 @@ sections:
       );
       expect(out.toString(), isEmpty);
     }, skip: hasGit ? null : 'git is not available');
+
+    test('bare migrate outside a git work tree prints no plan and writes no '
+        'file', () async {
+      final root = await writeTree(acmeLegacy);
+      final before = treeBytes(root);
+      final out = StringBuffer();
+
+      await expectLater(
+        () => _run(root, out, answers: ['y']),
+        throwsA(
+          isA<MigrateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                MigrateFaultCode.gitWorkTreeRequired,
+              )
+              .having((f) => f.exitStatus, 'exit', 78),
+        ),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(treeBytes(root), before);
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('--yes with a stale plan hash is working_tree_dirty on a dirty tree '
+        'and git_work_tree_required outside git, before any hash '
+        'check', () async {
+      final dirty = await gitFixture(acmeLegacy);
+      File('${dirty.path}/notes.txt').writeAsStringSync('x\n');
+      final outside = await writeTree(acmeLegacy);
+
+      for (final (root, code) in [
+        (dirty, MigrateFaultCode.workingTreeDirty),
+        (outside, MigrateFaultCode.gitWorkTreeRequired),
+      ]) {
+        final before = treeBytes(root);
+        final out = StringBuffer();
+
+        await expectLater(
+          () => _run(
+            root,
+            out,
+            confirmation: OwnerConfirmation.given,
+            planHash: '000000000000',
+          ),
+          throwsA(isA<MigrateFault>().having((f) => f.code, 'code', code)),
+          reason: '$code',
+        );
+
+        expect(out.toString(), isEmpty, reason: '$code');
+        expect(treeBytes(root), before, reason: '$code');
+      }
+    }, skip: hasGit ? null : 'git is not available');
   });
 
   test('a committed edit to a doc between '
@@ -1496,6 +1744,126 @@ sections:
       ),
     );
     expect(dirtyOut.toString(), isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test(
+    'bare migrate over two groups that share a slug writes nothing',
+    () async {
+      final root = await gitFixture({
+        ...duplicateGroupLegacy,
+        'docs/prds/d01_context.md': '# D-01 — Context\n',
+      });
+      final before = _bytesUnder(root);
+      final head = headOf(root);
+      final out = StringBuffer();
+
+      await expectLater(
+        () => _run(root, out, answers: ['y']),
+        throwsA(
+          isA<MigrateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                MigrateFaultCode.groupSlugDuplicate,
+              )
+              .having((f) => f.exitStatus, 'exit', 65),
+        ),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(_bytesUnder(root), before);
+      expect(headOf(root), head);
+      expect(MoveJournal.pending(root), isFalse);
+    },
+    skip: hasGit ? null : 'git is not available',
+  );
+
+  test('two moves onto one path, and a move cycle, refuse legacy_collision in '
+      'the dry run and in bare migrate, with nothing printed or '
+      'written', () async {
+    const cycleIndex = '''
+## Spec map
+
+| Code path | Spec path | feature_id |
+|-----------|-----------|------------|
+| `c/` | `specs/f01_alpha/q/` | `f02_beta` |
+| `c/` | `specs/z/` | `f02_beta` |
+| `c/` | `specs/f02_beta/q/` | `f01_alpha` |
+| `c/` | `specs/y/` | `f01_alpha` |
+''';
+    const context = {'docs/prds/d01_context.md': '# D-01 — Context\n'};
+    final trees = {
+      'two moves onto one path': {
+        ...context,
+        'docs/prds/features/co01_utilities/co01_01_slot/FEATURE.md': '# A\n',
+        'docs/prds/features/co01_utilities/ai01_slot/FEATURE.md': '# B\n',
+      },
+      'a move cycle': {
+        ...context,
+        'docs/prds/features/f01_alpha/FEATURE.md': '# F-01 — Alpha\n',
+        'docs/prds/features/f02_beta/FEATURE.md': '# F-02 — Beta\n',
+        'docs/specs/INDEX.md': cycleIndex,
+        for (final folder in ['f01_alpha/q', 'z', 'f02_beta/q', 'y'])
+          'docs/specs/$folder/s02_api_n.md': '# S\n',
+      },
+    };
+
+    for (final MapEntry(key: reason, value: files) in trees.entries) {
+      for (final dryRun in [true, false]) {
+        final root = await gitFixture(files);
+        final before = _bytesUnder(root);
+        final out = StringBuffer();
+
+        await expectLater(
+          () => _run(root, out, dryRun: dryRun, answers: ['y']),
+          throwsA(
+            isA<MigrateFault>()
+                .having((f) => f.code, 'code', MigrateFaultCode.legacyCollision)
+                .having((f) => f.exitStatus, 'exit', 65),
+          ),
+          reason: '$reason, dry run $dryRun',
+        );
+
+        expect(out.toString(), isEmpty, reason: '$reason, dry run $dryRun');
+        expect(_bytesUnder(root), before, reason: '$reason, dry run $dryRun');
+      }
+    }
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('a dangling override and an upgrade collision refuse in the dry run '
+      'and in bare migrate, with nothing printed or written', () async {
+    final dangling = await gitFixture({
+      '.specstone/config.yaml': _belowSince,
+      '.specstone/templates/ghost.yaml':
+          'id: ghost\nsections:\n  - {id: body, header: Body}\n',
+    });
+    final (:project, :home) = await _upgradeFixture();
+    File('${project.path}/docs/prds/runbooks/deploy/RUNBOOK.md')
+        .writeAsStringSync(
+          '# Deploy\n\n## Steps\n\nRun it.\n\n'
+          '## Procedure\n\nHeld.\n',
+        );
+    commitAll(project, 'collide');
+    final cases = [
+      (root: dangling, home: null, code: MigrateFaultCode.overrideDangling),
+      (root: project, home: home, code: MigrateFaultCode.upgradeCollision),
+    ];
+
+    for (final (:root, :home, :code) in cases) {
+      for (final dryRun in [true, false]) {
+        final before = _bytesUnder(root);
+        final out = StringBuffer();
+
+        await expectLater(
+          () => _run(root, out, home: home, dryRun: dryRun, answers: ['y']),
+          throwsA(isA<MigrateFault>().having((f) => f.code, 'code', code)),
+          reason: '$code, dry run $dryRun',
+        );
+
+        expect(out.toString(), isEmpty, reason: '$code, dry run $dryRun');
+        expect(_bytesUnder(root), before, reason: '$code, dry run $dryRun');
+      }
+    }
   }, skip: hasGit ? null : 'git is not available');
 
   test('a legacy collision refuses in --dry-run and bare '
@@ -2462,6 +2830,273 @@ sections:
       );
       expect(MoveJournal.pendingMigrate(root), isTrue);
     }, skip: skipGit);
+
+    /// The refusal of a journal no run recorded, as a write command gives it.
+    Matcher unrecordedRefusal() =>
+        _journalRefusal('no Specstone run on this machine wrote it');
+
+    /// The refusal of a journal whose step [path] leaves the roots.
+    Matcher outsideRefusal(String path) => _journalRefusal(
+      'its step path $path leaves the project and docs roots',
+    );
+
+    WriteStep docWrite() => WriteStep(
+      'docs/prds/d01_context.md',
+      'replaced\n',
+      before: textHashOf(acmeLegacy['docs/prds/d01_context.md']!),
+    );
+
+    final outsideWrite = WriteStep(
+      '../outside.md',
+      'x\n',
+      before: textHashOf(''),
+    );
+
+    test('a dry run over an unrecorded journal, or one whose step leaves the '
+        'roots, refuses output_not_writable and prints nothing', () async {
+      final cases = [
+        (recorded: false, steps: [docWrite()], refusal: unrecordedRefusal()),
+        (
+          recorded: true,
+          steps: [docWrite(), outsideWrite],
+          refusal: outsideRefusal('../outside.md'),
+        ),
+      ];
+
+      for (final (:recorded, :steps, :refusal) in cases) {
+        final root = await gitFixture(acmeLegacy);
+        writeJournal(root, steps, recorded: recorded);
+        final before = treeBytes(root);
+        final out = StringBuffer();
+        final calls = <List<String>>[];
+
+        await expectLater(
+          () => _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
+          refusal,
+          reason: 'recorded $recorded',
+        );
+
+        expect(out.toString(), isEmpty, reason: 'recorded $recorded');
+        expect(calls, isEmpty, reason: 'recorded $recorded');
+        expect(treeBytes(root), before, reason: 'recorded $recorded');
+      }
+    }, skip: skipGit);
+
+    test('a bare run over an unrecorded journal, or one whose step leaves the '
+        'roots, refuses output_not_writable before any step', () async {
+      final cases = [
+        (recorded: false, steps: [docWrite()], refusal: unrecordedRefusal()),
+        (
+          recorded: true,
+          steps: [docWrite(), outsideWrite],
+          refusal: outsideRefusal('../outside.md'),
+        ),
+      ];
+
+      for (final (:recorded, :steps, :refusal) in cases) {
+        final root = await gitFixture(acmeLegacy);
+        writeJournal(root, steps, recorded: recorded);
+        final before = treeBytes(root);
+
+        await expectLater(
+          () => _run(root, StringBuffer(), answers: ['y']),
+          refusal,
+          reason: 'recorded $recorded',
+        );
+
+        expect(treeBytes(root), before, reason: 'recorded $recorded');
+        expect(MoveJournal.pending(root), isTrue, reason: 'recorded $recorded');
+      }
+    }, skip: skipGit);
+
+    test('a bare run over a migrate journal no run recorded refuses '
+        'output_not_writable after its git check, and the journal '
+        'stays', () async {
+      final root = await gitFixture(acmeLegacy);
+      writeJournal(root, [
+        docWrite(),
+        CommitStep(message: 'agent files', paths: const [], base: headOf(root)),
+      ], recorded: false);
+      final before = treeBytes(root);
+      final calls = <List<String>>[];
+
+      await expectLater(
+        () => _run(root, StringBuffer(), runGit: _fakeGit(calls)),
+        unrecordedRefusal(),
+      );
+
+      expect(calls, isNotEmpty);
+      expect(treeBytes(root), before);
+      expect(MoveJournal.pendingMigrate(root), isTrue);
+    }, skip: skipGit);
+
+    test('a bare run over a recorded migrate journal whose step leaves the '
+        'roots refuses with the message of the step path, before any '
+        'step', () async {
+      final root = await gitFixture(acmeLegacy);
+      writeJournal(root, [
+        docWrite(),
+        outsideWrite,
+        CommitStep(message: 'agent files', paths: const [], base: headOf(root)),
+      ]);
+      final before = treeBytes(root);
+
+      await expectLater(
+        () => _run(root, StringBuffer()),
+        outsideRefusal('../outside.md'),
+      );
+
+      expect(treeBytes(root), before);
+      expect(MoveJournal.pendingMigrate(root), isTrue);
+    }, skip: skipGit);
+
+    test('a commit git cannot start is git_failed, exit 75, naming the '
+        'command, and the journal stays', () async {
+      final root = await gitFixture(acmeLegacy);
+
+      await expectLater(
+        () => _run(
+          root,
+          StringBuffer(),
+          answers: ['y'],
+          runGit: (arguments, {required workingDirectory, environment}) =>
+              arguments.first == 'commit'
+              ? throw ProcessException('git', arguments, 'no process', 2)
+              : runRealGit(arguments, workingDirectory: workingDirectory),
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.gitFailed)
+              .having((f) => f.exitStatus, 'exit', 75)
+              .having(
+                (f) => f.message,
+                'message',
+                allOf(
+                  startsWith('git commit failed: cannot start git: '),
+                  endsWith(
+                    'fix the cause, then run specstone migrate at an '
+                    "interactive terminal, or with --yes after the Owner's "
+                    'ok in the chat, to finish the run',
+                  ),
+                ),
+              ),
+        ),
+      );
+
+      expect(MoveJournal.pendingMigrate(root), isTrue);
+    }, skip: skipGit);
+
+    test('a dry run over a journal with a step left refuses with the whole '
+        'working_tree_dirty message before any git call', () async {
+      final root = await gitFixture(acmeLegacy);
+      _writeF02Journal(root);
+      final calls = <List<String>>[];
+      final out = StringBuffer();
+
+      await expectLater(
+        () => _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
+              .having((f) => f.exitStatus, 'exit', 75)
+              .having(
+                (f) => f.message,
+                'message',
+                'the move journal (.specstone/trash/journal.json) has steps '
+                    'left; run specstone migrate to finish the move, commit '
+                    'it, and plan again',
+              ),
+        ),
+      );
+
+      expect(calls, isEmpty);
+      expect(out.toString(), isEmpty);
+    }, skip: skipGit);
+
+    test('a bare run replays a pending journal, then refuses a missing work '
+        'tree or a git below 2.25', () async {
+      final cases = [
+        (
+          git: _fakeGit([], outsideWorkTree: true),
+          message: isNot(contains('2.25')),
+        ),
+        (git: _fakeGit([], version: '2.24.0'), message: contains('2.25')),
+      ];
+
+      for (final (:git, :message) in cases) {
+        final root = await gitFixture({
+          '.specstone/config.yaml': shippedPinsConfig(),
+          'docs/prds/a.md': 'x\n',
+        });
+        writeJournal(root, [
+          const MoveStep('docs/prds/a.md', 'docs/prds/b.md'),
+        ]);
+
+        await expectLater(
+          () => _run(root, StringBuffer(), runGit: git),
+          throwsA(
+            isA<MigrateFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  MigrateFaultCode.gitWorkTreeRequired,
+                )
+                .having((f) => f.exitStatus, 'exit', 78)
+                .having((f) => f.message, 'message', message),
+          ),
+        );
+
+        expect(hasDoc(root, 'prds/a.md'), isFalse);
+        expect(hasDoc(root, 'prds/b.md'), isTrue);
+        expect(MoveJournal.pending(root), isFalse);
+      }
+    }, skip: skipGit);
+
+    test('--dry-run lists a commit step only when the git log lacks its '
+        'commit', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final made = StringBuffer();
+      expect(await _run(root, made, dryRun: true), 0);
+
+      expect(git(root, ['reset', '-q', '--soft', 'HEAD~1']).exitCode, 0);
+      final unmade = StringBuffer();
+      expect(await _run(root, unmade, dryRun: true), 0);
+
+      expect(made.toString(), isNot(contains('  commit "$_commit1Message"')));
+      expect(made.toString(), contains('  commit "$_commit2Message"'));
+      expect(unmade.toString(), contains('  commit "$_commit1Message"'));
+      expect(unmade.toString(), contains('  commit "$_commit2Message"'));
+    }, skip: skipGit);
+
+    test('a resume plan hash changes with the journal file, and --yes with the '
+        'old hash is plan_mismatch, exit 75', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      final hash = await _dryRunPlanHash(root);
+      final head = headOf(root);
+      final journal = File('${root.path}/${MoveJournal.journalPath}');
+      journal.writeAsStringSync('${journal.readAsStringSync()}\n');
+      recordJournalFile(root);
+      expect(await _dryRunPlanHash(root), isNot(hash));
+
+      await expectLater(
+        () => _run(
+          root,
+          StringBuffer(),
+          confirmation: OwnerConfirmation.given,
+          planHash: hash,
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.planMismatch)
+              .having((f) => f.exitStatus, 'exit', 75),
+        ),
+      );
+
+      expect(headOf(root), head);
+      expect(MoveJournal.pendingMigrate(root), isTrue);
+    }, skip: skipGit);
   });
 
   group('the dry run and apply share one preflight', () {
@@ -2882,6 +3517,236 @@ sections:
         expect(out.toString(), 'nothing to migrate\n');
       }
     });
+
+    test(
+      'an up-to-date project writes nothing, with or without --dry-run',
+      () async {
+        final root = await gitFixture({
+          '.specstone/config.yaml': shippedPinsConfig(),
+        });
+        final before = _bytesUnder(root);
+        final head = headOf(root);
+
+        for (final dryRun in [false, true]) {
+          final out = StringBuffer();
+
+          expect(await _run(root, out, dryRun: dryRun), 0);
+
+          expect(out.toString(), 'nothing to migrate\n', reason: '$dryRun');
+          expect(_bytesUnder(root), before, reason: '$dryRun');
+          expect(headOf(root), head, reason: '$dryRun');
+          expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+        }
+      },
+      skip: skipGit,
+    );
+  });
+
+  group('a migrate run at roots that wait for a trust record', () {
+    final skipGit = hasGit ? null : 'git is not available';
+
+    test('a bare run with no home folder refuses the trust record before the '
+        'missing home, and writes nothing', () async {
+      final tree = await _linkedTree();
+      if (tree == null) return;
+      final ws = Directory('${tree.path}/ws');
+      final before = treeBytes(ws);
+      final out = StringBuffer();
+
+      await expectLater(
+        () => runMigrate(
+          MigrateRequest(
+            workingDirectory: Directory('${ws.path}/code'),
+            homeDirectory: null,
+            templates: TemplateResolver(),
+            dryRun: false,
+            confirmation: OwnerConfirmation.prompt,
+            readLine: () => throw StateError('the refusal comes first'),
+            out: out,
+          ),
+        ),
+        _untrustedRefusal(tree),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(treeBytes(ws), before);
+    });
+
+    test('with no home folder, the plan refusal, the terminal check, and the '
+        'plan-hash check each come before the no-home refusal', () async {
+      final refusals = {
+        'a plan refusal': (
+          files: {
+            ...duplicateGroupLegacy,
+            'docs/prds/d01_context.md': '# D-01 — Context\n',
+          },
+          confirmation: OwnerConfirmation.prompt,
+          matcher: isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.groupSlugDuplicate,
+          ),
+        ),
+        'no interactive terminal': (
+          files: acmeLegacy,
+          confirmation: OwnerConfirmation.missing,
+          matcher: isA<WriteFault>().having(
+            (f) => f.code,
+            'code',
+            WriteFaultCode.ownerTerminalRequired,
+          ),
+        ),
+        'a stale plan hash under --yes': (
+          files: acmeLegacy,
+          confirmation: OwnerConfirmation.given,
+          matcher: isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.planMismatch,
+          ),
+        ),
+      };
+
+      for (final MapEntry(key: reason, value: refusal) in refusals.entries) {
+        final root = await gitFixture(refusal.files);
+        final before = treeBytes(root);
+
+        await expectLater(
+          () => runMigrate(
+            MigrateRequest(
+              workingDirectory: root,
+              homeDirectory: null,
+              templates: TemplateResolver(),
+              dryRun: false,
+              confirmation: refusal.confirmation,
+              planHash: '000000000000',
+              readLine: () => 'y',
+              out: StringBuffer(),
+            ),
+          ),
+          throwsA(refusal.matcher),
+          reason: reason,
+        );
+
+        expect(treeBytes(root), before, reason: reason);
+        expect(MoveJournal.pending(root), isFalse, reason: reason);
+      }
+    }, skip: skipGit);
+
+    test('a bare run over a pending journal refuses before its replay and any '
+        'git call, and leaves the journal', () async {
+      final tree = await _linkedTree();
+      if (tree == null) return;
+      final ws = Directory('${tree.path}/ws');
+      _writeF02Journal(ws);
+      final before = treeBytes(ws);
+      final calls = <List<String>>[];
+      final out = StringBuffer();
+
+      await expectLater(
+        () => _run(
+          Directory('${ws.path}/code'),
+          out,
+          answers: ['y'],
+          runGit: _fakeGit(calls),
+        ),
+        _untrustedRefusal(tree),
+      );
+
+      expect(calls, isEmpty);
+      expect(out.toString(), isEmpty);
+      expect(treeBytes(ws), before);
+      expect(MoveJournal.pending(ws), isTrue);
+    });
+
+    test('a write command refuses to replay a pending journal, leaves it, and '
+        'changes nothing', () async {
+      final tree = await _linkedTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      if (tree == null) return;
+      final ws = Directory('${tree.path}/ws');
+      _writeF02Journal(ws);
+      final journal = File('${ws.path}/${MoveJournal.journalPath}');
+      final journalBytes = journal.readAsBytesSync();
+      final before = _bytesUnder(ws);
+
+      await expectLater(
+        () => writeIn(Directory('${ws.path}/code'), (session) {}),
+        _untrustedRefusal(tree),
+      );
+
+      // Opening the project makes the index `.gitignore`, as any read does.
+      expect(_bytesUnder(ws)..remove('.specstone/.gitignore'), before);
+      expect(journal.readAsBytesSync(), journalBytes);
+    });
+
+    test('a dry run refuses before the plan and before it reads a journal, '
+        'with a pending journal or none', () async {
+      final journals = <String, void Function(Directory)>{
+        'no journal': (_) {},
+        'a journal that does not parse': (ws) {
+          File('${ws.path}/${MoveJournal.journalPath}')
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync('{');
+          recordJournalFile(ws);
+        },
+        'a journal with a step left': _writeF02Journal,
+      };
+
+      for (final MapEntry(key: reason, value: write) in journals.entries) {
+        final tree = await _linkedTree();
+        if (tree == null) return;
+        final ws = Directory('${tree.path}/ws');
+        write(ws);
+        final before = treeBytes(ws);
+        final calls = <List<String>>[];
+        final out = StringBuffer();
+
+        await expectLater(
+          () => _run(
+            Directory('${ws.path}/code'),
+            out,
+            dryRun: true,
+            runGit: _fakeGit(calls),
+          ),
+          _untrustedRefusal(tree),
+          reason: reason,
+        );
+
+        expect(calls, isEmpty, reason: reason);
+        expect(out.toString(), isEmpty, reason: reason);
+        expect(treeBytes(ws), before, reason: reason);
+      }
+    });
+
+    test(
+      'a bare resume refuses before its git check and writes nothing',
+      () async {
+        final tree = await _linkedTree({'.gitignore': 'code/docs\n'});
+        if (tree == null) return;
+        final ws = Directory('${tree.path}/ws');
+        commitRepo(ws);
+        _stopAfterCommit1(ws);
+        final before = treeBytes(ws);
+        final head = headOf(ws);
+        final calls = <List<String>>[];
+        final out = StringBuffer();
+
+        await expectLater(
+          () =>
+              _run(Directory('${ws.path}/code'), out, runGit: _fakeGit(calls)),
+          _untrustedRefusal(tree),
+        );
+
+        expect(calls, isEmpty);
+        expect(out.toString(), isEmpty);
+        expect(treeBytes(ws), before);
+        expect(headOf(ws), head);
+        expect(MoveJournal.pendingMigrate(ws), isTrue);
+      },
+      skip: skipGit,
+    );
   });
 
   group('a planned create onto a path that holds an entry', () {
