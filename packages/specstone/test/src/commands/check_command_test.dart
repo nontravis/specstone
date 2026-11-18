@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart'
     show recordsRootTemplates;
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart'
     show getDoc, testHome;
@@ -112,6 +113,65 @@ void main() {
           containsPair('actual', 18),
         ),
       ],
+    );
+  });
+
+  test('a banned word in a feature summary is reported once, at the summary, '
+      'and not in the catalog block that copies it', () async {
+    const featuresDoc = 'docs/prds/FEATURES.md';
+    const featureDoc = 'docs/prds/features/f01_shop/FEATURE.md';
+    const layerLint = 'lint:\n  banned_words: [fast]\n';
+    final project = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+      '.specstone/templates/feature.yaml': layerLint,
+      '.specstone/templates/features.yaml': layerLint,
+      featuresDoc:
+          '---\napproved: "0123456789ab"\n---\n\n# Feature map\n\n'
+          '## Features\n\n## System interaction diagram\n\n'
+          '```mermaid\nflowchart LR\n  Owner --> Shop\n```\n\n'
+          '## Systems\n\n| System | Description |\n|---|---|\n'
+          '| Shop | Sells goods. |\n',
+      featureDoc:
+          '---\nsummary: Lets a shopper buy fast.\nvision:\n  - PV-01\n'
+          'goals:\n  - PG-01\n---\n\n# Shop\n\n## Problem\nNeed it.\n',
+      'docs/prds/features/f01_shop/us01_greet/USER_STORY.md':
+          '---\nstatus: implemented\n---\n\n# Agent uses it\n\n'
+          '## Use Case\nUse it.\n',
+    });
+    final format = await Process.run(binary, [
+      'format',
+      featuresDoc,
+    ], workingDirectory: project.path);
+    expect(format.exitCode, 0, reason: '${format.stdout}\n${format.stderr}');
+    final catalog = File('${project.path}/$featuresDoc').readAsStringSync();
+    expect(catalog, contains('Lets a shopper buy fast.'));
+
+    final check = await Process.run(binary, [
+      'check',
+      '--json',
+    ], workingDirectory: project.path);
+    final findings =
+        (jsonDecode(check.stdout as String)
+                as Map<String, Object?>)['findings']!
+            as List<Object?>;
+    final summaryLine =
+        File('${project.path}/$featureDoc')
+            .readAsLinesSync()
+            .indexWhere((text) => text.startsWith('summary:')) +
+        1;
+    expect(
+      findings.cast<Map<String, Object?>>().where(
+        (finding) => finding['kind'] == 'banned_word',
+      ),
+      [
+        allOf(
+          containsPair('docPath', 'prds/features/f01_shop/FEATURE.md'),
+          containsPair('line', summaryLine),
+          containsPair('word', 'fast'),
+          containsPair('field', 'summary'),
+        ),
+      ],
+      reason: '${check.stdout}\n${check.stderr}',
     );
   });
 
