@@ -157,6 +157,36 @@ void main() {
     },
   );
 
+  test('check reports no banned word in a doc of any software-tech doc type '
+      'whose sections all hold banned words', () async {
+    final merged = await resolveSoftwareTech();
+    final specDocs = <String, String>{};
+    for (final id in softwareTechIds) {
+      final type = merged.lookup(id)!;
+      final path = type.path!
+          .replaceAll('{nn}', '01')
+          .replaceAll('{slug}', 'sample');
+      final sections = [
+        for (final section in type.sections)
+          '## ${section.header}\n\nThis is fast and easy.\n',
+      ];
+      specDocs[path.startsWith('.specstone/') ? path : 'docs/$path'] =
+          '# Sample $id\n\n${sections.join('\n')}';
+    }
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...specDocs,
+          ...fr(
+            checkPasswordStatement,
+            'The system shall refuse a wrong password fast.',
+          ),
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.bannedWord), ['$loginFr:14: banned_word']);
+  });
+
   test(
     'a banned-word finding names the template section id, not the header slug',
     () async {
