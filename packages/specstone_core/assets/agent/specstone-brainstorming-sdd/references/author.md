@@ -51,7 +51,7 @@ doc; list any other under `Findings:`.
 ## 4. Check
 
 Run a bare `specstone check` before your first write and after your last. Before the second, walk each item you
-wrote against the guide's description lines (doc part, held sections, `Fields:`), not templates or
+wrote against the saved guide's description lines (doc part, held sections, `Fields:`), not templates or
 `Banned words:`, `Required …`, `Optional …`, or any `Limits:` line; two edge cases of one response break `fr`'s
 distinct-response line. List a line you cannot meet under `Findings:`. Then run
 `specstone check <feature> --repeats` per feature of your drafts: new draft text repeating another doc's item links
