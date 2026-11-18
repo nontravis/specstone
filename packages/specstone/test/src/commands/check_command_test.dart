@@ -9,6 +9,8 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
+import '../../../../specstone_core/test/helpers/posix_modes.dart'
+    show unreadablePathSkipReason;
 import '../../../../specstone_core/test/helpers/record_fixture.dart'
     show recordsRootTemplates;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart'
@@ -256,7 +258,188 @@ void main() {
         expect(out.toString(), isEmpty);
       },
     );
+
+    test(
+      'an implements file that refuses reading warns on stderr and in warnings, and the run goes on',
+      skip: unreadablePathSkipReason(),
+      () async {
+        const warning =
+            'app/lib/login.dart: cannot read the file; implements Symbols in it are not checked';
+        final project = await writeCheckProject();
+        final file = '${project.path}/app/lib/login.dart';
+        Process.runSync('chmod', ['000', file]);
+        addTearDown(() => Process.runSync('chmod', ['644', file]));
+
+        final text = readRunner(project);
+        final textStatus = await text.runner.run(['check']);
+        final json = readRunner(project);
+        final jsonStatus = await json.runner.run(['check', '--json']);
+
+        expect(text.err.toString(), contains('⚠️ WARNING: $warning\n'));
+        expect([textStatus, jsonStatus], everyElement(anyOf(0, 1)));
+        final printed = jsonDecode(json.out.toString()) as Map;
+        expect(printed['warnings'], contains(warning));
+        expect(json.err.toString(), isEmpty);
+      },
+    );
+
+    // The first entry records a fingerprint the file no longer has; the
+    // second records the current one.
+    Future<Directory> suspectProject() => writeCheckProject(
+      extra: edit(loginRecord, [
+        (
+          "email_login:app/lib/login.dart:SignInPage'",
+          "email_login:app/lib/login.dart:SignInPage 0123456789ab'",
+        ),
+        (
+          "email_login/check_password:app/lib/login.dart:checkPassword'",
+          "email_login/check_password:app/lib/login.dart:checkPassword $current'",
+        ),
+      ]),
+      unfingerprinted: {loginRecord},
+    );
+
+    test(
+      'a code_suspect link counts toward no doc of list --suspect',
+      () async {
+        final project = await suspectProject();
+        final checked = readRunner(project);
+        expect(await checked.runner.run(['check']), 1);
+        expect(checked.out.toString(), contains(': code_suspect: '));
+
+        final (:runner, :out, :err) = readRunner(project);
+
+        expect(await runner.run(['list', 'fr', '--suspect']), 0);
+        expect(out.toString(), isEmpty);
+      },
+    );
+
+    test('a run with one code_suspect and no other finding exits 1', () async {
+      final (:runner, :out, :err) = readRunner(await suspectProject());
+
+      expect(await runner.run(['check']), 1, reason: out.toString());
+      final lines = out.toString().trimRight().split('\n');
+      final findingLines = [
+        for (final line in lines)
+          if (RegExp(r'^\S+:\d+: ').hasMatch(line)) line,
+      ];
+      expect(findingLines, hasLength(1), reason: out.toString());
+      expect(findingLines.single, contains(': code_suspect: '));
+      expect(lines.last, '1 finding');
+    });
   });
+
+  test('outside a project check --json exits 78 with project_not_found and prints nothing on stdout', () async {
+    final (:runner, :out, :err) = readRunner(await writeTree({}));
+    expect(await runner.run(['check', '--json']), 78);
+    expect(out.toString(), isEmpty);
+    expect(
+      (jsonDecode(err.toString()) as Map)['error'],
+      containsPair('code', 'project_not_found'),
+    );
+  });
+
+  test('a pack pin fault and a template syntax fault exit 78 with their own codes and no finding', () async {
+    for (final (extra, code) in [
+      (
+        {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
+        'pack_pin_newer',
+      ),
+      (
+        {'.specstone/templates/fr.yaml': 'sections: [unclosed\n'},
+        'yaml_syntax',
+      ),
+    ]) {
+      final (:runner, :out, :err) = readRunner(
+        await writeCheckProject(extra: extra),
+      );
+      expect(await runner.run(['check', '--json']), 78, reason: code);
+      expect(out.toString(), isEmpty, reason: code);
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        containsPair('code', code),
+      );
+    }
+  });
+
+  test(
+    'an index the refresh cannot write is index_not_writable, exit 73, with no finding',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await writeCheckProject();
+      expect(await readRunner(project).runner.run(['check']), 0);
+      final index = File('${project.path}/.specstone/index.sqlite');
+      Process.runSync('chmod', ['444', index.path]);
+      addTearDown(() => Process.runSync('chmod', ['644', index.path]));
+      File('${project.path}/docs/$loginFeature')
+          .writeAsStringSync('# Login v2\n');
+
+      final (:runner, :out, :err) = readRunner(project);
+
+      expect(await runner.run(['check', '--json']), 73);
+      expect(out.toString(), isEmpty);
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        containsPair('code', 'index_not_writable'),
+      );
+    },
+  );
+
+  test('a #<section key> or an @<hash> after a name is argument_invalid, exit 64, with the stated message and no finding', () async {
+    for (final target in ['login#problem', 'feature:login@0123456789ab']) {
+      final (:runner, :out, :err) = readRunner(await writeCheckProject());
+      expect(await runner.run(['check', target]), 64, reason: target);
+      expect(
+        err.toString(),
+        '$target: this command takes no #<section key> or @<hash>\n',
+      );
+      expect(out.toString(), isEmpty, reason: target);
+    }
+  });
+
+  test('an unknown option prints the usage on stderr and exits 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeCheckProject());
+    expect(await runner.run(['check', '--fix']), 64);
+    expect(
+      err.toString(),
+      startsWith('Could not find an option named "--fix".'),
+    );
+    expect(err.toString(), contains('Usage: specstone check [<target>]'));
+    expect(out.toString(), isEmpty);
+  });
+
+  test('a name with a #suffix that no doc carries is doc_not_found, exit 64, with no finding', () async {
+    final (:runner, :out, :err) = readRunner(await writeCheckProject());
+    expect(await runner.run(['check', 'nothere#x', '--json']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      (jsonDecode(err.toString()) as Map)['error'],
+      containsPair('code', 'doc_not_found'),
+    );
+  });
+
+  test(
+    'a refused verification_coverage value exits 78 with no finding',
+    () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}verification_coverage: 3\n',
+          },
+        ),
+      );
+      expect(await runner.run(['check', '--json']), 78);
+      expect(out.toString(), isEmpty);
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        allOf(
+          containsPair('code', 'unknown_value'),
+          containsPair('key', 'verification_coverage'),
+        ),
+      );
+    },
+  );
 
   test('a name no doc carries refuses, exit 64, no finding', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
@@ -854,6 +1037,20 @@ void main() {
       expect(lines, hasLength(1));
       expect(lines.single, startsWith('==> check: '));
       expect(lines.single, contains(file.resolveSymbolicLinksSync()));
+    });
+
+    test('the stdout header reads ==> check: <lines> lines, <tokens> tokens · <path> <==', () async {
+      final project = await oneFinding();
+      final run = readRunner(project);
+      expect(await run.runner.run(['check', '--out']), 1);
+      final file = File('${project.path}/.specstone/reports/check.all.txt');
+      final path = file.resolveSymbolicLinksSync();
+      final header = RegExp(
+        '^==> check: (\\d+) lines, (\\d+) tokens · ${RegExp.escape(path)} <==\\n\$',
+      ).firstMatch(run.out.toString());
+      expect(header, isNotNull, reason: run.out.toString());
+      expect(int.parse(header!.group(1)!), file.readAsLinesSync().length);
+      expect(int.parse(header.group(2)!), greaterThan(0));
     });
 
     test('--repeats --out names its file check-repeats.all.txt', () async {
@@ -1466,6 +1663,33 @@ void main() {
         contains('$loginArchitecture:$_refusedDocLine: diagram_parse_failed:'),
       );
     }, skip: noNode);
+
+    test(
+      'a run whose parse results cannot be stored prints its findings and warns, with the usual exit status',
+      skip: noNode ?? unreadablePathSkipReason(),
+      () async {
+        final project = await writeCheckProject(extra: _architectureWith());
+        // A run with no Node builds the index and stores no parse result.
+        await check(project, environment: await _environmentWithoutNode());
+        final index = File('${project.path}/.specstone/index.sqlite');
+        Process.runSync('chmod', ['444', index.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', index.path]));
+
+        final run = await check(project);
+
+        expect(run.exitCode, 1, reason: '${run.stdout}\n${run.stderr}');
+        expect(
+          run.stdout,
+          contains(
+            '$loginArchitecture:$_refusedDocLine: diagram_parse_failed: Parse error on line 3:',
+          ),
+        );
+        expect(
+          run.stderr,
+          '⚠️ WARNING: Mermaid parse results not stored: index_not_writable\n',
+        );
+      },
+    );
 
     test('--json carries the skip warning in warnings', () async {
       final project = await writeCheckProject(extra: _architectureWith());
