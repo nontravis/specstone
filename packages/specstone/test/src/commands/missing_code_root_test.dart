@@ -15,6 +15,10 @@ void main() {
       ['list', 'user_story'],
       ['get', 'user_story:login/email_login#use_case'],
       ['search', 'email'],
+      ['structure'],
+      ['refs', 'user_story:login/email_login'],
+      ['folder'],
+      ['guide', 'user_story'],
       ['context', 'user_story:login/email_login', '--for', 'implement'],
     ]) {
       final (:runner, :out, :err) = writeRunner(root);
