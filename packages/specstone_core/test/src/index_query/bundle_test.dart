@@ -3,6 +3,7 @@
 
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
+import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -810,6 +811,144 @@ void main() {
       expect(b.nameListTops, isEmpty);
     },
   );
+  test(
+    'a story design bundle marks the feature spec docs as ancestor spec docs',
+    () {
+      final b = pickBundle(
+        index,
+        'login/email_login',
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.ancestorSpecPaths, specs);
+      expect(b.hasAncestorSpecs, isTrue);
+      expect(b.targetSubtreePaths, {
+        '$us01/USER_STORY.md',
+        '$us01/fr01_validate_credentials.md',
+        '$us01/fr02_lock_after_failures.md',
+        '$us01/nf01_login_latency.md',
+      });
+    },
+  );
+  test('an fr design bundle marks the subtree of its story', () {
+    final story = pickBundle(
+      index,
+      'login/email_login',
+      BundleMode.design,
+      noProject: false,
+    );
+    for (final t in [
+      'login/email_login/validate_credentials',
+      'login/email_login/login_latency',
+    ]) {
+      final b = pickBundle(index, t, BundleMode.design, noProject: false);
+      expect(b.ancestorSpecPaths, story.ancestorSpecPaths, reason: t);
+      expect(b.targetSubtreePaths, story.targetSubtreePaths, reason: t);
+      expect(b.targetSubtreePaths, hasLength(4), reason: t);
+    }
+  });
+  test(
+    'a nested story marks the spec docs of every feature above it',
+    () async {
+      final b = pickBundle(
+        await nestedIndexWith(),
+        'shop/cart/add_item',
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.ancestorSpecPaths, {cartDomain, ...shopSpecs});
+      expect(b.targetSubtreePaths, {cartAdd, cartAddFr});
+    },
+  );
+  test(
+    'a sub-feature target keeps its own spec docs out of the ancestor set',
+    () async {
+      final b = pickBundle(
+        await nestedIndexWith(),
+        'shop/cart',
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.ancestorSpecPaths, shopSpecs);
+      expect(b.ancestorSpecPaths, isNot(contains(cartDomain)));
+      expect(b.targetSubtreePaths, {
+        cartFeature,
+        cartDomain,
+        cartAdd,
+        cartAddFr,
+        cartDrop,
+      });
+    },
+  );
+  test(
+    'a summary sub-feature target takes its whole subtree as target subtree',
+    () async {
+      final b = pickBundle(
+        await nestedIndexWith(),
+        'shop/cart',
+        BundleMode.design,
+        noProject: false,
+        summary: true,
+      );
+      expect(b.ancestorSpecPaths, shopSpecs);
+      expect(b.targetSubtreePaths, {
+        cartFeature,
+        cartDomain,
+        cartAdd,
+        cartAddFr,
+        cartDrop,
+      });
+    },
+  );
+  test('a top feature target has no ancestor spec docs', () {
+    for (final summary in [false, true]) {
+      final b = pickBundle(
+        index,
+        'login',
+        BundleMode.design,
+        noProject: false,
+        summary: summary,
+      );
+      expect(b.ancestorSpecPaths, isEmpty, reason: 'summary $summary');
+      expect(b.hasAncestorSpecs, isFalse, reason: 'summary $summary');
+      expect(b.targetSubtreePaths, {
+        for (final d in index.subtreeOf(index.at('$f/FEATURE.md')!)) d.docPath,
+      }, reason: 'summary $summary');
+    }
+  });
+  test('a code path bundle has no ancestor spec docs', () async {
+    final project = await writeLoginProject(extra: loginRecords);
+    final session = openSession(project);
+    addTearDown(session.close);
+    final b = pickCodeBundle(
+      session.index,
+      resolveCodePath(
+        'app/lib/src/login/credential_validator.dart',
+        workingDirectory: project,
+        targets: session.project.targets,
+        codeRootOf: session.project.codeRootOf,
+      ),
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, isNotEmpty);
+    expect(b.ancestorSpecPaths, isEmpty);
+    expect(b.hasAncestorSpecs, isFalse);
+    expect(b.targetSubtreePaths, isEmpty);
+  });
+  test('implement and query bundles have no ancestor spec docs', () async {
+    final nested = await nestedIndexWith();
+    for (final mode in [BundleMode.implement, BundleMode.query]) {
+      for (final (i, target) in [
+        (index, 'login/email_login'),
+        (nested, 'shop/cart/add_item'),
+      ]) {
+        final b = pickBundle(i, target, mode, noProject: false);
+        expect(b.ancestorSpecPaths, isEmpty, reason: '${mode.wire} $target');
+        expect(b.targetSubtreePaths, isEmpty, reason: '${mode.wire} $target');
+      }
+    }
+  });
   test('preflight F12 c: BundleMode wires match bundleModeWires', () {
     expect(BundleMode.values.map((m) => m.wire).toSet(), bundleModeWires);
   });
@@ -1091,6 +1230,25 @@ void main() {
         }
       }
     });
+
+    test(
+      'a design out bundle keeps no ancestor spec doc of another code target',
+      () async {
+        final b = pickBundle(
+          await toastIndex(),
+          'feedback/toast/show',
+          BundleMode.design,
+          noProject: false,
+          codeTarget: 'jaspr',
+        );
+        expect(b.ancestorSpecPaths, contains(jasprArch));
+        expect(
+          b.ancestorSpecPaths.where((p) => p.startsWith('specs/flutter/')),
+          isEmpty,
+        );
+        expect(b.targetSubtreePaths, {showStory});
+      },
+    );
 
     test('f01/us05/fr02: two targets change no trim order in implement', () async {
       final index = await toastIndex();
