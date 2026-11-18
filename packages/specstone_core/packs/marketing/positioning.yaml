@@ -1,0 +1,32 @@
+id: positioning
+description: |-
+  The positioning doc: the competitive alternatives, unique attributes, value, best-fit customers, and market category of the project's product.
+  Title it `# Positioning`, with no number.
+  Start from the competitive alternatives; each other section depends on them.
+  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
+  A learning edits the doc it corrects.
+path: specs/marketing/POSITIONING.md
+sections:
+  - id: competitive_alternatives
+    header: Competitive alternatives
+    description: |-
+      List what customers would do if the product did not exist.
+  - id: unique_attributes
+    header: Unique attributes
+    description: |-
+      List what the product has that the competitive alternatives lack.
+  - id: value
+    header: Value
+    description: |-
+      Write the value each unique attribute gives the customer.
+  - id: best_fit_customers
+    header: Best fit customers
+    description: |-
+      Describe the customers who care most about that value.
+  - id: market_category
+    header: Market category
+    description: |-
+      Name the category the product competes in, which sets what the customer compares it with.
+reference:
+  - title: April Dunford, A Quickstart Guide to Positioning
+    url: https://www.aprildunford.com/post/a-quickstart-guide-to-positioning

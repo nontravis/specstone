@@ -15,7 +15,7 @@ import 'package:specstone_core/src/index_query/item_facts.dart'
     show itemKeyOfHead;
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
-import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart'
     show recordItemsOf;

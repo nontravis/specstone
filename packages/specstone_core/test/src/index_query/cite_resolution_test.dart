@@ -1,9 +1,10 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
-import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/cite_resolution.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
+import 'package:specstone_core/src/index_query/models/cite_item.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -23,7 +24,12 @@ CiteCandidate _cite(
   String written, {
   String? sectionKey,
   List<String> itemIds = const [],
-}) => (line: 1, written: written, sectionKey: sectionKey, itemIds: itemIds);
+}) => CiteCandidate(
+  line: 1,
+  written: written,
+  sectionKey: sectionKey,
+  itemIds: itemIds,
+);
 
 Future<DocIndex> _index() => indexWith(_domainWithInvariants);
 
@@ -49,7 +55,11 @@ void main() {
         expect(link.docPath, _domain);
         expect(link.sectionKey, isNull);
         expect(link.items, [
-          (itemId: 'INV-6', sectionKey: 'invariants', anchor: 'invariants'),
+          const CiteItem(
+            itemId: 'INV-6',
+            sectionKey: 'invariants',
+            anchor: 'invariants',
+          ),
         ]);
         expect(link.linkText, 'domain:login');
         expect(

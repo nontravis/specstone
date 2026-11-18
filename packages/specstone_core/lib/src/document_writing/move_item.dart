@@ -12,7 +12,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show itemKeyOfHead, sectionItemsAt;
 import 'package:specstone_core/src/index_query/item_links.dart'
-    show ItemCite, citedSectionsOf;
+    show citedSectionsOf;
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 

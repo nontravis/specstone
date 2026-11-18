@@ -1,0 +1,19 @@
+id: loyalty
+description: |-
+  The loyalty doc: how the project keeps and rewards loyal customers.
+  Title it `# Loyalty`, with no number.
+  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
+  A learning edits the doc it corrects.
+path: specs/marketing/LOYALTY.md
+sections:
+  - id: retention
+    header: Retention
+    description: |-
+      Write how the project keeps customers after the first purchase.
+  - id: rewards
+    header: Rewards
+    description: |-
+      Write what the project gives loyal customers, and for which actions.
+reference:
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

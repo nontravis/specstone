@@ -10,6 +10,12 @@ import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
+import 'package:specstone_core/src/index_query/models/item_range.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show nameWithType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -151,7 +157,7 @@ List<CitedItem> citedItemsIn(
     if (within != null && (line < within.first || within.last < line)) {
       continue;
     }
-    found.add((id: anchor, extent: (first: line, last: line), by: by));
+    found.add((id: anchor, extent: LineRange(first: line, last: line), by: by));
   }
   // An item nested in another ends no later than it, so it prints first.
   found.sort((a, b) {
@@ -335,7 +341,7 @@ List<CitedPlace> _citesOn(
   }
   final ranges = itemRangesOn(reader.lineText(line), [
     for (final (:link, :cite, target: _, at: _) in classified)
-      (link: link, cite: cite),
+      ClassifiedLink(link: link, cite: cite),
   ]);
   final rangeFrom = {for (final range in ranges) range.first.link: range};
   final rangeEnds = {for (final range in ranges) range.last.link};

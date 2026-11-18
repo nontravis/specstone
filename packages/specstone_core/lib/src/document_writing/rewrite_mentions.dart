@@ -10,6 +10,7 @@ import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;
 import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 
@@ -88,7 +89,7 @@ CountedRewrite? rewritePathMentions(
 /// reads them.
 List<bool> _destinationMask(String body) {
   final mask = List.filled(body.length, false);
-  for (final (:start, :end, link: _, kind: _) in linkScanOf(
+  for (final ScannedDestination(:start, :end) in linkScanOf(
     body,
     firstLine: 1,
   ).destinations) {

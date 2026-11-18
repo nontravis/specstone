@@ -1,4 +1,6 @@
+import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:test/test.dart';
 
@@ -34,18 +36,28 @@ void main() {
 
   for (final MapEntry(key: headerName, value: headerLine) in headers.entries) {
     for (final MapEntry(key: bodyName, value: body) in bodies.entries) {
-      test('$headerName, $bodyName: counts what split and runes count', () {
+      test('$headerName, $bodyName: counts the body by split and runes', () {
         final section = IndexedSection(
           key: 'statement',
           headerLine: headerLine,
           body: body,
         );
         final counts = sectionCountsOf(section);
-        expect(counts.lines, nonBlankLinesOf(section.text.split('\n')));
-        expect(counts.chars, section.text.runes.length);
+        final text = body.endsWith('\n')
+            ? body.substring(0, body.length - 1)
+            : body;
+        expect(counts.lines, nonBlankLinesOf(text.split('\n')));
+        expect(counts.chars, text.runes.length);
       });
     }
   }
+
+  test('a blank line and a 165-character paragraph store line count 1 and '
+      'code-point count 166', () {
+    final text = '# Title\n\n## Statement\n\n${'x' * 165}\n';
+    final counts = DocLines.of(text).sectionCounts.single;
+    expect(counts, const SectionCounts(lines: 1, chars: 166));
+  });
 }
 
 /// The non-blank lines of [lines], the expected section count.

@@ -17,6 +17,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';

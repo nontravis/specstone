@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart'
     show markdownUnparsedWarning;
+import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -533,7 +534,7 @@ void main() {
         final (:result, :store) = refresh(project);
         expect(result.fullBuild, isTrue);
         expect(store.loadContent('note.md').lineFacts.tbrMarkers, [
-          (line: 3, rest: 'pick a value.'),
+          const TbrMarkerPlace(line: 3, rest: 'pick a value.'),
         ]);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);

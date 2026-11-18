@@ -21,6 +21,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
     show withEntriesRestamped;

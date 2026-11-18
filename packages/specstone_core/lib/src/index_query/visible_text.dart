@@ -9,7 +9,8 @@ import 'package:specstone_core/src/index_query/link_blocks.dart'
 import 'package:specstone_core/src/index_query/link_places.dart'
     show parserReadSourcesOf;
 import 'package:specstone_core/src/index_query/link_scan.dart'
-    show LinkSource, linkSourcesOf;
+    show linkSourcesOf;
+import 'package:specstone_core/src/index_query/models/link_source.dart';
 
 /// The text of a body a reader never sees: the markup of each inline link,
 /// reference link, and image the markdown parser reads, and each link

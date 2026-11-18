@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/index_query/link_scan.dart'
-    show LinkScan, linkScanOf;
+import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
 
 /// One doc body read once: its links, its prose, and where each line starts.
 final class BodyScan {

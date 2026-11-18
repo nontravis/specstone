@@ -4,6 +4,7 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
+import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -164,7 +165,15 @@ final class _ListedFile {
   final FileStatKey? stat;
 
   /// The bytes and their hash; null while the stored hash is trusted.
-  ({List<int> bytes, String hash})? content;
+  _FileContent? content;
+}
+
+/// A listed file's bytes and their hash.
+final class _FileContent {
+  const new({required this.bytes, required this.hash});
+
+  final List<int> bytes;
+  final String hash;
 }
 
 /// The `.md` files of one refresh, each read at most once.
@@ -257,7 +266,7 @@ final class _Listing {
   bool _read(String docPath, _ListedFile listed) {
     try {
       final bytes = listed.file.readAsBytesSync();
-      listed.content = (bytes: bytes, hash: contentHashOf(bytes));
+      listed.content = _FileContent(bytes: bytes, hash: contentHashOf(bytes));
       hashed++;
       return true;
     } on FileSystemException {
@@ -273,7 +282,7 @@ final class _Listing {
 FileStatKey? _statKeyOf(File file) {
   final stat = file.statSync();
   if (stat.type != FileSystemEntityType.file) return null;
-  return (
+  return FileStatKey(
     size: stat.size,
     modified: stat.modified.microsecondsSinceEpoch,
     changed: stat.changed.microsecondsSinceEpoch,

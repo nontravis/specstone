@@ -7,9 +7,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show statusPartOf;
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/record_status.dart';
 
 /// The kind of the block that lists the top features.
 const featureCatalogKind = 'feature_catalog';

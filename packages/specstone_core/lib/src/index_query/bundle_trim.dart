@@ -1,12 +1,14 @@
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/html_comments.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
-    show CitedSection, citedSectionsOf;
-import 'package:specstone_core/src/index_query/line_facts.dart' show LineRange;
+    show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -180,7 +182,7 @@ List<IndexedSection> summarySectionsOf(
 /// starts on the line after its header.
 LineRange _bodyRangeOf(DocContent content, int at, String printed) {
   final first = content.lineFacts.sectionLines[at] + 1;
-  return (first: first, last: first + lineCountOf(printed) - 1);
+  return LineRange(first: first, last: first + lineCountOf(printed) - 1);
 }
 
 /// Returns the `summary_rows` count of the merged section [key] of [docType],
@@ -323,10 +325,7 @@ String printedBodyOf(
 }) {
   final printed = removeHtmlComments(text).trimRight();
   if (after.isEmpty) return printed;
-  final comments = [
-    for (final (:start, :end) in commentRangesOf(text))
-      _CommentRange(start: start, end: end),
-  ];
+  final comments = commentRangesOf(text);
   final lineEnds = _lineEndsOf(text);
   final out = StringBuffer();
   var from = 0;
@@ -351,20 +350,11 @@ List<int> _lineEndsOf(String text) {
   return ends..add(text.length);
 }
 
-/// An HTML comment's offsets in the original text, `end` past its last
-/// character.
-final class _CommentRange {
-  const new({required this.start, required this.end});
-
-  final int start;
-  final int end;
-}
-
 /// Returns where [offset] of the original text falls once [comments] are
 /// removed.
-int _keptOffset(int offset, List<_CommentRange> comments) {
+int _keptOffset(int offset, List<TextRange> comments) {
   var removed = 0;
-  for (final _CommentRange(:start, :end) in comments) {
+  for (final TextRange(:start, :end) in comments) {
     if (start >= offset) break;
     removed += (end < offset ? end : offset) - start;
   }
