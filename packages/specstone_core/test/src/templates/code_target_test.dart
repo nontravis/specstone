@@ -2,7 +2,7 @@ import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('doc_model RULE-20: twinNamesOf', () {
+  group('twinNamesOf', () {
     test('two or more names read per-target folders, in config order', () {
       expect(twinNamesOf(['flutter', 'jaspr']), ['flutter', 'jaspr']);
     });

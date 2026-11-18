@@ -85,7 +85,7 @@ void main() {
     expect(text, contains('  s4 --> s5'));
   });
 
-  test('f10/us01/s3, f10/us01/fr04/e04, f05/us03/s2, f05/us03/fr01/e01: a '
+  test('a '
       'step added by hand gets its scenario text and its node', () async {
     final root = await _project(
       _journey([_step('1', 'Open', 'S1'), _step('2', 'Wrong', 'S2')]),
@@ -102,7 +102,7 @@ void main() {
     expect(text, contains('- **When** the Agent types a'));
   });
 
-  test('f10/us01/fr04/e02, f05/us03/s1, f05/us03/s5: a story edit re-pastes '
+  test('a story edit re-pastes '
       'the copy on the next format, confirmed and draft unchanged', () async {
     final root = await _project(
       _journey(
@@ -197,7 +197,7 @@ void main() {
       statusesOutside: shippedStatusesOutside,
     );
 
-    test('f04/us04/s9, f04/us04/fr01/e10: format re-pastes an edited '
+    test('format re-pastes an edited '
         'scenario and the journey stays suspect', () async {
       final root = await _project(
         _journey([

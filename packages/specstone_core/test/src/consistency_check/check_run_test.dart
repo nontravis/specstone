@@ -34,14 +34,11 @@ Map<String, String> _brokenRecordFiles() => {
 };
 
 void main() {
-  test(
-    'f04/us01/s1, f04/us01/fr01/e01: the fixture project has zero findings',
-    () async {
-      final report = await checkOf(await writeCheckProject());
-      expect(report.findings, isEmpty);
-      expect(report.exitStatus, 0);
-    },
-  );
+  test('the fixture project has zero findings', () async {
+    final report = await checkOf(await writeCheckProject());
+    expect(report.findings, isEmpty);
+    expect(report.exitStatus, 0);
+  });
 
   test('two rules stating the same warning text print it once, in the order '
       'of first appearance', () async {
@@ -55,7 +52,7 @@ void main() {
     expect(context.unstatedWarnings, ['b: first', 'a: second']);
   });
 
-  test('f04/us01/fr01/e02, cc-s03/inv12: check login keeps the feature and the docs under it', () async {
+  test('check login keeps the feature and the docs under it', () async {
     final project = await writeCheckProject(
       extra: {
         'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!.replaceFirst(
@@ -82,7 +79,7 @@ void main() {
   const siblingOrphanFr = 'prds/features/f02_signup/us01_create/fr01_store.md';
   const orphanText = '---\ntraced_from:\n  - S9\n---\n\n# Send file\n';
 
-  test('f04/us01/fr01/e11, cc-s03/inv12, cc-s03/inv13: an orphan FR under the target feature folder is '
+  test('an orphan FR under the target feature folder is '
       'parent_missing and runs no trace rule; one under another feature stays out', () async {
     final project = await writeCheckProject(
       extra: {
@@ -120,7 +117,7 @@ void main() {
   });
 
   test(
-    'f04/us01/fr01/e12, f04/us01/fr01/e14: an unreadable file under the target folder is file_unreadable; '
+    'an unreadable file under the target folder is file_unreadable; '
     'an fr target adds no folder, so the warning stays',
     skip: unreadablePathSkipReason(),
     () async {
@@ -191,55 +188,61 @@ void main() {
     },
   );
 
-  test('f04/us01/fr01/e15, cc-s03/inv12: a spec doc target reports its own file, not the spec doc beside it', () async {
-    final project = await writeCheckProject(
-      extra: {
-        ...doc(
-          loginApi,
-          'Signs the Agent in.',
-          'Signs the Agent in. See [x](../../../nowhere.md).',
-        ),
-        ...doc(
-          loginArchitecture,
-          'One box.',
-          'One box. See [y](../../../nowhere.md).',
-        ),
-      },
-    );
-    const missing = FindingKind.linkTargetMissing;
-    expect(
-      spots(await checkOf(project, target: 'architecture:login'), missing),
-      ['$loginArchitecture:11: link_target_missing'],
-    );
-    expect(spots(await checkOf(project, target: 'api:login'), missing), [
-      '$loginApi:19: link_target_missing',
-    ]);
-  });
+  test(
+    'a spec doc target reports its own file, not the spec doc beside it',
+    () async {
+      final project = await writeCheckProject(
+        extra: {
+          ...doc(
+            loginApi,
+            'Signs the Agent in.',
+            'Signs the Agent in. See [x](../../../nowhere.md).',
+          ),
+          ...doc(
+            loginArchitecture,
+            'One box.',
+            'One box. See [y](../../../nowhere.md).',
+          ),
+        },
+      );
+      const missing = FindingKind.linkTargetMissing;
+      expect(
+        spots(await checkOf(project, target: 'architecture:login'), missing),
+        ['$loginArchitecture:11: link_target_missing'],
+      );
+      expect(spots(await checkOf(project, target: 'api:login'), missing), [
+        '$loginApi:19: link_target_missing',
+      ]);
+    },
+  );
 
-  test('f04/us01/fr01/e16, cc-s03/inv12: a feature target reports the feature folder and its spec folder', () async {
-    final project = await writeCheckProject(
-      extra: {
-        ...doc(
-          loginApi,
-          'Signs the Agent in.',
-          'Signs the Agent in. See [x](../../../nowhere.md).',
-        ),
-        'docs/specs/f02_signup/API.md':
-            '# Sign up API\n\nSee [z](../../../nowhere.md).\n',
-        'docs/prds/features/f01_login/notes.md': '# Notes\n',
-        'docs/prds/features/f02_signup/notes.md': '# Notes\n',
-      },
-    );
-    final report = await checkOf(project, target: 'feature:login');
-    expect(spots(report, FindingKind.linkTargetMissing), [
-      '$loginApi:19: link_target_missing',
-    ]);
-    expect(spots(report, FindingKind.untypedDoc), [
-      'prds/features/f01_login/notes.md:1: untyped_doc',
-    ]);
-  });
+  test(
+    'a feature target reports the feature folder and its spec folder',
+    () async {
+      final project = await writeCheckProject(
+        extra: {
+          ...doc(
+            loginApi,
+            'Signs the Agent in.',
+            'Signs the Agent in. See [x](../../../nowhere.md).',
+          ),
+          'docs/specs/f02_signup/API.md':
+              '# Sign up API\n\nSee [z](../../../nowhere.md).\n',
+          'docs/prds/features/f01_login/notes.md': '# Notes\n',
+          'docs/prds/features/f02_signup/notes.md': '# Notes\n',
+        },
+      );
+      final report = await checkOf(project, target: 'feature:login');
+      expect(spots(report, FindingKind.linkTargetMissing), [
+        '$loginApi:19: link_target_missing',
+      ]);
+      expect(spots(report, FindingKind.untypedDoc), [
+        'prds/features/f01_login/notes.md:1: untyped_doc',
+      ]);
+    },
+  );
 
-  test('f04/us01/fr01/e17, cc-s03/inv12: an untyped DocPath target reports that one file', () async {
+  test('an untyped DocPath target reports that one file', () async {
     const notes = 'prds/features/f01_login/notes.md';
     const sibling = 'prds/features/f01_login/other.md';
     final project = await writeCheckProject(
@@ -275,7 +278,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr01/e05, f04/us01/fr01/e06: a name no doc carries, or an unknown doc type, is a fault', () async {
+  test('a name no doc carries, or an unknown doc type, is a fault', () async {
     final project = await writeCheckProject();
     await expectLater(
       () => checkOf(project, target: 'login/emial_login'),
@@ -299,7 +302,7 @@ void main() {
     );
   });
 
-  test('cc-s03/inv1: a check writes no file of its own, a run that parses diagrams with Node included', () async {
+  test('a check writes no file of its own, a run that parses diagrams with Node included', () async {
     const parsing = 'sequenceDiagram\n  A->>B: ok';
     const refused = 'sequenceDiagram\n  A->>B: ok\n  A->>B: x;y';
     final project = await writeCheckProject(
@@ -346,7 +349,7 @@ void main() {
     );
   });
 
-  test("f08/us06/fr02, f08/us06/s3, f08/us06/fr02/e06: a doc check gives that doc's findings only", () async {
+  test("a doc check gives that doc's findings only", () async {
     final project = await writeCheckProject(
       extra: {
         ..._brokenRecordFiles(),
@@ -547,33 +550,36 @@ void main() {
     },
   );
 
-  test('f08/us06/fr02, sf-c2: checking a sub-feature scopes to its subtree and its spec folder', () async {
-    final project = await writeNestedProject(
-      extra: {
-        'docs/$cartAddFr': '# Check the stock\n',
-        'docs/$payCard': '# Agent pays by card\n',
-        'docs/$cartDomain': '# Cart domain\n',
-        'docs/$shopDomain': '# Shop domain\n',
-      },
-    );
-    final paths = {
-      for (final f in (await checkOf(
-        project,
-        target: 'feature:shop/cart',
-      )).findings)
-        f.path,
-    };
-    expect(paths, isNotEmpty);
-    expect(
-      paths.where(
-        (p) =>
-            !p.startsWith('prds/features/f02_shop/f01_cart/') &&
-            !p.startsWith('specs/f02_shop/f01_cart/'),
-      ),
-      isEmpty,
-    );
-  });
-  test('E20: a check with a target holds no singular_doc_missing', () async {
+  test(
+    'checking a sub-feature scopes to its subtree and its spec folder',
+    () async {
+      final project = await writeNestedProject(
+        extra: {
+          'docs/$cartAddFr': '# Check the stock\n',
+          'docs/$payCard': '# Agent pays by card\n',
+          'docs/$cartDomain': '# Cart domain\n',
+          'docs/$shopDomain': '# Shop domain\n',
+        },
+      );
+      final paths = {
+        for (final f in (await checkOf(
+          project,
+          target: 'feature:shop/cart',
+        )).findings)
+          f.path,
+      };
+      expect(paths, isNotEmpty);
+      expect(
+        paths.where(
+          (p) =>
+              !p.startsWith('prds/features/f02_shop/f01_cart/') &&
+              !p.startsWith('specs/f02_shop/f01_cart/'),
+        ),
+        isEmpty,
+      );
+    },
+  );
+  test('a check with a target holds no singular_doc_missing', () async {
     final project = await writeCheckProject(without: {'docs/$projectDoc'});
 
     expect(spots(await checkOf(project), FindingKind.singularDocMissing), [
@@ -589,7 +595,7 @@ void main() {
   });
 
   test(
-    'f03/us06/fr01/e06: a project doc still holding Domain glossary '
+    'a project doc still holding Domain glossary '
     'and no glossary doc is section_undeclared and singular_doc_missing',
     () async {
       final project = await writeCheckProject(
@@ -628,7 +634,7 @@ void main() {
     },
   );
 
-  test('E08: a check with a target holds no agent_block_stale', () async {
+  test('a check with a target holds no agent_block_stale', () async {
     final project = await writeCheckProject(
       extra: {'.specstone/AGENT.md': 'hand edit\n'},
     );
@@ -645,20 +651,17 @@ void main() {
     );
   });
 
-  test(
-    'INV-14: an agent file finding sorts by path with the doc findings',
-    () async {
-      final project = await writeCheckProject(
-        extra: {'.specstone/AGENT.md': 'hand edit\n'},
-      );
-      final paths = [for (final f in (await checkOf(project)).findings) f.path];
+  test('an agent file finding sorts by path with the doc findings', () async {
+    final project = await writeCheckProject(
+      extra: {'.specstone/AGENT.md': 'hand edit\n'},
+    );
+    final paths = [for (final f in (await checkOf(project)).findings) f.path];
 
-      expect(paths, contains('.specstone/AGENT.md'));
-      expect(paths, [...paths]..sort());
-    },
-  );
+    expect(paths, contains('.specstone/AGENT.md'));
+    expect(paths, [...paths]..sort());
+  });
 
-  test('E12: an owner '
+  test('an owner '
       'finding counts, sorts, and exits 1 beside an agent finding', () async {
     final project = await writeCheckProject(
       extra: {
@@ -753,7 +756,7 @@ void main() {
     // feature alone, so the spec folders come from its unit.
     for (final name in ['login', 'feature:login']) {
       test(
-        'E20: check $name with two targets reports the feature folder and each target spec folder',
+        'check $name with two targets reports the feature folder and each target spec folder',
         () async {
           final project = await writeTwinProject();
           expect(pathsOf(await runTwin(project, target: name)), {
@@ -766,7 +769,7 @@ void main() {
       );
 
       test(
-        'E20: check $name --target jaspr keeps the PRD files, the shared docs, and that target spec folder',
+        'check $name --target jaspr keeps the PRD files, the shared docs, and that target spec folder',
         () async {
           final project = await writeTwinProject();
           expect(
@@ -783,7 +786,7 @@ void main() {
       );
     }
 
-    test('E21: check with no target reports every target, each finding at the DocPath of its target', () async {
+    test('check with no target reports every target, each finding at the DocPath of its target', () async {
       final project = await writeTwinProject(
         extra: {'.specstone/AGENT.md': 'hand edit\n'},
       );
@@ -794,7 +797,7 @@ void main() {
       ]);
     });
 
-    test('E21: check --target jaspr keeps the shared docs and jaspr, the project-level findings too', () async {
+    test('check --target jaspr keeps the shared docs and jaspr, the project-level findings too', () async {
       final project = await writeTwinProject(
         extra: {'.specstone/AGENT.md': 'hand edit\n'},
       );
@@ -806,7 +809,7 @@ void main() {
       ]);
     });
 
-    test('E22: a --target name targets: lacks is argument_invalid naming the targets, alone or beside a doc target', () async {
+    test('a --target name targets: lacks is argument_invalid naming the targets, alone or beside a doc target', () async {
       final project = await writeTwinProject();
       for (final target in [null, 'login']) {
         await expectLater(
@@ -825,26 +828,23 @@ void main() {
       }
     });
 
-    test(
-      'E22: an empty --target is argument_missing naming the targets',
-      () async {
-        final project = await writeTwinProject();
-        await expectLater(
-          () => runTwin(project, codeTarget: ''),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  '--target needs a code target name: the code targets are flutter, jaspr',
-                ),
-          ),
-        );
-      },
-    );
+    test('an empty --target is argument_missing naming the targets', () async {
+      final project = await writeTwinProject();
+      await expectLater(
+        () => runTwin(project, codeTarget: ''),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+              .having(
+                (f) => f.message,
+                'message',
+                '--target needs a code target name: the code targets are flutter, jaspr',
+              ),
+        ),
+      );
+    });
 
-    test('E21: an untyped file under another target spec folder stays out of --target, and in without it', () async {
+    test('an untyped file under another target spec folder stays out of --target, and in without it', () async {
       const notes = 'specs/flutter/f01_login/notes.md';
       final project = await writeTwinProject(
         extra: {'docs/$notes': '# Notes\n'},
@@ -860,7 +860,7 @@ void main() {
       );
     });
 
-    test('E22: a --target name on a project with one unnamed target is argument_invalid', () async {
+    test('a --target name on a project with one unnamed target is argument_invalid', () async {
       final project = await writeCheckProject();
       await expectLater(
         () => runTwin(project, codeTarget: 'web'),
@@ -874,31 +874,26 @@ void main() {
       );
     });
 
-    test(
-      'INV-32: CheckScope.targets holds every target, or the one named',
-      () async {
-        final session = openSession(await writeTwinProject());
-        addTearDown(session.close);
-        final context = CheckContext(session);
-        expect(CheckScope.project(context).targets, [flutter, jaspr]);
-        expect(CheckScope.project(context, codeTarget: 'jaspr').targets, [
-          jaspr,
-        ]);
-        expect(CheckScope.of(context, 'login').targets, [flutter, jaspr]);
-        expect(CheckScope.of(context, 'login', codeTarget: 'flutter').targets, [
-          flutter,
-        ]);
-        expect(CheckScope.doc(context, loginFr).targets, [flutter, jaspr]);
-        final plain = openSession(await writeCheckProject());
-        addTearDown(plain.close);
-        expect(CheckScope.project(CheckContext(plain)).targets, [
-          const CodeTarget(null, codeRoot: '.'),
-        ]);
-      },
-    );
+    test('CheckScope.targets holds every target, or the one named', () async {
+      final session = openSession(await writeTwinProject());
+      addTearDown(session.close);
+      final context = CheckContext(session);
+      expect(CheckScope.project(context).targets, [flutter, jaspr]);
+      expect(CheckScope.project(context, codeTarget: 'jaspr').targets, [jaspr]);
+      expect(CheckScope.of(context, 'login').targets, [flutter, jaspr]);
+      expect(CheckScope.of(context, 'login', codeTarget: 'flutter').targets, [
+        flutter,
+      ]);
+      expect(CheckScope.doc(context, loginFr).targets, [flutter, jaspr]);
+      final plain = openSession(await writeCheckProject());
+      addTearDown(plain.close);
+      expect(CheckScope.project(CheckContext(plain)).targets, [
+        const CodeTarget(null, codeRoot: '.'),
+      ]);
+    });
 
     test(
-      'INV-32: the context reads each target code root and code text apart',
+      'the context reads each target code root and code text apart',
       () async {
         final session = openSession(await writeTwinProject());
         addTearDown(session.close);

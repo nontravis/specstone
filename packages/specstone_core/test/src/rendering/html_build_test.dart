@@ -84,7 +84,7 @@ void main() {
     );
   });
 
-  test('f05/us02/fr02, f05/us02/fr01: a folder renders its docs in tree '
+  test('a folder renders its docs in tree '
       'order, each in a numbered section the toc links to', () async {
     final build = await _build({
       _featurePath: _feature,
@@ -128,7 +128,7 @@ void main() {
     );
   });
 
-  test('f05/us02/fr02/e01, s03/inv11: renders sections as on disk and '
+  test('renders sections as on disk and '
       'warns the doc does not match its template', () async {
     final build = await _build({
       _featurePath:
@@ -167,7 +167,7 @@ void main() {
     ]);
   });
 
-  test('f05/us02/fr02/e01, s03/inv11: a doc with an unknown header is '
+  test('a doc with an unknown header is '
       'rendered, with the same warning', () async {
     final build = await _build({_storyPath: '$_story\n## Notes\nx\n'});
 
@@ -177,7 +177,7 @@ void main() {
     ]);
   });
 
-  test('f05/us02/fr02/e01, s03/inv11: CRLF text that only differs by line '
+  test('CRLF text that only differs by line '
       'ending is a doc that matches', () async {
     final build = await _build({
       _featurePath: _feature.replaceAll('\n', '\r\n'),
@@ -207,7 +207,7 @@ void main() {
     );
   });
 
-  test('f05/us02/fr02/e03, s03/inv13: a mermaid block is a pre.mermaid and '
+  test('a mermaid block is a pre.mermaid and '
       'the script appears once', () async {
     final build = await _build({
       _featurePath: '$_feature\n```mermaid\ngraph TD; A-->B\n```\n',
@@ -222,7 +222,7 @@ void main() {
     );
   });
 
-  test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: nothing external is '
+  test('nothing external is '
       'loaded, and the csp denies everything by default', () async {
     final build = await _build({_featurePath: _feature});
 
@@ -245,7 +245,7 @@ void main() {
     expect(build.html, contains('<a href="#doc-2">$_frNoTitlePath</a>'));
   });
 
-  test('f05/us02/fr01/e04, s03/inv12: a doc no type matches is skipped with '
+  test('a doc no type matches is skipped with '
       'one warning, and a dot file with none', () async {
     final build = await _build({
       _featurePath: _feature,
@@ -262,7 +262,7 @@ void main() {
     ]);
   });
 
-  test('f05/us02/fr01/e05, s03/inv12: a doc two types match is skipped '
+  test('a doc two types match is skipped '
       'with the warning, the rest render', () async {
     final build = await _build(
       {_featurePath: _feature, _storyPath: _story},
@@ -277,7 +277,7 @@ void main() {
     ]);
   });
 
-  test('s03/inv12: a doc that is not UTF-8 is skipped with its warning, '
+  test('a doc that is not UTF-8 is skipped with its warning, '
       'and the next anchor is not used up', () async {
     final build = await _build(
       {_featurePath: _feature, _storyPath: _story},
@@ -327,7 +327,7 @@ void main() {
     ]);
   });
 
-  test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: an external image, an external '
+  test('an external image, an external '
       'script, and an inline script in a doc follow the csp meta, which '
       'blocks them', () async {
     final build = await _build({
@@ -450,7 +450,7 @@ void main() {
         'plain text';
     const draftRow = '<tr><th>draft</th><td>true</td></tr>';
 
-    test('f05/us02/fr02/e08, s03/inv24, LP5: renders its body as plain text '
+    test('renders its body as plain text '
         'and warns', () async {
       final build = await _build({
         _frPath: '# Req\n\n## A\nx < y [s](b.md)\n\n[a]:<b\\',
@@ -464,7 +464,7 @@ void main() {
       expect(build.warnings, contains(message));
     });
 
-    test('f05/us02/fr02/e08, s03/inv24, LP5: a deeply nested blockquote, '
+    test('a deeply nested blockquote, '
         'which holds no link syntax, renders the same way', () async {
       final build = await _build({
         _frPath: '# Req\n\n${'> ' * 2000}x',
@@ -476,7 +476,7 @@ void main() {
       expect(build.warnings, contains(message));
     });
 
-    test('f05/us02/fr02/e08, LP5: keeps the frontmatter table and the draft '
+    test('keeps the frontmatter table and the draft '
         'label', () async {
       final build = await _build({
         _frPath: '---\ndraft: true\n---\n# Req\n\n[a]:<b\\',
@@ -590,7 +590,7 @@ void main() {
     });
   }
 
-  test('resolve_links E08: a link to another doc reaches the prefixed id of '
+  test('a link to another doc reaches the prefixed id of '
       'its heading, end to end', () async {
     final build = await _build({
       _storyPath: _story.replaceFirst(

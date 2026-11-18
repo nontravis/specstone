@@ -49,8 +49,6 @@ Matcher _agentFilesNewer() => throwsA(
       ),
 );
 
-const _findRoot = 'setup_migration/migrate_legacy_docs/find_project_root';
-
 Future<Directory> _project(Map<String, String> files) async {
   final base = await writeTree({
     for (final entry in files.entries) 'proj/${entry.key}': entry.value,
@@ -81,7 +79,7 @@ void main() {
     expect(_choose(root), RunKind.legacy);
   });
 
-  test('f06/us01/fr01/e04, f06/us02/s6: pins equal to the carried versions '
+  test('pins equal to the carried versions '
       'are none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -90,7 +88,7 @@ void main() {
     expect(_choose(root), RunKind.none);
   });
 
-  test('E04: pins equal '
+  test('pins equal '
       'and every typed doc laid out is none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -100,7 +98,7 @@ void main() {
     expect(_choose(root), RunKind.none);
   });
 
-  test('E04: pins equal '
+  test('pins equal '
       'and one typed doc off its layout is upgrade', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -111,7 +109,7 @@ void main() {
     expect(_choose(root), RunKind.upgrade);
   });
 
-  test('E04: a doc '
+  test('a doc '
       'format refuses alone is none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -121,7 +119,7 @@ void main() {
     expect(_choose(root), RunKind.none);
   });
 
-  test('f06/us01/fr01/e06, f06/us02/fr01/e03, f06/us02/s7: a newer pin '
+  test('a newer pin '
       'refuses pack_pin_newer, alone or beside an older pin', () async {
     final alone = await writeTree({
       '.specstone/config.yaml': 'packs:\n  prd-core: 9.0.0\n',
@@ -245,7 +243,7 @@ void main() {
   });
 
   group('agent file drift with every pin equal', () {
-    test('$_findRoot E04: a stale block is an upgrade', () async {
+    test('a stale block is an upgrade', () async {
       final root = await _project({
         '.specstone/config.yaml': shippedPinsConfig(),
         '.specstone/AGENT.md': agentMdText,
@@ -255,18 +253,15 @@ void main() {
       expect(_choose(root), RunKind.upgrade);
     });
 
-    test(
-      '$_findRoot E04: agent files as the CLI writes them are none',
-      () async {
-        final root = await _project({
-          '.specstone/config.yaml': shippedPinsConfig(),
-          '.specstone/AGENT.md': agentMdText,
-          'AGENTS.md': _inline(),
-        });
+    test('agent files as the CLI writes them are none', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '.specstone/AGENT.md': agentMdText,
+        'AGENTS.md': _inline(),
+      });
 
-        expect(_choose(root), RunKind.none);
-      },
-    );
+      expect(_choose(root), RunKind.none);
+    });
 
     test('a skill file that differs is an upgrade', () async {
       final texts = skillFileTexts();
@@ -374,7 +369,7 @@ void main() {
       expect(_choose(root), RunKind.none);
     });
 
-    test('$_findRoot E10: an import block naming a missing AGENT.md is an '
+    test('an import block naming a missing AGENT.md is an '
         'upgrade', () async {
       final root = await _project({
         '.specstone/config.yaml': shippedPinsConfig(),
@@ -389,7 +384,7 @@ void main() {
       expect(_choose(root), RunKind.upgrade);
     });
 
-    test('$_findRoot E10: a repository top the config does not list is an '
+    test('a repository top the config does not list is an '
         'upgrade', () async {
       final base = await writeTree({
         'proj/.specstone/config.yaml':
@@ -403,7 +398,7 @@ void main() {
       );
     });
 
-    test('$_findRoot R99: a repository top outside the project root, which '
+    test('a repository top outside the project root, which '
         'no run writes, is none', () async {
       final base = await writeTree({
         'proj/.specstone/config.yaml':
@@ -417,7 +412,7 @@ void main() {
       );
     });
 
-    test('$_findRoot E10: a repository top a code entry reaches, found in a '
+    test('a repository top a code entry reaches, found in a '
         'tech stack doc, is an upgrade', () async {
       final base = await writeTree({
         'proj/.specstone/config.yaml': shippedPinsConfig(),
@@ -432,7 +427,7 @@ void main() {
       );
     });
 
-    test('$_findRoot E11: a repository top the config lists is none', () async {
+    test('a repository top the config lists is none', () async {
       final base = await writeTree({
         'proj/.specstone/config.yaml':
             '${shippedPinsConfig()}code_root: other\n'
@@ -446,20 +441,17 @@ void main() {
       );
     });
 
-    test(
-      '$_findRoot E11: malformed markers are an upgrade, not a refusal',
-      () async {
-        final root = await _project({
-          '.specstone/config.yaml': shippedPinsConfig(),
-          'AGENTS.md': '<!-- BEGIN specstone v1.0.0 -->\nno end line\n',
-        });
+    test('malformed markers are an upgrade, not a refusal', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'AGENTS.md': '<!-- BEGIN specstone v1.0.0 -->\nno end line\n',
+      });
 
-        expect(_choose(root), RunKind.upgrade);
-      },
-    );
+      expect(_choose(root), RunKind.upgrade);
+    });
   });
 
-  group('$_findRoot E13: a second target over a one-target spec tree', () {
+  group('a second target over a one-target spec tree', () {
     const draftDomain = '---\ndraft: true\n---\n# Feedback\n';
 
     Future<Directory> twinProject(String config, Map<String, String> docs) =>

@@ -101,37 +101,34 @@ File _file(Directory root) =>
     File.fromUri(root.uri.resolve('docs/$_journeyDoc'));
 
 void main() {
-  test(
-    'f10/us01/s1, f10/us01/fr05/e01: five resolving steps give five entries, '
-    'the flow block, and five copies',
-    () async {
-      final root = await _project();
+  test('five resolving steps give five entries, '
+      'the flow block, and five copies', () async {
+    final root = await _project();
 
-      final text = _new(
-        root,
-        text: _body([for (var n = 1; n <= 5; n++) _step(n, n)]),
-      );
+    final text = _new(
+      root,
+      text: _body([for (var n = 1; n <= 5; n++) _step(n, n)]),
+    );
 
-      expect(text, startsWith('---\ndraft: true\nconfirmed:\n'));
-      for (var n = 1; n <= 5; n++) {
-        expect(text, contains(_entry(n)));
-      }
-      expect(_count(text, generatedOpenMarker(journeyFlowKind)), 1);
-      expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 5);
-      final waiting = await _check(root);
-      expect(waiting, hasLength(5));
-      expect(waiting.map((f) => f.kind), everyElement(FindingKind.unconfirmed));
+    expect(text, startsWith('---\ndraft: true\nconfirmed:\n'));
+    for (var n = 1; n <= 5; n++) {
+      expect(text, contains(_entry(n)));
+    }
+    expect(_count(text, generatedOpenMarker(journeyFlowKind)), 1);
+    expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 5);
+    final waiting = await _check(root);
+    expect(waiting, hasLength(5));
+    expect(waiting.map((f) => f.kind), everyElement(FindingKind.unconfirmed));
 
-      _file(root).writeAsStringSync(
-        withApprovalHash(
-          text.replaceFirst('draft: true\n', ''),
-          fixtureDocTypeOf(_journeyDoc),
-          statusesOutside: shippedStatusesOutside,
-        ),
-      );
-      expect(await _check(root), isEmpty);
-    },
-  );
+    _file(root).writeAsStringSync(
+      withApprovalHash(
+        text.replaceFirst('draft: true\n', ''),
+        fixtureDocTypeOf(_journeyDoc),
+        statusesOutside: shippedStatusesOutside,
+      ),
+    );
+    expect(await _check(root), isEmpty);
+  });
 
   for (final (name, prefix) in [
     ('zero-indent', '- '),
@@ -156,7 +153,7 @@ void main() {
     });
   }
 
-  test('f10/us01/s6, f10/us01/fr05/e02: a step naming a missing scenario gets '
+  test('a step naming a missing scenario gets '
       'no entry and no block', () async {
     final root = await _project();
 

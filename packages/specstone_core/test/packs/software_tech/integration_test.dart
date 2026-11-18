@@ -11,7 +11,7 @@ void main() {
     integration = prdCoreDocType(await resolveSoftwareTech(), 'integration');
   });
 
-  test('f03/us07/fr01, f03/us07/fr01/e05, f03/us07/fr01/e06: integration '
+  test('integration '
       'sits under specs/f{nn}_{slug}/ with parent feature, the overrides and tasks fields, and '
       'four sections, events optional', () {
     expect(integration.path, 'specs/f{nn}_{slug}/INTEGRATION.md');

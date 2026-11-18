@@ -67,7 +67,7 @@ void main() {
     'docs/$refundFr': '# Issue a refund\n',
   };
 
-  test('f02/us05/s1, f02/us05/fr01, f02/us05/fr01/e01, f02/us05/fr02, f02/us05/fr02/e01, dw-s03/inv8, dw-s03/inv10: the third story moves to the top and every link follows', () async {
+  test('the third story moves to the top and every link follows', () async {
     final root = await writeWriteProject();
     final answer = reorder(root, 'user_story:login/reset_password', '1');
     expect(
@@ -92,7 +92,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, dw-s03/inv10: a reordered story links to itself through its own folder, and the link follows it', () async {
+  test('a reordered story links to itself through its own folder, and the link follows it', () async {
     final root = await writeWriteProject();
     docFile(root, story2).writeAsStringSync(
       '\nSee [me](../us02_sign_out/USER_STORY.md#use-case).\n',
@@ -109,42 +109,51 @@ void main() {
     );
   });
 
-  test('f02/us05/s4, f02/us05/fr01/e05, f02/us05/fr02/e03: a feature moves with its spec folder, and untyped referrers follow', () async {
-    final root = await writeWriteProject();
-    expect(reorder(root, 'feature:signup', '1').json, {
-      'moved': [
-        {
-          'from': 'prds/features/f02_signup/',
-          'to': 'prds/features/f01_signup/',
-        },
-        {'from': 'specs/f02_signup/', 'to': 'specs/f01_signup/'},
-        {'from': 'prds/features/f01_login/', 'to': 'prds/features/f02_login/'},
-        {'from': 'specs/f01_login/', 'to': 'specs/f02_login/'},
-      ],
-      'rewritten': ['prds/FEATURES.md', 'prds/d01_context.md'],
-      'mentions': <Object>[],
-    });
-    expect(
-      readDoc(root, 'prds/d01_context.md'),
-      contains('](features/f01_signup/FEATURE.md)'),
-    );
-  });
+  test(
+    'a feature moves with its spec folder, and untyped referrers follow',
+    () async {
+      final root = await writeWriteProject();
+      expect(reorder(root, 'feature:signup', '1').json, {
+        'moved': [
+          {
+            'from': 'prds/features/f02_signup/',
+            'to': 'prds/features/f01_signup/',
+          },
+          {'from': 'specs/f02_signup/', 'to': 'specs/f01_signup/'},
+          {
+            'from': 'prds/features/f01_login/',
+            'to': 'prds/features/f02_login/',
+          },
+          {'from': 'specs/f01_login/', 'to': 'specs/f02_login/'},
+        ],
+        'rewritten': ['prds/FEATURES.md', 'prds/d01_context.md'],
+        'mentions': <Object>[],
+      });
+      expect(
+        readDoc(root, 'prds/d01_context.md'),
+        contains('](features/f01_signup/FEATURE.md)'),
+      );
+    },
+  );
 
-  test('fix round 2, f02/us05/fr01, dw-s03/inv9: a reorder stages under .specstone/trash/stage, never in the project root', () async {
-    final root = await writeWriteProject();
-    final answer = reorder(root, 'user_story:login/reset_password', '1');
-    expect(answer.text, startsWith('moved '));
-    expect(
-      Directory('${root.path}/MoveJournal.stagePath').existsSync(),
-      isFalse,
-    );
-    expect(
-      Directory('${root.path}/${MoveJournal.stagePath}').existsSync(),
-      isFalse,
-    );
-  });
+  test(
+    'a reorder stages under .specstone/trash/stage, never in the project root',
+    () async {
+      final root = await writeWriteProject();
+      final answer = reorder(root, 'user_story:login/reset_password', '1');
+      expect(answer.text, startsWith('moved '));
+      expect(
+        Directory('${root.path}/MoveJournal.stagePath').existsSync(),
+        isFalse,
+      );
+      expect(
+        Directory('${root.path}/${MoveJournal.stagePath}').existsSync(),
+        isFalse,
+      );
+    },
+  );
 
-  test('f02/us04/fr03/e03, dw-s03/inv9: a replay skips a phase-1 move whose stage slot is taken', () async {
+  test('a replay skips a phase-1 move whose stage slot is taken', () async {
     final root = await writeWriteProject();
     final moves = [
       ('us03_reset_password', 'us01_reset_password'),
@@ -183,7 +192,7 @@ void main() {
     );
   });
 
-  test('f02/us05/s5, f02/us05/fr01/e06: a place outside the list is position_out_of_range, and nothing moves', () async {
+  test('a place outside the list is position_out_of_range, and nothing moves', () async {
     final root = await writeWriteProject();
     for (final place in ['0', '4']) {
       expect(
@@ -202,7 +211,7 @@ void main() {
     expect(hasDoc(root, story3), isTrue);
   });
 
-  test('f02/us05/s6, f02/us05/fr01/e08: a doc type with no number is doc_type_not_movable', () async {
+  test('a doc type with no number is doc_type_not_movable', () async {
     final root = await writeWriteProject();
     expect(
       () => reorder(root, 'persona:buyer', '1'),
@@ -218,20 +227,17 @@ void main() {
     );
   });
 
-  test(
-    'f02/us05/s2, f02/us05/fr01/e02: the gaps a delete left close',
-    () async {
-      final root = await writeWriteProject(
-        without: {'docs/$story2'},
-        extra: {'docs/$f/us04_audit/USER_STORY.md': '# Audit\n'},
-      );
-      reorder(root, 'user_story:login/audit', '3');
-      expect(hasDoc(root, '$f/us01_email_login/USER_STORY.md'), isTrue);
-      expect(hasDoc(root, '$f/us02_reset_password/USER_STORY.md'), isTrue);
-      expect(hasDoc(root, '$f/us03_audit/USER_STORY.md'), isTrue);
-      expect(hasDoc(root, story3), isFalse);
-    },
-  );
+  test('the gaps a delete left close', () async {
+    final root = await writeWriteProject(
+      without: {'docs/$story2'},
+      extra: {'docs/$f/us04_audit/USER_STORY.md': '# Audit\n'},
+    );
+    reorder(root, 'user_story:login/audit', '3');
+    expect(hasDoc(root, '$f/us01_email_login/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, '$f/us02_reset_password/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, '$f/us03_audit/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, story3), isFalse);
+  });
 
   test('the place it holds, with no gap, moves nothing', () async {
     final root = await writeWriteProject();
@@ -304,7 +310,7 @@ void main() {
     }
   });
 
-  test('f02/us05/s3, f02/us05/fr01/e09, f02/us05/fr02/e07: an approved doc moves with no Owner step, and no moved or rewritten doc is marked draft', () async {
+  test('an approved doc moves with no Owner step, and no moved or rewritten doc is marked draft', () async {
     final root = await writeWriteProject();
     final before = readDoc(root, story2);
     reorder(root, 'user_story:login/sign_out', '1');
@@ -321,19 +327,22 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e05, f02/us05/fr02/e06: reorder leaves doc_ref values and covers pointers as written', () async {
-    final root = await writeWriteProject();
-    final personaBefore = readDoc(root, persona);
-    final storyBefore = readDoc(root, story1);
-    final archBefore = readDoc(root, loginArch);
-    reorder(root, 'user_story:login/reset_password', '1');
-    expect(readDoc(root, persona), personaBefore);
-    expect(readDoc(root, '$f/us02_email_login/USER_STORY.md'), storyBefore);
-    expect(readDoc(root, loginArch), archBefore);
-    expect(readDoc(root, loginArch), contains('  - app/lib/src/login/\n'));
-  });
+  test(
+    'reorder leaves doc_ref values and covers pointers as written',
+    () async {
+      final root = await writeWriteProject();
+      final personaBefore = readDoc(root, persona);
+      final storyBefore = readDoc(root, story1);
+      final archBefore = readDoc(root, loginArch);
+      reorder(root, 'user_story:login/reset_password', '1');
+      expect(readDoc(root, persona), personaBefore);
+      expect(readDoc(root, '$f/us02_email_login/USER_STORY.md'), storyBefore);
+      expect(readDoc(root, loginArch), archBefore);
+      expect(readDoc(root, loginArch), contains('  - app/lib/src/login/\n'));
+    },
+  );
 
-  test('f02/us05/fr02/e10, f01/us07/fr01: refs and the reorder rewrite read the same mention lines, a link form in a code span and a stray ]( included', () async {
+  test('refs and the reorder rewrite read the same mention lines, a link form in a code span and a stray ]( included', () async {
     const domain = 'specs/f01_login/DOMAIN.md';
     const story = '../../$f/us02_sign_out/USER_STORY.md';
     const before =
@@ -373,111 +382,123 @@ void main() {
     );
   });
 
-  test('f02/us04/fr03/e03, dw-s03/inv9, nfr-di01: a reorder journal stopped mid-way is finished by the next write', () async {
-    final root = await writeWriteProject();
-    const moves = [
-      ('us03_reset_password', 'us01_reset_password'),
-      ('us01_email_login', 'us02_email_login'),
-      ('us02_sign_out', 'us03_sign_out'),
-    ];
-    String path(String name) => 'docs/$f/$name';
-    String stage(int i) => '.specstone/trash/stage/$i';
-    const linkFile = '$f/us01_email_login/fr02_lock_after_failures.md';
-    final linkText = readDoc(root, linkFile);
-    writeJournal(root, [
-      for (final (i, (from, _)) in moves.indexed)
-        MoveStep(path(from), stage(i)),
-      for (final (i, (_, to)) in moves.indexed) MoveStep(stage(i), path(to)),
-      WriteStep.unguarded(
-        'docs/$f/us02_email_login/fr02_lock_after_failures.md',
-        linkText.replaceAll('us03_reset_password', 'us01_reset_password'),
-      ),
-    ]);
-    // The first three moves ran before the stop.
-    for (final (i, (from, _)) in moves.indexed) {
-      final target = '${root.path}/${stage(i)}';
-      Directory(target).parent.createSync(recursive: true);
-      Directory('${root.path}/${path(from)}').renameSync(target);
-    }
+  test(
+    'a reorder journal stopped mid-way is finished by the next write',
+    () async {
+      final root = await writeWriteProject();
+      const moves = [
+        ('us03_reset_password', 'us01_reset_password'),
+        ('us01_email_login', 'us02_email_login'),
+        ('us02_sign_out', 'us03_sign_out'),
+      ];
+      String path(String name) => 'docs/$f/$name';
+      String stage(int i) => '.specstone/trash/stage/$i';
+      const linkFile = '$f/us01_email_login/fr02_lock_after_failures.md';
+      final linkText = readDoc(root, linkFile);
+      writeJournal(root, [
+        for (final (i, (from, _)) in moves.indexed)
+          MoveStep(path(from), stage(i)),
+        for (final (i, (_, to)) in moves.indexed) MoveStep(stage(i), path(to)),
+        WriteStep.unguarded(
+          'docs/$f/us02_email_login/fr02_lock_after_failures.md',
+          linkText.replaceAll('us03_reset_password', 'us01_reset_password'),
+        ),
+      ]);
+      // The first three moves ran before the stop.
+      for (final (i, (from, _)) in moves.indexed) {
+        final target = '${root.path}/${stage(i)}';
+        Directory(target).parent.createSync(recursive: true);
+        Directory('${root.path}/${path(from)}').renameSync(target);
+      }
 
-    writeIn(root, (_) {});
+      writeIn(root, (_) {});
 
-    for (final (_, to) in moves) {
-      expect(Directory('${root.path}/${path(to)}').existsSync(), isTrue);
-    }
-    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
-    expect(
-      readDoc(root, '$f/us02_email_login/fr02_lock_after_failures.md'),
-      contains('](../us01_reset_password/USER_STORY.md#use-case)'),
-    );
-  });
-
-  test('f02/us05/fr01/e10, f02/us06/fr01/e10: a doc gone from disk since the index is doc_not_found, not a crash', () async {
-    Future<void> expectNotFound(void Function(WriteSession) body) async {
-      final fresh = await writeWriteProject();
+      for (final (_, to) in moves) {
+        expect(Directory('${root.path}/${path(to)}').existsSync(), isTrue);
+      }
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
       expect(
-        () => writeIn(fresh, (s) {
-          Directory('${fresh.path}/docs/$f/us03_reset_password')
-              .deleteSync(recursive: true);
-          body(s);
-        }),
-        throwsA(
-          isA<IndexFault>().having(
-            (e) => e.code,
-            'code',
-            IndexFaultCode.docNotFound,
+        readDoc(root, '$f/us02_email_login/fr02_lock_after_failures.md'),
+        contains('](../us01_reset_password/USER_STORY.md#use-case)'),
+      );
+    },
+  );
+
+  test(
+    'a doc gone from disk since the index is doc_not_found, not a crash',
+    () async {
+      Future<void> expectNotFound(void Function(WriteSession) body) async {
+        final fresh = await writeWriteProject();
+        expect(
+          () => writeIn(fresh, (s) {
+            Directory('${fresh.path}/docs/$f/us03_reset_password')
+                .deleteSync(recursive: true);
+            body(s);
+          }),
+          throwsA(
+            isA<IndexFault>().having(
+              (e) => e.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
           ),
+        );
+      }
+
+      await expectNotFound(
+        (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+      );
+      await expectNotFound(
+        (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
+      );
+    },
+  );
+
+  test(
+    'a spec doc whose feature is not indexed still names its feature',
+    () async {
+      final root = await writeWriteProject(without: {'docs/$signupFeature'});
+      expect(
+        () => rename(root, 'architecture:signup', 'register'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+              .having(
+                (f) => f.message,
+                'message',
+                'architecture:signup takes its name from its feature; '
+                    'rename feature:signup instead',
+              ),
         ),
       );
-    }
+    },
+  );
 
-    await expectNotFound(
-      (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
-    );
-    await expectNotFound(
-      (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
-    );
-  });
+  test(
+    'a parented file type numbered but unslugged is told it carries no slug',
+    () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/templates/note.yaml': 'id: note\ndescription: A numbered note\npath: specs/f{nn}_{slug}/note_{nn}.md\nparent: feature\n',
+          'docs/specs/f01_login/note_01.md': '# A note\n',
+        },
+      );
+      expect(
+        () => rename(root, 'note:login', 'other'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+              .having(
+                (f) => f.message,
+                'message',
+                'note docs carry no slug, so rename cannot rename them',
+              ),
+        ),
+      );
+    },
+  );
 
-  test('f02/us06/fr01/e06, dw-s03/inv8, H18: a spec doc whose feature is not indexed still names its feature', () async {
-    final root = await writeWriteProject(without: {'docs/$signupFeature'});
-    expect(
-      () => rename(root, 'architecture:signup', 'register'),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
-            .having(
-              (f) => f.message,
-              'message',
-              'architecture:signup takes its name from its feature; '
-                  'rename feature:signup instead',
-            ),
-      ),
-    );
-  });
-
-  test('dw-s03/inv8, H18: a parented file type numbered but unslugged is told it carries no slug', () async {
-    final root = await writeWriteProject(
-      extra: {
-        '.specstone/templates/note.yaml': 'id: note\ndescription: A numbered note\npath: specs/f{nn}_{slug}/note_{nn}.md\nparent: feature\n',
-        'docs/specs/f01_login/note_01.md': '# A note\n',
-      },
-    );
-    expect(
-      () => rename(root, 'note:login', 'other'),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
-            .having(
-              (f) => f.message,
-              'message',
-              'note docs carry no slug, so rename cannot rename them',
-            ),
-      ),
-    );
-  });
-
-  test('f02/us06/fr01/e02, dw-s03/inv7, H22: two spec folders that sort differently after the rename each move to their own new path', () async {
+  test('two spec folders that sort differently after the rename each move to their own new path', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
       '.specstone/templates/spec_a.yaml': 'id: spec_a\ndescription: Spec A\npath: specs/f{nn}_{slug}_a/A.md\nparent: feature\n',
@@ -495,25 +516,18 @@ void main() {
     expect(hasDoc(root, 'specs/f01_a_a/A.md'), isTrue);
   });
 
-  test(
-    'f02/us05/fr01/e05, H20: a feature with no spec folder on disk moves alone',
-    () async {
-      final root = await writeWriteProject();
-      Directory('${root.path}/docs/specs/f02_signup')
-          .deleteSync(recursive: true);
-      expect(reorder(root, 'feature:signup', '1').json['moved'], [
-        {
-          'from': 'prds/features/f02_signup/',
-          'to': 'prds/features/f01_signup/',
-        },
-        {'from': 'prds/features/f01_login/', 'to': 'prds/features/f02_login/'},
-        {'from': 'specs/f01_login/', 'to': 'specs/f02_login/'},
-      ]);
-      expect(hasDoc(root, 'prds/features/f01_signup/FEATURE.md'), isTrue);
-    },
-  );
+  test('a feature with no spec folder on disk moves alone', () async {
+    final root = await writeWriteProject();
+    Directory('${root.path}/docs/specs/f02_signup').deleteSync(recursive: true);
+    expect(reorder(root, 'feature:signup', '1').json['moved'], [
+      {'from': 'prds/features/f02_signup/', 'to': 'prds/features/f01_signup/'},
+      {'from': 'prds/features/f01_login/', 'to': 'prds/features/f02_login/'},
+      {'from': 'specs/f01_login/', 'to': 'specs/f02_login/'},
+    ]);
+    expect(hasDoc(root, 'prds/features/f01_signup/FEATURE.md'), isTrue);
+  });
 
-  test('f02/us05/fr01, dw-s03/inv9, X4, H21: the reorder journal lists every stage move first, then every target move, then the rewrites', () async {
+  test('the reorder journal lists every stage move first, then every target move, then the rewrites', () async {
     final root = await writeWriteProject();
     expect(
       () => IOOverrides.runWithIOOverrides(
@@ -559,7 +573,7 @@ void main() {
     expect(hasDoc(root, '$f/us03_sign_out/USER_STORY.md'), isTrue);
   });
 
-  test('f02/us05/fr02, dw-s03/inv10, final Important 2: a read-only rewrite target stops a rename', () async {
+  test('a read-only rewrite target stops a rename', () async {
     final root = await writeWriteProject();
     final linker = docFile(root, fr12);
     Process.runSync('chmod', ['444', linker.path]);
@@ -582,31 +596,34 @@ void main() {
     expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
   }, skip: unreadablePathSkipReason() ?? false);
 
-  test('f02/us06/s1, f02/us06/fr01, f02/us06/fr01/e01, f02/us06/fr01/e08, f02/us05/fr02, dw-s03/inv10: a story takes a new slug, keeps its number and title, and links follow', () async {
-    final root = await writeWriteProject();
-    expect(
-      rename(root, 'user_story:login/reset_password', 'recover_account').text,
-      'moved $f/us03_reset_password/ to $f/us03_recover_account/\n'
-      'rewrote $f/us01_email_login/fr02_lock_after_failures.md\n',
-    );
-    expect(
-      readDoc(root, '$f/us03_recover_account/USER_STORY.md'),
-      contains('\n# Reset password\n'),
-    );
-    expect(
-      readDoc(root, fr12),
-      contains('](../us03_recover_account/USER_STORY.md#use-case)'),
-    );
-    expect(
-      writeIn(
-        root,
-        (s) => s.target('user_story:login/recover_account').docPath,
-      ),
-      '$f/us03_recover_account/USER_STORY.md',
-    );
-  });
+  test(
+    'a story takes a new slug, keeps its number and title, and links follow',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        rename(root, 'user_story:login/reset_password', 'recover_account').text,
+        'moved $f/us03_reset_password/ to $f/us03_recover_account/\n'
+        'rewrote $f/us01_email_login/fr02_lock_after_failures.md\n',
+      );
+      expect(
+        readDoc(root, '$f/us03_recover_account/USER_STORY.md'),
+        contains('\n# Reset password\n'),
+      );
+      expect(
+        readDoc(root, fr12),
+        contains('](../us03_recover_account/USER_STORY.md#use-case)'),
+      );
+      expect(
+        writeIn(
+          root,
+          (s) => s.target('user_story:login/recover_account').docPath,
+        ),
+        '$f/us03_recover_account/USER_STORY.md',
+      );
+    },
+  );
 
-  test('f02/us06/s2, f02/us06/fr01/e02, f02/us06/fr02/e02: a feature renames with its spec folder, and names under it follow in doc_ref values', () async {
+  test('a feature renames with its spec folder, and names under it follow in doc_ref values', () async {
     final root = await writeWriteProject();
     expect(rename(root, 'feature:login', 'signin').json, {
       'moved': [
@@ -622,7 +639,7 @@ void main() {
     );
   });
 
-  test('f02/us06/s3, f02/us06/fr01/e03, f02/us06/fr02, f02/us06/fr02/e01: a persona renames with the anti-persona in its folder', () async {
+  test('a persona renames with the anti-persona in its folder', () async {
     final root = await writeWriteProject();
     rename(root, 'persona:buyer', 'shopper');
     expect(
@@ -635,25 +652,28 @@ void main() {
     expect(readDoc(root, story1), contains('persona:\n  - shopper\n'));
   });
 
-  test('f02/us06/s5, f02/us06/fr01/e05: a slug a sibling carries is doc_exists naming it, and nothing moves', () async {
-    final root = await writeWriteProject();
-    expect(
-      () => rename(root, 'user_story:login/reset_password', 'sign_out'),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.docExists)
-            .having(
-              (f) => f.message,
-              'message',
-              'a user_story named login/sign_out exists',
-            )
-            .having((f) => f.file, 'file', story2),
-      ),
-    );
-    expect(hasDoc(root, story3), isTrue);
-  });
+  test(
+    'a slug a sibling carries is doc_exists naming it, and nothing moves',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => rename(root, 'user_story:login/reset_password', 'sign_out'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having(
+                (f) => f.message,
+                'message',
+                'a user_story named login/sign_out exists',
+              )
+              .having((f) => f.file, 'file', story2),
+        ),
+      );
+      expect(hasDoc(root, story3), isTrue);
+    },
+  );
 
-  test('f02/us06/s6, f02/us06/fr01/e06, dw-s03/inv8: a spec doc refuses and names its feature', () async {
+  test('a spec doc refuses and names its feature', () async {
     final root = await writeWriteProject();
     expect(
       () => rename(root, 'architecture:login', 'signin'),
@@ -772,17 +792,20 @@ void main() {
     expect(hasDoc(root, story3), isTrue);
   });
 
-  test('f02/us06/s4, f02/us06/fr01/e09, f02/us06/fr02/e05: an approved doc renames with no Owner step, and every mark stays', () async {
-    final root = await writeWriteProject();
-    final before = readDoc(root, story2);
-    rename(root, 'user_story:login/sign_out', 'log_out');
-    expect(readDoc(root, '$f/us02_log_out/USER_STORY.md'), before);
-    final linked = readDoc(root, story3);
-    expect(linked, contains('](../us02_log_out/USER_STORY.md)'));
-    expect('draft: true'.allMatches(linked), hasLength(1));
-  });
+  test(
+    'an approved doc renames with no Owner step, and every mark stays',
+    () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story2);
+      rename(root, 'user_story:login/sign_out', 'log_out');
+      expect(readDoc(root, '$f/us02_log_out/USER_STORY.md'), before);
+      final linked = readDoc(root, story3);
+      expect(linked, contains('](../us02_log_out/USER_STORY.md)'));
+      expect('draft: true'.allMatches(linked), hasLength(1));
+    },
+  );
 
-  test('f02/us06/fr02/e03, f02/us06/fr02/e04, f02/us06/fr02/e06: prose, code, and unrelated values stay', () async {
+  test('prose, code, and unrelated values stay', () async {
     final root = await writeWriteProject();
     final apiBefore = readDoc(root, fr11);
     rename(root, 'feature:login', 'signin');
@@ -806,7 +829,7 @@ void main() {
     );
   });
 
-  test('PD12: a folder already at the new path is doc_exists', () async {
+  test('a folder already at the new path is doc_exists', () async {
     final root = await writeWriteProject(
       extra: {
         'docs/prds/personas/shopper/ANTI_PERSONA.md': '# Not a shopper\n',
@@ -823,37 +846,40 @@ void main() {
     expect(hasDoc(root, persona), isTrue);
   });
 
-  test('f02/us04/fr03/e02, nfr-di01: a rename stopped before its link rewrite is finished by the next write', () async {
-    final root = await writeWriteProject();
-    const linkFile = '$f/us01_email_login/fr02_lock_after_failures.md';
-    final linkText = readDoc(root, linkFile);
-    writeJournal(root, [
-      const MoveStep(
-        'docs/$f/us03_reset_password',
-        'docs/$f/us03_recover_account',
-      ),
-      WriteStep.unguarded(
-        'docs/$linkFile',
-        linkText.replaceAll('us03_reset_password', 'us03_recover_account'),
-      ),
-    ]);
-    // The move ran before the stop.
-    Directory('${root.path}/docs/$f/us03_reset_password')
-        .renameSync('${root.path}/docs/$f/us03_recover_account');
+  test(
+    'a rename stopped before its link rewrite is finished by the next write',
+    () async {
+      final root = await writeWriteProject();
+      const linkFile = '$f/us01_email_login/fr02_lock_after_failures.md';
+      final linkText = readDoc(root, linkFile);
+      writeJournal(root, [
+        const MoveStep(
+          'docs/$f/us03_reset_password',
+          'docs/$f/us03_recover_account',
+        ),
+        WriteStep.unguarded(
+          'docs/$linkFile',
+          linkText.replaceAll('us03_reset_password', 'us03_recover_account'),
+        ),
+      ]);
+      // The move ran before the stop.
+      Directory('${root.path}/docs/$f/us03_reset_password')
+          .renameSync('${root.path}/docs/$f/us03_recover_account');
 
-    writeIn(root, (_) {});
+      writeIn(root, (_) {});
 
-    expect(
-      readDoc(root, linkFile),
-      contains('](../us03_recover_account/USER_STORY.md#use-case)'),
-    );
-  });
+      expect(
+        readDoc(root, linkFile),
+        contains('](../us03_recover_account/USER_STORY.md#use-case)'),
+      );
+    },
+  );
 
   group('nested features', () {
     const shop = 'prds/features/f02_shop';
     const payDomain = 'specs/f02_shop/f02_pay/DOMAIN.md';
 
-    test('f02/us05/fr01/e11, sf-c2: reordering a sub-feature renumbers only its siblings and moves its spec folder', () async {
+    test('reordering a sub-feature renumbers only its siblings and moves its spec folder', () async {
       final root = await writeNestedProject(
         extra: {'docs/$payDomain': '# Pay domain\n'},
       );
@@ -874,7 +900,7 @@ void main() {
       expect(hasDoc(root, shopFeature), isTrue);
     });
 
-    test('f02/us05/fr01/e11, sf-c2: reordering a story under a sub-feature moves only the stories of that sub-feature', () async {
+    test('reordering a story under a sub-feature moves only the stories of that sub-feature', () async {
       final root = await writeNestedProject();
       final answer = reorder(root, 'user_story:shop/cart/drop_item', '1');
       expect(
@@ -961,7 +987,7 @@ void main() {
     void appendTo(Directory root, String docPath, String text) =>
         docFile(root, docPath).writeAsStringSync(text, mode: FileMode.append);
 
-    test('f02/us07/s1, sf-r3: a story moves to the last place of another feature with its FR, and the old siblings keep their numbers', () async {
+    test('a story moves to the last place of another feature with its FR, and the old siblings keep their numbers', () async {
       final root = await writeNestedProject();
       final answer = move(root, 'user_story:shop/cart/add_item', 'shop/pay');
       expect(
@@ -979,7 +1005,7 @@ void main() {
       expect(hasDoc(root, payRefund), isTrue);
     });
 
-    test("f02/us07/fr02/e01, sf-r3: shop's api cell and confirmed label become pay/add_item/check_stock, and a step, a link, and a path mention follow", () async {
+    test("shop's api cell and confirmed label become pay/add_item/check_stock, and a step, a link, and a path mention follow", () async {
       final root = await writeNestedProject(
         extra: {
           'docs/$journeyPath':
@@ -1039,7 +1065,7 @@ void main() {
       ('drop_item', 'add_item'),
     ]) {
       test(
-        'f02/us05/fr02, f02/us07/fr02/e03, dw-s03/inv10: two sibling stories that link each other move under login, $first first, and each link resolves',
+        'two sibling stories that link each other move under login, $first first, and each link resolves',
         () async {
           final root = await writeNestedProject();
           appendTo(
@@ -1072,7 +1098,7 @@ void main() {
       );
     }
 
-    test('f02/us07/fr02/e03, dw-s03/inv10: a moved story links to itself through its own folder, and the link follows it', () async {
+    test('a moved story links to itself through its own folder, and the link follows it', () async {
       final root = await writeNestedProject();
       appendTo(
         root,
@@ -1087,23 +1113,26 @@ void main() {
       expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
     });
 
-    test('f02/us07/fr02/e03, dw-s03/inv10: a moved story links to a plain file that stays, and the link follows', () async {
-      final root = await writeNestedProject(
-        extra: {'docs/$shop/f01_cart/flow.png': 'png'},
-      );
-      appendTo(root, cartDrop, '\n![flow](../flow.png)\n');
-      move(root, 'user_story:shop/cart/drop_item', 'login');
-      expect(
-        readDoc(root, '$f/us02_drop_item/USER_STORY.md'),
-        contains('![flow](../../f02_shop/f01_cart/flow.png)'),
-      );
-      expect(
-        spots(await checkOf(root), FindingKind.linkTargetMissing),
-        isEmpty,
-      );
-    });
+    test(
+      'a moved story links to a plain file that stays, and the link follows',
+      () async {
+        final root = await writeNestedProject(
+          extra: {'docs/$shop/f01_cart/flow.png': 'png'},
+        );
+        appendTo(root, cartDrop, '\n![flow](../flow.png)\n');
+        move(root, 'user_story:shop/cart/drop_item', 'login');
+        expect(
+          readDoc(root, '$f/us02_drop_item/USER_STORY.md'),
+          contains('![flow](../../f02_shop/f01_cart/flow.png)'),
+        );
+        expect(
+          spots(await checkOf(root), FindingKind.linkTargetMissing),
+          isEmpty,
+        );
+      },
+    );
 
-    test('f02/us07/fr02, dw-s03/inv10: a non-UTF-8 moved story whose link must change refuses with output_not_writable, and nothing moves', () async {
+    test('a non-UTF-8 moved story whose link must change refuses with output_not_writable, and nothing moves', () async {
       final root = await writeNestedProject();
       appendTo(
         root,
@@ -1130,7 +1159,7 @@ void main() {
       );
     });
 
-    test('f02/us07/fr02, dw-s03/inv10: a non-UTF-8 moved story whose link still reaches its target moves with every byte kept', () async {
+    test('a non-UTF-8 moved story whose link still reaches its target moves with every byte kept', () async {
       final root = await writeNestedProject();
       appendTo(
         root,
@@ -1149,7 +1178,7 @@ void main() {
       );
     });
 
-    test('f02/us07/fr01/e01, sf-c6: no moved doc gains draft, and check reports no confirmed_entry_stale and no suspect link', () async {
+    test('no moved doc gains draft, and check reports no confirmed_entry_stale and no suspect link', () async {
       final root = await writeNestedProject();
       final answer = move(root, 'user_story:shop/cart/add_item', 'shop/pay');
       for (final path in [
@@ -1164,7 +1193,7 @@ void main() {
       expect(spots(report, FindingKind.suspect), isEmpty);
     });
 
-    test('f02/us07/fr01/e02, review focus 2: a sibling with the story slug is doc_exists naming its path, and nothing moves', () async {
+    test('a sibling with the story slug is doc_exists naming its path, and nothing moves', () async {
       const clash = 'prds/features/f02_shop/f02_pay/us03_add_item';
       final root = await writeNestedProject(
         extra: {'docs/$clash/USER_STORY.md': '# Add item\n'},
@@ -1200,7 +1229,7 @@ void main() {
       expect(hasDoc(root, cartAdd), isTrue);
     });
 
-    test('f02/us07/fr01/e04, review focus 3: a story moved into the feature it sits in changes nothing', () async {
+    test('a story moved into the feature it sits in changes nothing', () async {
       final root = await writeNestedProject();
       final answer = move(root, 'user_story:shop/cart/drop_item', 'shop/cart');
       expect(answer.text, isEmpty);
@@ -1209,22 +1238,25 @@ void main() {
       expect(hasDoc(root, cartDrop), isTrue);
     });
 
-    test('f02/us07/fr01/e05, sf-r1: a feature that holds features takes no story, and nothing moves', () async {
-      final root = await writeNestedProject();
-      expect(
-        () => move(root, 'user_story:shop/cart/add_item', 'shop'),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having(
-                (f) => f.message,
-                'message',
-                'shop (feature) holds sub-features, so it takes no story',
-              ),
-        ),
-      );
-      expect(hasDoc(root, cartAdd), isTrue);
-    });
+    test(
+      'a feature that holds features takes no story, and nothing moves',
+      () async {
+        final root = await writeNestedProject();
+        expect(
+          () => move(root, 'user_story:shop/cart/add_item', 'shop'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'shop (feature) holds sub-features, so it takes no story',
+                ),
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+      },
+    );
 
     test(
       'a doc of another type is doc_type_not_movable, and nothing moves',
@@ -2472,7 +2504,7 @@ void main() {
         expect(hasDoc(root, '$dropLanded/USER_STORY.md'), isFalse);
       }
 
-      test('E09: no target is argument_missing', () async {
+      test('no target is argument_missing', () async {
         final root = await writeNestedProject();
         expect(
           () => moveAll(root, const [], 'shop/pay'),
@@ -2489,7 +2521,7 @@ void main() {
         );
       });
 
-      test('E15: two stories land in the order given, through one pass that rewrites each reference once', () async {
+      test('two stories land in the order given, through one pass that rewrites each reference once', () async {
         final root = await writeNestedProject(
           extra: {
             'docs/$journeyPath':
@@ -2515,23 +2547,26 @@ void main() {
         expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
       });
 
-      test('E16: a target of another type refuses the whole call, and nothing moves', () async {
-        final root = await writeNestedProject();
-        expect(
-          () => moveAll(root, [addItem, 'architecture:shop'], 'shop/pay'),
-          throwsA(
-            isA<WriteFault>().having(
-              (f) => f.code,
-              'code',
-              WriteFaultCode.docTypeNotMovable,
+      test(
+        'a target of another type refuses the whole call, and nothing moves',
+        () async {
+          final root = await writeNestedProject();
+          expect(
+            () => moveAll(root, [addItem, 'architecture:shop'], 'shop/pay'),
+            throwsA(
+              isA<WriteFault>().having(
+                (f) => f.code,
+                'code',
+                WriteFaultCode.docTypeNotMovable,
+              ),
             ),
-          ),
-        );
-        expectNothingMoved(root);
-      });
+          );
+          expectNothingMoved(root);
+        },
+      );
 
       test(
-        'E16: a name no doc carries refuses the whole call, and nothing moves',
+        'a name no doc carries refuses the whole call, and nothing moves',
         () async {
           final root = await writeNestedProject();
           expect(
@@ -2551,7 +2586,7 @@ void main() {
         },
       );
 
-      test('E16: a slug the feature carries refuses the whole call before the lock, and nothing moves', () async {
+      test('a slug the feature carries refuses the whole call before the lock, and nothing moves', () async {
         final root = await writeNestedProject(
           extra: {'docs/$dropLanded/USER_STORY.md': '# Drop item\n'},
         );
@@ -2568,7 +2603,7 @@ void main() {
         expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isFalse);
       });
 
-      test('E17: two targets that carry one slug are doc_exists naming the first target, and nothing moves', () async {
+      test('two targets that carry one slug are doc_exists naming the first target, and nothing moves', () async {
         final root = await writeNestedProject(
           extra: {
             'docs/prds/features/f04_wishlist/us01_add_item/USER_STORY.md':
@@ -2596,7 +2631,7 @@ void main() {
         );
       });
 
-      test('E15: a story created after the targets are checked is skipped by the landing numbers', () async {
+      test('a story created after the targets are checked is skipped by the landing numbers', () async {
         final root = await writeNestedProject();
         var raced = false;
         final answer = IOOverrides.runWithIOOverrides(
@@ -2619,7 +2654,7 @@ void main() {
         expect(hasDoc(root, '$shop/f02_pay/us03_other/USER_STORY.md'), isTrue);
       });
 
-      test('E18: the same story named twice moves once', () async {
+      test('the same story named twice moves once', () async {
         final root = await writeNestedProject();
         final answer = moveAll(root, [addItem, addItem], 'shop/pay');
         expect(answer.json['moved'], [
@@ -2629,7 +2664,7 @@ void main() {
         expect(hasDoc(root, cartAdd), isFalse);
       });
 
-      test('E18: a target already directly under the feature stays, and the others move', () async {
+      test('a target already directly under the feature stays, and the others move', () async {
         final root = await writeNestedProject();
         final answer = moveAll(root, [
           'user_story:shop/pay/card',
@@ -2733,21 +2768,18 @@ void main() {
       );
     });
 
-    test(
-      'f02/us07/fr01/e10, sf-r1: a move out of a mixed parent is allowed',
-      () async {
-        const orphan = '$shop/us01_orphan';
-        final root = await writeNestedProject(
-          extra: {'docs/$orphan/USER_STORY.md': '# Orphan\n'},
-        );
-        final answer = move(root, 'user_story:shop/orphan', 'shop/pay');
-        expect(
-          answer.text,
-          startsWith('moved $orphan/ to $shop/f02_pay/us03_orphan/\n'),
-        );
-        expect(hasDoc(root, '$shop/f02_pay/us03_orphan/USER_STORY.md'), isTrue);
-      },
-    );
+    test('a move out of a mixed parent is allowed', () async {
+      const orphan = '$shop/us01_orphan';
+      final root = await writeNestedProject(
+        extra: {'docs/$orphan/USER_STORY.md': '# Orphan\n'},
+      );
+      final answer = move(root, 'user_story:shop/orphan', 'shop/pay');
+      expect(
+        answer.text,
+        startsWith('moved $orphan/ to $shop/f02_pay/us03_orphan/\n'),
+      );
+      expect(hasDoc(root, '$shop/f02_pay/us03_orphan/USER_STORY.md'), isTrue);
+    });
   });
 
   group('approval stamp on a reference rewrite', () {
@@ -2766,7 +2798,7 @@ void main() {
       docPath,
     ).writeAsStringSync('\nA late note.\n', mode: FileMode.append);
 
-    test('E07: a rewritten approved doc is stamped with the hash of its new content and stays approved', () async {
+    test('a rewritten approved doc is stamped with the hash of its new content and stays approved', () async {
       final root = await writeWriteProject();
       final before = approvedValue(root, featuresIndex);
       writeIn(root, (s) => answerReorder(s, 'feature:signup', place: '1'));
@@ -2776,7 +2808,7 @@ void main() {
       expect(await staleDocs(root), isEmpty);
     });
 
-    test('E07: a rewritten doc whose hash did not match keeps its hash and still awaits approval', () async {
+    test('a rewritten doc whose hash did not match keeps its hash and still awaits approval', () async {
       final root = await writeWriteProject();
       leaveStale(root, featuresIndex);
       final before = approvedValue(root, featuresIndex);
@@ -2786,7 +2818,7 @@ void main() {
       expect(await staleDocs(root), [featuresIndex]);
     });
 
-    test('E07: a rewritten draft keeps draft and gains no approved', () async {
+    test('a rewritten draft keeps draft and gains no approved', () async {
       final root = await writeWriteProject();
       writeIn(
         root,
@@ -2908,7 +2940,7 @@ void main() {
       FindingKind.approvalStale,
     ).map((spot) => spot.split(':').first).toList();
 
-    test('E03: a doc-name mention in any doc follows the rename, its type prefix and section key kept', () async {
+    test('a doc-name mention in any doc follows the rename, its type prefix and section key kept', () async {
       final root = await writeCheckProject(
         extra: {
           'docs/notes.md':
@@ -3192,32 +3224,35 @@ void main() {
       );
     });
 
-    test('E05: a rewritten draft keeps draft: true; an approved doc is stamped again', () async {
-      final root = await writeWriteProject();
-      File(
-        '${root.path}/docs/$antiPersona',
-      ).writeAsStringSync('\nSee `feature:signup`.\n', mode: FileMode.append);
-      final approvedText =
-          '${readDoc(root, loginFeature)}\nSee `feature:signup`.\n';
-      docFile(root, loginFeature).writeAsStringSync(
-        writeIn(
-          root,
-          (s) => withApprovalHash(
-            approvedText,
-            s.docTypeAt(loginFeature),
-            statusesOutside: s.project.statusesOutsideApproval,
+    test(
+      'a rewritten draft keeps draft: true; an approved doc is stamped again',
+      () async {
+        final root = await writeWriteProject();
+        File(
+          '${root.path}/docs/$antiPersona',
+        ).writeAsStringSync('\nSee `feature:signup`.\n', mode: FileMode.append);
+        final approvedText =
+            '${readDoc(root, loginFeature)}\nSee `feature:signup`.\n';
+        docFile(root, loginFeature).writeAsStringSync(
+          writeIn(
+            root,
+            (s) => withApprovalHash(
+              approvedText,
+              s.docTypeAt(loginFeature),
+              statusesOutside: s.project.statusesOutsideApproval,
+            ),
           ),
-        ),
-      );
-      final before = approvedHash(root, loginFeature);
-      expect(await staleDocs(root), isEmpty);
-      rename(root, 'feature:signup', 'register');
-      expect(readDoc(root, antiPersona), contains('draft: true'));
-      expect(readDoc(root, antiPersona), contains('`feature:register`'));
-      expect(readDoc(root, loginFeature), contains('`feature:register`'));
-      expect(approvedHash(root, loginFeature), isNot(before));
-      expect(await staleDocs(root), isEmpty);
-    });
+        );
+        final before = approvedHash(root, loginFeature);
+        expect(await staleDocs(root), isEmpty);
+        rename(root, 'feature:signup', 'register');
+        expect(readDoc(root, antiPersona), contains('draft: true'));
+        expect(readDoc(root, antiPersona), contains('`feature:register`'));
+        expect(readDoc(root, loginFeature), contains('`feature:register`'));
+        expect(approvedHash(root, loginFeature), isNot(before));
+        expect(await staleDocs(root), isEmpty);
+      },
+    );
 
     test('a move lists a mention in a code comment, a code markdown file, and an agent file, and keeps their bytes, but lists no fenced one or plain text', () async {
       const code =
@@ -3283,34 +3318,30 @@ void main() {
       );
     }, skip: hasGit ? null : 'git is not available');
 
-    test(
-      'E07: a move stamps an approved doc whose mention it rewrites',
-      () async {
-        final root = await writeNestedProject();
-        final approvedText =
-            '${readDoc(root, shopDomain)}\nSee `shop/cart/add_item`.\n';
-        docFile(root, shopDomain).writeAsStringSync(
-          writeIn(
-            root,
-            (s) => withApprovalHash(
-              approvedText,
-              s.docTypeAt(shopDomain),
-              statusesOutside: s.project.statusesOutsideApproval,
-            ),
-          ),
-        );
-        final before = approvedHash(root, shopDomain);
+    test('a move stamps an approved doc whose mention it rewrites', () async {
+      final root = await writeNestedProject();
+      final approvedText =
+          '${readDoc(root, shopDomain)}\nSee `shop/cart/add_item`.\n';
+      docFile(root, shopDomain).writeAsStringSync(
         writeIn(
           root,
-          (s) => answerMove(s, [
-            'user_story:shop/cart/add_item',
-          ], under: 'shop/pay'),
-        );
-        expect(readDoc(root, shopDomain), contains('`shop/pay/add_item`'));
-        expect(approvedHash(root, shopDomain), isNot(before));
-        expect(await staleDocs(root), isNot(contains(shopDomain)));
-      },
-    );
+          (s) => withApprovalHash(
+            approvedText,
+            s.docTypeAt(shopDomain),
+            statusesOutside: s.project.statusesOutsideApproval,
+          ),
+        ),
+      );
+      final before = approvedHash(root, shopDomain);
+      writeIn(
+        root,
+        (s) =>
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+      );
+      expect(readDoc(root, shopDomain), contains('`shop/pay/add_item`'));
+      expect(approvedHash(root, shopDomain), isNot(before));
+      expect(await staleDocs(root), isNot(contains(shopDomain)));
+    });
 
     test('a rename lists only the files a code entry names', () async {
       const before = '// `login/email_login`\n';
@@ -3333,7 +3364,7 @@ void main() {
       ]);
     });
 
-    test('E05: a code root that holds the docs folder rewrites a doc through the doc step only, which keeps it approved and prints no warning', () async {
+    test('a code root that holds the docs folder rewrites a doc through the doc step only, which keeps it approved and prints no warning', () async {
       final root = await writeCheckProject(
         extra: {...doc(techStack, '- app/lib/\n', '- ./\n')},
       );
@@ -3583,7 +3614,7 @@ void main() {
         '${(move as Map)['from']} ${move['to']}',
     ];
 
-    test('E12: a feature reorder moves its spec folder in every target, each record with it and every entry as written', () async {
+    test('a feature reorder moves its spec folder in every target, each record with it and every entry as written', () async {
       final root = await twinProject();
       final signupBefore = readDoc(root, flutterSignup);
       final loginBefore = readDoc(root, jasprLogin);
@@ -3612,7 +3643,7 @@ void main() {
       expect(hasDoc(root, flutterSignup), isFalse);
     });
 
-    test('E12: a reorder that moves a story leaves every record byte for byte and out of the rewritten list', () async {
+    test('a reorder that moves a story leaves every record byte for byte and out of the rewritten list', () async {
       final root = await twinProject();
       final answer = reorder(root, 'user_story:login/reset_password', '1');
       expect(readDoc(root, flutterLogin), loginRecord);
@@ -3624,7 +3655,7 @@ void main() {
     });
 
     test(
-      'E06: a record code path that spells a moved doc path keeps its bytes',
+      'a record code path that spells a moved doc path keeps its bytes',
       () async {
         final spelled = recordText(
           statuses: ['reset_password:implemented'],
@@ -3636,40 +3667,34 @@ void main() {
       },
     );
 
-    test(
-      'E12: a feature rename moves its spec folder in every target',
-      () async {
-        final root = await twinProject();
-        final answer = rename(root, 'feature:login', 'signin');
-        expect(movedPairs(answer), [
-          'prds/features/f01_login/ prds/features/f01_signin/',
-          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
-          '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
-          'specs/f01_login/ specs/f01_signin/',
-        ]);
-        expect(
-          hasDoc(root, '.specstone/records/jaspr/f01_signin/IMPLEMENTATION.md'),
-          isTrue,
-        );
-      },
-    );
+    test('a feature rename moves its spec folder in every target', () async {
+      final root = await twinProject();
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(movedPairs(answer), [
+        'prds/features/f01_login/ prds/features/f01_signin/',
+        '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+        '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
+        'specs/f01_login/ specs/f01_signin/',
+      ]);
+      expect(
+        hasDoc(root, '.specstone/records/jaspr/f01_signin/IMPLEMENTATION.md'),
+        isTrue,
+      );
+    });
 
-    test(
-      'E12: a target with no spec folder for the feature gets none',
-      () async {
-        final root = await twinProject(without: {jasprLogin});
-        final answer = rename(root, 'feature:login', 'signin');
-        expect(movedPairs(answer), [
-          'prds/features/f01_login/ prds/features/f01_signin/',
-          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
-          'specs/f01_login/ specs/f01_signin/',
-        ]);
-        expect(
-          Directory('${root.path}/docs/specs/jaspr/f01_signin').existsSync(),
-          isFalse,
-        );
-      },
-    );
+    test('a target with no spec folder for the feature gets none', () async {
+      final root = await twinProject(without: {jasprLogin});
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(movedPairs(answer), [
+        'prds/features/f01_login/ prds/features/f01_signin/',
+        '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+        'specs/f01_login/ specs/f01_signin/',
+      ]);
+      expect(
+        Directory('${root.path}/docs/specs/jaspr/f01_signin').existsSync(),
+        isFalse,
+      );
+    });
 
     group('with per-target architecture docs', () {
       const flutterArch = 'specs/flutter/f01_login/ARCHITECTURE.md';
@@ -3686,7 +3711,7 @@ void main() {
         },
       );
 
-      test('E06, E12: a per-target doc names its feature to rename, read in the shape of its own target', () async {
+      test('a per-target doc names its feature to rename, read in the shape of its own target', () async {
         final root = await archTwins();
         expect(
           () => writeIn(
@@ -3710,19 +3735,25 @@ void main() {
         );
       });
 
-      test('E03: a mention of a per-target doc takes the feature name the twins share', () async {
-        final root = await archTwins();
-        rename(root, 'feature:login', 'signin');
-        expect(
-          readDoc(root, 'notes.md'),
-          'See `architecture:signin` and `login`.\n',
-        );
-        expect(
-          hasDoc(root, 'specs/flutter/f01_signin/ARCHITECTURE.md'),
-          isTrue,
-        );
-        expect(hasDoc(root, 'specs/jaspr/f01_signin/ARCHITECTURE.md'), isTrue);
-      });
+      test(
+        'a mention of a per-target doc takes the feature name the twins share',
+        () async {
+          final root = await archTwins();
+          rename(root, 'feature:login', 'signin');
+          expect(
+            readDoc(root, 'notes.md'),
+            'See `architecture:signin` and `login`.\n',
+          );
+          expect(
+            hasDoc(root, 'specs/flutter/f01_signin/ARCHITECTURE.md'),
+            isTrue,
+          );
+          expect(
+            hasDoc(root, 'specs/jaspr/f01_signin/ARCHITECTURE.md'),
+            isTrue,
+          );
+        },
+      );
     });
 
     group('record entries on a rename', () {
@@ -3731,7 +3762,7 @@ void main() {
         multiLine: true,
       ).firstMatch(readDoc(root, docPath))!.group(1)!;
 
-      test('E11: a story rename rewrites its entry and its FRs entries in each target, status and code paths kept, every other line as written', () async {
+      test('a story rename rewrites its entry and its FRs entries in each target, status and code paths kept, every other line as written', () async {
         final root = await twinProject();
         final answer = rename(
           root,
@@ -3759,7 +3790,7 @@ void main() {
         );
       });
 
-      test('E11: an FR rename rewrites only its own entry', () async {
+      test('an FR rename rewrites only its own entry', () async {
         final root = await twinProject();
         rename(root, 'fr:login/reset_password/send_reset_link', 'send_link');
         final record = readDoc(root, flutterLogin);
@@ -3773,7 +3804,7 @@ void main() {
         expect(record, isNot(contains('reset_password/send_reset_link')));
       });
 
-      test('E11: a feature rename leaves each entry, the record moving with the spec folder', () async {
+      test('a feature rename leaves each entry, the record moving with the spec folder', () async {
         final root = await twinProject();
         rename(root, 'feature:login', 'signin');
         expect(
@@ -3792,7 +3823,7 @@ void main() {
         );
       });
 
-      test('E05, E11: a record whose approval held is stamped again, a draft and a stale record keep theirs, and none gains draft', () async {
+      test('a record whose approval held is stamped again, a draft and a stale record keep theirs, and none gains draft', () async {
         final root = await twinProject();
         stampApproved(root, flutterLogin);
         stampApproved(root, jasprLogin);
@@ -3837,25 +3868,22 @@ void main() {
   group('with one unnamed code target', () {
     const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
-    test(
-      'E11: a story rename rewrites its entries in the one record',
-      () async {
-        final root = await writeWriteProject(
-          extra: {
-            '.specstone/config.yaml': oneTargetConfig(),
-            '.specstone/templates/implementation.yaml': recordLayerAtRoot,
-            record: recordText(
-              statuses: ['reset_password:implemented', 'sign_out:planned'],
-            ),
-          },
-        );
-        rename(root, 'user_story:login/reset_password', 'recover');
-        final text = readDoc(root, record);
-        expect(text, contains("'recover:implemented'"));
-        expect(text, contains("'sign_out:planned'"));
-        expect(text, isNot(contains('reset_password')));
-      },
-    );
+    test('a story rename rewrites its entries in the one record', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          record: recordText(
+            statuses: ['reset_password:implemented', 'sign_out:planned'],
+          ),
+        },
+      );
+      rename(root, 'user_story:login/reset_password', 'recover');
+      final text = readDoc(root, record);
+      expect(text, contains("'recover:implemented'"));
+      expect(text, contains("'sign_out:planned'"));
+      expect(text, isNot(contains('reset_password')));
+    });
   });
 
   group('with one unnamed code target and a tests line', () {
@@ -3892,7 +3920,7 @@ void main() {
   });
 
   group('with one named code target', () {
-    test('E03: a per-target doc outside a target folder keeps the feature name its mention takes', () async {
+    test('a per-target doc outside a target folder keeps the feature name its mention takes', () async {
       final root = await writeWriteProject(
         extra: {
           '.specstone/config.yaml':
@@ -3959,7 +3987,7 @@ void main() {
     ReadAnswer moveAddItem(Directory root) =>
         writeIn(root, (s) => answerMove(s, [addItem], under: 'shop/pay'));
 
-    test('E19, E20, E21: each target carries the story and FR entries to its pay record, creating a missing one as a draft, and its skip of cart stays on cart', () async {
+    test('each target carries the story and FR entries to its pay record, creating a missing one as a draft, and its skip of cart stays on cart', () async {
       final root = await shopTwins();
       stampApproved(root, cartFlutter);
       stampApproved(root, cartJaspr);
@@ -4219,7 +4247,7 @@ void main() {
       expect(readDoc(root, cartFlutter), flutterCart);
     });
 
-    test('E10: the entries name the story and FR relative to pay, so check finds no unresolved entry', () async {
+    test('the entries name the story and FR relative to pay, so check finds no unresolved entry', () async {
       final root = await shopTwins();
       moveAddItem(root);
       expect(
@@ -4228,7 +4256,7 @@ void main() {
       );
     });
 
-    test('E20: a target whose cart record holds no entry of the moved items changes nothing, and no pay record is made there', () async {
+    test('a target whose cart record holds no entry of the moved items changes nothing, and no pay record is made there', () async {
       final bare = recordText(statuses: ['drop_item:planned']);
       final root = await shopTwins(
         extra: {cartJaspr: bare},
@@ -4240,14 +4268,14 @@ void main() {
       expect(hasDoc(root, payFlutter), isTrue);
     });
 
-    test('E20: a target with no cart record changes nothing', () async {
+    test('a target with no cart record changes nothing', () async {
       final root = await shopTwins(without: {cartJaspr, payJaspr});
       moveAddItem(root);
       expect(hasDoc(root, cartJaspr), isFalse);
       expect(hasDoc(root, payJaspr), isFalse);
     });
 
-    test('E07: a record whose hash did not match keeps its hash and gains no draft mark', () async {
+    test('a record whose hash did not match keeps its hash and gains no draft mark', () async {
       final root = await shopTwins();
       stampApproved(root, cartJaspr);
       docFile(
@@ -4265,7 +4293,7 @@ void main() {
       expect(after, isNot(contains('add_item')));
     });
 
-    test('E19: two stories moved in one call keep the order of the record, whatever order the call names them', () async {
+    test('two stories moved in one call keep the order of the record, whatever order the call names them', () async {
       final root = await shopTwins(
         extra: {
           cartFlutter: recordText(
@@ -4288,7 +4316,7 @@ void main() {
       expect(readDoc(root, cartFlutter), isNot(contains('statuses')));
     });
 
-    test('E19, E20: a record doc type with no path of its own for the feature refuses argument_invalid, and the old record keeps its lines', () async {
+    test('a record doc type with no path of its own for the feature refuses argument_invalid, and the old record keeps its lines', () async {
       const slugged =
           'id: implementation\n'
           'description: One feature record per target.\n'
@@ -4328,7 +4356,7 @@ void main() {
       expect(hasDoc(root, story3), isTrue);
     });
 
-    test('E19: a pay record written after the session opened takes the entries beside its own', () async {
+    test('a pay record written after the session opened takes the entries beside its own', () async {
       final root = await shopTwins();
       writeIn(root, (s) {
         docFile(root, payFlutter)
@@ -4345,7 +4373,7 @@ void main() {
       expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
     });
 
-    test('E19: a file at the pay record path that is no UTF-8 text refuses before any change', () async {
+    test('a file at the pay record path that is no UTF-8 text refuses before any change', () async {
       final root = await shopTwins();
       expect(
         () => writeIn(root, (s) {
@@ -4369,7 +4397,7 @@ void main() {
       expect(hasDoc(root, cartAdd), isTrue);
     });
 
-    test('E19: a pay record whose implements block is not valid YAML refuses before any change, its lines kept', () async {
+    test('a pay record whose implements block is not valid YAML refuses before any change, its lines kept', () async {
       const broken =
           "---\nstatuses:\n  - 'card:implemented'\n"
           "implements:\n  - 'card:web/lib/card.dart\n  - card:web/lib/pay.dart\n"
@@ -4401,7 +4429,7 @@ void main() {
       expect(hasDoc(root, cartAdd), isTrue);
     });
 
-    test('E19: a cart record whose implements block is not valid YAML refuses, the moved entries kept there', () async {
+    test('a cart record whose implements block is not valid YAML refuses, the moved entries kept there', () async {
       const broken =
           "---\nstatuses:\n  - 'add_item:implemented'\n"
           "implements:\n  - 'add_item:web/lib/shop.dart\n"
@@ -4420,7 +4448,7 @@ void main() {
       expect(readDoc(root, cartJaspr), broken);
     });
 
-    test('E19, E20: one unnamed code target carries its entries too', () async {
+    test('one unnamed code target carries its entries too', () async {
       final root = await writeNestedProject(
         extra: {
           '.specstone/config.yaml': oneTargetConfig(),

@@ -203,7 +203,7 @@ void main() {
     expect(_read(run, _feature), '# T\n');
   });
 
-  test('f05/us01/fr06/e01, f05/us01/fr07/e04, s03/inv7, s03/inv8: a CRLF '
+  test('a CRLF '
       'copy of a formatted doc is unchanged, not written, not listed by '
       'check', () async {
     final crlf = _featureFormatted.replaceAll('\n', '\r\n');
@@ -226,7 +226,7 @@ void main() {
   });
 
   test(
-    'f05/us01/fr06, f05/us01/fr06/e02, f05/us01/fr06/e04: check lists '
+    'check lists '
     'what would change and writes nothing; formatted docs list nothing',
     () async {
       final run = await _open({
@@ -254,7 +254,7 @@ void main() {
     },
   );
 
-  test('f05/us01/fr06/e03, f05/us01/fr02/e02: a doc no doc type matches is '
+  test('a doc no doc type matches is '
       'skipped with a warning; the others are still formatted', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -289,7 +289,7 @@ void main() {
     expect(report.warnings, isEmpty);
   });
 
-  test('f05/us01/fr02/e03, s03/inv6: a doc two doc types match is refused '
+  test('a doc two doc types match is refused '
       'with their ids and left alone', () async {
     final run = await _open(
       {_feature: _featureOutOfOrder},
@@ -309,7 +309,7 @@ void main() {
     expect(_read(run, _feature), _featureOutOfOrder);
   });
 
-  test('f05/us01/fr08/e02, s03/inv6: a refused doc does not stop the others '
+  test('a refused doc does not stop the others '
       'from being written; exit 1', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -408,7 +408,7 @@ void main() {
     expect(report.files.single.duplicateHeaders, ['## Summary']);
   });
 
-  test('f05/us01/fr08, f05/us01/fr08/e01: toJson holds every file in tree '
+  test('toJson holds every file in tree '
       'order and the plain warnings', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -469,7 +469,7 @@ void main() {
     expect(report.exitStatus, 0);
   });
 
-  test('f05/us01/fr07/e03, NFR-DI01: a run leaves no temp file under '
+  test('a run leaves no temp file under '
       'docs/', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -656,7 +656,7 @@ void main() {
   }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
   group('generated blocks', () {
-    test('f05/us03/s1, f05/us03/fr02/e01: format rewrites a stale block and '
+    test('format rewrites a stale block and '
         'keeps every other byte, draft and confirmed included', () async {
       const draft = '---\ndraft: true\n---\n';
       const confirmed = '---\ndraft: false\n---\n';
@@ -675,23 +675,20 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh(), front: confirmed));
     });
 
-    test(
-      'f05/us03/s2, f05/us03/fr02/e02: format inserts a missing block',
-      () async {
-        final run = await _openNotes({
-          _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
-        });
+    test('format inserts a missing block', () async {
+      final run = await _openNotes({
+        _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
+      });
 
-        _runNotes(run, _tocRun(_Calls()));
+      _runNotes(run, _tocRun(_Calls()));
 
-        expect(
-          _read(run, _noteA),
-          '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
-        );
-      },
-    );
+      expect(
+        _read(run, _noteA),
+        '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
+      );
+    });
 
-    test('f05/us03/s3, f05/us03/fr03/e01, f05/us03/fr03/e03: format --check '
+    test('format --check '
         'lists a doc with a stale block, writes nothing, exits 1', () async {
       final run = await _openNotes({_noteA: _noteDoc(_stale())});
 
@@ -728,7 +725,7 @@ void main() {
       expect(_read(run, _noteA), _noteDoc(_stale()));
     });
 
-    test('f05/us03/s4, f05/us03/fr02/e03: a hand edit inside a block is '
+    test('a hand edit inside a block is '
         'replaced', () async {
       final run = await _openNotes({
         _noteA: _noteDoc('$_toc\nhand edit\nmore\n$_end'),
@@ -739,7 +736,7 @@ void main() {
       expect(_read(run, _noteA), _noteDoc(_fresh()));
     });
 
-    test("f05/us03/s5, f05/us03/fr02/e08: an approved doc's block is "
+    test("an approved doc's block is "
         'rewritten and no draft: true is added', () async {
       final run = await _openNotes({
         _noteA: _noteDoc(_stale(), front: '---\ndraft: false\n---\n'),
@@ -753,7 +750,7 @@ void main() {
       expect(text, contains('toc R1'));
     });
 
-    test('f05/us03/s6, f05/us03/fr02/e07: a doc outside the Target is not '
+    test('a doc outside the Target is not '
         'written, and a check over the docs root lists it', () async {
       final run = await _openNotes({
         _noteA: _noteDoc(_stale()),
@@ -768,7 +765,7 @@ void main() {
       expect(report.toText(), '$_noteB\n');
     });
 
-    test('f05/us03/s7, f05/us03/fr02/e06: an open block refuses the file and '
+    test('an open block refuses the file and '
         'the other files still format', () async {
       final openDoc = '# A\n\n## Contents\n$_toc\nno end\n\n## Steps\nx\n';
       final run = await _openNotes({
@@ -928,7 +925,7 @@ void main() {
       expect(again.files.single.status, FileStatus.unchanged);
     });
 
-    test('E07: an approved doc '
+    test('an approved doc '
         'and a draft doc that need a change keep their key block and gain no '
         'draft: true', () async {
       const approved = '---\napproved: true\n---\n';
@@ -944,7 +941,7 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh(), front: draft));
     });
 
-    test('E07: a doc that holds an '
+    test('a doc that holds an '
         'approved hash keeps the key block byte for byte', () async {
       const hashed = '---\napproved: "0123456789ab"\n---\n';
       final run = await _openNotes({_noteA: _noteDoc(_stale(), front: hashed)});
@@ -954,8 +951,7 @@ void main() {
       expect(_read(run, _noteA), _noteDoc(_fresh(), front: hashed));
     });
 
-    test('Write each generated block '
-        'E08: an approved doc whose block changed is written with no '
+    test('an approved doc whose block changed is written with no '
         'draft: true', () async {
       const approved = '---\napproved: true\n---\n';
       final run = await _openNotes({

@@ -14,7 +14,7 @@ import '../../helpers/index_fixture.dart';
 late Directory _project;
 
 void main() {
-  test('f04/us01/s4, f04/us01/fr05/e01: fast counts in the Statement only, not in the Rationale', () async {
+  test('fast counts in the Statement only, not in the Rationale', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
@@ -115,7 +115,7 @@ void main() {
     },
   );
 
-  test('f04/us01/fr05/e05, f04/us01/fr05/e07: letter case is ignored, other words are not matched, a phrase spans '
+  test('letter case is ignored, other words are not matched, a phrase spans '
       'spaces', () async {
     expect(bannedWordPattern('fast').hasMatch('Fast'), isTrue);
     expect(bannedWordPattern('fast').hasMatch('fastest'), isFalse);
@@ -328,7 +328,7 @@ void main() {
     });
   });
 
-  test('cc-s03/inv9: a word builds its pattern once per run', () async {
+  test('a word builds its pattern once per run', () async {
     final session = openSession(await writeCheckProject());
     addTearDown(session.close);
     final context = CheckContext(session);

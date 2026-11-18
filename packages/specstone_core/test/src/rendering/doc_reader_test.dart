@@ -44,7 +44,7 @@ Future<DocRead> _read(
 }
 
 void main() {
-  test('f05/us01/fr02, s03/inv12: a matched UTF-8 doc is readable, parsed from '
+  test('a matched UTF-8 doc is readable, parsed from '
       'its LF text', () async {
     final read = await _read(_feature, '# T\r\n\r\n## Feature name\r\nx\r\n');
 
@@ -58,7 +58,7 @@ void main() {
     expect(doc.doc.sections.single.body, 'x\n');
   });
 
-  test('f05/us01/fr02/e02, s03/inv12: a path no doc type matches is '
+  test('a path no doc type matches is '
       'unmatched, with the skip warning', () async {
     final read = await _read(_notes, 'text');
 
@@ -69,7 +69,7 @@ void main() {
     );
   });
 
-  test('f05/us01/fr02/e03, s03/inv6: a path two doc types match is '
+  test('a path two doc types match is '
       'ambiguous, with their ids', () async {
     final read = await _read(_feature, '# T\n', extra: {'zeta.yaml': _zeta});
 
@@ -98,7 +98,7 @@ void main() {
     );
   });
 
-  test('dw-s03/inv9, H13: startsWithUtf8Bom is true exactly for a leading '
+  test('startsWithUtf8Bom is true exactly for a leading '
       'EF BB BF', () {
     expect(startsWithUtf8Bom([0xEF, 0xBB, 0xBF]), isTrue);
     expect(startsWithUtf8Bom([0xEF, 0xBB, 0xBF, 0x61]), isTrue);

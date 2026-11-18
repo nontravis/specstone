@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 import 'helpers/best_of.dart';
 
 void main() {
-  test('NFR-P01, NFR-P02, NFR-P03, FN1: bestOf makes every run, prints each '
+  test('bestOf makes every run, prints each '
       'time, and returns the fastest', () {
     final times = [
       const Duration(milliseconds: 1200),
@@ -30,7 +30,7 @@ void main() {
     expect(lines, ['diagnostic: full index runs 1200, 400, 900, 700, 1100 ms']);
   });
 
-  test('NFR-P01, NFR-P02, NFR-P03, FN1: bestOf prints the finished runs '
+  test('bestOf prints the finished runs '
       'when a run throws', () async {
     const times = [Duration(milliseconds: 1200), Duration(milliseconds: 400)];
     var calls = 0;

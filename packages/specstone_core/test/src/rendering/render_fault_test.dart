@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('RenderFaultCode', () {
-    test('codes and exit statuses follow the s05 catalog', () {
+    test('codes and exit statuses follow the catalog', () {
       expect(
         {for (final code in RenderFaultCode.values) code.wire: code.exitStatus},
         {
@@ -18,7 +18,7 @@ void main() {
       );
     });
 
-    test('values keep the s05 catalog order', () {
+    test('values keep the catalog order', () {
       expect(
         [for (final code in RenderFaultCode.values) code.wire],
         [

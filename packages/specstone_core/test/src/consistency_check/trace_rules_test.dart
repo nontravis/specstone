@@ -129,7 +129,7 @@ void main() {
     },
   );
 
-  test('f04/us03/s2, f04/us03/fr01/e01, f04/us03/fr01/e04: a trace to a scenario the story lacks, or not in the '
+  test('a trace to a scenario the story lacks, or not in the '
       'S<N> form, is scenario_trace_unresolved', () async {
     for (final entry in ['S9', 'Scenario 2']) {
       final report = await checkOf(
@@ -147,7 +147,7 @@ void main() {
     }
   });
 
-  test('f04/us03/s6, f04/us03/fr01/e02, f04/us03/fr01/e03: present scenarios and self-derived resolve', () async {
+  test('present scenarios and self-derived resolve', () async {
     for (final entries in ['  - S1\n  - S2\n', '  - self-derived\n']) {
       final report = await checkOf(
         await writeCheckProject(extra: fr('  - S2\n', entries)),
@@ -173,7 +173,7 @@ void main() {
     ]);
   });
 
-  test('f04/us03/s4, f04/us03/fr01/e06: an override of an NFR the GNFR lacks is override_unresolved', () async {
+  test('an override of an NFR the GNFR lacks is override_unresolved', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: doc(loginNf, 'overrides: NFR-P01', 'overrides: NFR-P07'),
@@ -184,29 +184,26 @@ void main() {
     ]);
   });
 
-  test(
-    'f04/us03/fr01/e06, RULE-12: a lettered NFR heading keys no block, so an '
-    'override of its written form is override_unresolved',
-    () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {
-            ...doc(
-              gnfrDoc,
-              '### NFR-P01 — Sign-in time',
-              '### NFR-P01a — Sign-in time',
-            ),
-            ...doc(loginNf, 'overrides: NFR-P01', 'overrides: NFR-P01a'),
-          },
-        ),
-      );
-      expect(spots(report, FindingKind.overrideUnresolved), [
-        '$loginNf:4: override_unresolved',
-      ]);
-    },
-  );
+  test('a lettered NFR heading keys no block, so an '
+      'override of its written form is override_unresolved', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(
+            gnfrDoc,
+            '### NFR-P01 — Sign-in time',
+            '### NFR-P01a — Sign-in time',
+          ),
+          ...doc(loginNf, 'overrides: NFR-P01', 'overrides: NFR-P01a'),
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.overrideUnresolved), [
+      '$loginNf:4: override_unresolved',
+    ]);
+  });
 
-  test('f04/us03/fr02/e05, RULE-12: a lettered project heading keys no block, '
+  test('a lettered project heading keys no block, '
       'so a goal or Serves entry of its written form is unresolved', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -307,21 +304,24 @@ void main() {
     expect(spots(report, FindingKind.scenarioTraceUnresolved), isEmpty);
   });
 
-  test('review focus 5: a story header apart from letter case still holds its scenarios', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: doc(
-          loginStory,
-          '## Acceptance Criteria',
-          '## acceptance criteria',
+  test(
+    'a story header apart from letter case still holds its scenarios',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginStory,
+            '## Acceptance Criteria',
+            '## acceptance criteria',
+          ),
         ),
-      ),
-    );
-    expect(
-      report.findings.where((f) => f.kind != FindingKind.formatDrift),
-      isEmpty,
-    );
-  });
+      );
+      expect(
+        report.findings.where((f) => f.kind != FindingKind.formatDrift),
+        isEmpty,
+      );
+    },
+  );
 
   test('an "As a" role with a Role entry resolves', () async {
     expect(
@@ -333,7 +333,7 @@ void main() {
     );
   });
 
-  test('f04/us03/s7, f04/us03/fr02/e02, f04/us03/fr02/e03: a story or persona role the project lacks', () async {
+  test('a story or persona role the project lacks', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: {
@@ -389,28 +389,31 @@ void main() {
     expect(spots(known, FindingKind.roleUnresolved), isEmpty);
   });
 
-  test('f04/us03/s5, f04/us03/fr02/e04: a story goal its feature does not cite is vision_goal_widened', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          ...doc(loginStory, '  - PG-01\n', '  - PG-03\n'),
-          ...doc(
-            goalDoc,
-            'Halve the password resets.\n',
-            'Halve the password resets.\n\n### PG-03 — More\n\n**Serves:** PV-01\nMore.\n',
-          ),
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.visionGoalWidened), [
-      '$loginStory:3: vision_goal_widened',
-    ]);
-    final widened = report.findings.singleWhere(
-      (f) => f.kind == FindingKind.visionGoalWidened,
-    );
-    expect(widened.toJson()['id'], 'PG-03');
-    expect(widened.message, 'PG-03 is not in the goals of the feature');
-  });
+  test(
+    'a story goal its feature does not cite is vision_goal_widened',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            ...doc(loginStory, '  - PG-01\n', '  - PG-03\n'),
+            ...doc(
+              goalDoc,
+              'Halve the password resets.\n',
+              'Halve the password resets.\n\n### PG-03 — More\n\n**Serves:** PV-01\nMore.\n',
+            ),
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.visionGoalWidened), [
+        '$loginStory:3: vision_goal_widened',
+      ]);
+      final widened = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.visionGoalWidened,
+      );
+      expect(widened.toJson()['id'], 'PG-03');
+      expect(widened.message, 'PG-03 is not in the goals of the feature');
+    },
+  );
 
   test(
     'an ID no project heading holds is unresolved, and widened too',
@@ -427,7 +430,7 @@ void main() {
     },
   );
 
-  test("f04/us03/fr02/e06, f04/us03/fr02/e07: a subset of the feature's IDs passes; with no PROJECT.md every role "
+  test("a subset of the feature's IDs passes; with no PROJECT.md every role "
       'and ID is unresolved', () async {
     expect(
       spots(
@@ -660,7 +663,7 @@ void main() {
     );
   });
 
-  test('f04/us03/s3, f04/us03/fr03/e02, f04/us03/fr03/e03: a row naming a requirement the feature lacks, or written '
+  test('a row naming a requirement the feature lacks, or written '
       'with the feature slug, is fr_trace_unresolved', () async {
     final extra = await checkOf(
       await writeCheckProject(
@@ -803,7 +806,7 @@ void main() {
     expect(spots(noCode, FindingKind.architectureMissing), isEmpty);
   });
 
-  test("f04/us03/fr03/e09, sf-c12: cart with a record entry that names code and only shop's ARCHITECTURE gives no architecture_missing", () async {
+  test("cart with a record entry that names code and only shop's ARCHITECTURE gives no architecture_missing", () async {
     final report = await checkOf(
       await writeNestedProject(
         extra: {
@@ -821,7 +824,7 @@ void main() {
     expect(spots(report, FindingKind.architectureMissing), isEmpty);
   });
 
-  test("f04/us03/fr03/e09, sf-c12: without shop's ARCHITECTURE, cart, pay, and shop each get architecture_missing; a sub-feature whose record names no code gets none", () async {
+  test("without shop's ARCHITECTURE, cart, pay, and shop each get architecture_missing; a sub-feature whose record names no code gets none", () async {
     final report = await checkOf(
       await writeNestedProject(
         extra: {
@@ -942,7 +945,7 @@ void main() {
     );
   });
 
-  test('f04/us03/fr03/e05, f04/us03/fr04/e05, cc-s03/inv2: a prd-core-only project runs neither rule', () async {
+  test('a prd-core-only project runs neither rule', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: {
@@ -967,7 +970,7 @@ void main() {
     expect(spots(report), ['specs/f03_billing/API.md:1: parent_missing']);
   });
 
-  test('f04/us03/fr04/e01, f04/us03/fr04/e04: an implemented entry that names code, a planned entry with none, and an item with no entry give no implements_missing', () async {
+  test('an implemented entry that names code, a planned entry with none, and an item with no entry give no implements_missing', () async {
     final report = await _checkLogin(
       _record(
         statuses: ['$_fr:implemented', '$_story:planned'],
@@ -998,7 +1001,7 @@ void main() {
     },
   );
 
-  test('f04/us03/s8, f04/us03/fr04/e02: an implemented entry that names no code is implements_missing at its statuses line', () async {
+  test('an implemented entry that names no code is implements_missing at its statuses line', () async {
     final report = await _checkLogin(
       _record(statuses: ['$_story:planned', '$_fr:implemented']),
     );
@@ -1047,7 +1050,7 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr03/fr04: a project naming one target keeps the one-target messages and no target key', () async {
+  test('a project naming one target keeps the one-target messages and no target key', () async {
     final report = await _checkLogin(
       _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
       extra: {
@@ -1308,25 +1311,28 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr02, cc-s03/inv2: a project layer that disables the roles section runs no role rule', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/project.yaml':
-              'sections:\n  - id: roles\n    disabled: true\n',
-          ...doc(
-            projectDoc,
-            '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n',
-            '',
-          ),
-          'docs/prds/personas/buyer/PERSONA.md': '---\nrole: Buyer\npriority: primary\nbasis: proto\n---\n\n# Buyer\n',
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.roleUnresolved), isEmpty);
-  });
+  test(
+    'a project layer that disables the roles section runs no role rule',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/project.yaml':
+                'sections:\n  - id: roles\n    disabled: true\n',
+            ...doc(
+              projectDoc,
+              '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n',
+              '',
+            ),
+            'docs/prds/personas/buyer/PERSONA.md': '---\nrole: Buyer\npriority: primary\nbasis: proto\n---\n\n# Buyer\n',
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.roleUnresolved), isEmpty);
+    },
+  );
 
-  test('f04/us03/fr01, cc-s03/inv2: a project layer that disables the story acceptance_criteria section runs no scenario trace rule', () async {
+  test('a project layer that disables the story acceptance_criteria section runs no scenario trace rule', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: {
@@ -1343,7 +1349,7 @@ void main() {
     expect(spots(report, FindingKind.scenarioTraceUnresolved), isEmpty);
   });
 
-  test('f04/us03/fr02, f04/us03/fr01: a fenced example is no Role entry, no As-a line, no goal heading, and no vision heading', () async {
+  test('a fenced example is no Role entry, no As-a line, no goal heading, and no vision heading', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: {
@@ -1459,7 +1465,7 @@ void main() {
       'goals:\n  - PG-01\n  - PG-02',
     );
 
-    test("f04/us03/fr02/e10, sf-c12: cart's PG-02 outside shop's goals gives vision_goal_widened, PG-02 is not in the goals of the parent feature", () async {
+    test("cart's PG-02 outside shop's goals gives vision_goal_widened, PG-02 is not in the goals of the parent feature", () async {
       final report = await checkOf(
         await writeNestedProject(
           extra: {...projectWithPg02, 'docs/$cartFeature': cartGoalsWithPg02},
@@ -1479,7 +1485,7 @@ void main() {
       );
     });
 
-    test("f04/us03/fr02/e10, sf-c12: a feature under cart is held to cart's goals, not shop's", () async {
+    test("a feature under cart is held to cart's goals, not shop's", () async {
       const deepFeature = 'prds/features/f02_shop/f01_cart/f01_deep/FEATURE.md';
       final report = await checkOf(
         await writeNestedProject(

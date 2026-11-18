@@ -49,8 +49,6 @@ import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 
-const _apply = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
-
 /// The approval hash by the rule of the pins an upgrade here starts from,
 /// which the stamp pass hashes by: every record fixture pins the shipped
 /// `software-tech` beside the pack it upgrades.
@@ -271,18 +269,16 @@ sections:
     );
   });
 
-  group(
-    'f06/us02/fr02/e08, final M5: upgrade_collision lists each doc once',
-    () {
-      /// The DocPath each line of [fault] starts with.
-      List<String?> filesOf(MigrateFault fault) => [
-        fault.file,
-        for (final next in fault.more) next.file,
-      ];
+  group('upgrade_collision lists each doc once', () {
+    /// The DocPath each line of [fault] starts with.
+    List<String?> filesOf(MigrateFault fault) => [
+      fault.file,
+      for (final next in fault.more) next.file,
+    ];
 
-      test('three docs moved onto one path print one line '
-          'each', () async {
-        const packYaml = '''
+    test('three docs moved onto one path print one line '
+        'each', () async {
+      const packYaml = '''
 name: acme
 version: 1.2.0
 extends: software-tech
@@ -293,58 +289,57 @@ migrations:
       - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
       - move_file: {doc_type: runbook, from: "prds/old/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
 ''';
-        const type = '''
+      const type = '''
 id: runbook
 description: A runbook.
 path: prds/runbooks/{slug}/NOTES.md
 sections:
   - {id: steps, header: Steps, required: true}
 ''';
-        final fixture = await _fixture(
-          packYaml: packYaml,
-          runbookType: type,
-          overrides: const {},
-          docs: const {
-            'prds/runbooks/deploy/RUNBOOK.md': '# A\n\n## Steps\n\nx\n',
-            'prds/ops/deploy/RUNBOOK.md': '# B\n\n## Steps\n\ny\n',
-            'prds/old/deploy/RUNBOOK.md': '# C\n\n## Steps\n\nz\n',
-          },
-        );
+      final fixture = await _fixture(
+        packYaml: packYaml,
+        runbookType: type,
+        overrides: const {},
+        docs: const {
+          'prds/runbooks/deploy/RUNBOOK.md': '# A\n\n## Steps\n\nx\n',
+          'prds/ops/deploy/RUNBOOK.md': '# B\n\n## Steps\n\ny\n',
+          'prds/old/deploy/RUNBOOK.md': '# C\n\n## Steps\n\nz\n',
+        },
+      );
 
-        expect(
-          () => _plan(fixture),
-          throwsA(
-            isA<MigrateFault>().having(filesOf, 'files', [
-              'prds/old/deploy/RUNBOOK.md',
-              'prds/ops/deploy/RUNBOOK.md',
-              'prds/runbooks/deploy/RUNBOOK.md',
-            ]),
-          ),
-        );
-      });
+      expect(
+        () => _plan(fixture),
+        throwsA(
+          isA<MigrateFault>().having(filesOf, 'files', [
+            'prds/old/deploy/RUNBOOK.md',
+            'prds/ops/deploy/RUNBOOK.md',
+            'prds/runbooks/deploy/RUNBOOK.md',
+          ]),
+        ),
+      );
+    });
 
-      test('a doc whose section and field renames both '
-          'collide prints one line', () async {
-        final fixture = await _fixture(
-          overrides: const {},
-          docs: const {
-            'prds/runbooks/deploy/RUNBOOK.md':
-                '---\nowner: sre\non_call: ops\n---\n# Deploy\n\n## Steps\n\n'
-                'x\n\n## Procedure\n\ny\n',
-          },
-        );
+    test('a doc whose section and field renames both '
+        'collide prints one line', () async {
+      final fixture = await _fixture(
+        overrides: const {},
+        docs: const {
+          'prds/runbooks/deploy/RUNBOOK.md':
+              '---\nowner: sre\non_call: ops\n---\n# Deploy\n\n## Steps\n\n'
+              'x\n\n## Procedure\n\ny\n',
+        },
+      );
 
-        expect(
-          () => _plan(fixture),
-          throwsA(
-            isA<MigrateFault>().having(filesOf, 'files', [
-              'prds/runbooks/deploy/RUNBOOK.md',
-            ]),
-          ),
-        );
-      });
-    },
-  );
+      expect(
+        () => _plan(fixture),
+        throwsA(
+          isA<MigrateFault>().having(filesOf, 'files', [
+            'prds/runbooks/deploy/RUNBOOK.md',
+          ]),
+        ),
+      );
+    });
+  });
 
   test('two docs whose new paths differ only in letter case '
       'collide', () async {
@@ -539,7 +534,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e08, F6-D34: a rotation through a temporary name plans '
+  test('a rotation through a temporary name plans '
       'the final paths and parks one doc in the stage', () async {
     const rotationPack = '''
 name: acme
@@ -652,7 +647,7 @@ sections:
     );
   });
 
-  test('$_apply E30: an upgrade past the one-time run re-stamps an approved '
+  test('an upgrade past the one-time run re-stamps an approved '
       'doc its steps rewrite, so it stays approved', () async {
     final draftFixture = await _fixture(overrides: const {});
     final set = TemplateResolver().resolveCarried(
@@ -693,7 +688,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02, f06/us02/s2: the s02 upgrade plan', () async {
+  test('the upgrade plan', () async {
     final plan = _plan(await _fixture());
 
     expect(
@@ -786,7 +781,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02, final I2: every step skips a doc that is not UTF-8, '
+  test('every step skips a doc that is not UTF-8, '
       'and the others still change', () async {
     final fixture = await _fixture(
       docs: const {
@@ -808,7 +803,7 @@ sections:
     ]);
   });
 
-  test('f06/us02/fr02, final I2: a doc that cannot be read refuses '
+  test('a doc that cannot be read refuses '
       'output_not_writable naming it', () async {
     final fixture = await _fixture();
     final runbook = File.fromUri(
@@ -898,7 +893,7 @@ sections:
     );
   });
 
-  test("f06/us02/fr01/e04, f06/us02/s4: the older release's steps print "
+  test("the older release's steps print "
       'first', () async {
     final both = _plan(await _fixture()).toText();
     final newer = _plan(await _fixture(acmePin: '1.1.0', overrides: const {}))
@@ -1126,7 +1121,7 @@ sections:
       expect(plan.lists.mentions, isEmpty);
     });
 
-    test('INV-4: the plan hash changes when a code file mention changes, '
+    test('the plan hash changes when a code file mention changes, '
         'though the printed count stays', () async {
       final first = _plan(
         await fixtureWith({
@@ -1177,7 +1172,7 @@ sections:
     }
   });
 
-  test('E11: pins equal '
+  test('pins equal '
       'and two docs off their layout plan the layout pass alone', () async {
     final plan = _plan(
       await _fixture(
@@ -1207,7 +1202,7 @@ sections:
     ]);
   });
 
-  test('E07: a doc a '
+  test('a doc a '
       'step renames and a doc no step touches are each laid out once, a '
       'laid-out doc is not rewritten, a refused doc is left', () async {
     final plan = _plan(
@@ -1252,7 +1247,7 @@ sections:
     );
   });
 
-  test('E01: an older '
+  test('an older '
       'pin with no selected step lays out an off-layout doc beside the new '
       'pin', () async {
     final plan = _plan(
@@ -1316,7 +1311,7 @@ RunPlan _planAt(Directory project) => planUpgradeRun(
 
 void _agentFilesTests() {
   group('agent files step', () {
-    test('$_fr E14: a pin below agentFilesSince writes every agent file once, '
+    test('a pin below agentFilesSince writes every agent file once, '
         'the Owner rules kept', () async {
       final project = await writeTree({
         '.specstone/config.yaml': _belowSince,
@@ -1344,7 +1339,7 @@ void _agentFilesTests() {
       ]);
     });
 
-    test('$_fr E14: software-tech moving up from 1.3.0 with prd-core already '
+    test('software-tech moving up from 1.3.0 with prd-core already '
         'at 1.7.0 writes every agent file once', () async {
       final project = await writeTree({
         '.specstone/config.yaml':
@@ -1620,7 +1615,7 @@ void _agentFilesTests() {
       expect(plan.lists.toJson()['agentFiles'], files);
     });
 
-    test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
+    test('a pin equal to agentFilesSince refreshes, never the '
         'one-time write', () async {
       final project = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig(),
@@ -1635,7 +1630,7 @@ void _agentFilesTests() {
       expect(plan.agentFiles!.addedRoots, isEmpty);
     });
 
-    test('$_fr E14: a later upgrade never adds a deleted block or the rules '
+    test('a later upgrade never adds a deleted block or the rules '
         'file', () async {
       final project = await writeTree({
         '.specstone/config.yaml': _config('1.0.0'),
@@ -1656,7 +1651,7 @@ void _agentFilesTests() {
       expect(plan.toText(), isNot(contains('agent files:')));
     });
 
-    test('$_fr E12, E14: the agent files line prints after the steps and '
+    test('the agent files line prints after the steps and '
         'before the pins', () async {
       final fixture = await _fixture(docs: const {}, overrides: const {});
       final projectPath = fixture.project.path;
@@ -1675,7 +1670,7 @@ void _agentFilesTests() {
       expect(pinAt, greaterThan(agentsAt), reason: 'pins after agent files');
     });
 
-    test('$_fr E12: every pin equal and a stale block gives the agent-only '
+    test('every pin equal and a stale block gives the agent-only '
         'plan', () async {
       final project = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig(),
@@ -1697,7 +1692,7 @@ void _agentFilesTests() {
       expect(plan.moves, isEmpty);
     });
 
-    test('$_fr E11, E12: every pin equal, a doc off its layout, and a stale '
+    test('every pin equal, a doc off its layout, and a stale '
         'block print the layout line, then the agent files line', () async {
       final project = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig(),
@@ -1725,7 +1720,7 @@ void _agentFilesTests() {
       ]);
     });
 
-    test('$_fr E17: a repository top unlisted in agent_file_roots takes its '
+    test('a repository top unlisted in agent_file_roots takes its '
         'files outside the commits and joins the config', () async {
       final project = await writeTree({
         '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
@@ -1756,46 +1751,40 @@ void _agentFilesTests() {
       ]);
     });
 
-    test(
-      '$_fr E17: a bare agent_file_roots key rewrites to a valid list',
-      () async {
-        final project = await writeTree({
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n',
-          'code/.git/HEAD': 'ref: refs/heads/main\n',
-        });
+    test('a bare agent_file_roots key rewrites to a valid list', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n',
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+      });
 
-        final plan = _planAt(project);
+      final plan = _planAt(project);
 
-        expect(
-          _rewriteAt(plan, '.specstone/config.yaml').text,
-          '${shippedPinsConfig()}code_root: code\n'
-          'agent_file_roots:\n  - code\n$_stamp',
-        );
-      },
-    );
+      expect(
+        _rewriteAt(plan, '.specstone/config.yaml').text,
+        '${shippedPinsConfig()}code_root: code\n'
+        'agent_file_roots:\n  - code\n$_stamp',
+      );
+    });
 
-    test(
-      '$_fr E17: a replaced agent_file_roots drops an end-of-line comment',
-      () async {
-        final project = await writeTree({
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}code_root: code\n'
-              'agent_file_roots: [other] # keep\n',
-          'code/.git/HEAD': 'ref: refs/heads/main\n',
-        });
+    test('a replaced agent_file_roots drops an end-of-line comment', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: code\n'
+            'agent_file_roots: [other] # keep\n',
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+      });
 
-        final plan = _planAt(project);
+      final plan = _planAt(project);
 
-        expect(
-          _rewriteAt(plan, '.specstone/config.yaml').text,
-          '${shippedPinsConfig()}code_root: code\n'
-          'agent_file_roots:\n  - other\n  - code\n$_stamp',
-        );
-      },
-    );
+      expect(
+        _rewriteAt(plan, '.specstone/config.yaml').text,
+        '${shippedPinsConfig()}code_root: code\n'
+        'agent_file_roots:\n  - other\n  - code\n$_stamp',
+      );
+    });
 
-    test('$_fr E17: the config rewrite replaces a listed agent_file_roots '
+    test('the config rewrite replaces a listed agent_file_roots '
         'and keeps every other key', () async {
       final project = await writeTree({
         '.specstone/config.yaml':
@@ -1904,26 +1893,23 @@ void _agentFilesTests() {
       );
     });
 
-    test(
-      '$_fr E16: a malformed block refuses before the plan returns',
-      () async {
-        final project = await writeTree({
-          '.specstone/config.yaml': _belowSince,
-          'AGENTS.md': '$_begin\nbody\n',
-        });
+    test('a malformed block refuses before the plan returns', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': _belowSince,
+        'AGENTS.md': '$_begin\nbody\n',
+      });
 
-        expect(
-          () => _planAt(project),
-          throwsA(
-            isA<MigrateFault>().having(
-              (fault) => fault.code,
-              'code',
-              MigrateFaultCode.agentBlockMalformed,
-            ),
+      expect(
+        () => _planAt(project),
+        throwsA(
+          isA<MigrateFault>().having(
+            (fault) => fault.code,
+            'code',
+            MigrateFaultCode.agentBlockMalformed,
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
   });
 }
 
@@ -2006,7 +1992,7 @@ String _withoutStamp(String text) => text
 
 void _renumberTests() {
   group('renumber pass', () {
-    test('$_fr E18: the upgrade renumbers each lettered ID once and rewrites '
+    test('the upgrade renumbers each lettered ID once and rewrites '
         'every reference, listed on one renumber ids line', () async {
       final plan = _planAt(await _belowSinceTree(_e18Docs()));
 
@@ -2053,7 +2039,7 @@ void _renumberTests() {
       );
     });
 
-    test('$_fr E18 (W3): an untyped doc, whose links check reads too, takes '
+    test('an untyped doc, whose links check reads too, takes '
         'the new slug of a renumbered heading it links', () async {
       const notesPath = 'prds/notes.md';
       const link = 'See [it](features/f01_a/us01_b/USER_STORY.md#scenario-';
@@ -2072,7 +2058,7 @@ void _renumberTests() {
       expect(plan.lists.renumberIds, contains(notesPath));
     });
 
-    test('$_fr E18: a confirmed entry already suspect keeps its fingerprint '
+    test('a confirmed entry already suspect keeps its fingerprint '
         'and takes the new label', () async {
       final plan = _planAt(await _belowSinceTree(_e18Docs()));
 
@@ -2084,7 +2070,7 @@ void _renumberTests() {
       );
     });
 
-    test('$_fr E18: the plan hash changes with the renumbered set', () async {
+    test('the plan hash changes with the renumbered set', () async {
       final both = await _belowSinceTree(_e18Docs());
       final storyOnly = await _belowSinceTree(
         _e18Docs(topic: _topic.replaceFirst('RULE-7a', 'RULE-7')),
@@ -2097,7 +2083,7 @@ void _renumberTests() {
       expect(_hashOf(bothPlan), isNot(_hashOf(storyOnlyPlan)));
     });
 
-    test('$_fr E19: two lettered scenarios renumber in document order to the '
+    test('two lettered scenarios renumber in document order to the '
         'numbers check names', () async {
       const story = '''
 # B
@@ -2134,7 +2120,7 @@ void _renumberTests() {
       );
     });
 
-    test('$_fr E14: an upgrade that moves no pin from below agentFilesSince '
+    test('an upgrade that moves no pin from below agentFilesSince '
         'renumbers nothing', () async {
       final plan = _plan(await _fixture(docs: const {_topicPath: _topic}));
 
@@ -2145,7 +2131,7 @@ void _renumberTests() {
       );
     });
 
-    test('$_fr E18: the pass reads each doc after the selected steps, so a '
+    test('the pass reads each doc after the selected steps, so a '
         'section a step renames is read under its template', () async {
       const packYaml = '''
 name: acme
@@ -2188,7 +2174,7 @@ migrations:
     });
 
     test(
-      '$_fr E18: a CRLF story with a byte order mark keeps both, its FR and '
+      'a CRLF story with a byte order mark keeps both, its FR and '
       'journey step follow it, and a second upgrade changes nothing',
       () async {
         final bom = String.fromCharCode(0xFEFF);
@@ -2272,7 +2258,7 @@ Future<Directory> _labelTree(
 
 void _labelTests() {
   group('label pass', () {
-    test('$_fr E26: the upgrade converts each label in a doc and lists the '
+    test('the upgrade converts each label in a doc and lists the '
         'doc after the renumber line', () async {
       final project = await writeTree({
         '.specstone/config.yaml': _belowSince,
@@ -2307,7 +2293,7 @@ void _labelTests() {
       );
     });
 
-    test('$_fr E26: a doc keeps its line ending, byte order mark, and link '
+    test('a doc keeps its line ending, byte order mark, and link '
         'destinations', () async {
       final project = await _labelTree({
         'specs/topics/labelled.md': '\uFEFF# L\r\n\r\n## Rules\r\n\r\n[F-01 US-01](../../prds/features/f01_a/us01_b/USER_STORY.md) and F-01.\r\n',
@@ -2321,24 +2307,18 @@ void _labelTests() {
       );
     });
 
-    test(
-      '$_fr E26: a run that is no one-time pass leaves every label',
-      () async {
-        final project = await _labelTree({
-          'specs/topics/labelled.md': '# L\n\nF-01 here.\n',
-        }, pins: shippedPinsConfig());
+    test('a run that is no one-time pass leaves every label', () async {
+      final project = await _labelTree({
+        'specs/topics/labelled.md': '# L\n\nF-01 here.\n',
+      }, pins: shippedPinsConfig());
 
-        final plan = _planWith(project);
+      final plan = _planWith(project);
 
-        expect(plan.toText(), isNot(contains('number labels:')));
-        expect(
-          plan.rewrites.where((r) => r.path.contains('labelled')),
-          isEmpty,
-        );
-      },
-    );
+      expect(plan.toText(), isNot(contains('number labels:')));
+      expect(plan.rewrites.where((r) => r.path.contains('labelled')), isEmpty);
+    });
 
-    test("$_fr E27: with code_root .. and code ./ the project's own docs "
+    test("with code_root .. and code ./ the project's own docs "
         'are docs, never code files left with labels', () async {
       final base = await writeTree({
         'specs/.specstone/config.yaml': '${_belowSince}code_root: ..\n',
@@ -2357,7 +2337,7 @@ void _labelTests() {
       expect(_docText(plan, 'notes/plan.md'), contains('`a/b`'));
     });
 
-    test('$_fr E26: a left label is cited at its line in the text the run '
+    test('a left label is cited at its line in the text the run '
         'writes, after the stamp adds its line', () async {
       final project = await _labelTree({
         'specs/topics/t.md': '---\ntraced_from: [S1]\n---\n# T\n\nSee FR-07.\n',
@@ -2380,7 +2360,7 @@ void _stampTests() {
     const frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
     final matched = fingerprintOf(_lettered);
 
-    test('$_fr E30, E31: the upgrade stamps each doc that counted as '
+    test('the upgrade stamps each doc that counted as '
         'approved and each matched entry once, after the layout pass, and '
         'lists them on one stamps line', () async {
       final plan = _planAt(await _belowSinceTree(_e18Docs()));
@@ -2398,7 +2378,7 @@ void _stampTests() {
       );
     });
 
-    test('$_fr E30: a doc the upgrade leaves a draft is not stamped, and a '
+    test('a doc the upgrade leaves a draft is not stamped, and a '
         'tree with nothing to stamp prints no stamps line', () async {
       final plan = _planAt(
         await _belowSinceTree({
@@ -2411,7 +2391,7 @@ void _stampTests() {
       expect(plan.toText(), isNot(contains('stamps:')));
     });
 
-    test('$_fr E74: a doc left unstamped for its frontmatter is counted after '
+    test('a doc left unstamped for its frontmatter is counted after '
         'skipped and listed in code point order', () async {
       final plan = _planAt(
         await _belowSinceTree({
@@ -2427,7 +2407,7 @@ void _stampTests() {
       expect(plan.lists.stampsSkipped, [_storyPath, frPath]);
     });
 
-    test('$_fr E30: no later upgrade stamps', () async {
+    test('no later upgrade stamps', () async {
       final plan = _plan(await _fixture(docs: const {_topicPath: _topic}));
 
       expect(plan.toText(), isNot(contains('stamps:')));
@@ -2462,35 +2442,29 @@ void _planInputTests() {
       expect(_hashOf(after), isNot(_hashOf(before)));
     }
 
-    test(
-      '$_fr INV-4: an edit to .specstone/config.yaml changes the hash',
-      () async {
-        final fixture = await _fixture();
+    test('an edit to .specstone/config.yaml changes the hash', () async {
+      final fixture = await _fixture();
 
-        await expectEditMoves(
-          '${fixture.project.path}/.specstone/config.yaml',
-          '# edited\n',
-          plan: () => _plan(fixture),
-          recordedAs: '.specstone/config.yaml ',
-        );
-      },
-    );
+      await expectEditMoves(
+        '${fixture.project.path}/.specstone/config.yaml',
+        '# edited\n',
+        plan: () => _plan(fixture),
+        recordedAs: '.specstone/config.yaml ',
+      );
+    });
 
-    test(
-      '$_fr INV-4: an edit to a project-layer template changes the hash',
-      () async {
-        final fixture = await _fixture();
+    test('an edit to a project-layer template changes the hash', () async {
+      final fixture = await _fixture();
 
-        await expectEditMoves(
-          '${fixture.project.path}/$_overridePath',
-          '# edited\n',
-          plan: () => _plan(fixture),
-          recordedAs: '$_overridePath ',
-        );
-      },
-    );
+      await expectEditMoves(
+        '${fixture.project.path}/$_overridePath',
+        '# edited\n',
+        plan: () => _plan(fixture),
+        recordedAs: '$_overridePath ',
+      );
+    });
 
-    test("$_fr INV-4: an edit to a personal pack's home pack.yaml changes "
+    test("an edit to a personal pack's home pack.yaml changes "
         'the hash', () async {
       final fixture = await _fixture();
       // A path outside the project is recorded as the code builds it, native.
@@ -2511,7 +2485,7 @@ void _planInputTests() {
       );
     });
 
-    test('$_fr INV-4: an edit to an agent file changes the hash', () async {
+    test('an edit to an agent file changes the hash', () async {
       final project = _canonical(
         await writeTree({
           '.specstone/config.yaml': _belowSince,
@@ -2640,7 +2614,7 @@ MergedDocType _finalType(
 
 void _moveToRecordTests() {
   group('move_to_record step', () {
-    test('$_fr E33: a story and an FR move their status and code paths into '
+    test('a story and an FR move their status and code paths into '
         'a new draft record, and the plan names the record', () async {
       final plan = _plan(await _recordFixture());
 
@@ -2673,7 +2647,7 @@ void _moveToRecordTests() {
       expect(text, contains('commit 2, creates:\n  $_recordPath (draft)\n'));
     });
 
-    test('$_fr E33: a feature with no story value gets no record, and the '
+    test('a feature with no story value gets no record, and the '
         'step line counts no docs', () async {
       final plan = _plan(
         await _recordFixture(
@@ -2688,7 +2662,7 @@ void _moveToRecordTests() {
       expect(plan.toText(), contains('-> implementation: 0 docs\n'));
     });
 
-    test('$_fr E34: a record that holds the story with the same values keeps '
+    test('a record that holds the story with the same values keeps '
         'its entry, and the FR joins it', () async {
       final plan = _plan(
         await _recordFixture(
@@ -2719,7 +2693,7 @@ void _moveToRecordTests() {
       );
     });
 
-    test('$_fr E34: a record that holds other values for the item refuses '
+    test('a record that holds other values for the item refuses '
         'value_unplaced, naming the doc and key', () async {
       final fault = _refusedPlan(
         await _recordFixture(
@@ -2737,7 +2711,7 @@ void _moveToRecordTests() {
       expect(fault.key, 'status');
     });
 
-    test('$_fr E34: a record that holds other code paths for the item '
+    test('a record that holds other code paths for the item '
         'refuses on the code key', () async {
       final fault = _refusedPlan(
         await _recordFixture(
@@ -2755,7 +2729,7 @@ void _moveToRecordTests() {
       expect(fault.key, 'implements');
     });
 
-    group('$_fr E35: a value with no place refuses before anything prints', () {
+    group('a value with no place refuses before anything prints', () {
       Future<MigrateFault> refuse(Map<String, String> docs) async =>
           _refusedPlan(await _recordFixture(docs: docs));
 
@@ -2815,7 +2789,7 @@ void _moveToRecordTests() {
     });
 
     test(
-      '$_fr E36: a project architecture path in a folder of its own and '
+      'a project architecture path in a folder of its own and '
       'no implementation path writes the record override beside it',
       () async {
         for (final arch in [
@@ -2843,7 +2817,7 @@ void _moveToRecordTests() {
       },
     );
 
-    test('$_fr E36: no override is written when the pack path already lies '
+    test('no override is written when the pack path already lies '
         'beside architecture, or the Owner set the record path', () async {
       final plain = _plan(await _recordFixture(docs: {_featurePath: '# L\n'}));
       expect(plain.creates, isEmpty);
@@ -2861,7 +2835,7 @@ void _moveToRecordTests() {
       expect(owned.creates, isEmpty);
     });
 
-    test('$_fr E36, R-FW-1: a folder at the record override path refuses '
+    test('a folder at the record override path refuses '
         'value_unplaced before any write', () async {
       final fixture = await _recordFixture(
         docs: {_featurePath: '# Login\n'},
@@ -2878,7 +2852,7 @@ void _moveToRecordTests() {
       expect(fault.file, _overrideFile);
     });
 
-    test('$_fr E36: an architecture file named by the slug refuses '
+    test('an architecture file named by the slug refuses '
         'override_dangling before any write', () async {
       final fixture = await _recordFixture(
         docs: {_featurePath: '# L\n'},
@@ -2895,7 +2869,7 @@ void _moveToRecordTests() {
       expect(fault.key, 'path');
     });
 
-    test('$_fr E38: a story and an FR approved before the run take the hash '
+    test('a story and an FR approved before the run take the hash '
         'of their new content, and the record stays a draft', () async {
       final fixture = await _recordFixture(
         docs: {
@@ -2930,7 +2904,7 @@ void _moveToRecordTests() {
       );
     });
 
-    test('$_fr E38: the hash before the run counts the code field the final '
+    test('the hash before the run counts the code field the final '
         'type no longer declares, so the doc stays approved', () async {
       final fixture = await _recordFixture(
         docs: {
@@ -2955,7 +2929,7 @@ void _moveToRecordTests() {
       );
     });
 
-    test('$_fr E38: a doc whose hash did not match keeps it, and a doc with '
+    test('a doc whose hash did not match keeps it, and a doc with '
         'neither key gets no entry', () async {
       final stale = _implementedStory.replaceFirst(
         '---\n',
@@ -3036,7 +3010,7 @@ void _moveToRecordTests() {
       });
 
       test(
-        'E33, S11, S13: a story and an FR move their status and code '
+        'a story and an FR move their status and code '
         'paths into a new draft record of the shipped implementation type',
         () async {
           final plan = _planAt(await shippedProject());
@@ -3065,7 +3039,7 @@ void _moveToRecordTests() {
         },
       );
 
-      test('S11: a story approved under the 1.4.0 pack, hashed with its '
+      test('a story approved under the 1.4.0 pack, hashed with its '
           'implements field as 1.4.0 declared it, stays approved after the '
           'move', () async {
         // The 1.4.0 `user_story` layer: `implements`, an exact output_ref.
@@ -3321,7 +3295,7 @@ void _moveToRecordTests() {
       });
     });
 
-    test('$_fr E35: with no doc type holding record_status every value '
+    test('with no doc type holding record_status every value '
         'refuses', () async {
       final fault = _refusedPlan(
         await _recordFixture(
@@ -3340,7 +3314,7 @@ void _moveToRecordTests() {
       expect(fault.more, hasLength(1));
     });
 
-    test('$_fr E35: a record whose frontmatter is not valid YAML refuses '
+    test('a record whose frontmatter is not valid YAML refuses '
         'instead of losing its lines', () async {
       final fault = _refusedPlan(
         await _recordFixture(
@@ -3352,7 +3326,7 @@ void _moveToRecordTests() {
       expect(fault.message, contains('not valid YAML'));
     });
 
-    test('$_fr E35: a file at the record path the run cannot read as a '
+    test('a file at the record path the run cannot read as a '
         'record refuses instead of losing the values', () async {
       final fixture = await _recordFixture();
       File('${fixture.project.path}/docs/$_recordPath')
@@ -3367,7 +3341,7 @@ void _moveToRecordTests() {
       expect(fault.more, hasLength(1));
     });
 
-    test('$_fr E35: a record whose code block reads only beside another block '
+    test('a record whose code block reads only beside another block '
         'refuses instead of losing its lines', () async {
       final fault = _refusedPlan(
         await _recordFixture(
@@ -3387,24 +3361,21 @@ void _moveToRecordTests() {
       );
     });
 
-    test(
-      '$_fr E35: a record type with no code field refuses a code path',
-      () async {
-        final fault = _refusedPlan(
-          await _recordFixture(
-            packFiles: {
-              '.specstone/packs/acme/implementation.yaml':
-                  'fields:\n  - {id: implements, disabled: true}\n',
-            },
-          ),
-        );
+    test('a record type with no code field refuses a code path', () async {
+      final fault = _refusedPlan(
+        await _recordFixture(
+          packFiles: {
+            '.specstone/packs/acme/implementation.yaml':
+                'fields:\n  - {id: implements, disabled: true}\n',
+          },
+        ),
+      );
 
-        expect(fault.file, _loginStoryPath);
-        expect(fault.key, 'implements');
-      },
-    );
+      expect(fault.file, _loginStoryPath);
+      expect(fault.key, 'implements');
+    });
 
-    test('$_fr E35: the refusal lists docs in doc order, whichever pass '
+    test('the refusal lists docs in doc order, whichever pass '
         'found them', () async {
       final fault = _refusedPlan(
         await _recordFixture(
@@ -3424,7 +3395,7 @@ void _moveToRecordTests() {
       );
     });
 
-    test('$_fr E30: an approved record that gains entries is re-stamped, not '
+    test('an approved record that gains entries is re-stamped, not '
         'drafted', () async {
       final probe = await _recordFixture();
       final record = _stampedBefore(
@@ -3481,27 +3452,24 @@ void _moveToRecordTests() {
       expect(_valuesOf(text), isNot(contains('draft')));
     });
 
-    test(
-      '$_fr E36: a record layer without path refuses on that cause',
-      () async {
-        final fault = _refusedPlan(
-          await _recordFixture(
-            docs: {_featurePath: '# L\n'},
-            extra: {
-              '.specstone/templates/architecture.yaml':
-                  'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
-              _overrideFile: 'description: Mine\n',
-            },
-          ),
-        );
+    test('a record layer without path refuses on that cause', () async {
+      final fault = _refusedPlan(
+        await _recordFixture(
+          docs: {_featurePath: '# L\n'},
+          extra: {
+            '.specstone/templates/architecture.yaml':
+                'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
+            _overrideFile: 'description: Mine\n',
+          },
+        ),
+      );
 
-        expect(fault.code, MigrateFaultCode.overrideDangling);
-        expect(fault.file, _overrideFile);
-        expect(fault.message, contains('sets no path'));
-      },
-    );
+      expect(fault.code, MigrateFaultCode.overrideDangling);
+      expect(fault.file, _overrideFile);
+      expect(fault.message, contains('sets no path'));
+    });
 
-    test('$_fr E39: a pack that is no one-time trigger runs no one-time '
+    test('a pack that is no one-time trigger runs no one-time '
         'pass beside the step', () async {
       final text = _plan(await _recordFixture()).toText();
 
@@ -3511,9 +3479,6 @@ void _moveToRecordTests() {
     });
   });
 }
-
-const _tree = 'setup_migration/upgrade_pack_pins/move_spec_tree_to_target';
-const _chain = 'setup_migration/upgrade_pack_pins/chain_migration_steps';
 
 String _draftDoc(String title, [String body = '']) =>
     '---\ndraft: true\n---\n# $title\n$body';
@@ -3547,7 +3512,7 @@ MigrateFault _refusedAt(Directory project) {
 
 void _treeMoveTests() {
   group('spec tree move', () {
-    test('$_tree E01, E09: each per-target doc at a one-target path moves to '
+    test('each per-target doc at a one-target path moves to '
         "the first target's folder as a pure rename, under the unchanged-pins "
         'header', () async {
       final plan = _planAt(
@@ -3585,8 +3550,7 @@ void _treeMoveTests() {
       expect(plan.creates, isEmpty);
     });
 
-    test('$_tree E01, setup_migration/set_up_new_project/write_agent_files '
-        'E35: the run that moves the tech stack surveys its code: roots for '
+    test('the run that moves the tech stack surveys its code: roots for '
         'the agent files', () async {
       final plan = _planAt(
         await _treeProject(
@@ -3612,7 +3576,7 @@ void _treeMoveTests() {
       expect(plan.agentFiles!.addedRoots, ['flutter_ws/packages/sub']);
     });
 
-    test('$_tree E02: a project-layer path keeps every placeholder value '
+    test('a project-layer path keeps every placeholder value '
         'under the target folder', () async {
       final plan = _planAt(
         await _treeProject(
@@ -3632,7 +3596,7 @@ void _treeMoveTests() {
       ]);
     });
 
-    test('$_tree E03, E04: a link to a moved doc, a link a moved doc holds, '
+    test('a link to a moved doc, a link a moved doc holds, '
         'and a path mention are rewritten; a Name and a link between moved '
         'docs keep their text; a shared doc keeps its link, pointed at the '
         'moved doc', () async {
@@ -3684,7 +3648,7 @@ void _treeMoveTests() {
       );
     });
 
-    test('$_tree E05: a doc already at a target path stays, and only the '
+    test('a doc already at a target path stays, and only the '
         'others move', () async {
       final plan = _planAt(
         await _treeProject({
@@ -3701,7 +3665,7 @@ void _treeMoveTests() {
       ]);
     });
 
-    test('$_tree E06: a move onto a path a doc already holds refuses '
+    test('a move onto a path a doc already holds refuses '
         'upgrade_collision, naming the doc', () async {
       final fault = _refusedAt(
         await _treeProject({
@@ -3716,7 +3680,7 @@ void _treeMoveTests() {
       expect(fault.message, contains('specs/flutter/TECH_STACK.md'));
     });
 
-    test('$_tree E07: a file no per-target doc type matches stays', () async {
+    test('a file no per-target doc type matches stays', () async {
       final plan = _planAt(
         await _treeProject({
           'specs/INDEX.md': _draftDoc('Index'),
@@ -3729,7 +3693,7 @@ void _treeMoveTests() {
       ]);
     });
 
-    test('$_tree E08: one target, named or not, moves no doc', () async {
+    test('one target, named or not, moves no doc', () async {
       final docs = {'specs/f02_feedback/DOMAIN.md': _draftDoc('Feedback')};
       final named = await _treeProject(
         docs,
@@ -3742,7 +3706,7 @@ void _treeMoveTests() {
       expect(_planAt(unnamed).moves, isEmpty);
     });
 
-    test('$_tree E11: a doc approved before the run takes the hash of its new '
+    test('a doc approved before the run takes the hash of its new '
         'content, and a draft stays a draft', () async {
       final set = TemplateResolver().resolveCarried(
         packNames: const ['prd-core', 'software-tech'],
@@ -3795,7 +3759,7 @@ void _treeMoveTests() {
       );
     });
 
-    test('$_tree R-T26-1: a pack move_file step over a per-target type '
+    test('a pack move_file step over a per-target type '
         "resolves under the first target's folder, and the doc's rename "
         'step and layout apply there', () async {
       const packYaml = '''
@@ -3855,7 +3819,7 @@ sections:
             ...extra,
           }, config: _oldPinTwinConfig());
 
-      test('$_chain E11, $_fr E37: the tree move comes first, and the record '
+      test('the tree move comes first, and the record '
           "a move_to_record step creates lands in the first target's folder, "
           'none in the second', () async {
         final plan = _planAt(await project());
@@ -3886,7 +3850,7 @@ sections:
         );
       });
 
-      test('$_chain E11: a record at the one-target path moves first, and the '
+      test('a record at the one-target path moves first, and the '
           'step adds its entries to it, not to a second record', () async {
         final plan = _planAt(
           await project(
@@ -3915,7 +3879,7 @@ sections:
         ]);
       });
 
-      test('$_fr E37: a record only the second target holds does not stand '
+      test('a record only the second target holds does not stand '
           "in for the first target's", () async {
         final plan = _planAt(
           await project(
@@ -4635,7 +4599,7 @@ Future<({Directory project, Directory home})> _bulletFixture({
 void _bulletLinesTests() {
   group('bullet_lines step', () {
     test(
-      '$_fr E108: commit 2 bullets the listed lines of the section and '
+      'commit 2 bullets the listed lines of the section and '
       'the step line counts the rewritten docs, listed under steps',
       () async {
         final plan = _plan(await _bulletFixture());
@@ -4658,7 +4622,7 @@ void _bulletLinesTests() {
       },
     );
 
-    test('$_fr E108: a doc with no line to bullet is not rewritten and the '
+    test('a doc with no line to bullet is not rewritten and the '
         'step line counts no docs', () async {
       final plan = _plan(await _bulletFixture(doc: _bulletedDoc));
 
@@ -4669,7 +4633,7 @@ void _bulletLinesTests() {
       );
     });
 
-    test('$_fr E108: a project that disables the section plans the step at '
+    test('a project that disables the section plans the step at '
         'no docs and rewrites none', () async {
       final plan = _plan(
         await _bulletFixture(
@@ -4686,7 +4650,7 @@ void _bulletLinesTests() {
       );
     });
 
-    test('$_fr E109: a doc that awaits approval keeps its approval fields '
+    test('a doc that awaits approval keeps its approval fields '
         'and stays a draft', () async {
       const draft = '---\ndraft: true\n---\n$_bulletDoc';
 
@@ -4699,7 +4663,7 @@ void _bulletLinesTests() {
       expect(plan.toText(), isNot(contains('stamps:')));
     });
 
-    test('$_fr E109: an approved doc gets the approval hash of its new '
+    test('an approved doc gets the approval hash of its new '
         'content', () async {
       final seed = await _bulletFixture();
       final set = TemplateResolver().resolveCarried(
@@ -4731,7 +4695,7 @@ void _bulletLinesTests() {
       );
     });
 
-    test('$_fr E110: a step the pack load refuses throws unknown_value and '
+    test('a step the pack load refuses throws unknown_value and '
         'plans nothing', () async {
       final fixture = await _bulletFixture(
         packYaml: _bulletPackYaml.replaceFirst(

@@ -14,8 +14,6 @@ import 'package:test/test.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
-const _finish = 'document_writing/delete_doc_subtree/finish_interrupted_move';
-
 final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
     : null;
@@ -79,7 +77,7 @@ Matcher _leadsOutside(String path) => throwsA(
 );
 
 void main() {
-  group('$_finish E08: JournalBounds', () {
+  group('JournalBounds', () {
     late Directory root;
     late Directory outside;
     late JournalBounds bounds;
@@ -143,77 +141,74 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group(
-    '$_finish E08: JournalBounds on a folder that vanishes mid-resolve',
-    () {
-      const churnFor = Duration(seconds: 2);
+  group('JournalBounds on a folder that vanishes mid-resolve', () {
+    const churnFor = Duration(seconds: 2);
 
-      test('a folder another isolate makes and deletes is missing or there, '
-          'never unresolvable', () async {
-        final root = await writeTree({'keep.txt': ''});
-        final real = root.resolveSymbolicLinksSync();
-        final folder = '$real/side-folder';
-        final churn = Isolate.run(() {
-          final dir = Directory(folder);
-          final watch = Stopwatch()..start();
-          while (watch.elapsed < churnFor) {
-            try {
-              dir
-                ..createSync()
-                ..deleteSync();
-            } on FileSystemException {
-              // A virus scanner may hold the folder on Windows; only the
-              // judgments below are counted.
-            }
-          }
-        });
-
-        var refused = 0;
-        var rounds = 0;
-        final firstRefusals = <String>[];
+    test('a folder another isolate makes and deletes is missing or there, '
+        'never unresolvable', () async {
+      final root = await writeTree({'keep.txt': ''});
+      final real = root.resolveSymbolicLinksSync();
+      final folder = '$real/side-folder';
+      final churn = Isolate.run(() {
+        final dir = Directory(folder);
         final watch = Stopwatch()..start();
-        try {
-          while (watch.elapsed < churnFor) {
-            rounds++;
-            final answers = <String>[];
-            String recordAnswer(String asked) {
-              try {
-                final answer = realPathOnDisk(asked);
-                answers.add(answer.isEmpty ? '(empty)' : answer);
-                return answer;
-              } on FileSystemException catch (error) {
-                answers.add('error ${error.osError?.errorCode} at $asked');
-                rethrow;
-              }
-            }
+        while (watch.elapsed < churnFor) {
+          try {
+            dir
+              ..createSync()
+              ..deleteSync();
+          } on FileSystemException {
+            // A virus scanner may hold the folder on Windows; only the
+            // judgments below are counted.
+          }
+        }
+      });
 
-            // A fresh instance each round, since one remembers the folders
-            // asked.
-            final bounds = JournalBounds(root, [real], resolve: recordAnswer);
-            if (bounds.holds('side-folder/x.md')) continue;
-            refused++;
-            if (firstRefusals.length < _refusalsShown) {
-              firstRefusals.add(answers.join(', then '));
+      var refused = 0;
+      var rounds = 0;
+      final firstRefusals = <String>[];
+      final watch = Stopwatch()..start();
+      try {
+        while (watch.elapsed < churnFor) {
+          rounds++;
+          final answers = <String>[];
+          String recordAnswer(String asked) {
+            try {
+              final answer = realPathOnDisk(asked);
+              answers.add(answer.isEmpty ? '(empty)' : answer);
+              return answer;
+            } on FileSystemException catch (error) {
+              answers.add('error ${error.osError?.errorCode} at $asked');
+              rethrow;
             }
           }
-        } finally {
-          // The churn must stop before the test deletes its folder.
-          await churn;
+
+          // A fresh instance each round, since one remembers the folders
+          // asked.
+          final bounds = JournalBounds(root, [real], resolve: recordAnswer);
+          if (bounds.holds('side-folder/x.md')) continue;
+          refused++;
+          if (firstRefusals.length < _refusalsShown) {
+            firstRefusals.add(answers.join(', then '));
+          }
         }
+      } finally {
+        // The churn must stop before the test deletes its folder.
+        await churn;
+      }
 
-        expect(rounds, greaterThan(0));
-        expect(
-          refused,
-          0,
-          reason:
-              '$refused of $rounds judgments refused; the resolves of the '
-              'first: ${firstRefusals.join('; ')}',
-        );
-      });
-    },
-  );
+      expect(rounds, greaterThan(0));
+      expect(
+        refused,
+        0,
+        reason:
+            '$refused of $rounds judgments refused; the resolves of the '
+            'first: ${firstRefusals.join('; ')}',
+      );
+    });
+  });
 
-  group('$_finish E08: JournalBounds when the resolve answers for a folder '
+  group('JournalBounds when the resolve answers for a folder '
       'deleted meanwhile', () {
     late Directory root;
     late String real;
@@ -333,7 +328,7 @@ void main() {
     );
   });
 
-  group('$_finish E08: a refused replay changes nothing', () {
+  group('a refused replay changes nothing', () {
     late Directory root;
 
     setUp(() async {
@@ -384,7 +379,7 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group('$_finish E08: each path is checked where it is used', () {
+  group('each path is checked where it is used', () {
     test('a link an earlier step moves into place is refused at the next '
         'step, and the folder behind it keeps its text', () async {
       final root = await writeWriteProject();

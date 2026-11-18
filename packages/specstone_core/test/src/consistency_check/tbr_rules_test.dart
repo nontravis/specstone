@@ -46,7 +46,7 @@ void main() {
     expect((await _run(const {})).found, isEmpty);
   });
 
-  test('$_name E01: a marker after a bold label gives one marker finding '
+  test('a marker after a bold label gives one marker finding '
       'at its line', () async {
     const text = '${_marker}legacy states none';
     final (:project, :found) = await _run(_frWith('- **Consistency:** $text'));
@@ -61,14 +61,14 @@ void main() {
     expect(finding.toJson(), containsPair('waitsFor', 'owner'));
   });
 
-  test('$_name E01: after the value is written, no finding', () async {
+  test('after the value is written, no finding', () async {
     final (:found, project: _) = await _run(
       _frWith('- **Consistency:** immediate'),
     );
     expect(found, isEmpty);
   });
 
-  test('$_name E02: a marker in a table cell and one in a paragraph each '
+  test('a marker in a table cell and one in a paragraph each '
       'give one finding at their line', () async {
     final (:project, :found) = await _run(
       _frWith(
@@ -89,7 +89,7 @@ void main() {
     expect(found.last.message, '${_stillOpen}2 s |');
   });
 
-  test('$_name E03: a marker inside a code span or fenced code gives no '
+  test('a marker inside a code span or fenced code gives no '
       'finding', () async {
     final (:found, project: _) = await _run(
       _frWith(
@@ -100,7 +100,7 @@ void main() {
     expect(found, isEmpty);
   });
 
-  test('$_name E04: an fr holding a tbr section gives one section finding '
+  test('an fr holding a tbr section gives one section finding '
       'at its header line, whatever the section holds', () async {
     final (:project, :found) = await _run(
       _frWithSection('## TBR\n\n- **Value:** 2 s\n- **Why:** unmeasured\n'),
@@ -114,7 +114,7 @@ void main() {
     expect(finding.waitsFor, WaitsFor.owner);
   });
 
-  test('$_name E04: an nf holding a tbr section gives one section '
+  test('an nf holding a tbr section gives one section '
       'finding', () async {
     final (:project, :found) = await _run(
       edit(loginNf, [
@@ -132,7 +132,7 @@ void main() {
     expect(found.single.keys, {'form': 'section'});
   });
 
-  test('$_name E04: the same fr gives one finding with its tbr section '
+  test('the same fr gives one finding with its tbr section '
       'and none once the section is removed', () async {
     const section = '## TBR\n\n- **Value:** 2 s\n';
     final open = await _run(_frWithSection(section));
@@ -143,14 +143,14 @@ void main() {
     expect(closed.found, isEmpty);
   });
 
-  test('$_name E05: a gnfr bullet reading none gives no finding', () async {
+  test('a gnfr bullet reading none gives no finding', () async {
     final (:found, project: _) = await _run(
       doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:** none\n'),
     );
     expect(found, isEmpty);
   });
 
-  test('$_name E05: a gnfr bullet with a value gives one bullet finding '
+  test('a gnfr bullet with a value gives one bullet finding '
       'at its line', () async {
     const value = '2 s until the benchmark runs';
     final (:project, :found) = await _run(
@@ -166,7 +166,7 @@ void main() {
     expect(finding.waitsFor, WaitsFor.owner);
   });
 
-  test('$_name E05: none is read exactly after trim, so None, none. and '
+  test('none is read exactly after trim, so None, none. and '
       'none $_dash reason each give a bullet finding', () async {
     for (final value in ['None', 'none.', 'none $_dash reason']) {
       final (:project, :found) = await _run(
@@ -180,7 +180,7 @@ void main() {
     }
   });
 
-  test('$_name E05: a bullet with no value names no value after the '
+  test('a bullet with no value names no value after the '
       'sentence', () async {
     final (:found, project: _) = await _run(
       doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:**\n'),
@@ -191,7 +191,7 @@ void main() {
     expect(found.single.message, _openNoValue);
   });
 
-  test('$_name E01: a long text after a marker shows its first '
+  test('a long text after a marker shows its first '
       '$tbrValueLimit characters and an ellipsis', () async {
     final text = 'x' * (tbrValueLimit * 2);
     final (:found, project: _) = await _run(
@@ -207,7 +207,7 @@ void main() {
     );
   });
 
-  test('$_name E01: a marker with nothing after it names no value after '
+  test('a marker with nothing after it names no value after '
       'the sentence', () async {
     final (:found, project: _) = await _run(
       _frWith('Cite ${_marker.trimRight()} '),
@@ -218,7 +218,7 @@ void main() {
     expect(found.single.message, _openNoValue);
   });
 
-  test('$_name E01: a marker at the end of its line, as a write stores it, '
+  test('a marker at the end of its line, as a write stores it, '
       'is open with no value', () async {
     final (:found, project: _) = await _run(
       _frWith('Cite ${_marker.trimRight()}'),
@@ -229,7 +229,7 @@ void main() {
     expect(found.single.message, _openNoValue);
   });
 
-  test('$_name E05: a bullet label inside fenced code of a gnfr gives no '
+  test('a bullet label inside fenced code of a gnfr gives no '
       'finding', () async {
     final (:found, project: _) = await _run(
       doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock```\n- **TBR:** 3 s\n```\n'),
@@ -237,7 +237,7 @@ void main() {
     expect(found, isEmpty);
   });
 
-  test('$_name E06: a marker inside a tbr section gives the section '
+  test('a marker inside a tbr section gives the section '
       'finding only', () async {
     final (:found, project: _) = await _run(
       _frWithSection('## TBR\n\n- **Value:** ${_marker}2 s\n'),
@@ -247,7 +247,7 @@ void main() {
     expect(found.single.keys, {'form': 'section'});
   });
 
-  test('$_name E06: a marker on a gnfr bullet gives the bullet finding '
+  test('a marker on a gnfr bullet gives the bullet finding '
       'only', () async {
     final (:found, project: _) = await _run(
       doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:** ${_marker}2 s\n'),
@@ -258,7 +258,7 @@ void main() {
     expect(found.single.message, '$_stillOpen${_marker}2 s');
   });
 
-  test('$_name E06: a marker beside a tbr section, in another section, '
+  test('a marker beside a tbr section, in another section, '
       'still gives its own finding', () async {
     final (:project, :found) = await _run(
       edit(loginFr, [
@@ -275,14 +275,14 @@ void main() {
     expect(found.first.line, lineOfFirst(project, loginFr, 'Cite'));
   });
 
-  test('$_name E07: a hyphen or a missing dash is no marker', () async {
+  test('a hyphen or a missing dash is no marker', () async {
     final (:found, project: _) = await _run(
       _frWith('Value TBR - 2 s and TBR 3 s are no marker.'),
     );
     expect(found, isEmpty);
   });
 
-  test('$_name E08: a marker in a frontmatter value gives no tbr_open, the '
+  test('a marker in a frontmatter value gives no tbr_open, the '
       'typed field its own finding', () async {
     final project = await writeCheckProject(
       extra: fr('verify_method: test', 'verify_method: ${_marker}later'),
@@ -295,7 +295,7 @@ void main() {
     ]);
   });
 
-  test('$_name E09: a planned fr that keeps its code paths in a tbr section '
+  test('a planned fr that keeps its code paths in a tbr section '
       'gives a section finding', () async {
     final (:found, project: _) = await _run({
       ..._frWithSection('## TBR\n\n- **Value:** app/lib/login.dart\n'),
@@ -308,7 +308,7 @@ void main() {
     expect(found.single.keys, {'form': 'section'});
   });
 
-  test('$_name E09: future code paths in a planned FR record entry give no '
+  test('future code paths in a planned FR record entry give no '
       'tbr_open', () async {
     final (:found, project: _) = await _run({
       '.specstone/records/f01_login/IMPLEMENTATION.md':
@@ -320,19 +320,16 @@ void main() {
     expect(found, isEmpty);
   });
 
-  test(
-    '$_name E09: a path an older doc keeps in TBR prose still gives tbr_open',
-    () async {
-      final (:found, project: _) = await _run(
-        _frWith('$_marker app/lib/later.dart'),
-      );
+  test('a path an older doc keeps in TBR prose still gives tbr_open', () async {
+    final (:found, project: _) = await _run(
+      _frWith('$_marker app/lib/later.dart'),
+    );
 
-      expect(found, hasLength(1));
-      expect(found.single.keys, {'form': 'marker'});
-    },
-  );
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'marker'});
+  });
 
-  test('$_name E10: an untyped doc gives no tbr_open', () async {
+  test('an untyped doc gives no tbr_open', () async {
     const untyped = 'prds/features/f01_login/notes.md';
     final project = await writeCheckProject(
       extra: {'docs/$untyped': '# Notes\n\nValue ${_marker}later.\n'},

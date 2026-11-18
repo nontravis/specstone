@@ -24,7 +24,7 @@ void main() {
   setUpAll(() async => index = await indexWith());
   String file(String docPath) => loginProject['docs/$docPath']!;
 
-  test('f01/us04/s1, f01/us04/fr02: a bare name prints each doc carrying it as written, stories left out', () async {
+  test('a bare name prints each doc carrying it as written, stories left out', () async {
     final text = answerGet(index, ['login']).text;
     expect(
       text,
@@ -36,7 +36,7 @@ void main() {
     expect('==> '.allMatches(text), hasLength(5));
     expect(text, isNot(contains('login/email_login')));
   });
-  test('f01/us04/s2, f01/us04/fr02/e01: one section from each doc that holds it, nothing else', () async {
+  test('one section from each doc that holds it, nothing else', () async {
     expect(
       answerGet(index, ['login#components']).text,
       '==> login (architecture) · specs/f01_login/ARCHITECTURE.md#components · base cf930e1810b0 <==\n'
@@ -44,22 +44,22 @@ void main() {
       '| Login form | Collects the email and the password |\n',
     );
   });
+  test('a doc type prefix narrows to one doc', () async {
+    expect(
+      '==> '.allMatches(answerGet(index, ['architecture:login']).text),
+      hasLength(1),
+    );
+  });
   test(
-    'f01/us04/s3, f01/us04/fr01: a doc type prefix narrows to one doc',
+    'an untyped doc reads by its DocPath, a section by its snake_case key',
     () async {
       expect(
-        '==> '.allMatches(answerGet(index, ['architecture:login']).text),
-        hasLength(1),
+        answerGet(index, ['prds/d01_context.md#project_vision']).text,
+        '==> prds/d01_context.md · prds/d01_context.md#project_vision · base 6f3e9bae7bdc <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
       );
     },
   );
-  test('f01/us04/s4, f01/us04/fr02/e04, f01/us01/s7: an untyped doc reads by its DocPath, a section by its snake_case key', () async {
-    expect(
-      answerGet(index, ['prds/d01_context.md#project_vision']).text,
-      '==> prds/d01_context.md · prds/d01_context.md#project_vision · base 6f3e9bae7bdc <==\n## Project vision\nOne SDD system; ค้นหา เอกสาร\n',
-    );
-  });
-  test('f01/us04/fr01/e09, f01/us04/fr02/e01: a path takes a section key as the name does', () async {
+  test('a path takes a section key as the name does', () async {
     expect(
       answerGet(index, [
         'docs/specs/f01_login/ARCHITECTURE.md#components',
@@ -67,24 +67,27 @@ void main() {
       answerGet(index, ['architecture:login#components']).text,
     );
   });
-  test('f01/us04/s5: a name no doc carries is doc_not_found', () async {
+  test('a name no doc carries is doc_not_found', () async {
     expect(() => answerGet(index, ['logn']), throwsA(isA<IndexFault>()));
   });
-  test('f01/us04/s6, f01/us04/fr02/e02: a key no resolved doc holds is section_not_found naming name and key', () async {
-    expect(
-      () => answerGet(index, ['login#acceptance']),
-      throwsA(
-        isA<IndexFault>()
-            .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
-            .having(
-              (f) => f.message,
-              'message',
-              'no doc named login holds a section with the key acceptance',
-            ),
-      ),
-    );
-  });
-  test('f01/us04/fr02/e03, s03/inv4: the head is no section', () async {
+  test(
+    'a key no resolved doc holds is section_not_found naming name and key',
+    () async {
+      expect(
+        () => answerGet(index, ['login#acceptance']),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no doc named login holds a section with the key acceptance',
+              ),
+        ),
+      );
+    },
+  );
+  test('the head is no section', () async {
     expect(
       () => answerGet(index, ['login/email_login#agent_signs_in_with_email']),
       throwsA(isA<IndexFault>()),
@@ -100,7 +103,7 @@ void main() {
       contains('## Rationale\nN/A\n'),
     );
   });
-  test("review focus 1, f02 review focus 4: two sections with one header both print, in file order, under the first one's base", () async {
+  test("two sections with one header both print, in file order, under the first one's base", () async {
     final notes = await indexWith({
       'docs/notes.md': '# Notes\n\n## Notes\nfirst\n\n## Notes\nsecond\n',
     });
@@ -109,28 +112,34 @@ void main() {
       '==> notes.md · notes.md#notes · base 47471c97c516 <==\n## Notes\nfirst\n## Notes\nsecond\n',
     );
   });
-  test('f01/us01/fr03/e13, f01/us04/fr02: headers Root schema and Root-schema key alike and both print', () async {
-    final doc = await indexWith({
-      'docs/roots.md':
+  test(
+    'headers Root schema and Root-schema key alike and both print',
+    () async {
+      final doc = await indexWith({
+        'docs/roots.md':
+            '# Roots\n\n## Root schema\nfirst\n\n## Root-schema\nsecond\n',
+      });
+      final text = answerGet(doc, ['roots.md#root_schema']).text;
+      expect(text, contains('## Root schema\nfirst\n'));
+      expect(text, contains('## Root-schema\nsecond\n'));
+      expect(text, startsWith('==> roots.md · roots.md#root_schema · base '));
+      final content = parseIndexedDoc(
+        docPath: 'roots.md',
+        bytes: utf8.encode(
           '# Roots\n\n## Root schema\nfirst\n\n## Root-schema\nsecond\n',
-    });
-    final text = answerGet(doc, ['roots.md#root_schema']).text;
-    expect(text, contains('## Root schema\nfirst\n'));
-    expect(text, contains('## Root-schema\nsecond\n'));
-    expect(text, startsWith('==> roots.md · roots.md#root_schema · base '));
-    final content = parseIndexedDoc(
-      docPath: 'roots.md',
-      bytes: utf8.encode(
-        '# Roots\n\n## Root schema\nfirst\n\n## Root-schema\nsecond\n',
-      ),
-      match: const NoDocType(),
-      statusesOutside: true,
-    ).content;
-    expect(content.sections.map((s) => s.key), ['root_schema', 'root_schema']);
-    expect(basesOf(content, null)['sections'], {
-      'root_schema': sectionBaseOf(content.sections.first.body, null),
-    });
-  });
+        ),
+        match: const NoDocType(),
+        statusesOutside: true,
+      ).content;
+      expect(content.sections.map((s) => s.key), [
+        'root_schema',
+        'root_schema',
+      ]);
+      expect(basesOf(content, null)['sections'], {
+        'root_schema': sectionBaseOf(content.sections.first.body, null),
+      });
+    },
+  );
   test(
     '--json gives name, path, section, and text; no docType on an untyped doc',
     () async {
@@ -148,7 +157,7 @@ void main() {
       );
     },
   );
-  test('review focus 5, preflight F15: a whole doc keeps its CRLF line endings as written', () async {
+  test('a whole doc keeps its CRLF line endings as written', () async {
     final crlf = await indexWith({
       'docs/crlf.md': '# Crlf\r\n\r\n## A\r\nx\r\n',
     });
@@ -189,7 +198,7 @@ void main() {
       '==> login (feature) · prds/features/f01_login/FEATURE.md · base abc123abc123 <==',
     );
   });
-  test('E08, E13: a section read names <DocPath>#<key> with its base; a whole-doc read names its path with bases.doc', () async {
+  test('a section read names <DocPath>#<key> with its base; a whole-doc read names its path with bases.doc', () async {
     const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     expect(
       answerGet(index, [
@@ -209,7 +218,7 @@ void main() {
     final doc = (whole.json['docs']! as List).single as Map;
     expect((doc['bases']! as Map)['doc'], baseHashOf(file(storyPath)));
   });
-  group('E08, layout-blind bases', () {
+  group('layout-blind bases', () {
     const storyPath =
         'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
     const bareBody =
@@ -319,7 +328,7 @@ void main() {
       },
     );
   });
-  test('E09: a template section the doc lacks prints its naming line alone with the base of empty text', () async {
+  test('a template section the doc lacks prints its naming line alone with the base of empty text', () async {
     expect(
       answerGet(index, ['login/email_login#rules']).text,
       '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md#rules · base e3b0c44298fc <==\n',
@@ -378,7 +387,7 @@ void main() {
     );
   });
 
-  test('ms-r10: --json bases.doc hashes the whole text, LF-normalized, the same with CRLF and a BOM', () async {
+  test('--json bases.doc hashes the whole text, LF-normalized, the same with CRLF and a BOM', () async {
     const text = '---\ndraft: true\n---\n\n# Notes\n\n## A\nx\n';
     final lf = await indexWith({'docs/notes.md': text});
     final crlf = await indexWith({
@@ -392,7 +401,7 @@ void main() {
     expect(docBase(crlf)['doc'], baseHashOf(text));
   });
 
-  test('f01/us04/fr02/e10, PD16, H27: a doc with no title has the base of empty text', () async {
+  test('a doc with no title has the base of empty text', () async {
     final untitled = await indexWith({'docs/untitled.md': '## A\nx\n'});
     final doc =
         (answerGet(untitled, ['untitled.md']).json['docs']! as List).single
@@ -400,7 +409,7 @@ void main() {
     expect((doc['bases']! as Map)['title'], emptyBaseHash);
   });
 
-  test('f02/us01/s3, PD4, HD4: bases hash the first of two key blocks of one field, a quoted spelling included', () async {
+  test('bases hash the first of two key blocks of one field, a quoted spelling included', () async {
     final dup = await indexWith({
       'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
           '---\nstatus: planned\nvision:\n  - PV-01\nstatus: implemented\n---\n\n'
@@ -478,7 +487,7 @@ void main() {
       '==> prds/empty.md · prds/empty.md · base $emptyBaseHash <==\n\n',
     );
   });
-  test('E13 (W8): a path holding # is read whole, as resolve reads it, so get splits no section key off it', () async {
+  test('a path holding # is read whole, as resolve reads it, so get splits no section key off it', () async {
     final noted = await indexWith({'docs/prds/notes#draft.md': '# Draft\n'});
     expect(
       answerGet(noted, ['prds/notes#draft.md']).text,
@@ -503,7 +512,7 @@ void main() {
         .having((f) => f.code, 'code', code)
         .having((f) => f.message, 'message', message);
 
-    test('E13: each name prints in argument order, a whole doc under its '
+    test('each name prints in argument order, a whole doc under its '
         'whole-text base, a section under its own', () {
       final answer = answerGet(index, [
         'feature:login',
@@ -534,7 +543,7 @@ void main() {
       expect(docNames(answer), ['login', 'login/email_login', 'gnfr']);
     });
 
-    test('E13: --json holds one object per doc or section, in argument order, '
+    test('--json holds one object per doc or section, in argument order, '
         'a section read with base and no bases', () {
       final docs =
           answerGet(index, [
@@ -556,7 +565,7 @@ void main() {
       expect((docs[1] as Map).containsKey('bases'), isTrue);
     });
 
-    test('E14: a doc read whole prints once at the first name that names it '
+    test('a doc read whole prints once at the first name that names it '
         'or a part of it, and drops its sections', () {
       final whole = answerGet(index, ['login']).text;
       for (final names in [
@@ -579,7 +588,7 @@ void main() {
       ]);
     });
 
-    test('E14: two different sections of one doc both print; one section '
+    test('two different sections of one doc both print; one section '
         'named twice, or a doc two names resolve to, prints once', () {
       expect(
         headings(
@@ -607,7 +616,7 @@ void main() {
       );
     });
 
-    test('E15: every name that resolves to no doc is named, the whole call '
+    test('every name that resolves to no doc is named, the whole call '
         'refused with one doc_not_found', () {
       expect(
         () => answerGet(index, ['login', 'logn', 'architecture:nope', 'nope']),
@@ -622,7 +631,7 @@ void main() {
       );
     });
 
-    test('E02: a key no resolved doc holds refuses the whole call, naming '
+    test('a key no resolved doc holds refuses the whole call, naming '
         'the name and the key of each', () {
       expect(
         () => answerGet(index, ['login', 'login#acceptance', 'gnfr#nope']),
@@ -636,7 +645,7 @@ void main() {
       );
     });
 
-    test('E17: faults of two codes throw IndexFaults, one per code, in the '
+    test('faults of two codes throw IndexFaults, one per code, in the '
         "order of each code's first name", () {
       final docFirst = _thrownFaults(index, [
         'logn',
@@ -669,7 +678,7 @@ void main() {
       expect(sectionFirst.toJson(), sectionFirst.faults.first.toJson());
     });
 
-    test('E17: an unknown doc type is one more fault of its name, in the '
+    test('an unknown doc type is one more fault of its name, in the '
         "order of each code's first name", () {
       final mixed = _thrownFaults(index, [
         'nosuch1',
@@ -690,7 +699,7 @@ void main() {
       expect(typeFirst.exitStatus, 64);
     });
 
-    test('E17: names with two unknown doc types give one doc_type_unknown '
+    test('names with two unknown doc types give one doc_type_unknown '
         'fault naming both', () {
       expect(
         () => answerGet(index, ['a:x', 'b:y']),
@@ -705,7 +714,7 @@ void main() {
       );
     });
 
-    test('E15, E02: a name given twice is named once in its fault', () {
+    test('a name given twice is named once in its fault', () {
       expect(
         () => answerGet(index, ['logn', 'logn']),
         throwsA(
@@ -728,7 +737,7 @@ void main() {
       );
     });
 
-    test('E17: a fault of one code stays one IndexFault', () {
+    test('a fault of one code stays one IndexFault', () {
       expect(
         () => answerGet(index, ['logn', 'login']),
         throwsA(isA<IndexFault>()),

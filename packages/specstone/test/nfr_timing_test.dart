@@ -107,7 +107,7 @@ void main() {
     return watch.elapsed;
   }
 
-  test('F1-D26, F1-D35: the generated tree matches the baseline figures', () {
+  test('the generated tree matches the baseline figures', () {
     final files = [
       for (final folder in ['docs', '.specstone/records'])
         ...Directory('${project.path}/$folder')
@@ -119,7 +119,7 @@ void main() {
     expect(files.fold<int>(0, (sum, f) => sum + f.lengthSync()), 19056244);
   });
 
-  test('NFR-P02, f01/us01/fr02/e01: the fastest of five specstone calls from '
+  test('the fastest of five specstone calls from '
       'no index builds the full index within 10 s', () {
     expect(
       bestOf(timingRuns, () {
@@ -245,7 +245,7 @@ void main() {
     );
   });
 
-  test('NFR-P03, f04/us01/fr01/e01: a whole-project specstone check, with a '
+  test('a whole-project specstone check, with a '
       'current index, finishes within 2 s in the fastest of five calls', () {
     const call = ['check'];
     final code = Directory('${project.path}/src')
@@ -377,7 +377,7 @@ void main() {
     );
   });
 
-  test('NFR-P03: a broken code path in a record shows in the check, so the '
+  test('a broken code path in a record shows in the check, so the '
       'timed runs read the records', () {
     final record = File(
       '${project.path}/.specstone/records/f01_feature_1/IMPLEMENTATION.md',

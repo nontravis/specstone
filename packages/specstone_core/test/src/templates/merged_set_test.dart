@@ -104,7 +104,7 @@ void main() {
       expect(merged.featurePattern('nope'), isNull);
     });
 
-    test('f03/us01/s2, f03/us01/fr01: listText prints one id per line', () {
+    test('listText prints one id per line', () {
       final merged = MergedSet(
         docTypes: [_docType('runbook'), _docType('feature')],
       );
@@ -113,7 +113,7 @@ void main() {
       expect(MergedSet(docTypes: const []).listText(), '');
     });
 
-    test('f03/us01/s8, f03/us01/fr01: listJson matches the s02 example', () {
+    test('listJson matches the spec example', () {
       final merged = MergedSet(
         docTypes: [
           _docType(

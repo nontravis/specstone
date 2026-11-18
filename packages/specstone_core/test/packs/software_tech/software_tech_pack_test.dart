@@ -164,7 +164,7 @@ void main() {
       );
     });
 
-    test('f03/us07/fr03, f03/us07/fr03/e01: no spec doc type carries a word '
+    test('no spec doc type carries a word '
         'list at either level', () {
       for (final id in softwareTechIds) {
         final docType = prdCoreDocType(set, id);
@@ -175,7 +175,7 @@ void main() {
       }
     });
 
-    test('f03/us06/fr01, f03/us07/fr01: no other doc type sets bundle, and no '
+    test('no other doc type sets bundle, and no '
         'other section sets query', () {
       expect(
         [

@@ -38,7 +38,7 @@ List<DocItem> _itemsOf(List<BodyLine> body) => [
 
 void main() {
   group('doc_model/doc_items sectionItemsOf', () {
-    test('E09: a list item '
+    test('a list item '
         'counts without its nested items and a nested item alone', () {
       final items = _items(
         '- parent one\n'
@@ -54,7 +54,7 @@ void main() {
       ]);
     });
 
-    test('E09: an ordered item '
+    test('an ordered item '
         'reads its text after the marker', () {
       expect(_items('1. first\n2) second'), [
         (line: 20, chars: 8, text: 'first', heading: false),
@@ -62,7 +62,7 @@ void main() {
       ]);
     });
 
-    test('E09: a table row '
+    test('a table row '
         'below the delimiter row is an item, the header and delimiter '
         'rows are none', () {
       final items = _items(
@@ -81,7 +81,7 @@ void main() {
       ]);
     });
 
-    test('E09: a paragraph is '
+    test('a paragraph is '
         'one item across its lines', () {
       final items = _items(
         'alpha beta\n'
@@ -96,7 +96,7 @@ void main() {
       ]);
     });
 
-    test('E09: a ### heading '
+    test('a ### heading '
         'counts with the paragraph under it and never its bullets', () {
       final items = _items(
         '### Scenario 1\n'
@@ -126,7 +126,7 @@ void main() {
       ]);
     });
 
-    test('E09: a ### heading inside a blockquote '
+    test('a ### heading inside a blockquote '
         'counts with a deeper quoted paragraph right under it', () {
       final items = _items(
         '> ### Quoted\n'
@@ -141,7 +141,7 @@ void main() {
       ]);
     });
 
-    test('E09: a ### heading '
+    test('a ### heading '
         'counts with the quoted paragraph right under it', () {
       final items = _items(
         '### PV-01\n'
@@ -156,7 +156,7 @@ void main() {
       ]);
     });
 
-    test('E09: a blockquote '
+    test('a blockquote '
         'paragraph and list item are items as anywhere else', () {
       final items = _items(
         '> quoted paragraph\n'
@@ -170,7 +170,7 @@ void main() {
       ]);
     });
 
-    test('E09: a fenced code '
+    test('a fenced code '
         'block is no item', () {
       final items = _items(
         '- before\n'
@@ -186,7 +186,7 @@ void main() {
       ]);
     });
 
-    test('E09: an item holding '
+    test('an item holding '
         'an emoji counts a surrogate pair once', () {
       final items = _items(
         '- \u{1F600} smile\n'
@@ -199,7 +199,7 @@ void main() {
       ]);
     });
 
-    test('E09: a fence inside '
+    test('a fence inside '
         'a list item ends the item and the text after it is its own '
         'item', () {
       final items = _itemsOf([
@@ -216,7 +216,7 @@ void main() {
       ]);
     });
 
-    test('E09: a fence inside '
+    test('a fence inside '
         'a blockquote is no item', () {
       final items = _itemsOf([
         (text: '> ```', line: 20, fenced: true),
@@ -227,26 +227,26 @@ void main() {
       expect(items, isEmpty);
     });
 
-    test('E09: rows with no '
+    test('rows with no '
         'delimiter row are one paragraph', () {
       expect(_items('| a | b |\n| c | d |'), [
         (line: 20, chars: 19, text: '| a | b |', heading: false),
       ]);
     });
 
-    test('E09: a #### line '
+    test('a #### line '
         'reads as paragraph text', () {
       expect(_items('#### Deep\nparagraph'), [
         (line: 20, chars: 19, text: '#### Deep', heading: false),
       ]);
     });
 
-    test('E09: an empty body '
+    test('an empty body '
         'holds no item', () {
       expect(_items(''), isEmpty);
     });
 
-    test('doc_model/doc_items E09: a thematic break is no item and ends the '
+    test('a thematic break is no item and ends the '
         'paragraph above it', () {
       expect(_items('first\n***\nsecond'), [
         (line: 20, chars: 5, text: 'first', heading: false),
@@ -259,27 +259,24 @@ void main() {
       expect(_items('* * *\n- - -\n> ---\n_ _ _'), isEmpty);
     });
 
-    test(
-      'doc_model/doc_items E09: a table starts by the column rule of markdown, '
-      'with or without a pipe in the header',
-      () {
-        expect(_items('abc\n|---|\nrow'), [
-          (line: 22, chars: 3, text: 'row', heading: false),
-        ]);
-        expect(_items('a | b | c\n--- | ---\nx | y | z'), [
-          (line: 20, chars: 29, text: 'a | b | c', heading: false),
-        ]);
-      },
-    );
+    test('a table starts by the column rule of markdown, '
+        'with or without a pipe in the header', () {
+      expect(_items('abc\n|---|\nrow'), [
+        (line: 22, chars: 3, text: 'row', heading: false),
+      ]);
+      expect(_items('a | b | c\n--- | ---\nx | y | z'), [
+        (line: 20, chars: 29, text: 'a | b | c', heading: false),
+      ]);
+    });
 
-    test('doc_model/doc_items E09: a delimiter row that starts like a list '
+    test('a delimiter row that starts like a list '
         'item still makes a table', () {
       expect(_items('a | b\n- | -\nc | d'), [
         (line: 22, chars: 5, text: 'c | d', heading: false),
       ]);
     });
 
-    test('doc_model/doc_items E09: a header line that opens with a list '
+    test('a header line that opens with a list '
         'marker still makes a table', () {
       for (final header in ['- a | b', '* a | b', '+ a | b', '1. a | b']) {
         expect(_items('$header\n--- | ---\nc | d'), [

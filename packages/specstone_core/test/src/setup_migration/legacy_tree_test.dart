@@ -166,7 +166,7 @@ void main() {
       expect(scan.containers, isEmpty);
     });
 
-    test('f06/us01/fr03/e05, f06/us01/s5: folders above a group drop out of '
+    test('folders above a group drop out of '
         'the path', () {
       final scan = scanLegacyFeatures(_docPaths(groupedLegacy));
 
@@ -197,7 +197,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e04, final I5: a group whose slug is not '
+    test('a group whose slug is not '
         '[a-z0-9_]+ gives its features no FeaturePath', () {
       final scan = scanLegacyFeatures([
         'prds/features/co01_tool-module/tm01_stripe/FEATURE.md',
@@ -254,7 +254,7 @@ void main() {
   });
 
   group('refuseDuplicateGroups', () {
-    test('f06/us01/fr03/e09, f06/us01/s14: two groups with one slug refuse '
+    test('two groups with one slug refuse '
         'group_slug_duplicate naming both', () {
       final scan = scanLegacyFeatures(_docPaths(duplicateGroupLegacy));
 
@@ -296,7 +296,7 @@ void main() {
       }
     });
 
-    test('f06/us01/fr03/e09, final I5: groups whose slug is no slug never '
+    test('groups whose slug is no slug never '
         'refuse as duplicates', () {
       refuseDuplicateGroups(
         scanLegacyFeatures([

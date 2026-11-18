@@ -79,7 +79,7 @@ List<String> _docPaths(List<DocEntry> files) => [
 
 void main() {
   group('collectDocEntries', () {
-    test('f05/us02/fr01, f05/us02/fr01/e08, s03/inv10: a folder yields its '
+    test('a folder yields its '
         'docs in tree order', () async {
       final walk = await _walk();
 
@@ -87,7 +87,7 @@ void main() {
     });
 
     test(
-      'f05/us01/fr01/e06, f05/us02/fr01/e09: dot-named files and folders '
+      'dot-named files and folders '
       'are never visited, so an unreadable .git does not fail the walk',
       () async {
         final walk = await _walk();

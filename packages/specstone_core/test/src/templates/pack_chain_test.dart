@@ -49,7 +49,7 @@ void main() {
       ]);
     });
 
-    test('s03/inv18: a shipped pack sits above every shipped pack its chain '
+    test('a shipped pack sits above every shipped pack its chain '
         'reaches, and below every personal pack', () async {
       final ordered = orderPacks([
         await personal('nont-a', null),
@@ -165,17 +165,14 @@ void main() {
       expect(reaches(flutter, flutter, extendsOf: extendsOf), isFalse);
     });
 
-    test(
-      's03/inv5: a loop that never returns to the start ends, not hangs',
-      () async {
-        final a = await personal('nont-a', 'nont-b');
-        final b = await personal('nont-b', 'nont-c');
-        final c = await personal('nont-c', 'nont-b');
-        final target = await personal('nont-x', null);
-        final extendsOf = extendsMapOf([a, b, c, target]);
+    test('a loop that never returns to the start ends, not hangs', () async {
+      final a = await personal('nont-a', 'nont-b');
+      final b = await personal('nont-b', 'nont-c');
+      final c = await personal('nont-c', 'nont-b');
+      final target = await personal('nont-x', null);
+      final extendsOf = extendsMapOf([a, b, c, target]);
 
-        expect(reaches(a, target, extendsOf: extendsOf), isFalse);
-      },
-    );
+      expect(reaches(a, target, extendsOf: extendsOf), isFalse);
+    });
   });
 }

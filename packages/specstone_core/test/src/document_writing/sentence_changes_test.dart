@@ -21,7 +21,7 @@ SentenceChanges _changes({
 );
 
 void main() {
-  group('$_name E23', () {
+  group('a dropped, a moved, and an added sentence', () {
     test('a dropped, a moved, and an added sentence list the first and the '
         'third', () {
       final changes = _changes(
@@ -36,7 +36,7 @@ void main() {
     });
   });
 
-  group('$_name E24', () {
+  group('a dropped sentence', () {
     test('a sentence moved to an untyped doc is not dropped', () {
       final changes = _changes(
         approved: '## Statement\nStays. Goes to notes.\n',
@@ -111,7 +111,7 @@ void main() {
     });
   });
 
-  group('$_name E25', () {
+  group('a new sentence', () {
     test('a sentence moved between two drafts of the run is neither dropped '
         'nor new', () {
       const first = '## Statement\nStays. Moves.\n';
@@ -186,7 +186,7 @@ void main() {
     });
   });
 
-  group('$_name E26', () {
+  group('a draft with no change', () {
     test('a draft with no sentence dropped and none new lists none', () {
       final changes = _changes(
         approved: '## Statement\nSame.\n',

@@ -100,7 +100,7 @@ void main() {
       expect(read(project, record), '# Record\n\nbody\n');
     });
 
-    test('f05/us01/s2, f05/us01/fr01: with no target formats every doc under '
+    test('with no target formats every doc under '
         'the docs root', () async {
       final project = await fixtureProject({
         _feature: _featureOutOfOrder,
@@ -114,7 +114,7 @@ void main() {
       expect(read(project, _story), _storyFormatted);
     });
 
-    test('S10: a layout-only doc gets trimmed table '
+    test('a layout-only doc gets trimmed table '
         'cells, a two-space line break, no other trailing space, and a '
         'blank line under each heading', () async {
       const disk =
@@ -132,7 +132,7 @@ void main() {
       );
     });
 
-    test('S3: adds no section, '
+    test('adds no section, '
         'leaves draft as written, and check still lists the gap', () async {
       const disk = '---\ndraft: false\n---\n# F-05\n\n## Feature name\n\nx\n';
       final project = await fixtureProject({_feature: disk});
@@ -286,7 +286,7 @@ void main() {
       expect(read(project, _feature), _featureOutOfOrder);
     });
 
-    test('a template fault reaches format as its F-03 code, exit 78', () async {
+    test('a template fault reaches format as its code, exit 78', () async {
       final project = await writeTree({'.specstone/config.yaml': 'packs: [\n'});
       final runner = await runnerIn(project);
 
@@ -420,7 +420,7 @@ sections:
         );
       });
 
-      test('S1: a stale block gets '
+      test('a stale block gets '
           'the generator text now and every line outside it keeps its '
           'text', () async {
         const before = '# A\n\n## Contents\n\n';
@@ -457,7 +457,7 @@ sections:
       const damagedWarning =
           'the index was damaged and was rebuilt from the markdown files';
 
-      test('f01/us01/fr05/e03: format warns on stderr when the index was '
+      test('format warns on stderr when the index was '
           'rebuilt', () async {
         final project = await damagedNoteProject();
 
@@ -466,7 +466,7 @@ sections:
         expect(err.toString(), '⚠️ WARNING: $damagedWarning\n');
       });
 
-      test('f01/us01/fr05/e03: format --json lists the rebuilt-index warning '
+      test('format --json lists the rebuilt-index warning '
           'in warnings', () async {
         final project = await damagedNoteProject();
 
@@ -480,7 +480,7 @@ sections:
         expect(err.toString(), isEmpty);
       });
 
-      test('f01/us01/fr05/e03: format prints one warning for a non-UTF-8 doc, '
+      test('format prints one warning for a non-UTF-8 doc, '
           'its own, not the index session per-doc warning', () async {
         final project = await fixtureProject({
           notePath: '# A\n\n## Contents\nbody\n',

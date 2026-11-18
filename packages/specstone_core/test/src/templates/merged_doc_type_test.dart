@@ -311,7 +311,7 @@ sections:
   });
 
   group('MergedDocType.toJson', () {
-    test('tpl-s03/inv28: toJson prints maxDepth right after path', () {
+    test('toJson prints maxDepth right after path', () {
       final merged = _merge(_featureLayer, 'max_depth: 2');
 
       expect(merged.maxDepth, 2);
@@ -346,7 +346,7 @@ sections:
       );
     });
 
-    test('tpl-s03/inv28: maxDepth 0 prints and does not nest; no key prints '
+    test('maxDepth 0 prints and does not nest; no key prints '
         'nothing', () {
       final flat = _merge(_featureLayer, 'max_depth: 0');
       expect(flat.toJson()['maxDepth'], 0);
@@ -357,7 +357,7 @@ sections:
       expect(unset.nests, isFalse);
     });
 
-    test('E05: toJson '
+    test('toJson '
         'prints maxItemChars only when a layer sets it', () {
       final unset = _merge(_featureLayer).toJson();
       expect(
@@ -447,7 +447,7 @@ sections:
       }
     });
 
-    test('the merged schema matches the s02 example', () {
+    test('the merged schema matches the spec example', () {
       final json = _merge(
         _featureLayer,
         'sections: [{id: scope, disabled: true}]',
@@ -457,7 +457,7 @@ sections:
       expect(jsonEncode(json), jsonEncode(s02FeatureJson));
     });
 
-    test('f03/us01/s3, f03/us01/fr03/e02: a disabled section has no JSON '
+    test('a disabled section has no JSON '
         'entry', () {
       final json = _merge(
         _featureLayer,
@@ -596,7 +596,7 @@ sections:
       });
     });
 
-    test('f03/us01/fr03, db-r7: summary prints right after query', () {
+    test('summary prints right after query', () {
       const section = MergedSection(
         id: 'goal',
         header: 'Goal',
@@ -714,7 +714,7 @@ sections:
       expect(docType.printsSummaryFor(null), isFalse);
     });
 
-    test('no bundle and no query print no key, as E05 says', () {
+    test('no bundle and no query print no key', () {
       const docType = MergedDocType(
         id: 'feature',
         fields: [],
@@ -731,7 +731,7 @@ sections:
   });
 
   group('MergedDocType.renderGuide', () {
-    test('f03/us01/s1, f03/us01/fr02: the guide matches the s02 example for '
+    test('the guide matches the spec example for '
         'goal, with the doc banned words, the field block, and the goal '
         'template', () {
       final guide = _merge(
@@ -809,7 +809,7 @@ sections:
       expect(guide, 'A.\n\n## S\n\nOptional section.\n');
     });
 
-    test('f03/us01/s3, f03/us01/fr02/e02: a disabled section prints neither '
+    test('a disabled section prints neither '
         'header nor mark', () {
       final guide = _merge(
         _featureLayer,
