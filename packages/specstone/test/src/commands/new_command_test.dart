@@ -11,7 +11,6 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
-import '../../helpers/temp_tree.dart' show treeBytes;
 import '../../helpers/write_runner.dart';
 
 void main() {
