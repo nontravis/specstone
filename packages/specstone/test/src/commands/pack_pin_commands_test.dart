@@ -91,6 +91,85 @@ void main() {
     });
   }
 
+  const loadFree = {
+    '--version': ['--version'],
+    '--help': ['--help'],
+    'help': ['help'],
+    'bare': <String>[],
+  };
+
+  test('--help, help, and a bare call answer with exit 0 beside a pack pin '
+      'fault, since they load no template', () async {
+    for (final MapEntry(:key, :value) in loadFree.entries) {
+      if (key == '--version') continue;
+      final result = await run(value);
+
+      expect(
+        result.exitCode,
+        0,
+        reason: '$key\n${result.stdout}\n${result.stderr}',
+      );
+      expect(result.stderr, isEmpty, reason: key);
+      expect(result.stdout, isNotEmpty, reason: key);
+    }
+  });
+
+  test('--version, --help, help, and a bare call answer with exit 0 beside a '
+      'template fault, where check exits 78', () async {
+    final broken = await writeCheckProject(
+      extra: {'.specstone/config.yaml': 'packs: [prd-core\n'},
+    );
+    Future<ProcessResult> runIn(List<String> args) =>
+        Process.run(binary, args, workingDirectory: broken.path);
+
+    final refused = await runIn(['check', '--json']);
+    expect(
+      refused.exitCode,
+      78,
+      reason: '${refused.stdout}\n${refused.stderr}',
+    );
+    for (final MapEntry(:key, :value) in loadFree.entries) {
+      final result = await runIn(value);
+
+      expect(
+        result.exitCode,
+        0,
+        reason: '$key\n${result.stdout}\n${result.stderr}',
+      );
+      expect(result.stderr, isEmpty, reason: key);
+      expect(result.stdout, isNotEmpty, reason: key);
+    }
+  });
+
+  final writeAndRenderForms = {
+    'approve': ['approve', '--dry-run', '--json'],
+    'delete': ['delete', story, '--json'],
+    'move': ['move', story, 'login', '--json'],
+    'new': ['new', 'user_story', '--parent', 'login', '--slug', 'x', '--json'],
+    'rename': ['rename', story, '--to', 'other', '--json'],
+    'reorder': ['reorder', story, '--json'],
+    'set': ['set', '$story#use_case', '--base', '3f9a1c0b7e21', '--json'],
+    'format': ['format', '--json'],
+    'build': ['build', '--json'],
+  };
+
+  test('the document writing and rendering commands each refuse an older pin '
+      'with pack_pin_older and exit 78', () async {
+    for (final MapEntry(:key, :value) in writeAndRenderForms.entries) {
+      final result = await run(value);
+
+      expect(
+        result.exitCode,
+        78,
+        reason: '$key\n${result.stdout}\n${result.stderr}',
+      );
+      final envelope =
+          jsonDecode(result.stderr as String) as Map<String, Object?>;
+      final error = envelope['error']! as Map<String, Object?>;
+      expect(error['code'], 'pack_pin_older', reason: key);
+    }
+  });
+
   test('--version exits 0 on the same project', () async {
     final result = await run(['--version']);
 
