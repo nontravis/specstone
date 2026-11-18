@@ -577,6 +577,23 @@ void main() {
       );
     });
 
+    test('the rows of an item outside the feature get only the unresolved '
+        'finding', () async {
+      final record = withRows(_record(), [
+        '- signup/create E01: `signs up`',
+        '- signup/create E01: `signs up`',
+        '- signup/create E01 skipped: no signup here',
+      ]);
+
+      final report = await _check(record);
+
+      expect(bothRules(report), [
+        '${rowLine(record, 0)} record_entry_unresolved',
+        '${rowLine(record, 1)} record_entry_unresolved',
+        '${rowLine(record, 2)} record_entry_unresolved',
+      ]);
+    });
+
     test('a row of a skipped item gets no finding of any kind but the skip '
         "rule's", () async {
       for (final statuses in [
