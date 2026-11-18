@@ -204,6 +204,13 @@ void main() {
       expect(hash(body.replaceFirst('a.dart:one', 'b.dart:two')), hash(body));
     });
 
+    test('a source_ref field stays inside the approval hash', () {
+      const field = MergedField(id: 'origin', type: FieldType.sourceRef);
+      for (final outside in [true, false]) {
+        expect(isOutsideApproval(field, statusesOutside: outside), isFalse);
+      }
+    });
+
     test('a task_ref key block is not hashed, at any pin', () {
       final tasked = body.replaceFirst(
         'status: planned\n',

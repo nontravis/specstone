@@ -346,6 +346,29 @@ sections:
       );
     });
 
+    test('toJson prints export on the doc type and root and export on a '
+        'field when written, and omits each when not', () {
+      final plain = _merge(_featureLayer).toJson();
+      expect(plain, isNot(contains('export')));
+      final plainFields = (plain['fields']! as List)
+          .cast<Map<String, Object>>();
+      expect(plainFields.every((f) => !f.containsKey('export')), isTrue);
+      expect(plainFields.every((f) => !f.containsKey('root')), isTrue);
+
+      final written = _merge(
+        _featureLayer,
+        'export: false\nfields:\n'
+        '  - {id: covers, type: output_ref, pointer: exact, root: project, '
+        'export: false}\n',
+      ).toJson();
+      expect(written['export'], isFalse);
+      final covers = (written['fields']! as List)
+          .cast<Map<String, Object>>()
+          .singleWhere((f) => f['id'] == 'covers');
+      expect(covers['root'], 'project');
+      expect(covers['export'], isFalse);
+    });
+
     test('tpl-s03/inv28: maxDepth 0 prints and does not nest; no key prints '
         'nothing', () {
       final flat = _merge(_featureLayer, 'max_depth: 0');

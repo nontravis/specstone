@@ -524,7 +524,10 @@ void _checkedValue(IndexedDoc doc, MergedField field, String stdin) {
 
 /// Returns the `<what>` the field's type and `enum` name in a fault.
 String _typeOf(MergedField field) => switch (field.type) {
-  FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
+  FieldType.string ||
+  FieldType.docRef ||
+  FieldType.outputRef ||
+  FieldType.sourceRef => 'a string',
   FieldType.recordStatus => recordStatusLineShape,
   FieldType.taskRef => taskRefEntryShape,
   FieldType.integer => 'a whole number',

@@ -806,6 +806,97 @@ sections:
     });
   });
 
+  group('DocTypeMerger.apply export and root', () {
+    test('a higher layer export replaces a lower one; none reads null', () {
+      final base = project(shipped(), 'export: false');
+      expect(base.export, isFalse);
+      expect(base.exported, isFalse);
+
+      expect(project(base, 'export: true').export, isTrue);
+      expect(project(base, 'description: Other').export, isFalse);
+      expect(shipped().export, isNull);
+      expect(shipped().exported, isTrue);
+    });
+
+    test('a higher layer field export replaces a lower one', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: note, type: string, export: false}]',
+      );
+      MergedField note(MergedDocType type) =>
+          type.fields.singleWhere((f) => f.id == 'note');
+
+      expect(note(base).export, isFalse);
+      expect(note(base).exported, isFalse);
+      expect(
+        note(project(base, 'fields: [{id: note, export: true}]')).export,
+        isTrue,
+      );
+      expect(
+        note(project(base, 'fields: [{id: note, required: true}]')).export,
+        isFalse,
+      );
+    });
+
+    test('a higher layer root replaces a lower one', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact, '
+        'root: project}]',
+      );
+      MergedField covers(MergedDocType type) =>
+          type.fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers(base).root, PointerRoot.project);
+      expect(
+        covers(project(base, 'fields: [{id: covers, root: code}]')).root,
+        PointerRoot.code,
+      );
+      expect(
+        covers(project(base, 'fields: [{id: covers, required: true}]')).root,
+        PointerRoot.project,
+      );
+    });
+
+    test('an output_ref field with no root reads null, which means code', () {
+      final covers = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact}]',
+      ).fields.last;
+
+      expect(covers.root, isNull);
+    });
+
+    test('a root on a field of another type is ignored', () {
+      final added = project(
+        shipped(),
+        'fields: [{id: size, type: string, root: project}]',
+      );
+      final overridden = project(
+        shipped(),
+        'fields: [{id: slug, root: project}]',
+      );
+
+      expect(added.fields.last.root, isNull);
+      expect(overridden.fields.first.root, isNull);
+    });
+
+    test('a field turned from output_ref to another type drops its root', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact, '
+        'root: project}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, type: string}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.root, isNull);
+    });
+  });
+
   group('DocTypeMerger.apply lint', () {
     MergedDocType withBannedWords() =>
         project(shipped(), 'lint: {banned_words: [fast, robust]}');
