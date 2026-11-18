@@ -873,6 +873,32 @@ void main() {
       expect(_read(run, _feature), _featureFormatted);
     }, skip: Platform.isWindows ? readOnlySkip : false);
 
+    test('a doc with the Windows read-only attribute set refuses with '
+        'output_not_writable and stays untouched; docs written before it stay '
+        'written', () async {
+      final run = await _open({
+        _feature: _featureOutOfOrder,
+        _story: _storyOutOfOrder,
+      });
+      final story = _file(run, _story);
+      addTearDown(() => Process.run('attrib', ['-R', story.path]));
+      expect((await Process.run('attrib', ['+R', story.path])).exitCode, 0);
+
+      expect(
+        () => _run(run),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.file, 'file', _story)
+              .having((f) => f.message, 'message', 'the doc is read-only')
+              .having((f) => f.exitStatus, 'exitStatus', 73),
+        ),
+      );
+
+      expect(_read(run, _story), _storyOutOfOrder);
+      expect(_read(run, _feature), _featureFormatted);
+    }, testOn: 'windows');
+
     test('a read-only doc that needs no change is unchanged', () async {
       final run = await _open({_feature: _featureFormatted});
       await makeReadOnly(_file(run, _feature));

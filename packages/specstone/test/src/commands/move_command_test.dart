@@ -256,6 +256,22 @@ void main() {
     expect(readDoc(root, shopApi), isNot(contains('\n\n\n')));
   });
 
+  test('move lays out the docs it rewrites and adds no missing section to '
+      'them', () async {
+    final root = await writeNestedProject();
+    List<String> headersOf(String docPath) => RegExp(
+      r'^## .*$',
+      multiLine: true,
+    ).allMatches(readDoc(root, docPath)).map((match) => match[0]!).toList();
+    final apiBefore = headersOf(shopApi);
+    final storyBefore = headersOf('$addItemFolder/USER_STORY.md');
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 0);
+    expect(out.toString(), contains('rewrote $shopApi\n'));
+    expect(headersOf(shopApi), apiBefore);
+    expect(headersOf('$movedFolder/USER_STORY.md'), storyBefore);
+  });
+
   test('move sets a link text equal to the old Name to the '
       'new Name and keeps an item link text', () async {
     final root = await writeNestedProject(

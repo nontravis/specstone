@@ -708,6 +708,32 @@ sections:
       expect(again.out, 'nothing to migrate\n');
     });
 
+    test('a layout-only run adds neither a required nor an optional section '
+        'the doc lacks', () async {
+      final home = await _home(
+        migrations: '',
+        type: '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+  - {id: checks, header: Checks, required: true}
+  - {id: notes, header: Notes}
+''',
+      );
+      final root = await _project(
+        pin: '1.2.0',
+        files: {_runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  ')},
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, contains('format layout: 1 docs\n'));
+      expect(_read(root, _runbookPath), _runbookDoc);
+    });
+
     test('nothing to upgrade prints nothing to migrate and writes '
         'nothing', () async {
       final home = await _home(

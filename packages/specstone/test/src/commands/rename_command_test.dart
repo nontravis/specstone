@@ -247,6 +247,29 @@ void main() {
     expect(text, contains('draft: true\n'));
   });
 
+  test('rename lays out the docs it rewrites and adds no missing section to '
+      'them', () async {
+    final root = await writeWriteProject();
+    List<String> headersOf(String docPath) => RegExp(
+      r'^## .*$',
+      multiLine: true,
+    ).allMatches(readDoc(root, docPath)).map((match) => match[0]!).toList();
+    final frBefore = headersOf(fr12);
+    expect(frBefore, ['## Statement']);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    expect(out.toString(), contains('rewrote $fr12\n'));
+    expect(headersOf(fr12), frBefore);
+  });
+
   test('rename sets each link text equal to the old Name '
       'to the new Name and keeps every other link text', () async {
     final root = await writeWriteProject(

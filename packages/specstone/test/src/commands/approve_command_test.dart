@@ -94,6 +94,29 @@ void main() {
     expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
   });
+  test('--yes approves a draft that lacks required and optional sections and adds none of them', () async {
+    final root = await writeWriteProject();
+    List<String> headersOf(String docPath) => RegExp(
+      r'^## .*$',
+      multiLine: true,
+    ).allMatches(readDoc(root, docPath)).map((match) => match[0]!).toList();
+    final before = headersOf(fr12);
+    expect(before, ['## Statement']);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'approve',
+        _seen(root, 'fr:login/email_login/lock_after_failures'),
+        '--yes',
+      ]),
+      0,
+    );
+    expect(
+      readDoc(root, fr12),
+      matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')),
+    );
+    expect(headersOf(fr12), before);
+  });
   test('--yes with no name is a usage error, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(
       await writeWriteProject(),

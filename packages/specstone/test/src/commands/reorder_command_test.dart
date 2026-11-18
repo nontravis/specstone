@@ -158,6 +158,31 @@ void main() {
     expect(text, contains('draft: true\n'));
   });
 
+  test('reorder lays out the docs it rewrites and adds no missing section to '
+      'them', () async {
+    final root = await writeWriteProject();
+    List<String> headersOf(String docPath) => RegExp(
+      r'^## .*$',
+      multiLine: true,
+    ).allMatches(readDoc(root, docPath)).map((match) => match[0]!).toList();
+    final frBefore = headersOf(fr12);
+    expect(frBefore, ['## Statement']);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:login/reset_password',
+        '--to',
+        '1',
+      ]),
+      0,
+    );
+    const reordered =
+        'prds/features/f01_login/us02_email_login/fr02_lock_after_failures.md';
+    expect(out.toString(), contains('rewrote $reordered\n'));
+    expect(headersOf(reordered), frBefore);
+  });
+
   group('with two code targets', () {
     Future<Directory> twins() => writeWriteProject(
       extra: {

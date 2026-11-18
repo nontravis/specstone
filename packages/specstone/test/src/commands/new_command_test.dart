@@ -99,6 +99,33 @@ void main() {
     expect(text, contains('draft: true'));
     expect(text, isNot(contains('<Role>')));
   });
+  test('new lays out piped text that lacks required and optional sections '
+      'and adds none of them', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        input: '# Recover account\n\n## Use Case\nRecover an account.\n',
+      ),
+    );
+    expect(
+      await runner.run([
+        'new',
+        'user_story',
+        '--parent',
+        'login',
+        '--slug',
+        'recover_account',
+      ]),
+      0,
+    );
+    final text = File('${root.path}/docs/$newStory').readAsStringSync();
+    final headers = RegExp(
+      r'^## .*$',
+      multiLine: true,
+    ).allMatches(text).map((match) => match[0]);
+    expect(headers, ['## Use Case']);
+  });
   test('a naming line at column 0 in the piped doc text exits 64 with a '
       'message opening the text holds, and writes no doc', () async {
     final root = await writeWriteProject();
