@@ -160,9 +160,11 @@ Banned words: `fast`, `robust`
 Fields:
 - `summary` (required, string) — One line on what the feature does.
 
+Limits: at most 300 lines; at most 12,000 characters; at most 600 characters per item; at most 25 words per sentence (ko 17); at most 100 characters per sentence in a script with no spaces (th 100, ja 60, zh 45).
+
 ## Feature goal
 
-Required section.
+Required section. Limits: at most 5 lines.
 Why, problem, and audience, one sentence each.
 
 Template:
@@ -175,6 +177,15 @@ Template:
 Guide sources:
 - NASA Systems Engineering Handbook, Appendix C
 ''';
+
+/// The doc `Limits:` line of a doc type whose layers set no limit.
+const _defaultLimits = 'Limits: $_builtInClauses';
+
+const _builtInClauses =
+    'at most 600 characters per item; '
+    'at most 25 words per sentence (ko 17); '
+    'at most 100 characters per sentence in a script with no spaces '
+    '(th 100, ja 60, zh 45).';
 
 /// Returns every value reachable in [node], to look for a `null`.
 Iterable<Object?> _leaves(Object? node) => switch (node) {
@@ -792,7 +803,7 @@ sections:
 
       expect(
         guide,
-        'Avoid the listed words.\n\n'
+        'Avoid the listed words.\n\n$_defaultLimits\n\n'
         '## Statement\n\n'
         'Optional section.\n'
         'Remove the listed words.\n\n'
@@ -808,7 +819,7 @@ sections:
         'sections: [{id: s, header: S, lint: {banned_words: [fast]}}]',
       ).renderGuide();
 
-      expect(guide, 'A.\n\n## S\n\nOptional section.\n');
+      expect(guide, 'A.\n\n$_defaultLimits\n\n## S\n\nOptional section.\n');
     });
 
     test('a template that holds a code fence prints inside a '
@@ -827,7 +838,7 @@ sections:
 
       expect(
         guide,
-        'A.\n\n## Flow\n\nOptional section.\n\n'
+        'A.\n\n$_defaultLimits\n\n## Flow\n\nOptional section.\n\n'
         'Template:\n````markdown\n```mermaid\nflowchart TD\n```\n````\n',
       );
     });
@@ -838,7 +849,7 @@ sections:
         "sections: [{id: s, header: S, template: ''}]",
       ).renderGuide();
 
-      expect(guide, 'A.\n\n## S\n\nOptional section.\n');
+      expect(guide, 'A.\n\n$_defaultLimits\n\n## S\n\nOptional section.\n');
     });
 
     test('a disabled section prints neither '
@@ -859,7 +870,7 @@ sections:
         'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
       ).renderGuide();
 
-      expect(guide, 'A.\n\n## S\n\nOptional section.\n');
+      expect(guide, 'A.\n\n$_defaultLimits\n\n## S\n\nOptional section.\n');
     });
 
     test('a section with an empty description prints its '
@@ -869,7 +880,7 @@ sections:
         "sections: [{id: s, header: S, description: ''}]",
       ).renderGuide();
 
-      expect(guide, 'A.\n\n## S\n\nOptional section.\n');
+      expect(guide, 'A.\n\n$_defaultLimits\n\n## S\n\nOptional section.\n');
     });
 
     const conditionLines = {
@@ -909,7 +920,7 @@ sections:
 
         expect(
           guide,
-          'A.\n\n## Interfaces\n\nOptional section.\n\n'
+          'A.\n\n$_defaultLimits\n\n## Interfaces\n\nOptional section.\n\n'
           '## S\n\n$line\n',
         );
       });
@@ -920,12 +931,173 @@ sections:
         "description: ''\npath: a.md\nsections: [{id: s, header: S}]",
       ).renderGuide();
 
-      expect(guide, '## S\n\nOptional section.\n');
+      expect(guide, '$_defaultLimits\n\n## S\n\nOptional section.\n');
     });
 
-    test('a doc type with an empty description and no sections '
-        'renders nothing', () {
-      expect(_merge("description: ''\npath: a.md").renderGuide(), '');
+    test('a bare doc type prints its doc-level line', () {
+      expect(
+        _merge("description: ''\npath: a.md").renderGuide(),
+        '$_defaultLimits\n',
+      );
+    });
+
+    test('the doc-level line is placed as E29 places it', () {
+      final withFields = _merge(
+        'description: A.\npath: a.md\n'
+        'lint: {max_lines: 300, banned_words: [fast]}\n'
+        'fields: [{id: note, type: string}]\n'
+        'sections: [{id: s, header: S}]\n'
+        'reference: [{title: T}]',
+      ).renderGuide();
+      final withoutFields = _merge(
+        'description: A.\npath: a.md\n'
+        'lint: {banned_words: [fast]}\n'
+        'sections: [{id: s, header: S}]',
+      ).renderGuide();
+
+      expect(
+        withFields,
+        'A.\n\nBanned words: `fast`\n\n'
+        'Fields:\n- `note` (optional, string)\n\n'
+        'Limits: at most 300 lines; $_builtInClauses\n\n'
+        '## S\n\nOptional section.\n\n'
+        'Guide sources:\n- T\n',
+      );
+      expect(
+        withoutFields,
+        'A.\n\nBanned words: `fast`\n\n$_defaultLimits\n\n'
+        '## S\n\nOptional section.\n',
+      );
+    });
+
+    test("a condition line carries the section's limits", () {
+      final guide = _merge('''
+description: A.
+path: a.md
+fields:
+  - {id: kind, type: string}
+sections:
+  - {id: api, header: Interfaces}
+  - id: plain
+    header: Plain
+    lint: {min_lines: 2, max_lines: 4}
+  - id: required
+    header: Required
+    required: true
+    lint: {max_chars: 1500}
+  - id: when
+    header: When
+    required: true
+    when_field: {field: kind, values: [a, b]}
+    lint: {max_item_lines: 1}
+  - id: item
+    header: Item
+    lint:
+      required_when: {section: api, field: Kind, value: rest}
+      max_subsections: 2
+  - id: both
+    header: Both
+    when_field: {field: kind, values: [a]}
+    lint:
+      required_when: {section: api, field: Kind, value: rest}
+      max_sentences: [{count: 1}]
+  - id: bare
+    header: Bare
+''').renderGuide();
+
+      expect(
+        guide,
+        allOf(
+          contains(
+            '## Plain\n\nOptional section. '
+            'Limits: at least 2 lines; at most 4 lines.\n',
+          ),
+          contains(
+            '## Required\n\nRequired section. '
+            'Limits: at most 1,500 characters.\n',
+          ),
+          contains(
+            '## When\n\nRequired when `kind` is `a` or `b`; left out '
+            'otherwise. Limits: at most 1 line per item.\n',
+          ),
+          contains(
+            '## Item\n\nRequired when a `Interfaces` item holds '
+            '`Kind: rest`; left out otherwise. '
+            'Limits: at most 2 subsections.\n',
+          ),
+          contains(
+            '## Both\n\nRequired when `kind` is `a` and a `Interfaces` item '
+            'holds `Kind: rest`; left out otherwise. '
+            'Limits: at most 1 sentence per item.\n',
+          ),
+          contains('## Bare\n\nOptional section.\n'),
+        ),
+      );
+    });
+
+    test('a prose field prints its limits after its description lines', () {
+      final guide = _merge('''
+description: A.
+path: a.md
+fields:
+  - id: summary
+    type: string
+    required: true
+    description: |-
+      First line.
+      Second line.
+    lint:
+      max_sentences: 1
+      max_sentence_words: {default: 15, ko: 10}
+      max_sentence_chars: {default: 60, th: 60}
+  - id: note
+    type: string
+    lint: {max_sentences: 2}
+''').renderGuide();
+
+      expect(
+        guide,
+        contains(
+          '- `summary` (required, string) — First line.\n'
+          '  Second line.\n'
+          '  Limits: at most 1 sentence; at most 15 words per sentence '
+          '(ko 10); at most 60 characters per sentence in a script with no '
+          'spaces (th 60).\n'
+          '- `note` (optional, string)\n'
+          '  Limits: at most 2 sentences.\n',
+        ),
+      );
+    });
+
+    test('a doc_ref field with doc types names them after its type', () {
+      final guide = _merge('''
+description: A.
+path: a.md
+fields:
+  - id: persona
+    type: doc_ref
+    list: true
+    required: true
+    doc_types: [persona]
+    description: Who the feature serves.
+  - id: owner
+    type: doc_ref
+    doc_types: [persona, anti_persona]
+  - id: link
+    type: doc_ref
+    list: true
+''').renderGuide();
+
+      expect(
+        guide,
+        contains(
+          'Fields:\n'
+          '- `persona` (required, doc_ref list → persona) — '
+          'Who the feature serves.\n'
+          '- `owner` (optional, doc_ref → persona, anti_persona)\n'
+          '- `link` (optional, doc_ref list)\n',
+        ),
+      );
     });
 
     test('an entry with a url prints title, locator, and '
@@ -935,7 +1107,10 @@ sections:
         'reference: [{title: T, url: "https://e.example/x", locator: L}]',
       ).renderGuide();
 
-      expect(guide, 'A.\n\nGuide sources:\n- T, L: https://e.example/x\n');
+      expect(
+        guide,
+        'A.\n\n$_defaultLimits\n\nGuide sources:\n- T, L: https://e.example/x\n',
+      );
     });
 
     test('a title-only entry prints its title alone', () {
@@ -981,7 +1156,7 @@ sections:
         "description: ''\npath: a.md\nreference: [{title: T}]",
       ).renderGuide();
 
-      expect(guide, 'Guide sources:\n- T\n');
+      expect(guide, '$_defaultLimits\n\nGuide sources:\n- T\n');
     });
 
     test('a declared field prints in the field block ahead of the '
@@ -996,7 +1171,7 @@ sections:
       expect(
         guide,
         'A.\n\nFields:\n- `summary` (required, string) — One line.\n\n'
-        '## S\n\nOptional section.\n',
+        '$_defaultLimits\n\n## S\n\nOptional section.\n',
       );
     });
 
@@ -1018,7 +1193,7 @@ sections:
         guide,
         'A.\n\nFields:\n'
         '- `traced_from` (required, string list) — First line.\n'
-        '  Second line.\n',
+        '  Second line.\n\n$_defaultLimits\n',
       );
     });
 
@@ -1027,7 +1202,10 @@ sections:
         'description: A.\npath: a.md\nfields: [{id: note, type: string}]',
       ).renderGuide();
 
-      expect(guide, 'A.\n\nFields:\n- `note` (optional, string)\n');
+      expect(
+        guide,
+        'A.\n\nFields:\n- `note` (optional, string)\n\n$_defaultLimits\n',
+      );
     });
 
     test('an enum field lists its values in declared order', () {
@@ -1077,7 +1255,7 @@ sections:
 
       expect(
         guide,
-        'A.\n\n'
+        'A.\n\n$_defaultLimits\n\n'
         '## R\n\nRequired section.\nWhy.\n\n'
         '## O\n\nOptional section.\nWhat.\n\n'
         '## N\n\nRequired section.\n',
