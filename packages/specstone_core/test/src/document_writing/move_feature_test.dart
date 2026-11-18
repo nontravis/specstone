@@ -292,7 +292,7 @@ void main() {
       );
     });
 
-    test('a taken path for its folder', () async {
+    test('a taken path for its feature folder', () async {
       final root = await project({'docs/$landed/note.md': '# Note\n'});
       expectRefused(
         root,
@@ -346,6 +346,121 @@ void main() {
       );
     }
   });
+
+  test(
+    'under and top together, or neither, are refused on a feature',
+    () async {
+      final root = await project();
+      expectRefused(
+        root,
+        () => moveAll(root, ['feature:shop/pay'], under: 'other', top: true),
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
+            .having((f) => f.exitStatus, 'exitStatus', 64)
+            .having(
+              (f) => f.message,
+              'message',
+              'move takes --under or --top, not both',
+            ),
+      );
+      expectRefused(
+        root,
+        () => moveAll(root, ['feature:shop/pay']),
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+            .having((f) => f.exitStatus, 'exitStatus', 64)
+            .having(
+              (f) => f.message,
+              'message',
+              'move needs --under <doc address> or --top',
+            ),
+      );
+    },
+  );
+
+  test(
+    'an under value that names 2 features is argument_invalid listing them',
+    () async {
+      final root = await project({
+        'docs/$other/f03_cart/FEATURE.md': '# Cart\n',
+      });
+      expectRefused(
+        root,
+        () => moveAll(root, ['feature:shop/pay'], under: 'cart'),
+        invalid(
+          'feature:cart ends 2 names: feature:shop/cart, feature:other/cart',
+        ),
+      );
+    },
+  );
+
+  test('a target that names no feature refuses the whole call', () async {
+    final root = await project();
+    expectRefused(
+      root,
+      () => moveAll(root, [
+        'feature:shop/cart',
+        'feature:nosuch',
+      ], under: 'other'),
+      isA<IndexFault>()
+          .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+          .having((f) => f.exitStatus, 'exitStatus', 64)
+          .having(
+            (f) => f.message,
+            'message',
+            'no feature doc carries the name nosuch',
+          ),
+    );
+  });
+
+  test(
+    'a doc that links 2 moved features is rewritten once with both links',
+    () async {
+      final root = await project();
+      docFile(root, shopFeature).writeAsStringSync(
+        '\nSee [cart](f01_cart/FEATURE.md) and [pay](f02_pay/FEATURE.md).\n',
+        mode: FileMode.append,
+      );
+      final answer = moveAll(root, [
+        'feature:shop/pay',
+        'feature:shop/cart',
+      ], under: 'other');
+      expect(
+        (answer.json['rewritten']! as List).where((p) => p == shopFeature),
+        hasLength(1),
+      );
+      expect(
+        readDoc(root, shopFeature),
+        contains(
+          '[cart](../f03_other/f04_cart/FEATURE.md) and '
+          '[pay](../f03_other/f03_pay/FEATURE.md).\n',
+        ),
+      );
+    },
+  );
+
+  test(
+    'a dry run lists the record folder move and refuses what the apply refuses',
+    () async {
+      const recordFrom = '.specstone/records/f02_shop/f01_cart/';
+      const recordTo = '.specstone/records/f03_other/f03_cart/';
+      final root = await project(nestedRecords());
+      final answer = moveAll(
+        root,
+        ['feature:shop/cart'],
+        under: 'other',
+        dryRun: true,
+      );
+      expect(answer.text, contains('moves $recordFrom to $recordTo\n'));
+      final taken = await project({'docs/$landed/note.md': '# Note\n'});
+      expectRefused(
+        taken,
+        () =>
+            moveAll(taken, ['feature:shop/cart'], under: 'other', dryRun: true),
+        exists('a feature named other/cart exists', '$landed/'),
+      );
+    },
+  );
 
   test('moving out the last sub-feature of a parent goes through', () async {
     final root = await project();
