@@ -288,8 +288,8 @@ void main() {
   });
 
   group('trust edge cases', () {
-    test('stdin alone or stdout alone not a terminal refuses with exit 77 '
-        'after the roots, and records nothing', () async {
+    test('stdin alone or stdout alone not a terminal refuses with exit 77'
+        ' after the roots, and records nothing', () async {
       final (:clone, :ext) = await _clone();
 
       for (final (stdin, stdout) in [(true, false), (false, true)]) {
@@ -323,8 +323,8 @@ void main() {
       }
     }, skip: _linksUnavailable);
 
-    test('another option or an argument is a usage error with exit 64 and '
-        'no record, even at a terminal', () async {
+    test('another option or an argument is a usage error with exit 64 and'
+        ' no record, even at a terminal', () async {
       final (:clone, ext: _) = await _clone();
 
       for (final args in [
@@ -339,8 +339,8 @@ void main() {
       }
     }, skip: _linksUnavailable);
 
-    test('an empty line and the end of input write no record and exit '
-        '0', () async {
+    test('an empty line and the end of input write no record and exit'
+        ' 0', () async {
       final (:clone, :ext) = await _clone();
       final roots = _roots(
         clone.resolveSymbolicLinksSync(),
@@ -364,8 +364,8 @@ void main() {
       }
     }, skip: _linksUnavailable);
 
-    test('no record needed prints its whole message, with a terminal or '
-        'without one, and asks nothing', () async {
+    test('no record needed prints its whole message, with a terminal or'
+        ' without one, and asks nothing', () async {
       final root = await writeWriteProject();
       final project = root.resolveSymbolicLinksSync();
       final docs = Directory('$project${Platform.pathSeparator}docs')
@@ -387,8 +387,8 @@ void main() {
       expect(_records.existsSync(), isFalse);
     });
 
-    test('in the code folder of a workspace trust asks, and after the y '
-        'writes work from that folder and from below it', () async {
+    test('in the code folder of a workspace trust asks, and after the y'
+        ' writes work from that folder and from below it', () async {
       final (:ws, :code) = await _workspace();
       final docs = '${ws.path}${Platform.pathSeparator}docs';
       final sub = Directory('${code.path}/sub');
@@ -427,8 +427,8 @@ void main() {
     }, skip: _linksUnavailable);
 
     test(
-      'before a config exists the roots come from the nearest legacy '
-      'context doc or pending journal, else the working folder itself',
+      'before a config exists the roots come from the nearest legacy'
+      ' context doc or pending journal, else the working folder itself',
       () async {
         final base = await writeTree({
           'legacy/docs/prds/d01_context.md': '# Context\n',
@@ -460,8 +460,8 @@ void main() {
       },
     );
 
-    test('no usable home exits 73 after the roots and the terminal check, '
-        'before the prompt', () async {
+    test('no usable home exits 73 after the roots and the terminal check,'
+        ' before the prompt', () async {
       final (:clone, :ext) = await _clone();
       final inProject = Directory('${clone.path}/home')..createSync();
       final project = clone.resolveSymbolicLinksSync();
@@ -520,8 +520,8 @@ void main() {
       skip: _linksUnavailable,
     );
 
-    test('a docs link to a project below the folder holding it needs no '
-        'record', () async {
+    test('a docs link to a project below the folder holding it needs no'
+        ' record', () async {
       final base = await writeTree({
         for (final MapEntry(:key, :value) in writeProject.entries)
           'ws/sub/$key': value,
@@ -540,8 +540,8 @@ void main() {
       expect(_records.existsSync(), isFalse);
     }, skip: _linksUnavailable);
 
-    test('a layout already trusted at a terminal prints one line, asks '
-        'nothing, and writes no new record', () async {
+    test('a layout already trusted at a terminal prints one line, asks'
+        ' nothing, and writes no new record', () async {
       final (:clone, :ext) = await _clone();
       await _run(clone, ['trust'], terminal: true, answers: ['y']);
       final record = _records.listSync().single as File;

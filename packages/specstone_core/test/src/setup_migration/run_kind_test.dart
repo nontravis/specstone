@@ -501,8 +501,8 @@ void main() {
   });
 
   group('the layout compare', () {
-    test('line endings are set aside, a laid out CRLF doc is none, an off '
-        'layout one is an upgrade', () async {
+    test('line endings are set aside, a laid out CRLF doc is none, an off'
+        ' layout one is an upgrade', () async {
       String crlf(String text) => text.replaceAll('\n', '\r\n');
       final laid = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig(),
@@ -517,8 +517,8 @@ void main() {
       expect(_choose(off), RunKind.upgrade);
     });
 
-    test('a generated block keeps its derived text, an off layout line '
-        'outside it still makes an upgrade', () async {
+    test('a generated block keeps its derived text, an off layout line'
+        ' outside it still makes an upgrade', () async {
       const block =
           '<!-- specstone:generated feature_catalog (do not edit) -->\n'
           'derived   text  \n\n\n'
@@ -538,8 +538,8 @@ void main() {
   });
 
   group('a stale agent file with every pin equal', () {
-    test('.specstone/AGENT.md with other bytes alone is an upgrade whose '
-        'plan holds the agent files step alone', () async {
+    test('.specstone/AGENT.md with other bytes alone is an upgrade whose'
+        ' plan holds the agent files step alone', () async {
       final root = await _project({
         '.specstone/config.yaml': shippedPinsConfig(),
         '.specstone/AGENT.md': 'other bytes\n',
@@ -562,8 +562,8 @@ void main() {
       expect(plan.moves, isEmpty);
     });
 
-    test('an agent file that differs, with its skill files current, '
-        'is an upgrade', () async {
+    test('an agent file that differs, with its skill files current,'
+        ' is an upgrade', () async {
       final texts = skillFileTexts();
       final path = texts.keys.firstWhere(
         (key) => key.startsWith('.claude/agents/'),
@@ -577,8 +577,8 @@ void main() {
       expect(_choose(root), RunKind.upgrade);
     });
 
-    test('an agent file missing, with its skill files present, '
-        'is an upgrade', () async {
+    test('an agent file missing, with its skill files present,'
+        ' is an upgrade', () async {
       final texts = skillFileTexts();
       final path = texts.keys.firstWhere(
         (key) => key.startsWith('.claude/agents/'),
@@ -598,8 +598,8 @@ void main() {
         'Owner\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
         '<!-- END specstone -->\n';
 
-    test('an instruction file with no Specstone block, at the root or at '
-        'a listed top, starts no run', () async {
+    test('an instruction file with no Specstone block, at the root or at'
+        ' a listed top, starts no run', () async {
       final atRoot = await _project({
         '.specstone/config.yaml': shippedPinsConfig(),
         'CLAUDE.md': 'Owner rules\n',
@@ -616,8 +616,8 @@ void main() {
       expect(_choose(atTop), RunKind.none);
     });
 
-    test('an instruction file linked outside the project root starts '
-        'no run', () async {
+    test('an instruction file linked outside the project root starts'
+        ' no run', () async {
       final base = await writeTree({
         'shared/CLAUDE.md': stale,
         'proj/.specstone/config.yaml': shippedPinsConfig(),
@@ -629,8 +629,8 @@ void main() {
       expect(_choose(project), RunKind.none);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
-    test('an instruction file linked below a .git entry starts '
-        'no run', () async {
+    test('an instruction file linked below a .git entry starts'
+        ' no run', () async {
       final project = await _project({
         '.specstone/config.yaml': shippedPinsConfig(),
         '.git/config': stale,
