@@ -862,7 +862,7 @@ sections:
       final covers = project(
         shipped(),
         'fields: [{id: covers, type: output_ref, pointer: exact}]',
-      ).fields.last;
+      ).fields.singleWhere((f) => f.id == 'covers');
 
       expect(covers.root, isNull);
     });
@@ -877,8 +877,24 @@ sections:
         'fields: [{id: slug, root: project}]',
       );
 
-      expect(added.fields.last.root, isNull);
-      expect(overridden.fields.first.root, isNull);
+      expect(added.fields.singleWhere((f) => f.id == 'size').root, isNull);
+      expect(overridden.fields.singleWhere((f) => f.id == 'slug').root, isNull);
+    });
+
+    test('a typeless override with a root other than code or project over an '
+        'output_ref field is unknown_value', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact}]',
+      );
+
+      for (final bad in ['repo', '3']) {
+        expect(
+          () => project(base, 'fields: [{id: covers, root: $bad}]'),
+          throwsA(fault(FaultCode.unknownValue, 'fields.covers.root')),
+          reason: bad,
+        );
+      }
     });
 
     test('a field turned from output_ref to another type drops its root', () {

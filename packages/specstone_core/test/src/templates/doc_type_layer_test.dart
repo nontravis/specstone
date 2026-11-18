@@ -170,7 +170,7 @@ void main() {
     });
 
     test('a root on a string field loads', () {
-      final layer = _parse('fields: [{id: a, type: string, root: project}]');
+      final layer = _parse('fields: [{id: a, type: string, root: repo}]');
       expect(layer.fields.single.type, FieldType.string);
     });
 
