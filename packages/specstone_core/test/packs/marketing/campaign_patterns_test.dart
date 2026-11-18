@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
@@ -157,5 +158,32 @@ void main() {
 
     expect(await missing(['prd-core', 'software-tech', 'marketing']), isEmpty);
     expect(await missing(['prd-core', 'software-tech']), isNotEmpty);
+  });
+
+  test('a feature that names product_launch resolves in a project of prd-core '
+      'and marketing alone', () async {
+    final project = await writeCheckProject(
+      extra: {
+        '.specstone/config.yaml': shippedPinsConfig(['prd-core', 'marketing']),
+        '.specstone/templates/feature.yaml': _patternsField,
+        ...edit(loginFeature, [
+          (
+            'goals:\n  - PG-01\n',
+            'goals:\n  - PG-01\npatterns:\n  - product_launch\n',
+          ),
+        ]),
+      },
+    );
+    final report = await checkOf(project);
+
+    expect(
+      spots(report, FindingKind.featurePatternMissing),
+      isEmpty,
+      reason: spots(report).join('\n'),
+    );
+    expect(
+      File('${project.path}/docs/$loginFeature').readAsStringSync(),
+      contains('  - product_launch\n'),
+    );
   });
 }

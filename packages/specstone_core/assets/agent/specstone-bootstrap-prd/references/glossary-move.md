@@ -19,11 +19,12 @@ ignored. An item with no leading bold span has no term and always moves.
 
 - **Kept:** an entry whose term the glossary doc already holds stays in PROJECT, never renamed, and its section keeps
   its finding. List it once under open questions.
-- **Moved:** write each other entry verbatim but for its links, never shortened. Pipe the `terms` section's whole body
-  to `specstone set glossary:glossary#terms --base <hash>`, the base `get` prints for it (the base of empty text for a
-  section the doc lacks): first the entries it already held, verbatim and in place, then the moved ones in PROJECT's
-  order. An empty glossary doc takes the same path. An entry over 300 characters gets `item_over_limit` there and waits
-  as the procedure's size row says.
+- **Moved:** write each other entry verbatim but for its links and joined lines, never shortened. An entry written over
+  several lines has its own lines joined into one, words unchanged, so it meets the `terms` section's `max_item_lines`.
+  Pipe the `terms` section's whole body to `specstone set glossary:glossary#terms --base <hash>`, the base `get` prints
+  for it (the base of empty text for a section the doc lacks): first the entries it already held, verbatim and in
+  place, then the moved ones in PROJECT's order. An empty glossary doc takes the same path. An entry over 300
+  characters gets `item_over_limit` there and waits as the procedure's size row says.
 - **Its in-file links** (`#<anchor>`, no path): one to a heading PROJECT keeps, the glossary section while an entry
   stays in it included, gains `PROJECT.md` as its path, its anchor unchanged; one to the glossary section the move drops
   links to `GLOSSARY.md` with no anchor; one to a goal the batch's goal move moved (`#pg-…`) links to `GOAL.md#pg-…`,

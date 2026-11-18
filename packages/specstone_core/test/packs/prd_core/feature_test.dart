@@ -78,8 +78,37 @@ void main() {
     expectStatusValues(feature, ['planned', 'implemented', 'deprecated']);
   });
 
-  test('Out-of-scope carries no line cap', () {
+  test('Out-of-scope carries no section line cap', () {
     expect(sectionOf(feature, 'out_of_scope').maxLines, isNull);
+  });
+
+  test('the description states no number a lint key holds', () {
+    final outOfScope = sectionOf(feature, 'out_of_scope');
+    expect(outOfScope.description, isNot(contains('one line each')));
+    expect(outOfScope.description, isNot(contains('no cap on the number')));
+    for (final id in ['vision', 'goals']) {
+      expect(
+        fieldOf(feature, id).description,
+        isNot(contains('at least one ID')),
+        reason: id,
+      );
+    }
+    expect(feature.description, isNot(contains('at least one ID')));
+  });
+
+  test('out_of_scope carries its item line cap', () {
+    expect(sectionOf(feature, 'out_of_scope').maxItemLines, 1);
+  });
+
+  test('the description names the item line finding beside the item size '
+      'finding', () {
+    expect(
+      feature.description,
+      contains(
+        '`item_over_limit` and `item_lines_over_limit` take no split, '
+        'since a split never shrinks one item',
+      ),
+    );
   });
 
   test('feature joins no bundle and marks problem and '
@@ -108,6 +137,28 @@ void main() {
 
   test('feature carries max_depth 3', () {
     expect(feature.maxDepth, 3);
+  });
+
+  test('a project feature.yaml that sets another cap gives the merged feature'
+      ' that cap', () async {
+    final merged = prdCoreDocType(
+      await resolvePrdCore(templates: {'feature.yaml': 'max_depth: 2\n'}),
+      'feature',
+    );
+
+    expect(merged.maxDepth, 2);
+  });
+
+  test('the description says the Agent proposes a split on chars_over_limit'
+      ' or lines_over_limit', () {
+    expect(
+      feature.description,
+      contains(
+        'When `check` reports `chars_over_limit` or `lines_over_limit` on a '
+        "feature's doc that a write has laid out, propose a sub-feature "
+        'split',
+      ),
+    );
   });
 
   test('a project feature.yaml of max_depth 3 makes the '

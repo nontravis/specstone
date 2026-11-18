@@ -178,7 +178,9 @@ Future<String> _devVersionOf(String commit) async {
     '--count',
     'refs/tags/${line.key}..$commit',
   ]);
-  return '${base.major}.${int.parse(base.minor) + 1}.0-dev.$count';
+  // A BigInt, since a Version field is a digit string of any length.
+  final nextMinor = BigInt.parse(base.minor) + BigInt.one;
+  return '${base.major}.$nextMinor.0-dev.$count';
 }
 
 /// Sets `specstoneVersion` in the `version.dart` of [export] to [version].
@@ -385,7 +387,7 @@ Future<Directory> _createTemp() async {
   final system = Directory.systemTemp;
   if (!system.isAbsolute) {
     throw _Refusal(
-      'the temp folder ${system.path} is not an absolute path; $_unchanged',
+      'TMPDIR (${system.path}) is not an absolute path; $_unchanged',
     );
   }
   try {

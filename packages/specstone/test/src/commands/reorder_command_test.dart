@@ -8,6 +8,12 @@ import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
+/// Returns every file and folder under `docs/` of [root], by its bytes.
+Map<String, List<int>> _docsBytes(Directory root) => {
+  for (final MapEntry(:key, :value) in treeBytes(root).entries)
+    if (key.startsWith('docs/')) key: value,
+};
+
 void main() {
   test('reorder takes a bare name one doc carries', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
@@ -97,7 +103,7 @@ void main() {
       64,
     );
   });
-  test('no target is argument_missing', () async {
+  test('reorder with no target is argument_missing', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['reorder', '--to', '1']), 64);
     expect(err.toString(), startsWith('reorder needs a target'));
@@ -152,6 +158,31 @@ void main() {
     expect(text, contains('draft: true\n'));
   });
 
+  test('reorder lays out the docs it rewrites and adds no missing section to '
+      'them', () async {
+    final root = await writeWriteProject();
+    List<String> headersOf(String docPath) => RegExp(
+      r'^## .*$',
+      multiLine: true,
+    ).allMatches(readDoc(root, docPath)).map((match) => match[0]!).toList();
+    final frBefore = headersOf(fr12);
+    expect(frBefore, ['## Statement']);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:login/reset_password',
+        '--to',
+        '1',
+      ]),
+      0,
+    );
+    const reordered =
+        'prds/features/f01_login/us02_email_login/fr02_lock_after_failures.md';
+    expect(out.toString(), contains('rewrote $reordered\n'));
+    expect(headersOf(reordered), frBefore);
+  });
+
   group('with two code targets', () {
     Future<Directory> twins() => writeWriteProject(
       extra: {
@@ -194,6 +225,63 @@ void main() {
         ),
       );
       expect(hasDoc(root, 'specs/jaspr/f01_signup/IMPLEMENTATION.md'), isTrue);
+    });
+
+    test('each login spec folder becomes f02 in every target', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': twinConfig(),
+          '.specstone/templates/implementation.yaml': recordLayer,
+          for (final target in ['flutter', 'jaspr']) ...{
+            'docs/specs/$target/f01_login/IMPLEMENTATION.md': recordText(
+              statuses: ['ghost:planned'],
+            ),
+            'docs/specs/$target/f02_signup/IMPLEMENTATION.md': recordText(
+              statuses: ['ghost:planned'],
+            ),
+          },
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run([
+          'reorder',
+          'feature:signup',
+          '--to',
+          '1',
+          '--target',
+          'flutter',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'moved specs/flutter/f01_login/ to specs/flutter/f02_login/\n',
+          ),
+          contains('moved specs/jaspr/f01_login/ to specs/jaspr/f02_login/\n'),
+          contains(
+            'moved specs/flutter/f02_signup/ to specs/flutter/f01_signup/\n',
+          ),
+          contains(
+            'moved specs/jaspr/f02_signup/ to specs/jaspr/f01_signup/\n',
+          ),
+        ),
+      );
+      for (final target in ['flutter', 'jaspr']) {
+        expect(
+          hasDoc(root, 'specs/$target/f02_login/IMPLEMENTATION.md'),
+          isTrue,
+        );
+        expect(
+          hasDoc(root, 'specs/$target/f01_login/IMPLEMENTATION.md'),
+          isFalse,
+        );
+      }
     });
 
     test('a --target the project lacks exits 64', () async {
@@ -318,5 +406,91 @@ void main() {
       expect(out.toString(), isEmpty);
       expect(err.toString(), 'no feature doc carries the name ay\n');
     });
+  });
+
+  group('a reorder refusal prints its code with --json, exit 64', () {
+    Future<Map<String, Object?>> errorOf(
+      Directory root,
+      List<String> args,
+    ) async {
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run([...args, '--json']), 64);
+      expect(out.toString(), isEmpty);
+      return (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+          as Map<String, Object?>;
+    }
+
+    test('a --to that is no whole number is argument_invalid', () async {
+      final root = await writeWriteProject();
+      final before = _docsBytes(root);
+      expect(
+        await errorOf(root, [
+          'reorder',
+          'user_story:login/reset_password',
+          '--to',
+          'abc',
+        ]),
+        {
+          'code': 'argument_invalid',
+          'message': '--to takes a whole number, got abc',
+        },
+      );
+      expect(_docsBytes(root), before);
+    });
+
+    test('a name no doc carries is doc_not_found', () async {
+      final root = await writeWriteProject();
+      expect(await errorOf(root, ['reorder', 'nosuch', '--to', '1']), {
+        'code': 'doc_not_found',
+        'message': 'no doc carries the name nosuch',
+      });
+    });
+
+    test('a name 2 docs carry is argument_invalid listing them', () async {
+      final root = await writeWriteProject();
+      expect(await errorOf(root, ['reorder', 'login', '--to', '1']), {
+        'code': 'argument_invalid',
+        'message': 'login names 2 docs: feature:login, architecture:login',
+      });
+    });
+
+    test('a path to an untyped doc is untyped_target', () async {
+      final root = await writeWriteProject(
+        extra: {'docs/specs/f01_login/api_notes.md': '# Notes\n'},
+      );
+      final before = _docsBytes(root);
+      expect(
+        await errorOf(root, [
+          'reorder',
+          'specs/f01_login/api_notes.md',
+          '--to',
+          '1',
+        ]),
+        {
+          'code': 'untyped_target',
+          'message': 'specs/f01_login/api_notes.md has no doc type; migrate it to one before a write',
+        },
+      );
+      expect(_docsBytes(root), before);
+    });
+  });
+
+  test('a --to equal to the place a doc holds moves nothing, exit 0', () async {
+    final root = await writeWriteProject();
+    final before = _docsBytes(root);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:login/reset_password',
+        '--to',
+        '3',
+      ]),
+      0,
+    );
+
+    expect(err.toString(), isEmpty);
+    expect(_docsBytes(root), before);
   });
 }

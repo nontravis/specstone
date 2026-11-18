@@ -172,6 +172,54 @@ void main() {
   });
 
   test(
+    'a name that starts or ends in the middle of a word still matches',
+    () async {
+      final report = await _run(
+        await _project(
+          _record(
+            tests: [
+              '$_fr:$_testFile:hows a to',
+              '$_fr:$_testFile:ides it toda',
+            ],
+          ),
+        ),
+      );
+
+      expect(_spots(report), isEmpty);
+    },
+  );
+
+  test('a tests line ending in 12 hex characters reads the token as part of '
+      'the name', () async {
+    const token = '5d1e0c4b7a92';
+    final missing = await _run(
+      await _project(_record(tests: ['$_fr:$_testFile:shows a toast $token'])),
+    );
+    expect(_spots(missing), [
+      '$_recordPath:${_testLine(1, 0)}: tests_unresolved',
+    ]);
+    expect(
+      _only(missing).toJson(),
+      containsPair('name', 'shows a toast $token'),
+    );
+    expect(
+      missing.findings.where((f) => f.kind == FindingKind.codeSuspect),
+      isEmpty,
+    );
+
+    final present = await _run(
+      await _project(
+        _record(tests: ['$_fr:$_testFile:shows a toast $token']),
+        extra: {
+          _testFile:
+              "void main() {\n  test('shows a toast $token', () {});\n}\n",
+        },
+      ),
+    );
+    expect(_spots(present), isEmpty);
+  });
+
+  test(
     'a name the file does not hold is tests_unresolved with its name',
     () async {
       final report = await _run(

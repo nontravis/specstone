@@ -89,6 +89,21 @@ List<SectionItem> sectionItemsOf(List<BodyLine> body) {
   return items;
 }
 
+/// Returns how many lines of [item] hold text after their `>` marks.
+///
+/// A `###` heading item counts its paragraph alone, so the heading line and
+/// the blank or quote-only lines between them add none.
+int ownTextLineCountOf(SectionItem item) {
+  final lines = item.text.split('\n');
+  final own = item.kind == SectionItemKind.heading ? lines.skip(1) : lines;
+  return [
+    for (final line in own)
+      if (_Line.of(BodyLine(text: line, line: 0, fenced: false)).kind !=
+          _Kind.blank)
+        line,
+  ].length;
+}
+
 List<String> _cellTexts(String row, List<TextRange> ranges) => [
   for (final cell in ranges) row.substring(cell.start, cell.end).trim(),
 ];

@@ -137,6 +137,122 @@ void main() {
       '$us02/fr01_send_reset_link.md',
     });
   });
+  test('a story for implement holds every per-feature spec doc type and the record', () async {
+    final full = await indexWith({
+      ...loginRecords,
+      'docs/$s/AUTH.md': '# Login auth\n',
+      'docs/$s/INTEGRATION.md': '# Login integration\n',
+    });
+    final b = pickBundle(
+      full,
+      'login/email_login',
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(
+      {for (final p in b.docPaths) full.at(p)!.docTypeId},
+      {
+        'feature',
+        'api',
+        'architecture',
+        'auth',
+        'domain',
+        'error',
+        'implementation',
+        'integration',
+        'user_story',
+        'fr',
+        'nf',
+      },
+    );
+  });
+  test(
+    'a bare name with no chain doc lists its docs in tree order, once each',
+    () {
+      final implement = pickBundle(
+        index,
+        'buyer',
+        BundleMode.implement,
+        noProject: true,
+      );
+      expect(
+        [for (final d in implement.printOrder(index)) d.docPath],
+        [
+          'prds/personas/buyer/ANTI_PERSONA.md',
+          'prds/personas/buyer/PERSONA.md',
+        ],
+      );
+      final query = pickBundle(
+        index,
+        'buyer',
+        BundleMode.query,
+        noProject: true,
+      );
+      expect(query.targetPaths, {
+        'prds/personas/buyer/ANTI_PERSONA.md',
+        'prds/personas/buyer/PERSONA.md',
+      });
+      expect(
+        [for (final d in query.printOrder(index)) d.docPath],
+        [
+          'prds/personas/buyer/ANTI_PERSONA.md',
+          'prds/personas/buyer/PERSONA.md',
+        ],
+      );
+    },
+  );
+  test('a top doc with no children joins features, persona, anti_persona, reference, and topic docs', () async {
+    final joining = await indexWith({
+      for (final id in [
+        'features',
+        'persona',
+        'anti_persona',
+        'reference',
+        'topic',
+      ])
+        '.specstone/templates/$id.yaml': 'bundle: [implement]\n',
+    });
+    final b = pickBundle(
+      joining,
+      'project',
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.docPaths, {'prds/PROJECT.md'});
+    expect(b.joinedPaths, {
+      'prds/FEATURES.md',
+      'prds/personas/buyer/PERSONA.md',
+      'prds/personas/buyer/ANTI_PERSONA.md',
+      'prds/references/password_rules/REFERENCE.md',
+      'specs/topics/auth_tokens.md',
+      'prds/GNFR.md',
+      'specs/TECH_STACK.md',
+    });
+  });
+  test('no --for is argument_missing with exit status 64', () {
+    expect(
+      () => BundleMode.parse(null),
+      throwsA(
+        isA<IndexFault>()
+            .having((x) => x.code, 'code', IndexFaultCode.argumentMissing)
+            .having((x) => x.exitStatus, 'exit status', 64),
+      ),
+    );
+  });
+  test(
+    'a goal target with --no-project keeps the goal doc, joining nothing',
+    () async {
+      final withGoal = await indexWith({
+        'docs/prds/GOAL.md':
+            '# Goals\n\n## Long-term goals\n- **PG-01** One.\n',
+      });
+      for (final mode in BundleMode.values) {
+        final b = pickBundle(withGoal, 'goal', mode, noProject: true);
+        expect(b.docPaths, {'prds/GOAL.md'}, reason: mode.wire);
+        expect(b.joinedPaths, isEmpty, reason: mode.wire);
+      }
+    },
+  );
   test('summary with query or implement is argument_conflict, before the target check', () {
     for (final mode in [BundleMode.query, BundleMode.implement]) {
       expect(
@@ -1100,6 +1216,37 @@ void main() {
       );
       expect(withTarget.docPaths, contains(jasprArch));
       expect(withTarget.docPaths, isNot(contains(flutterArch)));
+    });
+
+    test('query on one target lists its spec docs in the map with no --target', () async {
+      final session = openSession(
+        await writeTree({
+          ...projectFiles,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: flutter_lib\n',
+          'docs/$flutterArch': '',
+          'docs/$jasprArch': '',
+          'docs/specs/$archToast': '# Toast architecture\n',
+        }),
+      );
+      addTearDown(session.close);
+      final answer = answerContext(
+        session.index,
+        pickBundle(
+          session.index,
+          'feedback/toast/show',
+          BundleMode.query,
+          noProject: false,
+        ),
+        label: 'feedback/toast/show',
+        byCode: false,
+      );
+      expect(
+        answer.text
+            .split('\n')
+            .where((l) => l.contains('feedback/toast (architecture)')),
+        hasLength(1),
+      );
     });
 
     test('a per-target chain doc of another target stays out', () async {

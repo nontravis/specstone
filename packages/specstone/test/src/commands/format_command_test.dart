@@ -303,6 +303,37 @@ void main() {
     });
 
     test(
+      'a template fault under --json prints one error object, exit 78',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml': 'packs: [\n',
+        });
+        final runner = await runnerIn(project);
+
+        expect(await runner.run(['format', '--json']), 78);
+
+        expect(out.toString(), isEmpty);
+        final error =
+            (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+                as Map<String, Object?>;
+        expect(error['code'], 'yaml_syntax');
+        expect(error['file'], '.specstone/config.yaml');
+      },
+    );
+
+    test('no target and no docs folder exits 64 as a missing target', () async {
+      final runner = await runnerIn(await fixtureProject({}));
+
+      expect(await runner.run(['format', '--json']), 64);
+
+      expect(out.toString(), isEmpty);
+      final error =
+          (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'target_not_found');
+    });
+
+    test(
       'a doc that cannot be written is output_not_writable '
       'with its path, exit 73; docs written before it stay written',
       () async {
@@ -486,6 +517,31 @@ sections:
         expect(json['warnings'], [damagedWarning]);
         expect(err.toString(), isEmpty);
       });
+
+      test(
+        'an index that cannot be written stops format with its code, exit 73',
+        () async {
+          final project = await fixtureProject({
+            notePath: '# A\n\n## Contents\n\nbody\n',
+          });
+          final dot = Directory('${project.path}/.specstone');
+          await Process.run('chmod', ['555', dot.path]);
+          addTearDown(() => Process.run('chmod', ['755', dot.path]));
+
+          expect(
+            await (await noteRunnerIn(project)).run(['format', '--json']),
+            73,
+          );
+
+          expect(out.toString(), isEmpty);
+          final error =
+              (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+                  as Map<String, Object?>;
+          expect(error['code'], 'index_not_writable');
+          expect(read(project, notePath), '# A\n\n## Contents\n\nbody\n');
+        },
+        skip: _readOnlyFolderSkipReason(),
+      );
 
       test('format prints one warning for a non-UTF-8 doc, '
           'its own, not the index session per-doc warning', () async {
@@ -750,6 +806,133 @@ sections:
       expect(second, isNot(contains('edited by hand')));
       expect(second, contains(approvedStamp));
       expect(second, isNot(contains('draft: true')));
+    });
+
+    Future<Directory> shopProject() => writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+      featuresDoc:
+          '# Feature map\n\n## Features\n\n'
+          '## System interaction diagram\n\n```mermaid\nflowchart LR\n'
+          '  Owner --> Shop\n```\n\n## Systems\n\n| System | Description |\n'
+          '|---|---|\n| Shop | Sells goods. |\n',
+      '$featuresRoot/f01_shop/FEATURE.md': feature(
+        'Shop',
+        front: 'summary: Lets a shopper buy goods.\n',
+      ),
+      '$featuresRoot/f01_shop/us01_greet/USER_STORY.md': story('implemented'),
+    });
+
+    test(
+      'a features doc holds one catalog block inside its Features section',
+      () async {
+        final project = await shopProject();
+        final marker = generatedOpenMarker('feature_catalog');
+
+        for (var run = 0; run < 2; run++) {
+          final text = await formatFeaturesDoc(project);
+          expect(marker.allMatches(text), hasLength(1), reason: 'run $run');
+          final block = text.indexOf(marker);
+          expect(block, greaterThan(text.indexOf('## Features')));
+          expect(
+            block,
+            lessThan(text.indexOf('## System interaction diagram')),
+          );
+        }
+      },
+    );
+
+    test(
+      'format --check lists a block stale after a feature is written',
+      () async {
+        final project = await shopProject();
+        final written = await formatFeaturesDoc(project);
+        File.fromUri(project.uri.resolve('$featuresRoot/f01_shop/FEATURE.md'))
+            .writeAsStringSync(
+              feature('Shop', front: 'summary: Sells goods in bulk.\n'),
+            );
+        expect(read(project), written);
+
+        final check = readRunner(project);
+        expect(await check.runner.run(['format', featuresDoc, '--check']), 1);
+        expect(check.out.toString(), '$featuresDoc\n');
+        expect(read(project), written, reason: 'a check writes nothing');
+
+        final rewritten = await formatFeaturesDoc(project);
+        expect(rewritten, contains('Sells goods in bulk.'));
+        expect(rewritten, isNot(contains('Lets a shopper buy goods.')));
+      },
+    );
+  });
+
+  group('a requirement missing its parts on the shipped prd-core', () {
+    const frDoc = 'docs/prds/features/f01_shop/us01_greet/fr01_say_hello.md';
+
+    Future<Directory> projectWith(String fr) => writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+      'docs/prds/features/f01_shop/FEATURE.md':
+          '# Shop\n\n## Problem\nNeed it.\n',
+      'docs/prds/features/f01_shop/us01_greet/USER_STORY.md':
+          '# Agent greets\n\n## Use Case\nGreet.\n',
+      frDoc: fr,
+    });
+
+    Future<List<Map<String, Object?>>> findingsOf(Directory project) async {
+      final run = readRunner(project);
+      await run.runner.run(['check', '--json']);
+      final report = jsonDecode(run.out.toString()) as Map<String, Object?>;
+      return [
+        for (final f in report['findings']! as List)
+          if ((f as Map<String, Object?>)['docPath'] ==
+              frDoc.replaceFirst('docs/', ''))
+            f,
+      ];
+    }
+
+    test(
+      'format leaves a missing statement absent and check names it',
+      () async {
+        const disk = '---\nverify_method: test\n---\n\n# Say hello\n';
+        final project = await projectWith(disk);
+        final run = readRunner(project);
+
+        expect(await run.runner.run(['format', frDoc]), 0);
+
+        final written = File.fromUri(project.uri.resolve(frDoc))
+            .readAsStringSync();
+        expect(written, isNot(contains('## Statement')));
+        expect(written, isNot(contains('## Rationale')));
+        expect(
+          await findingsOf(project),
+          contains(
+            allOf(
+              containsPair('kind', 'required_section_missing'),
+              containsPair('section', 'statement'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('format adds no missing required key and check reports it', () async {
+      const disk = '# Say hello\n\n## Statement\nThe system shall say hello.\n';
+      final project = await projectWith(disk);
+      final run = readRunner(project);
+
+      expect(await run.runner.run(['format', frDoc]), 0);
+
+      expect(
+        File.fromUri(project.uri.resolve(frDoc)).readAsStringSync(),
+        isNot(contains('verify_method')),
+      );
+      expect(
+        await findingsOf(project),
+        contains(
+          allOf(
+            containsPair('kind', 'required_field_missing'),
+            containsPair('field', 'verify_method'),
+          ),
+        ),
+      );
     });
   });
 

@@ -695,6 +695,65 @@ void main() {
     });
 
     test(
+      'one name in both depends_on and reference gives no doc_ref_duplicate',
+      () async {
+        const checkout = 'prds/features/f02_checkout/FEATURE.md';
+        final findings = await pointersOf(
+          await writeCheckProject(
+            extra: {
+              '.specstone/templates/feature.yaml':
+                  'id: feature\n'
+                  'fields:\n'
+                  '  - id: reference\n'
+                  '    type: doc_ref\n'
+                  '    list: true\n'
+                  '    doc_types: [feature]\n',
+              'docs/$checkout': checkProjectFiles()['docs/$loginFeature']!
+                  .replaceFirst('# Login', '# Checkout')
+                  .replaceFirst(
+                    '  - PG-01\n---',
+                    '  - PG-01\ndepends_on:\n  - login\nreference:\n  - login\n---',
+                  ),
+            },
+          ),
+        );
+        expect(findings, isEmpty);
+      },
+    );
+
+    test('a persona or reference value naming the doc that holds it is doc_ref_self', () async {
+      const buyer = 'prds/personas/buyer/PERSONA.md';
+      final findings = await pointersOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/persona.yaml':
+                'id: persona\n'
+                'fields:\n'
+                '  - id: persona\n'
+                '    type: doc_ref\n'
+                '    list: true\n'
+                '    doc_types: [persona]\n'
+                '  - id: reference\n'
+                '    type: doc_ref\n'
+                '    list: true\n'
+                '    doc_types: [persona]\n',
+            'docs/$buyer':
+                '---\nrole: Agent\npriority: primary\nbasis: proto\n'
+                'persona:\n  - buyer\nreference:\n  - buyer\n---\n\n# Buyer\n',
+          },
+        ),
+      );
+      expect(textOf(findings), [
+        '$buyer:7: doc_ref_self: persona value buyer names the doc that holds it',
+        '$buyer:9: doc_ref_self: reference value buyer names the doc that holds it',
+      ]);
+      expect(keysOf(findings), [
+        {'field': 'persona', 'value': 'buyer'},
+        {'field': 'reference', 'value': 'buyer'},
+      ]);
+    });
+
+    test(
       'a malformed absolute URL gives no finding; a lone % stays in the path',
       () async {
         final findings = await pointersOf(
@@ -742,8 +801,30 @@ void main() {
       ]);
     });
 
-    test('an anchor of a doc whose anchor set is unknown '
-        'is no link_anchor_missing', () async {
+    test('a web address, a mailto, and a rooted .md path give no finding of any kind', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: featureLinking(
+            '[a](https://example.com), [b](mailto:a@b.c), and [c](/abs/x.md).',
+          ),
+        ),
+      );
+      expect(report.findings, isEmpty);
+    });
+
+    test('an autolink whose port is above 65535 gives no finding, with or without another link in the body', () async {
+      Future<List<String>> found(String text) async => spots(
+        await checkOf(await writeCheckProject(extra: featureLinking(text))),
+      );
+
+      expect(await found('<http://h:99999/>.'), isEmpty);
+      expect(
+        await found('[project](../../PROJECT.md) and <http://h:99999/>.'),
+        isEmpty,
+      );
+    });
+
+    test('a link anchor of a doc whose anchor set is unknown is no link_anchor_missing', () async {
       final findings = await pointersOf(
         await writeCheckProject(
           extra: {
@@ -754,6 +835,25 @@ void main() {
       );
       expect(findings, isEmpty);
     });
+
+    test(
+      'the doc whose anchor set is unknown gets markdown_unparsed instead',
+      () async {
+        const broken = 'prds/d09_broken.md';
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: {
+              ...featureLinking('[x](../../d09_broken.md#gone).'),
+              'docs/$broken': '# Broken\n\n[a]:<b\\',
+            },
+          ),
+        );
+        expect(spots(report, FindingKind.markdownUnparsed), [
+          '$broken:1: markdown_unparsed',
+        ]);
+        expect(spots(report, FindingKind.linkAnchorMissing), isEmpty);
+      },
+    );
   });
 
   group('resolve_doc_links doc-name mentions', () {
@@ -768,9 +868,7 @@ void main() {
       'Users forget passwords; $text',
     );
 
-    test('a typed '
-        'name one letter short under a top-level feature is '
-        'doc_name_unresolved, the name as written', () async {
+    test('a typed name one letter short under a top-level feature is doc_name_unresolved, the name as written', () async {
       final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWriting(
@@ -830,9 +928,7 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('a '
-        'name whose first slug names no top-level feature, a git ref, and a '
-        'skill name raise nothing', () async {
+    test('a name whose first slug names no top-level feature, a git ref, and a skill name raise nothing', () async {
       final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWriting(
@@ -845,9 +941,7 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('names '
-        'that resolve raise nothing, and a section key the doc lacks is '
-        'never read', () async {
+    test('names that resolve raise nothing, and a section key the doc lacks is never read', () async {
       final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWriting(
@@ -859,8 +953,16 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('a name '
-        'in plain text and one in fenced code raise nothing', () async {
+    test('a goal ID in prose is no link and no doc-name mention', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: featureWriting('PG-02 stays plain text, as PG-01 does.'),
+        ),
+      );
+      expect(report.findings, isEmpty);
+    });
+
+    test('a name in plain text and one in fenced code raise nothing', () async {
       final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWriting(
@@ -953,9 +1055,7 @@ void main() {
       );
     });
 
-    test('an '
-        'untyped doc is checked and the finding names the doc, the line, and '
-        'the name', () async {
+    test('an untyped doc is checked and the finding names the doc, the line, and the name', () async {
       const notes = 'prds/d07_notes.md';
       final findings = await mentionsOf(
         await writeCheckProject(
@@ -1012,9 +1112,7 @@ void main() {
         if (f.kind == kind && (at == null || f.path == at)) f,
     ];
 
-    test('a '
-        'shared doc naming a per-target doc by name gets '
-        'per_target_reference at the mention', () async {
+    test('a shared doc naming a per-target doc by name gets per_target_reference at the mention', () async {
       final project = await writeTwinProject(
         extra: shared('See `architecture:login`.'),
       );
@@ -1081,8 +1179,7 @@ void main() {
       expect(await found(both, FindingKind.docNameUnresolved), isEmpty);
     });
 
-    test('a '
-        'mention a shared doc resolves too gives none', () async {
+    test('a mention a shared doc resolves too gives none', () async {
       final project = await writeTwinProject(
         extra: shared('See `feature:login` and `login/email_login`.'),
       );
@@ -1090,8 +1187,7 @@ void main() {
       expect(await found(project, FindingKind.perTargetReference), isEmpty);
     });
 
-    test('a '
-        '.md link to a per-target doc is reported as written', () async {
+    test('a .md link to a per-target doc is reported as written', () async {
       const written = '../../../../specs/flutter/f01_login/ARCHITECTURE.md';
       final project = await writeTwinProject(
         extra: shared('See [arch]($written).'),
@@ -1112,23 +1208,25 @@ void main() {
       );
     });
 
-    test('a '
-        'DocPath in text is reported once, a shared doc path never', () async {
-      const path = 'specs/jaspr/f01_login/ARCHITECTURE.md';
-      final project = await writeTwinProject(
-        extra: shared('See `$path`, then `specs/f01_login/API.md`.'),
-      );
+    test(
+      'a DocPath in text is reported once, a shared doc path never',
+      () async {
+        const path = 'specs/jaspr/f01_login/ARCHITECTURE.md';
+        final project = await writeTwinProject(
+          extra: shared('See `$path`, then `specs/f01_login/API.md`.'),
+        );
 
-      final findings = await found(project, FindingKind.perTargetReference);
+        final findings = await found(project, FindingKind.perTargetReference);
 
-      expect(
-        [for (final f in findings) f.keys],
-        [
-          {'reference': path, 'target': 'jaspr'},
-        ],
-      );
-      expect(findings.single.line, lineOf(project, loginNf, path));
-    });
+        expect(
+          [for (final f in findings) f.keys],
+          [
+            {'reference': path, 'target': 'jaspr'},
+          ],
+        );
+        expect(findings.single.line, lineOf(project, loginNf, path));
+      },
+    );
 
     test('a '
         'DocPath with a #anchor, one closing a sentence, and a docs/ path '
@@ -1177,8 +1275,7 @@ void main() {
     });
 
     test(
-      'a '
-      'doc_ref value naming a per-target doc is reported at the value',
+      'a doc_ref value naming a per-target doc is reported at the value',
       () async {
         final project = await writeTwinProject(
           extra: {
@@ -1212,9 +1309,7 @@ void main() {
       },
     );
 
-    test('a '
-        'per-target doc names another target by path or link and gets no '
-        'finding', () async {
+    test('a per-target doc names another target by path or link and gets no finding', () async {
       final project = await writeTwinProject(
         extra: {
           'docs/$jasprArchitecture': twin(
@@ -1233,9 +1328,7 @@ void main() {
       }
     });
 
-    test('a '
-        'name only another target holds is doc_name_unresolved in a '
-        'per-target doc', () async {
+    test('a name only another target holds is doc_name_unresolved in a per-target doc', () async {
       final mention = twin('See `implementation:login`.');
       Future<Directory> project({bool jasprHoldsOne = false}) =>
           writeTwinProject(
@@ -1261,9 +1354,7 @@ void main() {
       expect(await found(lone, FindingKind.perTargetReference), isEmpty);
     });
 
-    test('a '
-        'doc_ref value only another target holds is doc_ref_unresolved in a '
-        'per-target doc', () async {
+    test('a doc_ref value only another target holds is doc_ref_unresolved in a per-target doc', () async {
       final related = twin('', related: 'related:\n  - login\n');
       Future<Directory> project({bool jasprHoldsOne = false}) =>
           writeTwinProject(
@@ -1283,6 +1374,56 @@ void main() {
       expect([for (final f in findings) f.path], [jasprArchitecture]);
       expect(findings.single.keys, {'field': 'related', 'value': 'login'});
       expect(await found(both, FindingKind.docRefUnresolved), isEmpty);
+    });
+
+    test('a second target raises per_target_reference for each reference a shared doc holds', () async {
+      final project = await writeTwinProject(
+        extra: shared(
+          'See `architecture:login`, `$flutterArchitecture`, and '
+          '[arch](../../../../$jasprArchitecture).',
+        ),
+      );
+
+      final findings = await found(project, FindingKind.perTargetReference);
+
+      expect(
+        [for (final f in findings) f.keys['reference']],
+        unorderedEquals([
+          'architecture:login',
+          flutterArchitecture,
+          '../../../../$jasprArchitecture',
+        ]),
+      );
+    });
+
+    test('an untyped doc reference gives per_target_reference with the targets in targets order', () async {
+      const notes = 'prds/d07_notes.md';
+      final project = await writeTwinProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  jaspr:\n    code_root: jaspr_ws\n'
+              '  flutter:\n    code_root: flutter_ws\n',
+          'docs/$notes': '# Notes\n\nSee `architecture:login`.\n',
+        },
+      );
+
+      final findings = await found(
+        project,
+        FindingKind.perTargetReference,
+        at: notes,
+      );
+
+      expect(
+        [for (final f in findings) f.keys],
+        [
+          {'reference': 'architecture:login', 'target': 'jaspr, flutter'},
+        ],
+      );
+      expect(
+        findings.single.line,
+        lineOf(project, notes, 'architecture:login'),
+      );
     });
   });
 
@@ -1308,32 +1449,33 @@ void main() {
       },
     };
     for (final MapEntry(key: name, value: files) in configs.entries) {
-      test('a '
-          'shared doc names a per-target doc, $name target, and gets no '
-          'per_target_reference', () async {
-        final project = await writeCheckProject(
-          extra: {
-            '.specstone/templates/architecture.yaml':
-                'id: architecture\nper_target: true\n',
-            ...files,
-            ...doc(
-              loginNf,
-              'Users wait.',
-              'Users wait. See `architecture:login`, '
-                  '`specs/f01_login/ARCHITECTURE.md`, and '
-                  '[arch](../../../../specs/f01_login/ARCHITECTURE.md).',
-            ),
-          },
-        );
+      test(
+        'a shared doc names a per-target doc, $name target, and gets no per_target_reference',
+        () async {
+          final project = await writeCheckProject(
+            extra: {
+              '.specstone/templates/architecture.yaml':
+                  'id: architecture\nper_target: true\n',
+              ...files,
+              ...doc(
+                loginNf,
+                'Users wait.',
+                'Users wait. See `architecture:login`, '
+                    '`specs/f01_login/ARCHITECTURE.md`, and '
+                    '[arch](../../../../specs/f01_login/ARCHITECTURE.md).',
+              ),
+            },
+          );
 
-        expect([
-          for (final f in (await checkOf(project)).findings)
-            if (f.kind == FindingKind.perTargetReference ||
-                f.kind == FindingKind.docNameUnresolved ||
-                f.kind == FindingKind.linkUnresolved)
-              f.textLine,
-        ], isEmpty);
-      });
+          expect([
+            for (final f in (await checkOf(project)).findings)
+              if (f.kind == FindingKind.perTargetReference ||
+                  f.kind == FindingKind.docNameUnresolved ||
+                  f.kind == FindingKind.linkUnresolved)
+                f.textLine,
+          ], isEmpty);
+        },
+      );
     }
   });
 

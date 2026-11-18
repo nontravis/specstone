@@ -582,6 +582,14 @@ final _rootedOrDrivePath = RegExp(r'^(?:[/\\]|[A-Za-z]:)');
 /// that is not relative to the folder it is read in.
 bool isRootedOrDrivePath(String path) => _rootedOrDrivePath.hasMatch(path);
 
+final _legacyTitleLabel = RegExp(
+  r'^(?:[A-Z][A-Z0-9]*-\d+|[a-z][a-z0-9_]*(?:/[a-z][a-z0-9_]*)+) — ',
+);
+
+/// Returns [title] without its leading item ID or doc address and ` — `.
+String withoutLegacyTitleLabel(String title) =>
+    title.replaceFirst(_legacyTitleLabel, '');
+
 final _angleDestinationOpen = RegExp(r'\]\(\s*<');
 
 /// Whether [source] holds, at index [at], the `](` that closes a link's text

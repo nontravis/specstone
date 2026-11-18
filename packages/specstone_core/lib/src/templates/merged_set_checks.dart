@@ -76,13 +76,14 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// (`unknown_value`), every field `lint` sits on a string field with no
 /// `list: true` (`unknown_key`), every `lint.required_field_groups` entry
 /// names a field of its doc type (`unknown_value`), every section
-/// `required_when` names a section of its doc type (`unknown_value`), every
-/// section `when_field` names a field of its doc type (`unknown_value`), at
-/// most one doc type holds a `record_status` field and its merged `per_target`
-/// is `true`, a `targets:` config without the record doc type is refused, and a
-/// doc type that carries the `patterns` field holds an enabled `out_of_scope`
-/// section (`unknown_value`), and a `path` under `.specstone/` belongs only to
-/// the record doc type, below `.specstone/records/` (`unknown_value`).
+/// `required_when` names a section of its doc type and no required section
+/// holds one (`unknown_value`), every section `when_field` names a field of
+/// its doc type (`unknown_value`), at most one doc type holds a
+/// `record_status` field and its merged `per_target` is `true`, a `targets:`
+/// config without the record doc type is refused, a doc type that carries the
+/// `patterns` field holds an enabled `out_of_scope` section (`unknown_value`),
+/// and a `path` under `.specstone/` belongs only to the record doc type, below
+/// `.specstone/records/` (`unknown_value`).
 void checkMergedSet(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists, {
@@ -101,6 +102,7 @@ void checkMergedSet(
   _checkSummaryFor(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
   _checkRequiredWhen(sorted, layerLists);
+  _checkRequiredWithRequiredWhen(sorted, layerLists);
   _checkWhenField(sorted, layerLists);
   _checkRecords(
     sorted,
@@ -441,6 +443,35 @@ void _checkRequiredWhen(
           layerLists,
         ),
         key: 'sections.${section.id}.lint.required_when.section',
+      );
+    }
+  }
+}
+
+/// Throws `unknown_value` for a merged section that is `required` and holds a
+/// `required_when`, since no doc can pass it.
+///
+/// `file` holds the top-most layer that writes either key.
+void _checkRequiredWithRequiredWhen(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    for (final section in docType.sections) {
+      if (!section.required || section.requiredWhen == null) continue;
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'a required section takes no required_when',
+        file: _writerOf(
+          docType.id,
+          (layer) => layer.sections.any(
+            (entry) =>
+                entry.id == section.id &&
+                (entry.required != null || entry.lint?.requiredWhen != null),
+          ),
+          layerLists,
+        ),
+        key: 'sections.${section.id}.lint.required_when',
       );
     }
   }

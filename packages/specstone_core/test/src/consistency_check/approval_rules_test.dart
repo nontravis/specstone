@@ -23,28 +23,30 @@ const _stale =
 const _unapproved =
     "the doc carries no approval; it waits for the Owner's specstone approve";
 
-/// The packs' versions below both pins, which the shipped packs refuse unless
-/// they carry them.
-const _belowPins = 'packs:\n  prd-core: 1.6.0\n  software-tech: 1.3.0\n';
-
 List<Finding> _stales(CheckReport report) => [
   for (final f in report.findings)
     if (f.kind == FindingKind.approvalStale) f,
 ];
 
-/// Checks the fixture project pinned below both approval pins.
-Future<CheckReport> _checkBelowPins(Map<String, String> extra) async {
+/// Checks the fixture project pinned at [prdCore] and [softwareTech], below
+/// both approval pins unless one is given.
+Future<CheckReport> _checkBelowPins(
+  Map<String, String> extra, {
+  String prdCore = '1.6.0',
+  String softwareTech = '1.3.0',
+}) async {
   final root = await writeTree(
     withCodeFingerprints({
       ...checkProjectFiles(),
-      '.specstone/config.yaml': _belowPins,
+      '.specstone/config.yaml':
+          'packs:\n  prd-core: $prdCore\n  software-tech: $softwareTech\n',
       ...extra,
     }),
   );
   final files = {...shippedPackFiles};
   for (final MapEntry(:key, :value) in {
-    'prd-core': '1.6.0',
-    'software-tech': '1.3.0',
+    'prd-core': prdCore,
+    'software-tech': softwareTech,
   }.entries) {
     final manifest = utf8.decode(files['$key/pack.yaml']!);
     files['$key/pack.yaml'] = Uint8List.fromList(
@@ -334,6 +336,98 @@ void main() {
       ),
     );
     expect(_stales(quoted), isEmpty);
+  });
+
+  test('a double-quoted hash of digits alone that matches its content raises no approval_stale', () async {
+    final (text, digits) = _frHashing(RegExp(r'^\d{12}$'));
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/$loginFr': text.replaceFirst(
+            'traced_from:\n',
+            'approved: "$digits"\ntraced_from:\n',
+          ),
+        },
+        unstamped: {'docs/$loginFr'},
+      ),
+    );
+    expect(_stales(report), isEmpty);
+  });
+
+  test(
+    'a refresh of a generated block after approval raises no approval_stale',
+    () async {
+      const journey = 'prds/journeys/sign_in/JOURNEY.md';
+      const journeyKey = 'docs/$journey';
+      String text(String flow) =>
+          '# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\n'
+          '<!-- specstone:generated journey_flow (do not edit) -->\n'
+          '```mermaid\nflowchart TD\n  $flow\n```\n'
+          '<!-- specstone:generated end -->\n\n## Steps\n';
+      final approved = withApprovalHashes({
+        ...checkProjectFiles(),
+        journeyKey: text('stale'),
+      });
+      expect(approved[journeyKey], contains('approved:'));
+      final report = await checkOf(
+        await writeTree({
+          ...approved,
+          journeyKey: approved[journeyKey]!.replaceFirst(
+            'stale',
+            'start --> done',
+          ),
+        }),
+        docPath: journey,
+      );
+      expect(_stales(report), isEmpty);
+    },
+  );
+
+  test(
+    'a doc with no approved: key is stale when only prd-core reaches its pin',
+    () async {
+      final report = await _checkBelowPins(const {}, prdCore: '1.7.0');
+      expect(
+        spots(report, FindingKind.approvalStale),
+        contains('$loginFr:1: approval_stale'),
+      );
+    },
+  );
+
+  test('a doc with no approved: key is stale when only software-tech reaches its pin', () async {
+    final report = await _checkBelowPins(const {}, softwareTech: '1.4.0');
+    expect(
+      spots(report, FindingKind.approvalStale),
+      contains('$loginFr:1: approval_stale'),
+    );
+  });
+
+  test('approved: true is stale with value true when only prd-core reaches its pin', () async {
+    final report = await _checkBelowPins(
+      fr('traced_from:\n', 'approved: true\ntraced_from:\n'),
+      prdCore: '1.7.0',
+    );
+    final inFr = [
+      for (final f in report.findings)
+        if (f.path == loginFr) f,
+    ];
+    expect(inFr.map((f) => f.kind), [FindingKind.approvalStale]);
+    expect(inFr.single.line, 2);
+    expect(inFr.single.keys, {'value': 'true'});
+  });
+
+  test('approved: true is stale with value true when only software-tech reaches its pin', () async {
+    final report = await _checkBelowPins(
+      fr('traced_from:\n', 'approved: true\ntraced_from:\n'),
+      softwareTech: '1.4.0',
+    );
+    final inFr = [
+      for (final f in report.findings)
+        if (f.path == loginFr) f,
+    ];
+    expect(inFr.map((f) => f.kind), [FindingKind.approvalStale]);
+    expect(inFr.single.line, 2);
+    expect(inFr.single.keys, {'value': 'true'});
   });
 
   test('a literal overflowing exponent reads as written', () async {

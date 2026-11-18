@@ -421,8 +421,9 @@ final class _Rewritten {
 /// `overrides` entry and Verification matrix row whose block the call
 /// rewrites to the block's fingerprint after it; a doc only it changes is
 /// written too. A doc whose hash matched its `approved:` value is stamped
-/// again after the pass. Draft marks stay untouched. A code file or an agent
-/// file is never written: its mentions are listed by `staleMentions`.
+/// again after the pass, and its step saves the approved copy when it writes.
+/// Draft marks stay untouched. A code file or an agent file is never written:
+/// its mentions are listed by `staleMentions`.
 ///
 /// [docEdits] maps a DocPath to one edit of that doc, such as a record's
 /// entries or a moved FR's traces; the doc is a candidate, indexed or not, and
@@ -714,14 +715,16 @@ WriteStep _stampedStep(
     statusesOutside: statusesOutside,
   );
   // An edit that marked the doc draft, as an item move does, takes no stamp.
-  final stamped = wasApproved && !Doc.parse(text).isDraft
+  final isRestamped = wasApproved && !Doc.parse(text).isDraft;
+  final stamped = isRestamped
       ? withApprovalHash(
           text,
           session.docTypeAt(writtenPath),
           statusesOutside: statusesOutside,
         )
       : text;
-  return session.docWriteStep(writtenPath, stamped, doc.bytes);
+  final step = session.docWriteStep(writtenPath, stamped, doc.bytes);
+  return isRestamped ? step.keepingApprovedCopy() : step;
 }
 
 /// Whether [lfText], the doc as the step reads it under the lock, is no draft

@@ -614,6 +614,21 @@ void main() {
       },
     );
 
+    test('a rewritten typed doc is laid out as format lays it out', () async {
+      final root = await _project(
+        extra: {
+          'docs/$_payDomain':
+              '# Domain\n\n\n\n## Invariants\n\n\n'
+              '- **INV-1** Rule 1 follows [INV-3](../DOMAIN.md#invariants).\n\n\n',
+        },
+      );
+      _move(root, ['domain:shop#INV-3']);
+      expect(
+        _body(root, _payDomain),
+        _domain([_inv(1, 'follows [INV-3]($_toCart).')]),
+      );
+    });
+
     test('a link keeps the title written after its destination', () async {
       final root = await _project(
         pay: [_inv(1, 'follows [INV-3](../DOMAIN.md#invariants "the rule").')],
@@ -1022,6 +1037,33 @@ void main() {
         readDoc(root, cartDomain),
         contains('as INV-4 gives, and see INV-7.'),
       );
+    });
+
+    test('a bare ID inside a moved item that names an item that stays, or one the call renumbers, prints exactly one mentions line each', () async {
+      final root = await _project(
+        shop: [_inv(3, 'as INV-4 gives, and see INV-7.'), _inv(4), _inv(7)],
+        cart: _twelve.take(7).toList(),
+      );
+      final answer = _move(root, ['domain:shop#INV-3', 'domain:shop#INV-7']);
+      final line = _lineOf(readDoc(root, cartDomain), 'as INV-4');
+      expect(answer.text.split('\n').where((l) => l.startsWith(mention)), [
+        '$mention$cartDomain:$line INV-4',
+        '$mention$cartDomain:$line INV-7',
+      ]);
+      expect(answer.json['mentions'], hasLength(2));
+    });
+
+    test('a doc address with the ID inside a moved item prints the same one mentions line when the call renumbers the item', () async {
+      final root = await _project(
+        shop: [_inv(3, 'see `domain:shop#INV-7`.'), _inv(7)],
+        cart: _twelve,
+      );
+      final answer = _move(root, ['domain:shop#INV-3', 'domain:shop#INV-7']);
+      final line = _lineOf(readDoc(root, cartDomain), 'see `domain:shop');
+      expect(answer.text.split('\n').where((l) => l.startsWith(mention)), [
+        '$mention$cartDomain:$line domain:shop#INV-7',
+      ]);
+      expect(answer.json['mentions'], hasLength(1));
     });
 
     test('a bare ID inside a moved item that names a co-moved item keeping its ID prints none, while the address form prints one', () async {

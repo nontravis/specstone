@@ -70,6 +70,73 @@ void main() {
     });
   });
 
+  group('one line for every stale file', () {
+    const staleBlock =
+        '<!-- BEGIN specstone v1.0.0 -->\nold\n<!-- END specstone -->\n';
+
+    test('several stale files at the project root give one line', () async {
+      final skills = skillFileTexts();
+      final skillPath = skills.keys.firstWhere((p) => p != settingsFilePath);
+      final root = await _project(
+        files: {
+          ...skills,
+          skillPath: 'older text\n',
+          settingsFilePath: '{',
+          ..._staleAgentMd,
+          'AGENTS.md': staleBlock,
+        },
+      );
+
+      final line = _line(root);
+
+      expect(line, _older);
+      expect(line, isNot(contains('\n')));
+    });
+
+    test('a stale root file beside a stale repository top gives one '
+        'line', () async {
+      final root = await _project(
+        config: 'code_root: app\nagent_file_roots:\n  - app\n',
+        files: {
+          ..._staleAgentMd,
+          'app/.git/HEAD': 'ref\n',
+          'app/AGENTS.md': staleBlock,
+        },
+      );
+
+      final line = _line(root);
+
+      expect(line, _older);
+      expect(line, isNot(contains('\n')));
+    });
+  });
+
+  group('a stale file in a group the project opted out of', () {
+    test('a malformed settings file with no skill of ours gives no '
+        'line', () async {
+      final root = await _project(
+        files: {'.claude/skills/own/SKILL.md': 'own\n', settingsFilePath: '{'},
+      );
+
+      expect(_line(root), isNull);
+    });
+  });
+
+  test('a skill file another build of this Version wrote gives the differ '
+      'line', () async {
+    final skills = skillFileTexts();
+    final skillPath = skills.keys.firstWhere((p) => p != settingsFilePath);
+    final root = await _project(
+      config: 'agent_files_version: $specstoneVersion\n',
+      files: {
+        ...skills,
+        skillPath: '${skills[skillPath]}an older build line\n',
+      },
+    );
+
+    expect(_line(root), _differ);
+  });
+
   test('the running Version argument alone decides the direction', () async {
     final root = await _project(
       config: 'agent_files_version: 1.5.0\n',

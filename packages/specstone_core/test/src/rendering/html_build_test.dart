@@ -167,6 +167,23 @@ void main() {
     ]);
   });
 
+  test('a doc whose table cells are padded '
+      'raises the template warning', () async {
+    final build = await _build({
+      _storyPath:
+          '$_story\n| Name  | Done |\n|-------|------|\n| Alpha | yes  |\n',
+    });
+
+    expect(build.warnings, [
+      'docs/$_storyPath does not match its template; run specstone format',
+    ]);
+    expect(build.html, contains('<td>Alpha</td>'));
+    final compact = await _build({
+      _storyPath: '$_story\n| Name | Done |\n|---|---|\n| Alpha | yes |\n',
+    });
+    expect(compact.warnings, isEmpty);
+  });
+
   test('a doc with an unknown header is '
       'rendered, with the same warning', () async {
     final build = await _build({_storyPath: '$_story\n## Notes\nx\n'});
@@ -413,6 +430,53 @@ void main() {
     expect(RegExp('</template').allMatches(page), isEmpty);
     expect(html, contains('<section class="doc" id="doc-2">'));
   });
+
+  test(
+    'an unclosed <xmp>, <IFRAME src=x>, <noembed>, <noframes>, or <plaintext> '
+    'in prose and their end tags are shown as text, and the next doc '
+    'keeps its section',
+    () async {
+      final build = await _build({
+        _featurePath:
+            '# F-05\n\nShow <xmp> and <IFRAME src=x> as text.\n\n'
+            'Then <noembed> and <NOFRAMES lang=x> and <plaintext>.\n\n'
+            'End </xmp> and </iframe> and </noembed> and </noframes> and '
+            '</plaintext>.\n',
+        _storyPath: _story,
+      }, target: 'docs/$_featureDir');
+
+      final html = build.html;
+      expect(html, contains('Show &lt;xmp> and &lt;IFRAME src=x> as text.'));
+      expect(
+        html,
+        contains(
+          'Then &lt;noembed> and &lt;NOFRAMES lang=x> and &lt;plaintext>.',
+        ),
+      );
+      expect(
+        html,
+        contains(
+          'End &lt;/xmp> and &lt;/iframe> and &lt;/noembed> and '
+          '&lt;/noframes> and &lt;/plaintext>.',
+        ),
+      );
+      final page = html.replaceAll(mermaidScript, '');
+      for (final name in [
+        'xmp',
+        'iframe',
+        'noembed',
+        'noframes',
+        'plaintext',
+      ]) {
+        expect(
+          RegExp('</?$name', caseSensitive: false).allMatches(page),
+          isEmpty,
+          reason: name,
+        );
+      }
+      expect(html, contains('<section class="doc" id="doc-2">'));
+    },
+  );
 
   test('a fenced code block that shows <script> still renders '
       'as code', () async {

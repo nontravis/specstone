@@ -42,4 +42,10 @@ void main() {
       SectionSpec('consequences', 'Consequences', required: true),
     ]);
   });
+
+  test('the description states no number a lint key holds', () {
+    final snapshot = sectionOf(anti, 'snapshot');
+    expect(snapshot.description, isNot(contains('2 to 4')));
+    expect(snapshot.template, isNot(contains('2 to 4')));
+  });
 }

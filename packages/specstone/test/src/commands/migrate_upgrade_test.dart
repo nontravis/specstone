@@ -13,7 +13,7 @@ import 'package:specstone_core/src/document_writing/approval.dart'
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
-    show agentMdText;
+    show agentMdText, importBlock;
 import 'package:specstone_core/src/setup_migration/record_placement.dart'
     show typeBeforeMoves;
 import 'package:specstone_core/src/templates/pack_migration.dart'
@@ -24,6 +24,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
+import '../../../../specstone_core/test/helpers/posix_modes.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart'
     show recordLayer, twinConfig;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
@@ -177,6 +178,16 @@ Future<({int status, String out, String err})> _run(
   final status = await runner.run(args);
   return (status: status, out: out.toString(), err: err.toString());
 }
+
+/// The `kind` of each finding in [checkJson], those at [docPath] alone when
+/// given.
+Set<String> _findingKinds(String checkJson, {String? docPath}) => {
+  for (final finding
+      in (jsonDecode(checkJson) as Map<String, Object?>)['findings']!
+          as List<Object?>)
+    if (finding case {'kind': final String kind, 'docPath': final Object? path})
+      if (docPath == null || path == docPath) kind,
+};
 
 String _gitOut(Directory root, List<String> args) =>
     git(root, args).stdout as String;
@@ -529,9 +540,135 @@ void main() {
       ], contains('section_undeclared'));
     });
 
-    test('pins equal '
-        'and one doc off its layout makes one layout-only commit, then a rerun '
-        'has nothing to migrate', () async {
+    test('a release that removes a field and a doc type and makes a section '
+        'required adds no section and leaves each for check to list', () async {
+      const releaseType = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+fields:
+  - {id: on_call, type: string}
+sections:
+  - {id: steps, header: Steps, required: true}
+  - {id: verify, header: Verify, required: true}
+''';
+      const playbookPath = 'docs/prds/playbooks/p1/PLAYBOOK.md';
+      const playbook = '# P\n\n## Steps\n\nx\n';
+      final home = await _home(migrations: '', type: releaseType);
+      final root = await _project(
+        files: {_runbookPath: _runbookDoc, playbookPath: playbook},
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_read(root, _runbookPath), _runbookDoc);
+      expect(_read(root, playbookPath), playbook);
+      final check = await _run(root, home, ['check', '--json']);
+      expect(
+        _findingKinds(check.out, docPath: 'prds/runbooks/deploy/RUNBOOK.md'),
+        containsAll(['field_undeclared', 'required_section_missing']),
+      );
+      expect(
+        _findingKinds(check.out, docPath: 'prds/playbooks/p1/PLAYBOOK.md'),
+        contains('untyped_doc'),
+      );
+    });
+
+    test(
+      'a step that renames a section and a field and the layout pass '
+      'write the doc once, so the first check raises no format_drift',
+      () async {
+        final home = await _home(
+          type: _runbookType(
+            'prds/runbooks/{slug}/RUNBOOK.md',
+            'procedure',
+          ).replaceFirst('header: Steps', 'header: Procedure'),
+        );
+        final root = await _project(
+          files: {
+            _runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.   '),
+            _overridePath: 'sections: [{id: steps, required: true}]\n',
+          },
+        );
+        final writes = _gitOut(root, [
+          'log',
+          '--format=%h',
+          '--',
+          _runbookPath,
+        ]).trim().split('\n').length;
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          _read(root, _runbookPath),
+          '---\non_call: sre\n---\n# Deploy\n\n## Procedure\n\nRun it.\n',
+        );
+        expect(
+          _gitOut(root, [
+            'log',
+            '--format=%h',
+            '--',
+            _runbookPath,
+          ]).trim().split('\n'),
+          hasLength(writes + 1),
+        );
+        final check = await _run(root, home, ['check', '--json']);
+        expect(_findingKinds(check.out), isNot(contains('format_drift')));
+      },
+    );
+
+    test('a doc the format command refuses stays as it is and keeps the '
+        'finding that names its cause', () async {
+      const refusedPath = 'docs/prds/features/f01_a/FEATURE.md';
+      const refused = '## Notes\nx   \n';
+      final home = await _home(migrations: '');
+      final root = await _project(
+        pin: '1.2.0',
+        files: {
+          _runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  '),
+          refusedPath: refused,
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, contains('  format layout: 1 docs\n'));
+      expect(_read(root, refusedPath), refused);
+      final check = await _run(root, home, ['check', '--json']);
+      expect(
+        _findingKinds(check.out, docPath: 'prds/features/f01_a/FEATURE.md'),
+        contains('section_undeclared'),
+      );
+    });
+
+    test('a doc that cannot be read refuses the dry run with exit 73 before '
+        'anything prints and writes nothing', () async {
+      final home = await _home();
+      final root = await _project(files: {_runbookPath: _runbookDoc});
+      final before = _bytesUnder(root);
+      final head = _head(root);
+      final doc = '${root.path}/$_runbookPath';
+      expect(Process.runSync('chmod', ['000', doc]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', doc]));
+
+      final result = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(result.status, 73);
+      expect(result.out, isEmpty);
+      expect(
+        result.err,
+        startsWith('cannot read prds/runbooks/deploy/RUNBOOK.md: '),
+      );
+      Process.runSync('chmod', ['644', doc]);
+      expect(_bytesUnder(root), before);
+      expect(_head(root), head);
+    }, skip: unreadablePathSkipReason());
+
+    test('pins equal and one doc off its layout makes one layout-only '
+        'commit, then a rerun has nothing to migrate', () async {
       final home = await _home(migrations: '');
       final root = await _project(
         pin: '1.2.0',
@@ -569,6 +706,32 @@ void main() {
 
       expect(again.status, 0, reason: again.err);
       expect(again.out, 'nothing to migrate\n');
+    });
+
+    test('a layout-only run adds neither a required nor an optional section '
+        'the doc lacks', () async {
+      final home = await _home(
+        migrations: '',
+        type: '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+  - {id: checks, header: Checks, required: true}
+  - {id: notes, header: Notes}
+''',
+      );
+      final root = await _project(
+        pin: '1.2.0',
+        files: {_runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  ')},
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, contains('format layout: 1 docs\n'));
+      expect(_read(root, _runbookPath), _runbookDoc);
     });
 
     test('nothing to upgrade prints nothing to migrate and writes '
@@ -611,6 +774,71 @@ void main() {
         }
       },
     );
+
+    test('an override that names a section the merged type lacks refuses '
+        'bare migrate and the dry run with exit 78 before a run is chosen, '
+        'and writes nothing', () async {
+      final home = await _home(version: '1.0.0', migrations: '');
+      final root = await _project();
+      final before = _bytesUnder(root);
+      final head = _head(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+
+        expect(result.status, 78, reason: args.join(' '));
+        expect(
+          result.err,
+          '$_overridePath: sections.steps: no section "steps" in the merged '
+          'doc type and no header to add it\n',
+          reason: args.join(' '),
+        );
+        expect(result.out, isEmpty, reason: args.join(' '));
+      }
+      expect(_bytesUnder(root), before);
+      expect(_head(root), head);
+    });
+
+    test('a project override that gives a doc type the code field puts the '
+        'repository top its docs list into the agent-only upgrade', () async {
+      final home = await _home(
+        version: '1.0.0',
+        migrations: '',
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      Future<Directory> project(String override) => _project(
+        files: {
+          _runbookPath:
+              '---\ncode:\n  - other/\n---\n# Deploy\n\n## Steps\n\nRun it.\n',
+          _overridePath: 'sections: [{id: steps, required: true}]\n$override',
+          'other/.git/HEAD': 'ref: refs/heads/main\n',
+          '.gitignore': 'other/\n',
+        },
+      );
+
+      final without = await _run(await project(''), home, [
+        'migrate',
+        '--dry-run',
+      ]);
+      final withCode = await _run(
+        await project('fields: [{id: code, type: string, list: true}]\n'),
+        home,
+        ['migrate', '--dry-run'],
+      );
+
+      expect(without.out, 'nothing to migrate\n');
+      expect(
+        withCode.out,
+        startsWith(
+          'pack upgrade: pins unchanged, agent files only\n'
+          'commit 2, rewrites:\n'
+          '  agent files: ${1 + skillFileCount} files\n',
+        ),
+      );
+    });
 
     test('a pin newer than Specstone refuses', () async {
       final home = await _home(version: '1.2.0');
@@ -684,6 +912,92 @@ void main() {
         startsWith('~/.specstone/packs/acme/pack.yaml: migrations[0].from: '),
       );
       expect(result.out, isEmpty);
+    });
+
+    /// Runs the dry run and bare migrate over a pack whose [migrations] the
+    /// load refuses, and expects exit 78 at [key], nothing printed, and the
+    /// tree as it was.
+    Future<void> expectPackRefused(String migrations, String key) async {
+      final home = await _home(migrations: migrations);
+      final root = await _project();
+      final before = _bytesUnder(root);
+      final head = _head(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+
+        expect(result.status, 78, reason: '$key ${args.join(' ')}');
+        expect(
+          result.err,
+          startsWith('~/.specstone/packs/acme/pack.yaml: $key'),
+          reason: args.join(' '),
+        );
+        expect(result.out, isEmpty, reason: '$key ${args.join(' ')}');
+      }
+      expect(_bytesUnder(root), before, reason: key);
+      expect(_head(root), head, reason: key);
+    }
+
+    test('a step of an unknown kind, a step with a key missing, and a step '
+        'with a key unknown each refuse with exit 78 and leave the tree '
+        'as it was', () async {
+      const cases = [
+        (
+          'migrations[0].steps[0]',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - frob_section: {doc_type: runbook}\n',
+        ),
+        (
+          'migrations[0].steps[0].rename_field.to',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - rename_field: {doc_type: runbook, from: owner}\n',
+        ),
+        (
+          'migrations[0].steps[0].rename_field.extra',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - rename_field: {doc_type: runbook, from: owner, '
+              'to: on_call, extra: x}\n',
+        ),
+      ];
+
+      for (final (key, migrations) in cases) {
+        await expectPackRefused(migrations, key);
+      }
+    });
+
+    test('a move_file step whose to pattern holds other placeholders or the '
+        'same ones in another order, and a move_to_record step whose to names '
+        'no doc type, each refuse with exit 78 and leave the tree '
+        'as it was', () async {
+      const cases = [
+        (
+          'migrations[0].steps[0].move_file.to',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - move_file: {doc_type: runbook, '
+              'from: "prds/runbooks/{slug}/RUNBOOK.md", '
+              'to: "ops/{slug}/{extra}/RUNBOOK.md"}\n',
+        ),
+        (
+          'migrations[0].steps[0].move_file.to',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - move_file: {doc_type: runbook, '
+              'from: "prds/{a}/{b}/RUNBOOK.md", '
+              'to: "prds/{b}/{a}/RUNBOOK.md"}\n',
+        ),
+        (
+          'migrations[0].steps[0].move_to_record.to',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - move_to_record: {doc_types: [runbook], '
+              'fields: [owner], to: nosuch}\n',
+        ),
+      ];
+
+      for (final (key, migrations) in cases) {
+        await expectPackRefused(migrations, key);
+      }
     });
 
     test('a hook that prepends a paragraph to each message '
@@ -943,8 +1257,8 @@ void main() {
         ...files,
       });
 
-      test('a stale block is '
-          'rewritten alone and the pins stay', () async {
+      test('a stale block is rewritten alone and '
+          'the pins stay', () async {
         final root = await agentProject({
           '.specstone/AGENT.md': agentMdText,
           'CLAUDE.md': '# Owner rules\n\n$staleBlock',
@@ -1013,9 +1327,8 @@ void main() {
         },
       );
 
-      test('a pin below '
-          'agentFilesSince writes the files once and a deleted block stays '
-          'deleted', () async {
+      test('a pin below agentFilesSince writes the files once and a '
+          'deleted block stays deleted', () async {
         final root = await agentProject({
           'CLAUDE.md': '# Owner rules\n',
         }, belowSince);
@@ -1179,6 +1492,110 @@ void main() {
             'HEAD',
           ]).trim().split('\n'),
           unorderedEquals([path, '.specstone/config.yaml']),
+        );
+      });
+
+      test('every pin equal and an agent file with malformed marker lines '
+          'refuses with exit 65, prints nothing, and writes nothing', () async {
+        final root = await agentProject({
+          'AGENTS.md': '$begin\nbody\n',
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+        final before = _bytesUnder(root);
+        final head = _head(root);
+
+        for (final args in [
+          ['migrate', '--dry-run'],
+          ['migrate'],
+        ]) {
+          final result = await _run(root, home, args, console: _owner());
+
+          expect(result.status, 65, reason: args.join(' '));
+          expect(result.out, isEmpty, reason: args.join(' '));
+          expect(
+            result.err,
+            startsWith('AGENTS.md:1: the Specstone marker lines are malformed'),
+            reason: args.join(' '),
+          );
+        }
+        expect(_bytesUnder(root), before);
+        expect(_head(root), head);
+      });
+
+      test('bare migrate over a pin below agentFilesSince refuses a file '
+          'with malformed marker lines, prints the refusal, and writes '
+          'nothing', () async {
+        final root = await agentProject({
+          'AGENTS.md': '$begin\nbody\n',
+        }, belowSince);
+        final home = await writeTree({});
+        final before = _bytesUnder(root);
+        final head = _head(root);
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 65);
+        expect(result.out, isEmpty);
+        expect(
+          result.err,
+          startsWith('AGENTS.md:1: the Specstone marker lines are malformed'),
+        );
+        expect(_bytesUnder(root), before);
+        expect(_head(root), head);
+      });
+
+      test('an import block whose AGENT.md is missing plans the agent files '
+          'step alone', () async {
+        final root = await agentProject({
+          'CLAUDE.md': importBlock(
+            cliVersion: specstoneVersion,
+            agentMdPath: '.specstone/AGENT.md',
+            projectDocPath: 'docs/prds/PROJECT.md',
+            goalDocPath: 'docs/prds/GOAL.md',
+          ),
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+
+        final dry = await _run(root, home, ['migrate', '--dry-run', '--json']);
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(dry.status, 0, reason: dry.err);
+        expect((jsonDecode(dry.out) as Map<String, Object?>)['agentFiles'], [
+          '.specstone/AGENT.md',
+        ]);
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          startsWith(
+            'pack upgrade: pins unchanged, agent files only\n'
+            'commit 2, rewrites:\n'
+            '  agent files: 1 files\n',
+          ),
+        );
+        expect(_read(root, '.specstone/AGENT.md'), agentMdText);
+      });
+
+      test('a repository top the config does not list plans the agent files '
+          'step alone', () async {
+        final root = await agentProject(
+          {},
+          '${shippedPinsConfig()}code_root: code\n',
+        );
+        Directory('${root.path}/code/.git').createSync(recursive: true);
+        File('${root.path}/code/.git/HEAD')
+            .writeAsStringSync('ref: refs/heads/main\n');
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          startsWith(
+            'pack upgrade: pins unchanged, agent files only\n'
+            'commit 2, rewrites:\n'
+            '  agent files: ${1 + skillFileCount} files\n',
+          ),
         );
       });
 
@@ -1388,8 +1805,8 @@ agent_file_roots:
         expect(hashOf(first.out), isNot(hashOf(second.out)));
       });
 
-      test('a malformed file refuses '
-          'before anything prints', () async {
+      test('a malformed file refuses before '
+          'anything prints', () async {
         final root = await agentProject({
           'AGENTS.md': '$begin\nbody\n',
         }, belowSince);
@@ -2567,6 +2984,51 @@ agent_file_roots:
         final again = await _run(root, home, ['migrate'], console: _owner());
         expect(again.out, 'nothing to migrate\n');
       });
+
+      test('a tree move onto a path a doc already holds refuses with exit 65 '
+          'and leaves the tree unwritten', () async {
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml': twinConfig(),
+          _gitignore: _ignoreFile,
+          featurePath: approvedAs(
+            'feature',
+            '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
+          ),
+          oldArch: approvedAs(
+            'architecture',
+            '# Architecture\n\n[f](../../prds/features/f02_feedback/FEATURE.md)\n',
+          ),
+          newArch: approvedAs(
+            'architecture',
+            '# Architecture\n\n[f](../../../prds/features/f02_feedback/FEATURE.md)\n',
+          ),
+        });
+        final before = _bytesUnder(root);
+        final head = _head(root);
+
+        for (final args in [
+          ['migrate', '--dry-run'],
+          ['migrate'],
+        ]) {
+          final result = await _run(root, home, args, console: _owner());
+
+          expect(result.status, 65, reason: args.join(' '));
+          expect(result.out, isEmpty, reason: args.join(' '));
+          expect(
+            result.err,
+            startsWith('specs/f02_feedback/ARCHITECTURE.md: '),
+            reason: args.join(' '),
+          );
+          expect(
+            result.err,
+            contains('specs/flutter/f02_feedback/ARCHITECTURE.md'),
+            reason: args.join(' '),
+          );
+        }
+        expect(_bytesUnder(root), before);
+        expect(_head(root), head);
+      });
     });
 
     group('test-name pass', () {
@@ -2661,6 +3123,43 @@ agent_file_roots:
           expect(_read(root, otherPath), source('f01/us01/fr01 dep'));
         },
       );
+
+      test('a test file in a nested repository gets no commit, and only the '
+          "project's repository does", () async {
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.4.0\ncode_root: app\n'
+              'agent_file_roots:\n  - app/vendor\n',
+          _gitignore: _ignoreFile,
+          '.gitignore': 'app/vendor/\n',
+          featurePath: '# Login\n',
+          storyPath: '# Email login\n',
+          frPath: '# Validate credentials\n',
+          testPath: source('f01/us01/fr01 rejects a wrong password'),
+        });
+        final vendor = Directory('${root.path}/app/vendor')
+          ..createSync(recursive: true);
+        File('${root.path}/$otherPath')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(source('f01/us01/fr01 dep'));
+        commitRepo(vendor);
+        final vendorHead = _head(vendor);
+        final projectCommits = _subjects(root).length;
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_subjects(root).length, greaterThan(projectCommits));
+        expect(_head(vendor), vendorHead);
+        expect(_gitOut(vendor, ['status', '--porcelain']).trim(), isEmpty);
+        expect(_read(root, otherPath), source('f01/us01/fr01 dep'));
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          isNot(contains('vendor')),
+        );
+      });
     });
 
     group('cite pass', () {

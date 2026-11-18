@@ -49,6 +49,15 @@ void main() {
     expect(policy.values, isNull);
   });
 
+  test('the invariant form states no sentence count', () {
+    final invariants = sectionOf(domain, 'invariants');
+    expect(invariants.description, isNot(contains('<one sentence>')));
+    expect(
+      invariants.description,
+      contains('Write each invariant as `- **INV-<N>** <rule>`'),
+    );
+  });
+
   test('domain holds no corrective policies section', () {
     expect(
       domain.sections.map((s) => s.id),
@@ -98,6 +107,67 @@ void main() {
     expect(
       json,
       allOf(containsPair('limit', 300), containsPair('actual', 301)),
+    );
+  });
+
+  test('an eventual invariant with no nested corrective policy gets '
+      'item_field_missing for Corrective policy', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/specs/f01_login/DOMAIN.md':
+              '$draft# Login domain\n\n## Entities\n'
+              '| Entity | Kind | Description |\n|---|---|---|\n'
+              '| Account | Aggregate root | A login |\n\n'
+              '## Invariants\n'
+              '- **INV-1** An account mails its owner after a lock.\n'
+              '  - **Enforcer:** Account\n'
+              '  - **Consistency:** eventual\n',
+        },
+      ),
+    );
+
+    final json = report.findings
+        .singleWhere((f) => f.kind == FindingKind.itemFieldMissing)
+        .toJson();
+    expect(json, containsPair('field', 'Corrective policy'));
+  });
+
+  test('a bullet under the Components table of an ARCHITECTURE.md gets '
+      'pattern_banned at that bullet', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/specs/f01_login/ARCHITECTURE.md':
+              '$draft# Login architecture\n\n## Components\n'
+              '| Component | Responsibility |\n|---|---|\n'
+              '| Gate | Checks the password |\n\n'
+              '- Gate also logs each attempt\n',
+        },
+      ),
+    );
+
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.patternBanned,
+    );
+    expect(finding.path, 'specs/f01_login/ARCHITECTURE.md');
+    expect(finding.toJson(), containsPair('line', 12));
+  });
+
+  test('the invariants description states the bullet shape with the '
+      'enforcer, consistency, and corrective policy bullets', () {
+    final description = domain.sections
+        .singleWhere((s) => s.id == 'invariants')
+        .description;
+
+    expect(
+      description,
+      allOf(
+        contains('- **INV-<N>** <rule>'),
+        contains('- **Enforcer:** <aggregate root>'),
+        contains('- **Consistency:** immediate'),
+        contains('- **Corrective policy:** <how the system restores the rule>'),
+      ),
     );
   });
 

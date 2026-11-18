@@ -20,6 +20,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, spots;
 import '../../helpers/git_repo.dart';
+import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
@@ -511,26 +512,28 @@ void main() {
     },
   );
 
-  test('a symbolic '
-      'link CLAUDE.md stays a link and its target takes the block', () async {
-    final root = await writeTree({'shared/rules.md': 'shared\n'});
-    try {
-      createRelativeLink('${root.path}/CLAUDE.md', 'shared/rules.md');
-    } on FileSystemException {
-      markTestSkipped('symbolic links are not available');
-      return;
-    }
+  test(
+    'a symbolic link CLAUDE.md stays a link and its target takes the block',
+    () async {
+      final root = await writeTree({'shared/rules.md': 'shared\n'});
+      try {
+        createRelativeLink('${root.path}/CLAUDE.md', 'shared/rules.md');
+      } on FileSystemException {
+        markTestSkipped('symbolic links are not available');
+        return;
+      }
 
-    final (status, _) = await _run(root);
+      final (status, _) = await _run(root);
 
-    expect(status, 0);
-    expect(
-      FileSystemEntity.typeSync('${root.path}/CLAUDE.md', followLinks: false),
-      FileSystemEntityType.link,
-    );
-    expect(_read(root, 'shared/rules.md'), startsWith('shared\n'));
-    expect(_read(root, 'shared/rules.md'), contains('@.specstone/AGENT.md'));
-  });
+      expect(status, 0);
+      expect(
+        FileSystemEntity.typeSync('${root.path}/CLAUDE.md', followLinks: false),
+        FileSystemEntityType.link,
+      );
+      expect(_read(root, 'shared/rules.md'), startsWith('shared\n'));
+      expect(_read(root, 'shared/rules.md'), contains('@.specstone/AGENT.md'));
+    },
+  );
 
   test('a repository '
       'top inside the project that a code entry reaches is upserted, printed, '
@@ -656,6 +659,102 @@ void main() {
       expect(File('${base.path}/proj/missing.md').existsSync(), isFalse);
     }, skip: skipLinks);
 
+    test('a dangling AGENTS.md link refuses naming the file, and nothing is '
+        'created through the link', () async {
+      final base = await writeTree({'proj/keep.txt': ''});
+      Link('${base.path}/proj/AGENTS.md').createSync('missing.md');
+
+      await expectLater(
+        () => _run(Directory('${base.path}/proj')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('cannot write AGENTS.md: '),
+              ),
+        ),
+      );
+
+      expect(File('${base.path}/proj/missing.md').existsSync(), isFalse);
+      expect(
+        File('${base.path}/proj/.specstone/config.yaml').existsSync(),
+        isFalse,
+      );
+    }, skip: skipLinks);
+
+    test('a draft that is a link leading outside refuses with the link path, '
+        'the drafts before it stay, and a rerun once the link is gone '
+        'finishes', () async {
+      final base = await writeTree({'proj/keep.txt': '', 'outside/x': ''});
+      final proj = Directory('${base.path}/proj');
+      Directory('${proj.path}/docs/prds').createSync(recursive: true);
+      final link = Link('${proj.path}/docs/prds/GLOSSARY.md')
+        ..createSync('../../../outside/g.md');
+
+      await expectLater(
+        () => _run(proj),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', 'docs/prds/GLOSSARY.md')
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write docs/prds/GLOSSARY.md: it leads outside the project',
+              ),
+        ),
+      );
+
+      expect(File('${base.path}/outside/g.md').existsSync(), isFalse);
+      expect(File('${proj.path}/docs/prds/PROJECT.md').existsSync(), isTrue);
+      expect(File('${proj.path}/.specstone/config.yaml').existsSync(), isFalse);
+
+      link.deleteSync();
+      final (status, lines) = await _run(proj);
+
+      expect(status, 0);
+      expect(lines, contains('kept docs/prds/PROJECT.md: exists'));
+      expect(File('${proj.path}/docs/prds/GLOSSARY.md').existsSync(), isTrue);
+      expect(File('${proj.path}/.specstone/config.yaml').existsSync(), isTrue);
+    }, skip: skipLinks);
+
+    test('a .specstone/config.yaml that is a link leading outside refuses '
+        'with its path after the drafts, and a rerun finishes', () async {
+      final base = await writeTree({'proj/keep.txt': '', 'outside/x': ''});
+      final proj = Directory('${base.path}/proj');
+      Directory('${proj.path}/.specstone').createSync();
+      final link = Link('${proj.path}/.specstone/config.yaml')
+        ..createSync('../../outside/c.yaml');
+
+      await expectLater(
+        () => _run(proj),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', '.specstone/config.yaml')
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write .specstone/config.yaml: it leads outside the project',
+              ),
+        ),
+      );
+
+      expect(File('${base.path}/outside/c.yaml').existsSync(), isFalse);
+      expect(File('${proj.path}/docs/prds/PROJECT.md').existsSync(), isTrue);
+
+      link.deleteSync();
+      final (status, _) = await _run(proj);
+
+      expect(status, 0);
+      expect(File('${proj.path}/.specstone/config.yaml').existsSync(), isTrue);
+    }, skip: skipLinks);
+
     test('a docs folder linked outside the project refuses a draft written '
         'through it, and the folder outside is unchanged', () async {
       final base = await writeTree({
@@ -739,6 +838,33 @@ void main() {
       Directory('${root.path}/.specstone/templates').existsSync(),
       isFalse,
     );
+  });
+
+  test('init leaves a root .gitignore as it was, adds no entry for the index '
+      'or the build output, and makes none when there was none', () async {
+    final kept = await writeTree({'.gitignore': 'node_modules/\n'});
+    final none = await writeTree({'keep.txt': 'x\n'});
+
+    expect((await _run(kept)).$1, 0);
+    expect((await _run(none)).$1, 0);
+
+    expect(_read(kept, '.gitignore'), 'node_modules/\n');
+    expect(File('${none.path}/.gitignore').existsSync(), isFalse);
+  });
+
+  test('init leaves .specstone/.gitignore to the first index, which writes its '
+      'lines there and no root entry', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    expect((await _run(root)).$1, 0);
+    expect(File('${root.path}/.specstone/.gitignore').existsSync(), isFalse);
+
+    openSession(root).close();
+
+    expect(
+      _read(root, '.specstone/.gitignore').trimRight().split('\n'),
+      containsAll(['index.sqlite*', 'build/']),
+    );
+    expect(File('${root.path}/.gitignore').existsSync(), isFalse);
   });
 
   test('each draft holds every required field empty and '
@@ -1093,6 +1219,36 @@ void main() {
       ),
     );
     expect(calls, isEmpty);
+  });
+
+  test('the legacy entry through an untrusted docs link refuses with exit '
+      '73, naming the journal, with the trust text, and writes '
+      'nothing', () async {
+    final tree = await writeTree(linkedAcme({}));
+    if (!linkCodeDocs(tree)) return;
+    final code = Directory('${tree.path}/ws/code');
+    final before = _bytesUnder(tree);
+
+    await expectLater(
+      () => _run(code, confirmation: OwnerConfirmation.prompt, answers: ['y']),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.exitStatus, 'exit', 73)
+            .having((f) => f.file, 'file', MoveJournal.journalPath)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write .specstone/trash/journal.json: the project folder '
+                  '${Directory('${tree.path}/ws').resolveSymbolicLinksSync()} '
+                  'was reached through the docs link in '
+                  '${code.resolveSymbolicLinksSync()}; run specstone trust at '
+                  'a terminal to allow it',
+            ),
+      ),
+    );
+
+    expect(_bytesUnder(tree), before);
   });
 
   test('the legacy entry refuses a dirty tree before the '

@@ -175,6 +175,135 @@ void main() {
     );
   });
 
+  test('a set held off by a lock held past the 10 s busy timeout is '
+      'index_busy, exit 75, and writes no file', () async {
+    expect(indexBusyTimeout, const Duration(seconds: 10));
+    final root = await writeWriteProject();
+    const target = 'user_story:login/email_login#acceptance_criteria';
+    final request = SetRequest.parse(
+      target,
+      base: getDoc(root, target)['base']! as String,
+    );
+    final before = treeBytes(root)
+      ..removeWhere((k, _) => !k.startsWith('docs/'));
+    final other = sqlite3.open('${root.path}/.specstone/index.sqlite')
+      ..execute('BEGIN IMMEDIATE');
+    addTearDown(other.close);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(s, request, '\n- **Given** a changed text\n'),
+        busyTimeout: const Duration(milliseconds: 200),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
+            .having((f) => f.exitStatus, 'exit', 75),
+      ),
+    );
+    final after = treeBytes(root)
+      ..removeWhere((k, _) => !k.startsWith('docs/'));
+    expect(after.keys, before.keys);
+    for (final MapEntry(:key, :value) in before.entries) {
+      expect(after[key], value, reason: key);
+    }
+  });
+
+  group('an unfinished journal of one write command', () {
+    const loginFolder = 'docs/prds/features/f01_login';
+
+    test('a reorder journal is finished by the next write', () async {
+      final root = await writeWriteProject();
+      writeJournal(root, [
+        const MoveStep(
+          '$loginFolder/us03_reset_password',
+          '$loginFolder/us02_reset_password',
+        ),
+        const MoveStep(
+          '$loginFolder/us02_sign_out',
+          '$loginFolder/us03_sign_out',
+        ),
+      ]);
+      writeIn(root, (_) {});
+      expect(
+        Directory('${root.path}/$loginFolder/us02_reset_password').existsSync(),
+        isTrue,
+      );
+      expect(
+        Directory('${root.path}/$loginFolder/us03_sign_out').existsSync(),
+        isTrue,
+      );
+      expect(
+        Directory('${root.path}/$loginFolder/us03_reset_password').existsSync(),
+        isFalse,
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('a rename journal is finished by the next write', () async {
+      final root = await writeWriteProject();
+      writeJournal(root, [
+        const MoveStep(
+          '$loginFolder/us02_sign_out',
+          '$loginFolder/us02_log_out',
+        ),
+      ]);
+      expect(
+        writeIn(root, (s) => s.target('user_story:login/log_out').docPath),
+        'prds/features/f01_login/us02_log_out/USER_STORY.md',
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('a move journal is finished by the next write', () async {
+      final root = await writeWriteProject();
+      writeJournal(root, [
+        const MoveStep(
+          '$loginFolder/us03_reset_password',
+          'docs/prds/features/f02_signup/us01_reset_password',
+        ),
+      ]);
+      writeIn(root, (_) {});
+      expect(
+        hasDoc(
+          root,
+          'prds/features/f02_signup/us01_reset_password/USER_STORY.md',
+        ),
+        isTrue,
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('a single set writes no journal', () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login#acceptance_criteria';
+      final request = SetRequest.parse(
+        target,
+        base: getDoc(root, target)['base']! as String,
+      );
+      final journal = File('${root.path}/${MoveJournal.journalPath}');
+      var sawJournal = false;
+      writeIn(root, (s) {
+        final answer = answerSet(s, request, '\n- **Given** a changed text\n');
+        sawJournal = journal.existsSync();
+        return answer;
+      });
+      expect(readDoc(root, story1), contains('a changed text'));
+      expect(sawJournal, isFalse);
+      expect(journal.existsSync(), isFalse);
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+    });
+  });
+
   test('an unfinished journal is replayed before names resolve', () async {
     final root = await writeWriteProject();
     writeJournal(root, [
@@ -498,6 +627,27 @@ void main() {
         );
       },
     );
+
+    test('refuses with the message that names specstone migrate and its '
+        'interactive ways, exit 75', () async {
+      final root = await writeWriteProject();
+      writeJournal(root, [move, commit]);
+      expect(
+        () => writeIn(root, (session) => null),
+        throwsA(
+          isA<WriteFault>()
+              .having(
+                (f) => f.message,
+                'message',
+                'a migration is unfinished; run specstone migrate at an '
+                    "interactive terminal, or with --yes after the Owner's ok "
+                    'in the chat, to finish it, then run the command again',
+              )
+              .having((f) => f.exitStatus, 'exit', 75)
+              .having((f) => f.file, 'file', '.specstone/trash/journal.json'),
+        ),
+      );
+    });
 
     test('refuses in a legacy tree whose config is not written yet', () async {
       final root = await writeTree({'docs/prds/PROJECT.md': '# Legacy\n'});

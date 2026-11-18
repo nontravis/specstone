@@ -15,6 +15,7 @@ import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
@@ -45,7 +46,7 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
       expect(file(r, '.specstone/index.sqlite').existsSync(), isTrue);
     });
@@ -59,7 +60,7 @@ void main() {
         ]);
         expect(
           file(r, '.specstone/.gitignore').readAsStringSync(),
-          'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+          'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
         );
       }
     });
@@ -91,6 +92,62 @@ void main() {
 
       expect(watch.elapsed, greaterThanOrEqualTo(timeout));
     });
+    test('an index path the disk cannot resolve refuses the open with the '
+        'reason and writes nothing', () async {
+      for (final name in ['index.sqlite', 'index.sqlite-wal', '.gitignore']) {
+        final r = await root();
+        Link('${r.path}/.specstone/$name').createSync(name);
+        expect(
+          () => IndexStore.open(r),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.exitStatus, 'exit', 73)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  startsWith(
+                    'cannot write .specstone/$name: it cannot be resolved: ',
+                  ),
+                ),
+          ),
+          reason: name,
+        );
+        expect(
+          [
+            for (final entity in Directory('${r.path}/.specstone').listSync())
+              if (entity is File) entity.uri.pathSegments.last,
+          ],
+          ['config.yaml'],
+          reason: 'a refused open creates no file',
+        );
+      }
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+    test('a file SQLite makes beside the index and removes on close '
+        'counts as missing at every open', () async {
+      final r = await root();
+      final path = r.path;
+      IndexStore.open(r).close();
+      for (final suffix in ['-wal', '-shm', '-journal']) {
+        expect(file(r, '.specstone/index.sqlite$suffix').existsSync(), isFalse);
+      }
+      final opens = await Future.wait([
+        for (var n = 0; n < 2; n++)
+          Isolate.run(() {
+            var opened = 0;
+            for (var i = 0; i < 40; i++) {
+              IndexStore.open(Directory(path)).close();
+              opened++;
+            }
+            return opened;
+          }),
+      ]);
+      expect(opens, [40, 40]);
+    });
     test('the root .gitignore is never written', () async {
       final r = await writeTree({
         '.specstone/config.yaml': '',
@@ -107,12 +164,12 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
-    test('a file holding all five lines is left untouched', () async {
+    test('a file holding all six lines is left untouched', () async {
       const text =
-          'reports/\nbuild/\n# mine\ntrash/\nbundles/\nindex.sqlite*\n';
+          'reports/\nbuild/\n# mine\ntrash/\nbundles/\napproved/\nindex.sqlite*\n';
       final r = await writeTree({
         '.specstone/config.yaml': '',
         '.specstone/.gitignore': text,
@@ -120,7 +177,7 @@ void main() {
       IndexStore.open(r).close();
       expect(file(r, '.specstone/.gitignore').readAsStringSync(), text);
     });
-    test('a file holding the index and build lines gains trash/, bundles/, and reports/ at its end', () async {
+    test('a file holding the index and build lines gains trash/, bundles/, reports/, and approved/ at its end', () async {
       final r = await writeTree({
         '.specstone/config.yaml': '',
         '.specstone/.gitignore': 'index.sqlite*\nbuild/\n',
@@ -128,7 +185,7 @@ void main() {
       ensureSpecstoneGitignore(Directory('${r.path}/.specstone'));
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
     for (final (tag, staleMeta) in [
@@ -136,7 +193,7 @@ void main() {
       ('a binary-version rebuild', "binary_version = 'older'"),
     ]) {
       test(
-        '$tag appends bundles/ and reports/ and keeps the Owner lines in their order',
+        '$tag appends bundles/, reports/, and approved/ and keeps the Owner lines in their order',
         () async {
           const older = 'trash/\n# mine\n*.tmp\nindex.sqlite*\nbuild/\n';
           final project = await writeLoginProject();
@@ -161,12 +218,12 @@ void main() {
           expect(result.fullBuild, isTrue);
           expect(
             file(project, '.specstone/.gitignore').readAsStringSync(),
-            '${older}bundles/\nreports/\n',
+            '${older}bundles/\nreports/\napproved/\n',
           );
         },
       );
     }
-    test('a rebuild for a changed stamp checks the five lines', () async {
+    test('a rebuild for a changed stamp checks the six lines', () async {
       final r = await root();
       final store = IndexStore.open(r);
       addTearDown(store.close);
@@ -178,7 +235,7 @@ void main() {
       );
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
     test(
@@ -188,7 +245,7 @@ void main() {
         final r = await writeTree({
           '.specstone/config.yaml': '',
           '.specstone/.gitignore':
-              'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+              'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
         });
         final store = IndexStore.open(r);
         addTearDown(store.close);
@@ -294,7 +351,7 @@ void main() {
       expect(store.readStamp(), isNull);
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
     test('a database with tables but no meta table is deleted, '
@@ -347,6 +404,70 @@ void main() {
         );
       },
     );
+    test('a reindex that dies part way rolls back, and the next refresh '
+        'reindexes the same files', () async {
+      final project = await writeLoginProject();
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final first = IndexStore.open(docs.projectRoot);
+      refreshIndex(first, docs);
+      final committed = first.hashes();
+      first.close();
+      final edited = loginProject[featureKey]!.replaceFirst(
+        '# Login\n',
+        '# Login v2\n',
+      );
+      file(project, featureKey).writeAsStringSync(edited);
+      final dying = IndexStore.open(docs.projectRoot);
+      expect(
+        () => dying.write(() {
+          dying
+            ..putDoc(parsed(featureDoc, edited))
+            ..setStatKey(featureDoc, null);
+          throw StateError('process killed part way');
+        }),
+        throwsStateError,
+      );
+      expect(dying.hashes(), committed);
+      dying.close();
+
+      final store = IndexStore.open(docs.projectRoot);
+      addTearDown(store.close);
+      expect(store.hashes(), committed);
+      final result = refreshIndex(store, docs);
+      expect(result.reindexed, 1);
+      expect(store.hashes(), {
+        ...committed,
+        featureDoc: contentHashOf(utf8.encode(edited)),
+      });
+    });
+    test('the default busy timeout is 10 s', () async {
+      final r = await root();
+      IndexStore.open(r).close();
+      final holder = sqlite3.open(file(r, indexFilePath).path)
+        ..execute('BEGIN IMMEDIATE');
+      addTearDown(
+        () => holder
+          ..execute('ROLLBACK')
+          ..close(),
+      );
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      final watch = Stopwatch()..start();
+      expect(
+        () => store.write(() => store.putDoc(parsed('README.md', '# R\n'))),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
+              .having((f) => f.exitStatus, 'exit', 75),
+        ),
+      );
+      watch.stop();
+      expect(watch.elapsed.inMilliseconds, inInclusiveRange(10000, 14000));
+    }, timeout: const Timeout(Duration(seconds: 40)));
     test(
       'a read-only index file refuses the write and stays byte-identical',
       skip: unreadablePathSkipReason(),

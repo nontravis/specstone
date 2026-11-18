@@ -8,17 +8,21 @@ import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     show newRecordOf;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show StaleMention;
+import 'package:specstone_core/src/index_query/list_docs.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart'
     show RecordLines;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -26,12 +30,15 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/git_repo.dart' show git;
+import '../../helpers/index_fixture.dart' show indexWith;
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart' show testHome;
 
 /// The `specstone migrate --dry-run` example of `api:setup_migration`, up to
 /// the `left` block.
@@ -313,6 +320,47 @@ name: Login API
     expect(_createdPaths(plan), isNot(contains('docs/prds/PROJECT.md')));
   });
 
+  test('a tree with no tech stack doc gets the skeleton the new command '
+      'writes, and the draft list names it', () async {
+    final plan = await _plan(acmeLegacy);
+
+    final tech = plan.creates.singleWhere(
+      (c) => c.path == 'docs/specs/TECH_STACK.md',
+    );
+
+    expect(
+      tech.text,
+      skeletonOf(_carriedSet().lookup('tech_stack')!, 'tech_stack'),
+    );
+    final index = await indexWith({'docs/specs/TECH_STACK.md': tech.text});
+    final drafts = answerList(
+      index,
+      'tech_stack',
+      const ListFilters(draft: true),
+    );
+    expect(drafts.json['docs'], hasLength(1));
+    expect(drafts.text, contains(' · draft'));
+  });
+
+  test('a tree with no feature index and no non-functional doc gets both as '
+      'skeleton drafts', () async {
+    final tree = Map.of(acmeLegacy)
+      ..remove('docs/prds/d02_features.md')
+      ..remove('docs/prds/d03_non_functional.md');
+
+    final plan = await _plan(tree);
+
+    final set = _carriedSet();
+    for (final (path, type) in [
+      ('docs/prds/FEATURES.md', 'features'),
+      ('docs/prds/GNFR.md', 'gnfr'),
+    ]) {
+      final create = plan.creates.singleWhere((c) => c.path == path);
+      expect(create.text, skeletonOf(set.lookup(type)!, type), reason: path);
+      expect(create.note, ' (draft)', reason: path);
+    }
+  });
+
   test('specs/INDEX.md stays with its rows', () async {
     final plan = await _plan(acmeLegacy);
 
@@ -379,6 +427,20 @@ name: Login API
       expect(
         _createdPaths(plan).where((path) => path.endsWith('TECH_STACK.md')),
         ['docs/specs/flutter/TECH_STACK.md'],
+      );
+    });
+
+    test('one named target creates the one tech stack doc alone', () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 0.0.1\ntargets:\n  flutter:\n'
+            '    code_root: flutter_ws\n',
+      });
+
+      expect(
+        _createdPaths(plan).where((path) => path.endsWith('TECH_STACK.md')),
+        ['docs/specs/TECH_STACK.md'],
       );
     });
 
@@ -538,7 +600,10 @@ name: Login API
       (c) => c.path == '.specstone/.gitignore',
     );
 
-    expect(ignore.text, 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n');
+    expect(
+      ignore.text,
+      'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
+    );
   });
 
   test('the journal commits the moves, then the rewrites and '
@@ -565,6 +630,46 @@ name: Login API
     expect(commits.last.paths.toSet(), hasLength(commits.last.paths.length));
     expect(commits.every((c) => c.base == 'abc'), isTrue);
     expect(steps.indexOf(commits.first), lessThan(steps.indexOf(commits.last)));
+  });
+
+  test('the journal runs the moves in plan order, a move another waits on '
+      'just before its waiter', () async {
+    final plan = await _plan({
+      'docs/prds/d01_context.md': '# D\n',
+      'docs/prds/features/f01_alpha/FEATURE.md': '# F-01 — Alpha\n',
+      'docs/specs/INDEX.md': '''
+## Spec map
+
+| Code path | Spec path | feature_id |
+|-----------|-----------|------------|
+| `topics/shared/` | `specs/topics/shared/` | `f01_alpha` |
+| `shared/` | `specs/shared/` | — |
+''',
+      'docs/specs/shared/s01_architecture.md': '# Shared\n',
+      'docs/specs/topics/shared/s01_architecture.md': '# Alpha\n',
+    });
+
+    final steps = plan.journalSteps(
+      base: 'x',
+      projectRoot: Directory.systemTemp,
+    );
+
+    const waited = 'docs/specs/topics/shared/s01_architecture.md';
+    const waiter = 'docs/specs/shared/s01_architecture.md';
+    final planned = [
+      for (final move in plan.moves) 'docs/${move.from} -> docs/${move.to}',
+    ];
+    final journaled = [
+      for (final step in steps.whereType<MoveStep>())
+        '${step.from} -> ${step.to}',
+    ];
+    expect(journaled, planned);
+    final fromOf = [for (final move in plan.moves) 'docs/${move.from}'];
+    expect(
+      fromOf.indexOf(waited),
+      fromOf.indexOf(waiter) - 1,
+      reason: 'the waited-on move sits just before its waiter',
+    );
   });
 
   test('a binary file in a moved folder moves untouched '
@@ -813,11 +918,12 @@ name: Login API
     );
   });
 
-  test('a moved doc '
-      'that becomes typed is written laid out, its text kept', () async {
-    final plan = await _plan({
-      ...acmeLegacy,
-      'docs/prds/d03_non_functional.md': '''
+  test(
+    'a moved doc that becomes typed is written laid out, its text kept',
+    () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        'docs/prds/d03_non_functional.md': '''
 ---
 name: Acme non-functional requirements
 ---
@@ -830,14 +936,15 @@ name: Acme non-functional requirements
 |--------|-----------------------|
 | NFR-01 | Login answers in 1 s. |
 ''',
-    });
+      });
 
-    final rewrite = _rewrite(plan, 'prds/GNFR.md');
+      final rewrite = _rewrite(plan, 'prds/GNFR.md');
 
-    expect(rewrite.changes.take(2), ['title', 'name']);
-    expect(rewrite.text, contains('| ID | Requirement |\n|---|---|\n'));
-    expect(rewrite.text, contains('| NFR-01 | Login answers in 1 s. |\n'));
-  });
+      expect(rewrite.changes.take(2), ['title', 'name']);
+      expect(rewrite.text, contains('| ID | Requirement |\n|---|---|\n'));
+      expect(rewrite.text, contains('| NFR-01 | Login answers in 1 s. |\n'));
+    },
+  );
 
   test('a typed doc '
       'whose only change is its layout joins the shared line, a doc with '
@@ -855,8 +962,7 @@ name: Acme non-functional requirements
     expect(lines, contains('  prds/PROJECT.md: title, name, vision labels'));
   });
 
-  test('a doc the '
-      'format command refuses is not rewritten', () async {
+  test('a doc the format command refuses is not rewritten', () async {
     final plan = await _plan({
       ...acmeLegacy,
       'docs/specs/f01_login/DOMAIN.md': '''
@@ -1067,8 +1173,7 @@ name: NFR
   });
 
   group('agent files', () {
-    test('a '
-        'CLAUDE.md with no block gets the import block', () async {
+    test('a CLAUDE.md with no block gets the import block', () async {
       final plan = await _plan({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
 
       final agents = plan.agentFiles!;
@@ -1093,8 +1198,64 @@ name: NFR
       ]);
     });
 
-    test('a '
-        'root with no instruction file gets AGENTS.md', () async {
+    test('the block lands after exactly one blank line, in a legacy run and '
+        'an upgrade, a missing final line feed added first', () async {
+      const begin = '<!-- BEGIN specstone v$specstoneVersion -->\n';
+      final legacy = await _plan({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+      final noFinalFeed = await _plan({...acmeLegacy, 'CLAUDE.md': '# Acme'});
+      final upgrade = planUpgradeRun(
+        Directory(
+          (await writeTree({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+            'CLAUDE.md': '# Acme\n',
+          })).resolveSymbolicLinksSync(),
+        ),
+        templates: TemplateResolver(),
+        homeDirectory: null,
+      );
+
+      for (final plan in [legacy, noFinalFeed, upgrade]) {
+        final write = plan.agentFiles!.rootWrites.singleWhere(
+          (w) => w.path == 'CLAUDE.md',
+        );
+        expect(write.text, startsWith('# Acme\n\n$begin'));
+      }
+    });
+
+    test('a malformed block refuses the dry run and the apply at the plan '
+        'step, exit status 65, with nothing written', () async {
+      const malformed = '<!-- BEGIN specstone v1.2.0 -->\nbody\n';
+      final root = await gitFixture({...acmeLegacy, 'AGENTS.md': malformed});
+      final commits = git(root, ['rev-list', '--count', 'HEAD']).stdout;
+      Matcher refusal() => throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.agentBlockMalformed)
+            .having((f) => f.code.exitStatus, 'exit status', 65),
+      );
+      final out = StringBuffer();
+      Future<int> run({required bool dryRun}) => runMigrate(
+        MigrateRequest(
+          workingDirectory: root,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          dryRun: dryRun,
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          out: out,
+        ),
+      );
+
+      await expectLater(run(dryRun: true), refusal());
+      await expectLater(run(dryRun: false), refusal());
+
+      expect(out.toString(), isEmpty);
+      expect(git(root, ['rev-list', '--count', 'HEAD']).stdout, commits);
+      expect(File('${root.path}/AGENTS.md').readAsStringSync(), malformed);
+      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isFalse);
+    });
+
+    test('a root with no instruction file gets AGENTS.md', () async {
       final plan = await _plan(acmeLegacy);
 
       expect(plan.agentFiles!.rootWrites.map((w) => w.path), [
@@ -1903,6 +2064,21 @@ name: Login API
       }
       expect(storyRewrite.changes, contains('status, implements to record'));
       expect(frRewrite.changes, contains('status to record'));
+    });
+
+    test('the code_root count includes the implements entries a story moves '
+        'into the record', () async {
+      final plan = await _plan({
+        ...recorded(),
+        'code/.git/HEAD': '',
+        'code/lib/a.dart': 'class A {}\n',
+      });
+
+      final create = _configCreate(plan);
+      expect(create.text, contains('\ncode_root: code\n'));
+      expect(create.note, endsWith('; code_root code (1 of 2 paths)'));
+      expect(_createdPaths(plan), contains(recordPath));
+      expect(keysOf(_rewrite(plan, storyPath)), isNot(contains('implements')));
     });
 
     test('a tree with no status and no code path writes no record', () async {

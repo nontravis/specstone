@@ -37,8 +37,7 @@ alone can miss a root above it.
    Steps: `references/size-fix.md`.
 6. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` once per doc you
    touched, and fix each finding your edits added to the baseline; leave each whose `waitsFor` is `owner`, its line
-   ending `(waits for the Owner)`. The post-edit hook does not replace this run: it checks one doc and misses a shell
-   rewrite.
+   ending `(waits for the Owner)`.
 7. **Cite, never restate.** A rule has one owner doc. Every other doc cites it by a link to the item that holds it,
    `[<ID>](<path>#<section heading anchor>)`, or by a section or doc link when no item holds it, and states nothing
    of the rule. `specstone check` reports an old cite form as `cite_unlinked` and a link to an item its section lacks

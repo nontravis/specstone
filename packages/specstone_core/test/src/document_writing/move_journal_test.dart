@@ -187,6 +187,30 @@ final class _CreatedFiles extends IOOverrides {
   }
 }
 
+/// Runs `onCreate` with the path of each `File` the code under test makes.
+///
+/// A `File` made inside `onCreate` reaches the real file system: the hook is
+/// off while it runs.
+final class _OnCreateFile extends IOOverrides {
+  new(this._onCreate);
+
+  final void Function(String path) _onCreate;
+  var _inside = false;
+
+  @override
+  File createFile(String path) {
+    if (!_inside) {
+      _inside = true;
+      try {
+        _onCreate(path);
+      } finally {
+        _inside = false;
+      }
+    }
+    return super.createFile(path);
+  }
+}
+
 JournalTarget _target(Directory root) => JournalTarget(
   projectRoot: root,
   docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
@@ -929,6 +953,35 @@ void main() {
       );
     });
 
+    test('an unrecorded journal is refused with exit status 73', () {
+      writeJournal(root, [
+        const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
+      ], recorded: false);
+
+      expect(
+        () => MoveJournal.replay(target()),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73),
+        ),
+      );
+      expect(journalExists(), isTrue);
+    });
+
+    test('a journal read with no home folder exits 73', () {
+      writeJournal(root, [
+        const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
+      ]);
+
+      expect(
+        () => MoveJournal.replay(
+          JournalTarget.of(openProject(root), homeDirectory: null),
+        ),
+        throwsA(isA<RenderFault>().having((f) => f.exitStatus, 'exit', 73)),
+      );
+    });
+
     for (final path in [
       '../outside.md',
       'docs/../../outside.md',
@@ -1147,6 +1200,44 @@ void main() {
     expect(file.readAsStringSync(), original);
     expect(file.statSync().mode & 0x1FF, 292);
     expect(lines, ['docs/$persona is read-only; left as it is']);
+  }, skip: Platform.isWindows ? 'file modes need chmod' : null);
+
+  test('a run appends trash/ after every line a gitignore holds', () {
+    final ignore = File('${root.path}/.specstone/.gitignore')
+      ..writeAsStringSync('index.sqlite*\nmine\n# a comment\nbuild/\n');
+
+    const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
+        .run(JournalTarget.of(openProject(root), homeDirectory: testHome()));
+
+    final lines = ignore.readAsLinesSync();
+    expect(lines.take(4), ['index.sqlite*', 'mine', '# a comment', 'build/']);
+    expect(lines.skip(4), contains('trash/'));
+  });
+
+  test('a replay names a read-only file and goes on with other steps', () {
+    final file = docFile(root, persona);
+    final original = file.readAsStringSync();
+    writeJournal(root, [
+      WriteStep('docs/$persona', 'new\n', before: textHashOf(original)),
+      const WriteStep.unguarded('docs/$antiPersona', 'second\n'),
+    ]);
+    Process.runSync('chmod', ['444', file.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+    final lines = <String>[];
+
+    MoveJournal.replay(
+      JournalTarget(
+        projectRoot: root,
+        docsRoot: Directory('${root.path}/docs'),
+        homeDirectory: testHome(),
+        warn: lines.add,
+      ),
+    );
+
+    expect(lines, ['docs/$persona is read-only; left as it is']);
+    expect(file.readAsStringSync(), original);
+    expect(readDoc(root, antiPersona), 'second\n');
+    expect(journalExists(), isFalse);
   }, skip: Platform.isWindows ? 'file modes need chmod' : null);
 
   group('create and commit steps', () {
@@ -2045,6 +2136,42 @@ void main() {
     });
 
     test(
+      'a stopped run keeps its cursor in .specstone/trash/journal.cursor',
+      () {
+        stopAfterChain();
+
+        expect(
+          File('${tree.path}/.specstone/trash/journal.cursor')
+              .readAsStringSync(),
+          '2',
+        );
+      },
+    );
+
+    test('a run writes cursor 0 before it writes the journal', () {
+      Directory('${tree.path}/${MoveJournal.trashPath}')
+          .createSync(recursive: true);
+      cursorFile().writeAsStringSync('2');
+      final cursorWhenJournalWritten = <String?>[];
+      final hook = _OnCreateFile((path) {
+        final name = path.split(Platform.pathSeparator).last;
+        if (name.startsWith('.journal.json.')) {
+          cursorWhenJournalWritten.add(
+            cursorFile().existsSync() ? cursorFile().readAsStringSync() : null,
+          );
+        }
+      });
+
+      IOOverrides.runWithIOOverrides(
+        () => const MoveJournal(chain).run(_target(tree)),
+        hook,
+      );
+
+      expect(cursorWhenJournalWritten, ['0']);
+      expectChainLanded();
+    });
+
+    test(
       'a run resets a cursor file no journal owns before its first step',
       () {
         Directory('${tree.path}/${MoveJournal.trashPath}')
@@ -2215,6 +2342,11 @@ void main() {
         expect(dirExists('.specstone/trash'), isFalse);
       });
     }
+
+    refuses(
+      'a reorder that re-stamps an approved doc',
+      (s) => answerReorder(s, 'feature:signup', place: '1'),
+    );
 
     test('a reorder to the same place writes no journal and is unaffected', () {
       final answer = writeInNoHome(

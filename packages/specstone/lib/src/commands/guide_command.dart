@@ -156,14 +156,16 @@ class GuideCommand extends SpecstoneCommand {
       return 0;
     }
     final roots = locateReadRoots(specstoneRunner.workingDirectory);
+    final projectRoot = roots?.projectRoot;
     try {
       final answer = answerOut(
         command: 'guide',
         text: text,
         outPath: outPath,
-        projectRoot: roots?.projectRoot,
+        projectRoot: projectRoot,
         docsRoot: roots?.docsRoot,
         asJson: asJson,
+        cleanup: projectRoot == null ? null : readCleanupBounds(projectRoot),
         flags: [if (isPattern) 'pattern'],
         args: rest,
       );
