@@ -305,7 +305,8 @@ String bundleIndex(ContextAnswer answer, String shownPath, {String? refsPath}) {
 /// object of the same shape, `{out, tokens, lines, docs}`, for the file saved
 /// at [refsPath]. A design answer also lists its feature pattern parts under
 /// `featurePatterns`, as `{id, doc, lines}`; `docs` lists no part but an
-/// appended one.
+/// appended one or an ancestor spec piece, whose entry has `cited: false` and
+/// `cites: true` when inbound.
 Map<String, Object> bundleIndexJson(
   ContextAnswer answer,
   String shownPath, {
@@ -381,7 +382,10 @@ Map<String, Object> _fileJson(
   'lines': _lineCountOf(file.text),
   'docs': [
     for (final entry in file.entries)
-      if (entry.kind case BundleEntryKind.doc || BundleEntryKind.cited)
+      if (entry.kind
+          case BundleEntryKind.doc ||
+              BundleEntryKind.cited ||
+              BundleEntryKind.cites)
         {
           'name': entry.doc.name,
           'docType': ?entry.doc.docTypeId,
@@ -389,6 +393,7 @@ Map<String, Object> _fileJson(
           'lines': [entry.first, entry.last],
           'summary': entry.summary,
           'cited': entry.kind == BundleEntryKind.cited,
+          if (entry.kind == BundleEntryKind.cites) 'cites': true,
           'sections': [
             for (final section in entry.sections)
               {'key': section.key, 'first': section.first},
@@ -401,8 +406,9 @@ Map<String, Object> _fileJson(
 /// kind's mark, and ` · <key> <first>, …` for [entry]'s sections when
 /// [withSections].
 ///
-/// The kind's mark is `cited <section key> [<ID>]` for an appended part,
-/// `cited by [<ID>]`, `cited by [#<section key>]`, or `cited by` for a
+/// The kind's mark is `cited <section key> [<ID>]` for an appended part or an
+/// outbound ancestor spec piece, `cites <section key> [<ID>]` for an inbound
+/// one, `cited by [<ID>]`, `cited by [#<section key>]`, or `cited by` for a
 /// cited-by part, and `names` for a names block. A feature pattern part's line
 /// is its list name, then ` · <first>-<last>`.
 String _indexLine(BundleEntry entry, {required bool withSections}) {
@@ -422,17 +428,16 @@ String _indexLine(BundleEntry entry, {required bool withSections}) {
 }
 
 String? _kindMark(BundleEntry entry) => switch (entry.kind) {
-  BundleEntryKind.cited => _citedField(entry),
+  BundleEntryKind.cited => _citedField(entry, 'cited'),
+  BundleEntryKind.cites => _citedField(entry, 'cites'),
   BundleEntryKind.citedBy => _citedByField(entry),
   BundleEntryKind.names => 'names',
-  BundleEntryKind.doc ||
-  BundleEntryKind.pattern ||
-  BundleEntryKind.cites => null,
+  BundleEntryKind.doc || BundleEntryKind.pattern => null,
 };
 
-/// Returns `cited`, with the section key and `[<ID>]` [entry] names.
-String _citedField(BundleEntry entry) => [
-  'cited',
+/// Returns [word], with the section key and `[<ID>]` [entry] names.
+String _citedField(BundleEntry entry, String word) => [
+  word,
   ?entry.sectionKey,
   if (entry.itemId != null) '[${entry.itemId}]',
 ].join(' ');

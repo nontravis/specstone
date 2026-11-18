@@ -9,6 +9,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
 
+import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -1670,6 +1671,70 @@ void main() {
       expect(fileLines[at(3)], '## Verification matrix');
       expect(fileLines[at(4)], '## Notes');
       expect(fileLines[at(2)], 'See the rows.');
+    });
+  });
+
+  group('context design --out splits the ancestor spec docs and their pieces', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    test('context design out on a story writes ancestor spec docs to the refs file and their pieces to the read-first file', () async {
+      final project = await writeReadProject(
+        extra: {
+          'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md': '# Validate credentials\n\n## Statement\nThe system shall check the email, by [INV-1](../../../../specs/f01_login/DOMAIN.md#invariants).\n',
+          'docs/specs/f01_login/DOMAIN.md': '# Login domain\n\n## Invariants\n- **INV-1** An account has an email.\n- **INV-2** An account has a password.\n',
+          'docs/specs/f01_login/API.md':
+              '# Login API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+              '| [validate](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md) | `signIn` |\n'
+              '| other | `signOut` |\n',
+        },
+      );
+      final run = await Process.run(binary, [
+        'context',
+        'login/email_login',
+        '--for',
+        'design',
+        '--out',
+      ], workingDirectory: project.path);
+      expect(run.exitCode, 0, reason: '${run.stderr}');
+
+      final folder = '${project.path}/.specstone/bundles';
+      final readFirst = File('$folder/login-email_login.design.txt')
+          .readAsStringSync();
+      final refs = File('$folder/login-email_login.design.refs.txt')
+          .readAsStringSync();
+      const domain = '==> login (domain) · specs/f01_login/DOMAIN.md';
+      const api = '==> login (api) · specs/f01_login/API.md';
+      expect(refs, contains('$domain <==\n# Login domain'));
+      expect(refs, contains('$api <==\n# Login API'));
+      expect(readFirst, isNot(contains('$domain <==')));
+      expect(
+        readFirst,
+        contains('$domain#invariants · item INV-1 · cited <=='),
+      );
+      expect(readFirst, contains('$api#fr_trace · cites <=='));
+      expect(readFirst, isNot(contains('INV-2')));
+      expect(readFirst, isNot(contains('signOut')));
+      final stdout = run.stdout as String;
+      expect(
+        stdout,
+        matches(
+          RegExp(
+            r'^- login \(domain\) · \d+-\d+ · cited invariants \[INV-1\]',
+            multiLine: true,
+          ),
+        ),
+      );
+      expect(
+        stdout,
+        matches(
+          RegExp(
+            r'^- login \(api\) · \d+-\d+ · cites fr_trace',
+            multiLine: true,
+          ),
+        ),
+      );
     });
   });
 }
