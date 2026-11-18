@@ -7,8 +7,10 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/relative_link.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
+import '../../helpers/temp_tree.dart';
 
 typedef _Run = ({int code, String out, String err});
 
@@ -419,4 +421,36 @@ void main() {
       expect(result.err, '$file: $file holds no block\n');
     });
   });
+
+  test('a batch in a project whose roots wait for the trust record of the Owner refuses output_not_writable, exit 73, naming the journal, and leaves the linked docs as they are', () async {
+    final base = await writeTree({
+      for (final MapEntry(:key, :value) in writeProject.entries)
+        if (key.startsWith('docs/'))
+          'ext/${key.substring(5)}': value
+        else
+          'src/clone/$key': value,
+    });
+    createRelativeLink('${base.path}/src/clone/docs', '../../ext');
+    final clone = Directory('${base.path}/src/clone');
+    final before = treeBytes(Directory('${base.path}/ext'));
+    final text = edit(
+      await getText(clone, [story1]),
+      'Sign in with an email.',
+      'Sign in with a passkey.',
+    );
+    final file = await batchFile(text);
+
+    final result = await specstone(clone, ['set', '--batch', file, '--json']);
+
+    expect(result.code, 73, reason: result.err);
+    expect(result.out, isEmpty);
+    final error = decode(result.err)['error']! as Map;
+    expect(error['code'], 'output_not_writable');
+    expect(error['file'], MoveJournal.journalPath);
+    expect(
+      error['message'],
+      endsWith('run specstone trust at a terminal to allow it'),
+    );
+    expect(treeBytes(Directory('${base.path}/ext')), before);
+  }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : false);
 }

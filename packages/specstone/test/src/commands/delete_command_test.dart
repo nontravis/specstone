@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone/src/command_runner.dart';
+import 'package:specstone_core/specstone_core.dart' show TemplateResolver;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
@@ -522,6 +524,42 @@ void main() {
       expect(secondOut.toString(), isEmpty);
       expect(errorOf(secondErr)['code'], 'doc_not_found');
       expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
+    });
+
+    test('a guarded delete with no home folder refuses output_not_writable, '
+        'exit 73, and lists no file and asks nothing', () async {
+      final root = await writeWriteProject();
+      final out = StringBuffer();
+      final err = StringBuffer();
+      var asked = 0;
+      final runner = SpecstoneCommandRunner(
+        out: out,
+        err: err,
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['y'],
+          onReadLine: (_) => asked++,
+        ),
+        environment: const {},
+      );
+
+      expect(await runner.run(['delete', fr11Target, '--json']), 73);
+
+      expect(out.toString(), isEmpty);
+      expect(asked, 0);
+      final error = errorOf(err);
+      expect(error['code'], 'output_not_writable');
+      expect(error['file'], '.specstone/trash/journal.json');
+      expect(
+        error['message'],
+        'cannot write .specstone/trash/journal.json: no home folder to record '
+        'it in',
+      );
+      expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
     });
 
     test('--yes --plan never prompts at an interactive terminal', () async {
