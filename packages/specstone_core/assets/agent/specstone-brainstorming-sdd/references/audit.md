@@ -29,6 +29,8 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each lens:
 - **Decision dropped:** a decision, ruling, or Docs to change row of the design document no target doc carries, or a
   draft that departs from its decision. Report one gap in each doc it misses, naming the draft (or the design's owner
   doc) and the decision; no other lens repeats it there, and a drop in another doc is a sibling (last bullet).
+  A draft still stating a removed decision's rule is a gap of that decision's stub row. A stub row whose sections
+  hold none of its text is no gap.
 - **Requirement invented:** a draft story, FR, NFR, or section of one tracing to no decision.
 - **PRD and spec apart:** a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for.
 - **Docs contradict:** two docs that state different values or behavior for one thing; name both.
@@ -80,5 +82,5 @@ Outside the drafts:
   `(waits for the Owner)`.
 - **`Outside the drafts:`**: each gap or `check` finding whose fix lies in no draft; each target
   that is no draft, and each name dropped from the `get` call; and each whole draft story or FR that is invented,
-  marked as a deletion for the Owner.
+  marked as a deletion for the Owner; a stub row is never one.
 - **An empty heading:** write `none` under it.
