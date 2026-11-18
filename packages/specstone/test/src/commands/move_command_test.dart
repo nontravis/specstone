@@ -256,20 +256,28 @@ void main() {
     expect(readDoc(root, shopApi), isNot(contains('\n\n\n')));
   });
 
-  test('move lays out the docs it rewrites and adds no missing section to '
-      'them', () async {
-    final root = await writeNestedProject();
+  test('move lays out a doc it rewrites that lacks required sections and '
+      'adds none of them', () async {
+    const lacking = 'prds/features/f02_shop/f02_pay/us01_card/fr01_note.md';
+    final root = await writeNestedProject(
+      extra: {
+        'docs/$lacking':
+            '---\ndraft: true\ntraced_from: S1\nverify_method: test\n---\n\n'
+            '# Note\n\n## Statement\n\n\n\n'
+            'The system shall add an item. See '
+            '[add](../../f01_cart/us01_add_item/USER_STORY.md).\n\n\n',
+      },
+    );
     List<String> headersOf(String docPath) => RegExp(
       r'^## .*$',
       multiLine: true,
     ).allMatches(readDoc(root, docPath)).map((match) => match[0]!).toList();
-    final apiBefore = headersOf(shopApi);
-    final storyBefore = headersOf('$addItemFolder/USER_STORY.md');
+    expect(headersOf(lacking), ['## Statement']);
     final (:runner, :out, :err) = writeRunner(root);
     expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 0);
-    expect(out.toString(), contains('rewrote $shopApi\n'));
-    expect(headersOf(shopApi), apiBefore);
-    expect(headersOf('$movedFolder/USER_STORY.md'), storyBefore);
+    expect(out.toString(), contains('rewrote $lacking\n'));
+    expect(readDoc(root, lacking), isNot(contains('\n\n\n')));
+    expect(headersOf(lacking), ['## Statement']);
   });
 
   test('move sets a link text equal to the old Name to the '
