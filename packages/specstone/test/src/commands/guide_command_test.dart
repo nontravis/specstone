@@ -2172,7 +2172,7 @@ items:
           stringContainsInOrder([
             'A journey: ',
             'Keep one goal of one persona, from the start',
-            '## Goal\n\nRequired section.\n',
+            '## Goal\n\nRequired section. Limits: at most 1 line.\n',
             '## Flow\n\nRequired section.\n',
             '## Steps\n\nRequired section.\n',
           ]),
@@ -2190,9 +2190,9 @@ items:
         out.toString(),
         stringContainsInOrder([
           'The project glossary doc: ',
-          'Keep each entry to 300 characters or fewer',
-          '## Terms\n\nOptional section.\n',
-          '- **<Term>** — <one-line definition tying to a concrete entity>',
+          'at most 300 characters per item',
+          '## Terms\n\nOptional section. Limits: at most 1 line per item.\n',
+          '- **<Term>** — <definition tying to a concrete entity>',
         ]),
       );
       expect(err.toString(), isEmpty);
