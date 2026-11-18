@@ -840,6 +840,49 @@ sections:
       expect(guide, 'A.\n\n## S\n\nOptional section.\n');
     });
 
+    const conditionLines = {
+      '{id: s, header: S}': 'Optional section.',
+      '{id: s, header: S, required: true}': 'Required section.',
+      '{id: s, header: S, required: true, '
+              'when_field: {field: kind, values: [a]}}':
+          'Required when `kind` is `a`; left out otherwise.',
+      '{id: s, header: S, when_field: {field: kind, values: [a]}}':
+          'Optional when `kind` is `a`; left out otherwise.',
+      '{id: s, header: S, required: true, '
+              'when_field: {field: kind, values: [a, b]}}':
+          'Required when `kind` is `a` or `b`; left out otherwise.',
+      '{id: s, header: S, required: true, '
+              'when_field: {field: kind, values: [a, b, c]}}':
+          'Required when `kind` is `a`, `b`, or `c`; left out otherwise.',
+      '{id: s, header: S, required: true, lint: '
+              '{required_when: {section: api, field: Kind, value: rest}}}':
+          'Required when a `Interfaces` item holds `Kind: rest`; '
+          'left out otherwise.',
+      '{id: s, header: S, lint: '
+              '{required_when: {section: api, field: Kind, value: rest}}}':
+          'Required when a `Interfaces` item holds `Kind: rest`; '
+          'left out otherwise.',
+      '{id: s, header: S, required: true, '
+              'when_field: {field: kind, values: [a, b]}, lint: '
+              '{required_when: {section: api, field: Kind, value: rest}}}':
+          'Required when `kind` is `a` or `b` and a `Interfaces` item holds '
+          '`Kind: rest`; left out otherwise.',
+    };
+    for (final MapEntry(key: section, value: line) in conditionLines.entries) {
+      test('a section $section prints "$line" under its header', () {
+        final guide = _merge(
+          'description: A.\npath: a.md\n'
+          'sections: [{id: api, header: Interfaces}, $section]',
+        ).renderGuide();
+
+        expect(
+          guide,
+          'A.\n\n## Interfaces\n\nOptional section.\n\n'
+          '## S\n\n$line\n',
+        );
+      });
+    }
+
     test('an empty doc description adds no blank paragraph', () {
       final guide = _merge(
         "description: ''\npath: a.md\nsections: [{id: s, header: S}]",

@@ -728,12 +728,15 @@ void main() {
           for (final section
               in (json['sections']! as List<Object?>)
                   .cast<Map<String, Object?>>()) {
-            final mark = section['required'] == true
-                ? 'Required section.'
-                : 'Optional section.';
+            final isConditional =
+                section['whenField'] != null || section['requiredWhen'] != null;
+            final isRequired =
+                section['required'] == true || section['requiredWhen'] != null;
+            final word = isRequired ? 'Required' : 'Optional';
+            final mark = isConditional ? '$word when ' : '$word section.\n';
             expect(
               text,
-              contains('## ${section['header']}\n\n$mark\n'),
+              contains('## ${section['header']}\n\n$mark'),
               reason: '$id.${section['id']}',
             );
           }
@@ -1324,6 +1327,46 @@ items:
       expect(error['code'], 'unknown_value');
       expect(error['file'], disabledFile);
       expect(error['key'], 'sections.out_of_scope');
+    });
+  });
+
+  group('specstone guide in the built CLI with a conditional section', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    test('anti_persona prints a condition line, not a required mark, under '
+        'each section its anti_type binds', () async {
+      final project = await writeTree({_configPath: shippedPinsConfig()});
+
+      final result = await Process.run(binary, [
+        'guide',
+        'anti_persona',
+      ], workingDirectory: project.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final sections = {
+        for (final block in (result.stdout as String).split('\n## ').skip(1))
+          block.split('\n').first: block,
+      };
+      const bound = [
+        'Motivations',
+        'Actions',
+        'Tools',
+        'Needs',
+        'Consequences',
+      ];
+      for (final header in bound) {
+        expect(
+          sections[header],
+          startsWith(
+            '$header\n\nRequired when `anti_type` is `misuser`; '
+            'left out otherwise.\n',
+          ),
+          reason: header,
+        );
+        expect(sections[header], isNot(contains('Required section.')));
+      }
     });
   });
 
