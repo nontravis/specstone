@@ -492,12 +492,17 @@ final class CheckContext {
   void state(String warning) => _stated.add(warning);
 
   /// The session's warnings that no finding stated, in session order.
+  ///
+  /// A file read through its target and through the project root, when the
+  /// code root is the project root, warns once.
   List<String> get unstatedWarnings => [
     for (final warning in _session.warnings)
       if (!_stated.contains(warning)) warning,
-    for (final MapEntry(key: (target, path), value: reason)
-        in _unreadable.entries)
-      _unreadableWarning(target, path, reason),
+    ...{
+      for (final MapEntry(key: (target, path), value: reason)
+          in _unreadable.entries)
+        _unreadableWarning(target, path, reason),
+    },
     ..._codeWarnings,
   ];
 

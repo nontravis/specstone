@@ -400,7 +400,7 @@ void main() {
 
     test('of a doc in no code target takes the fingerprint of its file '
         'from the project root, so the next check finds no code link to '
-        'compare', () async {
+        'compare, and counts in no entry count', () async {
       final project = await writeCheckProject(
         extra: {
           '.specstone/config.yaml': '${skillPinsConfig()}code_root: code\n',
@@ -418,7 +418,7 @@ void main() {
 
       expect(
         step.stepLine(from: _from, step: _step).text,
-        'from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries',
+        'from 1.6.0: stamp_code_fingerprints: 1 docs; 0 entries',
       );
       expect(
         _read(project, skillDoc),
@@ -427,7 +427,7 @@ void main() {
       expect(_codeFindings(await _check(project)), isEmpty);
     });
 
-    test('with two code targets counts for no target', () async {
+    test("with two code targets counts in no target's entry count", () async {
       final project = await writeTwinProject(
         extra: {
           '.specstone/config.yaml':

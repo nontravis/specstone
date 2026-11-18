@@ -72,16 +72,17 @@ final class _Stamp {
 /// check's own selection, and the code hashed by its own read, each code
 /// file through [readPlanInput], so the plan hash covers the code it stamps.
 final class CodeStampStep {
-  new _(this.rewrites, this.unreadable, this._entries, this._projectEntries);
+  new _(this.rewrites, this.unreadable, this._entries);
 
   /// Plans the step over the [docs] of the run, as the steps before it left
   /// them, in each of [targets], their code roots read from [projectRoot].
   ///
   /// A link takes its fingerprint after one space, in place of any it ends
   /// in. A `root: project` entry reads from [projectRoot], whatever its doc's
-  /// target. A `planned` entry, a waiting target's `covers:` entry, an entry
-  /// whose path names nothing, and one whose code cannot be read stay as
-  /// written and are not counted; no other entry of a doc changes.
+  /// target, and counts for no target. A `planned` entry, a waiting target's
+  /// `covers:` entry, an entry whose path names nothing, and one whose code
+  /// cannot be read stay as written and are not counted; no other entry of a
+  /// doc changes.
   ///
   /// With [restamp], a link that records no fingerprint, or one that differs
   /// from its code's fingerprint under the earlier rule, stays as written too.
@@ -101,17 +102,13 @@ final class CodeStampStep {
     final reader = _CodeReader(projectRoot, targets);
     final rewrites = <String, String>{};
     final entries = {for (final target in targets) target: 0};
-    var projectEntries = 0;
     for (final doc in docs) {
       final stamps = _stampsOf(read, work, reader, doc, restamp: restamp);
       final (:lf, :applied) = _withStamps(doc.lf, stamps);
       if (lf != doc.lf) rewrites[doc.docPath] = lf;
       for (final stamp in applied) {
-        switch (stamp.target) {
-          case final target?:
-            entries[target] = entries[target]! + 1;
-          case null:
-            projectEntries++;
+        if (stamp.target case final target?) {
+          entries[target] = entries[target]! + 1;
         }
       }
     }
@@ -119,7 +116,6 @@ final class CodeStampStep {
       rewrites,
       reader.unreadable.toList()..sort(compareCodePoints),
       entries,
-      projectEntries,
     );
   }
 
@@ -133,25 +129,21 @@ final class CodeStampStep {
   /// The entries stamped in each target, in config order.
   final Map<CodeTarget, int> _entries;
 
-  /// The `root: project` entries stamped, which count for no target.
-  final int _projectEntries;
-
   /// The DocPath of each doc the step rewrites, in code point order.
   List<String> get paths => rewrites.keys.toList()..sort(compareCodePoints);
 
   /// The step line of the migration entry `from:` [from], [step] naming it.
   ///
-  /// The counts read `; <k> entries`, every stamped entry, or
-  /// `; <target>: <k> entries` per target with two or more, where a
-  /// `root: project` entry counts for no target; then `; unreadable: <u>`
-  /// when a file cannot be read.
+  /// The counts read `; <k> entries`, or `; <target>: <k> entries` per target
+  /// with two or more, then `; unreadable: <u>` when a file cannot be read.
+  /// A `root: project` entry counts in neither form.
   UpgradeStepLine stepLine({required String from, required String step}) {
     final counts = _entries.length > 1
         ? [
             for (final MapEntry(key: target, value: count) in _entries.entries)
               '${target.name}: $count',
           ]
-        : ['${_entries.values.fold(_projectEntries, (sum, n) => sum + n)}'];
+        : ['${_entries.values.fold(0, (sum, count) => sum + count)}'];
     return UpgradeStepLine(
       from: from,
       step: step,

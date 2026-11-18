@@ -739,6 +739,28 @@ void main() {
       });
     });
 
+    test('is read in a run one code target limits', () async {
+      final project = await writeTwinProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${skillPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_ws\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          ...skillDocFile(['$skillFile $_stale']),
+          skillFile: skillText,
+        },
+      );
+
+      for (final target in ['flutter', 'jaspr']) {
+        final report = await _run(project, codeTarget: target);
+        expect(
+          [for (final f in _suspects(report)) '${f.path}: ${f.keys['path']}'],
+          ['$skillDoc: $skillFile'],
+          reason: target,
+        );
+      }
+    });
+
     test('of a project doc type naming a folder hashes each file by its path '
         'from the project root', () async {
       const tool = 'tools/run.sh';
@@ -903,6 +925,32 @@ void main() {
       final project = await _project(
         _record(),
         extra: _covering('  - $_login $_stale\n'),
+      );
+      final path = '${project.path}/$_login';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+      final report = await _run(project);
+
+      expect(report.warnings.where((w) => w.startsWith('$_login: cannot')), [
+        '$_login: $_unreadableLinks',
+        '$_login: cannot read the file; doc names in it are not checked',
+      ]);
+    },
+  );
+
+  test(
+    'an unreadable file a code-root and a root: project covers entry both '
+    'reach, the code root at the project root, gives the warning once',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await _project(
+        _record(),
+        extra: {
+          '.specstone/config.yaml': skillPinsConfig(),
+          ..._covering('  - $_login $_stale\n'),
+          ...skillDocFile(['$_login $_stale']),
+        },
       );
       final path = '${project.path}/$_login';
       Process.runSync('chmod', ['000', path]);
