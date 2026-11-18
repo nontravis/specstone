@@ -29,6 +29,7 @@ void main() {
       'prefix_count_mismatch',
       'lines_under_limit',
       'subsections_over_limit',
+      'item_lines_over_limit',
       'words_over_limit',
       'sentence_chars_over_limit',
       'trace_note_not_last',

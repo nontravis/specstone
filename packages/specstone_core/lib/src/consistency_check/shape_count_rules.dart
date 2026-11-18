@@ -5,8 +5,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// Returns the sentence, item-count, line-floor, and subsection-cap findings
-/// of a typed [doc]; an untyped doc has none.
+/// Returns the sentence, item-count, line-floor, subsection-cap, and
+/// item-line-cap findings of a typed [doc]; an untyped doc has none.
 ///
 /// An item is a top-level list item, table row, paragraph, or `###` heading
 /// with the paragraph under it; a nested item and fenced code are none. A
@@ -39,8 +39,19 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
     final limits = template.maxSentences ?? const <SentenceLimit>[];
     final count = template.itemCount;
     final maxSubsections = template.maxSubsections;
-    if (limits.isEmpty && count == null && maxSubsections == null) continue;
+    final maxItemLines = template.maxItemLines;
+    if (limits.isEmpty &&
+        count == null &&
+        maxSubsections == null &&
+        maxItemLines == null) {
+      continue;
+    }
     final section = _Block(_heldItemsIn(context, doc, i));
+    if (maxItemLines != null) {
+      yield* _itemLineFindings(context, doc, template.id, [
+        for (final held in section.readable) held.item,
+      ], maxItemLines);
+    }
     if (maxSubsections != null) {
       yield* _subsectionLimitFindings(
         context,
@@ -77,6 +88,33 @@ Iterable<Finding> _subsectionLimitFindings(
     message: 'section $sectionId has $actual subsections; the limit is $limit',
     keys: {'section': sectionId, 'limit': limit, 'actual': actual},
   );
+}
+
+/// Returns a finding for each of [items] with more non-blank lines of its own
+/// than [limit].
+///
+/// A `###` heading item counts its paragraph alone. A nested item and a fenced
+/// block sit outside an item's text, so they add no line.
+Iterable<Finding> _itemLineFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  String sectionId,
+  List<SectionItem> items,
+  int limit,
+) sync* {
+  for (final item in items) {
+    final lines = item.text.split('\n');
+    final own = item.kind == SectionItemKind.heading ? lines.skip(1) : lines;
+    final actual = own.where((line) => line.trim().isNotEmpty).length;
+    if (actual <= limit) continue;
+    yield context.finding(
+      doc,
+      FindingKind.itemLinesOverLimit,
+      line: item.line,
+      message: 'item has $actual lines; the limit is $limit',
+      keys: {'section': sectionId, 'limit': limit, 'actual': actual},
+    );
+  }
 }
 
 /// Returns the items of the held section at [index] of [doc], each with the
