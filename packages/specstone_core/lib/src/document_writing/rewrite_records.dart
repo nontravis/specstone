@@ -5,6 +5,8 @@ import 'package:specstone_core/src/document_writing/models/new_record.dart';
 import 'package:specstone_core/src/document_writing/models/record_plan.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/models/text_edit.dart';
+import 'package:specstone_core/src/document_writing/move_item.dart'
+    show ItemLanding;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
@@ -12,12 +14,15 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+
+const _edgeCasesKey = 'edge_cases';
 
 /// Where a story or FR entry goes: the feature whose record takes it, and its
 /// name relative to that feature.
@@ -97,13 +102,132 @@ RecordPlan planRecordRewrites(WriteSession session, RenamedNames renamed) {
   return _Planner(session, recordType, renamed).plan();
 }
 
+/// Where a matrix row's edge case lands: the requirement's feature and name
+/// relative to it, and the edge case's ID there.
+final class _RowMove {
+  const new({required this.target, required this.edgeCase});
+
+  final _Landing target;
+  final String edgeCase;
+}
+
+/// What the moved edge cases do to the rows of one record's matrix: the new
+/// text of each row that stays in it, by file line index, and the rows that
+/// leave it for the record of another feature.
+final class _RowChanges {
+  const new({required this.rewritten, required this.leaving});
+
+  final Map<int, String> rewritten;
+  final Map<int, _RowLeaving> leaving;
+
+  bool get isEmpty => rewritten.isEmpty && leaving.isEmpty;
+}
+
+/// A matrix row that leaves its record: the feature it lands in, and the row.
+final class _RowLeaving {
+  const new({required this.feature, required this.row});
+
+  final IndexedDoc feature;
+  final String row;
+}
+
+/// Returns the record edits and the new records that follow the edge cases
+/// [landings] move, each row of a matrix that names one set to name it at its
+/// target requirement and new number.
+///
+/// A row keeps its literal, reason, and fingerprint. A row whose edge case
+/// lands in a requirement of another feature leaves its record for that
+/// feature's, in the same target, as [planRecordRewrites] carries an item's
+/// rows; a landing feature with no record in that target gets one, as a draft.
+/// A row that names an edge case which stays keeps its text. Throws
+/// [RenderFault] `output_not_writable` as [planRecordRewrites] does.
+RecordPlan planEdgeCaseRowMoves(
+  WriteSession session,
+  List<ItemLanding> landings,
+) {
+  final recordType = session.index.set.recordDocType;
+  final moves = _rowMovesOf(session.index, landings);
+  if (recordType == null || moves.isEmpty) {
+    return const RecordPlan(edits: {}, creates: []);
+  }
+  return _Planner(
+    session,
+    recordType,
+    const RenamedNames({}),
+    rowMoves: moves,
+  ).plan();
+}
+
+/// Returns the row move of each edge case [landings] move, by the DocPath of
+/// the feature of its source requirement, then by the `<item> <edge case>` a
+/// row that names it opens with.
+Map<String, Map<String, _RowMove>> _rowMovesOf(
+  DocIndex index,
+  List<ItemLanding> landings,
+) {
+  final moves = <String, Map<String, _RowMove>>{};
+  for (final landing in landings) {
+    if (landing.sectionKey != _edgeCasesKey ||
+        landing.from.doc.docTypeId != frType) {
+      continue;
+    }
+    final source = _landingOf(index, landing.from.doc, const RenamedNames({}));
+    final target = _landingOf(index, landing.to, const RenamedNames({}));
+    if (source == null || target == null) continue;
+    (moves[source.feature.docPath] ??=
+        {})['${source.name} ${landing.from.id}'] = _RowMove(
+      target: target,
+      edgeCase: landing.newId,
+    );
+  }
+  return moves;
+}
+
+/// Returns what [moves] do to the rows of [lfText], a record of [feature].
+_RowChanges _rowChangesOf(
+  String lfText,
+  MergedDocType recordType,
+  Map<String, _RowMove> moves,
+  IndexedDoc feature,
+) {
+  final lines = lfText.split('\n');
+  final rewritten = <int, String>{};
+  final leaving = <int, _RowLeaving>{};
+  for (final row in matrixLinesIn(lfText, recordType).whereType<MatrixRow>()) {
+    final move = moves['${row.item} ${row.edgeCase}'];
+    if (move == null) continue;
+    final at = row.line - 1;
+    final rest = lines[at].substring(
+      2 + row.item.length + 1 + row.edgeCase.length,
+    );
+    final moved = '- ${move.target.name} ${move.edgeCase}$rest';
+    if (move.target.feature.docPath == feature.docPath) {
+      rewritten[at] = moved;
+    } else {
+      leaving[at] = _RowLeaving(feature: move.target.feature, row: moved);
+    }
+  }
+  return _RowChanges(rewritten: rewritten, leaving: leaving);
+}
+
+/// Returns [lfText] with the rows [changes] rewrite set and the rows it
+/// leaves dropped; every other line stays as written.
+String _withRowChanges(String lfText, _RowChanges changes) => [
+  for (final (at, line) in lfText.split('\n').indexed)
+    if (!changes.leaving.containsKey(at)) changes.rewritten[at] ?? line,
+].join('\n');
+
 /// Plans the entries of every record of one rename or move.
 final class _Planner {
-  new(this.session, this.recordType, this.renamed);
+  new(this.session, this.recordType, this.renamed, {this.rowMoves = const {}});
 
   final WriteSession session;
   final MergedDocType recordType;
   final RenamedNames renamed;
+
+  /// The moved edge cases, by the DocPath of the feature whose records name
+  /// their requirement, then by the `<item> <edge case>` a row opens with.
+  final Map<String, Map<String, _RowMove>> rowMoves;
   final _edits = <String, TextEdit>{};
   final _arrivals = <_ArrivalKey, _Arrival>{};
 
@@ -113,7 +237,9 @@ final class _Planner {
     for (final record in _index.docs) {
       if (record.docTypeId != recordType.id) continue;
       final feature = _index.parentOf(record);
-      if (feature != null) _planSource(record, feature);
+      if (feature == null) continue;
+      _planSource(record, feature);
+      _planRows(record, feature);
     }
     final creates = <CreateStep>[];
     for (final arrival in _arrivals.values) {
@@ -160,6 +286,41 @@ final class _Planner {
       _arrivals
           .putIfAbsent(key, () => _Arrival(landing, record.target))
           .take(lines);
+    }
+  }
+
+  /// Plans the matrix rows of [record], the record of [feature], that name a
+  /// moved edge case, and notes the rows that arrive in another feature's
+  /// record.
+  void _planRows(IndexedDoc record, IndexedDoc feature) {
+    final moves = rowMoves[feature.docPath];
+    final bytes = moves == null ? null : session.readDocBytes(record.docPath);
+    if (moves == null || bytes == null) return;
+    final changes = _rowChangesOf(
+      toLf(utf8.decode(bytes)),
+      recordType,
+      moves,
+      feature,
+    );
+    if (changes.isEmpty) return;
+    final prior = _edits[record.docPath];
+    _edits[record.docPath] = (text) {
+      final earlier = prior?.call(text);
+      final current = earlier ?? text;
+      final rewritten = _withRowChanges(
+        current,
+        _rowChangesOf(current, recordType, moves, feature),
+      );
+      return rewritten == current ? earlier : rewritten;
+    };
+    for (final leaving in changes.leaving.values) {
+      final key = _ArrivalKey(
+        featurePath: leaving.feature.docPath,
+        target: record.target,
+      );
+      _arrivals
+          .putIfAbsent(key, () => _Arrival(leaving.feature, record.target))
+          .take(RecordLines(rows: [leaving.row]));
     }
   }
 

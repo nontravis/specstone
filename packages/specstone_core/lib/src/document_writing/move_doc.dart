@@ -462,20 +462,45 @@ ReadAnswer answerItemMove(
   }
   return session.locked(() {
     session.journalTarget.requireTrusted();
-    final refs = planItemRefs(session, landings);
+    final planned = planItemRefs(session, landings);
+    final records = planEdgeCaseRowMoves(session, landings);
+    final refs = ItemRefs(
+      edits: _chained(planned.edits, records.edits),
+      listed: planned.listed,
+    );
     final rewrites = planRewrites(session, const [], docEdits: refs.edits);
     final mentions = itemMentions(session, landings, refs: refs);
-    if (!dryRun) MoveJournal(rewrites).run(session.journalTarget);
+    if (!dryRun) {
+      MoveJournal([...rewrites, ...records.creates]).run(session.journalTarget);
+    }
     return _answerFor(
       session,
       const [],
       rewrites,
+      created: records.creates,
       mentions: mentions,
       landings: landings,
       dryRun: dryRun,
     );
   });
 }
+
+/// Returns [first] and [then] by DocPath, the edit of a doc in both running
+/// [first] and then [then] on its result.
+Map<String, TextEdit> _chained(
+  Map<String, TextEdit> first,
+  Map<String, TextEdit> then,
+) => {
+  ...first,
+  for (final MapEntry(key: path, value: next) in then.entries)
+    path: switch (first[path]) {
+      final earlier? => (lfText) {
+        final written = earlier(lfText);
+        return next(written ?? lfText) ?? written;
+      },
+      null => next,
+    },
+};
 
 /// Returns, by DocPath before the move, the edit that sets each of [moving]
 /// FRs' own scenario traces for its move into [newParent].

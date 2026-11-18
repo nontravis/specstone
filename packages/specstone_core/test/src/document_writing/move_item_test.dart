@@ -1141,4 +1141,83 @@ void main() {
       });
     });
   });
+
+  group('an edge case move rewrites the record rows that name it', () {
+    const dropFr =
+        'prds/features/f02_shop/f01_cart/us01_add_item/fr02_drop_stock.md';
+    const chargeFr = 'prds/features/f02_shop/f02_pay/us01_card/fr01_charge.md';
+    const matrix = '\n## Verification matrix\n\n';
+    const soldOutRow = '- add_item/check_stock E01: `refuses a sold-out item`';
+    const missingRow = '- add_item/check_stock E02: `refuses a missing item`';
+
+    String fr(List<int> edgeCases) =>
+        '---\ntraced_from:\n  - S1\nverify_method: test\n---\n\n'
+        '# Requirement\n\n## Statement\n$checkStockStatement\n\n'
+        '## Edge cases\n'
+        '${[for (final n in edgeCases) '$n. E0$n — Case $n → refused.'].join('\n')}\n\n'
+        '## Rationale\nStock is finite.\n\n'
+        '## Verification\nTest: a case is refused.\n';
+
+    Future<Directory> project() => writeNestedProject(
+      extra: {
+        ...nestedRecords(),
+        'docs/$cartAddFr': fr([1, 2]),
+        'docs/$dropFr': fr([1]),
+        'docs/$chargeFr': fr([1]),
+        cartRecord:
+            '${nestedRecords()[cartRecord]}$matrix$soldOutRow\n$missingRow\n',
+      },
+    );
+
+    ReadAnswer move(
+      Directory root, {
+      required String under,
+      bool dryRun = false,
+    }) => writeIn(
+      root,
+      (session) => answerMove(
+        session,
+        ['fr:shop/cart/add_item/check_stock#E01'],
+        under: under,
+        dryRun: dryRun,
+      ),
+    );
+
+    test('a row names the edge case at its target requirement and new number, and a row of an edge case that stays keeps its text', () async {
+      final root = await project();
+      move(root, under: 'fr:shop/cart/add_item/drop_stock');
+      expect(
+        readDoc(root, cartRecord),
+        endsWith(
+          '$matrix- add_item/drop_stock E02: `refuses a sold-out item`\n'
+          '$missingRow\n',
+        ),
+      );
+    });
+
+    test("a requirement of another feature takes the row into that feature's record, named relative to it", () async {
+      final root = await project();
+      move(root, under: 'fr:shop/pay/card/charge');
+      expect(readDoc(root, cartRecord), endsWith('$matrix$missingRow\n'));
+      expect(
+        readDoc(root, payRecord),
+        endsWith('$matrix- card/charge E02: `refuses a sold-out item`\n'),
+      );
+    });
+
+    test(
+      'a dry run lists the record among the docs it rewrites and writes none',
+      () async {
+        final root = await project();
+        final before = readDoc(root, cartRecord);
+        final answer = move(
+          root,
+          under: 'fr:shop/cart/add_item/drop_stock',
+          dryRun: true,
+        );
+        expect(answer.text, contains('rewrites $cartRecord\n'));
+        expect(readDoc(root, cartRecord), before);
+      },
+    );
+  });
 }
