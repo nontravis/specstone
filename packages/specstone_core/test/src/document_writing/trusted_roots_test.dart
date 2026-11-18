@@ -632,14 +632,14 @@ void main() {
         ),
       );
       final recordFile = File('${testHome().path}/.specstone/trusted/$key');
+      final root = clone.resolveSymbolicLinksSync();
 
       for (final content in [
         'not json at all',
         '[]',
         '"a string"',
         '{"projectRoot": 1, "docsRoot": 2}',
-        '{"projectRoot": "${clone.resolveSymbolicLinksSync()}", '
-            '"docsRoot": null}',
+        '{"projectRoot": "$root", "docsRoot": null}',
       ]) {
         recordFile
           ..parent.createSync(recursive: true)
@@ -890,7 +890,8 @@ void main() {
   group('format and the default build output on roots the Owner has not '
       'recorded', () {
     const unformatted =
-        '---\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\nUsers sign in.\n';
+        '---\nvision:\n  - PV-01\n---\n\n# Login\n\n'
+        '## Problem\nUsers sign in.\n';
 
     test(
       'refuse with output_not_writable and exit 73, and write no record',
