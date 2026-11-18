@@ -78,7 +78,7 @@ void main() {
     expectStatusValues(feature, ['planned', 'implemented', 'deprecated']);
   });
 
-  test('Out-of-scope carries no line cap', () {
+  test('Out-of-scope carries no section line cap', () {
     expect(sectionOf(feature, 'out_of_scope').maxLines, isNull);
   });
 

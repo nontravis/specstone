@@ -36,21 +36,22 @@ void main() {
   });
 
   test('a term of two lines gets item_lines_over_limit', () async {
-    Future<(Directory, List<String>)> checked(String terms) async {
-      final project = await writeCheckProject(
-        extra: {'docs/$glossaryDoc': '# Domain glossary\n\n## Terms\n\n$terms'},
-      );
-      final report = await checkOf(project);
-      return (project, spots(report, FindingKind.itemLinesOverLimit));
-    }
+    Future<Directory> projectWith(String terms) => writeCheckProject(
+      extra: {'docs/$glossaryDoc': '# Domain glossary\n\n## Terms\n\n$terms'},
+    );
 
-    final (_, oneLine) = await checked('- **Agent** — the coding agent.\n');
-    expect(oneLine, isEmpty);
-    final (project, twoLines) = await checked(
+    final oneLine = await projectWith('- **Agent** — the coding agent.\n');
+    expect(
+      spots(await checkOf(oneLine), FindingKind.itemLinesOverLimit),
+      isEmpty,
+    );
+    final twoLines = await projectWith(
       '- **Agent** — the coding agent\n  that writes the docs.\n',
     );
-    final line = lineOfFirst(project, glossaryDoc, '**Agent**');
-    expect(twoLines, ['$glossaryDoc:$line: item_lines_over_limit']);
+    final line = lineOfFirst(twoLines, glossaryDoc, '**Agent**');
+    expect(spots(await checkOf(twoLines), FindingKind.itemLinesOverLimit), [
+      '$glossaryDoc:$line: item_lines_over_limit',
+    ]);
   });
 
   test('glossary joins the query, implement, and design bundles and sits '
