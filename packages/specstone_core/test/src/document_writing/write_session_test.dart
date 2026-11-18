@@ -337,7 +337,7 @@ void main() {
     );
   });
 
-  test('f02/us01/fr05/e07: an index that cannot be written is index_not_writable, exit 73, and no doc is written', () async {
+  test('an index that cannot be written is index_not_writable, exit 73, and no doc is written', () async {
     final root = await writeWriteProject();
     writeIn(root, (_) {});
     final dot = Directory('${root.path}/.specstone');

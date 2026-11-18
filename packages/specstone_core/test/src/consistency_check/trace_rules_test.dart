@@ -252,7 +252,7 @@ void main() {
   });
 
   test(
-    'f04/us03/fr01/e15: an NFR block of a project-layer section with no '
+    'an NFR block of a project-layer section with no '
     'prefix_id keys by its heading ID, for an override and its fingerprint',
     () async {
       const recorded =

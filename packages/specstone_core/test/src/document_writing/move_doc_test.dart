@@ -706,7 +706,7 @@ void main() {
     ),
   ]) {
     test(
-      'f02/us06/fr01/e06: $address holds no slug, so it is doc_type_not_movable, and nothing changes',
+      '$address holds no slug, so it is doc_type_not_movable, and nothing changes',
       () async {
         final root = await writeWriteProject(extra: {'docs/$docPath': text});
         getDoc(root, address);

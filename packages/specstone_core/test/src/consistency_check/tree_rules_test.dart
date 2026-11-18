@@ -520,7 +520,7 @@ void main() {
       );
     });
 
-    test('f03/us06/fr06/e07: a project pinned below the pack that '
+    test('a project pinned below the pack that '
         'ships the glossary type holds no glossary finding', () async {
       const pinned = '1.14.0';
       final shipped = shippedPackVersions()['prd-core'];
