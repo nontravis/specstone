@@ -68,6 +68,33 @@ Future<Directory> _twin({
   },
 );
 
+const _campaignDoc = 'specs/f01_login/CAMPAIGN.md';
+
+/// The `config.yaml` text pinning `prd-core`, `marketing`, and [more], then
+/// [rest].
+String _marketingConfig(List<String> more, String rest) =>
+    '${shippedPinsConfig(['prd-core', ...more, 'marketing'])}$rest';
+
+/// Returns the project of a `campaign` doc covering [covers], with no record
+/// and the files [content], under a config of [rest] after the pins.
+///
+/// A project with targets pins `software-tech` for its record doc type.
+Future<Directory> _campaignProject(
+  List<String> covers, {
+  Map<String, String> content = const {},
+  List<String> more = const [],
+  String rest = '',
+}) => writeCheckProject(
+  extra: {
+    '.specstone/config.yaml': _marketingConfig(more, rest),
+    'docs/$_campaignDoc':
+        '---\ncovers:\n${[for (final c in covers) '  - $c\n'].join()}---\n\n'
+        '# Launch\n\n## Plan\n\nLaunch the product.\n',
+    ...content,
+  },
+  without: {loginRecord},
+);
+
 Future<CheckReport> _run(Directory project, {String? codeTarget}) async {
   final session = openSession(project);
   try {
@@ -671,6 +698,63 @@ void main() {
       expect(_of(await _run(project), FindingKind.codeUncovered), [
         '$_flutterTech: lib/a.dart',
         '$_jasprTech: lib/b.dart',
+      ]);
+    });
+  });
+
+  group('a campaign covers entry', () {
+    const gone = 'posts/gone/';
+    const present = 'posts/launch/';
+    const post = {'posts/launch/one.md': 'Launch day.\n'};
+
+    test('naming a missing content folder is covers_path_missing at the '
+        "entry's line, in a project with no record", () async {
+      final project = await _campaignProject([gone]);
+
+      final line = lineOfFirst(project, _campaignDoc, gone);
+
+      expect(spots(await _run(project), FindingKind.coversPathMissing), [
+        '$_campaignDoc:$line: covers_path_missing',
+      ]);
+    });
+
+    test('with two targets gives no shared_doc_code_path, whether its folder '
+        'is missing or present', () async {
+      const targets =
+          'targets:\n  app:\n    code_root: app_ws\n'
+          '  site:\n    code_root: site_ws\n';
+
+      for (final (entry, missing) in [(gone, 1), (present, 0)]) {
+        final report = await _run(
+          await _campaignProject(
+            [entry],
+            content: post,
+            more: ['software-tech'],
+            rest: targets,
+          ),
+        );
+
+        expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
+        expect(
+          spots(report, FindingKind.coversPathMissing),
+          hasLength(missing),
+          reason: entry,
+        );
+      }
+    });
+
+    test('in a project whose one code_root is the project root gives one '
+        'result for a missing folder and none for a present one', () async {
+      final report = await _run(
+        await _campaignProject(
+          [gone, present],
+          content: post,
+          rest: 'code_root: .\n',
+        ),
+      );
+
+      expect(_of(report, FindingKind.coversPathMissing), [
+        '$_campaignDoc: $gone',
       ]);
     });
   });

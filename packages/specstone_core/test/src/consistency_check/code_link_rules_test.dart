@@ -94,6 +94,27 @@ Future<Directory> _skillProject(List<String> covers) => writeCheckProject(
 Map<String, String> _covering(String covers) =>
     doc(loginArchitecture, '  - app/lib/\n', covers);
 
+const _campaignDoc = 'specs/f01_login/CAMPAIGN.md';
+const _post = 'posts/launch.md';
+const _postText = 'Launch day.\nSee the site.\n';
+
+/// Returns the project of a `campaign` doc covering [covers], with no record
+/// and the post file, pinning `prd-core` and `marketing`.
+Future<Directory> _campaignProject(
+  List<String> covers, {
+  Set<String> unfingerprinted = const {},
+}) => writeCheckProject(
+  extra: {
+    '.specstone/config.yaml': shippedPinsConfig(['prd-core', 'marketing']),
+    'docs/$_campaignDoc':
+        '---\ncovers:\n${[for (final c in covers) '  - $c\n'].join()}---\n\n'
+        '# Launch\n\n## Plan\n\nLaunch the product.\n',
+    _post: _postText,
+  },
+  without: {_recordPath},
+  unfingerprinted: unfingerprinted,
+);
+
 Future<CheckReport> _run(Directory project, {String? codeTarget}) async {
   final session = openSession(project);
   try {
@@ -706,6 +727,54 @@ void main() {
         ]);
       },
     );
+  });
+
+  group('a campaign covers entry', () {
+    final postFingerprint = _fingerprintOf(_postText, _post);
+
+    test('whose file changed after its fingerprint gives code_suspect with '
+        'its path as written, in a project with no record', () async {
+      final report = await _run(await _campaignProject(['$_post $_stale']));
+      final [finding] = _suspects(report);
+
+      expect(finding.path, _campaignDoc);
+      expect(finding.keys, {
+        'entry': _post,
+        'path': _post,
+        'recorded': _stale,
+        'fingerprint': postFingerprint,
+      });
+    });
+
+    test('that records no fingerprint gives code_unconfirmed with the '
+        "file's, in a project with no record", () async {
+      final report = await _run(
+        await _campaignProject(
+          [_post],
+          unfingerprinted: {'docs/$_campaignDoc'},
+        ),
+      );
+      final [finding] = _unconfirmed(report);
+
+      expect(finding.path, _campaignDoc);
+      expect(finding.keys, {
+        'entry': _post,
+        'path': _post,
+        'fingerprint': postFingerprint,
+      });
+    });
+
+    test('whose file was checked out with CRLF line ends gives no '
+        'finding', () async {
+      final project = await _campaignProject(['$_post $postFingerprint']);
+      File('${project.path}/$_post')
+          .writeAsStringSync(_postText.replaceAll('\n', '\r\n'));
+
+      final report = await _run(project);
+
+      expect(_suspects(report), isEmpty);
+      expect(_unconfirmed(report), isEmpty);
+    });
   });
 
   group('a root: project covers entry', () {
