@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf, isTableDelimiterRow, isThematicBreak, startsTable;
+import 'package:specstone_core/src/doc_model/models/text_block.dart';
 
 const _space = 0x20;
 
@@ -72,10 +73,6 @@ List<String> sentencesOf(String lfText) => [
   for (final block in textBlocksOf(lfText)) ..._cut(block.text),
 ];
 
-/// A text block of a doc: its `text`, and whether a `###` or deeper heading
-/// is the block.
-typedef TextBlock = ({String text, bool isHeading});
-
 /// Returns the text blocks of [lfText], a doc's LF text, in doc order: its
 /// paragraphs, list items, table cells, and `###` or deeper headings, read past
 /// block quote and list markers, outside the frontmatter, the title, the `##`
@@ -131,7 +128,7 @@ final class _BlockReader {
 
   void _closeBlock() {
     if (_open.isEmpty) return;
-    blocks.add((text: _open.join(' '), isHeading: false));
+    blocks.add(TextBlock(text: _open.join(' '), isHeading: false));
     _open.clear();
   }
 
@@ -187,7 +184,7 @@ final class _BlockReader {
 
   void _add(String block, {bool isHeading = false}) {
     if (block.trim().isNotEmpty) {
-      blocks.add((text: block.trim(), isHeading: isHeading));
+      blocks.add(TextBlock(text: block.trim(), isHeading: isHeading));
     }
   }
 

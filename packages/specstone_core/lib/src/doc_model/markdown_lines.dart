@@ -1,4 +1,5 @@
 import 'package:markdown/markdown.dart' show HeaderSyntax;
+import 'package:specstone_core/src/doc_model/models/atx_heading.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 
 // The pattern is the one `markdown` matches its ATX headings by, so an upgrade
@@ -20,9 +21,6 @@ const itemHeadingMarker = '### ';
 
 final RegExp _thematicBreak = RegExp(r'^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$');
 
-/// An ATX heading line: its level, 1 to 6, and its text without the marks.
-typedef AtxHeading = ({int level, String text});
-
 /// Returns the heading [line] is, or null when it is no ATX heading.
 ///
 /// The text has no opening `#` run and no closing one, and is trimmed.
@@ -37,7 +35,7 @@ AtxHeading? atxHeadingOf(String line) {
   } else if (text.isNotEmpty && text.replaceAll('#', '').isEmpty) {
     text = ''; // a lone closing run, as in `### ###`
   }
-  return (level: marks.length, text: text);
+  return AtxHeading(level: marks.length, text: text);
 }
 
 /// Whether [line] is a table delimiter row, such as `|---|:-:|`.
