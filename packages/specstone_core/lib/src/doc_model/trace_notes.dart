@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show tableCellRanges;
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/models/item_trace_notes.dart';
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/models/trace_note.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart'
@@ -27,8 +28,6 @@ final _wordSeparator = RegExp(r'[\s>]+');
 final _wrapMarks = RegExp(r'(?<=\n)[ \t]*(?:>[ \t]?)+');
 final _nestedLine = RegExp(r'^[ \t]+(?:[-+*]|\d{1,9}[.)])[ \t]');
 
-typedef _Span = ({int start, int end});
-
 /// Returns the trace notes of [lfItemText] and its text without the closing
 /// ones.
 ///
@@ -44,14 +43,16 @@ ItemTraceNotes traceNotesOf(
 }) {
   final prefixes = idPrefixes.toList()..sort((a, b) => b.length - a.length);
   final own = lfItemText.substring(0, _ownTextEnd(lfItemText)).trimRight();
-  final notes = <_Span>[];
-  final closings = <_Span>[];
+  final notes = <TextRange>[];
+  final closings = <TextRange>[];
   for (final scope in _scopesOf(own, isTableRow: isTableRow)) {
     final found = _notesIn(own, scope, prefixes);
     notes.addAll(found);
     if (found.isEmpty) continue;
     final end = _closeEnd(own, found.last.end, scope.end);
-    if (end != null) closings.add((start: found.last.start, end: end));
+    if (end != null) {
+      closings.add(TextRange(start: found.last.start, end: end));
+    }
   }
   return ItemTraceNotes(
     notes: [
@@ -67,28 +68,24 @@ ItemTraceNotes traceNotesOf(
 
 /// Returns the ranges of the item's own text that close a note apart: a table
 /// row's cells, else the whole text.
-List<_Span> _scopesOf(String own, {required bool isTableRow}) => isTableRow
-    ? [
-        for (final cell in tableCellRanges(own))
-          (start: cell.start, end: cell.end),
-      ]
-    : [(start: 0, end: own.length)];
+List<TextRange> _scopesOf(String own, {required bool isTableRow}) =>
+    isTableRow ? tableCellRanges(own) : [TextRange(start: 0, end: own.length)];
 
 /// Returns the notes of [scope] of [own], as offsets into [own]; a note that
 /// overlaps an earlier one is dropped.
-List<_Span> _notesIn(String own, _Span scope, List<String> prefixes) {
+List<TextRange> _notesIn(String own, TextRange scope, List<String> prefixes) {
   final text = own.substring(scope.start, scope.end);
   final spans = [
     if (text.contains('(')) ..._groupSpans(text, prefixes),
     if (_mayHoldClause(text)) ..._clauseSpans(text, prefixes),
   ]..sort((a, b) => a.start - b.start);
-  final merged = <_Span>[];
+  final merged = <TextRange>[];
   for (final span in spans) {
     if (merged.isEmpty || span.start >= merged.last.end) merged.add(span);
   }
   return [
     for (final span in merged)
-      (start: span.start + scope.start, end: span.end + scope.start),
+      TextRange(start: span.start + scope.start, end: span.end + scope.start),
   ];
 }
 
@@ -98,7 +95,7 @@ bool _mayHoldClause(String text) =>
     text.contains('owns') || text.contains('cites');
 
 /// Returns [text] without each of [spans], the blanks before each dropped.
-String _withoutSpans(String text, List<_Span> spans) {
+String _withoutSpans(String text, List<TextRange> spans) {
   var result = text;
   for (final span in spans.reversed) {
     result =
@@ -147,9 +144,9 @@ int? _closeEnd(String own, int noteEnd, int limit) {
 
 bool _isBlank(int unit) => unit == _space || unit == _tab || unit == _lineFeed;
 
-List<_Span> _groupSpans(String text, List<String> prefixes) {
+List<TextRange> _groupSpans(String text, List<String> prefixes) {
   final spans = _heldRuns(text);
-  final found = <({int start, int end})>[];
+  final found = <TextRange>[];
   var i = 0;
   while (i < text.length) {
     final held = spans[i];
@@ -165,7 +162,7 @@ List<_Span> _groupSpans(String text, List<String> prefixes) {
       i++;
       continue;
     }
-    found.add((start: i, end: end));
+    found.add(TextRange(start: i, end: end));
     i = end;
   }
   return found;
@@ -226,8 +223,8 @@ bool _isItemId(String label, List<String> prefixes) {
   return false;
 }
 
-List<_Span> _clauseSpans(String text, List<String> prefixes) {
-  final found = <({int start, int end})>[];
+List<TextRange> _clauseSpans(String text, List<String> prefixes) {
+  final found = <TextRange>[];
   final skips = _heldRuns(text);
   var cursor = 0;
   for (final sentence in checkSentencesOf(text)) {
@@ -246,12 +243,12 @@ List<_Span> _clauseSpans(String text, List<String> prefixes) {
 /// Each space of [sentence] stands for a run of blanks and `>` marks in [text],
 /// as the sentence cut drops the marks of a wrapped quote. No pattern is
 /// built, so a sentence of any length is found.
-_Span? _locate(String text, String sentence, int from) {
+TextRange? _locate(String text, String sentence, int from) {
   final words = sentence.split(' ');
   var start = text.indexOf(words.first, from);
   while (start >= 0) {
     final end = _wordsEnd(text, start, words);
-    if (end != null) return (start: start, end: end);
+    if (end != null) return TextRange(start: start, end: end);
     start = text.indexOf(words.first, start + 1);
   }
   return null;
