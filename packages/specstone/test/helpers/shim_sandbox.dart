@@ -105,11 +105,10 @@ final class ShimSandbox {
   /// Writes another tool's recording `stn` in [folder], exiting with [exit].
   ///
   /// The other `stn` records to the `other` log, so `logOf('other')` shows
-  /// whether and how it ran. On Windows [extension] (`exe`, `cmd`, `bat`, or
-  /// `com`) picks the file. POSIX ignores [extension].
-  void otherStn(String folder, {int exit = 0, String extension = 'cmd'}) {
+  /// whether and how it ran. On Windows it is a `stn.cmd`.
+  void otherStn(String folder, {int exit = 0}) {
     if (_windows) {
-      _writeWindowsOther(folder, exit, extension);
+      _writeWindowsOther(folder, exit);
       return;
     }
     _writeRecorder(File('$folder/stn'), 'other', '$exit');
@@ -289,20 +288,11 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
     ...extra,
   };
 
-  void _writeWindowsOther(String folder, int exit, String extension) {
-    switch (extension) {
-      case 'exe' || 'com':
-        _writeRecorderExe(File(_join(folder, 'stn.$extension')));
-        File(_join(folder, 'stn.$extension.exit')).writeAsStringSync('$exit');
-      case 'cmd' || 'bat':
-        final recorder = File(_join(folder, 'stn-recorder.exe'));
-        if (!recorder.existsSync()) _writeRecorderExe(recorder);
-        File(_join(folder, 'stn.$extension')).writeAsStringSync(
-          '@"%~dp0stn-recorder.exe" %*\r\n@exit /b $exit\r\n',
-        );
-      default:
-        throw ArgumentError.value(extension, 'extension', 'not a stn kind');
-    }
+  void _writeWindowsOther(String folder, int exit) {
+    final recorder = File(_join(folder, 'stn-recorder.exe'));
+    if (!recorder.existsSync()) _writeRecorderExe(recorder);
+    File(_join(folder, 'stn.cmd'))
+        .writeAsStringSync('@"%~dp0stn-recorder.exe" %*\r\n@exit /b $exit\r\n');
   }
 
   static void _writeRecorderExe(File file) {
@@ -363,9 +353,8 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
 // 1), and PATH to <STUB_LOG_DIR>\<name>.log, name `specstone` for
 // specstone.exe and `other` for any other file; it writes STUB_STDOUT, when
 // set, to its stdout as one line and STUB_STDERR, when set, to its stderr. Its
-// exit status is the number in `<its path>.exit`, else FAKE_EXIT for
-// specstone, else 0. Each run also writes its whole environment to
-// <name>.env. Given `upgrade`, specstone.exe renames the stn.exe beside it to
+// exit status is FAKE_EXIT for specstone, else 0. Each run also writes its
+// whole environment to <name>.env. Given `upgrade`, specstone.exe renames the stn.exe beside it to
 // stn.exe.old, writes a new stn.exe (the old bytes and a trailing marker),
 // prints `upgraded`, then exits. With STUB_HOLD=1 a run writes its pid to
 // <name>.pid, starts one detached child that writes grandchild.pid and sleeps
@@ -428,10 +417,7 @@ Future<void> main(List<String> args) async {
     );
     sleep(const Duration(seconds: _holdSeconds));
   }
-  final exitFile = File('$program.exit');
-  exitCode = exitFile.existsSync()
-      ? int.parse(exitFile.readAsStringSync().trim())
-      : name == 'specstone'
+  exitCode = name == 'specstone'
       ? int.tryParse(env['FAKE_EXIT'] ?? '') ?? 0
       : 0;
   await stdout.flush();

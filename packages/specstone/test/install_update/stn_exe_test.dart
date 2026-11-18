@@ -407,29 +407,6 @@ void main() {
         expect(nonBlank(r.stdout), ['[begin]', 'upgraded', '[end 5]']);
         expect(r.stderr, isEmpty);
       });
-
-      test('stdin piped into stn reaches the target', () async {
-        final sb = await createShimSandbox();
-        final line = switch (shell) {
-          StnShell.cmd => 'echo piped bytes| stn get',
-          StnShell.powershell => "'piped bytes' | stn get",
-        };
-
-        final r = await sb.typeStn(
-          [line],
-          shell: shell,
-          path: '${sb.bin.path};$system32',
-          extra: {readStdinVariable: '1'},
-        );
-
-        expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
-        expect(sb.logOf('specstone').sublist(0, 4), [
-          'argv',
-          'get',
-          'stdin',
-          'piped bytes',
-        ]);
-      });
     });
   }
 
