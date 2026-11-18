@@ -1319,6 +1319,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
         // Each case plants the later kind first, so only the kind order, not
         // the creation order, can make the earlier kind win.
         const cases = [
+          (later: 'cmd', earlier: 'exe'),
+          (later: 'bat', earlier: 'cmd'),
           (later: 'com', earlier: 'bat'),
           (later: 'ps1', earlier: 'com'),
         ];
