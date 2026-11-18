@@ -210,36 +210,39 @@ void main() {
       isFalse,
     );
   });
-  test('f02/us02/fr02: non-UTF-8 stdin is argument_invalid, stdin is not UTF-8 text, exit 64', () async {
-    final out = StringBuffer();
-    final err = StringBuffer();
-    final runner = SpecstoneCommandRunner(
-      out: out,
-      err: err,
-      workingDirectory: await writeWriteProject(),
-      homeDirectory: testHome(),
-      console: SystemConsole(input: Stream.value([0xff, 0xfe])),
-    );
-    expect(
-      await runner.run([
-        'new',
-        'user_story',
-        '--parent',
-        'login',
-        '--slug',
-        'recover_account',
-        '--json',
-      ]),
-      64,
-    );
-    expect(out.toString(), isEmpty);
-    expect(jsonDecode(err.toString()), {
-      'error': {
-        'code': 'argument_invalid',
-        'message': 'stdin is not UTF-8 text',
-      },
-    });
-  });
+  test(
+    'non-UTF-8 stdin is argument_invalid, stdin is not UTF-8 text, exit 64',
+    () async {
+      final out = StringBuffer();
+      final err = StringBuffer();
+      final runner = SpecstoneCommandRunner(
+        out: out,
+        err: err,
+        workingDirectory: await writeWriteProject(),
+        homeDirectory: testHome(),
+        console: SystemConsole(input: Stream.value([0xff, 0xfe])),
+      );
+      expect(
+        await runner.run([
+          'new',
+          'user_story',
+          '--parent',
+          'login',
+          '--slug',
+          'recover_account',
+          '--json',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(jsonDecode(err.toString()), {
+        'error': {
+          'code': 'argument_invalid',
+          'message': 'stdin is not UTF-8 text',
+        },
+      });
+    },
+  );
 
   group('new journey', () {
     const journeyDoc = 'prds/journeys/sign_in/JOURNEY.md';
