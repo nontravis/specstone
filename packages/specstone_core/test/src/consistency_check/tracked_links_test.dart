@@ -544,11 +544,13 @@ void main() {
     );
 
     test(
-      'leaves the link reported, since only a matrix row stamp clears one',
+      'leaves the S2 link reported, so a set of confirmed alone clears nothing',
       () async {
         final report = await checkOf(await reconfirm());
 
-        expect(report.findings, isNotEmpty);
+        final finding = report.findings.single;
+        expect(finding.kind, FindingKind.unconfirmed);
+        expect(finding.keys['link'], 'S2');
         expect(report.exitStatus, 1);
       },
     );

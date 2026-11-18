@@ -418,28 +418,26 @@ void main() {
     );
   });
 
-  test(
-    'a refused verification_coverage value exits 78 with no finding',
-    () async {
-      final (:runner, :out, :err) = readRunner(
-        await writeCheckProject(
-          extra: {
-            '.specstone/config.yaml':
-                '${shippedPinsConfig()}verification_coverage: 3\n',
-          },
-        ),
-      );
-      expect(await runner.run(['check', '--json']), 78);
-      expect(out.toString(), isEmpty);
-      expect(
-        (jsonDecode(err.toString()) as Map)['error'],
-        allOf(
-          containsPair('code', 'unknown_value'),
-          containsPair('key', 'verification_coverage'),
-        ),
-      );
-    },
-  );
+  test('coverage on while the record type has no enabled matrix section exits 78 with no finding', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}verification_coverage: true\n',
+          '.specstone/templates/implementation.yaml': 'sections:\n  - {id: verification_matrix, header: Matrix, disabled: true}\n',
+        },
+      ),
+    );
+    expect(await runner.run(['check', '--json']), 78);
+    expect(out.toString(), isEmpty);
+    expect(
+      (jsonDecode(err.toString()) as Map)['error'],
+      allOf(
+        containsPair('code', 'unknown_value'),
+        containsPair('key', 'verification_coverage'),
+      ),
+    );
+  });
 
   test('a name no doc carries refuses, exit 64, no finding', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
