@@ -908,7 +908,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(r.stdout, contains('VERSION_DEFINED=False'));
       });
 
-      test(r'irm | iex leaves no $Version in the caller when the run '
+      test(r'a refused pipe run leaves no $Version in the caller when the run '
           'refuses', () async {
         final sb = await createScriptSandbox();
         final script = '${repoRoot().path}\\install.ps1';
