@@ -27,7 +27,7 @@ List<AncestorPiece> ancestorPiecesOf(DocIndex index, Bundle bundle) {
   final targets = bundle.targetSubtreePaths;
   final ancestors = bundle.ancestorSpecPaths.difference(targets);
   if (ancestors.isEmpty) return const [];
-  final views = _Views(index);
+  final views = _viewsOf[index] ??= _Views(index);
   final candidates = <String, List<AncestorPiece>>{};
   for (final doc in index.docs) {
     final found = [
@@ -186,6 +186,11 @@ final class _IdExtent {
 
   int get span => extent.last - extent.first;
 }
+
+/// The doc views of each index, built on first use: an index is one read
+/// snapshot, so a doc that many bundles of one `check` run read is opened, and
+/// its item extents found, once.
+final _viewsOf = Expando<_Views>();
 
 /// The docs the pieces read, each opened once.
 final class _Views {
