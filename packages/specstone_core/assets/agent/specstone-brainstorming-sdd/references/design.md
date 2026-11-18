@@ -63,16 +63,34 @@ Before the Docs to change table closes, find each decision's dependents:
   rewrites the doc when it owns a rule reading the decision's rule.
 - With no cited-by line, the repeat groups and the text search carry the decision; record the searched terms either
   way.
-- An amend that adds or changes behavior runs these steps on its terms, adding its rows and searched terms before
-  the author writes it.
+- An amend that adds or changes behavior, or removes a decision (behavior too), runs these steps on its terms, after
+  the removal read below, adding its rows and searched terms before the author writes it.
 
 Decide each point the Owner's answers leave open that a PRD or spec doc must state, such as a refusal or a name rule,
 naming the one owner item its rule takes, or list it as an open question; a design holding one open goes to no
 author. Leave a code-level point, such as a class name, to the builder: no decision, no open question.
 
 On an amend, edit every place still stating text a ruling supersedes. Number each amend (`Amend 1`, `Amend 2`,
-...); any edit of a decision an author pass has read opens a new one, however small. Each decision an amend adds or
-changes lists it in its heading, earlier amends kept, such as `(Amend 2, Amend 4)`.
+...); any edit of a decision an author pass has read opens a new one, however small. Each decision an amend adds,
+changes, or removes lists it in its heading, earlier amends kept, such as `(Amend 2, Amend 4)`.
+
+An amend that removes a decision:
+
+- **Read first**: read each doc its rows name, in the saved files; the doc's text, never its row names, says what the
+  decision wrote there. A doc the removal would empty is an open question for the Owner, and no author takes the
+  amend while it is open. Empty: no other decision's text left, or a required section or field emptied. A new FR only
+  D3's rows name is emptied; an approved FR D3 only added a case to keeps its approved text. The Owner answers: delete
+  the doc by their own route, move the text under another decision, or keep the decision.
+- **An author pass read it**: keep its heading as a stub. The removing amend joins the amend list, which then ends
+  `, removed`: Amend 5 removing a decision headed `(Amend 2)` gives `(Amend 2, Amend 5, removed)`. One line
+  `Removed: <reason>` replaces the body.
+- **No author pass read it**: delete it with its rows.
+- Never reuse an ID, stub or deleted.
+- **Stub rows**: keep them. A row naming the removed decision alone stays and becomes a stub row; a row naming it
+  among others loses the ID from its Decisions cell, and a new stub row names the same doc. A stub row reads
+  `take out the D<n> text: <sections>` in Sections and `D<n> (Amend <N>, removed)` in Decisions. `<sections>` are
+  the sections the read found the text in, never `all`. No stub row asks the author or the audit to delete a doc.
+- **A later amend** that removes or adds a decision naming a doc the read covered runs the read and question again.
 
 Write or amend the file with your host's file write; write no other file, and no PRD or spec doc.
 
@@ -82,8 +100,8 @@ No placeholder, no empty section but Open questions, no contradiction between se
 and each decision specific enough that two builders would build the same thing.
 
 Before the approval ask, check each saved file's sections outside the Docs to change rows for a wording a decision
-supersedes: each found gets a row. Ask only once none is left. This document is outside the check: it quotes that
-wording.
+supersedes: each found gets a row. Ask only once none is left. The text a removed decision stated is such wording;
+its row is a stub row. This document is outside the check: it quotes that wording.
 
 Then the skill's step 3 runs the design check. Fix each finding in the document: an untagged one by an edit;
 a `[behavior]` one by deciding it, or asking the Owner if only they can, then section 3's dependents steps on its
