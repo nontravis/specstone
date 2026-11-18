@@ -3,6 +3,9 @@ import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/doc_model/models/doc_item.dart';
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart'
+    show withGeneratedFenced;
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:test/test.dart';
 
 const _firstLine = 20;
@@ -40,21 +43,28 @@ List<DocItem> _itemsOf(List<BodyLine> body) => [
 
 void main() {
   group('sectionItemsOf', () {
-    test('a list item '
-        'counts without its nested items and a nested item alone', () {
-      final items = _items(
-        '- parent one\n'
-        '  carries on\n'
-        '  - child\n'
-        '- second',
-      );
+    test(
+      'a list item counts without its nested items and a nested item alone',
+      () {
+        final items = _items(
+          '- parent one\n'
+          '  carries on\n'
+          '  - child\n'
+          '- second',
+        );
 
-      expect(items, [
-        const DocItem(line: 20, chars: 25, text: 'parent one', heading: false),
-        const DocItem(line: 22, chars: 9, text: 'child', heading: false),
-        const DocItem(line: 23, chars: 8, text: 'second', heading: false),
-      ]);
-    });
+        expect(items, [
+          const DocItem(
+            line: 20,
+            chars: 25,
+            text: 'parent one',
+            heading: false,
+          ),
+          const DocItem(line: 22, chars: 9, text: 'child', heading: false),
+          const DocItem(line: 23, chars: 8, text: 'second', heading: false),
+        ]);
+      },
+    );
 
     test('an ordered item '
         'reads its text after the marker', () {
@@ -64,9 +74,8 @@ void main() {
       ]);
     });
 
-    test('a table row '
-        'below the delimiter row is an item, the header and delimiter '
-        'rows are none', () {
+    test('a table row below the delimiter row is an item, '
+        'the header and delimiter rows are none', () {
       final items = _items(
         '| ID | Name |\n'
         '|---|---|\n'
@@ -103,26 +112,38 @@ void main() {
       ]);
     });
 
-    test('a ### heading '
-        'counts with the paragraph under it and never its bullets', () {
-      final items = _items(
-        '### Scenario 1\n'
-        '\n'
-        'The paragraph under it.\n'
-        '- bullet one\n'
-        '\n'
-        '### Scenario 2\n'
-        '\n'
-        '- bullet two',
-      );
+    test(
+      'a ### heading counts with the paragraph under it and never its bullets',
+      () {
+        final items = _items(
+          '### Scenario 1\n'
+          '\n'
+          'The paragraph under it.\n'
+          '- bullet one\n'
+          '\n'
+          '### Scenario 2\n'
+          '\n'
+          '- bullet two',
+        );
 
-      expect(items, [
-        const DocItem(line: 20, chars: 39, text: 'Scenario 1', heading: true),
-        const DocItem(line: 23, chars: 12, text: 'bullet one', heading: false),
-        const DocItem(line: 25, chars: 14, text: 'Scenario 2', heading: true),
-        const DocItem(line: 27, chars: 12, text: 'bullet two', heading: false),
-      ]);
-    });
+        expect(items, [
+          const DocItem(line: 20, chars: 39, text: 'Scenario 1', heading: true),
+          const DocItem(
+            line: 23,
+            chars: 12,
+            text: 'bullet one',
+            heading: false,
+          ),
+          const DocItem(line: 25, chars: 14, text: 'Scenario 2', heading: true),
+          const DocItem(
+            line: 27,
+            chars: 12,
+            text: 'bullet two',
+            heading: false,
+          ),
+        ]);
+      },
+    );
 
     test('a bare ### line opens a heading item with empty text, a ###x line '
         'opens none', () {
@@ -163,8 +184,7 @@ void main() {
       ]);
     });
 
-    test('a blockquote '
-        'paragraph and list item are items as anywhere else', () {
+    test('a blockquote paragraph and list item are items as anywhere else', () {
       final items = _items(
         '> quoted paragraph\n'
         '>\n'
@@ -216,9 +236,8 @@ void main() {
       ]);
     });
 
-    test('a fence inside '
-        'a list item ends the item and the text after it is its own '
-        'item', () {
+    test('a fence inside a list item ends the item and the text '
+        'after it is its own item', () {
       final items = _itemsOf([
         const BodyLine(text: '- item', line: 20, fenced: false),
         const BodyLine(text: '  ```', line: 21, fenced: true),
@@ -231,6 +250,33 @@ void main() {
         const DocItem(line: 20, chars: 6, text: 'item', heading: false),
         const DocItem(line: 24, chars: 6, text: 'more', heading: false),
       ]);
+    });
+
+    test('a closed generated block of a listed kind is no item, '
+        'one of another kind is', () {
+      final lines = [
+        '- before',
+        generatedOpenMarker('scenario_copy'),
+        '- copied',
+        generatedEndMarker,
+        generatedOpenMarker('other_copy'),
+        '- kept',
+        generatedEndMarker,
+        '- after',
+      ];
+      final marked = generatedBlockLines(lines, {'scenario_copy'});
+      final body = [
+        for (final (k, line) in lines.indexed)
+          BodyLine(text: line, line: _firstLine + k, fenced: false),
+      ];
+
+      final items = _itemsOf(
+        withGeneratedFenced(body, (line) => marked[line - _firstLine]),
+      );
+
+      final at = [for (final item in items) item.line];
+      expect(at, containsAll([20, 25, 27]));
+      expect(at.where((line) => line >= 21 && line <= 23), isEmpty);
     });
 
     test('a fence inside '
