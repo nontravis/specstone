@@ -882,4 +882,437 @@ void main() {
       );
     });
   });
+
+  group('move refusals and no-ops', () {
+    const cartFolder = 'prds/features/f02_shop/f01_cart';
+    const payFolder = 'prds/features/f02_shop/f02_pay';
+    const dropFolder = '$cartFolder/us02_drop_item';
+    const refundFolder = '$payFolder/us02_refund';
+    const checkStock = 'fr:shop/cart/add_item/check_stock';
+    const dropLine = 'fr:shop/cart/drop_item/drop_line';
+    const dropLineFile = '$dropFolder/fr01_drop_line.md';
+    const dropItem = 'user_story:shop/cart/drop_item';
+    const refundHoldsCheckStock = {
+      'docs/$refundFolder/fr01_check_stock.md': '# Check stock\n',
+    };
+    Future<Map<String, Object?>> refusal(
+      Directory root,
+      List<String> args,
+    ) async {
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['move', ...args, '--json']), 64);
+      expect(out.toString(), isEmpty);
+      return (jsonDecode(err.toString()) as Map)['error']
+          as Map<String, Object?>;
+    }
+
+    Future<void> changesNothing(Directory root, List<String> args) async {
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['move', ...args, '--json']), 0);
+      expect(err.toString(), isEmpty);
+      expect(
+        jsonDecode(out.toString()),
+        allOf(
+          containsPair('moved', isEmpty),
+          containsPair('rewritten', isEmpty),
+          containsPair('mentions', isEmpty),
+        ),
+      );
+    }
+
+    bool exists(Directory root, String path) =>
+        docFile(root, path).existsSync();
+
+    test(
+      'a feature already under its parent exits 0 and changes nothing',
+      () async {
+        final root = await writeNestedProject();
+        await changesNothing(root, ['feature:shop/cart', '--under', 'shop']);
+        expect(exists(root, cartFeature), isTrue);
+      },
+    );
+
+    test(
+      'an item already in the target doc exits 0 and changes nothing',
+      () async {
+        final root = await writeNestedProject();
+        final before = readDoc(root, shopDomain);
+        await changesNothing(root, [
+          'domain:shop#INV-1',
+          '--under',
+          'domain:shop',
+        ]);
+        expect(readDoc(root, shopDomain), before);
+      },
+    );
+
+    test(
+      'a story already under its feature exits 0 and changes nothing',
+      () async {
+        final root = await writeNestedProject();
+        await changesNothing(root, [dropItem, '--under', 'shop/cart']);
+        expect(exists(root, cartDrop), isTrue);
+      },
+    );
+
+    test(
+      'a story landing on a taken path is refused with exit 64 and stays',
+      () async {
+        final root = await writeNestedProject(
+          extra: {'docs/$payFolder/us03_add_item/note.md': '# Note\n'},
+        );
+        expect(await refusal(root, [addItem, '--under', 'shop/pay']), {
+          'code': 'doc_exists',
+          'message': 'a user_story named shop/pay/add_item exists',
+          'file': '$payFolder/us03_add_item/',
+        });
+        expect(exists(root, cartAdd), isTrue);
+      },
+    );
+
+    test('a story under a feature that holds sub-features exits 64', () async {
+      final root = await writeNestedProject();
+      expect(await refusal(root, [addItem, '--under', 'shop']), {
+        'code': 'argument_invalid',
+        'message': 'shop (feature) holds sub-features, so it takes no story',
+      });
+      expect(exists(root, cartAdd), isTrue);
+    });
+
+    test('a story move under a name no feature doc carries exits 64', () async {
+      final root = await writeNestedProject();
+      for (final under in ['nothing', 'architecture:shop']) {
+        final error = await refusal(root, [addItem, '--under', under]);
+        expect(error['code'], 'doc_not_found', reason: under);
+      }
+      expect(exists(root, cartAdd), isTrue);
+    });
+
+    test('a story move under a name two feature docs carry exits 64', () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/prds/features/f03_account/FEATURE.md': '# Account\n',
+          'docs/prds/features/f04_account/FEATURE.md': '# Account\n',
+        },
+      );
+      expect(await refusal(root, [addItem, '--under', 'account']), {
+        'code': 'argument_invalid',
+        'message':
+            'account names 2 feature docs: '
+            'prds/features/f03_account/FEATURE.md, '
+            'prds/features/f04_account/FEATURE.md',
+      });
+      expect(exists(root, cartAdd), isTrue);
+    });
+
+    test('a story target no doc carries exits 64 and moves nothing', () async {
+      final root = await writeNestedProject();
+      expect(
+        await refusal(root, ['user_story:shop/cart/nothing', '--under', 'x']),
+        containsPair('code', 'doc_not_found'),
+      );
+      expect(exists(root, cartAdd), isTrue);
+    });
+
+    test(
+      'one unknown or other-type target refuses the whole story move',
+      () async {
+        final root = await writeNestedProject();
+        final unknown = await refusal(root, [
+          addItem,
+          'user_story:shop/cart/nothing',
+          '--under',
+          'shop/pay',
+        ]);
+        expect(unknown['code'], 'doc_not_found');
+        final otherType = await refusal(root, [
+          addItem,
+          checkStock,
+          '--under',
+          'shop/pay',
+        ]);
+        expect(otherType, {
+          'code': 'argument_invalid',
+          'message': 'move takes one doc type per call, not user_story and fr',
+        });
+        expect(exists(root, cartAdd), isTrue);
+        expect(exists(root, cartAddFr), isTrue);
+      },
+    );
+
+    test(
+      'two story targets carrying one slug exit 64 naming the first',
+      () async {
+        final root = await writeNestedProject(
+          extra: {
+            'docs/prds/features/f03_other/FEATURE.md': '# Other\n',
+            'docs/$payFolder/us03_add_item/USER_STORY.md': '# Add item\n',
+          },
+        );
+        expect(
+          await refusal(root, [
+            'shop/cart/add_item',
+            'shop/pay/add_item',
+            '--under',
+            'other',
+          ]),
+          {
+            'code': 'doc_exists',
+            'message': 'a user_story named shop/cart/add_item exists',
+            'file': cartAdd,
+          },
+        );
+        expect(exists(root, cartAdd), isTrue);
+        expect(exists(root, '$payFolder/us03_add_item/USER_STORY.md'), isTrue);
+      },
+    );
+
+    test(
+      'a refused story move gives the same exit and error under --dry-run',
+      () async {
+        final root = await writeNestedProject(
+          extra: {'docs/$payFolder/us03_drop_item/USER_STORY.md': '# Drop\n'},
+        );
+        final args = [addItem, dropItem, '--under', 'shop/pay'];
+        final applied = await refusal(root, args);
+        final dry = await refusal(root, [...args, '--dry-run']);
+        expect(dry, applied);
+        expect(dry['code'], 'doc_exists');
+        expect(exists(root, cartAdd), isTrue);
+      },
+    );
+
+    test('--top with a scenario target exits 64 and moves nothing', () async {
+      final root = await writeNestedProject();
+      expect(await refusal(root, ['$addItem#S1', '--top']), {
+        'code': 'argument_invalid',
+        'message': 'move takes --top only with feature targets',
+      });
+      expect(exists(root, cartAdd), isTrue);
+    });
+
+    test('--under counts only parent-type docs of a story move, but every '
+        'typed doc of an item move', () async {
+      final root = await writeNestedProject();
+      final item = await refusal(root, [
+        'domain:shop#INV-1',
+        '--under',
+        'shop/cart',
+      ]);
+      expect(item, {
+        'code': 'argument_invalid',
+        'message':
+            'shop/cart names 2 docs: feature:shop/cart, domain:shop/cart',
+      });
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'move',
+          'user_story:shop/pay/card',
+          '--under',
+          'shop/cart',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(out.toString(), startsWith('moved $payFolder/us01_card/ to '));
+    });
+
+    group('fr targets', () {
+      const toRefund = ['--under', 'shop/pay/refund'];
+
+      test(
+        'an fr move under a name no user_story doc carries exits 64',
+        () async {
+          final root = await writeNestedProject();
+          for (final under in ['nothing', 'shop/pay']) {
+            final error = await refusal(root, [checkStock, '--under', under]);
+            expect(error['code'], 'doc_not_found', reason: under);
+          }
+          expect(exists(root, cartAddFr), isTrue);
+        },
+      );
+
+      test(
+        'an fr move under a name two user_story docs carry exits 64',
+        () async {
+          final root = await writeNestedProject(
+            extra: {'docs/$payFolder/us05_refund/USER_STORY.md': '# Refund\n'},
+          );
+          expect(await refusal(root, [checkStock, '--under', 'pay/refund']), {
+            'code': 'argument_invalid',
+            'message':
+                'pay/refund names 2 user_story docs: '
+                '$refundFolder/USER_STORY.md, '
+                '$payFolder/us05_refund/USER_STORY.md',
+          });
+          expect(exists(root, cartAddFr), isTrue);
+        },
+      );
+
+      test(
+        'an fr beside an architecture doc or an nf is refused with exit 64',
+        () async {
+          final root = await writeNestedProject(
+            extra: {
+              'docs/$cartFolder/us01_add_item/nf01_load_fast.md': '# L\n',
+            },
+          );
+          expect(
+            await refusal(root, [checkStock, 'architecture:shop', ...toRefund]),
+            containsPair('code', 'doc_type_not_movable'),
+          );
+          expect(
+            await refusal(root, [
+              checkStock,
+              'nf:shop/cart/add_item/load_fast',
+              ...toRefund,
+            ]),
+            {
+              'code': 'argument_invalid',
+              'message': 'move takes one doc type per call, not fr and nf',
+            },
+          );
+          expect(exists(root, cartAddFr), isTrue);
+        },
+      );
+
+      test(
+        'an fr whose slug the target story holds is doc_exists, exit 64',
+        () async {
+          final root = await writeNestedProject(extra: refundHoldsCheckStock);
+          expect(await refusal(root, [checkStock, ...toRefund]), {
+            'code': 'doc_exists',
+            'message': 'a fr named shop/pay/refund/check_stock exists',
+            'file': '$refundFolder/fr01_check_stock.md',
+          });
+          expect(exists(root, cartAddFr), isTrue);
+        },
+      );
+
+      test(
+        'two fr targets sharing one slug exit 64 and both files stay',
+        () async {
+          final root = await writeNestedProject(
+            extra: {'docs/$dropFolder/fr01_check_stock.md': '# Check stock\n'},
+          );
+          expect(
+            await refusal(root, [
+              checkStock,
+              'fr:shop/cart/drop_item/check_stock',
+              ...toRefund,
+            ]),
+            {
+              'code': 'doc_exists',
+              'message': 'a fr named shop/cart/add_item/check_stock exists',
+              'file': cartAddFr,
+            },
+          );
+          expect(exists(root, cartAddFr), isTrue);
+          expect(exists(root, '$dropFolder/fr01_check_stock.md'), isTrue);
+        },
+      );
+
+      test('an fr landing on a taken path is doc_exists, exit 64', () async {
+        const landing = '$refundFolder/fr02_check_stock.md';
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$refundFolder/fr01_issue_refund.md': '# Issue\n',
+            'docs/$landing/keep.md': '# Keep\n',
+          },
+        );
+        final error = await refusal(root, [checkStock, ...toRefund]);
+        expect(error['code'], 'doc_exists');
+        expect(error['file'], landing);
+        expect(exists(root, cartAddFr), isTrue);
+      });
+
+      test(
+        'an fr already under the story exits 0 and changes nothing',
+        () async {
+          final root = await writeNestedProject();
+          await changesNothing(root, [
+            checkStock,
+            '--under',
+            'shop/cart/add_item',
+          ]);
+          expect(exists(root, cartAddFr), isTrue);
+        },
+      );
+
+      test(
+        'an unknown or slug-clashing fr target refuses the whole call',
+        () async {
+          final root = await writeNestedProject(
+            extra: {
+              'docs/$dropLineFile': '# Drop line\n',
+              ...refundHoldsCheckStock,
+            },
+          );
+          final unknown = await refusal(root, [
+            dropLine,
+            'fr:shop/cart/add_item/nothing',
+            ...toRefund,
+          ]);
+          expect(unknown['code'], 'doc_not_found');
+          final clash = await refusal(root, [
+            dropLine,
+            checkStock,
+            ...toRefund,
+          ]);
+          expect(clash['code'], 'doc_exists');
+          expect(exists(root, dropLineFile), isTrue);
+          expect(exists(root, cartAddFr), isTrue);
+        },
+      );
+
+      test(
+        'an fr move with both parent flags, neither, or --top exits 64',
+        () async {
+          final root = await writeNestedProject();
+          expect(await refusal(root, [checkStock, ...toRefund, '--top']), {
+            'code': 'argument_conflict',
+            'message': 'move takes --under or --top, not both',
+          });
+          expect(await refusal(root, [checkStock]), {
+            'code': 'argument_missing',
+            'message': 'move needs --under <doc address> or --top',
+          });
+          expect(await refusal(root, [checkStock, '--top']), {
+            'code': 'argument_invalid',
+            'message': 'move takes --top only with feature targets',
+          });
+          expect(exists(root, cartAddFr), isTrue);
+        },
+      );
+
+      test('an fr target no doc carries exits 64 and moves nothing', () async {
+        final root = await writeNestedProject();
+        expect(
+          await refusal(root, ['fr:shop/cart/add_item/nothing', ...toRefund]),
+          {
+            'code': 'doc_not_found',
+            'message': 'no fr doc carries the name shop/cart/add_item/nothing',
+          },
+        );
+        expect(exists(root, cartAddFr), isTrue);
+      });
+
+      test(
+        'a refused fr move gives the same exit and error under --dry-run',
+        () async {
+          final root = await writeNestedProject(extra: refundHoldsCheckStock);
+          final applied = await refusal(root, [checkStock, ...toRefund]);
+          final dry = await refusal(root, [
+            checkStock,
+            ...toRefund,
+            '--dry-run',
+          ]);
+          expect(dry, applied);
+          expect(dry['code'], 'doc_exists');
+          expect(exists(root, cartAddFr), isTrue);
+        },
+      );
+    });
+  });
 }
