@@ -425,7 +425,9 @@ String? _kindMark(BundleEntry entry) => switch (entry.kind) {
   BundleEntryKind.cited => _citedField(entry),
   BundleEntryKind.citedBy => _citedByField(entry),
   BundleEntryKind.names => 'names',
-  BundleEntryKind.doc || BundleEntryKind.pattern => null,
+  BundleEntryKind.doc ||
+  BundleEntryKind.pattern ||
+  BundleEntryKind.cites => null,
 };
 
 /// Returns `cited`, with the section key and `[<ID>]` [entry] names.

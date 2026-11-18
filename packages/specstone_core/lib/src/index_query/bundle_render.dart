@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/index_query/ancestor_pieces.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_follow.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
@@ -7,6 +8,7 @@ import 'package:specstone_core/src/index_query/feature_pattern_parts.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
+import 'package:specstone_core/src/index_query/models/ancestor_piece.dart';
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
@@ -96,6 +98,33 @@ String _partBlock(AppendedPart part) {
       '${part.text}';
 }
 
+/// Returns `cited` for an outbound piece and `cites` for an inbound one.
+String _pieceMark(PieceDirection direction) => switch (direction) {
+  PieceDirection.outbound => 'cited',
+  PieceDirection.inbound => 'cites',
+};
+
+/// Returns the closing-list name of [piece],
+/// `<name> (<doc type>) · cited <section key> [<ID>]`, with `cites` for an
+/// inbound piece; a lead piece has no section key and a piece with no item ID
+/// no `[<ID>]`.
+String _pieceListName(AncestorPiece piece) =>
+    '${nameWithType(piece.doc)} · ${_pieceMark(piece.direction)}'
+    '${piece.sectionKey.isEmpty ? '' : ' ${piece.sectionKey}'}'
+    '${piece.itemId == null ? '' : ' [${piece.itemId}]'}';
+
+/// Returns the block of [piece]: its naming line, `<DocPath>#<section key>`
+/// (`#<anchor>` for a `###` block that starts no item, `<DocPath>` alone for a
+/// piece of the lead) with ` · item <ID>` for an item, then ` · cited` or
+/// ` · cites`, then its text.
+String _pieceBlock(AncestorPiece piece) {
+  final key = piece.heading ?? piece.sectionKey;
+  final path = key.isEmpty ? piece.doc.docPath : '${piece.doc.docPath}#$key';
+  final item = piece.itemId == null ? '' : ' · item ${piece.itemId}';
+  return '==> ${nameWithType(piece.doc)} · $path$item · '
+      '${_pieceMark(piece.direction)} <==\n${piece.text}';
+}
+
 /// Returns the `citedBy` key of a doc object, an empty list when [items] holds
 /// no line; none outside a design bundle, which has no [citedBy].
 Map<String, Object> _citedByKey(List<CitedItem> items, CitedByIndex? citedBy) =>
@@ -133,7 +162,9 @@ String codeTargetLine(String? name) =>
 /// two texts: [ContextAnswer.text] holds the read-first part, and
 /// [ContextAnswer.refs] the refs part, each with its own entries, closing
 /// line, and list. A `design` bundle's cited-by lines then print as parts of
-/// the refs text, never after their item. [split] changes no other output.
+/// the refs text, never after their item, and each ancestor spec doc prints
+/// whole in the refs text, with its pieces in the read-first text at its place.
+/// [split] changes no other output.
 ContextAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
@@ -178,6 +209,7 @@ ContextAnswer answerContext(
       patternParts,
       patternBlocks,
       slots,
+      _ancestorSpecsOf(index, bundle, splits: splits),
       splits: splits,
       readFirstOnly: false,
       printOf: (doc) => docPrints[doc],
@@ -292,8 +324,8 @@ final _readFirstBlocksOf =
 /// [bundle] when split, which [ContextAnswer.readFirst] gives as `tokens`.
 ///
 /// It builds the read-first pieces alone, with the builders `answerContext`
-/// uses, and no appended part, cited-by part, or refs block, since the size
-/// counts none of them.
+/// uses, ancestor spec pieces included, and no appended part, cited-by part,
+/// or refs block, since the size counts none of them.
 int readFirstTokensOf(DocIndex index, Bundle bundle) {
   final ordered = bundle.printOrder(index);
   final summaryOnly = bundle.summaryOnly;
@@ -308,6 +340,7 @@ int readFirstTokensOf(DocIndex index, Bundle bundle) {
       patternParts,
       [for (final part in patternParts) featurePatternBlock(part)],
       _slotsOf(ordered, patternParts),
+      _ancestorSpecsOf(index, bundle, splits: true),
       splits: true,
       readFirstOnly: true,
       printOf: (doc) {
@@ -339,19 +372,74 @@ int readFirstTokensOf(DocIndex index, Bundle bundle) {
   return tokenSizeOf(_shownOf(pieces));
 }
 
+/// The ancestor spec docs of a split design bundle, which the refs text holds
+/// whole, and the pieces of them the read-first text prints.
+final class _AncestorSpecs {
+  const new({required this.paths, required this.piecesByDoc});
+
+  /// The DocPaths of the docs; empty when the bundle has none to move.
+  final Set<String> paths;
+
+  /// The pieces of each doc by DocPath, in file order.
+  final Map<String, List<AncestorPiece>> piecesByDoc;
+
+  bool holds(IndexedDoc doc) => paths.contains(doc.docPath);
+
+  List<AncestorPiece> piecesOf(IndexedDoc doc) =>
+      piecesByDoc[doc.docPath] ?? const [];
+}
+
+/// Returns the ancestor spec docs of [bundle] when [splits], else none.
+///
+/// A doc the target subtree also holds, as a multi-target call gives, keeps
+/// its print, as [ancestorPiecesOf] reads it.
+_AncestorSpecs _ancestorSpecsOf(
+  DocIndex index,
+  Bundle bundle, {
+  required bool splits,
+}) {
+  if (!splits || !bundle.hasAncestorSpecs) {
+    return const _AncestorSpecs(paths: {}, piecesByDoc: {});
+  }
+  final piecesByDoc = <String, List<AncestorPiece>>{};
+  for (final piece in ancestorPiecesOf(index, bundle)) {
+    (piecesByDoc[piece.doc.docPath] ??= []).add(piece);
+  }
+  return _AncestorSpecs(
+    paths: bundle.ancestorSpecPaths.difference(bundle.targetSubtreePaths),
+    piecesByDoc: piecesByDoc,
+  );
+}
+
+/// Returns the read-first piece of [piece], an entry of its own.
+_Piece _ancestorPiece(AncestorPiece piece) => _Piece(
+  _pieceBlock(piece),
+  doc: piece.doc,
+  kind: switch (piece.direction) {
+    PieceDirection.outbound => BundleEntryKind.cited,
+    PieceDirection.inbound => BundleEntryKind.cites,
+  },
+  listName: _pieceListName(piece),
+  sectionKey: piece.sectionKey.isEmpty ? null : piece.sectionKey,
+  itemId: piece.itemId,
+);
+
 /// Returns the pieces of the docs and feature pattern parts of [slots], each
 /// doc followed by its cited-by pieces when [splits].
 ///
-/// A split bundle puts a summary doc and a doc that joins the refs in the refs
-/// text; with [readFirstOnly], the pieces of those docs, which no read-first
-/// file holds, are left out, and [printOf] is asked for no other doc.
+/// A split bundle puts a summary doc, an ancestor spec doc of [ancestors], and
+/// a doc that joins the refs in the refs text; with [readFirstOnly], the
+/// pieces of those docs, which no read-first file holds, are left out, and
+/// [printOf] is asked for no other doc. An ancestor spec doc's own pieces
+/// print in the read-first text at its slot.
 List<_Piece> _docSidePieces(
   DocIndex index,
   Bundle bundle,
   List<IndexedDoc> ordered,
   List<FeaturePatternPart> patternParts,
   List<String> patternBlocks,
-  List<_Slot> slots, {
+  List<_Slot> slots,
+  _AncestorSpecs ancestors, {
   required bool splits,
   required bool readFirstOnly,
   required DocPrint Function(int doc) printOf,
@@ -373,7 +461,10 @@ List<_Piece> _docSidePieces(
     }
     final picked = ordered[doc];
     final summary = summaryOnly.contains(picked.docPath);
-    final inRefs = splits && (summary || bundle.joinsRefs(index, picked));
+    final inRefs =
+        splits &&
+        (summary || ancestors.holds(picked) || bundle.joinsRefs(index, picked));
+    pieces.addAll(ancestors.piecesOf(picked).map(_ancestorPiece));
     if (readFirstOnly && inRefs) continue;
     final print = printOf(doc);
     pieces.add(

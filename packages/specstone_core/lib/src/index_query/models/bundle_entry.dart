@@ -3,12 +3,15 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 /// What one entry of a bundle text is.
 ///
 /// - [doc]: a picked, joined, or summary doc.
-/// - [cited]: a part a link appended.
+/// - [cited]: a part a link appended, or a piece of an ancestor spec doc that
+///   a doc of the target subtree links to.
+/// - [cites]: a piece of an ancestor spec doc that links to a doc of the
+///   target subtree.
 /// - [pattern]: a feature pattern part.
 /// - [names]: a `==> names:` block of a top doc's chain children.
 /// - [citedBy]: the cited-by lines of one item, block, section, or doc, a part
 ///   of its own in a split bundle.
-enum BundleEntryKind { doc, cited, pattern, names, citedBy }
+enum BundleEntryKind { doc, cited, cites, pattern, names, citedBy }
 
 /// A `##` section an entry prints whole: its key and its header's line in the
 /// bundle text, counted from 1.
