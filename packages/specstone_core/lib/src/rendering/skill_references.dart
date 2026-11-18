@@ -20,7 +20,11 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show RelativeLink, readLinkTarget;
+    show
+        RelativeLink,
+        isRootedOrDrivePath,
+        opensAngleDestinationAt,
+        readLinkTarget;
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show relativeHref;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
@@ -43,8 +47,6 @@ const skillOutputFieldId = 'output';
 const _sourcesSectionId = 'sources';
 const _referencesFolder = 'references';
 const _frontmatterOpenLine = '---\n';
-final _rootedOutput = RegExp(r'^(?:[/\\]|[A-Za-z]:)');
-final _angleInlineOpen = RegExp(r'\]\(\s*<');
 
 // MARK: - Link actions
 
@@ -474,7 +476,7 @@ String? _stringField(Doc doc, String fieldId) {
 /// A leading `/` or `\`, or a drive such as `C:`, counts as rooted on every
 /// OS, so one config reads the same on each.
 List<String>? _segmentsOf(String output) {
-  if (_rootedOutput.hasMatch(output)) return null;
+  if (isRootedOrDrivePath(output)) return null;
   final separators = Platform.isWindows ? RegExp(r'[/\\]') : RegExp('/');
   final segments = <String>[];
   for (final segment in output.split(separators)) {
@@ -579,8 +581,7 @@ final class _WrittenLinkSyntax extends LinkSyntax {
     String? tag,
     required List<Node> Function() getChildren,
   }) {
-    _isAngleInline =
-        _angleInlineOpen.matchAsPrefix(parser.source, parser.pos) != null;
+    _isAngleInline = opensAngleDestinationAt(parser.source, parser.pos);
     return super.close(
       parser,
       opener,

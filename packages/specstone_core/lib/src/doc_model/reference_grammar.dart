@@ -672,6 +672,24 @@ int schemeEndOf(String text, [int start = 0]) {
 bool _isAsciiLetter(int code) =>
     (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A);
 
+final _webLink = RegExp('^https?://', caseSensitive: false);
+
+/// Whether [text] opens with an `http://` or `https://` web address.
+bool isWebLink(String text) => _webLink.hasMatch(text);
+
+final _rootedOrDrivePath = RegExp(r'^(?:[/\\]|[A-Za-z]:)');
+
+/// Whether [path] opens with a `/` or `\`, or a drive letter and `:`: a path
+/// that is not relative to the folder it is read in.
+bool isRootedOrDrivePath(String path) => _rootedOrDrivePath.hasMatch(path);
+
+final _angleDestinationOpen = RegExp(r'\]\(\s*<');
+
+/// Whether [source] holds, at index [at], the `](` that closes a link's text
+/// and opens its destination in angle brackets.
+bool opensAngleDestinationAt(String source, int at) =>
+    _angleDestinationOpen.matchAsPrefix(source, at) != null;
+
 /// Returns, keyed by its index in [ids], the next free ID of each
 /// [LetteredId], counted per prefix in list order: the
 /// highest [ItemId] number of that prefix plus one, plus one per earlier
