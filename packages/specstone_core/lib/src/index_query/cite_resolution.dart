@@ -12,12 +12,15 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
         readScenarioRef;
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show relativeHref;
-import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show docNamedBy, namesakesIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
+import 'package:specstone_core/src/index_query/models/cite_doc.dart';
+import 'package:specstone_core/src/index_query/models/cite_item.dart';
+import 'package:specstone_core/src/index_query/models/cite_section.dart';
 
 // MARK: - Results
 
@@ -25,10 +28,6 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 sealed class CiteResolution {
   const new();
 }
-
-/// One item a cite names: its ID as written, and the key and heading anchor
-/// of the `##` section that holds it.
-typedef CiteItem = ({String itemId, String sectionKey, String anchor});
 
 /// One doc, section, or set of items: the cite's links.
 final class CiteLink extends CiteResolution {
@@ -138,7 +137,7 @@ List<String> citeLinkMarkdown(String citingDocPath, CiteLink link) {
     return ['[${link.linkText}](${destination(link.anchor)})'];
   }
   return [
-    for (final (:itemId, sectionKey: _, :anchor) in link.items)
+    for (final CiteItem(:itemId, :anchor) in link.items)
       '[$itemId](${destination(anchor)})',
   ];
 }
@@ -182,7 +181,9 @@ CiteLink? _linkTo(
         .where((section) => section.itemKeys.contains(_itemKeyOf(id, section)))
         .firstOrNull;
     if (holder == null) return null;
-    items.add((itemId: id, sectionKey: holder.key, anchor: holder.anchor));
+    items.add(
+      CiteItem(itemId: id, sectionKey: holder.key, anchor: holder.anchor),
+    );
   }
   return CiteLink(
     docPath: doc.docPath,
@@ -207,13 +208,6 @@ String _itemKeyOf(String written, CiteSection section) {
 }
 
 // MARK: - CiteTree
-
-/// A doc a cite can name.
-typedef CiteDoc = ({String docPath, String? docTypeId, String name});
-
-/// A `##` section a cite can name: its key, its heading's anchor, and the
-/// key of each item it holds, as `itemKeyOfHead` reads it.
-typedef CiteSection = ({String key, String anchor, Set<String> itemKeys});
 
 /// The docs a cite resolves against: an index for `check`, or the tree a
 /// migrate run plans.
@@ -291,7 +285,7 @@ final class IndexCiteTree implements CiteTree {
 }
 
 CiteDoc _citeDocOf(IndexedDoc doc) =>
-    (docPath: doc.docPath, docTypeId: doc.docTypeId, name: doc.name);
+    CiteDoc(docPath: doc.docPath, docTypeId: doc.docTypeId, name: doc.name);
 
 /// Returns the sections of [content] as a cite names them.
 ///
@@ -302,7 +296,7 @@ List<CiteSection> citeSectionsOf(DocContent content) {
   final items = content.itemFacts.sectionItems;
   return [
     for (final (i, section) in content.sections.indexed)
-      (
+      CiteSection(
         key: section.key,
         anchor: _anchorOf(content.lineFacts, i, section),
         itemKeys: {

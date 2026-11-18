@@ -15,41 +15,12 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
+import 'package:specstone_core/src/index_query/models/cite_form.dart';
+import 'package:specstone_core/src/index_query/models/cite_item_at.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart'
     show MatrixLine, TestRow;
 import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
-
-/// A cite candidate of a typed doc's body: the doc name or
-/// path as written, less its `#<section key>`, at its 1-based file `line`,
-/// with the section key it names, null when it names none, and the item IDs
-/// of the run right after it.
-///
-/// A candidate holds no resolution: `check` and the cite pass judge it when
-/// they run.
-typedef CiteCandidate = ({
-  int line,
-  String written,
-  String? sectionKey,
-  List<String> itemIds,
-});
-
-/// One item ID of a cite form: its 0-based column on the form's line and the
-/// ID as written.
-typedef CiteItemAt = ({int column, String itemId});
-
-/// A cite candidate with its place on its line, which the cite pass rewrites.
-///
-/// `start` and `end` are the 0-based columns the doc part spans, its code
-/// span's backticks, `#key`, and header span included; `runAt` is the column
-/// of the first ID of its run, a lettered one included, or `end` when the run
-/// is empty; `items` holds each item ID it owns, repeats included.
-typedef CiteForm = ({
-  CiteCandidate candidate,
-  int start,
-  int end,
-  int runAt,
-  List<CiteItemAt> items,
-});
 
 /// Returns the cite candidates of [lfText], a typed doc with LF line ends, in
 /// file order.
@@ -167,11 +138,12 @@ CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
   final run = itemIdRunAt(line, end, prefixes: idPrefixes);
   final items = [
     for (final item in run)
-      if (item.id is ItemId) (column: item.at, itemId: item.id.written),
+      if (item.id is ItemId)
+        CiteItemAt(column: item.at, itemId: item.id.written),
   ];
   final holder = _spanHolding(spans, mention.column);
-  return (
-    candidate: (
+  return CiteForm(
+    candidate: CiteCandidate(
       line: mention.line,
       written: mention.address.docPart,
       sectionKey: key,

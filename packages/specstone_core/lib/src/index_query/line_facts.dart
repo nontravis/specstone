@@ -11,11 +11,10 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/doc_model/text_scan.dart';
-import 'package:specstone_core/src/index_query/cite_candidates.dart'
-    show CiteCandidate;
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show MermaidBlock;
+import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
 import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/models/label_place.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
@@ -432,7 +431,7 @@ List<LinkText> _linkTextsOfJson(Object json) => [
 /// Returns the cite candidates [json] holds, as `LineFacts.toJson` wrote them.
 List<CiteCandidate> _citeCandidatesOfJson(Object json) => [
   for (final c in (json as List<Object?>).cast<List<Object?>>())
-    (
+    CiteCandidate(
       line: c[0]! as int,
       written: c[1]! as String,
       sectionKey: c[2] as String?,

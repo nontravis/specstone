@@ -6,11 +6,11 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId, concernsSectionId, seeTargetIn;
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
     show heldSectionIndex;
-import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/cite_resolution.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart'
     show sectionBodyLines;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show isSingularLayoutPath, singularLayoutPathsOf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
