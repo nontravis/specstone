@@ -12,7 +12,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 ///
 /// An item is a top-level list item, table row, paragraph, or `###` heading
 /// with the paragraph under it; a nested item and fenced code are none. A
-/// sentence count is the stored fact of its item.
+/// sentence count is the stored fact of its item. A blank required section
+/// skips both floors, `min_lines` and the `item_count` minimum.
 Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
   if (context.typeOf(doc) == null) return;
   final lines = context.linesOf(doc);

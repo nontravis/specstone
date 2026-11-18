@@ -479,6 +479,35 @@ void main() {
     );
   });
 
+  test(
+    'a blank section made required by required_when skips both floors',
+    () async {
+      final found = await _found(
+        _frLayer,
+        '''
+sections:
+  - id: behavior
+    lint:
+      min_lines: 2
+      item_count:
+        min: 3
+      required_when:
+        section: rationale
+        field: Consistency
+        value: eventual
+''',
+        edits: edit(loginFr, [
+          (
+            'A wrong password must not sign in.',
+            '- **R1** Refuse it.\n  - **Consistency:** eventual',
+          ),
+          ('## Rationale', '## Behavior\n\n## Rationale'),
+        ]),
+      );
+      expect(found, isEmpty);
+    },
+  );
+
   test('a blank persona snapshot reports the section and no floor', () async {
     const personaPath = 'prds/personas/buyer/PERSONA.md';
     final project = await writeCheckProject(
