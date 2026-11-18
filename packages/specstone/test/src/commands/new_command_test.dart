@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
+import '../../helpers/temp_tree.dart' show treeBytes;
 import '../../helpers/write_runner.dart';
 
 void main() {
@@ -98,6 +99,40 @@ void main() {
     expect(text, contains('Recover an account.'));
     expect(text, contains('draft: true'));
     expect(text, isNot(contains('<Role>')));
+  });
+  test('a naming line at column 0 in the piped doc text exits 64 with a '
+      'message opening the text holds, and writes no doc', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        input:
+            '# Recover account\n\n## Use Case\nRecover an account.\n\n'
+            '==> x (user_story) · prds/f.md · base 0123456789ab <==\n',
+      ),
+    );
+
+    final status = await runner.run([
+      'new',
+      'user_story',
+      '--parent',
+      'login',
+      '--slug',
+      'recover_account',
+      '--json',
+    ]);
+
+    expect(status, 64);
+    expect(out.toString(), isEmpty);
+    final error = (jsonDecode(err.toString()) as Map)['error']! as Map;
+    expect(error['code'], 'argument_invalid');
+    expect(
+      error['message'],
+      'the text holds the naming line '
+      '"==> x (user_story) · prds/f.md · base 0123456789ab <=="; '
+      'indent it or put it in a fenced code block',
+    );
+    expect(hasDoc(root, newStory), isFalse);
   });
   test('a parent no doc carries exits 64', () async {
     final root = await writeWriteProject();
@@ -244,6 +279,122 @@ void main() {
       });
     },
   );
+
+  group('a refused new exits 64 and writes nothing', () {
+    /// Runs `new` with [args] and `--json` on [root]; returns the exit status
+    /// and the error object `--json` prints.
+    Future<(int, Map<String, Object?>)> refused(
+      Directory root,
+      List<String> args,
+    ) async {
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+      final status = await runner.run(['new', ...args, '--json']);
+      expect(out.toString(), isEmpty);
+      final error = (jsonDecode(err.toString()) as Map)['error']! as Map;
+      return (status, error.cast<String, Object?>());
+    }
+
+    test('a second new project is doc_exists naming the project doc', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+      expect(await runner.run(['new', 'project']), 0, reason: err.toString());
+      final before = treeBytes(Directory('${root.path}/docs'));
+
+      final (status, error) = await refused(root, ['project']);
+
+      expect(status, 64);
+      expect(error['code'], 'doc_exists');
+      expect(error['message'], 'a project named project exists');
+      expect(error['file'], 'prds/PROJECT.md');
+      expect(treeBytes(Directory('${root.path}/docs')), before);
+    });
+
+    test('a story whose sibling slug is taken is doc_exists naming the '
+        'DocPath', () async {
+      final root = await writeWriteProject();
+      final before = treeBytes(Directory('${root.path}/docs'));
+
+      final (status, error) = await refused(root, [
+        'user_story',
+        '--parent',
+        'login',
+        '--slug',
+        'email_login',
+      ]);
+
+      expect(status, 64);
+      expect(error['code'], 'doc_exists');
+      expect(error['message'], 'a user_story named login/email_login exists');
+      expect(
+        error['file'],
+        'prds/features/f01_login/us01_email_login/USER_STORY.md',
+      );
+      expect(treeBytes(Directory('${root.path}/docs')), before);
+    });
+
+    test('a missing --parent, a missing --slug, a value the type takes none '
+        'for, and a bad slug each exit 64', () async {
+      final root = await writeWriteProject();
+      final before = treeBytes(Directory('${root.path}/docs'));
+      final cases = <(List<String>, String)>[
+        (['user_story', '--slug', 'x'], 'argument_missing'),
+        (['user_story', '--parent', 'login'], 'argument_missing'),
+        (['project', '--slug', 'x'], 'argument_invalid'),
+        (
+          ['user_story', '--parent', 'login', '--slug', 'Bad-Slug'],
+          'argument_invalid',
+        ),
+      ];
+
+      for (final (args, code) in cases) {
+        final (status, error) = await refused(root, args);
+
+        expect(status, 64, reason: '$args');
+        expect(error['code'], code, reason: '$args');
+      }
+
+      expect(treeBytes(Directory('${root.path}/docs')), before);
+    });
+
+    test('a doc type id the merged set lacks is doc_type_unknown', () async {
+      final root = await writeWriteProject();
+      final before = treeBytes(Directory('${root.path}/docs'));
+
+      final (status, error) = await refused(root, ['no_such_type']);
+
+      expect(status, 64);
+      expect(error['code'], 'doc_type_unknown');
+      expect(error['message'], contains('no_such_type'));
+      expect(treeBytes(Directory('${root.path}/docs')), before);
+    });
+
+    test('a --target value outside targets is argument_invalid listing the '
+        'targets', () async {
+      final root = await writeTwinProject(
+        without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
+      );
+
+      final (status, error) = await refused(root, [
+        'architecture',
+        '--parent',
+        'login',
+        '--target',
+        'web',
+      ]);
+
+      expect(status, 64);
+      expect(error['code'], 'argument_invalid');
+      expect(error['message'], allOf(contains('flutter'), contains('jaspr')));
+      expect(hasDoc(root, jasprArchitecture), isFalse);
+      expect(hasDoc(root, flutterArchitecture), isFalse);
+    });
+  });
 
   group('new journey', () {
     const journeyDoc = 'prds/journeys/sign_in/JOURNEY.md';
@@ -452,6 +603,85 @@ sections:
       expect(hasDoc(root, flutterArchitecture), isFalse);
     });
   });
+  group('a parent suffix that names two docs of the parent type', () {
+    const miscCart = 'prds/features/f03_misc/f01_cart/FEATURE.md';
+    const bothCarts =
+        'feature:cart ends 2 names: feature:shop/cart, feature:misc/cart';
+
+    Future<Directory> twoCarts() =>
+        writeNestedProject(extra: {'docs/$miscCart': '# Misc cart\n'});
+
+    test('new --parent refuses with exit 64 listing both, and creates no '
+        'folder', () async {
+      final root = await twoCarts();
+      final before = treeBytes(Directory('${root.path}/docs'));
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+
+      final status = await runner.run([
+        'new',
+        'user_story',
+        '--parent',
+        'cart',
+        '--slug',
+        'restock',
+      ]);
+
+      expect(status, 64);
+      expect(out.toString(), isEmpty);
+      expect(err.toString().trimRight().split('\n').last, bothCarts);
+      expect(treeBytes(Directory('${root.path}/docs')), before);
+    });
+
+    test('the parent of a story move refuses with exit 64 listing both, and '
+        'moves nothing', () async {
+      final root = await twoCarts();
+      final before = treeBytes(Directory('${root.path}/docs'));
+      final (:runner, :out, :err) = writeRunner(root);
+
+      final status = await runner.run([
+        'move',
+        'shop/pay/card',
+        '--under',
+        'cart',
+      ]);
+
+      expect(status, 64);
+      expect(err.toString().trimRight().split('\n').last, bothCarts);
+      expect(treeBytes(Directory('${root.path}/docs')), before);
+    });
+
+    test(
+      'list --under takes a suffix of a name that one doc carries',
+      () async {
+        final root = await writeNestedProject(
+          extra: {'docs/$miscCart': '# Misc cart\n'},
+        );
+        final (:runner, :out, :err) = writeRunner(root);
+
+        final listed = await runner.run([
+          'list',
+          'user_story',
+          '--under',
+          'feature:shop/cart',
+        ]);
+        final bySuffix = await runner.run([
+          'list',
+          'user_story',
+          '--under',
+          'pay',
+        ]);
+
+        expect(listed, 0, reason: err.toString());
+        expect(bySuffix, 0, reason: err.toString());
+        expect(out.toString(), contains('shop/cart/add_item (user_story)'));
+        expect(out.toString(), contains('shop/pay/card (user_story)'));
+      },
+    );
+  });
+
   group('a parent named by the end of its name', () {
     const restock =
         'prds/features/f02_shop/f01_cart/us03_restock/USER_STORY.md';
