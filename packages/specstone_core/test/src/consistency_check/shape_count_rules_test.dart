@@ -580,10 +580,10 @@ void main() {
       extra: {
         ...fr(checkPasswordStatement, 'Refuse it. Log it.'),
         ...doc(
-          'prds/GLOSSARY.md',
-          '- **Agent** — the coding agent that writes the docs.',
-          '- **Agent** — One. Two. Three.\n  - Nested one.\n  - Nested two.\n'
-              '- **Owner** — Four.\n  Five.\n- **User** — Six.',
+          'prds/FEATURES.md',
+          '- Login\n',
+          '- Login — One. Two. Three.\n  - Nested one.\n  - Nested two.\n'
+              '- Owner — Four.\n  Five.\n- User — Six.\n',
         ),
       },
     );

@@ -75,8 +75,8 @@ void main() {
     expect(
       description,
       contains(
-        'Write the Statement as one sentence with one "shall", stated '
-        'positively, with a quantified value kept in it, such as `within 2 s`.',
+        'Write the Statement with one "shall", stated positively, with a '
+        'quantified value kept in it, such as `within 2 s`.',
       ),
     );
     expect(

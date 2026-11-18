@@ -163,7 +163,7 @@ void main() {
     expect(
       description,
       allOf(
-        contains('- **INV-<N>** <one sentence>'),
+        contains('- **INV-<N>** <rule>'),
         contains('- **Enforcer:** <aggregate root>'),
         contains('- **Consistency:** immediate'),
         contains('- **Corrective policy:** <how the system restores the rule>'),
