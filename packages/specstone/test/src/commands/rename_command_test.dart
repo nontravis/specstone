@@ -13,6 +13,10 @@ import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
+/// Returns every file and folder under the docs of [root] by its bytes.
+Map<String, List<int>> _docsOf(Directory root) =>
+    treeBytes(root)..removeWhere((path, _) => !path.startsWith('docs/'));
+
 void main() {
   test('rename takes a bare name one doc carries', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
@@ -65,7 +69,91 @@ void main() {
       64,
     );
   });
-  test('no target is argument_missing', () async {
+  test(
+    'an invalid slug is argument_invalid, exit 64, and nothing moves',
+    () async {
+      final root = await writeWriteProject();
+      final before = _docsOf(root);
+      for (final slug in ['Recover', 'recover-account', 'recover account']) {
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run([
+            'rename',
+            'user_story:login/reset_password',
+            '--to',
+            slug,
+            '--json',
+          ]),
+          64,
+          reason: slug,
+        );
+        expect(out.toString(), isEmpty, reason: slug);
+        final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
+        expect(error['code'], 'argument_invalid', reason: slug);
+      }
+      expect(_docsOf(root), before);
+    },
+  );
+
+  test('a new title is no rename option and the title line stays', () async {
+    final root = await writeWriteProject();
+    final before = _docsOf(root);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+        '--title',
+        'Recover an account',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(_docsOf(root), before);
+
+    final second = writeRunner(root);
+    expect(
+      await second.runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    expect(
+      File(
+        '${root.path}/docs/prds/features/f01_login/us03_recover_account/USER_STORY.md',
+      ).readAsStringSync(),
+      contains('\n# Reset password\n'),
+    );
+  });
+
+  test('an unknown name, an ambiguous name, and an untyped path are each '
+      'exit 64 and nothing moves', () async {
+    final root = await writeWriteProject();
+    final before = _docsOf(root);
+    for (final (target, code) in [
+      ('user_story:login/no_such_story', 'doc_not_found'),
+      ('buyer', 'argument_invalid'),
+      ('prds/d01_context.md', 'untyped_target'),
+    ]) {
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['rename', target, '--to', 'other', '--json']),
+        64,
+        reason: target,
+      );
+      expect(out.toString(), isEmpty, reason: target);
+      final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
+      expect(error['code'], code, reason: target);
+    }
+    expect(_docsOf(root), before);
+  });
+
+  test('rename with no target is argument_missing', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['rename', '--to', 'x']), 64);
     expect(err.toString(), startsWith('rename needs a target'));

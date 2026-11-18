@@ -172,6 +172,123 @@ void main() {
     expect(kinds, isNot(contains(FindingKind.confirmedEntryStale)));
   });
 
+  test('the renamed api row raises no unresolved, suspect, unconfirmed, or stale finding', () async {
+    final root = await _project();
+    _rename(root, 'user_story:login/email_login', 'password_login');
+    final kinds = await _kindsOf(root, loginApi);
+    for (final kind in [
+      FindingKind.frTraceUnresolved,
+      FindingKind.suspect,
+      FindingKind.unconfirmed,
+      FindingKind.confirmedEntryStale,
+    ]) {
+      expect(kinds, isNot(contains(kind)), reason: '$kind');
+    }
+  });
+
+  test('an approved journey and api doc rewritten keep their approval and confirmations', () async {
+    final root = await _project();
+    _rename(root, 'user_story:login/email_login', 'password_login');
+    for (final docPath in [_journeyPath, loginApi]) {
+      expect(readDoc(root, docPath), contains('approved: "'), reason: docPath);
+      final kinds = await _kindsOf(root, docPath);
+      for (final kind in [
+        FindingKind.suspect,
+        FindingKind.unconfirmed,
+        FindingKind.confirmedEntryStale,
+        FindingKind.approvalStale,
+      ]) {
+        expect(kinds, isNot(contains(kind)), reason: '$docPath $kind');
+      }
+    }
+  });
+
+  test(
+    'an api row and entry naming a story not renamed stay as written',
+    () async {
+      final root = await writeCheckProject(
+        extra: edit(loginApi, [
+          (
+            'confirmed:\n  - email_login/check_password',
+            'confirmed:\n  - other_story/do_it 0123456789ab\n  - email_login/check_password',
+          ),
+          (
+            '| email_login/check_password | `signIn` |\n',
+            '| email_login/check_password | `signIn` |\n| other_story/do_it | `doIt` |\n',
+          ),
+        ]),
+      );
+      _rename(root, 'user_story:login/email_login', 'password_login');
+      final api = readDoc(root, loginApi);
+      expect(api, contains('| other_story/do_it | `doIt` |\n'));
+      expect(api, contains('  - other_story/do_it 0123456789ab\n'));
+      expect(api, contains('| password_login/check_password | `signIn` |\n'));
+    },
+  );
+
+  test('a rewritten api doc is laid out', () async {
+    final root = await writeCheckProject(
+      extra: edit(loginApi, [
+        ('## Operations\n\n### signIn', '## Operations\n\n\n\n### signIn'),
+      ]),
+    );
+    expect(readDoc(root, loginApi), contains('\n\n\n\n### signIn'));
+    _rename(root, 'user_story:login/email_login', 'password_login');
+    final api = readDoc(root, loginApi);
+    expect(api, contains('| password_login/check_password | `signIn` |\n'));
+    expect(api, isNot(contains('\n\n\n')));
+  });
+
+  test(
+    'an api doc the format command refuses keeps every byte the rewrite leaves',
+    () async {
+      final root = await writeCheckProject(
+        extra: edit(loginApi, [
+          ('## Operations\n\n### signIn', '## Bogus\n\n\n\n### signIn'),
+        ]),
+        unstamped: {'docs/$loginApi'},
+      );
+      final before = readDoc(root, loginApi);
+      _rename(root, 'user_story:login/email_login', 'password_login');
+      expect(
+        readDoc(root, loginApi),
+        before.replaceAll(
+          'email_login/check_password',
+          'password_login/check_password',
+        ),
+      );
+    },
+  );
+
+  test(
+    'a journey the format command refuses keeps every byte the rewrite leaves',
+    () async {
+      final root = await writeCheckProject(
+        extra: {'docs/$_journeyPath': '${_journey()}\n\n\n## Bogus\nx\n'},
+        unstamped: {'docs/$_journeyPath'},
+      );
+      final before = readDoc(root, _journeyPath);
+      final answer = _rename(
+        root,
+        'user_story:login/email_login',
+        'password_login',
+      );
+      expect(answer.json['rewritten'], contains(_journeyPath));
+      expect(
+        readDoc(root, _journeyPath),
+        before
+            .replaceFirst(
+              '### 1. Sign in\nstep: login/email_login S1',
+              '### 1. Sign in\nstep: login/password_login S1',
+            )
+            .replaceFirst(
+              '  - login/email_login#S1 ',
+              '  - login/password_login#S1 ',
+            ),
+      );
+    },
+  );
+
   test('rename of an fr rewrites the row and the entry', () async {
     final root = await _project();
     _rename(root, 'fr:login/email_login/check_password', 'verify_password');
