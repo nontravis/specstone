@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/required_sections.dart';
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -61,13 +62,7 @@ Iterable<Finding> checkItemFields(CheckContext context, IndexedDoc doc) sync* {
         keys: {'section': template.id},
       );
     } else if (met) {
-      yield context.finding(
-        doc,
-        FindingKind.requiredSectionMissing,
-        line: 1,
-        message: 'required section ${template.id} is missing',
-        keys: {'section': template.id},
-      );
+      yield requiredSectionFinding(context, doc, template.id);
     }
   }
 }
