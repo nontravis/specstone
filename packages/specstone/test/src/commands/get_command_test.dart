@@ -221,6 +221,133 @@ void main() {
     );
     expect(await readRunner(pinned).runner.run(['get', 'login']), 78);
   });
+  test('no name under --json is the argument_missing envelope, exit 64, '
+      'stdout empty', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['get', '--json']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'argument_missing',
+    );
+  });
+  test('outside a project the fault is project_not_found, and under a 9.9.9 '
+      'pin it is the pin fault, with no index built', () async {
+    final outside = readRunner(await writeTree({}));
+    expect(await outside.runner.run(['get', 'login', '--json']), 78);
+    expect(
+      ((jsonDecode(outside.err.toString()) as Map)['error'] as Map)['code'],
+      'project_not_found',
+    );
+    final pinned = await writeReadProject(
+      extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
+    );
+    final run = readRunner(pinned);
+    expect(await run.runner.run(['get', 'login', '--json']), 78);
+    expect(
+      ((jsonDecode(run.err.toString()) as Map)['error'] as Map)['code'],
+      'pack_pin_newer',
+    );
+    expect(
+      File('${pinned.path}/.specstone/index.sqlite').existsSync(),
+      isFalse,
+    );
+  });
+  test('a template section the doc lacks prints its naming line alone and '
+      'exits 0, with an empty text under --json', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['get', 'feature:login#benefit_hypothesis']), 0);
+    expect(
+      out.toString(),
+      matches(
+        RegExp(
+          r'^==> login \(feature\) · prds/features/f01_login/FEATURE\.md'
+          r'#benefit_hypothesis · base [0-9a-f]{12} <==\n$',
+        ),
+      ),
+    );
+    out.clear();
+    expect(
+      await runner.run(['get', 'feature:login#benefit_hypothesis', '--json']),
+      0,
+    );
+    final doc =
+        ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
+    expect(doc['text'], '');
+  });
+  test('the lead of a doc with no lead text prints its naming line alone and '
+      'exits 0', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(
+        extra: {
+          'docs/prds/GNFR.md':
+              '# Project-wide requirements\n\n## Performance\n\nN/A\n',
+        },
+      ),
+    );
+    expect(await runner.run(['get', 'gnfr#_lead']), 0);
+    expect(
+      out.toString(),
+      matches(
+        RegExp(
+          r'^==> gnfr \(gnfr\) · prds/GNFR\.md#_lead · base [0-9a-f]{12} <==\n$',
+        ),
+      ),
+    );
+  });
+  test('Grid:login is no doc type prefix, so it is doc_not_found, exit 64, '
+      'and never doc_type_unknown', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['get', 'Grid:login', '--json']), 64);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'doc_not_found',
+    );
+  });
+  test('architecture: before the DocPath of a feature is doc_not_found, exit '
+      '64', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run([
+        'get',
+        'architecture:prds/features/f01_login/FEATURE.md',
+        '--json',
+      ]),
+      64,
+    );
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'doc_not_found',
+    );
+  });
+  test('a suffix of an untyped doc alone is doc_not_found, exit 64', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(extra: {'docs/prds/notes/old.md': '# Old\n'}),
+    );
+    expect(await runner.run(['get', 'notes/old.md', '--json']), 64);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'doc_not_found',
+    );
+  });
+  test('an untyped doc whose file name holds @ is printed by get and planned '
+      'by delete --dry-run', () async {
+    final project = await writeReadProject(
+      extra: {'docs/prds/a@b.md': '# At\n'},
+    );
+    final get = readRunner(project);
+    expect(await get.runner.run(['get', 'prds/a@b.md']), 0);
+    expect(get.out.toString(), contains('prds/a@b.md'));
+    expect(get.out.toString(), contains('# At'));
+    final delete = readRunner(project);
+    expect(
+      await delete.runner.run(['delete', 'prds/a@b.md', '--dry-run']),
+      0,
+      reason: delete.err.toString(),
+    );
+    expect(delete.out.toString(), startsWith('prds/a@b.md'));
+    expect(delete.out.toString(), contains('dry run: nothing removed'));
+  });
   test('get --json prints the laid-out section bases', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(
@@ -310,6 +437,54 @@ void main() {
         );
       },
     );
+    test(
+      '--paths on a story, or on a bare name a persona also carries, is '
+      'argument_invalid, exit 64, naming the doc that is no journey',
+      () async {
+        final story = readRunner(await project());
+        expect(
+          await story.runner.run([
+            'get',
+            'user_story:login/email_login',
+            '--paths',
+            '--json',
+          ]),
+          64,
+        );
+        expect(story.out.toString(), isEmpty);
+        final error = (jsonDecode(story.err.toString()) as Map)['error'] as Map;
+        expect(error['code'], 'argument_invalid');
+        expect(error['message'], contains('login/email_login'));
+        final shared = readRunner(
+          await writeReadProject(
+            extra: {
+              journeyDoc: journeyText,
+              storyDoc: storyText,
+              'docs/prds/personas/sign_in/PERSONA.md': '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n# Sign in\n',
+            },
+          ),
+        );
+        expect(await shared.runner.run(['get', 'sign_in', '--paths']), 64);
+        expect(shared.out.toString(), isEmpty);
+        expect(shared.err.toString(), contains('sign_in'));
+        expect(shared.err.toString(), contains('is not a journey'));
+      },
+    );
+    test(
+      '--code on a feature is argument_invalid, exit 64, stdout empty',
+      () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(
+          await runner.run(['get', 'feature:login', '--code', '--json']),
+          64,
+        );
+        expect(out.toString(), isEmpty);
+        expect(
+          ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+          'argument_invalid',
+        );
+      },
+    );
     for (final option in ['--paths', '--code']) {
       test(
         '$option with two names is argument_invalid, exit 64, nothing printed',
@@ -387,6 +562,31 @@ void main() {
       expect(lines, hasLength(1));
       expect(lines.single, startsWith('==> get: '));
       expect(lines.single, contains(file.resolveSymbolicLinksSync()));
+    });
+
+    test('the header holds the line and token counts of the file, and '
+        '--json --out prints out, lines, and tokens', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      expect(await run.runner.run(['get', 'feature:login', '--out']), 0);
+      final text = File(
+        '${project.path}/.specstone/reports/get.feature-login.txt',
+      ).readAsStringSync();
+      final header = RegExp(r'^==> get: (\d+) lines, (\d+) tokens · .+ <==$')
+          .firstMatch(run.out.toString().trimRight());
+      expect(header, isNotNull);
+      expect(int.parse(header![1]!), text.trimRight().split('\n').length);
+      expect(int.parse(header[2]!), greaterThan(0));
+      final json = readRunner(project);
+      expect(
+        await json.runner.run(['get', 'feature:login', '--json', '--out']),
+        0,
+      );
+      final printed = jsonDecode(json.out.toString()) as Map;
+      expect(printed.keys, containsAll(['out', 'lines', 'tokens']));
+      expect(printed['out'], endsWith('get.feature-login.json'));
+      expect(printed['lines'], isA<int>());
+      expect(printed['tokens'], greaterThan(0));
     });
 
     test('--paths --out names its file get-paths.<journey>.txt', () async {
@@ -583,6 +783,25 @@ void main() {
           'specs/flutter/f02_feedback/f03_toast/'
           'DOMAIN.md',
         ),
+      );
+    });
+    test('a doc type name held by flutter alone is doc_not_found under '
+        '--target jaspr, exit 64', () async {
+      final (:runner, :out, :err) = readRunner(await writeTargetedProject());
+      expect(
+        await runner.run([
+          'get',
+          'domain:feedback/toast',
+          '--target',
+          'jaspr',
+          '--json',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+        'doc_not_found',
       );
     });
     test('--paths and --code refuse a target targets: holds none of, '
