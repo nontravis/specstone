@@ -20,7 +20,6 @@ import '../../helpers/temp_tree.dart';
 
 const _voiceDoc = 'specs/marketing/VOICE.md';
 const List<String> _readabilityMarkers = [
-  sentenceLengthGuideLine,
   'Keep one rule in each item',
   citeNoteGuideLine,
   'State the condition first',

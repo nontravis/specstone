@@ -7,6 +7,26 @@ import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
 void main() {
+  test(
+    'the description names neither the line cap nor the character cap',
+    () async {
+      final record = prdCoreDocType(
+        await resolveSoftwareTech(),
+        'implementation',
+      );
+
+      expect(record.description, isNot(contains('400')));
+      expect(record.description, isNot(contains('60,000')));
+      expect(
+        record.description?.split('\n'),
+        contains(
+          'The line cap does not count these frontmatter lines, so the '
+          'character cap bounds them.',
+        ),
+      );
+    },
+  );
+
   test('the record carries the optional matrix section, with no template '
       'text, that holds an output reference', () async {
     final record = prdCoreDocType(
