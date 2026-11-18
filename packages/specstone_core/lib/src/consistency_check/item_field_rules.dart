@@ -8,9 +8,10 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 /// Returns the item-field and conditional-section findings of a typed [doc];
 /// an untyped doc has none.
 ///
-/// Each top-level item of a section whose template sets `item_fields` holds a
-/// nested `- **<field>:** <text>` item per entry, its text one of the entry's
-/// `values` when it gives them. An entry with a `when` applies only to an item
+/// Each top-level list item or table row of a section whose template sets
+/// `item_fields` holds a nested `- **<field>:** <text>` item per entry, its
+/// text one of the entry's `values` when it gives them; a top-level paragraph
+/// holds none. An entry with a `when` applies only to an item
 /// that meets it; an item that does not meet it and holds the field gives
 /// `item_field_unneeded`. A section whose template sets `required_when`
 /// is required exactly while an item of the named section holds the named
