@@ -34,6 +34,10 @@ void main() {
       entry.path.substring(installDir().length + 1),
   ];
 
+  String installLine(String version, String ref, String shortCommit) =>
+      'installed specstone $version ($ref @ $shortCommit) '
+      'in ${installDir()}/bin\n';
+
   // A refusal changes nothing: the install, the worktree list, and the temp
   // folder are as they were, and no build step ran.
   void expectNothingChanged() {
@@ -78,27 +82,6 @@ fi''');
       if (DateTime.now().isAfter(deadline)) fail('timed out after 30 s');
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
-  }
-
-  // Makes the first `git worktree remove` fail, and the second one too under
-  // `STUB_GIT_REMOVE_AGAIN=fail`; every other `git` call goes to the logging
-  // stub.
-  void failWorktreeRemove() {
-    final stubs = repo.sandbox.stubs.path;
-    File('$stubs/git').renameSync('$stubs/git_original');
-    repo.sandbox.stub('git', r'''
-if [ "$1 $2" = 'worktree remove' ]; then
-  if [ ! -e "$STUB_LOG_DIR/first_remove" ]; then
-    touch "$STUB_LOG_DIR/first_remove"
-    echo 'stub: git worktree remove failed' >&2
-    exit 1
-  fi
-  if [ "$STUB_GIT_REMOVE_AGAIN" = fail ]; then
-    echo 'stub: second git worktree remove failed' >&2
-    exit 1
-  fi
-fi
-exec "$(dirname "$0")/git_original" "$@"''');
   }
 
   // Runs the tool and kills it after 30 s, so a tool that never exits fails
@@ -147,7 +130,6 @@ exec "$(dirname "$0")/git_original" "$@"''');
 
     await waitFor(File('${repo.sandbox.logs.path}/$marker').existsSync);
     expect(repo.tmpIsEmpty, isFalse);
-    expect(repo.worktrees(), hasLength(2));
     process.kill(signal);
     await waitFor(() => '$errors'.contains('interrupted; cleaning up'));
     if (releases) release.createSync();
@@ -169,7 +151,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
   });
 
   test(
-    'an unknown ref is refused by name before any worktree exists',
+    'an unknown ref is refused by name before any temp folder exists',
     () async {
       final result = await repo.run(tool, args: ['--branch', 'nope']);
 
@@ -245,8 +227,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
     expect(await repo.checkoutState(), stateBefore);
   });
 
-  test("both build steps run in a temp worktree on the ref's "
-      'commit, which then goes', () async {
+  test('the build runs in a git archive export in the temp folder', () async {
     final bundleBinary = keepBundleBinary();
     final commit = repo.sha('develop');
     final tmp = Directory('${repo.sandbox.root.path}/tmp')
@@ -263,23 +244,61 @@ exec "$(dirname "$0")/git_original" "$@"''');
         ),
     ];
     expect(steps, hasLength(2));
-    final worktree = RegExp('^${RegExp.escape(tmp)}/([^/]+)/worktree\$')
+    final export = RegExp('^${RegExp.escape(tmp)}/([^/]+)/export\$')
         .firstMatch(steps[0].dir);
-    expect(worktree, isNotNull, reason: steps[0].dir);
-    final temp = '$tmp/${worktree![1]}';
+    expect(export, isNotNull, reason: steps[0].dir);
+    final temp = '$tmp/${export![1]}';
     expect(steps[0].args, 'pub get --enforce-lockfile');
     expect(steps[1].dir, '${steps[0].dir}/packages/specstone');
     expect(steps[1].args, 'build cli -t bin/specstone.dart -o $temp/build');
+    final gitLog = repo.sandbox.logOf('git');
     expect(
-      repo.sandbox.logOf('git'),
-      containsAllInOrder([
-        'worktree add --detach $temp/worktree $commit',
-        'worktree remove --force $temp/worktree',
-      ]),
+      gitLog,
+      contains('archive --format=tar -o $temp/export.tar $commit'),
     );
-    expect(bundleBinary.readAsLinesSync()[1], '# $commit develop');
+    expect(gitLog, isNot(anyElement(startsWith('worktree'))));
+    expect(bundleBinary.readAsLinesSync()[1], '# develop');
     expect(repo.worktrees(), hasLength(1));
+    expect(Directory('${repo.work.path}/.git/worktrees').existsSync(), isFalse);
     expect(repo.tmpIsEmpty, isTrue);
+  });
+
+  test('a temp folder that will not delete is named after the run', () async {
+    for (final isGood in [true, false]) {
+      final result = await repo.run(
+        tool,
+        env: {'STUB_DART_LOCK': '1', if (!isGood) 'STUB_DART_BUILD': 'fail'},
+      );
+
+      final leftover = Directory('${repo.sandbox.root.path}/tmp')
+          .listSync()
+          .single;
+      final locked = '${leftover.path}/locked';
+      void removeLeftover() {
+        if (!leftover.existsSync()) return;
+        Process.runSync('chmod', ['755', locked]);
+        Directory(leftover.path).deleteSync(recursive: true);
+      }
+
+      addTearDown(removeLeftover);
+      final stderr = result.stderr as String;
+      expect(result.exitCode, isGood ? 0 : 1, reason: stderr);
+      expect(stderr, contains('could not remove'));
+      expect(stderr, contains(leftover.resolveSymbolicLinksSync()));
+      if (isGood) {
+        expect(
+          result.stdout,
+          installLine('0.10.0-dev.1', 'develop', repo.shortSha('develop')),
+        );
+      } else {
+        expect(stderr, contains('dart build cli failed'));
+        expect(
+          stderr.indexOf('dart build cli failed'),
+          lessThan(stderr.indexOf('could not remove')),
+        );
+      }
+      removeLeftover();
+    }
   });
 
   test('checkoutState() is equal across a run, and the '
@@ -296,10 +315,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
     expect(await repo.checkoutState(), stateBefore);
-    expect(
-      bundleBinary.readAsLinesSync()[1],
-      '# ${repo.sha('develop')} develop',
-    );
+    expect(bundleBinary.readAsLinesSync()[1], '# develop');
     final version = await Process.run(bundleBinary.path, ['--version']);
     expect((version.stdout as String).trim(), '0.10.0-dev.1');
   });
@@ -317,10 +333,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
     expect(await repo.checkoutState(), stateBefore);
-    expect(
-      bundleBinary.readAsLinesSync()[1],
-      '# ${repo.sha('feature/example')} feature',
-    );
+    expect(bundleBinary.readAsLinesSync()[1], '# feature');
   });
 
   for (final (step, mode) in [
@@ -340,7 +353,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
   }
 
   test('Ctrl-C during a build that ignores it leaves no '
-      'worktree and the same snapshot()', () async {
+      'temp folder and the same snapshot()', () async {
     final result = await interruptDuringBuild(stubIgnoresSignals: true);
 
     expect(result.exitCode, isNot(0));
@@ -373,7 +386,7 @@ fi''');
     ('SIGHUP', ProcessSignal.sighup),
   ]) {
     test('$name during the build stops the build step, '
-        'removes the worktree, and keeps the install', () async {
+        'removes the temp folder, and keeps the install', () async {
       final result = await interruptAt(
         'building',
         {'STUB_DART_BUILD': 'wait'},
@@ -400,7 +413,7 @@ fi''');
     expectBuildLeftNothing();
   });
 
-  test('SIGHUP with stderr closed still removes the worktree '
+  test('SIGHUP with stderr closed still removes the temp folder '
       'and exits 1', () async {
     final release = File('${repo.sandbox.logs.path}/release');
     final process = await repo.start(tool, env: {'STUB_DART_BUILD': 'wait'});
@@ -424,56 +437,6 @@ fi''');
     expectBuildLeftNothing();
   });
 
-  test('a worktree that will not go is reported, removed by a '
-      'second removal once its folder is gone, and the tool exits', () async {
-    failWorktreeRemove();
-
-    final result = await runBounded();
-
-    expect(result.exitCode, isNot(0));
-    expect(result.stderr, contains('git worktree remove'));
-    expect(result.stderr, contains('stub: git worktree remove failed'));
-    expect(
-      repo.sandbox.logOf('git'),
-      anyElement(startsWith('worktree remove --force ')),
-    );
-    expect(
-      repo.sandbox.logOf('git'),
-      isNot(anyElement(startsWith('worktree prune'))),
-    );
-    expect(repo.worktrees(), hasLength(1));
-    expect(repo.tmpIsEmpty, isTrue);
-  });
-
-  test('a failing second removal joins the first failure', () async {
-    failWorktreeRemove();
-
-    final result = await runBounded(env: {'STUB_GIT_REMOVE_AGAIN': 'fail'});
-
-    expect(result.exitCode, isNot(0));
-    expect(result.stderr, contains('stub: git worktree remove failed'));
-    expect(result.stderr, contains('stub: second git worktree remove failed'));
-    expect(repo.tmpIsEmpty, isTrue);
-  });
-
-  test('a failing build step stays the reported refusal when the '
-      'worktree will not go either', () async {
-    failWorktreeRemove();
-
-    final result = await runBounded(env: {'STUB_DART_BUILD': 'fail'});
-
-    expect(result.exitCode, isNot(0));
-    expect(result.stderr, contains('dart build cli failed'));
-    expect(result.stderr, contains('stub: dart build cli failed'));
-    expect(result.stderr, contains('stub: git worktree remove failed'));
-    expect(repo.worktrees(), hasLength(1));
-    expect(repo.tmpIsEmpty, isTrue);
-  });
-
-  String installLine(String version, String ref, String shortCommit) =>
-      'installed specstone $version ($ref @ $shortCommit) '
-      'in ${installDir()}/bin\n';
-
   // Merges a new branch into develop with a merge commit.
   void mergeIntoDevelop(String name) {
     git(repo.work, ['checkout', '-q', '-b', name]);
@@ -495,7 +458,7 @@ fi''');
     );
   }
 
-  // The second line of the placed binary: the stub's `# <commit> <marker>`.
+  // The second line of the placed binary: the stub's `# <marker>`.
   String placedMark() =>
       File('${installDir()}/bin/specstone').readAsLinesSync()[1];
 
@@ -533,7 +496,7 @@ fi''');
       '--version',
     ]);
     expect(version.stdout, '0.10.0-dev.1\n');
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(placedMark(), '# develop');
     final record = buildTxt().readAsLinesSync();
     expect(record, hasLength(3));
     expect(record[0], 'ref: develop');
@@ -559,7 +522,7 @@ fi''');
         repo.shortSha('feature/example'),
       ),
     );
-    expect(placedMark(), '# ${repo.sha('feature/example')} feature');
+    expect(placedMark(), '# feature');
     expect(buildTxt().readAsLinesSync().first, 'ref: feature/example');
   });
 
@@ -575,7 +538,7 @@ fi''');
       tagged.stdout,
       installLine('0.10.0-dev.1', 'v0.9.1', repo.shortSha('feature/example')),
     );
-    expect(placedMark(), '# ${repo.sha('feature/example')} feature');
+    expect(placedMark(), '# feature');
 
     final annotated = await repo.run(tool, args: ['--branch', 'v0.9.2']);
 
@@ -584,7 +547,7 @@ fi''');
       annotated.stdout,
       installLine('0.10.0-dev.1', 'v0.9.2', repo.shortSha('develop')),
     );
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(placedMark(), '# develop');
     expect(buildTxt().readAsLinesSync().first, 'ref: v0.9.2');
 
     final commit = repo.sha('develop');
@@ -595,7 +558,7 @@ fi''');
       full.stdout,
       installLine('0.10.0-dev.1', commit, repo.shortSha('develop')),
     );
-    expect(placedMark(), '# $commit develop');
+    expect(placedMark(), '# develop');
     expect(buildTxt().readAsLinesSync().first, 'ref: $commit');
   });
 
@@ -655,7 +618,7 @@ fi''');
   });
 
   test('no tag merged into the commit is refused before any '
-      'worktree', () async {
+      'temp folder', () async {
     git(repo.work, ['tag', '-d', 'v0.9.0']);
 
     final result = await repo.run(tool);
@@ -817,7 +780,7 @@ fi''');
     final result = await repo.run(tool);
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(placedMark(), '# develop');
     expect(buildTxt().existsSync(), isTrue);
     expect(File('${installDir()}/lib/libold.so').existsSync(), isFalse);
   });
@@ -832,7 +795,7 @@ fi''');
     final result = await repo.run(tool);
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(placedMark(), '# develop');
     expect(File('${installDir()}/lib/stale.so').existsSync(), isFalse);
     expect(Directory('${installDir()}/lib/lib').existsSync(), isFalse);
     expect(Directory('${installDir()}/bin/bin').existsSync(), isFalse);
@@ -847,7 +810,7 @@ fi''');
     final result = await repo.run(tool);
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(placedMark(), '# develop');
     expect(Directory('${installDir()}/bin/bin').existsSync(), isFalse);
     expect(File('${installDir()}/bin/stale').existsSync(), isFalse);
     expect(installEntries(), unorderedEquals(['bin', 'lib']));
@@ -926,7 +889,7 @@ fi''');
   });
 
   test('Owner ruling 2026-11-13: a commit with no shim is refused, nothing is '
-      'placed, and no worktree remains', () async {
+      'placed, and no temp folder remains', () async {
     git(repo.work, ['checkout', '-q', '-b', 'old']);
     git(repo.work, ['rm', '-q', shimPath]);
     commitAll(repo.work, 'before the shim');
@@ -972,7 +935,7 @@ fi''');
     ('HOME and USERPROFILE empty', {'HOME': '', 'USERPROFILE': ''}, <String>[]),
     ('HOME is not an absolute path', {'HOME': 'rel/home'}, <String>[]),
   ]) {
-    test('no home exits 1 before any worktree, $label', () async {
+    test('no home exits 1 before any temp folder, $label', () async {
       final result = await repo.run(tool, env: env, unset: unset);
 
       expect(result.exitCode, 1);
@@ -1015,47 +978,7 @@ exec /bin/mv "$@"''');
       installLine('0.10.0-dev.1', 'develop', repo.shortSha('develop')),
     );
     expect(result.stderr, isNot(contains('unchanged')));
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
-    expect(repo.worktrees(), hasLength(1));
-    expect(repo.tmpIsEmpty, isTrue);
-  });
-
-  test('a worktree that will not go after a good build says '
-      'the install is in place', () async {
-    failWorktreeRemove();
-
-    final result = await runBounded();
-
-    expect(result.exitCode, 1);
-    expect(
-      result.stdout,
-      installLine('0.10.0-dev.1', 'develop', repo.shortSha('develop')),
-    );
-    expect(result.stderr, contains('the install is in place, but'));
-    expect(result.stderr, contains('stub: git worktree remove failed'));
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
-    expect(buildTxt().existsSync(), isTrue);
-  });
-
-  test('a temp folder that is already gone is reported and '
-      'the failing step stays the first refusal', () async {
-    final stubs = repo.sandbox.stubs.path;
-    File('$stubs/git').renameSync('$stubs/git_original');
-    // A removal that also deletes the temp folder, so the tool's own delete of
-    // it fails without any file permission trick.
-    repo.sandbox.stub('git', r'''
-if [ "$1 $2" = 'worktree remove' ]; then
-  "$(dirname "$0")/git_original" "$@" || exit $?
-  rm -rf "$(dirname "$4")"
-  exit 0
-fi
-exec "$(dirname "$0")/git_original" "$@"''');
-
-    final result = await runBounded(env: {'STUB_DART_BUILD': 'fail'});
-
-    expect(result.exitCode, 1);
-    expect(result.stderr, contains('dart build cli failed'));
-    expect(result.stderr, contains('could not remove'));
+    expect(placedMark(), '# develop');
     expect(repo.worktrees(), hasLength(1));
     expect(repo.tmpIsEmpty, isTrue);
   });
@@ -1117,7 +1040,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
     expect(result.stdout, contains('in $spacedHome/.specstone/bin\n'));
     expect(
       File('$spacedHome/.specstone/bin/specstone').readAsLinesSync()[1],
-      '# ${repo.sha('develop')} develop',
+      '# develop',
     );
     expect(File('$spacedHome/.specstone/lib/build.txt').existsSync(), isTrue);
     expect(spacedTmp.listSync(), isEmpty);
@@ -1125,7 +1048,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
   });
 
   test('a closed stdout after the placement still ends with '
-      'exit 0 and a removed worktree', () async {
+      'exit 0 and a removed temp folder', () async {
     repo.sandbox.stub('mv', r'''
 touch "$STUB_LOG_DIR/moving"
 while [ ! -e "$STUB_LOG_DIR/release" ]; do sleep 0.1; done
@@ -1149,12 +1072,12 @@ exec /bin/mv "$@"''');
     );
     await errors;
     expect(exitCode, 0);
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(placedMark(), '# develop');
     expect(repo.worktrees(), hasLength(1));
     expect(repo.tmpIsEmpty, isTrue);
   });
 
-  test('a relative TMPDIR is refused before any worktree and the '
+  test('a relative TMPDIR is refused before any temp folder and the '
       'checkout stays as it was', () async {
     Directory('${repo.work.path}/rel/tmp').createSync(recursive: true);
     final stateBefore = await repo.checkoutState();

@@ -16,6 +16,7 @@ const String _branchFlag = '--branch';
 const String _defaultRef = 'develop';
 const String _unchanged = 'the install is unchanged';
 const String _rerun = 'run install_local again';
+const String _exportFolder = 'export';
 const String _shimPath = 'packages/specstone/bin/stn';
 const String _versionPath = 'packages/specstone_core/lib/src/version.dart';
 
@@ -89,9 +90,14 @@ Future<void> main(List<String> args) async {
   try {
     await _installLocal(args);
   } on _Refusal catch (refusal) {
-    await _say(refusal.message);
-    exitCode = 1;
+    await _refuse(refusal);
   }
+}
+
+/// Prints [refusal] and sets the exit status to 1.
+Future<void> _refuse(_Refusal refusal) async {
+  await _say(refusal.message);
+  exitCode = 1;
 }
 
 /// Prints `install_local: <message>` on stderr.
@@ -129,22 +135,20 @@ Future<void> _installLocal(List<String> args) async {
   final install = Directory('${home.path}/.specstone');
   final shortCommit = await _git(['rev-parse', '--short', commit]);
   var placing = false;
-  var installed = false;
   final interrupt = _Interrupt()..watch();
   Directory? temp;
   _Refusal? failure;
-  _Refusal? cleanup;
   try {
     temp = await _createTemp();
-    final built = await _build(commit, devVersion, temp, interrupt);
-    final shim = File('${built.worktree.path}/$_shimPath');
+    final bundle = await _build(commit, devVersion, temp, interrupt);
+    final shim = File('${temp.path}/$_exportFolder/$_shimPath');
     final version = interrupt.isRaised
         ? null
-        : await _versionOf(built.bundle, interrupt);
+        : await _versionOf(bundle, interrupt);
     if (version != null && !interrupt.isRaised) {
       placing = true;
       await _place(
-        built.bundle,
+        bundle,
         install,
         _buildRecord(ref, commit, DateTime.now()),
         shim,
@@ -154,27 +158,21 @@ Future<void> _installLocal(List<String> args) async {
         'installed specstone $version ($ref @ $shortCommit) '
         'in ${install.path}/bin',
       );
-      installed = true;
     }
   } on _Refusal catch (stepFailure) {
     failure = stepFailure;
   } finally {
-    final leftover = await _cleanUp(temp, interrupt);
-    // The install landed, so a failed cleanup says so beside its own text.
-    cleanup = leftover != null && installed
-        ? _Refusal('the install is in place, but ${leftover.message}')
-        : leftover;
+    await interrupt.cancel();
   }
   // An interrupt outranks the step it killed, unless the placement had begun:
   // then the install may have changed, and the placement's own outcome stands.
-  // A cleanup failure is reported only when nothing else failed, so it never
-  // displaces the first refusal. A refusal that loses is still printed.
+  // A refusal that loses is still printed.
   final refusal = interrupt.isRaised && !placing
       ? _Refusal('interrupted; $_unchanged')
-      : failure ?? cleanup;
+      : failure;
   if (failure != null && failure != refusal) await _say(failure.message);
-  if (cleanup != null && cleanup != refusal) await _say(cleanup.message);
-  if (refusal != null) throw refusal;
+  if (refusal != null) await _refuse(refusal);
+  if (temp != null) await _deleteTemp(temp);
 }
 
 /// Returns the ref to build: `develop`, or the value of `--branch`.
@@ -205,7 +203,7 @@ Future<String> _commitOf(String ref) async {
   return commit;
 }
 
-/// Refuses when [commit] holds no `stn` shim, before any worktree or build.
+/// Refuses when [commit] holds no `stn` shim, before any temp folder or build.
 ///
 /// A commit older than the shim cannot place it, and an install without it
 /// would leave `stn` missing.
@@ -257,12 +255,12 @@ Future<String> _devVersionOf(String commit) async {
   return '${base.major}.${BigInt.parse(base.minor) + BigInt.one}.0-dev.$count';
 }
 
-/// Sets `specstoneVersion` in the `version.dart` of [worktree] to [version].
+/// Sets `specstoneVersion` in the `version.dart` of [export] to [version].
 ///
 /// Only the first such line's quoted value changes. A missing file or line
 /// refuses naming the file; an unreadable one refuses with the read error.
-Future<void> _setVersion(String worktree, String version) async {
-  final file = File('$worktree/$_versionPath');
+Future<void> _setVersion(String export, String version) async {
+  final file = File('$export/$_versionPath');
   final missing = _Refusal(
     'no specstoneVersion line in $_versionPath; $_unchanged',
   );
@@ -292,35 +290,41 @@ Future<void> _setVersion(String worktree, String version) async {
   }
 }
 
-/// Adds a detached worktree at [commit] in [temp] and builds the CLI there.
+/// Exports [commit] into [temp] with `git archive` and builds the CLI there.
 ///
-/// The worktree's `specstoneVersion` is set to [version] first. The build
-/// output sits beside the worktree, so deleting [temp] removes both. Returns
-/// the folder `dart build cli` fills with `bin/` and `lib/`, and the worktree
-/// folder itself.
-Future<({Directory bundle, Directory worktree})> _build(
+/// The export sits in `<temp>/export`, so the checkout and its `.git/` stay
+/// untouched. Its `specstoneVersion` is set to [version] first. The build
+/// output sits beside the export, so deleting [temp] removes both. Returns the
+/// folder `dart build cli` fills with `bin/` and `lib/`.
+Future<Directory> _build(
   String commit,
   String version,
   Directory temp,
   _Interrupt interrupt,
 ) async {
-  final worktree = '${temp.path}/worktree';
+  final export = '${temp.path}/$_exportFolder';
+  final archive = '$export.tar';
   final output = '${temp.path}/build';
-  await _git(['worktree', 'add', '--detach', worktree, commit]);
-  await _setVersion(worktree, version);
+  await Directory(export).create();
+  await _git(['archive', '--format=tar', '-o', archive, commit]);
+  final extract = await _run('tar', ['-xf', archive, '-C', export]);
+  if (extract.exitCode != 0) {
+    throw _Refusal('tar -xf failed: ${_failureText(extract)}');
+  }
+  await _setVersion(export, version);
   await _step(
     'dart pub get',
     ['pub', 'get', '--enforce-lockfile'],
     interrupt,
-    workingDirectory: worktree,
+    workingDirectory: export,
   );
   await _step(
     'dart build cli',
     ['build', 'cli', '-t', 'bin/specstone.dart', '-o', output],
     interrupt,
-    workingDirectory: '$worktree/packages/specstone',
+    workingDirectory: '$export/packages/specstone',
   );
-  return (bundle: Directory('$output/bundle'), worktree: Directory(worktree));
+  return Directory('$output/bundle');
 }
 
 /// Returns the folder in `HOME`, else `USERPROFILE`, of [env].
@@ -483,12 +487,10 @@ Future<ProcessResult> _finish(Process process) async {
   return ProcessResult(process.pid, status, output, errors);
 }
 
-/// Creates the folder that holds the worktree and the build output.
+/// Creates the folder that holds the export and the build output.
 ///
-/// A system temp path that is not absolute is refused: it would put the
-/// worktree inside the checkout. The path has its symlinks resolved, as git
-/// records a worktree's path: git finds the entry of a worktree whose folder is
-/// gone only by that path.
+/// A system temp path that is not absolute is refused: it would put the export
+/// inside the checkout.
 Future<Directory> _createTemp() async {
   final system = Directory.systemTemp;
   if (!system.isAbsolute) {
@@ -506,54 +508,14 @@ Future<Directory> _createTemp() async {
   }
 }
 
-/// Removes the worktree and [temp], if made, then stops [interrupt]'s watches
-/// whatever happened.
-///
-/// Returns the refusal a failed removal raised instead of throwing it, so the
-/// caller decides which refusal the Owner sees.
-Future<_Refusal?> _cleanUp(Directory? temp, _Interrupt interrupt) async {
-  try {
-    if (temp != null) await _removeTemp(temp);
-    return null;
-  } on _Refusal catch (refusal) {
-    return refusal;
-  } finally {
-    await interrupt.cancel();
-  }
-}
-
-/// Removes the worktree under [temp], then [temp] itself.
-///
-/// The worktree is absent when `git worktree add` failed. `--force` is needed
-/// because the build leaves an untracked `.dart_tool/` in it. When the removal
-/// fails, [temp] still goes and the removal runs once more: git then drops the
-/// entry of a worktree whose folder is gone, and no other. The refusal holds
-/// each failure, a delete of [temp] that fails included.
-Future<void> _removeTemp(Directory temp) async {
-  final removal = ['worktree', 'remove', '--force', '${temp.path}/worktree'];
-  final failures = <String>[];
-  var isEntryLeft = false;
-  if (Directory('${temp.path}/worktree').existsSync()) {
-    try {
-      await _git(removal);
-    } on _Refusal catch (refusal) {
-      failures.add(refusal.message);
-      isEntryLeft = true;
-    }
-  }
+/// Deletes [temp]; a failure is printed, never thrown, so it cannot change the
+/// run's exit status.
+Future<void> _deleteTemp(Directory temp) async {
   try {
     await temp.delete(recursive: true);
   } on FileSystemException catch (error) {
-    failures.add('could not remove ${temp.path}: ${error.message}');
+    await _say('could not remove ${temp.path}: ${error.message}');
   }
-  if (isEntryLeft) {
-    try {
-      await _git(removal);
-    } on _Refusal catch (refusal) {
-      failures.add(refusal.message);
-    }
-  }
-  if (failures.isNotEmpty) throw _Refusal(failures.join('; '));
 }
 
 /// Returns the stdout of a `git` call, or refuses with its first error line.
