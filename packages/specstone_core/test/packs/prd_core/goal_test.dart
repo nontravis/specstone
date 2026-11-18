@@ -83,16 +83,11 @@ void main() {
       write.writeIn(root, (s) => answerNew(s, docTypeId: 'goal'));
 
       final text = write.readDoc(root, check.goalDoc);
-      final headers = [
-        for (final line in text.split('\n'))
-          if (line.startsWith('## ')) line,
-      ];
-      expect(headers, [
-        '## Long-term goals',
-        '## Mid-term goals',
-        '## Short-term goals',
-      ]);
-      expect(text, isNot(contains('###')));
+      expect(
+        text,
+        '---\ndraft: true\n---\n\n# goal\n\n## Long-term goals\n\n'
+        '## Mid-term goals\n\n## Short-term goals\n',
+      );
     });
 
     test(

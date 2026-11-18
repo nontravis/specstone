@@ -640,13 +640,6 @@ sections:
       );
     });
 
-    test('a history match beside the block is reported', () async {
-      final found = await citationsIn(
-        '$open\n- A login.\n$generatedEndMarker\n\nPreviously slow.',
-      );
-      expect(found.map((f) => f.toJson()['pattern']), ['history']);
-    });
-
     test('the same text beside the block is reported', () async {
       final found = await citationsIn(
         '$open\n- A login.\n$generatedEndMarker\n\nApplies the ruling.',

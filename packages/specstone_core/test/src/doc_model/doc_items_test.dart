@@ -43,28 +43,21 @@ List<DocItem> _itemsOf(List<BodyLine> body) => [
 
 void main() {
   group('sectionItemsOf', () {
-    test(
-      'a list item counts without its nested items and a nested item alone',
-      () {
-        final items = _items(
-          '- parent one\n'
-          '  carries on\n'
-          '  - child\n'
-          '- second',
-        );
+    test('a list item counts without its nested items '
+        'and a nested item alone', () {
+      final items = _items(
+        '- parent one\n'
+        '  carries on\n'
+        '  - child\n'
+        '- second',
+      );
 
-        expect(items, [
-          const DocItem(
-            line: 20,
-            chars: 25,
-            text: 'parent one',
-            heading: false,
-          ),
-          const DocItem(line: 22, chars: 9, text: 'child', heading: false),
-          const DocItem(line: 23, chars: 8, text: 'second', heading: false),
-        ]);
-      },
-    );
+      expect(items, [
+        const DocItem(line: 20, chars: 25, text: 'parent one', heading: false),
+        const DocItem(line: 22, chars: 9, text: 'child', heading: false),
+        const DocItem(line: 23, chars: 8, text: 'second', heading: false),
+      ]);
+    });
 
     test('an ordered item '
         'reads its text after the marker', () {
@@ -112,38 +105,26 @@ void main() {
       ]);
     });
 
-    test(
-      'a ### heading counts with the paragraph under it and never its bullets',
-      () {
-        final items = _items(
-          '### Scenario 1\n'
-          '\n'
-          'The paragraph under it.\n'
-          '- bullet one\n'
-          '\n'
-          '### Scenario 2\n'
-          '\n'
-          '- bullet two',
-        );
+    test('a ### heading counts with the paragraph under it '
+        'and never its bullets', () {
+      final items = _items(
+        '### Scenario 1\n'
+        '\n'
+        'The paragraph under it.\n'
+        '- bullet one\n'
+        '\n'
+        '### Scenario 2\n'
+        '\n'
+        '- bullet two',
+      );
 
-        expect(items, [
-          const DocItem(line: 20, chars: 39, text: 'Scenario 1', heading: true),
-          const DocItem(
-            line: 23,
-            chars: 12,
-            text: 'bullet one',
-            heading: false,
-          ),
-          const DocItem(line: 25, chars: 14, text: 'Scenario 2', heading: true),
-          const DocItem(
-            line: 27,
-            chars: 12,
-            text: 'bullet two',
-            heading: false,
-          ),
-        ]);
-      },
-    );
+      expect(items, [
+        const DocItem(line: 20, chars: 39, text: 'Scenario 1', heading: true),
+        const DocItem(line: 23, chars: 12, text: 'bullet one', heading: false),
+        const DocItem(line: 25, chars: 14, text: 'Scenario 2', heading: true),
+        const DocItem(line: 27, chars: 12, text: 'bullet two', heading: false),
+      ]);
+    });
 
     test('a bare ### line opens a heading item with empty text, a ###x line '
         'opens none', () {
