@@ -1315,6 +1315,36 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isFalse);
       });
 
+      pathTest('two kinds in one entry name the earlier kind', () async {
+        // Each case plants the later kind first, so only the kind order, not
+        // the creation order, can make the earlier kind win.
+        const cases = [
+          (later: 'com', earlier: 'bat'),
+          (later: 'ps1', earlier: 'com'),
+        ];
+        for (final (:later, :earlier) in cases) {
+          final sb = await sandboxWithShim();
+          final folder = '${sb.root.path}\\mixed';
+          otherStn(folder, later);
+          final found = otherStn(folder, earlier);
+
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, [
+                '${sb.home.path}\\.specstone\\bin',
+                folder,
+              ]),
+            },
+          );
+
+          final reason = '$earlier before $later; ${r.stderr}';
+          expect(r.exitCode, 0, reason: reason);
+          expect(flat(r.stdout), contains(notice(found)), reason: reason);
+          expect(File('${binDir(sb)}\\stn.exe').existsSync(), isFalse);
+        }
+      });
+
       pathTest(
         'a rerun after another stn appears removes the placed stn.exe',
         () async {

@@ -1593,6 +1593,13 @@ esac''');
         final sb = await sandboxWith();
         final linked = '${sb.root.path}/linked';
         Process.runSync('ln', ['-s', '${sb.home.path}/.specstone/bin', linked]);
+        // The install folder holds a placed stn only after a first install.
+        final first = await sb.run(
+          'install.sh',
+          extra: {...archiveEnv(sb), 'PATH': pathWith(sb)},
+        );
+        expect(first.exitCode, 0, reason: '${first.stderr}');
+        expect(File(binStn(sb)).existsSync(), isTrue);
 
         for (final entry in ['${sb.home.path}/.specstone/bin/', linked]) {
           final r = await sb.run(
@@ -1653,6 +1660,51 @@ esac''');
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(r.stdout, isNot(contains('another stn')));
         expect(File(binStn(sb)).existsSync(), isTrue);
+      });
+
+      test('a stn link to an executable file is another stn', () async {
+        final sb = await sandboxWith();
+        final target = otherStn('${sb.root.path}/real');
+        final linkFolder = Directory('${sb.root.path}/linked tools')
+          ..createSync();
+        Process.runSync('ln', ['-s', '$target/stn', '${linkFolder.path}/stn']);
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {...archiveEnv(sb), 'PATH': pathWith(sb, linkFolder.path)},
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains(notice('${linkFolder.path}/stn')));
+        expect(File(binStn(sb)).existsSync(), isFalse);
+      });
+
+      test('a stn link to a folder or a non-executable file prints no '
+          'notice', () async {
+        final sb = await sandboxWith();
+        Directory('${sb.root.path}/real/dir').createSync(recursive: true);
+        File('${sb.root.path}/real/plain')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('#!/bin/sh\nexit 5\n');
+
+        for (final name in ['dir', 'plain']) {
+          final linkFolder = Directory('${sb.root.path}/link-$name')
+            ..createSync();
+          Process.runSync('ln', [
+            '-s',
+            '${sb.root.path}/real/$name',
+            '${linkFolder.path}/stn',
+          ]);
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {...archiveEnv(sb), 'PATH': pathWith(sb, linkFolder.path)},
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, isNot(contains('another stn')), reason: name);
+          expect(File(binStn(sb)).existsSync(), isTrue, reason: name);
+        }
       });
 
       test('a missing absolute entry is skipped with nothing '
