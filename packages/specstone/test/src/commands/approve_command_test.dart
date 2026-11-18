@@ -1413,6 +1413,16 @@ void main() {
         expect(err.toString(), isEmpty);
         expect(out.toString(), isNot(contains('approveMode')));
         expect(out.toString(), isNot(contains('SPECSTONE_APPROVE_MODE')));
+
+        (:runner, :out, :err) = writeRunner(
+          root,
+          console: FakeConsole(approveModeVariable: value),
+        );
+        expect(await runner.run(['approve', '--dry-run', 'feature:signup']), 0);
+        expect(err.toString(), isEmpty);
+        expect(out.toString(), contains('### Draft 1/'));
+        expect(out.toString(), isNot(contains('approveMode')));
+        expect(out.toString(), isNot(contains('SPECSTONE_APPROVE_MODE')));
       }
     });
 
