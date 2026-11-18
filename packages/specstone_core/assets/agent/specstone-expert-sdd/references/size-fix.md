@@ -1,14 +1,13 @@
 # Fix a doc over its size limit
 
-This covers the four size findings `specstone check` raises, `chars_over_limit`, `lines_over_limit`,
-`item_over_limit`, and `bundle_over_limit`, under `specstone-expert-sdd`'s rule 5.
+This covers the size findings `specstone check` raises, under `specstone-expert-sdd`'s rule 5.
 
 ## The order
 
-Answer each `chars_over_limit` or `lines_over_limit` finding once in your report, though `check` tags it
-`(waits for the Owner)`: a split proposal, or why none applies. Give `item_over_limit` neither: it needs no
-answer; `An item over its limit` covers it. A `bundle_over_limit` finding skips steps 1 to 3 and takes the fix its
-`doc` key gives, with step 4 for each moved item; `A bundle over its limit` covers it.
+Answer each `chars_over_limit`, `lines_over_limit`, or `subsections_over_limit` finding once in your report, though
+`check` tags it `(waits for the Owner)`: a split proposal, or why none applies. Give `item_over_limit` neither: it
+needs no answer; `An item over its limit` covers it. A `bundle_over_limit` or `subsections_over_limit` finding skips
+steps 1 to 3 and takes its own section below, with step 4 for each moved item.
 
 1. **Layout.** Every write lays its doc out. A size finding `check` still lists takes the next step; `check` counts
    the laid-out doc.
@@ -52,6 +51,11 @@ dispatched agent's report holds them.
   keeps `No split applies`.
 - An FR over its character cap, in place of `No split applies`: one `specstone new fr --parent <story> --slug <slug>`
   per new FR in the same story, then one `specstone move <fr>#<edge case ID> … --under <new fr>` per new FR.
+
+## A story past its scenario cap
+
+Cut or merge no scenario. Propose new stories in its feature, `specstone new user_story --parent <feature> --slug
+<slug>` each, then the split proposal's scenario `move` line per new story.
 
 ## No split applies
 
