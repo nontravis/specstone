@@ -276,11 +276,28 @@ void main() {
   for (final (name, statuses) in [
     ('its own skip', const ['$_fr:skipped:not in this client']),
     ('the skip of its story', const ['$_story:skipped:not in this client']),
+    ('the skip of its feature', const [':skipped:not in this client']),
   ]) {
     test('a row of an item under $name gets no literal finding', () async {
       final record = _record(
         statuses: statuses,
         rows: ['- $_fr E01: `no test holds this`'],
+      );
+
+      final report = await _run(await _project(record));
+
+      expect(_matrix(report), isEmpty);
+    });
+
+    test('rows of an item under $name get no row finding at all', () async {
+      final record = _record(
+        statuses: statuses,
+        rows: [
+          '- $_fr E99: `refuses an empty password`',
+          '- $_fr E01: `refuses an empty password`',
+          '- $_fr E01: `refuses an empty password`',
+          '- $_fr E01 skipped: no clock on CI',
+        ],
       );
 
       final report = await _run(await _project(record));
