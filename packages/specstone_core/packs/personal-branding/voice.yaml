@@ -1,0 +1,7 @@
+id: voice
+sections:
+  - id: writing_habits
+    header: Writing habits
+    required: true
+    description: |-
+      Write how the person opens, closes, and builds sentences, and what the person never says.

@@ -6,6 +6,8 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/marketing.dart';
+import '../../../../specstone_core/test/helpers/personal_branding.dart';
 import '../../../../specstone_core/test/helpers/prd_core.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/software_design_system.dart';
@@ -1474,9 +1476,20 @@ items:
             ...prdCoreIds,
             ...softwareTechIds,
             ...softwareDesignSystemIds,
+            ...marketingIds,
+            ...personalBrandingIds,
             'skill',
           ]..sort(),
         );
+        expect(err.toString(), isEmpty);
+
+        out.clear();
+        expect(await runner.run(['guide', 'voice']), 0);
+        final headers = RegExp(
+          r'^## .+$',
+          multiLine: true,
+        ).allMatches(out.toString()).map((m) => m[0]).toList();
+        expect(headers.last, '## Writing habits');
         expect(err.toString(), isEmpty);
       },
       skip: _tempHasConfigAncestor()
@@ -1666,6 +1679,142 @@ items:
       expect(out.toString(), isEmpty);
     });
 
+    test('a project listing prd-core alone refuses guide campaign with the '
+        'usage', () async {
+      final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
+
+      expect(await runner.run(['guide', 'campaign']), 64);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "campaign".\n\n$_guideUsage'),
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test('guide campaign_results --json and guide positioning --json print '
+        'their parent and sections with no perTarget', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+      List<Map<String, Object?>> sectionsOf(Map<String, Object?> schema) =>
+          (schema['sections']! as List<Object?>).cast<Map<String, Object?>>();
+
+      final results = await schemaOf(runner, 'campaign_results');
+      expect(results['parent'], 'campaign');
+      expect(results.containsKey('perTarget'), isFalse);
+      expect(sectionsOf(results).map((s) => s['id']), [
+        'funnel',
+        'channels',
+        'spend',
+      ]);
+      expect(sectionsOf(results).map((s) => s['required']), everyElement(true));
+
+      final positioning = await schemaOf(runner, 'positioning');
+      expect(positioning.containsKey('perTarget'), isFalse);
+      expect(sectionsOf(positioning).map((s) => s['id']), [
+        'competitive_alternatives',
+        'unique_attributes',
+        'value',
+        'best_fit_customers',
+        'market_category',
+      ]);
+      expect(
+        sectionsOf(positioning).map((s) => s['required']),
+        everyElement(isNot(true)),
+      );
+    });
+
+    test('guide campaign --json prints the feature parent, the plan section, '
+        'and covers with pointer prefix and root project', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      final schema = await schemaOf(runner, 'campaign');
+      expect(schema['parent'], 'feature');
+      expect(schema.containsKey('perTarget'), isFalse);
+      final sections = (schema['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(sections.map((s) => s['id']), ['plan']);
+      final covers = (schema['fields']! as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .singleWhere((f) => f['id'] == 'covers');
+      expect(covers['pointer'], 'prefix');
+      expect(covers['root'], 'project');
+    });
+
+    test('guide campaign prints both guide statements and no code_root '
+        'line', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      expect(await runner.run(['guide', 'campaign']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'The docs hold the stable facts and the campaign plan; the '
+            "project's own skills write the content outside the docs.",
+          ),
+          contains('A learning edits the doc it corrects.'),
+          isNot(contains('code_root')),
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide voice prints the marketing sections, then Writing habits '
+        'last', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(personalBrandingPacks),
+      );
+
+      expect(await runner.run(['guide', 'voice']), 0);
+      final headers = RegExp(
+        r'^## (.+)$',
+        multiLine: true,
+      ).allMatches(out.toString()).map((m) => m[1]).toList();
+      expect(headers.sublist(headers.indexOf('Tone')), [
+        'Tone',
+        'Words',
+        'Writing habits',
+      ]);
+      expect(err.toString(), isEmpty);
+    });
+
+    test('a project listing prd-core and marketing refuses guide story with '
+        'the usage', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      expect(await runner.run(['guide', 'story']), 64);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "story".\n\n$_guideUsage'),
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test('guide proof --json prints the three optional sections and no '
+        'perTarget', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(personalBrandingPacks),
+      );
+
+      final schema = await schemaOf(runner, 'proof');
+      expect(schema.containsKey('perTarget'), isFalse);
+      final sections = (schema['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(sections.map((s) => s['id']), [
+        'results',
+        'testimonials',
+        'credentials',
+      ]);
+      expect(sections.map((s) => s['required']), everyElement(isNot(true)));
+    });
+
     test('with only prd-core a software-tech type is neither listed nor '
         'printed', () async {
       final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
@@ -1736,6 +1885,62 @@ items:
         expect(at, everyElement(isNonNegative), reason: id);
         expect(at, orderedEquals(List.of(at)..sort()), reason: id);
       }
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide --pattern lists the campaign patterns of marketing, and the '
+        'ten of software-tech beside them in code point order', () async {
+      const campaign = ['product_launch', 'promotion', 'referral', 'retention'];
+      final marketing = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+      expect(await marketing.run(['guide', '--pattern']), 0);
+      expect(const LineSplitter().convert(out.toString()), campaign);
+
+      out.clear();
+      expect(await marketing.run(['guide', '--pattern', '--json']), 0);
+      final entries = (jsonDecode(out.toString()) as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(entries.map((e) => e['pack']), everyElement('marketing'));
+      expect(entries.map((e) => e['description']), [
+        'a launch of a new product or feature to its audience',
+        'a time-boxed offer that drives sales',
+        'a program in which customers bring new customers',
+        'a program that keeps existing customers buying',
+      ]);
+
+      out.clear();
+      final both = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'software-tech', 'marketing']),
+      );
+      expect(await both.run(['guide', '--pattern']), 0);
+      final ids = const LineSplitter().convert(out.toString());
+      expect(ids, hasLength(14));
+      expect(ids, List.of(ids)..sort());
+      expect(ids, containsAll(campaign));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('a project pattern file named like a campaign pattern lists it once '
+        'and keeps marketing as its pack', () async {
+      final runner = await runnerFor(
+        working: await writeTree({
+          _configPath: shippedPinsConfig(['prd-core', 'marketing']),
+          '.specstone/templates/patterns/promotion.yaml': '''
+id: promotion
+items:
+  - id: partner_codes
+    text: Each partner gets its own code.
+''',
+        }),
+      );
+
+      expect(await runner.run(['guide', '--pattern', '--json']), 0);
+      final entries = (jsonDecode(out.toString()) as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final promotions = entries.where((e) => e['id'] == 'promotion');
+      expect(promotions, hasLength(1));
+      expect(promotions.single['pack'], 'marketing');
       expect(err.toString(), isEmpty);
     });
 

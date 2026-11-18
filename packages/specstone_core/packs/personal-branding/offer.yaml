@@ -1,0 +1,15 @@
+id: offer
+description: |-
+  The offer doc: the offer ladder, from free to premium, that opens opportunities.
+  Title it `# Offer`, with no number.
+  The docs hold the stable facts; the person's own skills write the content outside the docs.
+  A learning edits the doc it corrects.
+path: specs/marketing/OFFER.md
+sections:
+  - id: ladder
+    header: Ladder
+    description: |-
+      List each offer from free to premium, with who it is for and the next step it leads to.
+reference:
+  - title: Zanfia, how to build a personal brand
+    url: https://zanfia.com/blog/how-to-build-personal-brand/

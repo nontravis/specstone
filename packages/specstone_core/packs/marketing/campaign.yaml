@@ -1,0 +1,27 @@
+id: campaign
+description: |-
+  A campaign: the plan of one marketing campaign; the campaign is a PRD feature.
+  Title it `# <Campaign name>`, with no number.
+  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
+  A learning edits the doc it corrects.
+  The `covers:` field lists the content the plan produces, each entry a folder or file relative to the project root.
+  Judging the content's quality stays with the project's own marketing skills.
+path: specs/f{nn}_{slug}/CAMPAIGN.md
+parent: feature
+fields:
+  - id: covers
+    type: output_ref
+    list: true
+    pointer: prefix
+    root: project
+    description: |-
+      Lists the content folders or files of the campaign, each relative to the project root, such as `posts/launch/`.
+      An entry may end in one space and its code fingerprint, which `check` compares with the content it names.
+sections:
+  - id: plan
+    header: Plan
+    description: |-
+      Write the campaign's objective, audience, key messages, channels, and success metrics.
+reference:
+  - title: Anthropic marketing plugin, campaign-plan
+    url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md

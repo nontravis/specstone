@@ -77,8 +77,9 @@ const _notWritableMessage =
 /// column and leaves a record's matrix section out of its size counts, so an
 /// index of layout 27, whose record rows hold no Verification matrix lines, is
 /// rebuilt. Layout 29 holds both, so an index of layout 27 or 28, which lacks
-/// one or the other, is rebuilt.
-const indexLayoutVersion = 29;
+/// one or the other, is rebuilt. Layout 30 counts a section's body alone, so an
+/// index of layout 29, whose counts include the header line, is rebuilt.
+const indexLayoutVersion = 30;
 
 const _schema = '''
 CREATE TABLE meta (
