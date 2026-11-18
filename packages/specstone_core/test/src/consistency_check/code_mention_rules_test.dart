@@ -295,10 +295,6 @@ void main() {
         written.map((file) => file.text),
         contains(contains('`feature:login`')),
       );
-      for (final file in written) {
-        file.file.parent.createSync(recursive: true);
-        file.file.writeAsBytesSync(file.bytes);
-      }
       expect(
         _cited(await checkOf(project)),
         isNot(contains(startsWith('skills/review/references/'))),
