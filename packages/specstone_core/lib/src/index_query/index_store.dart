@@ -334,6 +334,8 @@ final class IndexStore {
 
   final Directory _specstoneFolder;
 
+  int _snapshotDataVersion = 0;
+
   /// What went wrong while opening, one sentence each.
   final List<String> warnings;
 
@@ -788,11 +790,24 @@ final class IndexStore {
   }
 
   /// Starts a read transaction so every later read sees one state.
+  ///
+  /// Records the data version, so [snapshotIsStale] can tell a later commit by
+  /// another connection.
   void beginSnapshot() {
     _db
       ..execute('BEGIN')
       ..select('SELECT count(*) FROM meta');
+    _snapshotDataVersion = _dataVersion();
   }
+
+  /// Whether another connection committed since the last [beginSnapshot].
+  ///
+  /// Read it inside a write transaction: the version moves only when a new
+  /// transaction begins, so the snapshot's own transaction never sees a change.
+  bool get snapshotIsStale => _dataVersion() != _snapshotDataVersion;
+
+  int _dataVersion() =>
+      _db.select('PRAGMA data_version').single['data_version'] as int;
 
   /// Ends the read transaction [beginSnapshot] started.
   void endSnapshot() => _db.execute('COMMIT');

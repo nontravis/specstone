@@ -15,6 +15,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart' show answerGet;
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -1001,6 +1002,31 @@ void main() {
     expect(hasDoc(root, signupFeature), isFalse);
     expect(readDoc(root, signupArch), contains('draft: true'));
     expect(out.toString(), contains('`docs/$signupArch`\n'));
+  });
+
+  test('a peer commit while the prompt waits approves the draft in one run, with no second prompt', () async {
+    final root = await writeWriteProject();
+    final out = StringBuffer();
+    var runs = 0;
+    var answered = 0;
+    writeIn(root, (s) {
+      runs++;
+      String? answer() {
+        if (answered++ > 0) return 'q';
+        final peer = IndexStore.open(s.project.projectRoot);
+        try {
+          peer.write(() => peer.deleteDoc(persona));
+        } finally {
+          peer.close();
+        }
+        return 'y';
+      }
+
+      approveDrafts(s, names: ['signup'], readLine: answer, out: out);
+    });
+    expect(runs, 1);
+    expect(_prompt.allMatches(out.toString()), hasLength(2));
+    expect(readDoc(root, signupFeature), startsWith('---\napproved: "'));
   });
 
   test('a lock held past the busy timeout is index_busy, and approvals already written stay', () async {
