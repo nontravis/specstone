@@ -5,6 +5,8 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
+import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
+import 'package:specstone_core/src/doc_model/models/tbr_marker_line.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
@@ -135,8 +137,8 @@ final class LineFacts {
     required Doc doc,
     required List<SectionCounts> sectionCounts,
     required int? frontmatterErrorLine,
-    required List<({int line, String written})> bodyNumberLabels,
-    required List<({int line, String rest})> bodyTbrMarkers,
+    required List<NumberLabelLine> bodyNumberLabels,
+    required List<TbrMarkerLine> bodyTbrMarkers,
     required List<CiteCandidate> citeCandidates,
     required List<MermaidBlock> mermaidBlocks,
     required List<String> warnings,
@@ -170,11 +172,11 @@ final class LineFacts {
       linkTexts: links?.texts ?? const [],
       nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
       numberLabels: [
-        for (final (:line, :written) in bodyNumberLabels)
+        for (final NumberLabelLine(:line, :written) in bodyNumberLabels)
           (line: bodyStart + line + 1, written: written),
       ],
       tbrMarkers: [
-        for (final (:line, :rest) in bodyTbrMarkers)
+        for (final TbrMarkerLine(:line, :rest) in bodyTbrMarkers)
           (line: bodyStart + line + 1, rest: rest),
       ],
       citeCandidates: citeCandidates,

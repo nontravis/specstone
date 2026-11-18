@@ -3,6 +3,7 @@ import 'package:specstone_core/src/doc_model/doc.dart'
     show blockScan, fenceScan, mermaidInfoWord;
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show itemIdRunAt;
 
@@ -128,8 +129,8 @@ List<NumberLabel> _labelsIn(
 
 /// Returns each label of [numberLabelsInMarkdown] over [lfText] with the
 /// 0-based line of [lfText] it starts on, as it is written.
-List<({int line, String written})> numberLabelLinesInMarkdown(String lfText) {
-  final labels = <({int line, String written})>[];
+List<NumberLabelLine> numberLabelLinesInMarkdown(String lfText) {
+  final labels = <NumberLabelLine>[];
   var line = 0;
   var from = 0;
   for (final label in numberLabelsInMarkdown(lfText, itemPrefixes: const {})) {
@@ -137,7 +138,7 @@ List<({int line, String written})> numberLabelLinesInMarkdown(String lfText) {
       if (lfText.codeUnitAt(i) == _lineFeed) line++;
     }
     from = label.start;
-    labels.add((line: line, written: label.written));
+    labels.add(NumberLabelLine(line: line, written: label.written));
   }
   return labels;
 }

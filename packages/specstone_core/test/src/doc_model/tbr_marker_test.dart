@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/models/tbr_marker_line.dart';
 import 'package:specstone_core/src/doc_model/tbr_marker.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:test/test.dart';
@@ -15,16 +16,16 @@ void main() {
           '|---|---|\n'
           '| limit | TBR — pick a value |\n';
       expect(tbrMarkerLinesIn(body), [
-        (line: 2, rest: 'the benchmark has not run.'),
-        (line: 6, rest: 'pick a value |'),
+        const TbrMarkerLine(line: 2, rest: 'the benchmark has not run.'),
+        const TbrMarkerLine(line: 6, rest: 'pick a value |'),
       ]);
     });
 
     test('E02: the '
         'text of a marker ends at the next marker on its line', () {
       expect(tbrMarkerLinesIn('TBR — pick one TBR — and two\n'), [
-        (line: 0, rest: 'pick one'),
-        (line: 0, rest: 'and two'),
+        const TbrMarkerLine(line: 0, rest: 'pick one'),
+        const TbrMarkerLine(line: 0, rest: 'and two'),
       ]);
     });
 
@@ -53,7 +54,9 @@ void main() {
           'TBR — in a tilde fence\n'
           '~~~\n'
           'TBR — after the fences\n';
-      expect(tbrMarkerLinesIn(body), [(line: 7, rest: 'after the fences')]);
+      expect(tbrMarkerLinesIn(body), [
+        const TbrMarkerLine(line: 7, rest: 'after the fences'),
+      ]);
     });
 
     test('E03: a '
@@ -68,13 +71,15 @@ void main() {
           'TBR \u2014 in the long tilde fence\n'
           '~~~~\n'
           'TBR \u2014 after both\n';
-      expect(tbrMarkerLinesIn(body), [(line: 8, rest: 'after both')]);
+      expect(tbrMarkerLinesIn(body), [
+        const TbrMarkerLine(line: 8, rest: 'after both'),
+      ]);
     });
 
     test('E03: a '
         'marker after a code span on the same line is still read', () {
       expect(tbrMarkerLinesIn('See `x` then TBR — later.\n'), [
-        (line: 0, rest: 'later.'),
+        const TbrMarkerLine(line: 0, rest: 'later.'),
       ]);
     });
 
@@ -92,13 +97,13 @@ void main() {
     test('E02: a '
         'marker at the end of its line has an empty text', () {
       expect(tbrMarkerLinesIn('TBR —\nTBR — \nA gap TBR —\n'), [
-        (line: 0, rest: ''),
-        (line: 1, rest: ''),
-        (line: 2, rest: ''),
+        const TbrMarkerLine(line: 0, rest: ''),
+        const TbrMarkerLine(line: 1, rest: ''),
+        const TbrMarkerLine(line: 2, rest: ''),
       ]);
       expect(tbrMarkerLinesIn('TBR — a TBR —\n'), [
-        (line: 0, rest: 'a'),
-        (line: 0, rest: ''),
+        const TbrMarkerLine(line: 0, rest: 'a'),
+        const TbrMarkerLine(line: 0, rest: ''),
       ]);
     });
 
@@ -106,7 +111,9 @@ void main() {
         'dash with no space after it, or a hyphen, is no marker even at a '
         'line end', () {
       expect(tbrMarkerLinesIn('TBR—x\nTBR -\nTBR —x TBR - y\n'), isEmpty);
-      expect(tbrMarkerLinesIn('TBR —x TBR — y\n'), [(line: 0, rest: 'y')]);
+      expect(tbrMarkerLinesIn('TBR —x TBR — y\n'), [
+        const TbrMarkerLine(line: 0, rest: 'y'),
+      ]);
     });
 
     test('a marker '
@@ -115,16 +122,16 @@ void main() {
           'TBR — first\n'
           '**Consistency:** TBR — legacy states none\n';
       expect(tbrMarkerLinesIn(body), [
-        (line: 0, rest: 'first'),
-        (line: 1, rest: 'legacy states none'),
+        const TbrMarkerLine(line: 0, rest: 'first'),
+        const TbrMarkerLine(line: 1, rest: 'legacy states none'),
       ]);
     });
 
     test('two '
         'markers on one line give two places at that line', () {
       expect(tbrMarkerLinesIn('TBR — a and TBR — b\n'), [
-        (line: 0, rest: 'a and'),
-        (line: 0, rest: 'b'),
+        const TbrMarkerLine(line: 0, rest: 'a and'),
+        const TbrMarkerLine(line: 0, rest: 'b'),
       ]);
     });
 
@@ -134,8 +141,8 @@ void main() {
       final crlf = lf.replaceAll('\n', '\r\n');
       expect(tbrMarkerLinesIn(toLf(crlf)), tbrMarkerLinesIn(lf));
       expect(tbrMarkerLinesIn(lf), [
-        (line: 2, rest: 'gap'),
-        (line: 6, rest: 'more'),
+        const TbrMarkerLine(line: 2, rest: 'gap'),
+        const TbrMarkerLine(line: 6, rest: 'more'),
       ]);
     });
 
