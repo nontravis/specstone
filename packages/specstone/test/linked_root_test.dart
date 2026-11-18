@@ -54,8 +54,8 @@ void main() {
     expect(Directory('$codeExample/.specstone').existsSync(), isFalse);
   });
 
-  test('check run in a linked code folder checks the nested project and '
-      'resolves its code paths from its code root', () async {
+  test('check run in a linked code folder checks the nested project and'
+      ' resolves its code paths from its code root', () async {
     final nested = withApprovalHashes(
       withCodeFingerprints(checkProjectFiles()),
     );
@@ -136,8 +136,8 @@ void main() {
       );
     }
 
-    test('format, init, migrate, approve --dry-run, and build of the default '
-        'output are refused', () async {
+    test('format, init, migrate, approve --dry-run, and build of the default'
+        ' output are refused', () async {
       final example = await linkedExample();
       if (example == null) return;
       final base = await writeTree({
@@ -165,8 +165,8 @@ void main() {
       );
     });
 
-    test('the missing record gates the write commands only, never the '
-        'index', () async {
+    test('the missing record gates the write commands only, never the'
+        ' index', () async {
       final example = await linkedExample();
       if (example == null) return;
       final (:folder, :project) = example;

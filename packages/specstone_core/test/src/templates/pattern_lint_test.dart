@@ -250,8 +250,8 @@ lint:
     expect(patterns.single.pattern, 'new');
   });
 
-  test('add of a new id and of a lower id leaves every other entry '
-      'unchanged', () async {
+  test('add of a new id and of a lower id leaves every other entry'
+      ' unchanged', () async {
     final set = await _resolve(
       shipped: _lowerFeature,
       project: '''
@@ -292,8 +292,8 @@ lint:
     },
   );
 
-  test('a remove of an id no lower layer holds names the file and key '
-      'and exits 78', () async {
+  test('a remove of an id no lower layer holds names the file and key'
+      ' and exits 78', () async {
     final banned = await _faultOf(
       _resolve(
         shipped: _lowerWithRequired,
@@ -327,8 +327,8 @@ sections:
     expect(required.exitStatus, 78);
   });
 
-  test('a plain pattern list over a lower list names the file and key '
-      'and exits 78', () async {
+  test('a plain pattern list over a lower list names the file and key'
+      ' and exits 78', () async {
     final banned = await _faultOf(
       _resolve(
         shipped: _lowerWithRequired,

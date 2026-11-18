@@ -206,8 +206,8 @@ void main() {
     ]);
   });
 
-  test('a skipped FR naming a code its own catalog lacks is no uncataloged '
-      'finding', () async {
+  test('a skipped FR naming a code its own catalog lacks is no uncataloged'
+      ' finding', () async {
     final report = await _check({
       'docs/$_errorDoc': _error('Login errors', ['bad_password']),
       'docs/$loginFr': _frCase('a missing doc → `doc_not_found` is refused'),
@@ -233,8 +233,8 @@ void main() {
     },
   );
 
-  test('a components code span naming a code another catalog holds is no '
-      'uncataloged finding', () async {
+  test('a components code span naming a code another catalog holds is no'
+      ' uncataloged finding', () async {
     final report = await _check({
       'docs/$_errorDoc': _error('Login errors', ['bad_password']),
       'docs/$loginFr': _frCase('an empty password → `bad_password` is refused'),
@@ -280,8 +280,8 @@ void main() {
     },
   );
 
-  test('a catalog of a doc type under another id is checked as the shipped '
-      'one is', () async {
+  test('a catalog of a doc type under another id is checked as the shipped'
+      ' one is', () async {
     final report = await _check({
       '.specstone/templates/fault_list.yaml':
           'id: fault_list\n'

@@ -84,8 +84,8 @@ void main() {
     },
   );
 
-  test('a record of a large feature with 150 tests lines passes check with '
-      'no size finding', () async {
+  test('a record of a large feature with 150 tests lines passes check with'
+      ' no size finding', () async {
     const stories = 40;
     const frsPerStory = 3;
     const testLines = 150;
@@ -146,8 +146,8 @@ void main() {
       ).description!;
     });
 
-    test('says the record is the one home of status and code paths, one '
-        'entry per story and FR', () {
+    test('says the record is the one home of status and code paths, one'
+        ' entry per story and FR', () {
       expect(
         description,
         contains(
@@ -200,8 +200,8 @@ void main() {
       expect(description, contains('Code and tests never name this doc.'));
     });
 
-    test('says one line per statuses, implements, and tests entry, and names '
-        'no cap number', () {
+    test('says one line per statuses, implements, and tests entry, and names'
+        ' no cap number', () {
       expect(
         description,
         contains(

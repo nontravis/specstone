@@ -110,8 +110,8 @@ void main() {
     expect(feature.maxDepth, 3);
   });
 
-  test('a project feature.yaml that sets another cap gives the merged feature '
-      'that cap', () async {
+  test('a project feature.yaml that sets another cap gives the merged feature'
+      ' that cap', () async {
     final merged = prdCoreDocType(
       await resolvePrdCore(templates: {'feature.yaml': 'max_depth: 2\n'}),
       'feature',
@@ -120,8 +120,8 @@ void main() {
     expect(merged.maxDepth, 2);
   });
 
-  test('the description says the Agent proposes a split on chars_over_limit '
-      'or lines_over_limit', () {
+  test('the description says the Agent proposes a split on chars_over_limit'
+      ' or lines_over_limit', () {
     expect(
       feature.description,
       contains(

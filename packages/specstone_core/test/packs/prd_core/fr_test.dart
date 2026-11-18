@@ -64,8 +64,8 @@ void main() {
     );
   });
 
-  test('the description states the item shape and that edge cases exercise '
-      'each Statement clause', () {
+  test('the description states the item shape and that edge cases exercise'
+      ' each Statement clause', () {
     final description = fr.description!;
 
     expect(
@@ -99,8 +99,8 @@ void main() {
     );
   });
 
-  test('the verification description and template show one Pass criteria '
-      'line and name no test file', () {
+  test('the verification description and template show one Pass criteria'
+      ' line and name no test file', () {
     final verification = sectionOf(fr, 'verification');
     final template = verification.template!;
 
@@ -122,8 +122,8 @@ void main() {
     );
   });
 
-  test('the edge cases template shows the several-trigger shape and the '
-      'description names it', () {
+  test('the edge cases template shows the several-trigger shape and the'
+      ' description names it', () {
     final edgeCases = sectionOf(fr, 'edge_cases');
 
     expect(

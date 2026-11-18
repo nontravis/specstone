@@ -357,8 +357,8 @@ void main() {
       ], hasLength(3));
     });
 
-    test('a Symbol entry or a covers entry ending in an 11- or 13-character '
-        'token is reported, never clean', () async {
+    test('a Symbol entry or a covers entry ending in an 11- or 13-character'
+        ' token is reported, never clean', () async {
       const elevenHex = '9a1c03be55d';
       const thirteenHex = '9a1c03be55d22';
       final record = _record(
@@ -388,8 +388,8 @@ void main() {
       expect(_suspects(report), isEmpty);
     });
 
-    test('whose file changed a line inside a block comment gives '
-        'code_suspect', () async {
+    test('whose file changed a line inside a block comment gives'
+        ' code_suspect', () async {
       const before = '/*\n  the old note\n*/\nint a;\n';
       final project = await _project(
         _record(code: ['$_fr:$_login ${_fingerprintOf(before, _login)}']),
@@ -404,8 +404,8 @@ void main() {
       expect(await _recordSuspects(project), hasLength(1));
     });
 
-    test('whose file changed a line of a string literal that opens with // '
-        'gives no code_suspect, and any other line of it one', () async {
+    test('whose file changed a line of a string literal that opens with //'
+        ' gives no code_suspect, and any other line of it one', () async {
       const before = "const s = '''\n// first\nkept\n''';\n";
       final project = await _project(
         _record(code: ['$_fr:$_login ${_fingerprintOf(before, _login)}']),

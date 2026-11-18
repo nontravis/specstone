@@ -227,8 +227,8 @@ void main() {
     },
   );
 
-  test('a two-word phrase is not reported out of order or inside longer '
-      'words', () async {
+  test('a two-word phrase is not reported out of order or inside longer'
+      ' words', () async {
     Future<List<Object?>> phrasesIn(String statement) async {
       final report = await checkOf(
         await writeCheckProject(
