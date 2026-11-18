@@ -1902,6 +1902,70 @@ items:
       expect(err.toString(), isEmpty);
     });
 
+    test('guide component prints its description, then the twelve sections in '
+        'order', () async {
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
+
+      expect(await runner.run(['guide', 'component']), 0);
+
+      final text = out.toString();
+      final headers = RegExp(
+        r'^## (.+)$',
+        multiLine: true,
+      ).allMatches(text).map((m) => m[1]).toList();
+      expect(headers, [
+        'Purpose',
+        'When to use',
+        'Anatomy',
+        'Variants',
+        'States',
+        'Props',
+        'Tokens',
+        'Do',
+        "Don't",
+        'Examples',
+        'Keyboard',
+        'Accessibility',
+      ]);
+      final description = text.indexOf("A component: one component's contract");
+      expect(description, 0);
+      expect(
+        text.indexOf('The component doc holds no code'),
+        lessThan(text.indexOf('## Purpose')),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide --pattern <id> prints 5 to 15 item lines, then the Pattern '
+        'sources lines, for each campaign pattern', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      for (final id in [
+        'product_launch',
+        'promotion',
+        'referral',
+        'retention',
+      ]) {
+        out.clear();
+        expect(await runner.run(['guide', '--pattern', id]), 0, reason: id);
+
+        final lines = const LineSplitter().convert(out.toString());
+        final sources = lines.indexOf('Pattern sources:');
+        expect(sources, greaterThan(0), reason: id);
+        final items = lines
+            .sublist(0, sources)
+            .where((l) => l.startsWith('- **'));
+        expect(items.length, inInclusiveRange(5, 15), reason: id);
+        final after = lines.sublist(sources + 1);
+        expect(after, isNotEmpty, reason: id);
+        expect(after, everyElement(startsWith('- ')), reason: id);
+        expect(after, everyElement(contains('https://')), reason: id);
+      }
+      expect(err.toString(), isEmpty);
+    });
+
     test('guide --pattern on a project listing all four packs prints the ten '
         'ids of software-tech', () async {
       final tech = await runnerFor();
