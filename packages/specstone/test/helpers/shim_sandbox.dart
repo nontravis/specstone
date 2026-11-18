@@ -118,7 +118,7 @@ final class ShimSandbox {
   /// the parent environment, plus [extra].
   ///
   /// [stdinText], when given, is piped into the shim. The run fails after
-  /// [timeout], so a walk that loops fails the test instead of hanging it.
+  /// [timeout], so a shim that hangs fails the test instead of blocking it.
   Future<ProcessResult> runStn(
     List<String> args, {
     required String path,
