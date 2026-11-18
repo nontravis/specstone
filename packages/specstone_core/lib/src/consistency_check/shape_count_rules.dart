@@ -4,7 +4,8 @@ import 'package:specstone_core/src/doc_model/doc_items.dart'
     show ownTextLineCountOf;
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/models/readability_facts.dart';
+import 'package:specstone_core/src/index_query/models/sentence_fact.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// Returns the sentence, item-count, line-floor, subsection-cap, and

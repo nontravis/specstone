@@ -11,13 +11,18 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/doc_model/text_scan.dart';
-import 'package:specstone_core/src/index_query/cite_candidates.dart'
-    show CiteCandidate;
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show MermaidBlock;
-import 'package:specstone_core/src/index_query/section_counts.dart'
-    show SectionCounts;
+import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
+import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
+import 'package:specstone_core/src/index_query/models/label_place.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/link_place.dart';
+import 'package:specstone_core/src/index_query/models/link_places.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
+import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:yaml/yaml.dart';
 
 const _tab = 0x09;
@@ -58,16 +63,6 @@ int _allLines(String text) {
   return text.endsWith('\n') ? breaks : breaks + 1;
 }
 
-/// The 1-based file lines `first` through `last`, both included.
-typedef LineRange = ({int first, int last});
-
-/// The frontmatter YAML read once: the mapping it holds, or the line that
-/// makes it invalid.
-///
-/// Both are null for an empty or comment-only block. `errorLine` is the line
-/// the YAML parser names, or 1 when the block is no mapping.
-typedef FrontmatterYaml = ({YamlMap? map, int? errorLine});
-
 /// Returns [source], the frontmatter lines between the `---` delimiters, as
 /// a mapping or the line that makes it invalid.
 ///
@@ -75,13 +70,13 @@ typedef FrontmatterYaml = ({YamlMap? map, int? errorLine});
 FrontmatterYaml parseFrontmatterYaml(String source) {
   try {
     final node = loadYamlNode(source);
-    if (node is YamlMap) return (map: node, errorLine: null);
+    if (node is YamlMap) return FrontmatterYaml(map: node, errorLine: null);
     if (node is YamlScalar && node.value == null) {
-      return (map: null, errorLine: null);
+      return const FrontmatterYaml(map: null, errorLine: null);
     }
-    return (map: null, errorLine: 1);
+    return const FrontmatterYaml(map: null, errorLine: 1);
   } on YamlException catch (e) {
-    return (map: null, errorLine: e.span!.start.line + 2);
+    return FrontmatterYaml(map: null, errorLine: e.span!.start.line + 2);
   }
 }
 
@@ -173,11 +168,11 @@ final class LineFacts {
       nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
       numberLabels: [
         for (final NumberLabelLine(:line, :written) in bodyNumberLabels)
-          (line: bodyStart + line + 1, written: written),
+          LabelPlace(line: bodyStart + line + 1, written: written),
       ],
       tbrMarkers: [
         for (final TbrMarkerLine(:line, :rest) in bodyTbrMarkers)
-          (line: bodyStart + line + 1, rest: rest),
+          TbrMarkerPlace(line: bodyStart + line + 1, rest: rest),
       ],
       citeCandidates: citeCandidates,
       mermaidBlocks: mermaidBlocks,
@@ -241,12 +236,12 @@ final class LineFacts {
       numberLabels: [
         for (final label
             in (json['number_labels']! as List<Object?>).cast<List<Object?>>())
-          (line: label[0]! as int, written: label[1]! as String),
+          LabelPlace(line: label[0]! as int, written: label[1]! as String),
       ],
       tbrMarkers: [
         for (final marker
             in (json['tbr_markers']! as List<Object?>).cast<List<Object?>>())
-          (line: marker[0]! as int, rest: marker[1]! as String),
+          TbrMarkerPlace(line: marker[0]! as int, rest: marker[1]! as String),
       ],
       citeCandidates: _citeCandidatesOfJson(json['cite_candidates']!),
       mermaidBlocks: _mermaidBlocksOfJson(json['mermaid_blocks']!),
@@ -265,7 +260,7 @@ final class LineFacts {
       sectionCounts: sectionCounts,
       fenced: [
         for (final range in fenced.cast<List<Object?>>())
-          (first: range[0]! as int, last: range[1]! as int),
+          LineRange(first: range[0]! as int, last: range[1]! as int),
       ],
       lineCount: json['lines']! as int,
       charCount: json['chars']! as int,
@@ -395,12 +390,6 @@ final class LineFacts {
   };
 }
 
-/// A number label at its file line, as it is written.
-typedef LabelPlace = ({int line, String written});
-
-/// A TBR marker at its file line, with the line's text after it.
-typedef TbrMarkerPlace = ({int line, String rest});
-
 /// Returns the mentions of [body], whose lines start at file line
 /// `bodyStart + 1`.
 List<NameMention> _mentionsFrom(String body, int bodyStart) => [
@@ -427,7 +416,7 @@ List<NameMention> _mentionsOfJson(Object json) => [
 /// Returns the link texts [json] holds, as `LineFacts.toJson` wrote them.
 List<LinkText> _linkTextsOfJson(Object json) => [
   for (final t in (json as List<Object?>).cast<List<Object?>>())
-    (
+    LinkText(
       line: t[0]! as int,
       column: t[1]! as int,
       endLine: t[2]! as int,
@@ -442,7 +431,7 @@ List<LinkText> _linkTextsOfJson(Object json) => [
 /// Returns the cite candidates [json] holds, as `LineFacts.toJson` wrote them.
 List<CiteCandidate> _citeCandidatesOfJson(Object json) => [
   for (final c in (json as List<Object?>).cast<List<Object?>>())
-    (
+    CiteCandidate(
       line: c[0]! as int,
       written: c[1]! as String,
       sectionKey: c[2] as String?,
@@ -459,7 +448,7 @@ List<MermaidBlock> _mermaidBlocksOfJson(Object json) => [
 /// Returns the places [json] holds, as [_placesToJson] wrote them.
 List<LinkPlace> _placesOfJson(Object json) => [
   for (final place in (json as List<Object?>).cast<List<Object?>>())
-    (
+    LinkPlace(
       target: place[0]! as String,
       line: place[1]! as int,
       shown: place[2]! as String,
@@ -515,12 +504,12 @@ List<LineRange> _fencedRanges(String body, int bodyStart) {
     if (fenced[i]) {
       first ??= bodyStart + i + 1;
     } else if (first != null) {
-      ranges.add((first: first, last: bodyStart + i));
+      ranges.add(LineRange(first: first, last: bodyStart + i));
       first = null;
     }
   }
   if (first != null) {
-    ranges.add((first: first, last: bodyStart + fenced.length));
+    ranges.add(LineRange(first: first, last: bodyStart + fenced.length));
   }
   return ranges;
 }

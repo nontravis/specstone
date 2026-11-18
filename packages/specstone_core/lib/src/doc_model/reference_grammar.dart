@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show headingItemTextOf;
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/destination_parts.dart';
 import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
@@ -142,6 +143,9 @@ const scenarioIdPrefix = 'Scenario ';
 
 /// Id of the story section that holds the scenarios.
 const acceptanceSectionId = 'acceptance_criteria';
+
+/// Key of the requirement section that holds the edge cases.
+const edgeCasesSectionKey = 'edge_cases';
 
 /// Reads the ID of [prefix] at the start of [text], after one optional `**`;
 /// null when [text] does not open with [prefix] and an ASCII digit.
@@ -405,19 +409,6 @@ LinkTargetForm readLinkTarget(String href) {
   );
 }
 
-/// How `markdown` 7.3.1 reads a link destination as written, which decides
-/// the backslashes its link parser drops before the rest is decoded.
-enum DestinationKind {
-  /// An inline link's or image's destination, bare.
-  inline,
-
-  /// An inline link's or image's destination in angle brackets.
-  angleInline,
-
-  /// A link reference definition's destination, bare or in angle brackets.
-  definition,
-}
-
 /// One code unit of a destination as decoding reads it, and the range of the
 /// text written for it.
 final class _ReadUnit {
@@ -590,6 +581,14 @@ final _rootedOrDrivePath = RegExp(r'^(?:[/\\]|[A-Za-z]:)');
 /// Whether [path] opens with a `/` or `\`, or a drive letter and `:`: a path
 /// that is not relative to the folder it is read in.
 bool isRootedOrDrivePath(String path) => _rootedOrDrivePath.hasMatch(path);
+
+final _legacyTitleLabel = RegExp(
+  r'^(?:[A-Z][A-Z0-9]*-\d+|[a-z][a-z0-9_]*(?:/[a-z][a-z0-9_]*)+) — ',
+);
+
+/// Returns [title] without its leading item ID or doc address and ` — `.
+String withoutLegacyTitleLabel(String title) =>
+    title.replaceFirst(_legacyTitleLabel, '');
 
 final _angleDestinationOpen = RegExp(r'\]\(\s*<');
 

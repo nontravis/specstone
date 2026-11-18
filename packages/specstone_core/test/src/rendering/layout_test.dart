@@ -203,6 +203,15 @@ void main() {
       blockKinds: {'scenario_copy'},
     );
     check(
+      'spaces before the opening marker of a closed block of a protected '
+          'kind are dropped',
+      'Title  \n${generatedOpenMarker('scenario_copy')}\nbody  \n'
+          '$generatedEndMarker\n',
+      'Title\n${generatedOpenMarker('scenario_copy')}\nbody  \n'
+          '$generatedEndMarker\n',
+      blockKinds: {'scenario_copy'},
+    );
+    check(
       'a block kind not passed is not protected: the end marker, an HTML '
           'comment, ends the paragraph above it',
       '${generatedOpenMarker('scenario_copy')}\ntrail   \n'

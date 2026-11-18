@@ -51,8 +51,8 @@ export 'src/index_query/get_docs.dart' show answerGet;
 export 'src/index_query/index_fault.dart'
     show IndexFault, IndexFaultCode, IndexFaults;
 export 'src/index_query/index_store.dart' show indexBusyTimeout;
-export 'src/index_query/indexed_doc.dart' show IndexedDoc;
 export 'src/index_query/list_docs.dart' show ListFilters, answerList;
+export 'src/index_query/models/indexed_doc.dart';
 export 'src/index_query/out_file.dart'
     show answerOutFile, bareOutFile, outFileName, requireOutPath;
 export 'src/index_query/read_answer.dart'

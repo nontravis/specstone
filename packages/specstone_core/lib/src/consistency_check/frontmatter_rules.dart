@@ -5,6 +5,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/record_status.dart';
 
 const _statusKey = 'status';
 // `approval_stale` alone reads this value, so the value rule skips it.

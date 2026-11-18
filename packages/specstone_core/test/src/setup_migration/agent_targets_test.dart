@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
@@ -14,6 +16,8 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart'
+    show checkOf, goalDoc, spots, writeCheckProject;
 import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
@@ -854,6 +858,24 @@ void main() {
       expect(plan.paths, isEmpty);
     });
 
+    test('a project with no GOAL.md still gets the goal line in its import '
+        'block, and check reports the missing doc', () async {
+      final base = await _base({
+        'proj/CLAUDE.md': 'Owner\n',
+        'proj/docs/prds/PROJECT.md': '# Project\n',
+      });
+
+      final plan = planAgentWrites(_inputs(base), full: true);
+
+      final text = _writeAt(plan, 'CLAUDE.md').text;
+      expect(text, 'Owner\n\n${_imports('')}');
+      expect(text, contains('docs/prds/GOAL.md'));
+      final project = await writeCheckProject(without: {'docs/$goalDoc'});
+      expect(spots(await checkOf(project), FindingKind.singularDocMissing), [
+        '$goalDoc:1: singular_doc_missing',
+      ]);
+    });
+
     test('a block is appended and the Owner text stays', () async {
       final base = await _base({'proj/CLAUDE.md': 'Owner text\n'});
 
@@ -1136,6 +1158,38 @@ void main() {
               ),
         ),
       );
+    });
+
+    test('one file with an open fence and malformed marker lines names the '
+        'fence alone as the fix', () async {
+      final base = await _base({
+        'proj/CLAUDE.md':
+            'x\n<!-- BEGIN specstone v1.0.0 -->\nbody\n```\ncode\n',
+      });
+
+      for (final full in [true, false]) {
+        expect(
+          () => planAgentWrites(_inputs(base), full: full),
+          throwsA(
+            isA<MigrateFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  MigrateFaultCode.agentBlockMalformed,
+                )
+                .having((f) => f.file, 'file', 'CLAUDE.md')
+                .having((f) => f.line, 'line', 4)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'close the code fence that opens on this line, then run the '
+                      'command again',
+                )
+                .having((f) => f.more, 'more', isEmpty)
+                .having((f) => f.exitStatus, 'exit', 65),
+          ),
+        );
+      }
     });
 
     test('an unclosed fence after a well-formed block still wins '
@@ -1489,6 +1543,121 @@ void main() {
 
       expect(_writeAt(plan, 'CLAUDE.md').text, 'Shared\n\n${_imports('')}');
       expect(_paths(plan), isNot(contains('AGENTS.md')));
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('a folder above the instruction file linked to a folder inside the '
+        'project is written through, joins the write set by its real path, '
+        'and stays a link', () async {
+      final base = await _base({
+        'proj/shared/gh/copilot-instructions.md': 'Shared\n',
+        'proj/.keep': '',
+      });
+      final folder = _at(base, 'proj/').uri.resolve('.github').toFilePath();
+      Link(folder).createSync('shared/gh');
+
+      final plan = planAgentWrites(_inputs(base), full: true);
+
+      final write = _writeAt(plan, '.github/copilot-instructions.md');
+      expect(write.text, 'Shared\n\n${_inline()}');
+      expect(
+        plan.writeSet,
+        contains(_real(base, 'shared/gh/copilot-instructions.md')),
+      );
+      expect(plan.skipped, isEmpty);
+
+      _apply(base, plan);
+
+      expect(FileSystemEntity.isLinkSync(folder), isTrue);
+      expect(
+        File(_real(base, 'shared/gh/copilot-instructions.md'))
+            .readAsStringSync(),
+        'Shared\n\n${_inline()}',
+      );
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('a folder above the instruction file linked to a folder outside the '
+        'project is named and left', () async {
+      final base = await _base({
+        'shared/gh/copilot-instructions.md': 'Shared\n',
+        'proj/.keep': '',
+      });
+      Link(_at(base, 'proj/').uri.resolve('.github').toFilePath())
+          .createSync('../shared/gh');
+
+      final plan = planAgentWrites(_inputs(base), full: true);
+
+      expect(_paths(plan), isNot(contains('.github/copilot-instructions.md')));
+      const line =
+          '.github/copilot-instructions.md reaches outside the project root; '
+          'left as it is';
+      expect(plan.skipped, [line]);
+      expect(
+        plan.writeSet,
+        isNot(contains(_real(base, '../shared/gh/copilot-instructions.md'))),
+      );
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('an agent file the run would write or create, whose path the disk '
+        'cannot resolve, is named on stderr and left', () async {
+      final base = await _base({'proj/.specstone/keep': ''});
+      final root = _at(base, 'proj/').uri;
+      Link(root.resolve('AGENTS.md').toFilePath()).createSync('loop');
+      Link(root.resolve('loop').toFilePath()).createSync('AGENTS.md');
+      Link(root.resolve(_agentMd).toFilePath()).createSync('agent-loop');
+      Link(root.resolve('.specstone/agent-loop').toFilePath())
+          .createSync('AGENT.md');
+      final inputs = _inputs(base);
+
+      final plan = planAgentWrites(inputs, full: true);
+
+      expect(plan.skipped, [
+        '.specstone/AGENT.md cannot be resolved; left as it is',
+        'AGENTS.md cannot be resolved; left as it is',
+      ]);
+      expect(_paths(plan), skillPaths());
+      expect(plan.writeSet, {
+        for (final path in skillPaths()) _real(base, path),
+      });
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('a file left outside the project root that the run would leave '
+        'unchanged is not named on stderr', () async {
+      final base = await _base({
+        'shared/CLAUDE.md': _imports(''),
+        'shared/AGENT.md': agentMdText,
+        ..._skillFiles('proj/'),
+        'proj/.specstone/keep': '',
+      });
+      final root = _at(base, 'proj/').uri;
+      Link(root.resolve('CLAUDE.md').toFilePath())
+          .createSync(_at(base, 'shared/CLAUDE.md').path);
+      Link(root.resolve(_agentMd).toFilePath())
+          .createSync(_at(base, 'shared/AGENT.md').path);
+      final inputs = _inputs(base);
+
+      final plan = planAgentWrites(inputs, full: true);
+
+      expect(plan.skipped, isEmpty);
+      expect(plan.isEmpty, isTrue);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('a file whose path the disk cannot resolve that the run would '
+        'leave unchanged is not named on stderr', () async {
+      final base = await _base({
+        ..._skillFiles('proj/'),
+        'proj/.specstone/keep': '',
+      });
+      final root = _at(base, 'proj/').uri;
+      Link(root.resolve('AGENTS.md').toFilePath()).createSync('loop');
+      Link(root.resolve('loop').toFilePath()).createSync('AGENTS.md');
+      Link(root.resolve(_agentMd).toFilePath()).createSync('agent-loop');
+      Link(root.resolve('.specstone/agent-loop').toFilePath())
+          .createSync('AGENT.md');
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.skipped, isEmpty);
+      expect(plan.isEmpty, isTrue);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     test('a top in another repository, outside the project '
@@ -2029,6 +2198,57 @@ void main() {
           );
         }
         expect(File(_real(base, settingsFilePath)).readAsStringSync(), text);
+      }
+    });
+
+    test('a malformed file refuses with the parse failure and the hand-repair '
+        'wording, so the Owner knows what to repair', () async {
+      const repair =
+          '; repair the file by hand so it is one JSON object, then run the '
+          'command again';
+      final cases = <(List<int>, Object)>[
+        (utf8.encode('{"hooks": '), matches(RegExp(r'^[^;"]+ at offset \d+$'))),
+        (utf8.encode('// c\n{}\n'), matches(RegExp(r'^[^;"]+ at offset \d+$'))),
+        (utf8.encode('[]\n'), 'the top level is not a JSON object'),
+        (utf8.encode('{"hooks": []}\n'), '"hooks" is not a JSON object'),
+        (
+          utf8.encode('{"hooks": {"PostToolUse": {}}}\n'),
+          '"hooks.PostToolUse" is not an array',
+        ),
+        (const [0xff, 0xfe, 0x7b], 'the file is not valid UTF-8'),
+      ];
+
+      for (final (bytes, failure) in cases) {
+        final base = await _base({'proj/.keep': ''});
+        File(_real(base, settingsFilePath))
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync(bytes);
+
+        for (final full in [true, false]) {
+          final inputs = _inputs(base);
+          // `full: false` takes part through a specstone entry.
+          if (!full) {
+            File(_real(base, '.claude/skills/specstone-x/SKILL.md'))
+              ..parent.createSync(recursive: true)
+              ..writeAsStringSync('x');
+          }
+
+          expect(
+            () => planAgentWrites(inputs, full: full),
+            throwsA(
+              isA<MigrateFault>()
+                  .having((f) => f.file, 'file', settingsFilePath)
+                  .having((f) => f.message, 'message', endsWith(repair))
+                  .having(
+                    (f) => f.message.replaceAll(repair, ''),
+                    'failure',
+                    failure,
+                  )
+                  .having((f) => f.exitStatus, 'exit', 65),
+            ),
+            reason: '$bytes full: $full',
+          );
+        }
       }
     });
 

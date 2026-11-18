@@ -11,17 +11,22 @@ import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
-import 'package:specstone_core/src/index_query/item_words.dart'
-    show RuleItemWords;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show mermaidSourcesOf;
+import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
+import 'package:specstone_core/src/index_query/models/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/models/rule_item_words.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
+
+export 'package:specstone_core/src/index_query/models/indexed_doc.dart';
 
 /// The id of the `feature` doc type.
 const featureType = 'feature';
@@ -45,7 +50,6 @@ int tokenSizeOf(String text) => text.runes.length ~/ 4;
 final _outsideKey = RegExp(r'[^\p{L}\p{M}\p{N} _-]', unicode: true);
 final _keySeparators = RegExp('[ _-]+');
 final _keyEdges = RegExp(r'^_+|_+$');
-final _lineBreak = RegExp(r'\s*\n\s*');
 
 /// The key of the lead: the text before a doc's first `##` header.
 ///
@@ -107,131 +111,6 @@ final class IndexedSection {
   /// The size of [text] in tokens.
   int get tokens => tokenSizeOf(text);
 }
-
-/// What the index keeps about one doc, apart from its text.
-final class IndexedDoc {
-  const new({
-    required this.docPath,
-    this.docTypeId,
-    required this.name,
-    this.target,
-    this.parentPath,
-    this.title,
-    required this.frontmatter,
-    required this.tokens,
-    this.formatted,
-    this.approvalHash,
-    this.order = 0,
-    this.warnings = const [],
-    this.matrixLines = const [],
-  });
-
-  /// The path of the doc relative to the docs root.
-  final String docPath;
-
-  /// The id of the doc type that matches [docPath]; null when untyped.
-  final String? docTypeId;
-
-  /// The name the doc answers to in a query.
-  final String name;
-
-  /// The code target a per-target doc belongs to: the one whose pattern set
-  /// matched with two or more targets, else the single target when named.
-  ///
-  /// Null for a shared doc, a doc of a doc type that is not per-target, and
-  /// an untyped doc.
-  final String? target;
-
-  /// Whether the doc shows under [codeTarget]: always with none, else only
-  /// when the doc is shared or belongs to that target.
-  bool inTarget(String? codeTarget) =>
-      codeTarget == null || target == null || target == codeTarget;
-
-  /// The docPath of the doc this one nests under; null for a root doc.
-  final String? parentPath;
-
-  /// The text after `# ` in the doc head; null without a title line.
-  final String? title;
-
-  /// The frontmatter as plain Dart values; empty without valid frontmatter.
-  final Map<String, Object?> frontmatter;
-
-  /// The size of the whole file in tokens.
-  final int tokens;
-
-  /// Whether the LF text equals the text the format command lays out.
-  ///
-  /// Null for an untyped doc, a doc whose bytes are not UTF-8, and a doc the
-  /// format command refuses: the docs whose counts cover their text as
-  /// decoded.
-  final bool? formatted;
-
-  /// The [comparedApprovalHash] of the doc; null for an untyped doc or one
-  /// whose frontmatter is not valid YAML.
-  final String? approvalHash;
-
-  /// The position of the doc in tree order.
-  final int order;
-
-  /// What went wrong while reading the doc, one sentence each.
-  final List<String> warnings;
-
-  /// The lines of the doc's Verification matrix section, in file order; empty
-  /// for a doc that is no record, or whose record holds no such section.
-  final List<MatrixLine> matrixLines;
-
-  /// Whether exactly one doc type matches [docPath].
-  bool get isTyped => docTypeId != null;
-
-  /// Whether the doc has a `# ` title line that holds text.
-  ///
-  /// The test `check` runs for its missing-title finding.
-  bool get hasTitle => title?.trim().isNotEmpty ?? false;
-
-  /// The `status` the doc writes, or null when it writes none.
-  ///
-  /// A story or FR takes its status from its record entry instead
-  /// (`DocIndex.statusOf`); this is the raw written value.
-  String? get writtenStatus => switch (frontmatter['status']) {
-    final String status => status,
-    _ => null,
-  };
-
-  /// Whether the `draft` key holds the YAML boolean `true`.
-  bool get isDraft => frontmatter['draft'] == true;
-
-  /// Returns the value of [key] when the frontmatter holds it as a YAML
-  /// string, else null.
-  ///
-  /// [valuesOf] reads a number as text; this read does not.
-  String? stringValueOf(String key) => switch (frontmatter[key]) {
-    final String value => value,
-    _ => null,
-  };
-
-  /// Returns the `summary` string on one line, or null when it holds no text.
-  ///
-  /// A non-string reads as null as in [stringValueOf]; each line break, with
-  /// the space around it, becomes one space, so a block scalar reads whole.
-  String? get oneLineSummary {
-    final line = stringValueOf('summary')?.trim().replaceAll(_lineBreak, ' ');
-    return line == null || line.isEmpty ? null : line;
-  }
-
-  /// Returns the values of [key]: a scalar as one string, each scalar item of
-  /// a list, else none.
-  List<String> valuesOf(String key) => switch (frontmatter[key]) {
-    final List<Object?> items => [
-      for (final item in items)
-        if (_isScalar(item)) '$item',
-    ],
-    final Object? value when _isScalar(value) => ['$value'],
-    _ => const [],
-  };
-}
-
-bool _isScalar(Object? value) =>
-    value is String || value is num || value is bool;
 
 /// The text and structure of one doc, as `get` and `context` print it.
 final class DocContent {
@@ -326,7 +205,7 @@ ParsedDoc parseIndexedDoc({
   Set<String> idPrefixes = const {},
 }) {
   final warnings = <String>[];
-  final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
+  final _Decoded(:text, :isUtf8) = _decode(bytes, docPath, warnings);
   final lfText = toLf(text);
   final doc = Doc.parse(lfText);
   final (:docType, :target) = switch (match) {
@@ -474,19 +353,26 @@ DocContent docStructureOf(String lfText, MergedDocType? docType) {
   );
 }
 
-({String text, bool isUtf8}) _decode(
-  List<int> bytes,
-  String docPath,
-  List<String> warnings,
-) {
+_Decoded _decode(List<int> bytes, String docPath, List<String> warnings) {
   try {
-    return (text: utf8.decode(bytes), isUtf8: true);
+    return _Decoded(text: utf8.decode(bytes), isUtf8: true);
   } on FormatException {
     warnings.add(
       '$docPath: not UTF-8 text; indexed with replacement characters',
     );
-    return (text: utf8.decode(bytes, allowMalformed: true), isUtf8: false);
+    return _Decoded(
+      text: utf8.decode(bytes, allowMalformed: true),
+      isUtf8: false,
+    );
   }
+}
+
+/// A file's decoded text, and whether its bytes were UTF-8.
+final class _Decoded {
+  const new({required this.text, required this.isUtf8});
+
+  final String text;
+  final bool isUtf8;
 }
 
 /// Returns the counts of each of [sections], in its order.

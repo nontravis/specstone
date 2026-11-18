@@ -1,6 +1,8 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
@@ -211,6 +213,30 @@ void main() {
       expect(_under(report, _deepFolder), [
         '$_deepFeature: nesting_over_limit',
       ]);
+    });
+
+    test('a doc that is not UTF-8 and a doc with a path over 200 characters in the folder of an over-deep FEATURE.md still report', () async {
+      final longPath = _paddedPath('$_deepFolder/NOTES_', '.md', 201);
+      final project = await writeNestedProject(
+        extra: {
+          ...deepFiles,
+          'docs/$longPath': '# Notes\n',
+          'docs/$_deepFolder/RAW.md': '# Raw\n',
+        },
+      );
+      File('${project.path}/docs/$_deepFolder/RAW.md')
+          .writeAsBytesSync([0x23, 0x20, 0xFF, 0xFE, 0x0A]);
+
+      final report = await checkOf(project);
+
+      expect(
+        _under(report, _deepFolder),
+        [
+          '$_deepFeature: nesting_over_limit',
+          '$longPath: path_over_limit',
+          '$_deepFolder/RAW.md: file_not_utf8',
+        ]..sort(),
+      );
     });
 
     test('of two over-limit FEATURE.md files, one in the folder of the other, the outer one reports', () async {

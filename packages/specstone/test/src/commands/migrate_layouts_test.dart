@@ -398,6 +398,127 @@ name: Login API
     );
   }, skip: skip);
 
+  test('a nested project behind a docs link that leaves its folder migrates '
+      'after trust, and the outer project stays as it was', () async {
+    final root = await gitFixture({
+      for (final e in acmeLegacy.entries) 'example/${e.key}': e.value,
+      'example/.specstone/config.yaml': 'packs:\n  prd-core: 1.0.0\n',
+      'stratum_ui/.specstone/config.yaml': 'packs:\n  prd-core: 1.0.0\n',
+      'stratum_ui/example/.keep': '',
+    });
+    final nested = Directory('${root.path}/stratum_ui/example');
+    try {
+      createRelativeLink('${nested.path}/docs', '../../example/docs');
+    } on FileSystemException {
+      markTestSkipped('this machine cannot create a link');
+      return;
+    }
+    commitAll(root, 'link docs');
+    int commits() => int.parse(
+      (git(root, ['rev-list', '--count', 'HEAD']).stdout as String).trim(),
+    );
+    final outerBefore = _bytesUnder(Directory('${root.path}/stratum_ui'))
+      ..remove('example/docs');
+    final before = commits();
+
+    final refused = await _run(nested, ['migrate'], console: _owner());
+    expect(refused.status, 73, reason: refused.err);
+    expect(commits(), before);
+    final trusted = await _run(nested, ['trust'], console: _owner());
+    expect(trusted.status, 0, reason: trusted.err);
+
+    final run = await _run(nested, ['migrate'], console: _owner());
+
+    expect(run.status, 0, reason: run.err);
+    expect(commits(), before + 2);
+    expect(
+      File('${root.path}/example/.specstone/config.yaml').existsSync(),
+      isTrue,
+    );
+    final outerAfter = _bytesUnder(Directory('${root.path}/stratum_ui'))
+      ..remove('example/docs');
+    expect(outerAfter, outerBefore);
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: skip);
+
+  test('a Summary and a Feature goal section the table does not name stay as '
+      'written and check lists them', () async {
+    const feature = 'docs/prds/features/f01_login/FEATURE.md';
+    final (root, findings) = await _layout({
+      ...acmeLegacy,
+      feature: acmeLegacy[feature]!.replaceFirst(
+        '## Feature goal',
+        '## Summary\n\nA summary.\n\n## Feature goal',
+      ),
+    });
+
+    final text = File('${root.path}/$feature').readAsStringSync();
+    expect(text, contains('## Summary\n\nA summary.\n\n'));
+    expect(text, contains('## Feature goal\n\nLet a user sign in.\n'));
+    final undeclared = [
+      for (final f in findings)
+        if (f.kind == 'section_undeclared' &&
+            f.path == 'prds/features/f01_login/FEATURE.md')
+          f.message,
+    ];
+    expect(undeclared, [
+      'section Summary is not declared',
+      'section Feature goal is not declared',
+    ]);
+  }, skip: skip);
+
+  test('a number label that names two docs is kept, listed in the plan, and '
+      'reported by check as number_label', () async {
+    final root = await gitFixture({
+      ...acmeLegacy,
+      'docs/prds/features/f02_signup/FEATURE.md':
+          '---\nname: Signup\n---\n\n# F-02 — Signup\n',
+      'docs/prds/features/f02_signup/us01_create/USER_STORY.md':
+          '---\nname: Create account\n---\n\n# US-01 — Create account\n',
+      'docs/prds/d02_features.md':
+          '---\nname: Acme feature index\n---\n\n# D-02 — Feature index\n\n'
+          'See US-01 for sign-in and F-01 for login.\n',
+    });
+
+    final dry = await _run(root, ['migrate', '--dry-run']);
+    expect(dry.status, 0, reason: dry.err);
+    expect(dry.out, contains('number labels: '));
+    expect(dry.out, contains('; left: 1'));
+    await _migrate(root);
+
+    final text = File('${root.path}/docs/prds/FEATURES.md').readAsStringSync();
+    expect(text, contains('See US-01 for sign-in and '));
+    expect(text, isNot(contains('F-01')));
+    final labels = [
+      for (final f in await _check(root))
+        if (f.kind == 'number_label') f.message,
+    ];
+    expect(labels, [startsWith('US-01 is a number label')]);
+    await _migrateAgain(root);
+  }, skip: skip);
+
+  test('a legacy nf that overrides a project NFR gets no kind and check '
+      'lists its missing fields', () async {
+    const nfPath = 'prds/features/f01_login/us01_email_login/nf01_latency.md';
+    final (root, findings) = await _layout({
+      ...acmeLegacy,
+      'docs/prds/features/f01_login/us01_email_login/'
+              'non_functional_requirements/nf01_latency.md':
+          '---\nname: Latency\n---\n\n# NF-01 — Latency\n\n## Statement\n\n'
+          'This tightens NFR-01: login answers in 300 ms.\n',
+    });
+
+    final text = File('${root.path}/docs/$nfPath').readAsStringSync();
+    expect(text, isNot(contains('kind:')));
+    expect(text, isNot(contains('overrides:')));
+    expect(text, isNot(contains('confirmed:')));
+    final missing = [
+      for (final f in findings)
+        if (f.path == nfPath && f.kind == 'required_field_missing') f.message,
+    ];
+    expect(missing, isNotEmpty);
+  }, skip: skip);
+
   test('docs reached through a link migrate in the repository '
       'that holds them', () async {
     final parent = await Directory.systemTemp.createTemp('specstone_link_');

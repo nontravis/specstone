@@ -1,18 +1,23 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
+import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/matrix_record_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/override_link_fixture.dart';
 import '../../helpers/record_fixture.dart' show recordText;
+import '../../helpers/write_fixture.dart' show getDoc, readDoc, writeIn;
 
 void main() {
   const fp = fingerprintOf;
@@ -301,6 +306,37 @@ void main() {
     },
   );
 
+  test('a table padded to its widest cell and a dropped gap under the heading give no finding', () async {
+    const table = '| a | b |\n|---|---|\n| longer cell | c |';
+    const padded =
+        '| a           | b |\n| ----------- | - |\n| longer cell | c |';
+    const unpadded = '$loginScenario2\n\n$table';
+    const paddedBlock = '$loginScenario2\n\n$padded';
+    final noGap = loginScenario2.replaceFirst(
+      'Wrong password\n\n',
+      'Wrong password\n',
+    );
+    expect(noGap, isNot(loginScenario2));
+    final projects = [
+      {
+        ...doc(loginStory, loginScenario2, paddedBlock),
+        ...fr('  - S2 ${fp(loginScenario2)}', '  - S2 ${fp(unpadded)}'),
+      },
+      {
+        ...doc(loginStory, loginScenario2, unpadded),
+        ...fr('  - S2 ${fp(loginScenario2)}', '  - S2 ${fp(paddedBlock)}'),
+      },
+      doc(loginStory, loginScenario2, noGap),
+    ];
+    for (final extra in projects) {
+      final report = await checkOf(await writeCheckProject(extra: extra));
+      expect(
+        report.findings.where((f) => f.kind != FindingKind.formatDrift),
+        isEmpty,
+      );
+    }
+  });
+
   test(
     'an nf turns suspect on its NFR Statement line, not on its Rationale',
     () async {
@@ -424,9 +460,7 @@ void main() {
     },
   );
 
-  test('in a '
-      'draft with one entry at the current fingerprint, that link waits for the '
-      'Owner and a link with no entry waits for the Agent', () async {
+  test('in a draft with one entry at the current fingerprint, that link waits for the Owner and a link with no entry waits for the Agent', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
@@ -449,9 +483,7 @@ void main() {
     );
   });
 
-  test('a '
-      'draft whose entry records an older fingerprint waits for the Agent, and '
-      'so does a link with no entry outside a draft', () async {
+  test('a draft whose entry records an older fingerprint waits for the Agent, and so does a link with no entry outside a draft', () async {
     final older = (await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
@@ -476,6 +508,52 @@ void main() {
     )).findings.single;
     expect(finding.kind, FindingKind.suspect);
     expect(finding.waitsFor, WaitsFor.agent);
+  });
+
+  group('an Agent set of confirmed on a suspect FR', () {
+    const target = 'fr:login/email_login/check_password';
+
+    Future<Directory> reconfirm() async {
+      final project = await writeCheckProject(
+        extra: doc(loginStory, loginScenario2, edited),
+      );
+      final bases = getDoc(project, target)['bases']! as Map;
+      final base = (bases['fields']! as Map)['confirmed']! as String;
+      writeIn(
+        project,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(target, field: 'confirmed', base: base),
+          '- S2 ${fp(edited)}\n',
+        ),
+      );
+      return project;
+    }
+
+    test(
+      'marks the FR draft, and check then reports the link for the Owner',
+      () async {
+        final project = await reconfirm();
+
+        expect(readDoc(project, loginFr), contains('draft: true\n'));
+        final finding = (await checkOf(project)).findings.single;
+        expect(finding.kind, FindingKind.unconfirmed);
+        expect(finding.waitsFor, WaitsFor.owner);
+        expect(finding.keys['link'], 'S2');
+      },
+    );
+
+    test(
+      'leaves the S2 link reported, so a set of confirmed alone clears nothing',
+      () async {
+        final report = await checkOf(await reconfirm());
+
+        final finding = report.findings.single;
+        expect(finding.kind, FindingKind.unconfirmed);
+        expect(finding.keys['link'], 'S2');
+        expect(report.exitStatus, 1);
+      },
+    );
   });
 
   test('a draft whose entry records an older fingerprint is unconfirmed, never suspect', () async {
@@ -769,6 +847,46 @@ void main() {
       expect(spots(report, FindingKind.confirmedEntryRepeated), [
         '$loginFr:9: confirmed_entry_repeated',
       ]);
+    });
+
+    test('a map-form, a ten-character, and an address-less overrides entry are never counted as repeats', () async {
+      final confirmed = await checkOf(
+        await writeCheckProject(
+          extra: fr(
+            firstEntry,
+            '$firstEntry\n  - S2: 047e817f9707\n  - S2: 047e817f9707\n'
+            '  - S2 047e817f97\n  - S2 047e817f97',
+          ),
+        ),
+      );
+      expect(repeatedIn(confirmed), isEmpty);
+      expect(
+        spots(confirmed, FindingKind.confirmedEntryMalformed),
+        hasLength(4),
+      );
+
+      final files = overrideFiles(
+        extra: {
+          'docs/$loginDomain': domainDoc(
+            [overrideOfRoot],
+            entries: [
+              'INV-3 $rootFingerprint',
+              'INV-3 $rootFingerprint',
+              rootAddress,
+              rootAddress,
+            ],
+          ),
+        },
+      );
+      final overrides = await checkOf(
+        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+        docPath: loginDomain,
+      );
+      expect(repeatedIn(overrides), isEmpty);
+      expect(
+        spots(overrides, FindingKind.confirmedEntryMalformed),
+        hasLength(4),
+      );
     });
 
     test('a malformed entry is never counted as a repeat', () async {
@@ -1240,6 +1358,22 @@ void main() {
       expect(finding.message, isNot(contains(fp(editedRule))));
     });
 
+    test('a suspect override link prints the rule text before the current fingerprint', () async {
+      final files = loginFiles(
+        [overrideOfRoot],
+        entries: [rootEntry],
+        root: editedRule,
+      );
+      final finding = (await findings(files, loginDomain)).single;
+      expect(finding.kind, FindingKind.suspect);
+      expect(finding.textLines, [
+        finding.textLine,
+        for (final line in printedBlockOf(editedRule).split('\n')) '    $line',
+        '    fingerprint ${fp(editedRule)}',
+      ]);
+      expect(finding.textLines.first, isNot(contains(fp(editedRule))));
+    });
+
     test('an unedited root rule keeps the override link clean', () async {
       expect(
         await findings(
@@ -1670,6 +1804,46 @@ void main() {
       expect(clean, isEmpty);
     });
 
+    test('a suspect row of a draft record holds the same keys and prints its edge case before the fingerprint', () async {
+      const changed = '1. E01 — An empty password → refused at once.';
+      final text = record([testRow(current)], front: 'draft: true\n');
+
+      final finding = (await findingsOf(
+        text,
+        extra: fr(edgeCase, changed),
+      )).single;
+
+      expect(finding.kind, FindingKind.suspect);
+      expect(finding.waitsFor, WaitsFor.agent);
+      expect(finding.keys, {
+        'link': label,
+        'recorded': current,
+        'upstream': loginFr,
+        'block': 'E01',
+        'text': changed,
+        'fingerprint': fp(changed),
+      });
+      expect(finding.textLines, [
+        finding.textLine,
+        '    $changed',
+        '    fingerprint ${fp(changed)}',
+      ]);
+    });
+
+    test('an unstamped row of a draft record prints its edge case before the fingerprint', () async {
+      final text = record([testRow()], front: 'draft: true\n');
+
+      final finding = (await findingsOf(text)).single;
+
+      expect(finding.kind, FindingKind.unconfirmed);
+      expect(finding.waitsFor, WaitsFor.agent);
+      expect(finding.textLines, [
+        finding.textLine,
+        '    $edgeCase',
+        '    fingerprint $current',
+      ]);
+    });
+
     test(
       "a change below the edge case's first line makes the row suspect",
       () async {
@@ -1819,6 +1993,56 @@ void main() {
           '    fingerprint $current',
         ]);
       }
+    });
+
+    test('a set that writes a row fingerprint keeps the record draft and clears the row', () async {
+      const target = 'implementation:login#verification_matrix';
+      final project = await writeMatrixRecordProject(isDraft: true);
+      final sectionBase = getDoc(project, target)['base']! as String;
+
+      final answer = writeIn(
+        project,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(target, base: sectionBase),
+          '${matrixRow.trimRight()} $current\n',
+        ),
+      );
+
+      expect(answer.json['draft'], isTrue);
+      expect(readDoc(project, loginRecord), contains('draft: true\n'));
+      expect(
+        readDoc(project, loginRecord),
+        contains('E01: `a wrong password` $current'),
+      );
+      final rowFindings = (await checkOf(project)).findings.where(
+        (f) =>
+            f.path == loginRecord &&
+            (f.kind == FindingKind.suspect ||
+                f.kind == FindingKind.unconfirmed),
+      );
+      expect(rowFindings, isEmpty);
+    });
+
+    test('the rows of a planned requirement are still tracked', () async {
+      final text = record(
+        [
+          testRow(older, 'refuses a stale one'),
+          testRow(null, 'refuses an unstamped one'),
+          testRow(current, 'refuses a clean one'),
+        ],
+        statuses: const ['$item:planned'],
+      );
+
+      final findings = await findingsOf(text);
+
+      expect(
+        [for (final f in findings) (f.kind, f.line, f.waitsFor)],
+        [
+          (FindingKind.suspect, rowLine(text, 0), WaitsFor.agent),
+          (FindingKind.unconfirmed, rowLine(text, 1), WaitsFor.agent),
+        ],
+      );
     });
 
     test('the rows of a skipped requirement take no state', () async {

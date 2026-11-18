@@ -212,6 +212,58 @@ void main() {
     expect(next.sent.single, unorderedEquals([_parsing, _refused]));
   });
 
+  test('a mermaid block in an untyped markdown file is not read', () async {
+    final project = await writeCheckProject(
+      extra: {
+        'docs/$loginArchitecture': _architectureWith(_parsing),
+        'docs/notes.md': '# Notes\n\n```mermaid\n$_refused\n```\n',
+      },
+      unstamped: {'docs/$loginArchitecture'},
+    );
+    final node = _FakeNode({_refused: _refusedAnswer});
+
+    final report = await _check(project, node.runner);
+
+    expect(node.sent, [
+      [_parsing],
+    ]);
+    expect(_parseFindings(report), isEmpty);
+  });
+
+  test(
+    'stored results of another parser are not used, so the block parses again',
+    () async {
+      final project = await _project(architecture: _refused);
+      await _check(project, _FakeNode({_refused: _refusedAnswer}).runner);
+      sqlite3.open(File.fromUri(project.uri.resolve(indexFilePath)).path)
+        ..execute("UPDATE diagram_parses SET parser_hash = 'an older parser'")
+        ..close();
+      final next = _FakeNode({_refused: _refusedAnswer});
+
+      final report = await _check(project, next.runner);
+
+      expect(next.sent, [
+        [_refused],
+      ]);
+      expect(_parseFindings(report), [
+        '$loginArchitecture:13 sequence | $_refusedLine',
+      ]);
+    },
+  );
+
+  test('after the index is rebuilt in full every block parses again', () async {
+    final project = await _project(architecture: _parsing, feature: _refused);
+    await _check(project, _FakeNode({_refused: _refusedAnswer}).runner);
+    sqlite3.open(File.fromUri(project.uri.resolve(indexFilePath)).path)
+      ..execute('UPDATE meta SET layout = layout - 1')
+      ..close();
+    final next = _FakeNode({_refused: _refusedAnswer});
+
+    await _check(project, next.runner);
+
+    expect(next.sent.single, unorderedEquals([_parsing, _refused]));
+  });
+
   test('a node label with an unquoted bracket gives the parse finding and the label finding', () async {
     const block = 'flowchart TD\nA[Save (draft)] -->|reads| B[Index]';
     final node = _FakeNode({

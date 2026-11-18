@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 
 const _frType = 'fr';
 const _nfType = 'nf';
@@ -43,7 +44,8 @@ Iterable<Finding> checkOpenTbrs(CheckContext context, IndexedDoc doc) sync* {
   for (final (:line, :message, :form) in _bulletsOf(context, doc, claimed)) {
     yield _finding(context, doc, line, message, form);
   }
-  for (final (:line, :rest) in context.contentOf(doc).lineFacts.tbrMarkers) {
+  for (final TbrMarkerPlace(:line, :rest)
+      in context.contentOf(doc).lineFacts.tbrMarkers) {
     if (claimed.contains(line)) continue;
     yield _finding(context, doc, line, _valueMessage(rest), _markerForm);
   }

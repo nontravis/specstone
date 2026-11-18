@@ -51,4 +51,15 @@ void main() {
     final items = sectionOf(topic, 'purpose').itemCount!;
     expect((items.min, items.max), (null, 1));
   });
+
+  test('the topic description says a rule set writes Rules, a component '
+      'writes Interface, and both writes both', () {
+    expect(
+      topic.description,
+      contains(
+        'A rule set writes Rules, a component writes Interface, and a topic '
+        'that is both writes both; no field names the kind.',
+      ),
+    );
+  });
 }

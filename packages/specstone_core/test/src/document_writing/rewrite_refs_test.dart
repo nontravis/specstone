@@ -51,7 +51,7 @@ void main() {
   List<WriteStep> plan(
     List<PathMove> moves, {
     RenamedNames renamed = const RenamedNames({}),
-  }) => writeIn(root, (s) => planRewrites(s, moves, renamed: renamed));
+  }) => writeIn(root, (s) => planRewrites(s, moves, renamed: renamed).rewrites);
 
   test('movedPath and relativeHref', () {
     expect(
@@ -406,6 +406,28 @@ void main() {
     expect(read(home), [('specs/t.md', 'z)')]);
   });
 
+  test(
+    'a move back keeps an angle-bracketed inline link written without escapes',
+    () {
+      const into = <PathMove>[
+        PathMove(from: 'specs/t.md', to: 'specs/x(y/t.md'),
+      ];
+      const back = <PathMove>[
+        PathMove(from: 'specs/x(y/t.md', to: 'specs/t.md'),
+      ];
+
+      final there = rewriteDocLinks(
+        '[b](<t.md#z>)\n',
+        docPath: 'specs/d.md',
+        moves: into,
+      );
+      final home = rewriteDocLinks(there!, docPath: 'specs/d.md', moves: back);
+
+      expect(there, '[b](<x(y/t.md#z>)\n');
+      expect(home, '[b](<t.md#z>)\n');
+    },
+  );
+
   test('a move to or from a path with a paren keeps the parens of an angle-bracketed definition as written', () {
     const into = <PathMove>[PathMove(from: 'specs/t.md', to: 'specs/x(y/t.md')];
     const back = <PathMove>[PathMove(from: 'specs/x(y/t.md', to: 'specs/t.md')];
@@ -546,6 +568,17 @@ void main() {
         moves: [const PathMove(from: 'prds/f/us01/', to: 'prds/f/us03/')],
       ),
       '# T\n\n[x](us03/caf%C3%A9.md)\n',
+    );
+  });
+
+  test('a rooted link stays as written while a relative link to the same moved file follows', () {
+    expect(
+      rewriteDocLinks(
+        '[r](/a.md) [s](../a.md)\n',
+        docPath: 'b/x.md',
+        moves: [const PathMove(from: 'a.md', to: 'c/a.md')],
+      ),
+      '[r](/a.md) [s](../c/a.md)\n',
     );
   });
 
@@ -994,7 +1027,7 @@ void main() {
         s,
         reorderMoves,
         docEdits: {linked: rename, alone: rename},
-      ),
+      ).rewrites,
     );
     final byPath = {for (final step in steps) step.path: step.text};
     expect(byPath['docs/$linked'], contains("'b:planned'"));
@@ -1069,7 +1102,7 @@ void main() {
     expect(
       () => writeIn(root, (s) {
         index.writeAsBytesSync([0xFF, 0xFE, 0x5D, 0x28]);
-        return planRewrites(s, featureSwap);
+        return planRewrites(s, featureSwap).rewrites;
       }),
       throwsA(
         isA<RenderFault>()
@@ -1115,7 +1148,10 @@ void main() {
       },
     );
 
-    final steps = writeIn(mentioning, (s) => planRewrites(s, reorderMoves));
+    final steps = writeIn(
+      mentioning,
+      (s) => planRewrites(s, reorderMoves).rewrites,
+    );
     final notes = steps.singleWhere(
       (step) => step.path == 'docs/prds/NOTES.md',
     );
@@ -1136,7 +1172,10 @@ void main() {
         },
       );
 
-      final steps = writeIn(mentioning, (s) => planRewrites(s, reorderMoves));
+      final steps = writeIn(
+        mentioning,
+        (s) => planRewrites(s, reorderMoves).rewrites,
+      );
       final notes = steps.singleWhere(
         (step) => step.path == 'docs/prds/NOTES.md',
       );
@@ -1156,6 +1195,17 @@ void main() {
         moves: [const PathMove(from: 'a/b.md', to: 'a/d.md')],
       ),
       '[b](./d.md#x) [c](./c.md)\n',
+    );
+  });
+
+  test('a leading ./ drops from a link whose new path starts with ../', () {
+    expect(
+      rewriteDocLinks(
+        '[b](./b.md#x) [c](./c.md)\n',
+        docPath: 'a/x.md',
+        moves: [const PathMove(from: 'a/b.md', to: 'c/b.md')],
+      ),
+      '[b](../c/b.md#x) [c](./c.md)\n',
     );
   });
 
@@ -1187,10 +1237,30 @@ void main() {
       () async {
         final project = await writeWriteProject(extra: {'docs/$fr12': loose});
         final text = stepText(
-          writeIn(project, (s) => planRewrites(s, reorderMoves)),
+          writeIn(project, (s) => planRewrites(s, reorderMoves).rewrites),
           fr12,
         );
         expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+        expect(text, isNot(contains('\n\n\n')));
+        expect(text, contains('draft: true\n'));
+      },
+    );
+
+    test(
+      'a typed doc whose only change is a path mention is written laid out',
+      () async {
+        final mentionOnly = loose.replaceFirst(
+          looseLink,
+          'The system shall lock the account. See `../us03_reset_password/USER_STORY.md`.\n',
+        );
+        final project = await writeWriteProject(
+          extra: {'docs/$fr12': mentionOnly},
+        );
+        final text = stepText(
+          writeIn(project, (s) => planRewrites(s, reorderMoves).rewrites),
+          fr12,
+        );
+        expect(text, contains('`../us01_reset_password/USER_STORY.md`'));
         expect(text, isNot(contains('\n\n\n')));
         expect(text, contains('draft: true\n'));
       },
@@ -1203,7 +1273,7 @@ void main() {
         },
       );
       final text = stepText(
-        writeIn(project, (s) => planRewrites(s, featureSwap)),
+        writeIn(project, (s) => planRewrites(s, featureSwap).rewrites),
         'prds/d01_context.md',
       );
       expect(text, contains('features/f01_signup/FEATURE.md'));
@@ -1217,7 +1287,7 @@ void main() {
         final refused = loose.replaceFirst('## Statement', '## Bogus');
         final project = await writeWriteProject(extra: {'docs/$fr12': refused});
         final text = stepText(
-          writeIn(project, (s) => planRewrites(s, reorderMoves)),
+          writeIn(project, (s) => planRewrites(s, reorderMoves).rewrites),
           fr12,
         );
         expect(text, contains('\n\n\n\nThe system'));
@@ -1231,7 +1301,10 @@ void main() {
           'docs/$fr11': '---\nstatus: implemented\n---\n\n# Validate\n\n\n\n## Statement\n\nText.\n',
         },
       );
-      final steps = writeIn(project, (s) => planRewrites(s, reorderMoves));
+      final steps = writeIn(
+        project,
+        (s) => planRewrites(s, reorderMoves).rewrites,
+      );
       expect(steps.where((step) => step.path == 'docs/$fr11'), isEmpty);
     });
 
@@ -1248,7 +1321,7 @@ void main() {
           project,
           (s) => planRewrites(s, [
             const PathMove(from: 'prds/d01_context.md', to: to),
-          ]),
+          ]).rewrites,
         );
         final step = steps.singleWhere((step) => step.path == 'docs/$to');
         expect(step.text, contains('../../f02_signup/FEATURE.md'));
@@ -1261,7 +1334,7 @@ void main() {
         extra: {'docs/$fr12': '\uFEFF${loose.replaceAll('\n', '\r\n')}'},
       );
       final text = stepText(
-        writeIn(project, (s) => planRewrites(s, reorderMoves)),
+        writeIn(project, (s) => planRewrites(s, reorderMoves).rewrites),
         fr12,
       );
       expect(text, startsWith('\uFEFF---\r\n'));
@@ -1285,7 +1358,7 @@ void main() {
             renamed: RenamedNames({
               const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
             }),
-          ),
+          ).rewrites,
         ),
         story1,
       );
@@ -1294,6 +1367,26 @@ void main() {
         text.indexOf('status: planned'),
         lessThan(text.indexOf('persona:')),
       );
+    });
+
+    test('a renamed doc_ref referrer the formatter refuses keeps every byte but the value', () async {
+      const refused =
+          '---\npersona:\n  - buyer\nstatus: planned\ndraft: true\n---\n\n# Sign in with email\n\n\n\n## Bogus\n\nText.\n';
+      final project = await writeWriteProject(extra: {'docs/$story1': refused});
+      final text = stepText(
+        writeIn(
+          project,
+          (s) => planRewrites(
+            s,
+            const [],
+            renamed: RenamedNames({
+              const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+            }),
+          ).rewrites,
+        ),
+        story1,
+      );
+      expect(text, refused.replaceFirst('buyer', 'shopper'));
     });
 
     test(
@@ -1591,7 +1684,7 @@ void main() {
         mentioning,
         (s) => planRewrites(s, [
           const PathMove(from: 'prds/NOTES.md', to: 'prds/sub/NOTES.md'),
-        ]),
+        ]).rewrites,
       );
       final notes = steps.singleWhere((step) => step.path.endsWith('NOTES.md'));
 

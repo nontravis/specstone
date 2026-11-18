@@ -574,6 +574,77 @@ void main() {
     });
   });
 
+  test('a doc type that sets none of the five keys runs no shape rule while '
+      'the fr type runs its own', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ...fr(checkPasswordStatement, 'Refuse it. Log it.'),
+        ...doc(
+          'prds/GLOSSARY.md',
+          '- **Agent** — the coding agent that writes the docs.',
+          '- **Agent** — One. Two. Three.\n  - Nested one.\n  - Nested two.\n'
+              '- **Owner** — Four.\n  Five.\n- **User** — Six.',
+        ),
+      },
+    );
+    final found = [
+      for (final f in (await checkOf(project)).findings)
+        if (_shapeKinds.contains(f.kind)) f,
+    ];
+    expect(found.map((f) => f.path).toSet(), {loginFr});
+    expect(found.map((f) => f.kind), contains(FindingKind.sentencesOverLimit));
+  });
+
+  test(
+    'an edge case with an arrow, a colon, and a dash is one sentence',
+    () async {
+      final found = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', _oneSentence),
+        edits: _frWith(
+          '1. E01 — A wrong password: refused → the Agent stays out.',
+        ),
+      );
+      expect(found, isEmpty);
+    },
+  );
+
+  test(
+    'two japanese sentences joined by a stop with no space give two',
+    () async {
+      final found = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', _oneSentence),
+        edits: _frWith('1. E01 — 拒否する。ログに残す。'),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.sentencesOverLimit);
+      expect(found.single.line, lineOfFirst(_project, loginFr, '拒否する'));
+      expect(
+        found.single.toJson(),
+        allOf(containsPair('limit', 1), containsPair('actual', 2)),
+      );
+    },
+  );
+
+  test('a stop quoted in a code span ends no sentence', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('statement', _oneSentence),
+      edits: fr(checkPasswordStatement, 'Refuse the stop `。` at once.'),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a stop inside link text ends no sentence', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('edge_cases', _oneSentence),
+      edits: _frWith('1. E01 — Refuse [a. b](x) at once.'),
+    );
+    expect(found, isEmpty);
+  });
+
   test('a blockquoted item is counted and cut like any other item', () async {
     final edits = _frWith('> - E01 — Refuse it. Log it.');
     final found = await _found(

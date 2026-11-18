@@ -7,7 +7,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show itemKeyOfHead;
 import 'package:specstone_core/src/index_query/item_links.dart'
-    show ItemCite, SectionTarget, UnresolvedCite;
+    show SectionTarget;
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 
 const _howSeparator = ' — ';
@@ -22,6 +23,7 @@ final class OverrideLine {
     this.upstream,
     this.itemId,
     this.itemText,
+    this.section,
   });
 
   /// The file line of the list item.
@@ -40,6 +42,10 @@ final class OverrideLine {
   /// The linked item's own text, nested items aside; null when its section
   /// holds no such item.
   final String? itemText;
+
+  /// The key of the section the link's anchor names, as a cited section
+  /// reads it.
+  final String? section;
 }
 
 /// Returns the override lines of [doc], in file order.
@@ -184,6 +190,7 @@ _Read _tracked(
       upstream: target.docPath,
       itemId: cite.itemId,
       itemText: item?.text,
+      section: section.key,
     ),
     finding: null,
   );

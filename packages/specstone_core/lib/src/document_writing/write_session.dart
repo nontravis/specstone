@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
@@ -114,6 +115,11 @@ final class WriteSession {
 
   /// The store's warnings, the refresh's, then each doc's in tree order.
   List<String> get warnings => _read.warnings;
+
+  /// Returns a check context over the session's index that reads [contents],
+  /// by DocPath, in place of those docs' indexed content.
+  CheckContext checkContext({Map<String, DocContent> contents = const {}}) =>
+      CheckContext(_read, contents: contents);
 
   /// Returns the file of [docPath], a path relative to the docs root or a
   /// records DocPath.

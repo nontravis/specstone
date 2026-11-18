@@ -124,6 +124,31 @@ void main() {
     expect(other.existsSync(), isFalse);
   }, skip: Platform.isWindows ? 'a read-only folder is a POSIX rule' : null);
 
+  test('prune skips a file already gone and goes on', () {
+    final gone = File('${bundles.path}/gone.txt');
+    final other = file('b.txt', now.subtract(const Duration(days: 9)));
+
+    expect(
+      () =>
+          pruneBundles(_FolderListing([gone, other]), keep: const {}, now: now),
+      returnsNormally,
+    );
+
+    expect(other.existsSync(), isFalse);
+  });
+
+  test('prune skips a file a handle holds open and goes on', () {
+    final held = file('a.txt', now.subtract(const Duration(days: 9)));
+    final other = file('b.txt', now.subtract(const Duration(days: 9)));
+    final handle = held.openSync();
+    addTearDown(handle.closeSync);
+
+    expect(prune, returnsNormally);
+
+    expect(held.existsSync(), isTrue);
+    expect(other.existsSync(), isFalse);
+  }, testOn: 'windows');
+
   test('prune skips a subfolder it cannot list and goes on', () {
     final hidden = file('sub/a.txt', now.subtract(const Duration(days: 9)));
     final other = file('b.txt', now.subtract(const Duration(days: 9)));
@@ -140,4 +165,22 @@ void main() {
 void _makeWritable(Directory folder) {
   if (Platform.isWindows || !folder.existsSync()) return;
   Process.runSync('chmod', ['-R', 'u+rwx', folder.path]);
+}
+
+/// A folder whose listing names [_entities], as a folder does when a file
+/// is deleted between the listing and the read of its time.
+final class _FolderListing implements Directory {
+  new(this._entities);
+
+  final List<FileSystemEntity> _entities;
+
+  @override
+  List<FileSystemEntity> listSync({
+    bool recursive = false,
+    bool followLinks = true,
+  }) => _entities;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }

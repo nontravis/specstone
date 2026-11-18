@@ -8,6 +8,10 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show docNameOf, docStructureOf;
 import 'package:specstone_core/src/index_query/matrix_rows.dart'
     show matrixLinesIn;
+import 'package:specstone_core/src/index_query/models/cite_doc.dart';
+import 'package:specstone_core/src/index_query/models/cite_form.dart';
+import 'package:specstone_core/src/index_query/models/cite_item_at.dart';
+import 'package:specstone_core/src/index_query/models/cite_section.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show isSingularLayoutPath;
@@ -229,7 +233,7 @@ List<_Edit> _editsOf(CiteForm form, CiteLink link, List<String> markdown) {
       item.itemId: markdown[index],
   };
   final links = [
-    for (final (:column, :itemId) in form.items)
+    for (final CiteItemAt(:column, :itemId) in form.items)
       if (linkOf[itemId] case final text?)
         (line: number, start: column, end: column + itemId.length, text: text),
   ];
@@ -261,7 +265,7 @@ final class _PlannedCiteTree implements CiteTree {
     : _docs = {
         for (final (:docPath, :lf, :type, :target) in docs)
           docPath: (
-            doc: (
+            doc: CiteDoc(
               docPath: docPath,
               docTypeId: type?.id,
               name: docNameOf(docPath, type, target: target),

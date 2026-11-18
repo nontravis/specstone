@@ -2,12 +2,14 @@ import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/item_mentions.dart';
+import 'package:specstone_core/src/document_writing/item_moves.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_feature.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
+import 'package:specstone_core/src/document_writing/restamp_pass.dart';
 import 'package:specstone_core/src/document_writing/rewrite_item_refs.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
     show rewriteMovedFrTraces;
@@ -99,16 +101,16 @@ ReadAnswer answerReorder(
       return _answerFor(session, moves, const [], dryRun: dryRun);
     }
     session.journalTarget.requireTrusted();
-    final rewrites = planRewrites(session, moves);
+    final planned = planRewrites(session, moves);
     final mentions = staleMentions(session, moves, namesChange: false);
     if (!dryRun) {
-      MoveJournal([..._stageSteps(session, moves), ...rewrites])
+      MoveJournal([..._stageSteps(session, moves), ...planned.rewrites])
           .run(session.journalTarget);
     }
     return _answerFor(
       session,
       moves,
-      rewrites,
+      planned.rewrites,
       mentions: mentions,
       dryRun: dryRun,
     );
@@ -171,29 +173,32 @@ ReadAnswer answerRename(
     session.journalTarget.requireTrusted();
     final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
-    final rewrites = planRewrites(
+    final planned = planRewrites(
       session,
       moves,
       renamed: renamed,
       docEdits: records.edits,
+      creates: records.creates,
     );
     final mentions = staleMentions(
       session,
       moves,
       namesChange: true,
-      docWrites: rewrites,
+      docWrites: planned.rewrites,
     );
     if (!dryRun) {
       MoveJournal([
         for (final move in moves)
           MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
-        ...rewrites,
+        ...planned.rewrites,
+        ...planned.creates,
       ]).run(session.journalTarget);
     }
     return _answerFor(
       session,
       moves,
-      rewrites,
+      planned.rewrites,
+      created: planned.creates,
       mentions: mentions,
       dryRun: dryRun,
     );
@@ -271,7 +276,7 @@ ReadAnswer answerMove(
     session.journalTarget.requireTrusted();
     final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
-    final rewrites = planRewrites(
+    final planned = planRewrites(
       session,
       moves,
       renamed: renamed,
@@ -279,26 +284,27 @@ ReadAnswer answerMove(
         ...records.edits,
         if (docType.id == frType) ..._movedFrEdits(session, moving, newParent),
       },
+      creates: records.creates,
     );
     final mentions = staleMentions(
       session,
       moves,
       namesChange: true,
-      docWrites: rewrites,
+      docWrites: planned.rewrites,
     );
     if (!dryRun) {
       MoveJournal([
         for (final move in moves)
           MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
-        ...rewrites,
-        ...records.creates,
+        ...planned.rewrites,
+        ...planned.creates,
       ]).run(session.journalTarget);
     }
     return _answerFor(
       session,
       moves,
-      rewrites,
-      created: records.creates,
+      planned.rewrites,
+      created: planned.creates,
       mentions: mentions,
       dryRun: dryRun,
     );
@@ -329,30 +335,31 @@ ReadAnswer _answerFeatureMove(
     session.journalTarget.requireTrusted();
     final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
-    final rewrites = planRewrites(
+    final planned = planRewrites(
       session,
       moves,
       renamed: renamed,
       docEdits: records.edits,
+      creates: records.creates,
     );
     final mentions = staleMentions(
       session,
       moves,
       namesChange: true,
-      docWrites: rewrites,
+      docWrites: planned.rewrites,
     );
     if (!dryRun) {
       MoveJournal([
         ..._stageSteps(session, moves),
-        ...rewrites,
-        ...records.creates,
+        ...planned.rewrites,
+        ...planned.creates,
       ]).run(session.journalTarget);
     }
     return _answerFor(
       session,
       moves,
-      rewrites,
-      created: records.creates,
+      planned.rewrites,
+      created: planned.creates,
       mentions: mentions,
       dryRun: dryRun,
     );
@@ -462,20 +469,52 @@ ReadAnswer answerItemMove(
   }
   return session.locked(() {
     session.journalTarget.requireTrusted();
-    final refs = planItemRefs(session, landings);
-    final rewrites = planRewrites(session, const [], docEdits: refs.edits);
+    final itemRefs = planItemRefs(session, landings);
+    final records = planEdgeCaseRowMoves(session, landings);
+    final refs = ItemRefs(
+      edits: _chained(itemRefs.edits, records.edits),
+      listed: itemRefs.listed,
+    );
+    final planned = planRewrites(
+      session,
+      const [],
+      docEdits: refs.edits,
+      creates: records.creates,
+      blocks: BlockMoves.of(ItemMoves(session.index, landings)),
+    );
     final mentions = itemMentions(session, landings, refs: refs);
-    if (!dryRun) MoveJournal(rewrites).run(session.journalTarget);
+    if (!dryRun) {
+      MoveJournal([...planned.rewrites, ...planned.creates])
+          .run(session.journalTarget);
+    }
     return _answerFor(
       session,
       const [],
-      rewrites,
+      planned.rewrites,
+      created: planned.creates,
       mentions: mentions,
       landings: landings,
       dryRun: dryRun,
     );
   });
 }
+
+/// Returns [first] and [then] by DocPath, the edit of a doc in both running
+/// [first] and then [then] on its result.
+Map<String, TextEdit> _chained(
+  Map<String, TextEdit> first,
+  Map<String, TextEdit> then,
+) => {
+  ...first,
+  for (final MapEntry(key: path, value: next) in then.entries)
+    path: switch (first[path]) {
+      final earlier? => (lfText) {
+        final written = earlier(lfText);
+        return next(written ?? lfText) ?? written;
+      },
+      null => next,
+    },
+};
 
 /// Returns, by DocPath before the move, the edit that sets each of [moving]
 /// FRs' own scenario traces for its move into [newParent].

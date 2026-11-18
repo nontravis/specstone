@@ -13,6 +13,11 @@ import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
+/// Returns the `error` object `--json` writes to [err].
+Map<String, Object?> _errorOf(StringBuffer err) =>
+    (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+        as Map<String, Object?>;
+
 void main() {
   test('a bare --out of context, check, guide, and get is read as a flag', () {
     for (final command in ['context', 'check', 'guide', 'get']) {
@@ -174,6 +179,30 @@ void main() {
       expect(err.toString(), isEmpty);
     },
   );
+  test(
+    'a --budget that is no positive integer is argument_invalid, exit 64',
+    () async {
+      final project = await writeReadProject();
+      for (final value in ['0', '-5', '5k']) {
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            'login/email_login',
+            '--for',
+            'implement',
+            '--budget=$value',
+            '--json',
+          ]),
+          64,
+          reason: value,
+        );
+        expect(_errorOf(run.err)['code'], 'argument_invalid', reason: value);
+        expect(_errorOf(run.err)['message'], contains(value), reason: value);
+        expect(run.out.toString(), isEmpty, reason: value);
+      }
+    },
+  );
   test('an untyped target exits 64 with the untyped_target message', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(
@@ -280,6 +309,119 @@ void main() {
       isFalse,
     );
   });
+  test(
+    'a target beside --code is argument_conflict in the --json envelope',
+    () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeReadProject(extra: {'app/lib/main.dart': ''}),
+      );
+      expect(
+        await runner.run([
+          'context',
+          'login',
+          '--code',
+          'app/lib/main.dart',
+          '--for',
+          'query',
+          '--json',
+        ]),
+        64,
+      );
+      expect(_errorOf(err), {
+        'code': 'argument_conflict',
+        'message': 'give a target or --code, not both',
+      });
+    },
+  );
+  test('a --code path that does not exist exits 64 as code_path_not_found naming it', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run([
+        'context',
+        '--code',
+        'app/lib/gone.dart',
+        '--for',
+        'implement',
+        '--json',
+      ]),
+      64,
+    );
+    expect(_errorOf(err)['code'], 'code_path_not_found');
+    expect(_errorOf(err)['message'], contains('app/lib/gone.dart'));
+    expect(out.toString(), isEmpty);
+  });
+  test(
+    '--code "" with no --for is argument_invalid, not argument_missing',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(await runner.run(['context', '--code', '', '--json']), 64);
+      expect(_errorOf(err), {
+        'code': 'argument_invalid',
+        'message': '--code takes a file or folder, not ""',
+      });
+    },
+  );
+  test('an unknown target is doc_not_found, exit 64, naming it', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run(['context', 'no_such_doc', '--for', 'query', '--json']),
+      64,
+    );
+    expect(_errorOf(err)['code'], 'doc_not_found');
+    expect(_errorOf(err)['message'], contains('no_such_doc'));
+  });
+  test('no project is project_not_found and a broken template is its own fault, both exit 78', () async {
+    final none = readRunner(await writeTree({}));
+    expect(
+      await none.runner.run(['context', 'login', '--for', 'query', '--json']),
+      78,
+    );
+    expect(_errorOf(none.err), {
+      'code': 'project_not_found',
+      'message': 'no Specstone project: no folder from the working directory upward holds .specstone/config.yaml',
+    });
+
+    final broken = readRunner(
+      await writeReadProject(
+        extra: {'.specstone/templates/feature.yaml': 'id: [unclosed\n'},
+      ),
+    );
+    expect(
+      await broken.runner.run(['context', 'login', '--for', 'query', '--json']),
+      78,
+    );
+    expect(_errorOf(broken.err)['code'], 'yaml_syntax');
+    expect(_errorOf(broken.err)['file'], '.specstone/templates/feature.yaml');
+    expect(_errorOf(broken.err)['message'], isNotEmpty);
+  });
+  test(
+    '--code of a missing path under a missing code_root is code_path_not_found',
+    () async {
+      final project = await writeReadProject(
+        extra: {
+          '.specstone/config.yaml':
+              'packs:\n'
+              '  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: ${shippedPackVersions()['software-tech']}\n'
+              'targets:\n  app:\n    code_root: nowhere\n',
+        },
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(
+        await runner.run([
+          'context',
+          '--code',
+          'nowhere/lib/x.dart',
+          '--for',
+          'implement',
+          '--json',
+        ]),
+        64,
+      );
+      expect(_errorOf(err)['code'], 'code_path_not_found');
+      expect(_errorOf(err)['message'], contains('nowhere/lib/x.dart'));
+    },
+  );
   group('per code target', () {
     /// Writes the two-target fixture of pick_bundle_docs E23: the feature
     /// `feedback/toast`, its story `show`, and its architecture doc in both
@@ -656,6 +798,147 @@ void main() {
         ).existsSync(),
         isTrue,
       );
+    });
+
+    test('--code with --target naming its own target prints the bundle --code alone prints, and another target is argument_conflict in the --json envelope', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      const path = 'jaspr_lib/lib/toast.dart';
+      final alone = readRunner(project);
+      expect(
+        await alone.runner.run([
+          'context',
+          '--code',
+          path,
+          '--for',
+          'implement',
+        ]),
+        0,
+      );
+      final named = readRunner(project);
+      expect(
+        await named.runner.run([
+          'context',
+          '--code',
+          path,
+          '--for',
+          'implement',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+      );
+      expect(named.out.toString(), alone.out.toString());
+      expect(named.out.toString(), startsWith('==> code target: jaspr <==\n'));
+      expect(named.out.toString(), contains('specs/jaspr/f02_feedback/'));
+      expect(named.out.toString(), isNot(contains('specs/flutter/')));
+
+      final other = readRunner(project);
+      expect(
+        await other.runner.run([
+          'context',
+          '--code',
+          path,
+          '--for',
+          'implement',
+          '--target',
+          'flutter',
+          '--json',
+        ]),
+        64,
+      );
+      expect(_errorOf(other.err), {
+        'code': 'argument_conflict',
+        'message':
+            'the code path jaspr_lib/lib/toast.dart lies in the code target '
+            'jaspr, not flutter',
+      });
+    });
+
+    test('--for design --out with two targets keeps the code target line first in the file, and one named target prints none', () async {
+      final toast = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final design = readRunner(toast);
+      expect(
+        await design.runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/toast.dart',
+          '--for',
+          'design',
+          '--out',
+        ]),
+        0,
+        reason: design.err.toString(),
+      );
+      expect(
+        design.out.toString(),
+        startsWith('==> code target: jaspr <==\n==> bundle: '),
+      );
+      expect(
+        File(
+          '${toast.path}/.specstone/bundles/'
+          'code-jaspr_lib-lib-toast.dart.design.txt',
+        ).readAsStringSync(),
+        startsWith('==> code target: jaspr <==\n'),
+      );
+
+      final one = await writeReadProject(
+        extra: {
+          '.specstone/config.yaml':
+              'packs:\n'
+              '  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: ${shippedPackVersions()['software-tech']}\n'
+              'targets:\n  app:\n    code_root: app\n',
+          'app/lib/main.dart': '',
+        },
+      );
+      for (final mode in ['implement', 'design']) {
+        final text = readRunner(one);
+        expect(
+          await text.runner.run([
+            'context',
+            '--code',
+            'app/lib/main.dart',
+            '--for',
+            mode,
+            '--target',
+            'app',
+            '--out',
+          ]),
+          0,
+          reason: text.err.toString(),
+        );
+        expect(text.out.toString(), startsWith('==> bundle: '), reason: mode);
+        expect(text.out.toString(), isNot(contains('code target')));
+        final saved = File(
+          '${one.path}/.specstone/bundles/'
+          'code-app-lib-main.dart.$mode.app.txt',
+        ).readAsStringSync();
+        expect(saved, isNot(contains('code target')), reason: mode);
+        final json = readRunner(one);
+        expect(
+          await json.runner.run([
+            'context',
+            '--code',
+            'app/lib/main.dart',
+            '--for',
+            mode,
+            '--target',
+            'app',
+            '--out',
+            '--json',
+          ]),
+          0,
+        );
+        expect(
+          (jsonDecode(json.out.toString()) as Map).containsKey('codeTarget'),
+          isFalse,
+          reason: mode,
+        );
+      }
     });
 
     test('nested code roots pick the longest that holds the path', () async {
@@ -1297,6 +1580,200 @@ void main() {
       expect(shown, file.resolveSymbolicLinksSync());
       expect(shown, isNot(contains('linked')));
     }, skip: linksUnavailable);
+
+    test(
+      '--out= is argument_invalid in the --json envelope, with nothing written',
+      () async {
+        final project = await writeReadProject();
+        for (final args in [
+          ['--out='],
+          ['--out', ''],
+        ]) {
+          final run = readRunner(project);
+          expect(
+            await run.runner.run([
+              'context',
+              story,
+              '--for',
+              'implement',
+              ...args,
+              '--json',
+            ]),
+            64,
+            reason: '$args',
+          );
+          expect(_errorOf(run.err), {
+            'code': 'argument_invalid',
+            'message': '--out takes a file path, not ""',
+          }, reason: '$args');
+        }
+        expect(
+          Directory('${project.path}/.specstone/bundles').existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test('--budget beside --out is argument_conflict in the --json envelope, exit 64', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--budget',
+          '10',
+          '--out',
+          '--json',
+        ]),
+        64,
+      );
+      expect(_errorOf(run.err), {
+        'code': 'argument_conflict',
+        'message': 'give --out or --budget, not both',
+      });
+      expect(run.out.toString(), isEmpty);
+    });
+
+    test('an --out folder that cannot be made is output_not_writable in the --json envelope, exit 73', () async {
+      final project = await writeReadProject(extra: {'blocker': 'a file\n'});
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          'blocker/bundle.txt',
+          '--json',
+        ]),
+        73,
+      );
+      expect(_errorOf(run.err)['code'], 'output_not_writable');
+      expect(
+        _errorOf(run.err)['message'],
+        endsWith('the output path is not writable'),
+      );
+    });
+
+    test('an --out folder that refuses the write is output_not_writable in the --json envelope, exit 73', () async {
+      final project = await writeReadProject(extra: {'locked/keep.txt': 'x\n'});
+      final locked = Directory('${project.path}/locked');
+      await Process.run('chmod', ['555', locked.path]);
+      addTearDown(() => Process.run('chmod', ['755', locked.path]));
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          'locked/bundle.txt',
+          '--json',
+        ]),
+        73,
+      );
+      expect(_errorOf(run.err)['code'], 'output_not_writable');
+    }, skip: readOnlySkipReason());
+
+    test('a refused .git path names the file from the project root, also through a link', () async {
+      final project = await writeReadProject(
+        extra: {'.git/config': '[core]\n'},
+      );
+      final direct = readRunner(project);
+      expect(
+        await direct.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          '.git/b.txt',
+        ]),
+        73,
+      );
+      expect(
+        direct.err.toString(),
+        endsWith('cannot write .git/b.txt: it lies under .git\n'),
+      );
+
+      if (Platform.isWindows) return;
+      Link('${project.path}/notes').createSync('${project.path}/.git');
+      final linked = readRunner(project);
+      expect(
+        await linked.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          'notes/b.txt',
+        ]),
+        73,
+      );
+      expect(linked.err.toString(), contains('it lies under .git'));
+      expect(File('${project.path}/.git/b.txt').existsSync(), isFalse);
+    });
+
+    test('--out .specstone/reports/b.txt is written', () async {
+      final project = await writeReadProject();
+      final text = await saved(project, [
+        story,
+        '--for',
+        'implement',
+        '--out',
+        '.specstone/reports/b.txt',
+      ]);
+      final file = File('${project.path}/.specstone/reports/b.txt');
+      expect(file.existsSync(), isTrue);
+      expect(
+        header.firstMatch(text.split('\n').first)!.group(4),
+        file.resolveSymbolicLinksSync(),
+      );
+      expect(
+        file.readAsStringSync(),
+        await printed(project, [story, '--for', 'implement']),
+      );
+      expect(
+        File('${project.path}/.specstone/reports/b.refs.txt').existsSync(),
+        isTrue,
+      );
+    });
+
+    test(
+      'a --budget call within budget prints one bundle and writes no file',
+      () async {
+        final project = await writeReadProject();
+        final text = await printed(project, [
+          story,
+          '--for',
+          'implement',
+          '--budget',
+          '100000',
+        ]);
+        expect(text, startsWith('==> '));
+        expect(
+          text,
+          isNot(
+            matches(
+              RegExp(
+                r'^==> bundle: \d+ docs, \d+ tokens, \d+ lines',
+                multiLine: true,
+              ),
+            ),
+          ),
+        );
+        expect(text, isNot(contains('.refs.txt')));
+        expect(
+          Directory('${project.path}/.specstone/bundles').existsSync(),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('context --out writes a read-first and a refs file', () {
@@ -1603,6 +2080,104 @@ void main() {
         expect(old.existsSync(), isTrue, reason: '$args');
       }
     });
+
+    test('a path under .specstone/ outside bundles/ and reports/ is refused and prunes nothing', () async {
+      final project = await writeReadProject();
+      final old = aged(project, '.specstone/bundles/old.txt');
+      for (final path in [
+        '.specstone/config.yaml',
+        '.specstone/records/b.txt',
+      ]) {
+        final (status, out) = await run(project, [
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          path,
+        ]);
+        expect(status, 73, reason: path);
+        expect(out, isEmpty, reason: path);
+        expect(old.existsSync(), isTrue, reason: path);
+      }
+    });
+
+    test('check --out and guide --out prune nothing', () async {
+      final project = await writeReadProject();
+      final old = aged(project, '.specstone/bundles/old.txt');
+      for (final args in [
+        ['check', story, '--out'],
+        ['guide', 'feature', '--out'],
+      ]) {
+        final result = readRunner(project);
+        final status = await result.runner.run(args);
+        expect(status, anyOf(0, 1), reason: '$args ${result.err}');
+        expect(
+          File(
+            '${project.path}/.specstone/reports/'
+            '${args.first}.${args.last == '--out' ? args[1].replaceAll('/', '-') : ''}.txt',
+          ).existsSync(),
+          isTrue,
+          reason: '$args',
+        );
+        expect(old.existsSync(), isTrue, reason: '$args');
+      }
+    });
+
+    test('a pruning run deletes nothing under reports/, trash/, build/, or of the index', () async {
+      final project = await writeReadProject();
+      final old = aged(project, '.specstone/bundles/old.txt');
+      final kept = [
+        aged(project, '.specstone/reports/old.txt'),
+        aged(project, '.specstone/trash/old.txt'),
+        aged(project, '.specstone/build/old.txt'),
+        aged(project, 'build/old.txt'),
+      ];
+      final (before, _) = await run(project, [
+        'context',
+        story,
+        '--for',
+        'query',
+      ]);
+      expect(before, 0);
+      final index = File('${project.path}/.specstone/index.sqlite');
+      expect(index.existsSync(), isTrue);
+      final (status, _) = await run(project, [
+        'context',
+        story,
+        '--for',
+        'implement',
+        '--out',
+      ]);
+      expect(status, 0);
+      expect(old.existsSync(), isFalse);
+      for (final file in kept) {
+        expect(file.existsSync(), isTrue, reason: file.path);
+      }
+      expect(index.existsSync(), isTrue);
+    });
+
+    test(
+      'the pruning of an aged file leaves the --json index as it was',
+      () async {
+        final project = await writeReadProject();
+        final args = [
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          '--json',
+        ];
+        final (_, clean) = await run(project, args);
+        final old = aged(project, '.specstone/bundles/old.txt');
+        final (status, pruned) = await run(project, args);
+        expect(status, 0);
+        expect(old.existsSync(), isFalse);
+        expect(pruned, clean);
+        expect(pruned, isNot(contains('old.txt')));
+      },
+    );
   });
 
   group('the verification matrix of a record', () {

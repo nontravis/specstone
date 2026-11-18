@@ -367,6 +367,21 @@ void main() {
       expect(scan.firstMarkerLine, 2);
     });
 
+    test('an unclosed tilde fence is malformed at its opening line, beside a '
+        'well-formed block above it', () {
+      final scan = scanMarkers('$_begin\nb\n$_end\n~~~dart\ncode\n');
+
+      expect(scan.isMalformed, isTrue);
+      expect(scan.firstMarkerLine, 4);
+    });
+
+    test('a tilde fence closed by tildes holds a marker as Owner text', () {
+      final scan = scanMarkers('~~~\n$_begin\nx\n~~~\n$_begin\n$_end\n');
+
+      expect(scan.isMalformed, isFalse);
+      expect(scan.beginLine, 5);
+    });
+
     test('a BOM then a fence opens the fence on line 1', () {
       final scan = scanMarkers('\uFEFF```\n$_begin\n$_end\n');
 
@@ -525,6 +540,17 @@ void main() {
     test('a stray fence refuses, naming the line not the text', () {
       expect(
         () => upsertBlock('Owner secret\n```\ncode\n', _importBlock()),
+        throwsA(
+          isA<ArgumentError>()
+              .having((e) => e.invalidValue, 'invalidValue', 2)
+              .having((e) => e.toString(), 'text', isNot(contains('secret'))),
+        ),
+      );
+    });
+
+    test('a stray tilde fence refuses, naming the line not the text', () {
+      expect(
+        () => upsertBlock('Owner secret\n~~~\ncode\n', _importBlock()),
         throwsA(
           isA<ArgumentError>()
               .having((e) => e.invalidValue, 'invalidValue', 2)

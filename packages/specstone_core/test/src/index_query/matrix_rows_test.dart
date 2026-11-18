@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:test/test.dart';
 
 void main() {

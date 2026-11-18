@@ -142,7 +142,7 @@ void main() {
       );
     });
 
-    test('a parent naming no id is '
+    test('a parent naming no merged doc type id is '
         'unknown_value', () {
       final layers = {
         'runbook': [layerOf('runbook', 'parent: nope\n')],
@@ -270,6 +270,128 @@ void main() {
           },
         ),
         returnsNormally,
+      );
+    });
+
+    test('two max_depth carriers, and a carrier with a parent, refuse with '
+        'exit status 78', () {
+      final twoCarriers = {
+        'playbook': [
+          layerOf('playbook', 'max_depth: 2\n', file: _playbookFile),
+        ],
+        'runbook': [layerOf('runbook', 'max_depth: 3\n')],
+      };
+      expect(
+        () => check([
+          builtIn('playbook')
+              .copyWith(path: 'ops/{slug}/PLAYBOOK.md', maxDepth: 2),
+          builtIn('runbook')
+              .copyWith(path: 'ops/runbooks/{slug}/RUNBOOK.md', maxDepth: 3),
+        ], twoCarriers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code.exitStatus, 'exit status', 78)
+              .having((f) => f.key, 'key', 'max_depth'),
+        ),
+      );
+      final withParent = {
+        'epic': [
+          layerOf('epic', 'path: epics/{slug}/EPIC.md\n', file: _epicFile),
+        ],
+        'story': [
+          layerOf('story', 'parent: epic\nmax_depth: 1\n', file: _storyFile),
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('epic').copyWith(path: 'epics/{slug}/EPIC.md'),
+          builtIn('story').copyWith(
+            parent: 'epic',
+            path: 'stories/{slug}/STORY.md',
+            maxDepth: 1,
+          ),
+        ], withParent),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code.exitStatus, 'exit status', 78)
+              .having((f) => f.key, 'key', 'max_depth'),
+        ),
+      );
+    });
+
+    test('max_depth on a path with no slug folder refuses with exit status '
+        '78', () {
+      expect(
+        () => check(
+          [
+            builtIn('runbook')
+                .copyWith(path: 'prds/features/FEATURE.md', maxDepth: 3),
+          ],
+          {
+            'runbook': [layerOf('runbook', 'max_depth: 3\n')],
+          },
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code.exitStatus, 'exit status', 78)
+              .having((f) => f.key, 'key', 'max_depth')
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test('two doc types sharing one path refuse with exit status 78', () {
+      final layers = {
+        'playbook': [
+          layerOf(
+            'playbook',
+            'path: ops/{slug}/RUNBOOK.md\n',
+            file: _playbookFile,
+          ),
+        ],
+        'runbook': [layerOf('runbook', 'path: ops/{slug}/RUNBOOK.md\n')],
+      };
+      expect(
+        () => check([
+          builtIn('playbook').copyWith(path: 'ops/{slug}/RUNBOOK.md'),
+          builtIn('runbook').copyWith(path: 'ops/{slug}/RUNBOOK.md'),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code.exitStatus, 'exit status', 78)
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test('a doc_types entry naming no merged doc type id refuses with exit '
+        'status 78, naming the file and the key', () {
+      final layers = {
+        'runbook': [
+          layerOf(
+            'runbook',
+            'fields:\n  - id: up\n    type: doc_ref\n    doc_types: [nope]\n',
+          ),
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('runbook').copyWith(
+            fields: [
+              const MergedField(
+                id: 'up',
+                type: FieldType.docRef,
+                docTypes: ['nope'],
+              ),
+            ],
+          ),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code.exitStatus, 'exit status', 78)
+              .having((f) => f.file, 'file', _runbookFile)
+              .having((f) => f.key, 'key', 'fields.up.doc_types'),
+        ),
       );
     });
 
@@ -935,6 +1057,35 @@ void main() {
               .having((f) => f.code, 'code', FaultCode.unknownValue)
               .having((f) => f.key, 'key', 'targets')
               .having((f) => f.file, 'file', '.specstone/config.yaml'),
+        ),
+      );
+    });
+
+    test('a targets config with no record doc type refuses with exit status '
+        '78, and a per-target type of a project layer is no record type', () {
+      expect(
+        () => checkMergedSet(
+          [
+            builtIn('feature').copyWith(path: 'prds/features/F.md'),
+            builtIn('notes').copyWith(path: 'notes.md', isPerTarget: true),
+          ],
+          {
+            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+            'notes': [layerOf('notes', 'path: notes.md\nper_target: true\n')],
+          },
+          loadIndex: const {},
+          targetNames: const ['flutter', 'jaspr'],
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code.exitStatus, 'exit status', 78)
+              .having((f) => f.file, 'file', '.specstone/config.yaml')
+              .having((f) => f.key, 'key', 'targets')
+              .having(
+                (f) => f.message,
+                'message',
+                contains('a target owns a spec tree and its records'),
+              ),
         ),
       );
     });

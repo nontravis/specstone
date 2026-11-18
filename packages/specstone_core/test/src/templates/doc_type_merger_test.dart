@@ -61,15 +61,29 @@ TypeMatcher<TemplateFault> fault(
   FaultCode code,
   String key, {
   String? message,
+  String file = _projectFile,
 }) {
   final matcher = isA<TemplateFault>()
       .having((f) => f.code, 'code', code)
-      .having((f) => f.file, 'file', _projectFile)
+      .having((f) => f.file, 'file', file)
       .having((f) => f.key, 'key', key);
   return message == null
       ? matcher
       : matcher.having((f) => f.message, 'message', message);
 }
+
+/// A [fault] that also carries the exit status 78 of every template fault.
+TypeMatcher<TemplateFault> refusal(
+  FaultCode code,
+  String key, {
+  String? message,
+  String file = _projectFile,
+}) => fault(
+  code,
+  key,
+  message: message,
+  file: file,
+).having((f) => f.exitStatus, 'exit status', 78);
 
 List<String> ids(Iterable<Object> entries) => [
   for (final e in entries)
@@ -82,8 +96,8 @@ List<String> ids(Iterable<Object> entries) => [
 
 void main() {
   group('DocTypeMerger.builtInBase', () {
-    test('a doc type with '
-        'no fields still holds the five built-ins in order', () {
+    test('a doc type with no fields still holds the five built-ins in '
+        'order', () {
       final merged = merger.apply(
         merger.builtInBase('runbook'),
         layer('description: Runbook\n', docTypeId: 'runbook'),
@@ -310,6 +324,49 @@ void main() {
       );
     });
 
+    test('an entry the merged base lacks, with no header on a section or no '
+        'type on a field, is override_id_not_found naming the file and the id, '
+        'exit 78', () {
+      expect(
+        () => project(shipped(), 'sections: [{id: goal_typo, description: x}]'),
+        throwsA(refusal(FaultCode.overrideIdNotFound, 'sections.goal_typo')),
+      );
+      expect(
+        () => project(shipped(), 'fields: [{id: size, description: x}]'),
+        throwsA(refusal(FaultCode.overrideIdNotFound, 'fields.size')),
+      );
+    });
+
+    test('disabled: true on an id the merged base lacks is refused in every '
+        'layer, shipped or not, naming the file and the id, exit 78', () {
+      for (final (kind, file) in [
+        (LayerKind.shipped, _shippedFile),
+        (LayerKind.personal, _personalFile),
+        (LayerKind.project, _projectFile),
+      ]) {
+        expect(
+          () => merger.apply(
+            shipped(),
+            layer('sections: [{id: nope, disabled: true}]', kind: kind),
+          ),
+          throwsA(
+            refusal(FaultCode.overrideIdNotFound, 'sections.nope', file: file),
+          ),
+          reason: '$kind section',
+        );
+        expect(
+          () => merger.apply(
+            shipped(),
+            layer('fields: [{id: nope, disabled: true}]', kind: kind),
+          ),
+          throwsA(
+            refusal(FaultCode.overrideIdNotFound, 'fields.nope', file: file),
+          ),
+          reason: '$kind field',
+        );
+      }
+    });
+
     test('disabled: true drops a section', () {
       final merged = project(
         shipped(),
@@ -404,6 +461,25 @@ void main() {
       expect(
         () => project(shipped(), 'sections: [{id: goal, after: nope}]'),
         throwsA(fault(FaultCode.afterIdNotFound, 'sections.goal.after')),
+      );
+    });
+
+    test('after naming an id the merged base lacks is after_id_not_found '
+        'naming the file and both ids, exit 78', () {
+      expect(
+        () => project(
+          shipped(),
+          'sections: [{id: risks, header: Risks, after: nope}]',
+        ),
+        throwsA(
+          refusal(
+            FaultCode.afterIdNotFound,
+            'sections.risks.after',
+            message:
+                'the section risks follows nope, which the lower layers and '
+                'earlier entries do not define',
+          ),
+        ),
       );
     });
 
@@ -555,6 +631,54 @@ sections:
         () => project(shipped(), 'fields: [{id: approved, enum: [a, b]}]'),
         throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
       );
+    });
+
+    test('disabling any of the five built-in fields is locked_field_disabled '
+        'naming the file and the field, exit 78', () {
+      for (final id in ['slug', 'status', 'draft', 'approved', 'reference']) {
+        expect(
+          () => project(shipped(), 'fields: [{id: $id, disabled: true}]'),
+          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.$id')),
+          reason: id,
+        );
+      }
+    });
+
+    test('writing another type on slug, status, or reference is '
+        'locked_field_disabled naming the file and the field, exit 78', () {
+      for (final (id, type) in [
+        ('slug', 'integer'),
+        ('status', 'string'),
+        ('reference', 'string'),
+      ]) {
+        expect(
+          () => project(shipped(), 'fields: [{id: $id, type: $type}]'),
+          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.$id')),
+          reason: id,
+        );
+      }
+    });
+
+    test('writing type boolean on approved is locked_field_disabled naming '
+        'the file and the field, exit 78', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, type: boolean}]'),
+        throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
+    test('writing enum values or list on approved is locked_field_disabled '
+        'naming the file and the field, exit 78', () {
+      for (final entry in [
+        '{id: approved, enum: [a, b]}',
+        '{id: approved, list: true}',
+      ]) {
+        expect(
+          () => project(shipped(), 'fields: [$entry]'),
+          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.approved')),
+          reason: entry,
+        );
+      }
     });
 
     test('clearing a parent the base has is '
@@ -921,6 +1045,25 @@ sections:
       );
     });
 
+    test('removing a word the lower list lacks is lint_word_not_found naming '
+        'the file and the word, exit 78', () {
+      expect(
+        () => project(
+          withBannedWords(),
+          'lint: {banned_words: {remove: [quick]}}',
+        ),
+        throwsA(
+          refusal(
+            FaultCode.lintWordNotFound,
+            'lint.banned_words',
+            message:
+                'cannot remove quick from lint.banned_words; no lower layer '
+                'holds it',
+          ),
+        ),
+      );
+    });
+
     test('a plain list over a defined list is '
         'list_override_needs_add_remove', () {
       expect(
@@ -943,8 +1086,28 @@ sections:
       );
     });
 
-    test('a plain list is accepted where no lower layer '
-        'defines it', () {
+    test(
+      'a plain word list above the layer that first defines it is '
+      'list_override_needs_add_remove naming the file and the key, exit 78',
+      () {
+        expect(
+          () => project(withBannedWords(), 'lint: {banned_words: [x]}'),
+          throwsA(
+            refusal(FaultCode.listOverrideNeedsAddRemove, 'lint.banned_words'),
+          ),
+        );
+        final allowed = project(shipped(), 'lint: {allowed_words: [API]}');
+        expect(
+          () => project(allowed, 'lint: {allowed_words: [UI]}'),
+          throwsA(
+            refusal(FaultCode.listOverrideNeedsAddRemove, 'lint.allowed_words'),
+          ),
+        );
+      },
+    );
+
+    test('a plain lint list is accepted where no lower layer defines '
+        'it', () {
       final merged = project(shipped(), 'lint: {allowed_words: [API]}');
 
       expect(merged.lint.allowedWords, ['API']);
@@ -1172,17 +1335,47 @@ sections:
       );
     });
 
+    test('removing a title the lower list lacks is reference_title_not_found '
+        'naming the file and the title, exit 78', () {
+      expect(
+        () => project(withReferences(), 'reference: {remove: [Z]}'),
+        throwsA(
+          refusal(
+            FaultCode.referenceTitleNotFound,
+            'reference',
+            message: 'cannot remove Z from reference; no lower layer holds it',
+          ),
+        ),
+      );
+    });
+
     test('a layer with no reference keeps the base', () {
       final merged = project(withReferences(), 'description: Other\n');
 
       expect(titles(merged), ['A', 'B']);
     });
 
-    test('a plain list over a defined list is '
+    test('a plain reference list over a defined list is '
         'list_override_needs_add_remove', () {
       expect(
         () => project(withReferences(), 'reference: [{title: D}]'),
         throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'reference')),
+      );
+    });
+
+    test('a plain reference list above the layer that defines it is refused as '
+        'a plain word list is, with exit 78', () {
+      expect(
+        () => project(withReferences(), 'reference: [{title: D}]'),
+        throwsA(
+          refusal(
+            FaultCode.listOverrideNeedsAddRemove,
+            'reference',
+            message:
+                'a lower layer already defines reference; write add and '
+                'remove to change it',
+          ),
+        ),
       );
     });
 
@@ -1213,6 +1406,24 @@ sections:
       expect(
         () => project(empty, 'generators: [b]\n'),
         throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'generators')),
+      );
+    });
+
+    test('a plain generators list above the layer that defines it is refused '
+        'as a plain word list is, with exit 78', () {
+      final base = project(shipped(), 'generators: [a]\n');
+
+      expect(
+        () => project(base, 'generators: [b]\n'),
+        throwsA(
+          refusal(
+            FaultCode.listOverrideNeedsAddRemove,
+            'generators',
+            message:
+                'a lower layer already defines generators; write add and '
+                'remove to change it',
+          ),
+        ),
       );
     });
 

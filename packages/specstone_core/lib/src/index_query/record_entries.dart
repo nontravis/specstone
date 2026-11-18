@@ -3,12 +3,17 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/models/record_code_line.dart';
+import 'package:specstone_core/src/index_query/models/record_status_line.dart';
+import 'package:specstone_core/src/index_query/models/record_test_line.dart';
 import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
     show withTemplateSection;
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/record_status.dart';
 
 /// One entry of a target's `implementation` record: the story or FR it
 /// records, named relative to the record's feature (empty for the feature
@@ -108,7 +113,10 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
     }
   }
   if (codeField != null) {
-    for (final (:item, :code) in recordCodeLinesOf(record, codeField)) {
+    for (final RecordCodeLine(:item, :code) in recordCodeLinesOf(
+      record,
+      codeField,
+    )) {
       final current = baseOf(item);
       byItem[item] = RecordEntry(
         item: item,
@@ -120,7 +128,10 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
     }
   }
   if (testField != null) {
-    for (final (:item, :path) in recordTestLinesOf(record, testField)) {
+    for (final RecordTestLine(:item, :path) in recordTestLinesOf(
+      record,
+      testField,
+    )) {
       final current = baseOf(item);
       byItem[item] = RecordEntry(
         item: item,
@@ -150,9 +161,7 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
 /// line of a `record_status` field; null when the line holds no `:`.
 ///
 /// The status is null when the word after the first `:` names none.
-({String item, RecordStatus? status, String? reason})? recordStatusLineOf(
-  String line,
-) {
+RecordStatusLine? recordStatusLineOf(String line) {
   final split = line.indexOf(':');
   if (split < 0) return null;
   final rest = line.substring(split + 1);
@@ -160,7 +169,7 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
   final status = RecordStatus.byWire(
     reasonMark < 0 ? rest : rest.substring(0, reasonMark),
   );
-  return (
+  return RecordStatusLine(
     item: line.substring(0, split),
     status: status,
     reason: status == RecordStatus.skipped && reasonMark >= 0
@@ -173,24 +182,32 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
 /// `item_exact` field; null when the line holds no `:`.
 ///
 /// The item is empty for a leading `:`, which names the feature itself.
-({String item, String code})? recordCodeLineOf(String line) {
+RecordCodeLine? recordCodeLineOf(String line) {
   final split = line.indexOf(':');
   if (split < 0) return null;
-  return (item: line.substring(0, split), code: line.substring(split + 1));
+  return RecordCodeLine(
+    item: line.substring(0, split),
+    code: line.substring(split + 1),
+  );
 }
 
 /// Returns the `item:path[:Symbol]` lines of [record]'s [codeField] as item
 /// and code pointer, a recorded fingerprint left off, in line order; a line
 /// with no item names none.
-List<({String item, String code})> recordCodeLinesOf(
+List<RecordCodeLine> recordCodeLinesOf(
   IndexedDoc record,
   MergedField codeField,
 ) {
-  final lines = <({String item, String code})>[];
+  final lines = <RecordCodeLine>[];
   for (final line in record.valuesOf(codeField.id)) {
     final parsed = recordCodeLineOf(line);
     if (parsed == null || parsed.item.isEmpty) continue;
-    lines.add((item: parsed.item, code: CodeLinkEntry(parsed.code).pointer));
+    lines.add(
+      RecordCodeLine(
+        item: parsed.item,
+        code: CodeLinkEntry(parsed.code).pointer,
+      ),
+    );
   }
   return lines;
 }
@@ -221,10 +238,10 @@ MergedField? recordTestFieldOf(MergedDocType recordType) => recordType.fields
 ///
 /// The path stops at the first `:`, so a test name keeps its colons; the
 /// index keeps the path alone, since only `check` reads names.
-({String item, String path})? recordTestLineOf(String line) {
+RecordTestLine? recordTestLineOf(String line) {
   final split = line.indexOf(':');
   if (split < 0) return null;
-  return (
+  return RecordTestLine(
     item: line.substring(0, split),
     path: splitPathTail(line.substring(split + 1)).path,
   );
@@ -232,11 +249,11 @@ MergedField? recordTestFieldOf(MergedDocType recordType) => recordType.fields
 
 /// Returns the `item:<test path>` lines of [record]'s [testField] as item and
 /// path, in line order; a line with no item names none.
-List<({String item, String path})> recordTestLinesOf(
+List<RecordTestLine> recordTestLinesOf(
   IndexedDoc record,
   MergedField testField,
 ) {
-  final lines = <({String item, String path})>[];
+  final lines = <RecordTestLine>[];
   for (final line in record.valuesOf(testField.id)) {
     final parsed = recordTestLineOf(line);
     if (parsed == null || parsed.item.isEmpty) continue;
@@ -465,17 +482,22 @@ List<MergedField> _recordFieldsOf(MergedDocType recordType) => [
 /// alone as one line; null when the key is absent.
 ///
 /// Throws [RecordFieldUnreadable] for a block that is no valid YAML.
-({KeyBlock block, List<Object?> lines})? _fieldLinesOf(
-  String lfText,
-  MergedField field,
-) {
+_FieldLines? _fieldLinesOf(String lfText, MergedField field) {
   final block = (Doc.parse(lfText).frontmatter ?? const <KeyBlock>[])
       .where((b) => b.name == field.id)
       .firstOrNull;
   if (block == null) return null;
   final lines = listEntriesOf(block);
   if (lines == null) throw RecordFieldUnreadable(block.key);
-  return (block: block, lines: lines);
+  return _FieldLines(block: block, lines: lines);
+}
+
+/// A field's key block and the lines it lists.
+final class _FieldLines {
+  const new({required this.block, required this.lines});
+
+  final KeyBlock block;
+  final List<Object?> lines;
 }
 
 /// Returns [lfText] with the block of [field] listing [lines] over [onDisk]

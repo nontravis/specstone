@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/models/item_fact.dart';
 
 /// The first line facts of an item, without its readability facts; `chars` is
 /// its visible count.

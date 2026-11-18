@@ -110,6 +110,73 @@ void main() {
           if (entity is File && entity.path.endsWith('.old')) entity.path,
   ];
 
+  // Denies the current user the right to add a file to [folder]; the deny is
+  // removed at teardown, and the teardown is registered before the deny.
+  Future<void> denyAddFile(Directory folder) async {
+    final who = (Process.runSync('whoami', const []).stdout as String).trim();
+    addTearDown(() => Process.run('icacls', [folder.path, '/remove:d', who]));
+    final r = await Process.run('icacls', [folder.path, '/deny', '$who:(WD)']);
+    expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
+  }
+
+  // Denies the current user the right to set a value under the registry key
+  // HKCU\Environment, so the user PATH cannot be written; the deny is removed
+  // at teardown, and the teardown is registered before the deny.
+  Future<void> denyUserPathWrites() async {
+    const open =
+        r'$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey( '
+        "'Environment', "
+        '[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, '
+        "[System.Security.AccessControl.RegistryRights]'ChangePermissions, "
+        "ReadPermissions'); "
+        r'$who = [Security.Principal.WindowsIdentity]::GetCurrent().Name; '
+        r'$rule = New-Object System.Security.AccessControl.RegistryAccessRule( '
+        r"$who, 'SetValue', 'None', 'None', 'Deny'); "
+        r'$acl = $k.GetAccessControl(); ';
+    Future<ProcessResult> change(String role, String step) => runPowerShell(
+      role,
+      ['-NoProfile', '-Command', '$open$step; \$k.SetAccessControl(\$acl)'],
+    );
+    addTearDown(
+      () =>
+          change('allow-path-writes', r'$acl.RemoveAccessRuleSpecific($rule)'),
+    );
+    final r = await change('deny-path-writes', r'$acl.AddAccessRule($rule)');
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+  }
+
+  // Sets the user PATH to a multi-string registry value of [items].
+  Future<void> writeMultiStringUserPath(List<String> items) async {
+    const script =
+        r'$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey( '
+        r"'Environment', $true); "
+        r"$k.SetValue('Path', [string[]]($env:SPECSTONE_TEST_ITEMS -split "
+        r"'\|'), 'MultiString')";
+    final r = await runPowerShell(
+      'write-multi-path',
+      ['-NoProfile', '-Command', script],
+      environment: {'SPECSTONE_TEST_ITEMS': items.join('|')},
+    );
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+  }
+
+  // Returns the registry kind of the user PATH and its items joined by `|`.
+  Future<UserPath> readMultiStringUserPath() async {
+    const script =
+        r'$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey( '
+        "'Environment'); "
+        r"$k.GetValueKind('Path'); "
+        r"@($k.GetValue('Path', '', 'DoNotExpandEnvironmentNames')) -join '|'";
+    final r = await runPowerShell('read-multi-path', [
+      '-NoProfile',
+      '-Command',
+      script,
+    ]);
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    final lines = (r.stdout as String).trim().split(RegExp(r'\r?\n'));
+    return (kind: lines.first, value: lines.last);
+  }
+
   group('install.ps1', () {
     // The sandbox strips the environment of a PowerShell 5.1 child; one that
     // inherits the PowerShell 7 module folders of the runner loses
@@ -301,6 +368,52 @@ void main() {
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
       expect((await readUserPath())?.value, binDir(sb));
+    });
+
+    pathTest('a user PATH that cannot be written is named with the line to '
+        'add, and the install goes on, exit 0', () async {
+      final sb = await sandboxWith();
+      sb.stub('git', 'exit /b 127');
+      await denyUserPathWrites();
+
+      final r = await runInstall(sb);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        flat(r.stderr),
+        contains(
+          'specstone: could not write the user PATH: '
+          'add ${binDir(sb)} to it yourself',
+        ),
+      );
+      expect(r.stdout, isNot(contains('to the user PATH')));
+      expect(
+        flat(r.stdout),
+        contains('specstone: git 2.25 or later is missing'),
+      );
+      expect(versionOf('${binDir(sb)}\\specstone.exe'), specstoneVersion);
+    });
+
+    pathTest('a user PATH that is not a string value stays as it is, with '
+        'the line to add by hand', () async {
+      final sb = await sandboxWith();
+      await writeMultiStringUserPath([r'C:\Windows', r'C:\tools']);
+
+      final r = await runInstall(sb);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        flat(r.stderr),
+        contains(
+          'specstone: the user PATH has an unexpected type (MultiString) and '
+          'is left as it is: add ${binDir(sb)} to it yourself',
+        ),
+      );
+      expect(r.stdout, isNot(contains('to the user PATH')));
+      final path = await readMultiStringUserPath();
+      expect(path.kind, 'MultiString');
+      expect(path.value, r'C:\Windows|C:\tools');
+      expect(versionOf('${binDir(sb)}\\specstone.exe'), specstoneVersion);
     });
 
     pathTest('a running old specstone.exe is renamed to '
@@ -597,7 +710,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       // Every refused form runs in one session; a NUL crosses in the base64
       // text, which an environment value could not carry. `-Version ''` is no
       // version.
-      test('every refused form is '
+      test('each refused form is '
           'refused before any download', () async {
         final forms = [
           for (final v in refusedVersions)
@@ -795,6 +908,55 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(r.stdout, contains('VERSION_DEFINED=False'));
       });
 
+      test(r'a refused pipe run leaves no $Version in the caller when the run '
+          'refuses', () async {
+        final sb = await createScriptSandbox();
+        final script = '${repoRoot().path}\\install.ps1';
+        final command =
+            '$importSessionModules'
+            "try { Get-Content -Raw '$script' | Invoke-Expression } "
+            r"catch { 'CAUGHT=' + $_.Exception.Message }; "
+            "'VERSION_DEFINED=' + "
+            r'($null -ne (Get-Variable -Name Version -ErrorAction '
+            'SilentlyContinue))';
+
+        final r = await runPowerShell(
+          'iex-session',
+          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+          environment: sb.env({'PROCESSOR_ARCHITECTURE': 'ARM64'}),
+          includeParentEnvironment: false,
+          workingDirectory: sb.root.path,
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          flat(r.stdout),
+          contains('CAUGHT=specstone: unsupported machine Windows ARM64'),
+        );
+        expect(r.stdout, contains('VERSION_DEFINED=False'));
+      });
+
+      test('an unknown release answers non-2xx and the run exits 1 with the '
+          'install unchanged', () async {
+        final sb = await createScriptSandbox();
+        sb.installFake();
+        final before = sb.snapshot();
+
+        final r = await runHarness(
+          sb,
+          version: '9.9.9',
+          isDownloadFailing: true,
+        );
+
+        expect(r.exitCode, 1);
+        expect(flat(r.stderr), contains(downloadFailed));
+        expect(
+          sb.logOf('web').single,
+          endsWith('$releases/download/v9.9.9/$asset'),
+        );
+        expect(sb.snapshot(), before);
+      });
+
       for (final (shape, label) in versionShapes) {
         pathTest('the version already installed is named and nothing is placed '
             '($label)', () async {
@@ -906,6 +1068,160 @@ if ($env:HARNESS_MODE -eq 'iex') {
       expect(sb.snapshot(), before);
     });
 
+    pathTest('a run leaves the personal packs folder as it was', () async {
+      final sb = await sandboxWith();
+      File('${sb.home.path}\\.specstone\\packs\\mine.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: mine');
+      Map<String, String> packsOf(Map<String, String> files) => {
+        for (final MapEntry(:key, :value) in files.entries)
+          if (key.startsWith('.specstone/packs/')) key: value,
+      };
+      final before = packsOf(sb.snapshot());
+      expect(before, {'.specstone/packs/mine.yaml': 'name: mine'});
+
+      final r = await runInstall(sb);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(packsOf(sb.snapshot()), before);
+    });
+
+    pathTest('an empty home gets an install folder holding only bin and '
+        'lib', () async {
+      final sb = await sandboxWith();
+
+      final r = await runInstall(sb);
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final names = [
+        for (final entity in Directory(
+          '${sb.home.path}\\.specstone',
+        ).listSync())
+          entity.uri.pathSegments.lastWhere((segment) => segment.isNotEmpty),
+      ]..sort();
+      expect(names, ['bin', 'lib']);
+    });
+
+    test('a copy that fails removes the copied files, puts the renamed ones '
+        'back, and names the file', () async {
+      final sb = await sandboxWith();
+      final install = '${sb.home.path}\\.specstone';
+      File('$install\\lib\\libold.dll')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('old');
+      final bin = Directory('$install\\bin')..createSync(recursive: true);
+      final before = sb.snapshot();
+      await denyAddFile(bin);
+
+      final r = await runInstall(sb);
+
+      expect(r.exitCode, 1);
+      expect(
+        flat(r.stderr),
+        matches(
+          RegExp(
+            'specstone: could not place ${RegExp.escape(bin.path)}\\\\.+: '
+            'run the install again',
+          ),
+        ),
+      );
+      expect(sb.snapshot(), before);
+      expect(oldFilesUnder(sb), isEmpty);
+    });
+
+    group('download steps', () {
+      const downloadFailed =
+          'specstone: download failed for $asset; the install is unchanged';
+      const latest = 'https://github.com/nontravis/specstone/releases/latest';
+
+      // A function shadows Invoke-WebRequest: it logs `<TimeoutSec>|<Uri>|
+      // <OutFile>`, then serves the file from ARCHIVES, or throws as a
+      // timed-out request does when STUB_WEB_TIMEOUT is set.
+      const webStub =
+          '$importSessionModules\n'
+          r'''
+function Invoke-WebRequest {
+  param([switch]$UseBasicParsing, [int]$TimeoutSec, [string]$Uri, [string]$OutFile)
+  Add-Content -LiteralPath (Join-Path $env:STUB_LOG_DIR 'web.log') -Value "$TimeoutSec|$Uri|$OutFile"
+  if ($env:STUB_WEB_TIMEOUT) { throw 'The operation has timed out.' }
+  Copy-Item -LiteralPath (Join-Path $env:ARCHIVES ($Uri.Split('/')[-1])) -Destination $OutFile
+}
+& $env:INSTALL_PS1
+''';
+
+      Future<ProcessResult> runWebStub(
+        ScriptSandbox sb, {
+        bool isTimingOut = false,
+      }) {
+        final file = File('${sb.root.path}\\web_stub.ps1')
+          ..writeAsStringSync(webStub);
+        return sb.run(
+          file.path,
+          extra: {
+            'ARCHIVES': sb.archives.path,
+            'INSTALL_PS1': '${repoRoot().path}\\install.ps1',
+            'STUB_WEB_TIMEOUT': isTimingOut ? '1' : '',
+          },
+        );
+      }
+
+      test('a download that gets no answer within 30 seconds fails, exit 1, '
+          'the install unchanged', () async {
+        final sb = await createScriptSandbox();
+        sb.installFake();
+        final before = sb.snapshot();
+
+        final r = await runWebStub(sb, isTimingOut: true);
+
+        expect(r.exitCode, 1);
+        expect(flat(r.stderr), contains(downloadFailed));
+        expect(sb.logOf('web').first, startsWith('30|'));
+        expect(sb.snapshot(), before);
+      });
+
+      test('a temporary folder that cannot be made stops with the install '
+          'unchanged, exit 1', () async {
+        final sb = await createScriptSandbox();
+        sb.installFake();
+        final before = sb.snapshot();
+        final notAFolder = File('${sb.root.path}\\not_a_folder')
+          ..writeAsStringSync('a file, so no folder fits under it');
+
+        final r = await runInstall(
+          sb,
+          extra: {'TEMP': notAFolder.path, 'TMP': notAFolder.path},
+        );
+
+        expect(r.exitCode, 1);
+        expect(
+          flat(r.stderr),
+          contains(
+            'specstone: could not make a temporary folder in '
+            '${notAFolder.path}\\; the install is unchanged',
+          ),
+        );
+        expect(sb.snapshot(), before);
+      });
+
+      pathTest('the archive and SHA256SUMS come from the latest release into '
+          'one temporary folder', () async {
+        final sb = await sandboxWith();
+
+        final r = await runWebStub(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        final calls = [for (final line in sb.logOf('web')) line.split('|')];
+        expect(calls, hasLength(2));
+        expect(calls[0][1], '$latest/download/$asset');
+        expect(calls[1][1], '$latest/download/SHA256SUMS');
+        final folders = {for (final call in calls) File(call[2]).parent.path};
+        expect(folders, hasLength(1));
+        expect(folders.single, startsWith('${sb.root.path}\\tmp\\specstone.'));
+        expect(File(calls[0][2]).uri.pathSegments.last, asset);
+        expect(File(calls[1][2]).uri.pathSegments.last, 'SHA256SUMS');
+      });
+    });
+
     group('no plugin step', () {
       for (final (label, args) in [
         ('a plain install', <String>[]),
@@ -996,6 +1312,23 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(versionOf('${binDir(sb)}\\specstone.exe'), specstoneVersion);
       });
 
+      pathTest(
+        'a machine with no git prints exactly one warning line',
+        () async {
+          final sb = await sandboxWith();
+          stubGit(sb, null);
+
+          final r = await runInstall(sb);
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          final warnings = [
+            for (final line in stdoutOf(r).split('\n'))
+              if (line.startsWith('specstone: ')) line,
+          ];
+          expect(warnings, [floorLine.trimRight()]);
+        },
+      );
+
       pathTest('a git on a relative PATH entry only is missing', () async {
         final sb = await sandboxWith();
         final system = Platform.environment['SystemRoot'] ?? r'C:\Windows';
@@ -1052,7 +1385,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
       for (final MapEntry(key: label, value: pathOf)
           in pathsWithRelativeEntries.entries) {
-        pathTest('$label on PATH never starts a program from there; the '
+        pathTest('$label on PATH starts no program from there; the '
             'absolute git runs', () async {
           final sb = await sandboxWith();
           sb.stub(
@@ -1072,6 +1405,46 @@ if ($env:HARNESS_MODE -eq 'iex') {
           expect(plantedRan(sb), isFalse);
           expect(r.exitCode, 0, reason: '${r.stderr}');
           expect(sb.logOf('git'), ['--version']);
+        });
+      }
+
+      // A drive root spelled with `/`, a UNC path, and a quoted entry that
+      // holds a `;` are absolute; the script keeps them, quoting the last
+      // again, so the git stub in each is found and runs.
+      final absoluteSpellings = <String, String Function(ScriptSandbox)>{
+        'a drive entry spelled with slashes': (sb) =>
+            sb.stubs.path.replaceAll(r'\', '/'),
+        'a UNC entry': (sb) =>
+            '\\\\localhost\\${sb.stubs.path[0]}\$${sb.stubs.path.substring(2)}',
+        'a quoted entry holding a semicolon': (sb) {
+          final folder = Directory('${sb.root.path}\\semi;colon dir')
+            ..createSync();
+          File('${sb.stubs.path}\\git.cmd').copySync('${folder.path}\\git.cmd');
+          return '"${folder.path}"';
+        },
+      };
+
+      for (final MapEntry(key: label, value: spell)
+          in absoluteSpellings.entries) {
+        pathTest('$label stays on the PATH the script searches; the git '
+            'there runs', () async {
+          final sb = await sandboxWith();
+          sb.stub(
+            'git',
+            [
+              r'>> "%STUB_LOG_DIR%\git.log" echo %*',
+              'echo git version 2.45.1.windows.1',
+            ].join('\r\n'),
+          );
+
+          final r = await runInstall(
+            sb,
+            extra: {'PATH': '${spell(sb)};$systemEntries'},
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(sb.logOf('git'), ['--version']);
+          expect(r.stdout, isNot(contains('specstone: git')));
         });
       }
 
@@ -1453,6 +1826,143 @@ if ($env:HARNESS_MODE -eq 'iex') {
         },
       );
 
+      pathTest('a placed stn.exe that runs and will not delete is renamed to '
+          '.old, and a later run deletes it', () async {
+        final sb = await sandboxWithShim();
+        final bin = '${sb.home.path}\\.specstone\\bin';
+        final first = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, [bin]),
+          },
+        );
+        expect(first.exitCode, 0, reason: '${first.stderr}');
+        final stn = File('$bin\\stn.exe');
+        final old = File('${stn.path}.old');
+        await sb.compileFakeCli('0.0.1', stn.path);
+        final running = await startLocked(stn.path);
+        final tools = Directory('${sb.root.path}\\tools')..createSync();
+        final found = otherStn(tools.path, 'cmd');
+        final entries = {
+          'PATH': pathWith(sb, [bin, tools.path]),
+        };
+
+        final second = await runInstall(sb, extra: entries);
+
+        expect(second.exitCode, 0, reason: '${second.stderr}');
+        expect(flat(second.stdout), contains(notice(found)));
+        expect(second.stderr, isNot(contains('could not remove')));
+        expect(stn.existsSync(), isFalse);
+        expect(old.existsSync(), isTrue);
+
+        await stopAndUnlock(running, old);
+        final third = await runInstall(sb, extra: entries);
+
+        expect(third.exitCode, 0, reason: '${third.stderr}');
+        expect(old.existsSync(), isFalse);
+        expect(stn.existsSync(), isFalse);
+      });
+
+      pathTest('a missing stn.exe comes back with the next Version', () async {
+        final sb = await sandboxWithShim();
+        final bin = '${sb.home.path}\\.specstone\\bin';
+        final entries = {
+          'PATH': pathWith(sb, [bin]),
+        };
+        final first = await runInstall(sb, extra: entries);
+        expect(first.exitCode, 0, reason: '${first.stderr}');
+        File('$bin\\stn.exe').deleteSync();
+        await sb.writeArchive('windows-x64', version: '0.3.0');
+
+        final r = await runInstall(sb, extra: entries);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(versionOf('$bin\\specstone.exe'), '0.3.0');
+        expect(File('$bin\\stn.exe').existsSync(), isTrue);
+      });
+
+      pathTest('the failed removal line comes after the notice in one '
+          'output stream', () async {
+        final sb = await sandboxWithShim();
+        final bin = '${sb.home.path}\\.specstone\\bin';
+        final first = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, [bin]),
+          },
+        );
+        expect(first.exitCode, 0, reason: '${first.stderr}');
+        final tools = Directory('${sb.root.path}\\tools')..createSync();
+        final found = otherStn(tools.path, 'cmd');
+        final held = File('$bin\\stn.exe').openSync();
+        addTearDown(held.closeSync);
+        // One pipe for both streams, so the text shows the order written.
+        final wrapper = File('${sb.root.path}\\merged.cmd')
+          ..writeAsStringSync(
+            '@echo off\r\n'
+            'powershell -NoProfile -ExecutionPolicy Bypass -File '
+            '"${repoRoot().path}\\install.ps1" 2>&1\r\n',
+          );
+
+        final r = await Process.run(
+          'cmd',
+          ['/d', '/c', wrapper.path],
+          environment: sb.env({
+            ...archiveEnv(sb),
+            'PATH': pathWith(sb, [bin, tools.path]),
+          }),
+          includeParentEnvironment: false,
+          workingDirectory: sb.root.path,
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        final text = flat(r.stdout);
+        final removal =
+            'specstone: could not remove $bin\\stn.exe: delete it yourself';
+        expect(text, contains(notice(found)));
+        expect(text, contains(removal));
+        expect(text.indexOf(removal), greaterThan(text.indexOf(notice(found))));
+      });
+
+      pathTest('an upgrade renames the running stn.exe to .old, places none '
+          'beside another stn, and a later run deletes the .old', () async {
+        for (final hasOther in [false, true]) {
+          final sb = await sandboxWithShim();
+          final bin = '${sb.home.path}\\.specstone\\bin';
+          final tools = Directory('${sb.root.path}\\tools')..createSync();
+          if (hasOther) otherStn(tools.path, 'cmd');
+          final entries = {
+            'PATH': pathWith(sb, [bin, if (hasOther) tools.path]),
+          };
+          final first = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, [bin]),
+            },
+          );
+          expect(first.exitCode, 0, reason: '${first.stderr}');
+          final stn = File('$bin\\stn.exe');
+          final old = File('${stn.path}.old');
+          await sb.compileFakeCli('0.0.1', stn.path);
+          final running = await startLocked(stn.path);
+          await sb.writeArchive('windows-x64', version: '0.3.0');
+
+          final upgrade = await runInstall(sb, extra: entries);
+
+          final reason = 'another stn: $hasOther; ${upgrade.stderr}';
+          expect(upgrade.exitCode, 0, reason: reason);
+          expect(versionOf('$bin\\specstone.exe'), '0.3.0', reason: reason);
+          expect(old.existsSync(), isTrue, reason: reason);
+          expect(stn.existsSync(), !hasOther, reason: reason);
+
+          await stopAndUnlock(running, old);
+          final later = await runInstall(sb, extra: entries);
+
+          expect(later.exitCode, 0, reason: '${later.stderr}');
+          expect(old.existsSync(), isFalse, reason: reason);
+        }
+      });
+
       pathTest('two other stn name the earlier entry only', () async {
         final sb = await sandboxWithShim();
         final first = otherStn('${sb.root.path}\\first', 'exe');
@@ -1474,7 +1984,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(flat(r.stdout), isNot(contains(second)));
       });
 
-      pathTest('no other stn prints no notice', () async {
+      pathTest('without another stn the run prints no notice', () async {
         final sb = await sandboxWithShim();
 
         final r = await runInstall(
@@ -1489,7 +1999,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
       });
 
-      pathTest('a stn on a relative entry only prints no notice', () async {
+      pathTest('a stn on only a relative entry prints no notice', () async {
         final sb = await sandboxWithShim();
         otherStn('${sb.root.path}\\rel', 'exe');
 
@@ -1505,7 +2015,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
       });
 
-      pathTest('the install folder with a trailing '
+      pathTest('the install folder spelled with a trailing '
           'backslash, another case, a quoted spelling, or through a junction '
           'prints no notice', () async {
         final sb = await sandboxWithShim();

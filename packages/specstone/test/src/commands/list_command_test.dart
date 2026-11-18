@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
@@ -256,6 +257,121 @@ void main() {
     );
     expect(err.toString(), isEmpty);
   });
+
+  Map<String, Object?> errorOf(StringBuffer err) =>
+      (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+          as Map<String, Object?>;
+
+  test(
+    'list with no doc type under --json gives the code argument_missing',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(await runner.run(['list', '--json']), 64);
+      expect(errorOf(err)['code'], 'argument_missing');
+      expect(out.toString(), isEmpty);
+    },
+  );
+
+  test(
+    'list outside a project gives project_not_found, a bad pin its code',
+    () async {
+      final outside = readRunner(await writeTree({}));
+      expect(await outside.runner.run(['list', 'feature', '--json']), 78);
+      expect(errorOf(outside.err)['code'], 'project_not_found');
+      final pinned = readRunner(
+        await writeReadProject(
+          extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
+        ),
+      );
+      expect(await pinned.runner.run(['list', 'feature', '--json']), 78);
+      expect(errorOf(pinned.err)['code'], 'pack_pin_newer');
+    },
+  );
+
+  test('list feature --unwalked is argument_invalid, exit 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeCheckProject());
+    expect(await runner.run(['list', 'feature', '--unwalked', '--json']), 64);
+    expect(errorOf(err)['code'], 'argument_invalid');
+    expect(out.toString(), isEmpty);
+  });
+
+  test(
+    'list fr --suspect --under another story leaves a suspect FR out',
+    () async {
+      const reset =
+          'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md';
+      final project = await writeCheckProject(
+        extra: {
+          ...doc(loginStory, loginScenario2, edited),
+          reset: '# Agent resets a password\n\n## Use Case\nReset it.\n',
+        },
+      );
+      final everywhere = readRunner(project);
+      expect(await everywhere.runner.run(['list', 'fr', '--suspect']), 0);
+      expect(
+        everywhere.out.toString(),
+        startsWith('login/email_login/check_password (fr)'),
+      );
+      final scoped = readRunner(project);
+      expect(
+        await scoped.runner.run([
+          'list',
+          'fr',
+          '--suspect',
+          '--under',
+          'login/reset_password',
+        ]),
+        0,
+      );
+      expect(scoped.out.toString(), isEmpty);
+    },
+  );
+
+  test('list --suspect on a bad pin gives the list fault, exit 78', () async {
+    final project = await suspectProject();
+    File('${project.path}/.specstone/config.yaml')
+        .writeAsStringSync('packs:\n  prd-core: 9.9.9\n');
+    final (:runner, :out, :err) = readRunner(project);
+    expect(await runner.run(['list', 'fr', '--suspect', '--json']), 78);
+    expect(errorOf(err)['code'], 'pack_pin_newer');
+    expect(out.toString(), isEmpty);
+  });
+
+  test('list --suspect on a busy index gives index_busy, exit 75', () async {
+    final project = await suspectProject();
+    expect(await readRunner(project).runner.run(['list', 'fr']), 0);
+    final holder = sqlite3.open('${project.path}/.specstone/index.sqlite')
+      ..execute('BEGIN IMMEDIATE');
+    addTearDown(
+      () => holder
+        ..execute('ROLLBACK')
+        ..close(),
+    );
+    File('${project.path}/docs/$loginFeature')
+        .writeAsStringSync('# Login v2\n');
+    final (:runner, :out, :err) = readRunner(
+      project,
+      busyTimeout: const Duration(milliseconds: 200),
+    );
+    expect(await runner.run(['list', 'fr', '--suspect', '--json']), 75);
+    expect(errorOf(err)['code'], 'index_busy');
+    expect(out.toString(), isEmpty);
+  });
+
+  test(
+    'a code_unconfirmed link counts toward no doc under --suspect',
+    () async {
+      final project = await writeCheckProject(unfingerprinted: {loginRecord});
+      final check = readRunner(project);
+      await check.runner.run(['check', '--json']);
+      expect(check.out.toString(), contains('"kind": "code_unconfirmed"'));
+      for (final type in ['fr', 'user_story', 'implementation']) {
+        final (:runner, :out, :err) = readRunner(project);
+        expect(await runner.run(['list', type, '--suspect']), 0, reason: type);
+        expect(out.toString(), isEmpty, reason: type);
+      }
+    },
+  );
 
   group('per code target', () {
     /// Writes a two-target project: the feature `login` with two stories and

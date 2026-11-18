@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_file.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
+import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
@@ -1062,6 +1063,107 @@ void main() {
       ).where((doc) => doc['docType'] == 'domain').toList();
       expect(outbound, containsPair('cited', true));
       expect(outbound, isNot(contains('cites')));
+    });
+    test('the refs file holds the domain and the api whole, indexed with no cited or cites mark', () async {
+      final answer = await designLogin(split: true);
+      final index = bundleIndex(answer, '/p', refsPath: '/p.refs');
+      final refsLines = index.split('/p.refs <==\n').last.split('\n');
+
+      expect(
+        answer.refs!.text,
+        allOf(
+          contains('- **INV-2** An account has a password.'),
+          contains('| other | `signOut` |'),
+        ),
+        reason: 'the unlinked invariant and row print too',
+      );
+      final firstLines = index.split('/p.refs <==\n').first.split('\n');
+      expect(
+        firstLines.where(
+          RegExp(r'^- login \(domain\) · \d+-\d+ · cited invariants \[INV-1\]')
+              .hasMatch,
+        ),
+        hasLength(1),
+      );
+      expect(
+        firstLines.where(
+          RegExp(r'^- login \(api\) · \d+-\d+ · cites fr_trace').hasMatch,
+        ),
+        hasLength(1),
+      );
+      final json = bundleIndexJson(answer, '/p', refsPath: '/p.refs');
+      final api = (json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere((d) => d['name'] == 'login' && d['docType'] == 'api');
+      expect(api, containsPair('cited', false));
+      expect(api, containsPair('cites', true));
+      for (final type in ['domain', 'api']) {
+        final lines = refsLines.where((l) => l.startsWith('- login ($type)'));
+        expect(lines, hasLength(1), reason: type);
+        expect(lines.single, matches(RegExp(r'^- login \(\w+\) · \d+-\d+')));
+        expect(lines.single, isNot(contains('cite')), reason: type);
+      }
+    });
+    test('a --code design bundle written with --out lists no piece, and each spec doc prints whole', () async {
+      final project = await writeLoginProject(
+        extra: {
+          ...loginRecords,
+          frPath:
+              '# Validate credentials\n\n## Statement\nThe system shall check '
+              'the email, by [INV-1](../../../../specs/f01_login/DOMAIN.md#invariants).\n',
+          domainPath:
+              '# Login domain\n\n## Invariants\n- **INV-1** An account has an email.\n'
+              '- **INV-2** An account has a password.\n',
+          apiPath:
+              '# Login API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+              '| [validate](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md) | `signIn` |\n'
+              '| other | `signOut` |\n',
+        },
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+      const path = 'app/lib/src/login/credential_validator.dart';
+      final bundle = pickCodeBundle(
+        session.index,
+        resolveCodePath(
+          path,
+          workingDirectory: project,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
+        ),
+        BundleMode.design,
+        noProject: false,
+      );
+
+      final answer = answerContext(
+        session.index,
+        bundle,
+        label: path,
+        byCode: true,
+        split: true,
+      );
+
+      final entries = [...answer.entries, ...?answer.refs?.entries];
+      expect(
+        entries.where(
+          (e) =>
+              e.kind == BundleEntryKind.cites ||
+              (e.kind == BundleEntryKind.cited &&
+                  {'domain', 'api'}.contains(e.doc.docTypeId)),
+        ),
+        isEmpty,
+        reason: 'no ancestor spec piece',
+      );
+      final wholeSpecs = [
+        for (final e in entries)
+          if (e.kind == BundleEntryKind.doc &&
+              {'domain', 'api'}.contains(e.doc.docTypeId))
+            e.doc.docTypeId,
+      ];
+      expect(wholeSpecs, unorderedEquals(['domain', 'api']));
+      final text = '${answer.text}${answer.refs?.text}';
+      expect(text, contains('- **INV-2** An account has a password.'));
+      expect(text, contains('| other | `signOut` |'));
     });
     test('a design json call with no out lists no piece', () async {
       final answer = await designLogin(split: false);

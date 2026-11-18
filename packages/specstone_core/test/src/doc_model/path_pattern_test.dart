@@ -60,6 +60,16 @@ void main() {
     });
   });
 
+  group('PathPattern.matches a non-ASCII digit', () {
+    test('{nn} rejects an Arabic-Indic digit and a fullwidth digit', () {
+      final pattern = PathPattern('f{nn}_{slug}.md');
+
+      expect(pattern.matches('f05_a.md'), isTrue);
+      expect(pattern.matches('f\u0665_a.md'), isFalse);
+      expect(pattern.matches('f\uff10\uff15_a.md'), isFalse);
+    });
+  });
+
   group('PathPattern.numberAt', () {
     final feature = PathPattern('prds/features/f{nn}_{slug}/FEATURE.md');
 

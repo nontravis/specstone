@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../helpers/built_cli.dart';
 import '../helpers/built_stn.dart';
 import '../helpers/shim_sandbox.dart';
 
@@ -103,7 +104,7 @@ void main() {
         expect(sb.logOf('other'), isEmpty);
       });
 
-      test("the exit status is the specstone run's", () async {
+      test("stn.exe exits with specstone.exe's status", () async {
         for (final status in ['3', '-1073741510']) {
           final sb = await createShimSandbox();
           final path = '${sb.bin.path};$system32';
@@ -330,6 +331,75 @@ void main() {
         }
       });
 
+      test('stdin read from a file and stderr piped reach the target as '
+          'with specstone', () async {
+        const out = 'recorded out';
+        const err = 'recorded err';
+        final sb = await createShimSandbox();
+        final path = '${sb.bin.path};$system32';
+        File('${sb.root.path}\\in.txt').writeAsStringSync('file bytes\n');
+        // PowerShell has no `<` and wraps a native command's stderr, so both
+        // redirections run inside a cmd it starts.
+        String inCmd(String line) => switch (shell) {
+          StnShell.cmd => line,
+          StnShell.powershell => 'cmd /d /c "$line"',
+        };
+
+        for (final name in ['stn', 'specstone']) {
+          final r = await sb.typeStn(
+            [inCmd('$name get < in.txt')],
+            shell: shell,
+            path: path,
+            extra: {readStdinVariable: '1'},
+          );
+          expect(r.exitCode, 0, reason: '$name: ${r.stdout}${r.stderr}');
+        }
+        expectTwoEqualRuns(sb, reason: 'stdin from a file');
+        expect(sb.logOf('specstone').sublist(0, 4), [
+          'argv',
+          'get',
+          'stdin',
+          'file bytes',
+        ]);
+
+        for (final name in ['stn', 'specstone']) {
+          final r = await sb.typeStn(
+            [inCmd('$name get 2>&1 | more')],
+            shell: shell,
+            path: path,
+            extra: {writeStdoutVariable: out, writeStderrVariable: err},
+          );
+          expect(r.exitCode, 0, reason: '$name: ${r.stderr}');
+          expect(nonBlank(r.stdout), containsAll([out, err]), reason: name);
+        }
+      });
+
+      test('a missing specstone.exe names the system reason beside its '
+          'path on one stderr line', () async {
+        final sb = await createShimSandbox();
+        final target = '${sb.bin.path}\\specstone.exe';
+        File(target).deleteSync();
+
+        final r = await sb.typeStn(
+          ['stn check'],
+          shell: shell,
+          path: '${sb.bin.path};$system32',
+        );
+
+        expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
+        final naming = [
+          for (final line in nonBlank(r.stderr))
+            if (line.toLowerCase().contains(target.toLowerCase())) line,
+        ];
+        expect(naming, hasLength(1), reason: r.stderr as String);
+        const reason = 'The system cannot find the file specified.';
+        expect(naming.single, contains(reason));
+        expect(
+          naming.single.toLowerCase().indexOf(target.toLowerCase()),
+          lessThan(naming.single.indexOf(reason)),
+        );
+      });
+
       test('the target gets the environment the shim got, '
           'nothing added', () async {
         final sb = await createShimSandbox();
@@ -409,6 +479,142 @@ void main() {
       });
     });
   }
+
+  group('the real specstone beside stn.exe:', () {
+    late String builtBin;
+    setUpAll(() async => builtBin = await buildSpecstone());
+
+    void copyFolder(Directory from, Directory to) {
+      to.createSync(recursive: true);
+      for (final entry in from.listSync(recursive: true)) {
+        final relative = entry.path.substring(from.path.length);
+        if (entry is File) {
+          File('${to.path}$relative')
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(entry.readAsBytesSync());
+        }
+      }
+    }
+
+    for (final shell in StnShell.values) {
+      test(
+        '${shell.name}: stn upgrade runs the specstone of the install folder '
+        'and passes the refuse check',
+        () async {
+          final sb = await createShimSandbox();
+          final bundle = File(builtBin).parent.parent;
+          copyFolder(Directory('${bundle.path}\\bin'), sb.bin);
+          copyFolder(
+            Directory('${bundle.path}\\lib'),
+            Directory('${sb.home.path}\\.specstone\\lib'),
+          );
+          const refused = 'specstone upgrade updates only a CLI installed in';
+
+          // A proxy that refuses connections ends the fetch of the install
+          // script at once, so no install runs.
+          final r = await sb.typeStn(
+            ['stn upgrade'],
+            shell: shell,
+            path: '${sb.bin.path};$system32',
+            extra: {
+              'HTTPS_PROXY': 'http://127.0.0.1:9',
+              'HTTP_PROXY': 'http://127.0.0.1:9',
+            },
+          );
+
+          expect(r.exitCode, isNot(78), reason: '${r.stdout}${r.stderr}');
+          expect(r.stderr, isNot(contains(refused)));
+          expect(
+            r.stderr,
+            matches(
+              RegExp(
+                'specstone upgrade could not '
+                '(fetch|read the latest release)',
+              ),
+            ),
+          );
+        },
+      );
+    }
+  });
+
+  group('Ctrl+C during a run:', () {
+    // A target that traps Ctrl+C and Ctrl+Break, logs `got`, and exits 42; it
+    // exits 7 when 30 s pass with no event.
+    const trapSource = r"""
+import 'dart:io';
+
+Future<void> main() async {
+  final logs = Platform.environment['STUB_LOG_DIR']!;
+  ProcessSignal.sigint.watch().listen((_) {
+    File('$logs\\ctrl.log').writeAsStringSync('got\n');
+    exit(42);
+  });
+  File('$logs\\specstone.pid').writeAsStringSync('$pid');
+  await Future<void>.delayed(const Duration(seconds: 30));
+  exit(7);
+}
+""";
+
+    Future<void> installTrap(ShimSandbox sb) async {
+      final scratch = await Directory.systemTemp.createTemp('specstone_trap_');
+      addTearDown(() => scratch.delete(recursive: true));
+      final source = File('${scratch.path}\\trap.dart')
+        ..writeAsStringSync(trapSource);
+      final compiled = '${scratch.path}\\trap.exe';
+      final result = await Process.run(Platform.resolvedExecutable, [
+        'compile',
+        'exe',
+        source.path,
+        '-o',
+        compiled,
+      ]);
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      File(compiled).copySync('${sb.bin.path}\\specstone.exe');
+    }
+
+    test('stn.exe outlives the event, the target gets it, and stn.exe exits '
+        "with the target's status", () async {
+      final sb = await createShimSandbox();
+      await installTrap(sb);
+      final pidFile = '${sb.logs.path}\\specstone.pid';
+      const native =
+          '[DllImport("kernel32.dll")] public static extern bool '
+          'GenerateConsoleCtrlEvent(uint e, uint g); '
+          '[DllImport("kernel32.dll")] public static extern bool '
+          'SetConsoleCtrlHandler(IntPtr h, bool a);';
+      final start =
+          "\$p = Start-Process -FilePath '${sb.bin.path}\\stn.exe' "
+          '-ArgumentList check -NoNewWindow -PassThru';
+      final poll =
+          "for (\$i = 0; \$i -lt 150 -and -not (Test-Path '$pidFile'); "
+          r'$i++) { Start-Sleep -Milliseconds 100 }';
+
+      // PowerShell starts stn.exe in its own console, waits for the target to
+      // be ready, ignores the event itself, and sends Ctrl+C to the console.
+      final r = await sb.typeStn(
+        [
+          "Add-Type -Namespace W -Name K -MemberDefinition '$native'",
+          start,
+          r'$h = $p.Handle',
+          poll,
+          r'[W.K]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null',
+          '[W.K]::GenerateConsoleCtrlEvent(0, 0) | Out-Null',
+          r'$done = $p.WaitForExit(15000)',
+          r'"exited=$done"',
+          r'if ($done) { "code=$($p.ExitCode)" }',
+        ],
+        shell: StnShell.powershell,
+        path: '${sb.bin.path};$system32',
+        timeout: const Duration(minutes: 2),
+      );
+
+      // A stn.exe that died of the event would exit -1073741510; 42 is the
+      // target's own answer, which stn.exe can only relay by living on.
+      expect(nonBlank(r.stdout), containsAll(['exited=True', 'code=42']));
+      expect(File('${sb.logs.path}\\ctrl.log').readAsStringSync(), 'got\n');
+    });
+  });
 
   group('a killed shim:', () {
     // Whether a process with this pid runs, by its row in `tasklist`.

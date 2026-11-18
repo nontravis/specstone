@@ -8,6 +8,8 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/models/item_fact.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
@@ -63,7 +65,7 @@ void main() {
       final facts = parsed.content.itemFacts;
 
       expect(parsed.doc.formatted, isTrue);
-      expect(facts.lead, (lines: 1, chars: 15));
+      expect(facts.lead, const SectionCounts(lines: 1, chars: 15));
       expect(plainItems(facts.leadItems), [(id: null, line: 7, chars: 15)]);
       expect(plainSections(facts), [
         [(id: null, line: 11, chars: lines[10].length)],
@@ -78,7 +80,7 @@ void main() {
         'the sections', () {
       final facts = factsOf('README.md', '# T\n\nLead text.\n\n## Notes\nx\n');
 
-      expect(facts.lead, (lines: 1, chars: 10));
+      expect(facts.lead, const SectionCounts(lines: 1, chars: 10));
       expect(plainItems(facts.leadItems), [(id: null, line: 3, chars: 10)]);
       expect(plainSections(facts), [
         [(id: null, line: 6, chars: 1)],
@@ -149,7 +151,10 @@ void main() {
       expect(parsed.doc.formatted, isFalse);
       expect(laid[row.line - 1], '| x | y |');
       expect(row.visibleChars, '| x | y |'.length);
-      expect(facts.lead, (lines: 3, chars: 9 + 1 + 9 + 1 + 9));
+      expect(
+        facts.lead,
+        const SectionCounts(lines: 3, chars: 9 + 1 + 9 + 1 + 9),
+      );
     });
 
     test('a drifted doc whose section holds a fenced ## line gives each '
@@ -257,7 +262,7 @@ void main() {
         'Intro line\n\n- a\n- b\n\n## Notes\nx\n',
       );
 
-      expect(facts.lead, (lines: 4, chars: 19));
+      expect(facts.lead, const SectionCounts(lines: 4, chars: 19));
       expect(plainItems(facts.leadItems), [
         (id: null, line: 1, chars: 10),
         (id: null, line: 3, chars: 3),
@@ -271,7 +276,7 @@ void main() {
         'Above\n# T\nlead text\n\n## Notes\nx\n',
       );
 
-      expect(facts.lead, (lines: 1, chars: 9));
+      expect(facts.lead, const SectionCounts(lines: 1, chars: 9));
       expect(plainItems(facts.leadItems), [(id: null, line: 3, chars: 9)]);
     });
 
@@ -301,7 +306,7 @@ void main() {
           '# T\n\n```\n- not an item\n```\n\nreal\n',
         );
 
-        expect(facts.lead, (lines: 5, chars: 27));
+        expect(facts.lead, const SectionCounts(lines: 5, chars: 27));
         expect(plainItems(facts.leadItems), [(id: null, line: 7, chars: 4)]);
       },
     );
@@ -313,7 +318,10 @@ void main() {
         '# T\n\n\n\nfirst\n\nlast\n\n## N\nx\n',
       );
 
-      expect(facts.lead, (lines: 3, chars: 'first'.length + 1 + 1 + 4));
+      expect(
+        facts.lead,
+        const SectionCounts(lines: 3, chars: 'first'.length + 1 + 1 + 4),
+      );
       expect(facts.leadItems.map((i) => i.line), [5, 7]);
     });
 
@@ -395,7 +403,7 @@ void main() {
         type: null,
       );
 
-      expect(facts.lead, (lines: 1, chars: 5));
+      expect(facts.lead, const SectionCounts(lines: 1, chars: 5));
       expect(plainSections(facts), [
         [(id: null, line: 6, chars: 1)],
       ]);
@@ -681,6 +689,18 @@ void main() {
       expect(sectionCharsOf(parsed), '\n$rule'.length);
     });
 
+    test('link item leaves the doc token count at every character of the '
+        'link', () {
+      final target = 'a/${'b' * 78}.md#rules';
+      final text = '# V\n\n## Statement\n\n- See [the rule]($target).\n';
+      const visible = '# V\n\n## Statement\n\n- See the rule.\n';
+
+      final parsed = parse(_frPath, text);
+
+      expect(parsed.doc.tokens, tokenSizeOf(text));
+      expect(parsed.doc.tokens, greaterThan(tokenSizeOf(visible)));
+    });
+
     test('definition line adds nothing to its paragraph', () {
       const paragraph = '[r]: a/b.md\nSee [the rule][r].';
       final parsed = parse(_frPath, '# V\n\n## Statement\n\n$paragraph\n');
@@ -778,7 +798,7 @@ void main() {
       final facts = parsed.content.itemFacts;
 
       expect(visibleOf(facts.leadItems), ['See the rule.'.length]);
-      expect(facts.lead, (lines: 1, chars: lead.length));
+      expect(facts.lead, const SectionCounts(lines: 1, chars: lead.length));
     });
 
     test('crlf doc stores the same visible counts', () {

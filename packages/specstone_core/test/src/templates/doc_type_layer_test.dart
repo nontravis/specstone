@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/record_status.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -1477,6 +1478,210 @@ lint:
             'message',
             'when_field values holds no value',
           ),
+        ),
+      );
+    });
+  });
+
+  group('DocTypeLayer.parse refusals end the load', () {
+    TypeMatcher<TemplateFault> refusal(FaultCode code, String key) =>
+        _fault(code, key: key).having((f) => f.exitStatus, 'exit status', 78);
+
+    test('a field entry with an unknown key stops the load naming '
+        'the file and the key', () {
+      expect(
+        () => _parse('fields: [{id: size, colour: red}]'),
+        throwsA(refusal(FaultCode.unknownKey, 'fields.size.colour')),
+      );
+    });
+
+    test('a field entry with no id exits 78 at the entry index', () {
+      expect(
+        () => _parse('fields: [{type: string}]'),
+        throwsA(refusal(FaultCode.missingKey, 'fields[0].id')),
+      );
+    });
+
+    test('a section entry with no id exits 78 at the entry index', () {
+      expect(
+        () => _parse('sections: [{header: Goal}]'),
+        throwsA(refusal(FaultCode.missingKey, 'sections[0].id')),
+      );
+    });
+
+    test('a field type outside the ten field types exits 78', () {
+      expect(
+        () => _parse('fields: [{id: size, type: float}]'),
+        throwsA(refusal(FaultCode.unknownValue, 'fields.size.type')),
+      );
+    });
+
+    test('an enum field with no enum list exits 78', () {
+      expect(
+        () => _parse('fields: [{id: kind, type: enum}]'),
+        throwsA(refusal(FaultCode.missingKey, 'fields.kind.enum')),
+      );
+    });
+
+    test('an id unlike the file name exits 78 at the id key', () {
+      expect(
+        () => _parse('id: epic\n'),
+        throwsA(refusal(FaultCode.docTypeIdMismatch, 'id')),
+      );
+    });
+
+    test('a section id starting with an underscore exits 78', () {
+      expect(
+        () => _parse('sections: [{id: _lead}]'),
+        throwsA(refusal(FaultCode.unknownValue, 'sections[0].id')),
+      );
+    });
+
+    test('a max_depth of -1 or three exits 78 at the max_depth key', () {
+      for (final value in ['-1', 'three']) {
+        expect(
+          () => _parse('max_depth: $value\n'),
+          throwsA(refusal(FaultCode.unknownValue, 'max_depth')),
+          reason: value,
+        );
+      }
+    });
+
+    test('a file name that is no slug exits 78 at the id key', () {
+      for (final name in ['Grid', 'api-v2']) {
+        final file = '.specstone/templates/$name.yaml';
+        expect(
+          () => DocTypeLayer.parse(
+            'description: x\n',
+            file: file,
+            docTypeId: name,
+            kind: LayerKind.project,
+            files: const _FakeFiles({}),
+          ),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.unknownValue)
+                .having((f) => f.file, 'file', file)
+                .having((f) => f.key, 'key', 'id')
+                .having((f) => f.exitStatus, 'exit status', 78),
+          ),
+          reason: name,
+        );
+      }
+    });
+
+    test('a section skeleton that is no boolean exits 78', () {
+      expect(
+        () => _parse('sections: [{id: goal, skeleton: header}]'),
+        throwsA(refusal(FaultCode.unknownValue, 'sections[0].skeleton')),
+      );
+    });
+
+    test('a doc type and a field export that are no boolean exit 78', () {
+      expect(
+        () => _parse('export: no\n'),
+        throwsA(refusal(FaultCode.unknownValue, 'export')),
+      );
+      expect(
+        () => _parse('fields: [{id: note, type: string, export: no}]'),
+        throwsA(refusal(FaultCode.unknownValue, 'fields.note.export')),
+      );
+    });
+
+    test('an empty when_field values list exits 78 naming the empty '
+        'values', () {
+      expect(
+        () => _parse(
+          'sections: [{id: goal, header: G, '
+          'when_field: {field: kind, values: []}}]',
+        ),
+        throwsA(
+          refusal(
+            FaultCode.unknownValue,
+            'sections.goal.when_field.values',
+          ).having(
+            (f) => f.message,
+            'message',
+            'when_field values holds no value',
+          ),
+        ),
+      );
+    });
+
+    test('a doc-level lint key outside the list exits 78 naming the '
+        'key', () {
+      expect(
+        () => _parse('lint: {max_words: 3}'),
+        throwsA(refusal(FaultCode.unknownKey, 'lint.max_words')),
+      );
+    });
+
+    test('a section lint key outside the list exits 78 naming the '
+        'key', () {
+      expect(
+        () => _parse('sections: [{id: goal, header: G, lint: {max_words: 3}}]'),
+        throwsA(refusal(FaultCode.unknownKey, 'sections.goal.lint.max_words')),
+      );
+    });
+
+    test('a section line_prefix that is no string exits 78 at its '
+        'key', () {
+      expect(
+        () =>
+            _parse('sections: [{id: goal, header: G, lint: {line_prefix: 3}}]'),
+        throwsA(
+          refusal(FaultCode.unknownValue, 'sections.goal.lint.line_prefix'),
+        ),
+      );
+    });
+
+    test('a section lint that writes max_item_chars exits 78 as no '
+        'section takes it', () {
+      expect(
+        () => _parse(
+          'sections: [{id: goal, header: G, lint: {max_item_chars: 900}}]',
+        ),
+        throwsA(
+          refusal(FaultCode.unknownKey, 'sections.goal.lint.max_item_chars'),
+        ),
+      );
+    });
+
+    test('a doc-level lint that writes max_item_lines exits 78 as a '
+        'section key', () {
+      expect(
+        () => _parse('lint: {max_item_lines: 3}'),
+        throwsA(refusal(FaultCode.unknownKey, 'lint.max_item_lines')),
+      );
+    });
+
+    test('a section lint that writes a sentence or trace note key exits '
+        '78', () {
+      for (final key in [
+        'max_sentence_words',
+        'max_sentence_chars',
+        'trace_note_last',
+      ]) {
+        expect(
+          () => _parse('sections: [{id: goal, header: G, lint: {$key: 3}}]'),
+          throwsA(refusal(FaultCode.unknownKey, 'sections.goal.lint.$key')),
+          reason: key,
+        );
+      }
+    });
+
+    test('a reference add entry holding a doc in a personal layer is '
+        'refused at its add key', () {
+      expect(
+        () => DocTypeLayer.parse(
+          'reference: {add: [{title: T, doc: prd/feature}]}',
+          file: _file,
+          docTypeId: 'feature',
+          kind: LayerKind.personal,
+          files: const _FakeFiles({}),
+        ),
+        throwsA(
+          refusal(FaultCode.referenceDocOutsideProject, 'reference.add[0]'),
         ),
       );
     });

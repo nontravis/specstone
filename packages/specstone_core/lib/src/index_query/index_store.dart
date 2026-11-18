@@ -10,7 +10,11 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
+import 'package:specstone_core/src/index_query/models/indexed_item_words.dart';
+import 'package:specstone_core/src/index_query/models/indexed_link.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -169,15 +173,6 @@ const _tables = [
   'diagram_parses',
   'doc_search',
 ];
-
-/// The stat values of a file that stand in for its content between refreshes.
-///
-/// - `size`: in bytes.
-/// - `modified`: the mtime, in microseconds since the epoch.
-/// - `changed`: the ctime on POSIX, the creation time on Windows, in
-///   microseconds since the epoch.
-/// - `mode`: the permission and type bits.
-typedef FileStatKey = ({int size, int modified, int changed, int mode});
 
 /// The values that decide whether an index is still current.
 ///
@@ -406,7 +401,12 @@ final class IndexStore {
           final int changed,
           final int mode,
         ) =>
-          (size: size, modified: modified, changed: changed, mode: mode),
+          FileStatKey(
+            size: size,
+            modified: modified,
+            changed: changed,
+            mode: mode,
+          ),
         _ => null,
       },
   };
@@ -791,7 +791,10 @@ final class IndexStore {
         jsonDecode(doc['line_facts'] as String) as Map<String, Object?>,
         sectionCounts: [
           for (final row in rows)
-            (lines: row['line_count'] as int, chars: row['char_count'] as int),
+            SectionCounts(
+              lines: row['line_count'] as int,
+              chars: row['char_count'] as int,
+            ),
         ],
       ),
       readBannedMatches: () =>
@@ -824,24 +827,26 @@ final class IndexStore {
   ];
 
   /// Returns every link as its source and target docPath.
-  List<({String source, String target})> loadLinks() => [
+  List<IndexedLink> loadLinks() => [
     for (final row in _db.select(
       'SELECT source, target FROM links ORDER BY source, position',
     ))
-      (source: row['source'] as String, target: row['target'] as String),
+      IndexedLink(
+        source: row['source'] as String,
+        target: row['target'] as String,
+      ),
   ];
 
   /// Returns the normalized words of every item of a rule-bearing section,
   /// by docPath and then item order.
   ///
   /// Only `check --repeats` reads them, so no other read decodes them.
-  Iterable<({String docPath, int line, String? itemId, List<String> words})>
-  ruleItemWords() => [
+  Iterable<IndexedItemWords> ruleItemWords() => [
     for (final row in _db.select(
       'SELECT doc_path, line, item_id, words FROM item_words '
       'ORDER BY doc_path, position',
     ))
-      (
+      IndexedItemWords(
         docPath: row['doc_path'] as String,
         line: row['line'] as int,
         itemId: row['item_id'] as String?,

@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/reference_links.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -44,6 +47,22 @@ const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
 const _bom = [0xEF, 0xBB, 0xBF];
 
+const _recordType = '''
+id: implementation
+description: One feature record.
+path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
+parent: feature
+per_target: true
+fields:
+  - id: statuses
+    type: record_status
+    list: true
+''';
+
+const _record = '.specstone/records/f05_rendering/IMPLEMENTATION.md';
+const _recordOnDisk = '# Record\nbody   \n';
+const _recordFormatted = '# Record\n\nbody\n';
+
 typedef _Run = ({Directory root, DocsProject project});
 
 Future<_Run> _open(
@@ -69,6 +88,17 @@ FormatReport _run(_Run run, {bool check = false, String? target}) =>
       ),
       check: check,
     );
+
+FormatReport _runWithRecords(_Run run, {String? target}) => runFormat<void>(
+  run.project,
+  run.project.resolveTarget(
+    target,
+    workingDirectory: run.root,
+    defaultsToDocsRoot: true,
+    includeRecordsRoot: true,
+  ),
+  check: false,
+);
 
 File _file(_Run run, String path) =>
     File('${run.root.path}${Platform.pathSeparator}$path');
@@ -143,6 +173,23 @@ Future<_Run> _openNotes(Map<String, String> docs) async {
   return (root: root, project: project);
 }
 
+/// Opens a project whose doc types hold the notes type and the [extra] ones.
+Future<_Run> _openMixed(
+  Map<String, String> docs, {
+  Map<String, String> extra = const {},
+}) async {
+  final root = await fixtureProject(docs);
+  final project = DocsProject.open(
+    templates: TemplateResolver(
+      shippedFiles: fixturePackFiles(extra: {'note.yaml': _note, ...extra}),
+      generatorKinds: {...shippedGeneratorKinds, 'note_toc'},
+    ),
+    workingDirectory: root,
+    homeDirectory: null,
+  );
+  return (root: root, project: project);
+}
+
 FormatReport _runNotes(
   _Run run,
   GeneratorRun<String> generators, {
@@ -179,6 +226,23 @@ void main() {
     expect(_read(run, _feature), _featureFormatted.replaceAll('\n', '\r\n'));
   });
 
+  test('a CRLF doc with a padded table and a trailing space is laid out and '
+      'written with CRLF only', () async {
+    const disk =
+        '# F-05\n\n## Feature name\n\n- **Human:** Rendering   \n\n'
+        '## Feature goal\n\n| Field     | Type   |\n|-----------|--------|\n'
+        '| why       | share  |\n';
+    const laidOut =
+        '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n\n'
+        '## Feature goal\n\n| Field | Type |\n|---|---|\n| why | share |\n';
+    final run = await _open({_feature: disk.replaceAll('\n', '\r\n')});
+
+    final report = _run(run);
+
+    expect(report.files.single.status, FileStatus.formatted);
+    expect(_read(run, _feature), laidOut.replaceAll('\n', '\r\n'));
+  });
+
   test('a BOM doc out of order is rewritten with the BOM first '
       'and the sections ordered', () async {
     final run = await _open({_feature: ''});
@@ -205,9 +269,8 @@ void main() {
     expect(_read(run, _feature), '# T\n');
   });
 
-  test('a CRLF '
-      'copy of a formatted doc is unchanged, not written, not listed by '
-      'check', () async {
+  test('a CRLF copy of a formatted doc is unchanged, not written, not '
+      'listed by check', () async {
     final crlf = _featureFormatted.replaceAll('\n', '\r\n');
     final run = await _open({_feature: crlf});
     final old = DateTime.utc(2000);
@@ -227,34 +290,91 @@ void main() {
     );
   });
 
-  test(
-    'check lists '
-    'what would change and writes nothing; formatted docs list nothing',
-    () async {
-      final run = await _open({
-        _feature: _featureOutOfOrder,
-        _story: _storyUnknown,
-      });
+  test('check lists what would change and writes nothing; formatted docs list '
+      'nothing', () async {
+    final run = await _open({
+      _feature: _featureOutOfOrder,
+      _story: _storyUnknown,
+    });
+
+    final report = _run(run, check: true);
+
+    expect(_read(run, _feature), _featureOutOfOrder);
+    expect(_read(run, _story), _storyUnknown);
+    expect(
+      report.toText(),
+      '$_feature\n$_story: refused: unknown header "## Notes"\n',
+    );
+    expect(report.exitStatus, 1);
+
+    final clean = await _open({
+      _feature: _featureFormatted,
+      _story: _storyFormatted,
+    });
+    final cleanReport = _run(clean, check: true);
+    expect(cleanReport.toText(), '');
+    expect(cleanReport.exitStatus, 0);
+  });
+
+  test('check lists a doc two doc types match, a doc whose layout changes its '
+      'structure, an open block, and a duplicate header; exit 1', () async {
+    const structure = '---\n# F-05\n\n## Feature name\nx\n--- \n';
+    final openDoc = '# A\n\n## Contents\n$_toc\nno end\n\n## Steps\nx\n';
+    final cases = [
+      (
+        path: _feature,
+        text: _featureOutOfOrder,
+        extra: {'zeta.yaml': _zeta},
+        line: '$_feature: refused: doc types feature, zeta match this path\n',
+      ),
+      (
+        path: _feature,
+        text: structure,
+        extra: const <String, String>{},
+        line: '$_feature: refused: layout would change the doc structure\n',
+      ),
+      (
+        path: _noteA,
+        text: openDoc,
+        extra: const <String, String>{},
+        line: '$_noteA: refused: open generated block note_toc\n',
+      ),
+      (
+        path: _story,
+        text: '$_storyFormatted\n## Summary\ntwice\n',
+        extra: const <String, String>{},
+        line: '$_story: refused: duplicate header "## Summary"\n',
+      ),
+    ];
+
+    for (final (:path, :text, :extra, :line) in cases) {
+      final run = await _openMixed({path: text}, extra: extra);
 
       final report = _run(run, check: true);
 
-      expect(_read(run, _feature), _featureOutOfOrder);
-      expect(_read(run, _story), _storyUnknown);
-      expect(
-        report.toText(),
-        '$_feature\n$_story: refused: unknown header "## Notes"\n',
-      );
-      expect(report.exitStatus, 1);
+      expect(report.toText(), line, reason: path);
+      expect(report.exitStatus, 1, reason: path);
+      expect(_read(run, path), text, reason: path);
+    }
+  });
 
-      final clean = await _open({
-        _feature: _featureFormatted,
-        _story: _storyFormatted,
-      });
-      final cleanReport = _run(clean, check: true);
-      expect(cleanReport.toText(), '');
-      expect(cleanReport.exitStatus, 0);
-    },
-  );
+  test('check skips a doc no doc type matches with a warning and lists '
+      'nothing for it', () async {
+    final run = await _open({_feature: _featureFormatted, _notes: 'free text'});
+
+    final report = _run(run, check: true);
+
+    expect(
+      [for (final f in report.files) (f.path, f.status)],
+      [(_feature, FileStatus.unchanged), (_notes, FileStatus.skipped)],
+    );
+    expect(report.warnings, [
+      '$_notes: no doc type matches this path; skipped',
+    ]);
+    expect(report.toText(), '');
+    expect(report.exitStatus, 0);
+    expect(_read(run, _notes), 'free text');
+  });
 
   test('a doc no doc type matches is '
       'skipped with a warning; the others are still formatted', () async {
@@ -289,6 +409,116 @@ void main() {
 
     expect([for (final f in report.files) f.path], [_feature]);
     expect(report.warnings, isEmpty);
+  });
+
+  test('a folder whose name starts with a dot is left out of the walk and '
+      'never warned about', () async {
+    final run = await _open({
+      _feature: _featureFormatted,
+      'docs/.git/HEAD': 'ref: refs/heads/main',
+      'docs/$_featureDir/.git/config': 'x',
+      'docs/.cache/prds/features/f06_other/FEATURE.md': _featureOutOfOrder,
+    });
+
+    final report = _run(run);
+
+    expect([for (final f in report.files) f.path], [_feature]);
+    expect(report.warnings, isEmpty);
+    expect(
+      _read(run, 'docs/.cache/prds/features/f06_other/FEATURE.md'),
+      _featureOutOfOrder,
+    );
+  });
+
+  test('a symbolic link to a file or a folder in the docs root is neither '
+      'listed nor formatted', () async {
+    final run = await _open({
+      _feature: _featureFormatted,
+      'elsewhere/FEATURE.md': _featureOutOfOrder,
+      'elsewhere/folder/FEATURE.md': _featureOutOfOrder,
+      'docs/prds/features/f06_linked/.keep': '',
+    });
+    Link(_file(run, 'docs/prds/features/f06_linked/FEATURE.md').path)
+        .createSync(_file(run, 'elsewhere/FEATURE.md').path);
+    Link(_file(run, 'docs/prds/features/f07_folder').path)
+        .createSync(_file(run, 'elsewhere/folder').path);
+
+    final report = _run(run);
+
+    expect([for (final f in report.files) f.path], [_feature]);
+    expect(report.warnings, isEmpty);
+    expect(report.exitStatus, 0);
+    expect(_read(run, 'elsewhere/FEATURE.md'), _featureOutOfOrder);
+    expect(_read(run, 'elsewhere/folder/FEATURE.md'), _featureOutOfOrder);
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+  group('a records root', () {
+    Future<_Run> openWithRecord() => _open({
+      '.specstone/templates/implementation.yaml': _recordType,
+      _feature: _featureOutOfOrder,
+      _record: _recordOnDisk,
+    });
+
+    test('a records file or folder as the target formats that target only; '
+        'the docs root as the target takes in the records root', () async {
+      final cases = [
+        (target: _record, formatted: [_record]),
+        (target: '.specstone/records', formatted: [_record]),
+        (target: null, formatted: [_feature, _record]),
+      ];
+
+      for (final (:target, :formatted) in cases) {
+        final run = await openWithRecord();
+
+        final report = _runWithRecords(run, target: target);
+
+        expect(
+          [for (final f in report.files) f.path],
+          formatted,
+          reason: '$target',
+        );
+        expect(_read(run, _record), _recordFormatted, reason: '$target');
+        expect(
+          _read(run, _feature),
+          formatted.contains(_feature) ? _featureFormatted : _featureOutOfOrder,
+          reason: '$target',
+        );
+      }
+    });
+
+    test('an absent records root leaves the docs root formatted alone with no '
+        'refusal and no warning', () async {
+      final run = await _open({_feature: _featureOutOfOrder});
+
+      final report = _runWithRecords(run);
+
+      expect([for (final f in report.files) f.path], [_feature]);
+      expect(report.warnings, isEmpty);
+      expect(report.exitStatus, 0);
+      expect(_read(run, _feature), _featureFormatted);
+    });
+
+    test('a records root that is a symbolic link is not followed, with no '
+        'refusal and no warning', () async {
+      final run = await _open({
+        '.specstone/templates/implementation.yaml': _recordType,
+        _feature: _featureOutOfOrder,
+        'elsewhere/f05_rendering/IMPLEMENTATION.md': _recordOnDisk,
+      });
+      Link(_file(run, '.specstone/records').path)
+          .createSync(_file(run, 'elsewhere').path);
+
+      final report = _runWithRecords(run);
+
+      expect([for (final f in report.files) f.path], [_feature]);
+      expect(report.warnings, isEmpty);
+      expect(report.exitStatus, 0);
+      expect(_read(run, _feature), _featureFormatted);
+      expect(
+        _read(run, 'elsewhere/f05_rendering/IMPLEMENTATION.md'),
+        _recordOnDisk,
+      );
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
   });
 
   test('a doc two doc types match is refused '
@@ -329,7 +559,62 @@ void main() {
     );
   });
 
-  test('a doc ending inside a fence is refused and left '
+  test(
+    'a doc refused for two doc types, a duplicate header, or a layout '
+    'that changes its structure leaves the other docs written; exit 1',
+    () async {
+      const structure = '---\n# F-05\n\n## Feature name\nx\n--- \n';
+      final cases = [
+        (
+          docs: {_feature: _featureOutOfOrder, _story: _storyOutOfOrder},
+          extra: {'zeta.yaml': _zeta},
+          refused: _feature,
+          written: _story,
+          writtenText: _storyFormatted,
+          text:
+              '$_feature: refused: doc types feature, zeta match this path\n'
+              '$_story: formatted\n',
+        ),
+        (
+          docs: {
+            _feature: _featureOutOfOrder,
+            _story: '$_storyFormatted\n## Summary\ntwice\n',
+          },
+          extra: const <String, String>{},
+          refused: _story,
+          written: _feature,
+          writtenText: _featureFormatted,
+          text:
+              '$_feature: formatted\n'
+              '$_story: refused: duplicate header "## Summary"\n',
+        ),
+        (
+          docs: {_feature: structure, _story: _storyOutOfOrder},
+          extra: const <String, String>{},
+          refused: _feature,
+          written: _story,
+          writtenText: _storyFormatted,
+          text:
+              '$_feature: refused: layout would change the doc structure\n'
+              '$_story: formatted\n',
+        ),
+      ];
+
+      for (final (:docs, :extra, :refused, :written, :writtenText, :text)
+          in cases) {
+        final run = await _open(docs, extra: extra);
+
+        final report = _run(run);
+
+        expect(report.toText(), text, reason: refused);
+        expect(report.exitStatus, 1, reason: refused);
+        expect(_read(run, refused), docs[refused], reason: refused);
+        expect(_read(run, written), writtenText, reason: written);
+      }
+    },
+  );
+
+  test('a doc that ends inside a code fence is refused and left '
       'alone; a second run adds no section either', () async {
     const unclosed = '# F-05\n\n## Feature name\n- **Human:** x\n```\ncode\n';
     final run = await _open({_feature: unclosed, _story: _storyOutOfOrder});
@@ -502,6 +787,23 @@ void main() {
     expect(_file(run, _feature).readAsBytesSync(), [0xFF, 0xFE]);
   });
 
+  test('a doc that is not UTF-8 does not stop the other docs from being '
+      'written; exit 0', () async {
+    final run = await _open({_feature: '', _story: _storyOutOfOrder});
+    _file(run, _feature).writeAsBytesSync([0xFF, 0xFE]);
+
+    final report = _run(run);
+
+    expect(
+      [for (final f in report.files) (f.path, f.status)],
+      [(_feature, FileStatus.skipped), (_story, FileStatus.formatted)],
+    );
+    expect(report.warnings, ['$_feature: not UTF-8 text; skipped']);
+    expect(report.exitStatus, 0);
+    expect(_file(run, _feature).readAsBytesSync(), [0xFF, 0xFE]);
+    expect(_read(run, _story), _storyFormatted);
+  });
+
   test('a file target formats that file only', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -570,6 +872,32 @@ void main() {
       expect(_file(run, _story).statSync().mode & 0x80, 0);
       expect(_read(run, _feature), _featureFormatted);
     }, skip: Platform.isWindows ? readOnlySkip : false);
+
+    test('a doc with the Windows read-only attribute set refuses with '
+        'output_not_writable and stays untouched; docs written before it stay '
+        'written', () async {
+      final run = await _open({
+        _feature: _featureOutOfOrder,
+        _story: _storyOutOfOrder,
+      });
+      final story = _file(run, _story);
+      addTearDown(() => Process.run('attrib', ['-R', story.path]));
+      expect((await Process.run('attrib', ['+R', story.path])).exitCode, 0);
+
+      expect(
+        () => _run(run),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.file, 'file', _story)
+              .having((f) => f.message, 'message', 'the doc is read-only')
+              .having((f) => f.exitStatus, 'exitStatus', 73),
+        ),
+      );
+
+      expect(_read(run, _story), _storyOutOfOrder);
+      expect(_read(run, _feature), _featureFormatted);
+    }, testOn: 'windows');
 
     test('a read-only doc that needs no change is unchanged', () async {
       final run = await _open({_feature: _featureFormatted});
@@ -657,6 +985,143 @@ void main() {
     expect(report.files.single.status, FileStatus.formatted);
   }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
+  test('an approved doc rewritten by format keeps an approval hash that '
+      'still matches its text', () async {
+    final run = await _open({_feature: ''});
+    final docType = (run.project.matcher.match(
+      'prds/features/f05_rendering/FEATURE.md',
+    ) as MatchedDocType).docType;
+    String hashOf(String text) => approvalHashOf(
+      toLf(text),
+      docType,
+      statusesOutside: run.project.statusesOutsideApproval,
+    );
+    final hash = hashOf(_featureOutOfOrder);
+    final approved = '---\napproved: "$hash"\n---\n$_featureOutOfOrder';
+    _file(run, _feature).writeAsStringSync(approved);
+    expect(hashOf(approved), hash);
+
+    final report = _run(run);
+
+    expect(report.files.single.status, FileStatus.formatted);
+    final written = _read(run, _feature);
+    expect(written, isNot(approved));
+    expect(written, startsWith('---\napproved: "$hash"\n---\n'));
+    expect(hashOf(written), hash);
+  });
+
+  test('a first write is refused when no trust record matches the docs '
+      'folder outside the project', () async {
+    final outside = await writeTree({
+      'prds/features/f05_rendering/FEATURE.md': _featureOutOfOrder,
+    });
+    final root = await fixtureProject({});
+    Link('${root.path}/docs').createSync(outside.path);
+    final home = await writeTree({});
+    final project = DocsProject.open(
+      templates: TemplateResolver(shippedFiles: fixturePackFiles()),
+      workingDirectory: root,
+      homeDirectory: home,
+    );
+
+    expect(
+      () => _run((root: root, project: project)),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.file, 'file', _feature)
+            .having(
+              (f) => f.message,
+              'message',
+              allOf(
+                startsWith('cannot write $_feature: the docs folder '),
+                endsWith(
+                  'lies outside the project; '
+                  'run specstone trust at a terminal to allow it',
+                ),
+              ),
+            )
+            .having((f) => f.exitStatus, 'exitStatus', 73),
+      ),
+    );
+    expect(
+      File('${outside.path}/prds/features/f05_rendering/FEATURE.md')
+          .readAsStringSync(),
+      _featureOutOfOrder,
+    );
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+  group('a doc that turns into a link before its write', () {
+    const leadsOutside = 'it leads outside the project';
+    const underGit = 'it lies under .git';
+
+    // The link replaces the doc once the run has read it and opens its
+    // resolver, the last step before the first write.
+    Future<({_Run run, _Calls calls, String linked})> swapped(
+      String reason,
+    ) async {
+      final run = await _openNotes({
+        _noteA: _noteDoc(_stale()),
+        _noteB: _noteDoc(_stale()),
+      });
+      final elsewhere =
+          reason == leadsOutside
+                ? await writeTree({'b.md': 'elsewhere'})
+                : Directory('${run.root.path}/docs/.git/x')
+            ..createSync(recursive: true);
+      final linked = '${elsewhere.path}/b.md';
+      File(linked).writeAsStringSync('elsewhere');
+      final calls = _Calls()
+        ..onOpen = () {
+          final doc = _file(run, _noteB)..deleteSync();
+          Link(doc.path).createSync(linked);
+        };
+      return (run: run, calls: calls, linked: linked);
+    }
+
+    test('a doc linked outside the project or under .git is refused with '
+        'output_not_writable, exit 73, and the message for each', () async {
+      for (final reason in [leadsOutside, underGit]) {
+        final (:run, :calls, :linked) = await swapped(reason);
+
+        expect(
+          () => _runNotes(run, _tocRun(calls)),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.file, 'file', _noteB)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'cannot write $_noteB: $reason',
+                )
+                .having((f) => f.exitStatus, 'exitStatus', 73),
+          ),
+          reason: reason,
+        );
+        expect(File(linked).readAsStringSync(), 'elsewhere', reason: reason);
+        expect(_read(run, _noteA), _noteDoc(_fresh()), reason: reason);
+      }
+    });
+
+    test('--check raises no fault for a doc linked outside the project or '
+        'under .git and writes nothing', () async {
+      for (final reason in [leadsOutside, underGit]) {
+        final (:run, :calls, :linked) = await swapped(reason);
+
+        final report = _runNotes(run, _tocRun(calls), check: true);
+
+        expect(report.toText(), '$_noteA\n$_noteB\n', reason: reason);
+        expect(File(linked).readAsStringSync(), 'elsewhere', reason: reason);
+        expect(_read(run, _noteA), _noteDoc(_stale()), reason: reason);
+      }
+    });
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
   group('generated blocks', () {
     test('format rewrites a stale block and '
         'keeps every other byte, draft and confirmed included', () async {
@@ -690,8 +1155,8 @@ void main() {
       );
     });
 
-    test('format --check '
-        'lists a doc with a stale block, writes nothing, exits 1', () async {
+    test('format --check lists a doc with a stale block, writes nothing, '
+        'exits 1', () async {
       final run = await _openNotes({_noteA: _noteDoc(_stale())});
 
       final report = _runNotes(run, _tocRun(_Calls()), check: true);

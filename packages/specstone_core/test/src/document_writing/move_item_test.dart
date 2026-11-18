@@ -3,6 +3,8 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
 import 'package:specstone_core/src/document_writing/item_landing.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
@@ -14,6 +16,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/override_link_fixture.dart'
     show domainDoc, overrideFiles, rootAddress, rootFingerprint;
@@ -299,6 +302,39 @@ void main() {
       expect(fault.message, contains('specs/f02_shop/f03_pay/DOMAIN.md'));
     });
 
+    test('an --under that names 2 or more docs is argument_invalid with each candidate', () async {
+      final fault = await _refusal(
+        ['domain:shop#INV-3'],
+        under: 'domain:shop/pay',
+        extra: {
+          'docs/prds/features/f02_shop/f03_pay/FEATURE.md': '# Pay\n',
+          'docs/specs/f02_shop/f03_pay/DOMAIN.md': _domain([_inv(1)]),
+        },
+      );
+      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
+      expect(fault.exitStatus, 64);
+      expect(fault.message, contains(_payDomain));
+      expect(fault.message, contains('specs/f02_shop/f03_pay/DOMAIN.md'));
+    });
+
+    test('a source address written as a name suffix names its doc', () async {
+      final root = await _project(shop: [_inv(1)], pay: [_inv(1), _inv(6)]);
+      final landing = _plan(root, ['domain:pay#INV-6']).single;
+      expect(landing.from.doc.docPath, _payDomain);
+    });
+
+    test(
+      'one of several targets naming no doc refuses the whole call',
+      () async {
+        final fault = await _refusal([
+          'domain:shop#INV-3',
+          'domain:nothing#INV-1',
+        ]);
+        expect((fault as IndexFault).code, IndexFaultCode.docNotFound);
+        expect(fault.exitStatus, 64);
+      },
+    );
+
     test('a target doc type with no section of that key and prefix is argument_invalid', () async {
       final fault = await _refusal(['domain:shop#INV-3'], under: 'api:shop');
       expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
@@ -512,6 +548,32 @@ void main() {
       },
     );
 
+    test('an item beside an fr or an nf target takes the same refusal', () async {
+      for (final doc in [
+        'fr:shop/cart/add_item/check_stock',
+        'nf:shop/cart/add_item/stock_time',
+      ]) {
+        final fault = await refused(
+          ['domain:shop#INV-3', doc],
+          under: 'shop/cart',
+          extra: {
+            'docs/prds/features/f02_shop/f01_cart/us01_add_item/nf01_stock_time.md': '# Stock time\n\n## Statement\n\nThe system shall check stock within 1 s.\n',
+          },
+        );
+        expect(
+          (fault as IndexFault).code,
+          IndexFaultCode.argumentInvalid,
+          reason: doc,
+        );
+        expect(fault.exitStatus, 64, reason: doc);
+        expect(
+          fault.message,
+          'move takes item targets or doc targets, not both',
+          reason: doc,
+        );
+      }
+    });
+
     test('an item beside a spec doc is doc_type_not_movable, before the mixed test', () async {
       final fault = await refused([
         'domain:shop#INV-3',
@@ -675,6 +737,35 @@ void main() {
           contains('specs/app/f02_shop/DOMAIN.md'),
           contains('specs/server/f02_shop/DOMAIN.md'),
         ),
+      );
+    });
+
+    test('a refusal over --target writes no doc', () async {
+      final root = await twoTargets();
+      final before = _docs(root);
+      for (final codeTarget in [null, 'nothing']) {
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              const ['domain:shop#INV-3'],
+              under: 'domain:shop/cart',
+              codeTarget: codeTarget,
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64),
+          ),
+          reason: '$codeTarget',
+        );
+        expect(_docs(root), before, reason: '$codeTarget');
+      }
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
       );
     });
 
@@ -892,6 +983,66 @@ void main() {
         'rewritten': [shopDomain, cartDomain],
         'mentions': <Object?>[],
       });
+    });
+
+    test(
+      'the reply prints a rewrote line for each other doc whose bytes changed',
+      () async {
+        final root = await _project(
+          shop: [_inv(1), _inv(2), _inv(3)],
+          pay: [
+            _inv(1),
+            '- **INV-2** Pay follows [INV-3](../DOMAIN.md#invariants).',
+          ],
+        );
+        final answer = move(root, ['domain:shop#INV-3']);
+        expect(
+          answer.text,
+          'moved $shopDomain#INV-3 to $cartDomain#INV-3\n'
+          'rewrote $shopDomain\n'
+          'rewrote $cartDomain\n'
+          'rewrote $_payDomain\n',
+        );
+        expect(
+          readDoc(root, _payDomain),
+          contains('[INV-3](../f01_cart/DOMAIN.md#invariants)'),
+        );
+      },
+    );
+
+    test('a doc that links two moved items is rewritten once, both links in the one pass', () async {
+      final root = await _project(
+        shop: [for (var n = 1; n <= 7; n++) _inv(n)],
+        pay: [
+          _inv(1),
+          '- **INV-2** Pay follows [INV-3](../DOMAIN.md#invariants) and [INV-7](../DOMAIN.md#invariants).',
+        ],
+      );
+      final answer = move(root, ['domain:shop#INV-3', 'domain:shop#INV-7']);
+      expect(answer.json['rewritten'], [shopDomain, cartDomain, _payDomain]);
+      expect('rewrote $_payDomain\n'.allMatches(answer.text), hasLength(1));
+      expect(
+        readDoc(root, _payDomain),
+        contains(
+          '[INV-3](../f01_cart/DOMAIN.md#invariants) and '
+          '[INV-7](../f01_cart/DOMAIN.md#invariants)',
+        ),
+      );
+    });
+
+    test('a dry run lists an item named twice once', () async {
+      final root = await _project(shop: [_inv(1), _inv(2), _inv(3)]);
+      final answer = move(root, [
+        'domain:shop#INV-3',
+        '$shopDomain#INV-3',
+      ], dryRun: true);
+      expect(
+        answer.text,
+        'moves $shopDomain#INV-3 to $cartDomain#INV-3\n'
+        'rewrites $shopDomain\n'
+        'rewrites $cartDomain\n'
+        'dry run: nothing moved\n',
+      );
     });
 
     test('a dry run prints moves, renumbers, rewrites, and the closing line, and writes no file', () async {
@@ -1139,6 +1290,337 @@ void main() {
         ]);
         expect(bodyOf(root, shopDomain), '# Domain\n\n## Invariants\n$tail');
       });
+    });
+  });
+
+  group('an edge case move rewrites the record rows that name it', () {
+    const dropFr =
+        'prds/features/f02_shop/f01_cart/us01_add_item/fr02_drop_stock.md';
+    const chargeFr = 'prds/features/f02_shop/f02_pay/us01_card/fr01_charge.md';
+    const matrix = '\n## Verification matrix\n\n';
+    const soldOutRow = '- add_item/check_stock E01: `refuses a sold-out item`';
+    const missingRow = '- add_item/check_stock E02: `refuses a missing item`';
+
+    String fr(List<int> edgeCases) =>
+        '---\ntraced_from:\n  - S1\nverify_method: test\n---\n\n'
+        '# Requirement\n\n## Statement\n$checkStockStatement\n\n'
+        '## Edge cases\n'
+        '${[for (final n in edgeCases) '$n. E0$n — Case $n → refused.'].join('\n')}\n\n'
+        '## Rationale\nStock is finite.\n\n'
+        '## Verification\nTest: a case is refused.\n';
+
+    Future<Directory> project() => writeNestedProject(
+      extra: {
+        ...nestedRecords(),
+        'docs/$cartAddFr': fr([1, 2]),
+        'docs/$dropFr': fr([1]),
+        'docs/$chargeFr': fr([1]),
+        cartRecord:
+            '${nestedRecords()[cartRecord]}$matrix$soldOutRow\n$missingRow\n',
+      },
+    );
+
+    ReadAnswer move(
+      Directory root, {
+      required String under,
+      bool dryRun = false,
+    }) => writeIn(
+      root,
+      (session) => answerMove(
+        session,
+        ['fr:shop/cart/add_item/check_stock#E01'],
+        under: under,
+        dryRun: dryRun,
+      ),
+    );
+
+    test('a row names the edge case at its target requirement and new number, and a row of an edge case that stays keeps its text', () async {
+      final root = await project();
+      move(root, under: 'fr:shop/cart/add_item/drop_stock');
+      expect(
+        readDoc(root, cartRecord),
+        endsWith(
+          '$matrix- add_item/drop_stock E02: `refuses a sold-out item`\n'
+          '$missingRow\n',
+        ),
+      );
+    });
+
+    test("a requirement of another feature takes the row into that feature's record, named relative to it", () async {
+      final root = await project();
+      move(root, under: 'fr:shop/pay/card/charge');
+      expect(readDoc(root, cartRecord), endsWith('$matrix$missingRow\n'));
+      expect(
+        readDoc(root, payRecord),
+        endsWith('$matrix- card/charge E02: `refuses a sold-out item`\n'),
+      );
+    });
+
+    test(
+      'a dry run lists the record among the docs it rewrites and writes none',
+      () async {
+        final root = await project();
+        final before = readDoc(root, cartRecord);
+        final answer = move(
+          root,
+          under: 'fr:shop/cart/add_item/drop_stock',
+          dryRun: true,
+        );
+        expect(answer.text, contains('rewrites $cartRecord\n'));
+        expect(readDoc(root, cartRecord), before);
+      },
+    );
+
+    group('a row stamped before the move', () {
+      const landedCase = '1. E02 — Case 1 → refused.';
+      const movedRow = '- add_item/check_stock E01: `refuses a sold-out item`';
+
+      Future<Directory> stamped(
+        String soldOutStamp, {
+        bool holdsPayRecord = true,
+      }) => writeNestedProject(
+        extra: {
+          ...nestedRecords()
+            ..removeWhere((path, _) => !holdsPayRecord && path == payRecord),
+          'docs/$cartAddFr': fr([1, 2]),
+          'docs/$dropFr': fr([1]),
+          'docs/$chargeFr': fr([1]),
+          cartRecord:
+              '${nestedRecords()[cartRecord]}$matrix'
+              '$movedRow $soldOutStamp\n'
+              '$missingRow ${fingerprintFor('2. E02 — Case 2 → refused.')}\n',
+        },
+      );
+
+      Future<List<Object?>> unsettledLinks(Directory root) async => [
+        for (final finding in (await checkOf(
+          root,
+          docPath: cartRecord,
+        )).findings)
+          if (finding.kind == FindingKind.suspect ||
+              finding.kind == FindingKind.unconfirmed)
+            finding.keys['link'],
+      ];
+
+      test(
+        "a moved edge case's matched row is stamped from its landed block",
+        () async {
+          final root = await stamped(
+            fingerprintFor('1. E01 — Case 1 → refused.'),
+          );
+          move(root, under: 'fr:shop/cart/add_item/drop_stock');
+          expect(readDoc(root, dropFr), contains('$landedCase\n'));
+          expect(
+            readDoc(root, cartRecord),
+            contains(
+              '- add_item/drop_stock E02: `refuses a sold-out item` '
+              '${fingerprintFor(landedCase)}\n',
+            ),
+          );
+          expect(await unsettledLinks(root), isEmpty);
+        },
+      );
+
+      test("a moved edge case's stale row is left as recorded", () async {
+        final stale = fingerprintFor('1. E01 — An old text → refused.');
+        final root = await stamped(stale);
+        move(root, under: 'fr:shop/cart/add_item/drop_stock');
+        expect(
+          readDoc(root, cartRecord),
+          contains(
+            '- add_item/drop_stock E02: `refuses a sold-out item` $stale\n',
+          ),
+        );
+        expect(await unsettledLinks(root), ['add_item/drop_stock#E02']);
+      });
+
+      test(
+        'a row carried into a new record is stamped from its landed block',
+        () async {
+          final root = await stamped(
+            fingerprintFor('1. E01 — Case 1 → refused.'),
+            holdsPayRecord: false,
+          );
+          move(root, under: 'fr:shop/pay/card/charge');
+          expect(readDoc(root, chargeFr), contains('$landedCase\n'));
+          expect(
+            readDoc(root, payRecord),
+            contains(
+              '- card/charge E02: `refuses a sold-out item` '
+              '${fingerprintFor(landedCase)}\n',
+            ),
+          );
+        },
+      );
+    });
+  });
+
+  group('a refusal reads the same with --dry-run and writes no doc', () {
+    String describe(Object fault) => switch (fault) {
+      IndexFault(:final code, :final message, :final exitStatus) =>
+        '${code.wire} $exitStatus: $message',
+      WriteFault(:final code, :final message, :final exitStatus) =>
+        '${code.wire} $exitStatus: $message',
+      _ => fail('not a refusal: $fault'),
+    };
+
+    /// Runs the move with and without --dry-run on one project and returns
+    /// the refusal, asserting both runs give it and no doc changed.
+    Future<String> refusal(
+      List<String> addresses, {
+      String? under = 'domain:shop/cart',
+      bool top = false,
+      String? codeTarget,
+      List<String> shop = const [],
+      List<String> cart = const [],
+      List<String> pay = const [],
+      Map<String, String> extra = const {},
+    }) async {
+      final root = await _project(
+        shop: shop.isEmpty ? [_inv(1), _inv(2), _inv(3)] : shop,
+        cart: cart.isEmpty ? [_inv(1)] : cart,
+        pay: pay,
+        extra: extra,
+      );
+      final before = _docs(root);
+      final described = <String>[];
+      for (final dryRun in [false, true]) {
+        try {
+          writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              addresses,
+              under: under,
+              top: top,
+              codeTarget: codeTarget,
+              dryRun: dryRun,
+            ),
+          );
+        } on Object catch (fault) {
+          described.add(describe(fault));
+          expect(_docs(root), before, reason: 'dryRun $dryRun writes no doc');
+          continue;
+        }
+        fail('no fault raised, dryRun $dryRun');
+      }
+      expect(described.last, described.first);
+      return described.first;
+    }
+
+    test('item targets with no --under, and --top in place of it, are refused alike', () async {
+      expect(
+        await refusal(['domain:shop#INV-3'], under: null),
+        'argument_missing 64: move needs --under <doc address> for item targets',
+      );
+      final top = await refusal(['domain:shop#INV-3'], under: null, top: true);
+      expect(top, startsWith('argument_invalid 64: '));
+    });
+
+    test('an Overrides line outside the target chain refuses the move alike', () async {
+      expect(
+        await refusal(
+          ['domain:shop#INV-3'],
+          pay: [
+            _inv(1),
+            '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
+          ],
+        ),
+        'argument_invalid 64: $_payDomain overrides $shopDomain#INV-3; $cartDomain sits outside its chain',
+      );
+      expect(
+        await refusal(
+          ['domain:shop#INV-3'],
+          cart: [
+            _inv(1),
+            '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
+          ],
+        ),
+        'argument_invalid 64: $cartDomain overrides $shopDomain#INV-3; $cartDomain sits outside its chain',
+      );
+    });
+
+    test('a moved item whose own Overrides line leaves the target chain refuses the move alike', () async {
+      expect(
+        await refusal(
+          ['domain:shop/cart/coupon#INV-5'],
+          cart: [_inv(1), _inv(2)],
+          extra: _couponWithOverride,
+          under: 'domain:shop/pay',
+        ),
+        'argument_invalid 64: $_couponDomain#INV-5 overrides $cartDomain#INV-2, outside the chain of $_payDomain',
+      );
+      expect(
+        await refusal(
+          ['domain:shop/cart/coupon#INV-5'],
+          cart: [_inv(1), _inv(2)],
+          extra: _couponWithOverride,
+        ),
+        'argument_invalid 64: $_couponDomain#INV-5 overrides $cartDomain#INV-2, outside the chain of $cartDomain',
+      );
+    });
+
+    test(
+      'an untyped file as the source or as --under is untyped_target alike',
+      () async {
+        final extra = {
+          'docs/$_notes': '# Notes\n\n## Invariants\n\n${_inv(3)}\n',
+        };
+        final source = await refusal(['$_notes#INV-3'], extra: extra);
+        expect(
+          source,
+          startsWith('untyped_target 64: $_notes has no doc type'),
+        );
+        final under = await refusal(
+          ['domain:shop#INV-3'],
+          extra: extra,
+          under: _notes,
+        );
+        expect(under, startsWith('untyped_target 64: $_notes has no doc type'));
+      },
+    );
+
+    test('a doc move of any kind given --target is refused alike', () async {
+      final extra = {
+        'docs/prds/features/f02_shop/f01_cart/us01_add_item/nf01_stock_time.md': '# Stock time\n\n## Statement\n\nThe system shall check stock within 1 s.\n',
+      };
+      for (final (target, under) in [
+        ('user_story:shop/cart/add_item', 'shop/pay'),
+        ('fr:shop/cart/add_item/check_stock', 'shop/pay/refund'),
+        ('nf:shop/cart/add_item/stock_time', 'shop/pay/refund'),
+        ('feature:shop/cart', 'shop'),
+      ]) {
+        expect(
+          await refusal(
+            [target],
+            under: under,
+            codeTarget: 'server',
+            extra: extra,
+          ),
+          'argument_invalid 64: move takes --target only with item targets',
+          reason: target,
+        );
+      }
+    });
+
+    test(
+      'a suffix that reads as an item ID the doc lacks is item_not_found alike',
+      () async {
+        expect(
+          await refusal(['domain:shop#phase2']),
+          'item_not_found 64: $shopDomain holds no phase2',
+        );
+      },
+    );
+
+    test('a suffix that reads as no item ID makes the whole text a doc target, refused alike', () async {
+      for (final target in ['domain:shop#invariants', 'domain:shop#a#INV-3']) {
+        expect(
+          await refusal([target]),
+          startsWith('argument_invalid 64: '),
+          reason: target,
+        );
+      }
     });
   });
 }

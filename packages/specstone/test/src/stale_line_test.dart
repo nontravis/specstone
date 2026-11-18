@@ -228,6 +228,98 @@ void main() {
     });
   });
 
+  group('a project whose root agent files are current', () {
+    const top = {
+      'app/.git/HEAD': 'ref\n',
+      'app/AGENTS.md':
+          '<!-- BEGIN specstone v1.0.0 -->\nold\n<!-- END specstone -->\n',
+    };
+
+    Future<Directory> current({
+      String stamp = '',
+      String config = '',
+      Map<String, String> files = const {},
+    }) async {
+      final root = await writeTree({'.gitkeep': ''});
+      final init = await run(root, ['init']);
+      expect(init.exitCode, 0, reason: '${init.stderr}');
+      expect((await run(root, ['folder'])).stderr, isEmpty);
+      for (final MapEntry(:key, :value) in files.entries) {
+        File('${root.path}/$key')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(value);
+      }
+      final file = File('${root.path}/.specstone/config.yaml');
+      var text = file.readAsStringSync();
+      if (stamp.isNotEmpty) {
+        text = text.replaceAll(
+          RegExp(r'^agent_files_version:.*\n', multiLine: true),
+          '',
+        );
+        text = '${text}agent_files_version: $stamp\n';
+      }
+      file.writeAsStringSync('$text$config');
+      return root;
+    }
+
+    void goStale(Directory root) =>
+        File('${root.path}/.specstone/AGENT.md').writeAsStringSync('old\n');
+
+    test('a stamp above prints none, and a stale file then prints the '
+        'upgrade line', () async {
+      final root = await current(stamp: _above);
+
+      final quiet = await run(root, ['folder']);
+      goStale(root);
+      final stale = await run(root, ['folder']);
+
+      expect(quiet.exitCode, 0, reason: '${quiet.stderr}');
+      expect(quiet.stderr, isEmpty);
+      expect(stale.stderr, '$_newer\n');
+    });
+
+    Future<void> expectNoLineBesideTop(String config) async {
+      final root = await current(config: config, files: top);
+
+      final result = await run(root, ['folder']);
+      goStale(root);
+      final stale = await run(root, ['folder']);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stderr, isEmpty);
+      expect(stale.stderr, '$_differ\n');
+    }
+
+    test('a stale listed top beside current root files prints none, and a '
+        'stale root file then prints the line', () {
+      return expectNoLineBesideTop(
+        'code_root: app\nagent_file_roots:\n  - app\n',
+      );
+    });
+
+    test('a stale unlisted top beside current root files prints none, and a '
+        'stale root file then prints the line', () {
+      return expectNoLineBesideTop('code_root: app\n');
+    });
+  });
+
+  test(
+    'a config that does not read prints no line and leaves exit status 0',
+    () async {
+      for (final config in ['agent_files_version: [unclosed\n', '- a\n- b\n']) {
+        final root = await writeTree({
+          '.specstone/config.yaml': config,
+          ..._staleAgentMd,
+        });
+
+        final result = await run(root, ['folder']);
+
+        expect(result.exitCode, 0, reason: '$config: ${result.stderr}');
+        expect(result.stderr, isEmpty, reason: config);
+      }
+    },
+  );
+
   group('the project root alone', () {
     const top = {
       'app/.git/HEAD': 'ref\n',

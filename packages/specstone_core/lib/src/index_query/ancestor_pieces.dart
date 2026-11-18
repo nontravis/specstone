@@ -12,6 +12,12 @@ import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/models/ancestor_piece.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
+import 'package:specstone_core/src/index_query/models/item_range.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -128,9 +134,10 @@ List<AncestorPiece> _outboundFrom(
 /// Returns the pieces [cited], the links of one line [text], cite; an item
 /// range gives each item of the range a piece of its own.
 List<AncestorPiece> _outboundOnLine(String text, List<_Cited> cited) {
-  final itemLinks = <ItemLink>[
+  final itemLinks = <ClassifiedLink>[
     for (final one in cited)
-      if (one.cite case final ItemCite item) (link: one.link, cite: item),
+      if (one.cite case final ItemCite item)
+        ClassifiedLink(link: one.link, cite: item),
   ]..sort((a, b) => a.link.column.compareTo(b.link.column));
   final rangeFrom = {
     for (final range in itemRangesOn(text, itemLinks)) range.first.link: range,
@@ -257,7 +264,11 @@ final class _View {
     while (last > starts[at] && lines[last - 1].trim().isEmpty) {
       last--;
     }
-    return _piece(section.key, direction, (first: starts[at], last: last));
+    return _piece(
+      section.key,
+      direction,
+      LineRange(first: starts[at], last: last),
+    );
   }
 
   /// Returns the piece of the `###` block at [headingLine], named by its item
@@ -340,19 +351,22 @@ final class _View {
       final last = _lastLineOf(item);
       if (line < item.line || last < line) continue;
       return switch (item.kind) {
-        SectionItemKind.tableRow => _piece(sectionKey, direction, (
-          first: line,
-          last: line,
-        ), above: _tableHeadAbove(body, line)),
+        SectionItemKind.tableRow => _piece(
+          sectionKey,
+          direction,
+          LineRange(first: line, last: line),
+          above: _tableHeadAbove(body, line),
+        ),
         SectionItemKind.listItem => _piece(
           sectionKey,
           direction,
           _bulletExtent(body, items, i),
         ),
-        SectionItemKind.paragraph => _piece(sectionKey, direction, (
-          first: item.line,
-          last: last,
-        )),
+        SectionItemKind.paragraph => _piece(
+          sectionKey,
+          direction,
+          LineRange(first: item.line, last: last),
+        ),
         SectionItemKind.heading => null,
       };
     }
@@ -494,7 +508,7 @@ LineRange _bulletExtent(List<BodyLine> body, List<SectionItem> items, int i) {
     final next = k < items.length ? items[k] : null;
     end = _withFencesBefore(body, end, next?.line, base);
     if (next == null || _indentOf(next.firstLine) <= base) {
-      return (first: items[i].line, last: end);
+      return LineRange(first: items[i].line, last: end);
     }
     end = _lastLineOf(next);
   }

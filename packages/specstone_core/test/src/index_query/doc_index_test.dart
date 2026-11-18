@@ -704,6 +704,95 @@ void main() {
       expect(empty.statusOf(none, codeTarget: 'flutter'), 'skipped');
       expect(empty.statusOf(none, codeTarget: 'jaspr'), 'planned');
     });
+    test('a storyless nested feature under a skip above it reads skipped there '
+        'and planned in a target with no skip', () async {
+      final nested = await targeted(
+        extra: {
+          'docs/prds/features/f01_shop/f02_empty/FEATURE.md': feature('Empty'),
+        },
+        records: {
+          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - ":skipped:no shop on the web"\n',
+          ),
+        },
+      );
+      final empty = nested.at('prds/features/f01_shop/f02_empty/FEATURE.md')!;
+      expect(nested.statusOf(empty, codeTarget: 'flutter'), 'skipped');
+      expect(nested.statusOf(empty, codeTarget: 'jaspr'), 'planned');
+    });
+    test(
+      'a target with no record file reads each story and the feature planned '
+      'while another target reads its own record',
+      () async {
+        final bare = await targeted(
+          records: {
+            '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
+              '  - greet:implemented\n',
+            ),
+            '.specstone/records/flutter/f01_shop/f01_cart/IMPLEMENTATION.md':
+                record('  - add:implemented\n  - add/check:implemented\n'),
+          },
+        );
+        for (final path in [shopPath, cartPath, storyPath, topStory]) {
+          expect(
+            bare.statusOf(bare.at(path)!, codeTarget: 'jaspr'),
+            'planned',
+            reason: path,
+          );
+        }
+        expect(
+          bare.statusOf(bare.at(shopPath)!, codeTarget: 'flutter'),
+          'implemented',
+        );
+      },
+    );
+    test('a project with no record doc type reads planned, deprecated, mixed, '
+        'and nested features from each story status', () async {
+      String status(String story, String value) =>
+          '---\nstatus: $value\n---\n\n# S\n\n## Use Case\nUse it.\n';
+      Future<DocIndex> written(String greet, String add) => targeted(
+        noRecordType: true,
+        extra: {
+          'docs/$topStory': status('greet', greet),
+          'docs/$storyPath': status('add', add),
+        },
+      );
+      String? statusOf(DocIndex built, String path) =>
+          built.statusOf(built.at(path)!);
+
+      final planned = await written('planned', 'planned');
+      expect(statusOf(planned, shopPath), 'planned');
+      expect(statusOf(planned, cartPath), 'planned');
+      final deprecated = await written('deprecated', 'deprecated');
+      expect(statusOf(deprecated, shopPath), 'deprecated');
+      expect(statusOf(deprecated, cartPath), 'deprecated');
+      final mixed = await written('implemented', 'deprecated');
+      expect(statusOf(mixed, shopPath), 'implemented');
+      final half = await written('implemented', 'planned');
+      expect(statusOf(half, shopPath), 'planned');
+      expect(statusOf(half, cartPath), 'planned');
+      final done = await written('implemented', 'implemented');
+      expect(statusOf(done, shopPath), 'implemented');
+      expect(statusOf(done, cartPath), 'implemented');
+    });
+    test(
+      'a targets map in a project with no record doc type is refused',
+      () async {
+        final root = await writeTree({
+          '.specstone/config.yaml':
+              '${shippedPinsConfig(['prd-core'])}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n',
+          'flutter_lib/.keep': '',
+          'docs/prds/features/f01_shop/FEATURE.md': feature('Shop'),
+        });
+        expect(
+          () => openSession(root),
+          throwsA(
+            isA<TemplateFault>().having((f) => f.exitStatus, 'exitStatus', 78),
+          ),
+        );
+      },
+    );
   });
   group('a name resolved by the end of its identity', () {
     String featureText(String title) =>
@@ -844,6 +933,37 @@ void main() {
         'specs/f01_login/DOMAIN.md',
         'specs/f01_login/ERROR.md',
       ]);
+    });
+    test('a suffix of an identity several docs carry gives each doc, as the '
+        'bare name does', () async {
+      final tree = await indexWith({
+        ...suffixFiles(story: false),
+        'docs/specs/f10_foundation/f01_layout_primitives/f01_scrolling/ARCHITECTURE.md':
+            '# Scrolling\n',
+        'docs/specs/f10_foundation/f01_layout_primitives/f01_scrolling/DOMAIN.md':
+            '# Scrolling\n',
+      });
+      final full = paths(
+        tree.resolve('foundation/layout_primitives/scrolling'),
+      );
+      expect(full.length, greaterThan(1));
+      expect(paths(tree.resolve('scrolling')), full);
+      expect(paths(tree.resolve('layout_primitives/scrolling')), full);
+    });
+    test('an ambiguous suffix is refused with exit status 64', () async {
+      final tree = await indexWith(suffixFiles());
+      expect(
+        () => tree.resolve('toast'),
+        throwsA(isA<IndexFault>().having((f) => f.exitStatus, 'exit', 64)),
+      );
+    });
+    test('a bare suffix that a feature and a story both end is refused with '
+        'exit status 64', () async {
+      final tree = await indexWith(suffixFiles());
+      expect(
+        () => tree.resolve('scrolling'),
+        throwsA(isA<IndexFault>().having((f) => f.exitStatus, 'exit', 64)),
+      );
     });
     test('a suffix keeps only the docs of the code target', () async {
       final root = await writeTree({

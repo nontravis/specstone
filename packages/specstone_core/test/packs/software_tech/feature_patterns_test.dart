@@ -75,6 +75,28 @@ void main() {
       );
     });
 
+    test('each pattern file holds 5 to 15 items, each one sentence of at most '
+        '160 characters that names no class, file, or error code', () {
+      final sentenceEnd = RegExp(r'[.!?](\s|$)');
+      final className = RegExp(r'\b[A-Z][a-z0-9]+[A-Z]\w*');
+      final fileName = RegExp(r'\w\.(dart|yaml|yml|md|json|sh|txt)\b|/');
+      final errorCode = RegExp(r'\b[a-z0-9]+_[a-z0-9_]+\b');
+      for (final id in _patternIds) {
+        final items = _itemsOf(id);
+        expect(items.length, inInclusiveRange(5, 15), reason: id);
+        for (final item in items) {
+          final text = '${item['text']}'.trim();
+          final reason = '$id ${item['id']}';
+          expect(text.length, lessThanOrEqualTo(160), reason: reason);
+          expect(sentenceEnd.allMatches(text), hasLength(1), reason: reason);
+          expect(text, endsWith('.'), reason: reason);
+          expect(text, isNot(contains(className)), reason: reason);
+          expect(text, isNot(contains(fileName)), reason: reason);
+          expect(text, isNot(contains(errorCode)), reason: reason);
+        }
+      }
+    });
+
     test('signup repeats no item id of auth', () {
       final auth = {for (final item in _itemsOf('auth')) item['id']};
       for (final item in _itemsOf('signup')) {

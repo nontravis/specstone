@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -5,6 +6,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
@@ -308,5 +310,83 @@ void main() {
     expect(type.path, 'specs/DOMAIN.md');
     expect(type.parent, isNull);
     expect(type.fields.any((f) => f.id == 'overrides'), isFalse);
+  });
+
+  test('a 50001-character project API.md gets chars_over_limit, limit 50000, '
+      'the limit it inherits from api', () async {
+    const draft = '---\ndraft: true\n---\n\n';
+    const title = '# Project API\n';
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/specs/API.md':
+              '$draft$title${'x' * (50001 - draft.length - title.length - 2)}',
+        },
+      ),
+    );
+
+    final json = report.findings
+        .singleWhere((f) => f.kind == FindingKind.charsOverLimit)
+        .toJson();
+    expect(
+      json,
+      allOf(containsPair('limit', 50000), containsPair('actual', 50001)),
+    );
+  });
+
+  test('an inherited section whose base description names the feature reads '
+      'every feature or the project in each project spec doc type', () {
+    var rewritten = 0;
+    for (final MapEntry(key: id, value: project) in _projectTypes.entries) {
+      final base = prdCoreDocType(set, project.base);
+      for (final section in prdCoreDocType(set, id).sections) {
+        final text = section.description ?? '';
+        expect(text, isNot(contains('the feature')), reason: '$id $section');
+        final baseText = [
+          for (final b in base.sections)
+            if (b.id == section.id) b.description ?? '',
+        ].join();
+        if (!baseText.contains('the feature')) continue;
+        rewritten++;
+        expect(
+          text.contains('every feature') || text.contains('the project'),
+          isTrue,
+          reason: '$id ${section.id}',
+        );
+      }
+    }
+    expect(rewritten, greaterThan(0));
+  });
+
+  test('project, topic, and per-feature descriptions place every-feature, '
+      'shared, and one-feature rules', () {
+    for (final id in _projectTypes.keys) {
+      expect(
+        prdCoreDocType(set, id).description,
+        contains(
+          'Hold only rules every feature uses; write any other rule in a '
+          'per-feature spec doc, or in a `topic` when two or more features '
+          'share it.',
+        ),
+        reason: id,
+      );
+    }
+    expect(
+      prdCoreDocType(set, 'topic').description,
+      contains(
+        'two or more features share and none owns, never a rule every '
+        'feature uses',
+      ),
+    );
+    for (final project in _projectTypes.values) {
+      expect(
+        prdCoreDocType(set, project.base).description,
+        contains(
+          "This doc holds one feature's spec; a rule every feature uses goes "
+          "to the project's",
+        ),
+        reason: project.base,
+      );
+    }
   });
 }

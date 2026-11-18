@@ -6,6 +6,9 @@ import 'package:specstone_core/src/doc_model/models/sentence_measure.dart';
 import 'package:specstone_core/src/doc_model/sentence_measure.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/models/item_fact.dart';
+import 'package:specstone_core/src/index_query/models/readability_facts.dart';
+import 'package:specstone_core/src/index_query/models/sentence_fact.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The cite-note line of the shipped prd-core guides, which a trace-note

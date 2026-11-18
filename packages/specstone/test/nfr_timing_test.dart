@@ -311,6 +311,77 @@ void main() {
     );
   });
 
+  test('specstone context for a story whose FR cites an item of another FR '
+      'appends the item and answers within 500 ms in the fastest of five '
+      'calls', () {
+    const call = ['context', 'feature_2/story_1', '--for', 'implement'];
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 0, reason: '${first.stderr}');
+    expect(
+      first.stdout.toString(),
+      allOf(
+        contains(
+          '==> feature_1/story_1/req_1 (fr) · '
+          'prds/features/f01_feature_1/us01_story_1/fr01_req_1.md#edge_cases '
+          '· item E01 · cited <==\n- **E01** Baseline text.\n',
+        ),
+        contains('- feature_1/story_1/req_1 (fr) · cited edge_cases [E01]'),
+      ),
+    );
+    expect(
+      bestOf(timingRuns, () => timed(call), label: 'followed context calls'),
+      lessThanOrEqualTo(const Duration(milliseconds: 500)),
+    );
+  });
+
+  test('a whole-project specstone check over a project whose FRs each link an '
+      'item finishes within 2 s in the fastest of five calls', () {
+    const link =
+        '[E01](../../f01_feature_1/us01_story_1/fr01_req_1.md#edge-cases)';
+    const broken =
+        '[E99](../../f01_feature_1/us01_story_1/fr01_req_1.md#edge-cases)';
+    final frs = [
+      for (final file in Directory(
+        '${project.path}/docs/prds/features',
+      ).listSync(recursive: true).whereType<File>())
+        if (RegExp(r'fr\d+_req_\d+\.md$').hasMatch(file.path)) file,
+    ];
+    final originals = {for (final f in frs) f: f.readAsStringSync()};
+    addTearDown(() {
+      originals.forEach((file, text) => file.writeAsStringSync(text));
+    });
+    var count = 0;
+    for (final MapEntry(key: file, value: text) in originals.entries) {
+      count++;
+      file.writeAsStringSync('$text\nSee ${count == 1 ? broken : link}.\n');
+    }
+    expect(count, greaterThan(1000));
+    const call = ['check'];
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 1, reason: '${first.stderr}');
+    final missing = RegExp(
+      r'^.*: link_item_missing: .*$',
+      multiLine: true,
+    ).allMatches(first.stdout.toString());
+    expect(missing, hasLength(1), reason: 'the rule ran over the linked items');
+    expect(
+      bestOf(
+        timingRuns,
+        () => timed(call, exitCodes: {1}),
+        label: 'check calls over item links',
+      ),
+      lessThanOrEqualTo(const Duration(seconds: 2)),
+    );
+  });
+
   test('a whole-project specstone check --repeats, '
       'with a current index, finishes within 2 s in the fastest of five '
       'calls', () {

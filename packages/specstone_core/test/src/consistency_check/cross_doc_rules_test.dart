@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 
 const Set<FindingKind> _crossKinds = {
   FindingKind.systemUnresolved,
@@ -204,6 +205,44 @@ void main() {
       'docs/$loginFeature': featureWith('system: Watch app'),
     });
     expect(found, isEmpty);
+  });
+
+  test('a merged set whose topic lacks the covers field or the scope section '
+      'runs no scope rule', () async {
+    const uncovered =
+        '---\ncovers:\n  - lib/src/\n---\n\n# Rendering\n\n'
+        '## Purpose\n\nOne paragraph.\n\n## Scope\n\n'
+        'Governs `lib/other/`.\n\n## Used by\n\n| Feature | What it uses |\n'
+        '|---|---|\n| login | The rules. |\n';
+    final fires = await _found({'docs/$_topicDoc': uncovered});
+    expect(fires.map((f) => f.kind), [FindingKind.scopePathUncovered]);
+
+    for (final layer in [
+      'fields:\n  - id: covers\n    disabled: true\n',
+      'sections:\n  - id: scope\n    disabled: true\n',
+    ]) {
+      final found = await _found({
+        '.specstone/templates/topic.yaml': layer,
+        'docs/$_topicDoc': uncovered,
+      });
+      expect(found, isEmpty, reason: layer);
+    }
+  });
+
+  test('a merged set lacking the api, auth, and topic doc types runs none of '
+      'their rules and still runs the system rule', () async {
+    final found = await _found({
+      '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+      'docs/prds/FEATURES.md': _featuresSystemsTable,
+      'docs/$loginFeature': featureWith('system: Watch app'),
+      'docs/$_authDoc': _authDocText(requiredFor: 'deleteAccount'),
+      'docs/$_topicDoc': _topicDocText(
+        covers: '  - lib/src/\n',
+        scope: 'Governs `lib/other/`.',
+      ),
+    });
+
+    expect(found.map((f) => f.kind), [FindingKind.systemUnresolved]);
   });
 
   test('a doc type holding the ids under other names still fires', () async {

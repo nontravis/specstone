@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/label_place.dart';
 
 /// Returns one `number_label` finding per number label in the body of [doc],
 /// a typed doc.
@@ -12,7 +13,7 @@ Iterable<Finding> checkNumberLabels(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  for (final (:line, :written) in context.linesOf(doc).numberLabels) {
+  for (final LabelPlace(:line, :written) in context.linesOf(doc).numberLabels) {
     yield context.finding(
       doc,
       FindingKind.numberLabel,

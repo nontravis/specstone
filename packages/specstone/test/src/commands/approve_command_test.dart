@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
@@ -92,6 +93,29 @@ void main() {
     final text = File('${root.path}/docs/$signupFeature').readAsStringSync();
     expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
+  });
+  test('--yes approves a draft that lacks required and optional sections and adds none of them', () async {
+    final root = await writeWriteProject();
+    List<String> headersOf(String docPath) => RegExp(
+      r'^## .*$',
+      multiLine: true,
+    ).allMatches(readDoc(root, docPath)).map((match) => match[0]!).toList();
+    final before = headersOf(fr12);
+    expect(before, ['## Statement']);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'approve',
+        _seen(root, 'fr:login/email_login/lock_after_failures'),
+        '--yes',
+      ]),
+      0,
+    );
+    expect(
+      readDoc(root, fr12),
+      matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')),
+    );
+    expect(headersOf(fr12), before);
   });
   test('--yes with no name is a usage error, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(
@@ -999,6 +1023,462 @@ void main() {
       );
       expect(out.toString(), isEmpty);
       expect(err.toString(), 'no feature doc carries the name art\n');
+    });
+  });
+
+  group('approve edge cases', () {
+    const terminal = (stdin: true, stdout: true);
+    const trustMessage =
+        'lies outside the project; '
+        'run specstone trust at a terminal to allow it\n';
+
+    FakeConsole walkConsole({List<String?> answers = const []}) => FakeConsole(
+      stdinIsTerminal: terminal.stdin,
+      stdoutIsTerminal: terminal.stdout,
+      noColor: true,
+      answers: answers,
+    );
+
+    Future<({Directory clone, Directory docs})> awaitingTrust() async {
+      final base = await writeTree({
+        for (final MapEntry(:key, :value) in writeProject.entries)
+          if (key.startsWith('docs/'))
+            'ext/${key.substring(5)}': value
+          else
+            'src/clone/$key': value,
+      });
+      createRelativeLink('${base.path}/src/clone/docs', '../../ext');
+      return (
+        clone: Directory('${base.path}/src/clone'),
+        docs: Directory('${base.path}/ext'),
+      );
+    }
+
+    const approvedText =
+        '---\napproved: true\n---\n\n# Signup\n\n## Problem\n'
+        'Line one.\nLine two.\nLine three.\nLine four.\nLine five.\n'
+        'Line six.\nLine seven.\n';
+    const editedText =
+        '---\ndraft: true\n---\n\n# Signup\n\n## Problem\n'
+        'Line one.\nLine two.\nLine three.\nLine 4 changed.\nLine five.\n'
+        'Line six.\nLine seven.\n';
+
+    Future<Directory> editedFeature() async {
+      final root = await writeWriteProject(
+        extra: {'docs/$signupFeature': approvedText},
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      File('${root.path}/docs/$signupFeature').writeAsStringSync(editedText);
+      commitAll(root, 'edited as a draft');
+      return root;
+    }
+
+    test('at a terminal with no draft in scope the walk prints the no-draft line and exits 0', () async {
+      final (:runner, :out, :err) = writeRunner(
+        await writeWriteProject(),
+        console: walkConsole(),
+      );
+      expect(await runner.run(['approve', 'architecture:login']), 0);
+      expect(out.toString(), 'no draft waits for approval\n');
+      expect(err.toString(), isEmpty);
+    });
+
+    test('a terminal on stdout alone, or on neither, is refused with exit 77 and no file changes', () async {
+      final root = await writeWriteProject();
+      final docs = Directory('${root.path}/docs');
+      final before = treeBytes(docs);
+      for (final console in [
+        FakeConsole(),
+        FakeConsole(stdoutIsTerminal: true),
+      ]) {
+        final (:runner, :out, :err) = writeRunner(root, console: console);
+        expect(await runner.run(['approve']), 77);
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          "approve runs only at an interactive terminal, or with --yes after the Owner's ok in the chat\n",
+        );
+        expect(treeBytes(docs), before);
+      }
+    });
+
+    test('at a terminal a name no doc carries exits 64 naming it and shows nothing', () async {
+      final root = await writeWriteProject();
+      for (final (name, message) in [
+        ('nosuch', 'no doc carries the name nosuch\n'),
+        ('feature:nosuch', 'no feature doc carries the name nosuch\n'),
+      ]) {
+        final (:runner, :out, :err) = writeRunner(
+          root,
+          console: walkConsole(answers: ['y']),
+        );
+        expect(await runner.run(['approve', name]), 64, reason: name);
+        expect(out.toString(), isEmpty, reason: name);
+        expect(err.toString(), message, reason: name);
+      }
+    });
+
+    test('at a terminal a name written with @<hash> is a usage error that leaves every doc as it was', () async {
+      final root = await writeWriteProject();
+      final docs = Directory('${root.path}/docs');
+      final before = treeBytes(docs);
+      final named = _seen(root, 'feature:signup');
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: walkConsole(answers: ['y', 'y']),
+      );
+      expect(await runner.run(['approve', named]), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        startsWith('$named: a @<hash> goes only with --yes.\n'),
+      );
+      expect(treeBytes(docs), before);
+    });
+
+    group('roots awaiting the trust record', () {
+      void expectRefusedAt(String err, String path) {
+        expect(err, startsWith('$path: cannot write $path: the docs folder '));
+        expect(err, endsWith(trustMessage));
+      }
+
+      const firstDraft =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+
+      test(
+        'the walk at a terminal refuses with exit 73 naming the first draft before it shows anything',
+        () async {
+          final (:clone, :docs) = await awaitingTrust();
+          final before = treeBytes(docs);
+          final (:runner, :out, :err) = writeRunner(
+            clone,
+            console: walkConsole(answers: ['y']),
+          );
+          expect(await runner.run(['approve']), 73);
+          expect(out.toString(), isEmpty);
+          expectRefusedAt(err.toString(), firstDraft);
+          expect(treeBytes(docs), before);
+        },
+        skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null,
+      );
+
+      test(
+        'the walk at a terminal with no draft in scope prints the no-draft line and exits 0',
+        () async {
+          final (:clone, docs: _) = await awaitingTrust();
+          final (:runner, :out, :err) = writeRunner(
+            clone,
+            console: walkConsole(),
+          );
+          expect(await runner.run(['approve', 'architecture:login']), 0);
+          expect(out.toString(), 'no draft waits for approval\n');
+          expect(err.toString(), isEmpty);
+        },
+        skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null,
+      );
+
+      test(
+        '--yes refuses with exit 73 at its first write and approves nothing',
+        () async {
+          final (:clone, :docs) = await awaitingTrust();
+          final before = treeBytes(docs);
+          final (:runner, :out, :err) = writeRunner(clone);
+          expect(
+            await runner.run([
+              'approve',
+              _seen(clone, 'feature:signup'),
+              '--yes',
+            ]),
+            73,
+          );
+          expect(out.toString(), isEmpty);
+          expectRefusedAt(
+            err.toString(),
+            'docs/prds/features/f02_signup/FEATURE.md',
+          );
+          expect(treeBytes(docs), before);
+        },
+        skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null,
+      );
+
+      test(
+        '--dry-run with a draft in scope refuses with exit 73 naming the first draft and prints no view',
+        () async {
+          final (:clone, docs: _) = await awaitingTrust();
+          final (:runner, :out, :err) = writeRunner(clone);
+          expect(await runner.run(['approve', '--dry-run']), 73);
+          expect(out.toString(), isEmpty);
+          expectRefusedAt(err.toString(), firstDraft);
+        },
+        skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null,
+      );
+
+      test(
+        '--dry-run with no draft in scope prints the no-draft line and exits 0',
+        () async {
+          final (:clone, docs: _) = await awaitingTrust();
+          final (:runner, :out, :err) = writeRunner(clone);
+          expect(
+            await runner.run(['approve', '--dry-run', 'architecture:login']),
+            0,
+          );
+          expect(out.toString(), 'no draft waits for approval\n');
+          expect(err.toString(), isEmpty);
+        },
+        skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null,
+      );
+    });
+
+    test('--yes with a hash of uppercase hex or the wrong length is the usage error naming the argument', () async {
+      final root = await writeWriteProject();
+      final docs = Directory('${root.path}/docs');
+      final before = treeBytes(docs);
+      for (final argument in [
+        'feature:signup@ABCDEF012345',
+        'feature:signup@abc',
+        'feature:signup@0123456789abcd',
+      ]) {
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(await runner.run(['approve', argument, '--yes']), 64);
+        expect(out.toString(), isEmpty, reason: argument);
+        expect(
+          err.toString(),
+          startsWith(
+            '--yes needs each draft as <name>@<hash>, the hash from '
+            'docs[0].bases.doc of specstone get <name> --json; got '
+            '$argument.\n',
+          ),
+          reason: argument,
+        );
+        expect(treeBytes(docs), before, reason: argument);
+      }
+    });
+
+    test('--yes on an untyped doc named with its hash exits 64 as untyped and approves nothing', () async {
+      final root = await writeWriteProject(
+        extra: {'docs/prds/notes.md': '---\ndraft: true\n---\n\n# Notes\n'},
+      );
+      final docs = Directory('${root.path}/docs');
+      final before = treeBytes(docs);
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'approve',
+          _seen(root, 'feature:signup'),
+          'prds/notes.md@000000000000',
+          '--yes',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'prds/notes.md has no doc type; migrate it to one before a write\n',
+      );
+      expect(treeBytes(docs), before);
+    });
+
+    test('--dry-run on a name written with @<hash> prints nothing on stdout and gives the usage error', () async {
+      final root = await writeWriteProject();
+      final named = _seen(root, 'feature:signup');
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', '--dry-run', named]), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        startsWith('$named: a @<hash> goes only with --yes.\n'),
+      );
+    });
+
+    test('a name no doc carries, written with @<hash> and no --yes, is the usage error and not a missing doc', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(await runner.run(['approve', 'feature:nosuch@000000000000']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        startsWith(
+          'feature:nosuch@000000000000: a @<hash> goes only with --yes.\n',
+        ),
+      );
+      expect(err.toString(), isNot(contains('no feature doc carries')));
+    });
+
+    test(
+      '--dry-run --context n shows n unchanged lines either side of the change',
+      () async {
+        final root = await editedFeature();
+        for (final (n, shown, hidden) in [
+          (1, ['Line three.', 'Line five.'], ['Line two.', 'Line six.']),
+          (2, ['Line two.', 'Line six.'], ['Line one.', 'Line seven.']),
+        ]) {
+          final (:runner, :out, :err) = writeRunner(root);
+          expect(
+            await runner.run([
+              'approve',
+              '--dry-run',
+              '--context',
+              '$n',
+              'feature:signup',
+            ]),
+            0,
+          );
+          final diff = RegExp(
+            r'```diff\n(.*?)```',
+            dotAll: true,
+          ).firstMatch(out.toString())!.group(1)!;
+          expect(
+            diff,
+            contains('-Line four.\n+Line 4 changed.\n'),
+            reason: '$n',
+          );
+          for (final line in shown) {
+            expect(diff, contains(' $line\n'), reason: '$n $line');
+          }
+          for (final line in hidden) {
+            expect(diff, isNot(contains(line)), reason: '$n $line');
+          }
+        }
+      },
+    );
+
+    test('--context moves only the diff, never the dropped and new rows or sentence lists', () async {
+      final root = await editedFeature();
+      String stripped(String view) =>
+          view.replaceAll(RegExp(r'```diff\n.*?```\n', dotAll: true), '');
+
+      Future<String> viewOf(List<String> contextArgs) async {
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run([
+            'approve',
+            '--dry-run',
+            ...contextArgs,
+            'feature:signup',
+          ]),
+          0,
+        );
+        return stripped(out.toString());
+      }
+
+      final plain = await viewOf([]);
+      expect(plain, contains('| dropped | 1 sentence dropped |\n'));
+      expect(plain, contains('| new     | 1 sentence new |\n'));
+      expect(plain, contains('Dropped sentences:\n- Line four.\n'));
+      expect(plain, contains('New sentences:\n- Line 4 changed.\n'));
+      expect(await viewOf(['--context', '0']), plain);
+      expect(await viewOf(['--context', '1']), plain);
+    });
+
+    test('--dry-run --json lists, per draft, the dropped and new sentences its view prints', () async {
+      final root = await editedFeature();
+      var (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', '--dry-run', 'feature:signup']), 0);
+      final blocks = out.toString().split('### Draft ').skip(1).toList();
+
+      (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['approve', '--dry-run', '--json', 'feature:signup']),
+        0,
+      );
+      final drafts = ((jsonDecode(out.toString()) as Map)['drafts']! as List)
+          .cast<Map<String, Object?>>();
+
+      List<String> listed(String block, String heading) {
+        final start = block.indexOf('$heading sentences:\n');
+        if (start < 0) return const [];
+        return [
+          for (final line
+              in block
+                  .substring(start)
+                  .split('\n')
+                  .skip(1)
+                  .takeWhile((line) => line.startsWith('- ')))
+            line.substring(2),
+        ];
+      }
+
+      expect(drafts, hasLength(blocks.length));
+      expect(drafts.first['dropped'], ['Line four.']);
+      expect(drafts.first['new'], ['Line 4 changed.']);
+      for (final (i, draft) in drafts.indexed) {
+        expect(draft['dropped'], listed(blocks[i], 'Dropped'), reason: '$i');
+        expect(draft['new'], listed(blocks[i], 'New'), reason: '$i');
+      }
+    });
+
+    test('the walk and the other commands neither read the approve mode variable nor print the mode', () async {
+      final root = await writeWriteProject();
+      for (final value in ['auto', 'yes']) {
+        var (:runner, :out, :err) = writeRunner(
+          root,
+          console: FakeConsole(
+            stdinIsTerminal: terminal.stdin,
+            stdoutIsTerminal: terminal.stdout,
+            noColor: true,
+            approveModeVariable: value,
+            answers: ['q'],
+          ),
+        );
+        expect(await runner.run(['approve', 'signup']), 0);
+        final walked = out.toString();
+        expect(err.toString(), isEmpty);
+        expect(walked, contains('### Draft 1/'));
+        expect(walked, isNot(contains('approveMode')));
+        expect(walked, isNot(contains('SPECSTONE_APPROVE_MODE')));
+
+        (:runner, :out, :err) = writeRunner(
+          root,
+          console: FakeConsole(approveModeVariable: value),
+        );
+        expect(await runner.run(['list', 'feature']), 0);
+        expect(err.toString(), isEmpty);
+        expect(out.toString(), isNot(contains('approveMode')));
+        expect(out.toString(), isNot(contains('SPECSTONE_APPROVE_MODE')));
+
+        (:runner, :out, :err) = writeRunner(
+          root,
+          console: FakeConsole(approveModeVariable: value),
+        );
+        expect(await runner.run(['approve', '--dry-run', 'feature:signup']), 0);
+        expect(err.toString(), isEmpty);
+        expect(out.toString(), contains('### Draft 1/'));
+        expect(out.toString(), isNot(contains('approveMode')));
+        expect(out.toString(), isNot(contains('SPECSTONE_APPROVE_MODE')));
+      }
+    });
+
+    test('the prompt holds no write lock, so another write lands while the Owner reads and the approval then acts', () async {
+      final root = await writeWriteProject();
+      final base = getDoc(root, 'feature:signup#problem')['base']! as String;
+      final console = FakeConsole(
+        stdinIsTerminal: terminal.stdin,
+        stdoutIsTerminal: terminal.stdout,
+        noColor: true,
+        answers: ['y', 'y', 'q'],
+        onReadLine: (call) {
+          if (call != 0) return;
+          writeIn(
+            root,
+            (session) => answerSet(
+              session,
+              SetRequest.parse('feature:signup#problem', base: base),
+              'Users sign up.\n',
+            ),
+            busyTimeout: const Duration(milliseconds: 200),
+          );
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root, console: console);
+
+      expect(await runner.run(['approve', 'feature:signup']), 0);
+
+      expect(err.toString(), isEmpty);
+      final text = File('${root.path}/docs/$signupFeature').readAsStringSync();
+      expect(text, contains('Users sign up.\n'));
+      expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
+      expect(text, isNot(contains('draft: true')));
     });
   });
 }

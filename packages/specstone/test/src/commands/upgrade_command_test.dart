@@ -4,8 +4,13 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/commands/upgrade_command.dart';
+import 'package:specstone_core/specstone_core.dart' show specstoneVersion;
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/posix_modes.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../helpers/built_cli.dart';
+import '../../helpers/package_root.dart';
 import '../../helpers/script_sandbox.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -16,7 +21,7 @@ String _join(String first, [String? b, String? c, String? d]) =>
 /// The installed binary the upgrade runs with `folder`: it logs a line of
 /// arguments, working folder, and own path to `FOLDER_LOG`, writes a line to
 /// each output, and exits `FOLDER_EXIT`. `FOLDER_BYTES` makes its stderr
-/// carry a byte no UTF-8 text holds.
+/// carry a byte no UTF-8 text holds; `FOLDER_QUIET` leaves its stderr empty.
 const _folderStubSource = r'''
 import 'dart:io';
 
@@ -28,7 +33,9 @@ void main(List<String> args) {
     mode: FileMode.append,
   );
   stdout.writeln('folder-out');
-  if (env['FOLDER_BYTES'] != null) {
+  if (env['FOLDER_QUIET'] != null) {
+    // prints nothing on stderr
+  } else if (env['FOLDER_BYTES'] != null) {
     stderr.add([0x62, 0xff, 0x0a]);
   } else {
     stderr.writeln('stale line');
@@ -426,6 +433,65 @@ void main() {
       expect(run[2], endsWith('specstone.exe'));
       expect(err.toString(), 'stale line\n');
     }, testOn: 'windows');
+
+    // The served script is the repository's own install.ps1, which renames the
+    // running `specstone.exe` itself; a later run deletes the `.old` file.
+    test(
+      'the real install.ps1 renames the running specstone.exe to .old, and a '
+      'later upgrade deletes that .old',
+      () async {
+        final bundle = File(await buildSpecstone()).parent.parent;
+        final sandbox = await createScriptSandbox();
+        await sandbox.writeArchive('windows-x64', bundle: bundle);
+        final exe = File(
+          '${sandbox.home.path}\\.specstone\\bin\\specstone.exe',
+        );
+        await sandbox.compileFakeCli('0.0.1', exe.path);
+        final running = await Process.start(exe.path, const []);
+        addTearDown(running.kill);
+        final script = File('${repoRoot().path}\\install.ps1')
+            .readAsStringSync();
+        handle = (request) async {
+          request.response.write(script);
+          await request.response.close();
+        };
+        final project = Directory('${sandbox.root.path}\\project')
+          ..createSync();
+        final upgrade = runnerFor(
+          exe.path,
+          sandbox.env({'SPECSTONE_ARCHIVE_DIR': sandbox.archives.path}),
+          windows: true,
+          workingDirectory: project,
+        );
+        final old = File('${exe.path}.old');
+        String versionOf(File file) =>
+            (Process.runSync(file.path, const ['--version']).stdout as String)
+                .trim();
+
+        await withUserPathLock(() async {
+          expect(await upgrade.run(['upgrade']), 0, reason: '$err');
+          expect(old.existsSync(), isTrue);
+          expect(versionOf(old), '0.0.1');
+          expect(versionOf(exe), specstoneVersion);
+
+          running.kill();
+          await running.exitCode;
+          for (var attempt = 0; attempt < 50; attempt++) {
+            try {
+              old.openSync(mode: FileMode.append).closeSync();
+              break;
+            } on FileSystemException {
+              await Future<void>.delayed(const Duration(milliseconds: 100));
+            }
+          }
+
+          expect(await upgrade.run(['upgrade']), 0, reason: '$err');
+          expect(versionOf(old), specstoneVersion);
+        });
+      },
+      testOn: 'windows',
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
 
     test(
       'no server refuses '
@@ -987,6 +1053,296 @@ void main() {
       expect(File(seen).readAsStringSync().trim(), 'kept');
     }, testOn: '!windows');
 
+    group('the failures, the kept build, and the folder run in detail', () {
+      // Runs [body] with every timer 100 times shorter and each connect
+      // hanging, noting each timer asked for in [timers].
+      Future<T> withHangingConnect<T>(
+        Future<T> Function() body,
+        List<Duration> timers,
+      ) => IOOverrides.runZoned(
+        () => runZoned(
+          body,
+          zoneSpecification: ZoneSpecification(
+            createTimer: (self, parent, zone, duration, callback) {
+              timers.add(duration);
+              return parent.createTimer(zone, duration ~/ 100, callback);
+            },
+          ),
+        ),
+        socketStartConnect:
+            (host, port, {sourceAddress, sourcePort = 0}) async =>
+                ConnectionTask.fromSocket(Completer<Socket>().future, () {}),
+      );
+
+      for (final (label, latest, runs) in [
+        ('below the latest full release runs the script', 'v1.3.0', true),
+        ('above the latest full release is kept', 'v1.2.9', false),
+      ]) {
+        test('a dev build $label', () async {
+          await prepare(runningVersion: '1.3.0-dev.93');
+          releaseReplies('{"tag_name": "$latest"}');
+
+          expect(await runner.run(['upgrade']), 0);
+          expect(
+            paths,
+            runs ? [releaseUrl.path, scriptUrl.path] : [releaseUrl.path],
+          );
+          expect(File(fileIn('logs', 'ran')).existsSync(), runs);
+          expect(
+            out.toString(),
+            runs
+                ? isEmpty
+                : 'specstone 1.3.0-dev.93 is newer than the latest release '
+                      '${latest.substring(1)}; nothing to upgrade\n',
+          );
+        });
+      }
+
+      test('a release request that gets no connection in 30 seconds refuses, '
+          'exit 69, naming the URL and the I/O error', () async {
+        await prepare(runningVersion: '1.2.0-beta.1');
+        final timers = <Duration>[];
+
+        final status = await withHangingConnect(
+          () => runner.run(['upgrade']),
+          timers,
+        );
+
+        expect(status, 69);
+        expect(
+          err.toString(),
+          startsWith(
+            'specstone upgrade could not read the latest release from '
+            '$releaseUrl: SocketException: ',
+          ),
+        );
+        expect(timers, contains(const Duration(seconds: 30)));
+        expect(requests, 0);
+        expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+        expect(folderRuns(), isEmpty);
+      });
+
+      test('a script fetch that gets no connection in 30 seconds refuses, '
+          'exit 69, naming the URL; nothing ran', () async {
+        await prepare();
+        final timers = <Duration>[];
+
+        final status = await withHangingConnect(
+          () => runner.run(['upgrade']),
+          timers,
+        );
+
+        expect(status, 69);
+        expect(
+          err.toString(),
+          startsWith(
+            'specstone upgrade could not fetch $scriptUrl: SocketException: ',
+          ),
+        );
+        expect(timers, contains(const Duration(seconds: 30)));
+        expect(requests, 0);
+        expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+        expect(folderRuns(), isEmpty);
+      });
+
+      test('a release request with no network shows the I/O error text as it '
+          'is', () async {
+        await prepare(runningVersion: '1.2.0-beta.1');
+        await server.close(force: true);
+
+        expect(await runner.run(['upgrade']), 69);
+        expect(
+          err.toString(),
+          matches(
+            RegExp(
+              '^specstone upgrade could not read the latest release from '
+              '${RegExp.escape('$releaseUrl')}: SocketException: [^\n]+\n\$',
+            ),
+          ),
+        );
+      });
+
+      test('a release reply that ends before its body does shows the HTTP '
+          'error message', () async {
+        await prepare(runningVersion: '1.2.0-beta.1');
+        releaseHandle = (request) async {
+          final socket = await request.response.detachSocket(
+            writeHeaders: false,
+          );
+          socket.write(
+            'HTTP/1.1 200 OK\r\nContent-Length: 4096\r\n\r\n0123456789',
+          );
+          await socket.flush();
+          socket.destroy();
+        };
+
+        expect(await runner.run(['upgrade']), 69);
+        expect(
+          err.toString(),
+          'specstone upgrade could not read the latest release from '
+          '$releaseUrl: Connection closed while receiving data\n',
+        );
+        expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+      });
+
+      test('a script reply of 1 MiB plus one byte refuses, exit 69, '
+          'naming the URL; nothing ran', () async {
+        await prepare();
+        final body = List.filled(1024 * 1024 + 1, 0x23);
+        handle = (request) async {
+          request.response.add(body);
+          await request.response.close();
+        };
+
+        expect(await runner.run(['upgrade']), 69);
+        expect(
+          err.toString(),
+          'specstone upgrade could not fetch $scriptUrl: '
+          'the reply is over 1 MiB\n',
+        );
+        expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+        expect(folderRuns(), isEmpty);
+      });
+
+      test('an upgrade made with no URL reads the project release API and '
+          'fetches the scripts from the project main branch', () {
+        final command = UpgradeCommand();
+
+        expect(
+          '${command.latestReleaseUrl}',
+          'https://api.github.com/repos/nontravis/specstone/releases/latest',
+        );
+        expect(
+          '${command.scriptBase}',
+          'https://raw.githubusercontent.com/nontravis/specstone/main/',
+        );
+      });
+
+      test('a folder run that exits 0 and prints nothing on stderr leaves '
+          'nothing after the upgrade', () async {
+        await prepare(extraEnv: {'FOLDER_QUIET': '1'});
+
+        expect(await runner.run(['upgrade']), 0);
+        expect(folderRuns(), hasLength(1));
+        expect(err.toString(), isEmpty);
+        expect(out.toString(), isEmpty);
+      });
+
+      test('the folder run stderr comes after the output of a kept '
+          'pre-release', () async {
+        await prepare(runningVersion: '1.2.0-beta.1');
+        releaseReplies('{"tag_name": "v1.1.1"}');
+        err = out;
+        runner = runnerFor(
+          _join(fileIn('home', '.specstone'), 'bin', installedName),
+          {
+            'HOME': fileIn('home', ''),
+            'USERPROFILE': fileIn('home', ''),
+            'FOLDER_LOG': fileIn('logs', 'folder.log'),
+            'FOLDER_EXIT': '0',
+          },
+          windows: windows,
+          runningVersion: '1.2.0-beta.1',
+          workingDirectory: Directory(fileIn('project', '')),
+        );
+
+        expect(await runner.run(['upgrade']), 0);
+        expect(
+          out.toString(),
+          'specstone 1.2.0-beta.1 is newer than the latest release 1.1.1; '
+          'nothing to upgrade\nstale line\n',
+        );
+      });
+
+      test('a refused upgrade creates no temp folder and leaves every file '
+          'as it was', () async {
+        final root = await writeTree({});
+        final tools = Directory(_join(root.path, 'opt', 'tools'));
+        final exe = await makeExecutable(tools);
+        final temp = Directory(_join(root.path, 'tmp'))..createSync();
+        final home = Directory(_join(root.path, 'home'))..createSync();
+        List<String> snapshot() => [
+          for (final entity in root.listSync(recursive: true))
+            '${entity.path}:${entity is File ? entity.lengthSync() : 'dir'}',
+        ]..sort();
+        final before = snapshot();
+        final refusing = runnerFor(exe.path, {'HOME': home.path});
+
+        final status = await IOOverrides.runZoned(
+          () => refusing.run(['upgrade']),
+          getSystemTempDirectory: () => temp,
+        );
+
+        expect(status, 78);
+        expect(temp.listSync(), isEmpty);
+        expect(snapshot(), before);
+        expect(requests, 0);
+      });
+
+      test('a temp folder that cannot be deleted is named on stderr, and the '
+          'exit status stays', () async {
+        for (final scriptExit in [0, 1]) {
+          await prepare(scriptExit: scriptExit);
+          final ran = fileIn('logs', 'ran');
+          handle = (request) async {
+            request.response.write(
+              'printf "%s\\n" "\$0" > \'$ran\'\n'
+              'mkdir "\$(dirname "\$0")/stuck"\n'
+              'touch "\$(dirname "\$0")/stuck/file"\n'
+              'chmod 555 "\$(dirname "\$0")/stuck"\n'
+              'exit $scriptExit\n',
+            );
+            await request.response.close();
+          };
+
+          final status = await runner.run(['upgrade']);
+
+          final temp = File(File(ran).readAsStringSync().trim()).parent;
+          addTearDown(() {
+            Process.runSync('chmod', ['755', '${temp.path}/stuck']);
+            temp.deleteSync(recursive: true);
+          });
+          expect(status, scriptExit == 0 ? 0 : 69, reason: 'exit $scriptExit');
+          expect(
+            err.toString(),
+            contains('specstone upgrade: could not remove ${temp.path}: '),
+          );
+          err.clear();
+        }
+      }, skip: unreadablePathSkipReason());
+
+      for (final (label, pathValue, found) in [
+        (
+          'empty, dot, and relative PATH entries are never searched',
+          ';.;tools',
+          false,
+        ),
+        ('an absolute PATH entry is searched', r'C:\tools', true),
+      ]) {
+        test('Windows mode: $label for powershell', () async {
+          await prepare(asWindows: true, extraEnv: {'PATH': pathValue});
+
+          final status = await IOOverrides.runZoned(
+            () => runner.run(['upgrade']),
+            fseGetTypeSync: (path, followLinks) =>
+                path.endsWith('powershell.exe')
+                ? FileSystemEntityType.file
+                : FileSystemEntity.typeSync(path, followLinks: followLinks),
+          );
+
+          expect(status, 69);
+          expect(
+            err.toString(),
+            found
+                ? isNot(contains('no powershell on an absolute PATH entry'))
+                : 'specstone upgrade: could not start powershell for '
+                      '$scriptUrl: no powershell on an absolute PATH entry; '
+                      'the install is unchanged\n',
+          );
+        });
+      }
+    });
+
     test('only upgrade_command.dart opens a '
         'network client', () {
       final client = RegExp(
@@ -1012,4 +1368,139 @@ void main() {
       ]);
     });
   });
+
+  group(
+    'the upgrade run as a process',
+    timeout: const Timeout(Duration(minutes: 5)),
+    () {
+      late String binary;
+      late Directory bundle;
+      late Directory homeOf;
+
+      setUpAll(() async {
+        final out = await Directory.systemTemp.createTemp('specstone_main_');
+        addTearDown(() => out.delete(recursive: true));
+        // Built like the CLI: `dart run` relinks the sqlite3 hook library,
+        // which Windows cannot replace while the test process holds it.
+        final build = await Process.run(Platform.resolvedExecutable, [
+          'build',
+          'cli',
+          '-t',
+          'test/helpers/upgrade_main.dart',
+          '-o',
+          out.path,
+        ], workingDirectory: packageRoot().path);
+        expect(build.exitCode, 0, reason: '${build.stdout}\n${build.stderr}');
+        bundle = Directory(_join(out.path, 'bundle'));
+        binary = _join(bundle.path, 'bin', 'upgrade_main');
+      });
+
+      // Installs a copy of the built binary as `~/.specstone/bin/specstone`
+      // in a new sandbox, serves [script] as the install script, and runs
+      // `specstone upgrade` from the built binary in a project holding [files].
+      Future<ProcessResult> upgrade(
+        String script, {
+        Map<String, String> files = const {},
+        Map<String, String> extraEnv = const {},
+      }) async {
+        final sandbox = await createScriptSandbox();
+        final dot = Directory(_join(sandbox.home.path, '.specstone'));
+        final installed = File(_join(dot.path, 'bin', 'specstone'));
+        installed.parent.createSync(recursive: true);
+        File(binary).copySync(installed.path);
+        for (final entity in Directory(
+          _join(bundle.path, 'lib'),
+        ).listSync(recursive: true, followLinks: false)) {
+          if (entity is! File) continue;
+          final relative = entity.path.substring(bundle.path.length + 1);
+          final target = File(_join(dot.path, relative))
+            ..parent.createSync(recursive: true);
+          entity.copySync(target.path);
+        }
+        handle = (request) async {
+          request.response.write(script);
+          await request.response.close();
+        };
+        final project = await writeTree({
+          '.specstone/config.yaml': shippedPinsConfig(),
+          ...files,
+        });
+        homeOf = sandbox.home;
+        return Process.run(
+          binary,
+          const ['upgrade'],
+          workingDirectory: project.path,
+          environment: sandbox.env({
+            'UPGRADE_SCRIPT_BASE': '$base',
+            'UPGRADE_RELEASE_URL': '${base}releases/latest',
+            'UPGRADE_EXECUTABLE': installed.path,
+            'UPGRADE_VERSION': _fullRelease,
+            ...extraEnv,
+          }),
+          includeParentEnvironment: false,
+          stdoutEncoding: null,
+          stderrEncoding: null,
+        );
+      }
+
+      const staleAgentFiles = {'.specstone/AGENT.md': 'old\n'};
+
+      test('a script that finds the CLI already current has its words passed '
+          'to the Owner unchanged, and the folder run still follows', () async {
+        final result = await upgrade(
+          "printf 'specstone 1.1.1 is already the latest release\\n'\n",
+          files: staleAgentFiles,
+        );
+
+        expect(
+          result.exitCode,
+          0,
+          reason: utf8.decode(result.stderr as List<int>),
+        );
+        expect(
+          utf8.decode(result.stdout as List<int>),
+          'specstone 1.1.1 is already the latest release\n',
+        );
+        expect(
+          utf8.decode(result.stderr as List<int>),
+          contains("this project's agent files are older than specstone"),
+        );
+      }, testOn: '!windows');
+
+      test('the output of the script on both streams reaches the Owner byte '
+          'for byte', () async {
+        final result = await upgrade(
+          "printf 'out \\377 line\\n'\nprintf 'warn \\377 line\\n' >&2\n",
+        );
+
+        expect(result.exitCode, 0);
+        expect(result.stdout, [
+          ...utf8.encode('out '),
+          0xff,
+          ...utf8.encode(' line\n'),
+        ]);
+        expect(result.stderr, [
+          ...utf8.encode('warn '),
+          0xff,
+          ...utf8.encode(' line\n'),
+        ]);
+      }, testOn: '!windows');
+
+      test('the installed binary run with its stdout dropped makes no release '
+          'check', () async {
+        final result = await upgrade('exit 0\n', files: staleAgentFiles);
+
+        expect(result.exitCode, 0);
+        expect(
+          utf8.decode(result.stderr as List<int>),
+          contains("this project's agent files are older than specstone"),
+        );
+        expect(
+          File(_join(homeOf.path, '.specstone', 'update-check.json'))
+              .existsSync(),
+          isFalse,
+        );
+      }, testOn: '!windows');
+    },
+  );
 }

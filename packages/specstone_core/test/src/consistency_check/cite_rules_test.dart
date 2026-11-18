@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/target_fixture.dart';
 
 /// The DocPath of the login domain the tests add.
 const _domain = 'specs/f01_login/DOMAIN.md';
@@ -343,6 +344,181 @@ void main() {
       ),
     );
     expect(findings.single.message, isNot(contains('lacks')));
+  });
+
+  test('typed and story spans with a #key give cite_unlinked, never '
+      'doc_name_unresolved, whether the doc holds the key or not', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ..._domainFile,
+          ...doc(
+            loginFeature,
+            _line,
+            'Users forget; `feature:login`, '
+            '`login/email_login#acceptance_criteria`, and '
+            '`login/email_login#nowhere`.',
+          ),
+        },
+      ),
+    );
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.citeUnlinked) f.keys['cite'],
+      ],
+      ['feature:login', 'login/email_login', 'login/email_login'],
+    );
+    expect(
+      report.findings.map((f) => f.kind),
+      isNot(contains(FindingKind.docNameUnresolved)),
+    );
+  });
+
+  test(
+    'a #key the one doc lacks gives cite_unlinked naming the section',
+    () async {
+      final findings = await _citesInFeature(
+        'Users forget; `domain:login#nowhere`.',
+      );
+      expect(findings, hasLength(1));
+      expect(findings.single.keys, {'cite': 'domain:login'});
+      expect(findings.single.message, contains(_domain));
+      expect(findings.single.message, contains('lacks section nowhere'));
+    },
+  );
+
+  test('a #key of a section the doc holds gives cite_unlinked linking that '
+      'section', () async {
+    final findings = await _citesInFeature(
+      'Users forget; `domain:login#invariants`.',
+    );
+    expect(findings, hasLength(1));
+    expect(
+      findings.single.message,
+      contains('write it as [domain:login]($_fromFeature#invariants)'),
+    );
+  });
+
+  test('a name under no feature slug gives neither cite_unlinked nor '
+      'doc_name_unresolved', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ..._domainFile,
+          ...doc(
+            loginFeature,
+            _line,
+            'Users forget; see `nowhere/email_login`.',
+          ),
+        },
+      ),
+    );
+    final kinds = report.findings.map((f) => f.kind);
+    expect(kinds, isNot(contains(FindingKind.citeUnlinked)));
+    expect(kinds, isNot(contains(FindingKind.docNameUnresolved)));
+  });
+
+  test('a resolving mention in frontmatter, fenced code, a mermaid block, or '
+      'a code root file gives no cite_unlinked', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ..._domainFile,
+          ...edit(loginFeature, [
+            (
+              'summary: Lets an agent sign in.',
+              'summary: Lets in `domain:login` INV-6.',
+            ),
+            (
+              _line,
+              'Users forget.\n\n```\n`domain:login` INV-6\n```\n\n'
+                  '```mermaid\nflowchart LR\n  N[domain:login INV-6]\n```',
+            ),
+          ]),
+          'app/lib/login.dart':
+              '// See `domain:login` INV-6\nclass SignInPage {}\n\n'
+              'bool checkPassword(String password) => password.isNotEmpty;\n',
+        },
+      ),
+    );
+    final kinds = report.findings.map((f) => f.kind);
+    expect(kinds, isNot(contains(FindingKind.citeUnlinked)));
+    expect(kinds, contains(FindingKind.docCitedInCode));
+  });
+
+  test(
+    'a DocPath as the whole text of a code span gives cite_unlinked',
+    () async {
+      final findings = await _citesInFeature('Users forget; see `$_domain`.');
+      expect(findings, hasLength(1));
+      expect(findings.single.keys, {'cite': _domain});
+    },
+  );
+
+  test("a per-target type's layout path of each target raises nothing, while "
+      'a folder-relative path to one does', () async {
+    final project = await writeTwinProject(
+      extra: doc(
+        loginFeature,
+        _line,
+        'Users forget; see `specs/flutter/TECH_STACK.md` and '
+        'specs/jaspr/TECH_STACK.md and '
+        '`../../../specs/flutter/TECH_STACK.md`.',
+      ),
+    );
+    final findings = [
+      for (final f in (await checkOf(project)).findings)
+        if (f.kind == FindingKind.citeUnlinked) f,
+    ];
+    expect(
+      [for (final f in findings) f.keys['cite']],
+      ['../../../specs/flutter/TECH_STACK.md'],
+    );
+  });
+
+  test('a #key run and a comma-and run each give one cite_unlinked', () async {
+    final domain = {
+      'docs/$_domain':
+          '# Login domain\n\n## Entities\n\n- Account\n\n'
+          '## Invariants\n\n- **INV-6** An account holds one email.\n'
+          '- **INV-7** A login is rate limited.\n'
+          '- **INV-9** A session expires.\n',
+    };
+    final keyRun = await _citeFindings({
+      ...domain,
+      ...doc(
+        loginFeature,
+        _line,
+        'Users forget; `domain:login#invariants` INV-6 and INV-7.',
+      ),
+    });
+    expect(keyRun, hasLength(1));
+    expect(keyRun.single.keys, {'cite': 'domain:login'});
+    expect(
+      keyRun.single.message,
+      contains(
+        '[INV-6]($_fromFeature#invariants), [INV-7]($_fromFeature#invariants)',
+      ),
+    );
+
+    final commaRun = await _citeFindings({
+      ...domain,
+      ...doc(
+        loginFeature,
+        _line,
+        'Users forget; `domain:login` INV-6, INV-7, and INV-9.',
+      ),
+    });
+    expect(commaRun, hasLength(1));
+    expect(commaRun.single.keys, {'cite': 'domain:login'});
+    expect(
+      commaRun.single.message,
+      contains(
+        '[INV-6]($_fromFeature#invariants), [INV-7]($_fromFeature#invariants), '
+        '[INV-9]($_fromFeature#invariants)',
+      ),
+    );
   });
 
   test('an untyped doc gives no finding', () async {
