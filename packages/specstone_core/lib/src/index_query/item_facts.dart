@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show tableCellRanges;
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/sentence_measure.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
@@ -301,7 +302,7 @@ List<BodyLine> withGeneratedFenced(
   bool Function(int line) isGenerated,
 ) => [
   for (final line in body)
-    (
+    BodyLine(
       text: line.text,
       line: line.line,
       fenced: line.fenced || isGenerated(line.line),
@@ -327,7 +328,7 @@ List<BodyLine> leadBodyLinesOf(
   final head = lfLinesOf(doc.head);
   return [
     for (var k = skip; k < head.length; k++)
-      (
+      BodyLine(
         text: head[k],
         line: firstBodyLine + k,
         fenced:

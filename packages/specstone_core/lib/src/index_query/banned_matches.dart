@@ -153,7 +153,7 @@ List<SearchLine> searchLinesOf(
   int index,
 ) => [
   SearchLine(sections[index].headerLine, facts.sectionLines[index]),
-  for (final (:text, :line, :fenced) in sectionBodyLines(
+  for (final BodyLine(:text, :line, :fenced) in sectionBodyLines(
     sections,
     facts,
     index,

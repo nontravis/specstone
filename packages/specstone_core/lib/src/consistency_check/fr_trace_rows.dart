@@ -1,5 +1,4 @@
-/// One body line of a section: its text, file line, and fenced flag.
-typedef TraceBodyLine = ({String text, int line, bool fenced});
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 
 /// One tracked row of an FR trace table: its first cell and file line.
 typedef FrTraceRow = ({String cell, int line});
@@ -11,7 +10,7 @@ final _separatorCell = RegExp(r'^:?-+:?$');
 /// [body] holds the section's lines. The first table row is the header; a
 /// separator row and a fenced line are skipped. A cell is trimmed with one pair
 /// of backticks dropped.
-List<FrTraceRow> readFrTraceRows(List<TraceBodyLine> body) {
+List<FrTraceRow> readFrTraceRows(List<BodyLine> body) {
   final rows = <FrTraceRow>[];
   var sawHeader = false;
   for (final line in body) {

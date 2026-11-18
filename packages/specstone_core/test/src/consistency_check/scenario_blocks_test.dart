@@ -6,7 +6,7 @@ import '../../helpers/index_fixture.dart';
 
 List<BodyLine> _body(String text, {Set<int> fenced = const {}}) => [
   for (final (i, line) in text.split('\n').indexed)
-    (text: line, line: i + 1, fenced: fenced.contains(i)),
+    BodyLine(text: line, line: i + 1, fenced: fenced.contains(i)),
 ];
 
 void main() {

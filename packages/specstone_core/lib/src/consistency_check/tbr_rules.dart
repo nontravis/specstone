@@ -92,7 +92,7 @@ Iterable<_Open> _bulletsOf(
 ) sync* {
   if (doc.docTypeId != _gnfrType) return;
   for (var i = 0; i < context.contentOf(doc).sections.length; i++) {
-    for (final (:text, :line, :fenced) in context.bodyLinesOf(doc, i)) {
+    for (final BodyLine(:text, :line, :fenced) in context.bodyLinesOf(doc, i)) {
       final bullet = text.trim();
       if (fenced || !bullet.startsWith(_bulletLabel)) continue;
       claimed.add(line);
