@@ -1023,6 +1023,32 @@ lint:
       expect(lintOf('{item_count: {min: 3, max: 3}}').itemCount?.min, 3);
     });
 
+    test('an item_count waits_for of maybe is unknown_value', () {
+      for (final value in ['maybe', '""']) {
+        expectSectionFault(
+          '{item_count: {max: 8, waits_for: $value}}',
+          FaultCode.unknownValue,
+          'item_count.waits_for',
+        );
+      }
+      expect(
+        lintOf('{item_count: {max: 8, waits_for: owner}}')
+            .itemCount
+            ?.waitsForOwner,
+        isTrue,
+      );
+      expect(
+        lintOf('{item_count: {max: 8, waits_for: agent}}')
+            .itemCount
+            ?.waitsForOwner,
+        isFalse,
+      );
+      expect(
+        lintOf('{item_count: {max: 8}}').itemCount?.waitsForOwner,
+        isFalse,
+      );
+    });
+
     test(
       'an item_count prefix with no line_prefix or count is missing_key',
       () {
