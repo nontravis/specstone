@@ -8,12 +8,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// The sentence-length line of the shipped prd-core guides, which a length
-/// message names.
-const sentenceLengthGuideLine =
-    'Each sentence holds 25 words or fewer (Korean 17), or 100 characters in '
-    'a script with no spaces (Japanese 60, Chinese 45).';
-
 /// The cite-note line of the shipped prd-core guides, which a trace-note
 /// message names.
 const citeNoteGuideLine = "Put a cite or an ownership note at the item's end.";
@@ -135,8 +129,7 @@ Iterable<Finding> _lengthFindings(
       line: line,
       message:
           'the longest sentence holds ${run.longest} $unit; the limit is '
-          '${run.limit} for language ${run.language}; '
-          'guide line: $sentenceLengthGuideLine',
+          '${run.limit} $unit for language ${run.language}',
       keys: {
         ...keys,
         'language': run.language,
