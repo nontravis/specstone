@@ -276,10 +276,8 @@ List<FileResult> _referenceResults(
         results.add(FileResult(path: path, status: FileStatus.leftover));
       }
     } on FileSystemException {
-      // Like an unlistable doc folder: skipped with a warning, never silent.
-      final folder = skill.referencesPath;
-      results.add(FileResult(path: folder, status: FileStatus.skipped));
-      warnings.add('$folder: cannot be read; skipped');
+      // Like an unlistable doc folder: a warning only, never silent.
+      warnings.add('${skill.referencesPath}: cannot be read; skipped');
     }
   }
   return results..sort((a, b) => compareCodePoints(a.path, b.path));

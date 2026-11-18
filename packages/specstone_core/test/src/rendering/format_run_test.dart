@@ -1337,7 +1337,7 @@ void main() {
         expect(report.exitStatus, 0);
       });
 
-      test('an unreadable references folder is skipped with a warning, no '
+      test('an unreadable references folder warns and lists no '
           'partial list', () async {
         final project = await formatted({
           '$output/references/specs/a/old.md': '# Old\n',
@@ -1352,8 +1352,7 @@ void main() {
         final report = format(project, check: true);
 
         expect(report.toText(), '');
-        expect(report.files.last.path, '$output/references/');
-        expect(report.files.last.status, FileStatus.skipped);
+        expect(report.exitStatus, 0);
         expect(report.warnings, [
           '$output/references/: cannot be read; skipped',
         ]);
