@@ -203,6 +203,24 @@ void main() {
     ]);
   });
 
+  test('a lettered NFR heading is item_id_lettered, and an override of the '
+      'plain ID it replaced is override_unresolved beside it', () async {
+    final project = await writeCheckProject(
+      extra: doc(
+        gnfrDoc,
+        '### NFR-P01 — Sign-in time',
+        '### NFR-P01a — Sign-in time',
+      ),
+    );
+    final report = await checkOf(project);
+    expect(spots(report, FindingKind.overrideUnresolved), [
+      '$loginNf:4: override_unresolved',
+    ]);
+    expect(spots(report, FindingKind.itemIdLettered), [
+      '$gnfrDoc:${lineOfFirst(project, gnfrDoc, '### NFR-P01a')}: item_id_lettered',
+    ]);
+  });
+
   test('a lettered project heading keys no block, '
       'so a goal or Serves entry of its written form is unresolved', () async {
     final report = await checkOf(
@@ -430,6 +448,23 @@ void main() {
     },
   );
 
+  test('an ID no goal block holds, cited by the story and its feature, is '
+      'unresolved on each and widened on neither', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(loginStory, '  - PG-01\n', '  - PG-09\n'),
+          ...doc(loginFeature, '  - PG-01\n', '  - PG-09\n'),
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.visionGoalUnresolved), [
+      '$loginFeature:6: vision_goal_unresolved',
+      '$loginStory:3: vision_goal_unresolved',
+    ]);
+    expect(spots(report, FindingKind.visionGoalWidened), isEmpty);
+  });
+
   test("a subset of the feature's IDs passes; with no PROJECT.md every role "
       'and ID is unresolved', () async {
     expect(
@@ -586,6 +621,22 @@ void main() {
     });
   });
 
+  test('a lettered or unreadable Serves ID is reported at the Serves line, '
+      'one finding for the one bad ID', () async {
+    for (final (line, id) in [
+      ('**Serves:** PV-01, PV-09a', 'PV-09a'),
+      ('**Serves:** PV-01, PV-1a1', 'PV-1a1'),
+    ]) {
+      final project = await writeCheckProject(
+        extra: doc(goalDoc, '**Serves:** PV-01', line),
+      );
+      final report = await checkOf(project);
+      expect(spots(report, FindingKind.visionGoalUnresolved), [
+        '$goalDoc:${lineOfFirst(project, goalDoc, line)}: vision_goal_unresolved',
+      ], reason: id);
+    }
+  });
+
   test('a project heading ID is read through the grammar, '
       'so an unreadable heading names no goal a feature may list', () async {
     final report = await checkOf(
@@ -652,6 +703,32 @@ void main() {
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
     },
   );
+
+  test('a merged set with a project doc type and no goal doc type leaves every '
+      'goals ID unresolved', () async {
+    final project = await fixtureProject({
+      'docs/prds/PROJECT.md': '# Project\n',
+      'docs/prds/features/f01_login/FEATURE.md':
+          '---\ngoals:\n  - PG-09\n---\n\n# Login\n',
+    });
+    final session = ReadSession.open(
+      templates: TemplateResolver(
+        shippedFiles: fixturePackFiles(
+          extra: {
+            'project.yaml': 'id: project\ndescription: The project.\npath: prds/PROJECT.md\n',
+          },
+        ),
+      ),
+      workingDirectory: project,
+      homeDirectory: null,
+    );
+    addTearDown(session.close);
+    final report = await runCheck(session);
+    expect(CheckContext(session).hasGoal, isFalse);
+    expect(spots(report, FindingKind.visionGoalUnresolved), [
+      'prds/features/f01_login/FEATURE.md:2: vision_goal_unresolved',
+    ]);
+  });
 
   test('a row naming a requirement of the feature resolves', () async {
     expect(
@@ -957,6 +1034,40 @@ void main() {
     expect(spots(report, FindingKind.implementsMissing), isEmpty);
   });
 
+  test('an architecture type with no record doc type gives no architecture_missing, '
+      'whatever the story and FR frontmatter say of code', () async {
+    final withoutRecordType = await checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\ndescription: How the feature is built.\n'
+              'path: specs/f{nn}_{slug}/ARCHITECTURE.md\nparent: feature\n',
+          ...edit(loginFr, [
+            (
+              'verify_method: test\n',
+              'verify_method: test\nstatus: implemented\nimplements:\n  - app/lib/login.dart\n',
+            ),
+          ]),
+        },
+        without: {
+          'docs/$loginArchitecture',
+          'docs/$loginApi',
+          'docs/$techStack',
+          loginRecord,
+        },
+      ),
+    );
+    expect(spots(withoutRecordType, FindingKind.architectureMissing), isEmpty);
+    final withRecordType = await _checkLogin(
+      _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+      without: {'docs/$loginArchitecture'},
+    );
+    expect(spots(withRecordType, FindingKind.architectureMissing), [
+      '$loginFeature:1: architecture_missing',
+    ]);
+  });
+
   test('a spec doc whose feature is gone gets parent_missing and no row rule', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -1091,6 +1202,67 @@ void main() {
       expect(spots(report, FindingKind.implementsMissing), isEmpty);
     },
   );
+
+  test('an implemented entry whose code path names a file and symbol the '
+      'code holds gives no finding on the record', () async {
+    final report = await _checkLogin(
+      _record(
+        statuses: ['$_fr:implemented'],
+        code: [_loginCode],
+        tests: ['$_fr:app/lib/login.dart'],
+      ),
+    );
+    expect([
+      for (final f in report.findings)
+        if (f.path == _loginRecord && f.kind != FindingKind.approvalStale)
+          f.kind.wire,
+    ], isEmpty);
+  });
+
+  test('a skipped entry with its reason and no code path gives no record '
+      'entry finding at all', () async {
+    final report = await _checkLogin(
+      _record(statuses: ['$_fr:skipped:not in this client']),
+    );
+    expect([
+      for (final f in report.findings)
+        if (f.path == _loginRecord && f.kind != FindingKind.approvalStale)
+          f.kind.wire,
+    ], isEmpty);
+  });
+
+  test('an implemented FR entry whose tests line names an existing test '
+      'file gives neither tests_missing nor tests_unresolved', () async {
+    final report = await _checkLogin(
+      _record(
+        statuses: ['$_fr:implemented'],
+        code: [_loginCode],
+        tests: [_loginTest],
+      ),
+      extra: {'app/test/login_test.dart': 'void main() {}\n'},
+    );
+    expect(spots(report, FindingKind.testsMissing), isEmpty);
+    expect(spots(report, FindingKind.testsUnresolved), isEmpty);
+  });
+
+  test('a planned entry whose code path names an existing file with no '
+      'fingerprint gives code_unconfirmed and no status finding', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: _withRecord(
+          _record(statuses: ['$_fr:planned'], code: [_loginCode]),
+        ),
+        unstamped: {_loginRecord},
+        unfingerprinted: {_loginRecord},
+      ),
+    );
+    expect(spots(report, FindingKind.codeUnconfirmed), [
+      '$_loginRecord:5: code_unconfirmed',
+    ]);
+    expect(spots(report, FindingKind.implementsMissing), isEmpty);
+    expect(spots(report, FindingKind.testsMissing), isEmpty);
+    expect(spots(report, FindingKind.implementsPathUnresolved), isEmpty);
+  });
 
   test('an implemented FR entry verified by test and naming no test is '
       'tests_missing at its statuses line', () async {
@@ -1510,6 +1682,22 @@ void main() {
       ]);
     });
 
+    test('a feature under cart citing PG-02 is widened with id PG-02 on its '
+        'goals line', () async {
+      const deepFeature = 'prds/features/f02_shop/f01_cart/f01_deep/FEATURE.md';
+      final report = await checkOf(
+        await writeNestedProject(
+          extra: {...projectWithPg02, 'docs/$deepFeature': cartGoalsWithPg02},
+        ),
+      );
+
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.visionGoalWidened && f.path == deepFeature,
+      );
+      expect(finding.toJson()['id'], 'PG-02');
+      expect(finding.line, 5);
+    });
+
     test('shop is checked against the project only', () async {
       final report = await checkOf(
         await writeNestedProject(
@@ -1734,6 +1922,23 @@ void main() {
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
     });
 
+    test('a goal block of a section outside the three horizons holding a '
+        'Serves line gets no Serves check', () async {
+      final report = await checkGoals(
+        {
+          'docs/$goalDoc':
+              '# Project goals\n\n## Long-term goals\n\n${block('PG-01', 'PV-01')}'
+              '## Backlog goals\n\n${block('PG-06', 'PV-09, PG-06')}',
+        },
+        extra: {
+          '.specstone/templates/goal.yaml': 'sections:\n  - id: backlog\n    header: Backlog goals\n    prefix_id: PG-\n',
+        },
+      );
+      expect(found(report, FindingKind.visionGoalUnresolved), isEmpty);
+      expect(spots(report, FindingKind.goalServesHorizon), isEmpty);
+      expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+    });
+
     test('a feature goals ID no goal block holds is unresolved at its '
         'key, and a held one is not', () async {
       final report = await checkGoals(
@@ -1777,6 +1982,31 @@ void main() {
       expect(found(report, FindingKind.visionGoalUnresolved), [
         '$goalDoc:${head + 7}:null:PV-09a',
       ]);
+    });
+
+    test('a lettered goal heading is item_id_lettered and its own Serves line '
+        'gets no check', () async {
+      final project = await writeCheckProject(
+        extra: {
+          'docs/$goalDoc':
+              '# Project goals\n\n## Long-term goals\n\n'
+              '### PG-01a — Goal\n\n**Serves:** PV-09, PG-01a\nText.\n',
+        },
+      );
+      final report = await checkOf(project);
+      expect(spots(report, FindingKind.itemIdLettered), [
+        '$goalDoc:${lineOfFirst(project, goalDoc, '### PG-01a')}: item_id_lettered',
+      ]);
+      expect([
+        for (final f in report.findings)
+          if (f.path == goalDoc &&
+              const {
+                FindingKind.visionGoalUnresolved,
+                FindingKind.goalServesMissing,
+                FindingKind.goalServesHorizon,
+              }.contains(f.kind))
+            f.kind.wire,
+      ], isEmpty);
     });
 
     test('a lettered goal heading holds no goal: neither its ID nor the '
