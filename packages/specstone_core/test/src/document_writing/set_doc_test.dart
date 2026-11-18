@@ -172,6 +172,50 @@ void main() {
     });
   });
 
+  test('a path holding # with --title is the whole address and refuses untyped_target', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/notes#draft.md': '# Draft\n'},
+    );
+    writeIn(root, (s) {
+      final whole = SetRequest.parse(
+        'prds/notes#draft.md',
+        title: true,
+        base: 'abc',
+        index: s.index,
+      );
+      expect(whole.address, 'prds/notes#draft.md');
+      expect(whole.target, isA<TitleTarget>());
+      expect(
+        () => answerSet(s, whole, 'Retitled\n'),
+        throwsIndexFault(IndexFaultCode.untypedTarget),
+      );
+    });
+    expect(readDoc(root, 'prds/notes#draft.md'), '# Draft\n');
+  });
+
+  test('a bare gnfr name with #_lead writes the one gnfr doc as the typed name does', () async {
+    const gnfr = 'prds/GNFR.md';
+    const doc =
+        '# Global non-functional requirements\n\nOld intro.\n\n## Performance\n\nN/A — no budget yet.\n';
+    final bare = await writeWriteProject(extra: {'docs/$gnfr': doc});
+    final typed = await writeWriteProject(extra: {'docs/$gnfr': doc});
+    String write(Directory root, String address) {
+      final base = sectionBase(root, address);
+      writeIn(root, (s) => answerSet(s, req(address, base), 'New intro.\n'));
+      return readDoc(root, gnfr);
+    }
+
+    final viaBare = write(bare, 'gnfr#_lead');
+    expect(viaBare, write(typed, 'gnfr:gnfr#_lead'));
+    expect(
+      viaBare,
+      contains(
+        '# Global non-functional requirements\n\nNew intro.\n\n## Performance',
+      ),
+    );
+    expect(viaBare, contains('draft: true'));
+  });
+
   test('set names one target and a base', () {
     expect(
       () => SetRequest.parse(null, base: 'abc'),
@@ -557,6 +601,149 @@ void main() {
         ),
       );
     });
+  });
+
+  test('a non-template section removed after the read exits 64 naming the doc and the key', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1': '${writeProject['docs/$story1']!}\n## Notes\nfirst\n',
+      },
+    );
+    const target = 'user_story:login/email_login#notes';
+    final base = sectionBase(root, target);
+    docFile(root, story1).writeAsStringSync(
+      readDoc(root, story1).replaceFirst('\n## Notes\nfirst\n', ''),
+    );
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(root, (s) => answerSet(s, req(target, base), 'x\n')),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+            .having((f) => f.exitStatus, 'exitStatus', 64)
+            .having(
+              (f) => f.message,
+              'message',
+              startsWith(
+                'user_story:login/email_login holds no section with the key notes',
+              ),
+            ),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test('a hand edit while another call holds the write lock takes no lock, and the next set re-reads it', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/sign_out#use_case';
+    final base = sectionBase(root, target);
+    final other = sqlite3.open('${root.path}/.specstone/index.sqlite')
+      ..execute('BEGIN IMMEDIATE');
+    addTearDown(other.close);
+    docFile(root, story2).writeAsStringSync(
+      readDoc(root, story2).replaceFirst('Sign out.', 'Signed out by hand.'),
+    );
+    other.execute('ROLLBACK');
+    final handEdited = readDoc(root, story2);
+    expect(handEdited, contains('Signed out by hand.'));
+    expect(handEdited, isNot(contains('draft:')));
+
+    expect(
+      () => writeIn(root, (s) => answerSet(s, req(target, base), 'Out.\n')),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+            .having(
+              (f) => f.current?.text,
+              'current.text',
+              contains('Signed out by hand.'),
+            ),
+      ),
+    );
+    expect(readDoc(root, story2), handEdited);
+  });
+
+  test('empty stdin on a required section the doc lacks is required_target naming it', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
+          '## Use Case\n\nSign in with an email.\n\n',
+          '',
+        ),
+      },
+    );
+    final before = readDoc(root, story1);
+    expect(before, isNot(contains('## Use Case')));
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req('user_story:login/email_login#use_case', emptyBaseHash),
+          '',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.requiredTarget)
+            .having(
+              (f) => f.message,
+              'message',
+              'user_story requires the section use_case',
+            )
+            .having((f) => (f.file, f.key), 'location', (story1, 'use_case')),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test('a write to any other part adds no missing section, and only a set on its key with the empty base adds it', () async {
+    final root = await writeWriteProject();
+    const address = 'user_story:login/email_login';
+    const missing = '## Open questions';
+    expect(readDoc(root, story1), isNot(contains(missing)));
+
+    String base(String id) => sectionBase(root, '$address#$id');
+    final titleBase =
+        (getDoc(root, address)['bases']! as Map)['title']! as String;
+    writeIn(
+      root,
+      (s) => answerSet(s, req('$address#use_case', base('use_case')), 'A.\n'),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(s, req('$address#_lead', base('_lead')), 'Lead.\n'),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(address, 'vision', fieldBase(root, address, 'vision')),
+        '- PV-02\n',
+      ),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        SetRequest.parse(address, title: true, base: titleBase),
+        'Sign in\n',
+      ),
+    );
+    final laidOut = readDoc(root, story1);
+    expect(laidOut, contains('Lead.'));
+    expect(laidOut, contains('# Sign in\n'));
+    expect(laidOut, isNot(contains(missing)));
+
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req('$address#open_questions', emptyBaseHash),
+        'Which provider?\n',
+      ),
+    );
+    expect(readDoc(root, story1), endsWith('$missing\n\nWhich provider?\n'));
   });
 
   test(
@@ -2485,6 +2672,34 @@ void main() {
         isNot(contains('\n')),
       );
     });
+
+    test('a column-0 naming line in a lead is refused opening with the lead holds and the doc stays', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      const naming =
+          '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, leadBase(root)),
+            'Intro.\n\n$naming\nMore.\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('the lead holds the naming line "$naming"'),
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
   });
 
   group('write one section, field, title, or lead lays the doc out', () {
@@ -3858,6 +4073,47 @@ void main() {
         ),
       );
       expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
+    });
+
+    test('an implements entry with a fingerprint leaves a record approved or draft as it was', () async {
+      final root = await twinWithRecords();
+      docFile(
+        root,
+        flutterRecord,
+      ).writeAsStringSync(record.replaceFirst('---\n', '---\ndraft: true\n'));
+      const entry =
+          'email_login/check_password:app/lib/login.dart:SignInPage 5d1e0c4b7a92';
+      final approvedBefore = RegExp('approved: "[0-9a-f]{12}"')
+          .firstMatch(readDoc(root, jasprRecord))![0]!;
+
+      final answers = {
+        for (final path in [flutterRecord, jasprRecord])
+          path: writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              SetRequest.parse(
+                path,
+                field: 'implements',
+                base: fieldBase(root, path, 'implements'),
+              ),
+              '- $entry\n',
+            ),
+          ),
+      };
+
+      expect(readDoc(root, flutterRecord), contains('draft: true\n'));
+      expect(readDoc(root, flutterRecord), contains('  - $entry\n'));
+      expect(answers[flutterRecord]!.json['draft'], isTrue);
+      expect(
+        readDoc(root, jasprRecord),
+        allOf(
+          contains('  - $entry\n'),
+          contains(approvedBefore),
+          isNot(contains('draft')),
+        ),
+      );
+      expect(answers[jasprRecord]!.json['draft'], isFalse);
     });
 
     test(
