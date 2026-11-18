@@ -6,9 +6,8 @@ import 'package:markdown/markdown.dart'
         AutolinkSyntax,
         EmailAutolinkSyntax,
         InlineHtmlSyntax;
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/models/written_destination.dart';
 

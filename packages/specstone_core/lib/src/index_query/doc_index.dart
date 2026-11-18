@@ -8,9 +8,9 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/index_query/status_tree.dart';
 import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/record_status.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 export 'package:specstone_core/src/index_query/indexed_doc.dart'

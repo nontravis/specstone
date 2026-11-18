@@ -1,9 +1,10 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/source_order_nodes.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind, parsedDestinationOf;
+    show parsedDestinationOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
 
 /// The syntax that makes `markdown`'s link elements, whose href it decodes.

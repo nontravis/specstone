@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, projectFilePathOf, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
 import 'package:specstone_core/src/doc_model/percent_decode.dart';

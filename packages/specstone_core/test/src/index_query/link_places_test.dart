@@ -2,8 +2,7 @@ import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show maxMarkdownDepth, parseMarkdownTree;
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind;
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';

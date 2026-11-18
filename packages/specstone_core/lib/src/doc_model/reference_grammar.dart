@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show headingItemTextOf;
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/destination_parts.dart';
 import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
@@ -403,19 +404,6 @@ LinkTargetForm readLinkTarget(String href) {
     rawAnchor: rawAnchor,
     pathEnd: path.length,
   );
-}
-
-/// How `markdown` 7.3.1 reads a link destination as written, which decides
-/// the backslashes its link parser drops before the rest is decoded.
-enum DestinationKind {
-  /// An inline link's or image's destination, bare.
-  inline,
-
-  /// An inline link's or image's destination in angle brackets.
-  angleInline,
-
-  /// A link reference definition's destination, bare or in angle brackets.
-  definition,
 }
 
 /// One code unit of a destination as decoding reads it, and the range of the
