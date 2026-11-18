@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
@@ -737,7 +738,7 @@ void main() {
           binaryVersion: specstoneVersion,
           docTypes: 'x',
         );
-        const key = (
+        const key = FileStatKey(
           size: 4,
           modified: 1700000000123456,
           changed: 1700000000654321,

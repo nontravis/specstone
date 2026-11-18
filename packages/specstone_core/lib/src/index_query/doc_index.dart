@@ -5,6 +5,8 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/indexed_item_words.dart';
+import 'package:specstone_core/src/index_query/models/indexed_link.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/index_query/status_tree.dart';
 import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
@@ -338,8 +340,7 @@ final class DocIndex {
 
   /// Returns the normalized words of every item of a rule-bearing section,
   /// by docPath and then item order.
-  Iterable<({String docPath, int line, String? itemId, List<String> words})>
-  ruleItemWords() => _store.ruleItemWords();
+  Iterable<IndexedItemWords> ruleItemWords() => _store.ruleItemWords();
 
   /// Returns the rows of the full-text index that match [matchExpression].
   ///
@@ -370,8 +371,8 @@ final class DocIndex {
       _linked((link) => link.target == doc.docPath, (link) => link.source);
 
   List<IndexedDoc> _linked(
-    bool Function(({String source, String target}) link) keep,
-    String Function(({String source, String target}) link) end,
+    bool Function(IndexedLink link) keep,
+    String Function(IndexedLink link) end,
   ) {
     final paths = {
       for (final link in _store.loadLinks())

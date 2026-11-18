@@ -4,6 +4,7 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
+import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -273,7 +274,7 @@ final class _Listing {
 FileStatKey? _statKeyOf(File file) {
   final stat = file.statSync();
   if (stat.type != FileSystemEntityType.file) return null;
-  return (
+  return FileStatKey(
     size: stat.size,
     modified: stat.modified.microsecondsSinceEpoch,
     changed: stat.changed.microsecondsSinceEpoch,
