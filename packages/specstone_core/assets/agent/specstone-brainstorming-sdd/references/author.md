@@ -33,7 +33,7 @@ reason (Rationale, "since", "so") only in the design's words; list one it lacks 
   - Part twice, or a whole-doc block beside another of its doc: join them, a field or title block in the whole-doc
     block.
   - Removed required section, or a field only the Owner or Specstone sets: restore it; open fence: close it.
-  - Any other refusal: fix the part it names, as it says.
+  - Any other refusal: fix the part it names.
   - Refused path or line: rebuild the file from `get` text output alone.
 
 ## 3. Sweep each changed rule
@@ -51,14 +51,14 @@ doc; list any other under `Findings:`.
 ## 4. Check
 
 Run a bare `specstone check` before your first write and again after your last. Before the second, walk each item
-you wrote against your saved guide's description lines (doc part, held sections, `Fields:`), not banned-word,
-section-status, or template lines; list a line you cannot meet under `Findings:`. No `Required section.` line or
-`check` finding licenses a Rationale reason the design lacks; list it under `Findings:`. Then run
-`specstone check <feature> --repeats` per feature of your drafts: a draft's new text repeating another doc's item
-links it instead. Save each `check` by `--out`, never a redirect.
+you wrote against your saved guide's description lines (doc part, held sections, `Fields:`), not `Banned words:`
+lines, templates, or the `Required …` and `Optional …` lines; list a line you cannot meet under `Findings:`. No
+`Required section.` line or `check` finding licenses a Rationale reason the design lacks; list it under `Findings:`.
+Then run `specstone check <feature> --repeats` per feature of your drafts: a draft's new text repeating another doc's
+item links it instead. Save each `check` by `--out`, never a redirect.
 
 Fix each second-run finding, even one the first run had, in a section your writes touched. List each in an untouched
-section, such as a doc you only confirmed again, under `Findings:`, unfixed. Two kinds differ:
+section, such as a doc you only confirmed again, under `Findings:`, unfixed.
 
 - **A `suspect` link in another doc:** confirm it again per `specstone-expert-sdd`; that doc joins your
   drafts, or list it under `Findings:` when you cannot.
