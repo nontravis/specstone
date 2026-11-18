@@ -4,7 +4,6 @@
 // Imports the Version library of `specstone_core` and nothing else outside
 // `dart:`; a test compiles the tool against a copy of that library, outside the
 // workspace.
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -39,81 +38,22 @@ final class _Refusal implements Exception {
   final String message;
 }
 
-/// The signals that stop a run, and the build step a signal can still reach.
-///
-/// A signal goes on to the running build step only: git calls and the
-/// placement finish, so no install is left half made.
-final class _Interrupt {
-  static const List<ProcessSignal> _signals = [
-    ProcessSignal.sigint,
-    ProcessSignal.sigterm,
-    ProcessSignal.sighup,
-  ];
-
-  final List<StreamSubscription<ProcessSignal>> _watches = [];
-  ProcessSignal? _received;
-  Process? _step;
-
-  /// Whether a signal has arrived.
-  bool get isRaised => _received != null;
-
-  /// Starts watching the signals; the tool then outlives them, so its cleanup
-  /// runs.
-  void watch() {
-    for (final signal in _signals) {
-      _watches.add(signal.watch().listen(_raise));
-    }
-  }
-
-  /// Stops watching, so a later signal ends the tool as it would have.
-  Future<void> cancel() =>
-      Future.wait([for (final watch in _watches) watch.cancel()]);
-
-  /// Passes a signal already received, or the next one, on to [step].
-  void attach(Process step) {
-    _step = step;
-    final received = _received;
-    if (received != null) step.kill(received);
-  }
-
-  void detach() => _step = null;
-
-  Future<void> _raise(ProcessSignal signal) async {
-    final isFirst = !isRaised;
-    _received ??= signal;
-    _step?.kill(signal);
-    if (isFirst) await _say('interrupted; cleaning up');
-  }
-}
-
 Future<void> main(List<String> args) async {
   try {
     await _installLocal(args);
   } on _Refusal catch (refusal) {
-    await _refuse(refusal);
+    _refuse(refusal);
   }
 }
 
 /// Prints [refusal] and sets the exit status to 1.
-Future<void> _refuse(_Refusal refusal) async {
-  await _say(refusal.message);
+void _refuse(_Refusal refusal) {
+  _say(refusal.message);
   exitCode = 1;
 }
 
 /// Prints `install_local: <message>` on stderr.
-Future<void> _say(String message) => _write(stderr, 'install_local: $message');
-
-/// Writes [line] to [sink], and drops it when nobody reads the sink.
-///
-/// A closed terminal must not stop the tool before it has cleaned up.
-Future<void> _write(IOSink sink, String line) async {
-  try {
-    sink.writeln(line);
-    await sink.flush();
-  } on IOException {
-    // Nowhere to print.
-  }
-}
+void _say(String message) => stderr.writeln('install_local: $message');
 
 Future<void> _installLocal(List<String> args) async {
   if (Platform.isWindows) {
@@ -128,53 +68,35 @@ Future<void> _installLocal(List<String> args) async {
   final home = _homeFrom(Platform.environment);
   if (home == null) {
     throw _Refusal(
-      'no home folder: HOME and USERPROFILE are unset, empty, or not an '
-      'absolute path; $_unchanged',
+      'no home folder: HOME is unset, empty, or not an absolute path; '
+      '$_unchanged',
     );
   }
   final install = Directory('${home.path}/.specstone');
   final shortCommit = await _git(['rev-parse', '--short', commit]);
-  var placing = false;
-  final interrupt = _Interrupt()..watch();
   Directory? temp;
-  _Refusal? failure;
   try {
     try {
       temp = await _createTemp();
-      final bundle = await _build(commit, devVersion, temp, interrupt);
+      final bundle = await _build(commit, devVersion, temp);
       final shim = File('${temp.path}/$_exportFolder/$_shimPath');
-      final version = interrupt.isRaised
-          ? null
-          : await _versionOf(bundle, interrupt);
-      if (version != null && !interrupt.isRaised) {
-        placing = true;
-        await _place(
-          bundle,
-          install,
-          _buildRecord(ref, commit, DateTime.now()),
-          shim,
-        );
-        await _write(
-          stdout,
-          'installed specstone $version ($ref @ $shortCommit) '
-          'in ${install.path}/bin',
-        );
-      }
-    } on _Refusal catch (stepFailure) {
-      failure = stepFailure;
-    } finally {
-      await interrupt.cancel();
+      final version = await _versionOf(bundle);
+      await _place(
+        bundle,
+        install,
+        _buildRecord(ref, commit, DateTime.now()),
+        shim,
+      );
+      stdout.writeln(
+        'installed specstone $version ($ref @ $shortCommit) '
+        'in ${install.path}/bin',
+      );
+    } on _Refusal catch (refusal) {
+      _refuse(refusal);
     }
-    // An interrupt outranks the step it killed, unless the placement had begun:
-    // then the install may have changed, and the placement's own outcome
-    // stands. A refusal that loses is still printed.
-    final refusal = interrupt.isRaised && !placing
-        ? _Refusal('interrupted; $_unchanged')
-        : failure;
-    if (failure != null && failure != refusal) await _say(failure.message);
-    if (refusal != null) await _refuse(refusal);
   } finally {
-    // After the run's own output, and on every exit once the folder exists.
+    // After the run's own output, and on every exit once the folder exists; a
+    // signal ends the process before it runs.
     if (temp != null) await _deleteTemp(temp);
   }
 }
@@ -256,7 +178,7 @@ Future<String> _devVersionOf(String commit) async {
     '--count',
     'refs/tags/${line.key}..$commit',
   ]);
-  return '${base.major}.${BigInt.parse(base.minor) + BigInt.one}.0-dev.$count';
+  return '${base.major}.${int.parse(base.minor) + 1}.0-dev.$count';
 }
 
 /// Sets `specstoneVersion` in the `version.dart` of [export] to [version].
@@ -300,12 +222,7 @@ Future<void> _setVersion(String export, String version) async {
 /// untouched. Its `specstoneVersion` is set to [version] first. The build
 /// output sits beside the export, so deleting [temp] removes both. Returns the
 /// folder `dart build cli` fills with `bin/` and `lib/`.
-Future<Directory> _build(
-  String commit,
-  String version,
-  Directory temp,
-  _Interrupt interrupt,
-) async {
+Future<Directory> _build(String commit, String version, Directory temp) async {
   final export = '${temp.path}/$_exportFolder';
   final archive = '$export.tar';
   final output = '${temp.path}/build';
@@ -316,35 +233,32 @@ Future<Directory> _build(
     throw _Refusal('tar -xf failed: ${_failureText(extract)}');
   }
   await _setVersion(export, version);
-  await _step(
-    'dart pub get',
-    ['pub', 'get', '--enforce-lockfile'],
-    interrupt,
-    workingDirectory: export,
-  );
-  await _step(
-    'dart build cli',
-    ['build', 'cli', '-t', 'bin/specstone.dart', '-o', output],
-    interrupt,
-    workingDirectory: '$export/packages/specstone',
-  );
+  await _step('dart pub get', [
+    'pub',
+    'get',
+    '--enforce-lockfile',
+  ], workingDirectory: export);
+  await _step('dart build cli', [
+    'build',
+    'cli',
+    '-t',
+    'bin/specstone.dart',
+    '-o',
+    output,
+  ], workingDirectory: '$export/packages/specstone');
   return Directory('$output/bundle');
 }
 
-/// Returns the folder in `HOME`, else `USERPROFILE`, of [env].
+/// Returns the folder in `HOME` of [env].
 ///
-/// An empty value counts as unset; null means no home, which a value that is
-/// not an absolute path is too, since the install would land beside the
-/// checkout or a dash-led name would read as an option. Follows `homeFrom` of
-/// the CLI package, which this script cannot import, except for that check.
+/// Null means no home: `HOME` is unset, empty, or not an absolute path, since
+/// the install would land beside the checkout or a dash-led name would read as
+/// an option.
 Directory? _homeFrom(Map<String, String> env) {
-  for (final key in const ['HOME', 'USERPROFILE']) {
-    final value = env[key];
-    if (value == null || value.isEmpty) continue;
-    final home = Directory(value);
-    return home.isAbsolute ? home : null;
-  }
-  return null;
+  final value = env['HOME'];
+  if (value == null || value.isEmpty) return null;
+  final home = Directory(value);
+  return home.isAbsolute ? home : null;
 }
 
 /// Returns the lines of `build.txt`: the ref, the full commit, and the UTC
@@ -355,14 +269,12 @@ String _buildRecord(String ref, String commit, DateTime builtAt) =>
     'built: ${builtAt.toUtc().toIso8601String()}\n';
 
 /// Returns the version [bundle]'s binary prints for `--version`.
-Future<String> _versionOf(Directory bundle, _Interrupt interrupt) async =>
-    (await _step(
-      'specstone --version',
-      ['--version'],
-      interrupt,
-      workingDirectory: bundle.path,
-      executable: '${bundle.path}/bin/specstone',
-    )).trim();
+Future<String> _versionOf(Directory bundle) async => (await _step(
+  'specstone --version',
+  ['--version'],
+  workingDirectory: bundle.path,
+  executable: '${bundle.path}/bin/specstone',
+)).trim();
 
 /// Replaces `lib/` then `bin/` of [install] with those of [bundle].
 ///
@@ -430,7 +342,7 @@ Future<void> _placeStep(
 Future<void> _removeAsides(List<String> asides) async {
   final reason = await _failureOf(['rm', '-rf', ...asides]);
   if (reason != null) {
-    await _say('could not remove ${asides.join(' and ')}: $reason');
+    _say('could not remove ${asides.join(' and ')}: $reason');
   }
 }
 
@@ -446,33 +358,25 @@ Future<String?> _failureOf(List<String> command) async {
 
 /// Runs [executable] (`dart`) with [args] and returns its stdout.
 ///
-/// [interrupt] passes a signal on to the running child. A start failure or an
-/// exit status other than 0 refuses with [name] and the step's own error
-/// output.
+/// A start failure or an exit status other than 0 refuses with [name] and the
+/// step's own error output.
 Future<String> _step(
   String name,
-  List<String> args,
-  _Interrupt interrupt, {
+  List<String> args, {
   required String workingDirectory,
   String executable = 'dart',
 }) async {
-  final Process process;
+  final ProcessResult result;
   try {
-    process = await Process.start(
+    result = await Process.run(
       executable,
       args,
       workingDirectory: workingDirectory,
+      stdoutEncoding: const Utf8Codec(allowMalformed: true),
+      stderrEncoding: const Utf8Codec(allowMalformed: true),
     );
   } on ProcessException catch (error) {
     throw _Refusal('$name failed: ${error.message}');
-  }
-  process.stdin.close().ignore();
-  interrupt.attach(process);
-  final ProcessResult result;
-  try {
-    result = await _finish(process);
-  } finally {
-    interrupt.detach();
   }
   if (result.exitCode != 0) {
     throw _Refusal('$name failed: ${_failureText(result)}');
@@ -480,21 +384,11 @@ Future<String> _step(
   return result.stdout as String;
 }
 
-/// Collects the output of [process] until it exits.
-Future<ProcessResult> _finish(Process process) async {
-  const decoder = Utf8Decoder(allowMalformed: true);
-  final (output, errors, status) = await (
-    process.stdout.transform(decoder).join(),
-    process.stderr.transform(decoder).join(),
-    process.exitCode,
-  ).wait;
-  return ProcessResult(process.pid, status, output, errors);
-}
-
 /// Creates the folder that holds the export and the build output.
 ///
-/// A system temp path that is not absolute is refused: it would put the export
-/// inside the checkout.
+/// The system temp path is resolved first, so the export, the build output, and
+/// every message name the folder's real path. A path that is not absolute is
+/// refused: it would put the export inside the checkout.
 Future<Directory> _createTemp() async {
   final system = Directory.systemTemp;
   if (!system.isAbsolute) {
@@ -518,7 +412,7 @@ Future<void> _deleteTemp(Directory temp) async {
   try {
     await temp.delete(recursive: true);
   } on FileSystemException catch (error) {
-    await _say('could not remove ${temp.path}: ${error.message}');
+    _say('could not remove ${temp.path}: ${error.message}');
   }
 }
 

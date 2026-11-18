@@ -98,7 +98,6 @@ Future<InstallLocalRepo> createInstallLocalRepo() async {
 /// The `dart` and `git` stubs log each call to `dart.log` and `git.log`; the
 /// `dart` stub fails per `STUB_DART_PUB=fail` and `STUB_DART_BUILD=fail`, and
 /// waits for `<logs>/release` per `STUB_DART_BUILD=wait`; under
-/// `STUB_DART_IGNORE=signals` it ignores INT, TERM, and HUP, and under
 /// `STUB_DART_LOCK=1` its build step leaves a read-only `locked/` folder
 /// beside the build output, which a delete of the temp folder cannot remove.
 final class InstallLocalRepo {
@@ -235,7 +234,6 @@ final String _realGit = () {
 
 const _dartStub = r'''
 echo "$PWD|$*" >> "$STUB_LOG_DIR/dart.log"
-if [ "$STUB_DART_IGNORE" = signals ]; then trap '' INT TERM HUP; fi
 case "$1 $2" in
   'pub get')
     if [ "$STUB_DART_PUB" = fail ]; then
