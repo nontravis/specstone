@@ -6,8 +6,10 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/structure.dart';
-import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/rendering/formatter.dart'
+    show Refused, formatDoc, layOutDoc;
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show defaultMaxItemChars;
@@ -1348,6 +1350,183 @@ void main() {
         containsPair('limit', 160),
         containsPair('actual', 166),
       ),
+    );
+  });
+
+  group('a blank required section', () {
+    const layerPath = '.specstone/templates/fr.yaml';
+    const rationaleSection =
+        '## Rationale\n\nA wrong password must not sign in.\n\n';
+    String layer(String values) =>
+        'sections:\n  - id: input_output\n    required: true\n'
+        '    when_field: {field: verify_method, values: [$values]}\n';
+
+    Future<List<Finding>> missingOf(Directory project, String section) async =>
+        [
+          for (final f in (await checkOf(project)).findings)
+            if (f.kind == FindingKind.requiredSectionMissing &&
+                f.toJson()['section'] == section)
+              f,
+        ];
+
+    test('a blank required section is missing at its header', () async {
+      final project = await writeCheckProject(
+        extra: fr(rationaleSection, '## Rationale\n\n'),
+      );
+      final missing = await missingOf(project, 'rationale');
+      expect(missing, hasLength(1));
+      expect(
+        missing.single.line,
+        lineOfFirst(project, loginFr, '## Rationale'),
+      );
+      expect(missing.single.message, 'required section rationale is empty');
+    });
+
+    test(
+      'a blank section required by its when_field is missing at its header',
+      () async {
+        final project = await writeCheckProject(
+          extra: {
+            layerPath: layer('test'),
+            ...fr('## Edge cases', '## Input / Output\n\n## Edge cases'),
+          },
+        );
+        final missing = await missingOf(project, 'input_output');
+        expect(missing, hasLength(1));
+        expect(
+          missing.single.line,
+          lineOfFirst(project, loginFr, '## Input / Output'),
+        );
+        expect(
+          missing.single.message,
+          'required section input_output is empty',
+        );
+      },
+    );
+
+    test(
+      'spaces, tabs, and CRLF breaks alone leave a required section blank',
+      () async {
+        final project = await writeCheckProject(
+          extra: {
+            for (final MapEntry(:key, :value) in fr(
+              rationaleSection,
+              '## Rationale\n  \n\t\n\n',
+            ).entries)
+              key: value.replaceAll('\n', '\r\n'),
+          },
+        );
+        expect(
+          File('${project.path}/docs/$loginFr').readAsStringSync(),
+          contains('\r\n'),
+        );
+        final missing = await missingOf(project, 'rationale');
+        expect(missing, hasLength(1));
+        expect(
+          missing.single.line,
+          lineOfFirst(project, loginFr, '## Rationale'),
+        );
+      },
+    );
+
+    test('a blank last section with no final break is missing', () async {
+      final project = await writeCheckProject(
+        extra: fr(
+          '## Verification\n\nTest: a wrong password is refused.\n',
+          '## Verification',
+        ),
+      );
+      final missing = await missingOf(project, 'verification');
+      expect(missing, hasLength(1));
+      expect(
+        missing.single.line,
+        lineOfFirst(project, loginFr, '## Verification'),
+      );
+    });
+
+    test(
+      'an unformattable doc still reports a blank required section',
+      () async {
+        final project = await writeCheckProject(
+          extra: fr(
+            rationaleSection,
+            '## Edge cases\n\n2. E02 — Another case → refused.\n\n## Rationale\n\n',
+          ),
+        );
+        final disk = File('${project.path}/docs/$loginFr').readAsStringSync();
+        expect(
+          formatDoc(Doc.parse(disk), fixtureDocTypeOf(loginFr)),
+          isA<Refused>(),
+        );
+        final missing = await missingOf(project, 'rationale');
+        expect(missing, hasLength(1));
+        expect(
+          missing.single.line,
+          lineOfFirst(project, loginFr, '## Rationale'),
+        );
+      },
+    );
+
+    test(
+      'a blank required section under broken frontmatter is still missing',
+      () async {
+        final project = await writeCheckProject(
+          extra: edit(loginFr, [
+            ('verify_method: test\n', 'verify_method: "test\n'),
+            ('## Statement\n\n$checkPasswordStatement\n\n', ''),
+            (rationaleSection, '## Rationale\n\n'),
+          ]),
+        );
+        final report = await checkOf(project);
+        expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
+        final missing = await missingOf(project, 'rationale');
+        expect(missing, hasLength(1));
+        expect(
+          missing.single.line,
+          lineOfFirst(project, loginFr, '## Rationale'),
+        );
+      },
+    );
+
+    test('one non-blank line of any kind keeps a required section', () async {
+      final bodies = [
+        '### A subsection',
+        'TBR — x',
+        '<!-- a note -->',
+        '${generatedOpenMarker('scenario_copy')}\n$generatedEndMarker',
+        '<reason, assumptions, related requirements, design constraints>',
+      ];
+      for (final body in bodies) {
+        final project = await writeCheckProject(
+          extra: fr(rationaleSection, '## Rationale\n\n$body\n\n'),
+        );
+        expect(await missingOf(project, 'rationale'), isEmpty, reason: body);
+      }
+    });
+
+    test('a blank optional section is not missing', () async {
+      final project = await writeCheckProject(
+        extra: fr('## Edge cases', '## Behavior\n\n## Edge cases'),
+      );
+      expect(await missingOf(project, 'behavior'), isEmpty);
+    });
+
+    test(
+      'a blank when_field section outside its values is not missing',
+      () async {
+        final project = await writeCheckProject(
+          extra: {
+            layerPath: layer('demo'),
+            ...fr('## Edge cases', '## Input / Output\n\n## Edge cases'),
+          },
+        );
+        final report = await checkOf(project);
+        expect(spots(report, FindingKind.requiredSectionMissing), isEmpty);
+        expect(
+          spots(report, FindingKind.sectionOutsideFieldValue),
+          hasLength(1),
+        );
+      },
     );
   });
 }

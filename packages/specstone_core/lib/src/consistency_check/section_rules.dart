@@ -1,12 +1,13 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/move_hints.dart';
+import 'package:specstone_core/src/consistency_check/required_sections.dart';
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/item_fact.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
-    show WhenField, verificationMatrixOf;
+    show verificationMatrixOf;
 
 const _projectType = 'project';
 const _visionSection = 'vision';
@@ -32,15 +33,16 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   }
   yield* _titleNumberFinding(context, doc, type.lint.titleNoNumber ?? false);
   for (final section in type.sections) {
-    if (section.required &&
-        _appliesTo(doc, section.whenField) &&
-        context.heldSection(doc, section.id) == null) {
-      yield context.finding(
+    if (!section.required || !appliesTo(doc, section.whenField)) continue;
+    final index = context.heldIndexOf(doc, section.id);
+    if (index == null) {
+      yield requiredSectionFinding(context, doc, section.id);
+    } else if (isBlankAt(context, doc, index)) {
+      yield requiredSectionFinding(
+        context,
         doc,
-        FindingKind.requiredSectionMissing,
-        line: 1,
-        message: 'required section ${section.id} is missing',
-        keys: {'section': section.id},
+        section.id,
+        headerLine: lines.sectionLines[index],
       );
     }
   }
@@ -91,7 +93,7 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
       );
     }
     if (template?.whenField case final whenField?
-        when !_appliesTo(doc, whenField)) {
+        when !appliesTo(doc, whenField)) {
       yield context.finding(
         doc,
         FindingKind.sectionOutsideFieldValue,
@@ -146,12 +148,6 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
     }
   }
 }
-
-/// Whether a section with [whenField] belongs on [doc]: it sets none, or the
-/// doc's field holds one of its values; an unset field holds none.
-bool _appliesTo(IndexedDoc doc, WhenField? whenField) =>
-    whenField == null ||
-    doc.valuesOf(whenField.field).any(whenField.values.contains);
 
 Iterable<Finding> _titleNumberFinding(
   CheckContext context,
