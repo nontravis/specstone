@@ -735,7 +735,382 @@ void main() {
       },
     );
   });
+
+  group('field and title writes', () {
+    const story = 'user_story:login/email_login';
+    const frAddress = 'fr:login/email_login/validate_credentials';
+
+    String fieldBase(Directory root, String address, String id) =>
+        ((getDoc(root, address)['bases']! as Map)['fields']! as Map)[id]!
+            as String;
+
+    test('set --field draft or approved with a value is field_not_writable naming the field, exit 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      for (final field in ['draft', 'approved']) {
+        final run = await _set(root, [
+          story,
+          '--field',
+          field,
+          '--base',
+          '000000000000',
+          '--json',
+        ], stdin: 'false\n');
+        expect(run.status, 64, reason: field);
+        expect(run.out, isEmpty, reason: field);
+        final error = _error(run);
+        expect(error['code'], 'field_not_writable', reason: field);
+        expect(error['key'], field, reason: field);
+        expect(error['message'], startsWith(field), reason: field);
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('set --field draft or approved with empty stdin is field_not_writable naming the field, exit 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      for (final field in ['draft', 'approved']) {
+        final run = await _set(root, [
+          story,
+          '--field',
+          field,
+          '--base',
+          '000000000000',
+          '--json',
+        ], stdin: '');
+        expect(run.status, 64, reason: field);
+        expect(run.out, isEmpty, reason: field);
+        final error = _error(run);
+        expect(error['code'], 'field_not_writable', reason: field);
+        expect(error['key'], field, reason: field);
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('set --field status with a value on a feature is field_not_writable, exit 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, loginFeature);
+      final run = await _set(root, [
+        'feature:login',
+        '--field',
+        'status',
+        '--base',
+        emptyBaseHash,
+        '--json',
+      ], stdin: 'implemented\n');
+      expect(run.status, 64, reason: run.err);
+      expect(run.out, isEmpty);
+      final error = _error(run);
+      expect(error['code'], 'field_not_writable');
+      expect(error['key'], 'status');
+      expect(readDoc(root, loginFeature), before);
+    });
+
+    test('set --field verify_method with a value outside its enum is field_value_invalid naming the values, exit 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, fr11);
+      final run = await _set(root, [
+        frAddress,
+        '--field',
+        'verify_method',
+        '--base',
+        fieldBase(root, frAddress, 'verify_method'),
+        '--json',
+      ], stdin: 'maybe\n');
+      expect(run.status, 64, reason: run.err);
+      expect(run.out, isEmpty);
+      final error = _error(run);
+      expect(error['code'], 'field_value_invalid');
+      expect(error['key'], 'verify_method');
+      expect(
+        error['message'],
+        allOf(
+          contains('verify_method'),
+          contains('test'),
+          contains('analysis'),
+          contains('inspection'),
+          contains('demonstration'),
+        ),
+      );
+      expect(readDoc(root, fr11), before);
+    });
+
+    test('set --field with a list on a scalar field, or with invalid YAML, is field_value_invalid, exit 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      for (final (stdin, message) in [
+        ('- a\n- b\n', 'status takes one YAML value, not a list'),
+        ('[unclosed\n', 'status takes a YAML value'),
+      ]) {
+        final run = await _set(root, [
+          story,
+          '--field',
+          'status',
+          '--base',
+          fieldBase(root, story, 'status'),
+          '--json',
+        ], stdin: stdin);
+        expect(run.status, 64, reason: stdin);
+        expect(run.out, isEmpty, reason: stdin);
+        final error = _error(run);
+        expect(error['code'], 'field_value_invalid', reason: stdin);
+        expect(error['key'], 'status', reason: stdin);
+        expect(error['message'], message, reason: stdin);
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('set --field with empty stdin on a required field is required_target naming it, exit 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, fr11);
+      final run = await _set(root, [
+        frAddress,
+        '--field',
+        'verify_method',
+        '--base',
+        fieldBase(root, frAddress, 'verify_method'),
+        '--json',
+      ], stdin: '');
+      expect(run.status, 64, reason: run.err);
+      expect(run.out, isEmpty);
+      final error = _error(run);
+      expect(error['code'], 'required_target');
+      expect(error['message'], contains('verify_method'));
+      expect(readDoc(root, fr11), before);
+    });
+
+    test('set --field naming an undeclared id is field_unknown naming the doc type and the id, exit 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      for (final stdin in ['x\n', '']) {
+        final run = await _set(root, [
+          story,
+          '--field',
+          'nonesuch',
+          '--base',
+          emptyBaseHash,
+          '--json',
+        ], stdin: stdin);
+        expect(run.status, 64, reason: 'stdin "$stdin"');
+        expect(run.out, isEmpty, reason: 'stdin "$stdin"');
+        final error = _error(run);
+        expect(error['code'], 'field_unknown', reason: 'stdin "$stdin"');
+        expect(
+          error['message'],
+          allOf(contains('user_story'), contains('nonesuch')),
+          reason: 'stdin "$stdin"',
+        );
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('a stale field base prints the current block under its field naming line, one fault line, exit 75', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final current = fieldBase(root, story, 'vision');
+      final run = await _set(root, [
+        story,
+        '--field',
+        'vision',
+        '--base',
+        '000000000000',
+      ], stdin: '- PV-02\n');
+      expect(run.status, 75, reason: run.err);
+      expect(
+        run.out,
+        '==> login/email_login (user_story) · $story1 · field vision · base $current <==\n'
+        'vision:\n  - PV-01\n',
+      );
+      expect(
+        run.err,
+        '$story1: vision: the field changed since base 000000000000\n',
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('a stale title base prints the current title line under its title naming line, one fault line, exit 75', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final current = baseHashOf('Sign in with email');
+      final run = await _set(root, [
+        story,
+        '--title',
+        '--base',
+        '000000000000',
+      ], stdin: 'Sign in\n');
+      expect(run.status, 75, reason: run.err);
+      expect(
+        run.out,
+        '==> login/email_login (user_story) · $story1 · title · base $current <==\n'
+        '# Sign in with email\n',
+      );
+      expect(
+        run.err,
+        '$story1: title: the title changed since base 000000000000\n',
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('set --title with empty stdin or two lines is argument_invalid, exit 64, the title untouched', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      for (final stdin in ['', '\n', 'One\nTwo\n']) {
+        final run = await _set(root, [
+          story,
+          '--title',
+          '--base',
+          baseHashOf('Sign in with email'),
+          '--json',
+        ], stdin: stdin);
+        expect(run.status, 64, reason: 'stdin "$stdin"');
+        expect(run.out, isEmpty, reason: 'stdin "$stdin"');
+        expect(
+          _error(run)['code'],
+          'argument_invalid',
+          reason: 'stdin "$stdin"',
+        );
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('set --title beside a section key or --field is argument_conflict, and no key, field, or title is argument_missing, exit 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      for (final (args, code) in [
+        (<String>['$story#use_case', '--title'], 'argument_conflict'),
+        (<String>[story, '--title', '--field', 'vision'], 'argument_conflict'),
+        (<String>[story], 'argument_missing'),
+      ]) {
+        final run = await _set(root, [
+          ...args,
+          '--base',
+          '000000000000',
+          '--json',
+        ]);
+        expect(run.status, 64, reason: '$args');
+        expect(run.out, isEmpty, reason: '$args');
+        expect(_error(run)['code'], code, reason: '$args');
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('set --field and --title meet an untyped doc, a missing doc, and a missing --base with exit 64', () async {
+      final root = await writeWriteProject();
+      for (final write in [
+        ['--field', 'vision'],
+        ['--title'],
+      ]) {
+        for (final (args, code) in [
+          (
+            <String>['prds/d01_context.md', ...write, '--base', emptyBaseHash],
+            'untyped_target',
+          ),
+          (
+            <String>[
+              'user_story:login/ghost',
+              ...write,
+              '--base',
+              emptyBaseHash,
+            ],
+            'doc_not_found',
+          ),
+          (<String>[story, ...write], 'argument_missing'),
+        ]) {
+          final run = await _set(root, [...args, '--json'], stdin: 'x\n');
+          expect(run.status, 64, reason: '$args');
+          expect(run.out, isEmpty, reason: '$args');
+          expect(_error(run)['code'], code, reason: '$args');
+        }
+      }
+    });
+
+    test('set --field and --title on a file the disk refuses are output_not_writable, exit 73, the doc as it was', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final folder = docFile(root, story1).parent.path;
+      expect(Process.runSync('chmod', ['555', folder]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['755', folder]));
+      for (final (write, base, stdin) in [
+        (
+          <String>['--field', 'vision'],
+          fieldBase(root, story, 'vision'),
+          '- PV-02\n',
+        ),
+        (<String>['--title'], baseHashOf('Sign in with email'), 'Sign in\n'),
+      ]) {
+        final run = await _set(root, [
+          story,
+          ...write,
+          '--base',
+          base,
+          '--json',
+        ], stdin: stdin);
+        expect(run.status, 73, reason: '$write: ${run.err}');
+        expect(run.out, isEmpty, reason: '$write');
+        expect(_error(run)['code'], 'output_not_writable', reason: '$write');
+      }
+      expect(readDoc(root, story1), before);
+    }, skip: Platform.isWindows ? 'no chmod' : null);
+  });
+
+  group('--remove-task faults', () {
+    test('a task no doc holds prints its no refs line, writes no doc and no journal, exit 0', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, loginArch);
+      final run = await _set(root, ['--remove-task', 'ENG-99']);
+      expect(run.status, 0, reason: run.err);
+      expect(run.out, 'ENG-99 · no refs\n');
+      expect(run.err, isEmpty);
+      expect(readDoc(root, loginArch), before);
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('an empty or colon task value is argument_invalid with its message, exit 64, no doc written', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, loginArch);
+      for (final value in ['', 'INV-4:ENG-42']) {
+        final run = await _set(root, ['--remove-task', value]);
+        expect(run.status, 64, reason: 'value "$value"');
+        expect(run.out, isEmpty, reason: 'value "$value"');
+        expect(
+          run.err,
+          '--remove-task takes a task id that is not empty and holds no ":"; got "$value"\n',
+          reason: 'value "$value"',
+        );
+      }
+      expect(readDoc(root, loginArch), before);
+    });
+  });
 }
+
+/// What one `set` run exited with and printed.
+final class _SetRun {
+  const new(this.status, this.out, this.err);
+
+  final int status;
+  final String out;
+  final String err;
+}
+
+Future<_SetRun> _set(
+  Directory root,
+  List<String> args, {
+  String stdin = 'x\n',
+}) async {
+  final (:runner, :out, :err) = writeRunner(
+    root,
+    console: FakeConsole(input: stdin),
+  );
+  final status = await runner.run(['set', ...args]);
+  return _SetRun(status, out.toString(), err.toString());
+}
+
+Map<String, Object?> _error(_SetRun run) =>
+    (jsonDecode(run.err) as Map<String, Object?>)['error']!
+        as Map<String, Object?>;
 
 /// A [Console] that counts how often stdin is read.
 final class _RecordingConsole implements Console {
