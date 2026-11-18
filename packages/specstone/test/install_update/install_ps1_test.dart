@@ -1352,6 +1352,11 @@ if ($env:HARNESS_MODE -eq 'iex') {
                 isFalse,
                 reason: reason,
               );
+              expect(
+                File('$bin\\stn.exe').existsSync(),
+                isFalse,
+                reason: reason,
+              );
             }
           }
         },
@@ -1411,6 +1416,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
               'delete it yourself',
             ),
           );
+          expect(File('$bin\\stn.exe').existsSync(), isTrue);
+          expect(File('$bin\\stn.exe.old').existsSync(), isFalse);
         },
       );
 
