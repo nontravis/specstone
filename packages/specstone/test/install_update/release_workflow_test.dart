@@ -183,6 +183,7 @@ void main() {
   });
 
   test('the release runs version, test, build, and smoke in order', () {
+    expect(((release['on'] as YamlMap)['push'] as YamlMap)['tags'], ['v*']);
     expect(_job(release, 'version')['needs'], isNull);
     expect(_job(release, 'test')['needs'], 'version');
     expect(_job(release, 'build')['needs'], 'test');
