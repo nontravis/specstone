@@ -103,7 +103,7 @@ void main() {
         expect(sb.logOf('other'), isEmpty);
       });
 
-      test("the exit status is the specstone run's", () async {
+      test("stn.exe exits with specstone.exe's status", () async {
         for (final status in ['3', '-1073741510']) {
           final sb = await createShimSandbox();
           final path = '${sb.bin.path};$system32';
