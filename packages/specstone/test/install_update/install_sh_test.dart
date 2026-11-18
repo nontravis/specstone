@@ -65,6 +65,28 @@ void main() {
     sandbox.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 22');
   }
 
+  // The programs an archive run needs besides a SHA-256 tool and git.
+  const installTools = [
+    'awk', 'cut', 'tr', 'tar', 'gzip', 'cp', 'rm', 'mv', 'mkdir', //
+    'mktemp', 'sed', 'tail', 'grep', 'cat',
+  ];
+
+  // Links each of [names] found in the system folders into one new folder,
+  // so a PATH made of it holds those programs and no others.
+  Directory linkSystemTools(ScriptSandbox sandbox, List<String> names) {
+    final tools = Directory('${sandbox.root.path}/tools')..createSync();
+    for (final name in names) {
+      final found = Process.runSync('/bin/sh', [
+        '-c',
+        'PATH=/usr/bin:/bin command -v $name',
+      ]);
+      if (found.exitCode == 0) {
+        Link('${tools.path}/$name').createSync((found.stdout as String).trim());
+      }
+    }
+    return tools;
+  }
+
   group('install.sh', () {
     test('git keeps install.sh and uninstall.sh at LF', () async {
       final r = await Process.run('git', [
@@ -170,32 +192,38 @@ fi''');
         return sb;
       }
 
-      test('the named version installs from its own release', () async {
-        final sb = await sandboxServing('1.2.0-beta.1');
+      test(
+        'install.sh: the named version installs from its own release',
+        () async {
+          final sb = await sandboxServing('1.2.0-beta.1');
 
-        final r = await sb.run(
-          'install.sh',
-          extra: {
-            'ARCHIVES': sb.archives.path,
-            'SPECSTONE_VERSION': '1.2.0-beta.1',
-          },
-        );
+          final r = await sb.run(
+            'install.sh',
+            extra: {
+              'ARCHIVES': sb.archives.path,
+              'SPECSTONE_VERSION': '1.2.0-beta.1',
+            },
+          );
 
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        final log = sb.logOf('curl');
-        expect(log, hasLength(2));
-        expect(log.first, endsWith('$releases/download/v1.2.0-beta.1/$asset'));
-        expect(
-          log.last,
-          endsWith('$releases/download/v1.2.0-beta.1/SHA256SUMS'),
-        );
-        expect(installedVersion(sb), '1.2.0-beta.1');
-      });
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          final log = sb.logOf('curl');
+          expect(log, hasLength(2));
+          expect(
+            log.first,
+            endsWith('$releases/download/v1.2.0-beta.1/$asset'),
+          );
+          expect(
+            log.last,
+            endsWith('$releases/download/v1.2.0-beta.1/SHA256SUMS'),
+          );
+          expect(installedVersion(sb), '1.2.0-beta.1');
+        },
+      );
 
       // The form check is shell code of its own, so every form runs through
       // it; one sandbox serves them all, since a refusal changes nothing and
       // an accepted form reaches the stubbed download and stops there.
-      test('every refused form is '
+      test('install.sh: every refused form is '
           'refused before any download', () async {
         final sb = await createScriptSandbox();
         stubCurlServing(sb);
@@ -250,7 +278,7 @@ fi''');
         }
       });
 
-      test('a version no release carries fails as a failed '
+      test('install.sh: a version no release carries fails as a failed '
           'download, the install unchanged', () async {
         final sb = await createScriptSandbox();
         stubCurlFailing(sb);
@@ -290,7 +318,7 @@ fi''');
         expect(installedVersion(sb), '0.2.0');
       });
 
-      test('the version already installed is named and '
+      test('install.sh: the version already installed is named and '
           'nothing is placed', () async {
         final sb = await sandboxServing('1.2.0-beta.1');
         sb.installFake(version: '1.2.0-beta.1');
@@ -391,7 +419,94 @@ fi''');
         );
         expect(installedVersion(sb), '1.2.0-beta.1');
       });
+
+      for (final (installed, named) in [
+        ('1.2.0', '1.1.0'),
+        ('1.2.0', '1.2.0-beta.1'),
+      ]) {
+        test('naming $named over the installed $installed installs $named, '
+            'with no ordering', () async {
+          final sb = await sandboxServing(named);
+          sb.installFake(version: installed);
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {'ARCHIVES': sb.archives.path, 'SPECSTONE_VERSION': named},
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            r.stdout,
+            contains(
+              'specstone $named installed in ${sb.home.path}/.specstone/bin',
+            ),
+          );
+          expect(
+            sb.logOf('curl').first,
+            endsWith('$releases/download/v$named/$asset'),
+          );
+          expect(installedVersion(sb), named);
+        });
+      }
+
+      test('a script argument downloads from the latest release, not from '
+          'that version', () async {
+        final sb = await sandboxServing('0.2.0');
+
+        final r = await sb.run(
+          'install.sh',
+          args: ['0.1.0'],
+          extra: {'ARCHIVES': sb.archives.path},
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        final log = sb.logOf('curl');
+        expect(log, hasLength(2));
+        expect(log.first, endsWith('$releases/latest/download/$asset'));
+        expect(log.last, endsWith('$releases/latest/download/SHA256SUMS'));
+        expect(installedVersion(sb), '0.2.0');
+      });
     });
+
+    test('Linux arm64 refuses before any download, exit 1', () async {
+      final sb = await createScriptSandbox();
+      sb.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 0');
+
+      final r = await sb.run('install.sh', extra: {'STUB_UNAME_M': 'arm64'});
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        'specstone: unsupported machine Linux arm64; $supported',
+      );
+      expect(sb.snapshot(), isEmpty);
+      expect(sb.logOf('curl'), isEmpty);
+    });
+
+    for (final (os, machine) in [
+      ('FreeBSD', 'amd64'),
+      ('Darwin', 'i386'),
+      ('Linux', 'i686'),
+    ]) {
+      test('$os $machine is outside the four targets and refuses '
+          'before any download', () async {
+        final sb = await createScriptSandbox();
+        sb.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 0');
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {'STUB_UNAME_S': os, 'STUB_UNAME_M': machine},
+        );
+
+        expect(r.exitCode, 1);
+        expect(
+          r.stderr,
+          'specstone: unsupported machine $os $machine; $supported',
+        );
+        expect(sb.snapshot(), isEmpty);
+        expect(sb.logOf('curl'), isEmpty);
+      });
+    }
 
     for (final (os, machine, target) in [
       ('Darwin', 'arm64', 'macos-arm64'),
@@ -456,7 +571,7 @@ fi''');
       expect(installedVersion(sb), '0.1.0');
     });
 
-    test('no SHA256SUMS line is a checksum failure', () async {
+    test('install.sh: no SHA256SUMS line is a checksum failure', () async {
       final sb = await sandboxWith(withSumsLine: false);
       sb.installFake();
       final before = sb.snapshot();
@@ -470,6 +585,30 @@ fi''');
       );
       expect(sb.snapshot(), before);
     });
+
+    test(
+      'no SHA-256 tool stops the install before any write, exit 1',
+      () async {
+        final sb = await sandboxWith();
+        sb.installFake();
+        final before = sb.snapshot();
+        final tools = linkSystemTools(sb, installTools);
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {...archiveEnv(sb), 'PATH': '${sb.stubs.path}:${tools.path}'},
+        );
+
+        expect(r.exitCode, 1);
+        expect(
+          r.stderr,
+          'specstone: no sha256sum or shasum to check $asset; '
+          'the install is unchanged\n',
+        );
+        expect(sb.snapshot(), before);
+        expect(installedVersion(sb), '0.1.0');
+      },
+    );
 
     test('the temp folder is gone after a failure and after '
         'a success', () async {
@@ -593,6 +732,52 @@ echo "$dir"''');
         'specstone: no home folder: HOME and USERPROFILE are unset\n',
       );
       expect(sb.snapshot(), isEmpty);
+    });
+
+    test('USERPROFILE is the home folder when HOME is unset', () async {
+      final sb = await sandboxWith();
+
+      final r = await sb.run(
+        'install.sh',
+        extra: {...archiveEnv(sb), 'HOME': '', 'USERPROFILE': sb.home.path},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        r.stdout,
+        contains('specstone 0.2.0 installed in ${sb.home.path}/.specstone/bin'),
+      );
+      expect(installedVersion(sb), '0.2.0');
+      expect(File('${sb.home.path}/.profile').existsSync(), isTrue);
+    });
+
+    test('an empty PATH falls back to the system folders and the install '
+        'runs', () async {
+      // The system folders hold the machine's own uname, so the archive is
+      // the one that machine reads.
+      final uname = Process.runSync('uname', ['-sm']).stdout as String;
+      final target = switch (uname.trim()) {
+        'Darwin arm64' => 'macos-arm64',
+        'Darwin x86_64' => 'macos-x64',
+        'Linux x86_64' => 'linux-x64',
+        _ => null,
+      };
+      if (target == null) {
+        markTestSkipped('no release target for ${uname.trim()}');
+        return;
+      }
+      final sb = await sandboxWith(target: target);
+      final wrapper = File('${sb.root.path}/empty_path.sh')
+        ..writeAsStringSync(
+          'PATH=""\n'
+          'export PATH\n'
+          'exec /bin/sh "${repoRoot().path}/install.sh"\n',
+        );
+
+      final r = await sb.run(wrapper.path, extra: archiveEnv(sb));
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(installedVersion(sb), '0.2.0');
     });
 
     test('the curl path fetches the archive and SHA256SUMS, '
@@ -725,6 +910,55 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         );
       });
     }
+
+    for (final folder in ['lib', 'bin']) {
+      test('a failed $folder move is named and asks for a new install, '
+          'exit 1', () async {
+        final sb = await sandboxWith();
+        sb
+          ..installFake()
+          ..stub(
+            'mv',
+            r'case "$*" in'
+                '\n'
+                '  *.$folder.new*) exit 1 ;;\n'
+                'esac\n'
+                r'exec /bin/mv "$@"',
+          );
+
+        final r = await sb.run('install.sh', extra: archiveEnv(sb));
+
+        expect(r.exitCode, 1);
+        expect(
+          r.stderr,
+          'specstone: could not place ${sb.home.path}/.specstone/$folder: '
+          'run the install again\n',
+        );
+      });
+    }
+
+    test('a file under .specstone outside bin, lib, and packs stays '
+        'untouched', () async {
+      final sb = await sandboxWith();
+      sb.installFake();
+      final kept = {
+        '.specstone/config.yaml': 'mine\n',
+        '.specstone/notes/deep/todo.txt': 'later\n',
+      };
+      for (final MapEntry(:key, :value) in kept.entries) {
+        File('${sb.home.path}/$key')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(value);
+      }
+
+      final r = await sb.run('install.sh', extra: archiveEnv(sb));
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(installedVersion(sb), '0.2.0');
+      for (final MapEntry(:key, :value) in kept.entries) {
+        expect(sb.snapshot(), containsPair(key, value));
+      }
+    });
 
     test('an unpack failure names the archive, install '
         'unchanged', () async {
@@ -1117,6 +1351,43 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         });
       }
 
+      test('macOS bash with an existing ~/.bash_profile writes it, not '
+          '.bash_login or .profile as its login file', () async {
+        final sb = await sandboxWith(target: 'macos-arm64');
+        for (final name in ['.bash_profile', '.bash_login', '.profile']) {
+          File('${sb.home.path}/$name').writeAsStringSync('# mine\n');
+        }
+
+        final r = await runWith(sb, {
+          'SHELL': '/bin/bash',
+          'STUB_UNAME_S': 'Darwin',
+          'STUB_UNAME_M': 'arm64',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          File('${sb.home.path}/.bash_profile').readAsStringSync(),
+          '# mine\n$posixLine',
+        );
+        expect(
+          File('${sb.home.path}/.bash_login').readAsStringSync(),
+          '# mine\n',
+        );
+        expect(
+          File('${sb.home.path}/.profile').readAsStringSync(),
+          '# mine\n$posixLine',
+        );
+        expect(
+          r.stdout,
+          contains(
+            addedIn([
+              for (final file in ['.bashrc', '.bash_profile', '.profile'])
+                '${sb.home.path}/$file',
+            ]),
+          ),
+        );
+      });
+
       test('a second run on macOS bash adds nothing to '
           'either file', () async {
         final sb = await sandboxWith(target: 'macos-arm64');
@@ -1296,6 +1567,112 @@ esac''');
         });
       }
 
+      test('git 2.20 prints exactly one warning line', () async {
+        final sb = await sandboxWith();
+        sb.stub('git', 'echo "git version 2.20.0"\n');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        final warnings = (r.stdout as String)
+            .split('\n')
+            .where((line) => line.startsWith('specstone: '));
+        expect(warnings, [linuxFloorLine.trim()]);
+        expect(r.stderr, isEmpty);
+      });
+
+      for (final (os, machine, target) in [
+        ('Darwin', 'arm64', 'macos-arm64'),
+        ('Linux', 'x86_64', 'linux-x64'),
+      ]) {
+        test('no git on $os runs no winget, apt, or xcode-select '
+            'command', () async {
+          final sb = await sandboxWith(target: target);
+          sb.stub('git', 'exit 127\n');
+          for (final name in [
+            'winget',
+            'apt',
+            'apt-get',
+            'sudo',
+            'xcode-select',
+          ]) {
+            sb.stub(name, r'echo "$0 $*" >> "$STUB_LOG_DIR/installer.log"');
+          }
+
+          final r = await runWith(sb, {
+            'STUB_UNAME_S': os,
+            'STUB_UNAME_M': machine,
+          });
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, contains('git 2.25 or later is missing'));
+          expect(sb.logOf('installer'), isEmpty);
+        });
+      }
+
+      test('a profile write failure still prints the prerequisite '
+          'warning, exit 0', () async {
+        final sb = await sandboxWith();
+        sb.stub('git', 'exit 127\n');
+        final rc = File('${sb.home.path}/.zshrc')
+          ..writeAsStringSync('# mine\n');
+        Process.runSync('chmod', ['444', rc.path]);
+
+        final r = await runWith(sb, {'SHELL': '/bin/zsh'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stderr, startsWith('specstone: could not write ${rc.path}'));
+        expect(r.stdout, contains(linuxFloorLine));
+      }, skip: runsAsRoot ? rootSkip : null);
+
+      test('the version already installed still prints the prerequisite '
+          'warning', () async {
+        final sb = await sandboxWith();
+        sb.installFake(version: '0.2.0');
+        writeZshEntries(sb);
+        sb.stub('git', 'exit 127\n');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains('specstone 0.2.0 is already the latest'));
+        expect(r.stdout, contains(linuxFloorLine));
+      });
+
+      test('a git found only on a relative PATH entry counts as missing, '
+          'one warning', () async {
+        final sb = await sandboxWith();
+        // Every other tool the run needs is on an absolute entry; git is not.
+        final tools = linkSystemTools(sb, [
+          ...installTools,
+          'sha256sum',
+          'shasum',
+        ]);
+        for (final folder in ['.', 'planted']) {
+          final file = File('${sb.root.path}/$folder/git')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              '#!/bin/sh\n'
+              ': > "\$STUB_LOG_DIR/planted-git.ran"\n'
+              'echo "git version 2.39.0"\n',
+            );
+          Process.runSync('chmod', ['755', file.path]);
+        }
+
+        final r = await runWith(sb, {
+          'PATH': 'planted:.::${sb.stubs.path}:${tools.path}',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(File('${sb.logs.path}/planted-git.ran').existsSync(), isFalse);
+        expect(
+          'git 2.25 or later'.allMatches(r.stdout as String),
+          hasLength(1),
+        );
+        expect(r.stdout, contains(linuxFloorLine));
+        expect(installedVersion(sb), '0.2.0');
+      });
+
       test('a git that cannot report a version counts as missing and '
           'keeps the exit status', () async {
         final sb = await sandboxWith();
@@ -1376,6 +1753,37 @@ esac''');
           expect(plantedThatRan(sb), isEmpty);
         },
       );
+
+      test('a ~ entry is dropped and the absolute entries keep their '
+          'order', () async {
+        final sb = await sandboxWith();
+        // Each folder holds a git that logs its own name; the first one on the
+        // kept PATH is the one that runs.
+        for (final name in ['~', 'first', 'second']) {
+          final file = File('${sb.root.path}/$name/git')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              '#!/bin/sh\n'
+              'echo "$name" >> "\$STUB_LOG_DIR/git.log"\n'
+              'echo "git version 2.39.0"\n',
+            );
+          Process.runSync('chmod', ['755', file.path]);
+        }
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH':
+                '~:${sb.root.path}/first:${sb.root.path}/second:'
+                '${sb.stubs.path}:/usr/bin:/bin',
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('git'), ['first']);
+        expect(installedVersion(sb), '0.2.0');
+      });
     });
 
     group('name another stn at install', () {
@@ -1431,7 +1839,7 @@ esac''');
         expect(sb.logOf('other'), isEmpty);
       });
 
-      test('a rerun after another stn appears removes the placed '
+      test('install.sh: a rerun after another stn appears removes the placed '
           'stn', () async {
         for (final sameVersion in [true, false]) {
           final sb = await sandboxWith();
@@ -1472,6 +1880,40 @@ esac''');
             expect(installedVersion(sb), '0.3.0');
           }
         }
+      });
+
+      test('a reinstall at the installed version from an archive with no stn '
+          'places none; the next release brings it', () async {
+        final sb = await createScriptSandbox();
+        final bundle = Directory('${sb.root.path}/bundle')
+          ..createSync(recursive: true);
+        Directory('${bundle.path}/lib').createSync();
+        final bin = File('${bundle.path}/bin/specstone')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('#!/bin/sh\necho 0.2.0\n');
+        Process.runSync('chmod', ['+x', bin.path]);
+        await sb.writeArchive('linux-x64', bundle: bundle);
+        sb.installFake(version: '0.2.0');
+        writeZshEntries(sb);
+        final before = sb.snapshot();
+        final env = {...archiveEnv(sb), 'PATH': pathWith(sb)};
+
+        final same = await sb.run('install.sh', extra: env);
+
+        expect(same.exitCode, 0, reason: '${same.stderr}');
+        expect(
+          same.stdout,
+          contains('specstone 0.2.0 is already the latest release'),
+        );
+        expect(File(binStn(sb)).existsSync(), isFalse);
+        expect(sb.snapshot(), before);
+        await sb.writeArchive('linux-x64', version: '0.3.0');
+
+        final next = await sb.run('install.sh', extra: env);
+
+        expect(next.exitCode, 0, reason: '${next.stderr}');
+        expect(File(binStn(sb)).existsSync(), isTrue);
+        expect(installedVersion(sb), '0.3.0');
       });
 
       test('no other stn at the installed version with stn missing leaves '
@@ -1571,22 +2013,25 @@ esac''');
         expect(File(binStn(sb)).existsSync(), isTrue);
       });
 
-      test('a stn on a relative entry only prints no notice', () async {
-        final sb = await sandboxWith();
-        otherStn('${sb.root.path}/rel');
+      test(
+        'install.sh: a stn on a relative entry only prints no notice',
+        () async {
+          final sb = await sandboxWith();
+          otherStn('${sb.root.path}/rel');
 
-        final r = await sb.run(
-          'install.sh',
-          extra: {
-            ...archiveEnv(sb),
-            'PATH': ['rel:.::', sb.stubs.path, '/usr/bin:/bin'].join(':'),
-          },
-        );
+          final r = await sb.run(
+            'install.sh',
+            extra: {
+              ...archiveEnv(sb),
+              'PATH': ['rel:.::', sb.stubs.path, '/usr/bin:/bin'].join(':'),
+            },
+          );
 
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(r.stdout, isNot(contains('another stn')));
-        expect(File(binStn(sb)).existsSync(), isTrue);
-      });
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, isNot(contains('another stn')));
+          expect(File(binStn(sb)).existsSync(), isTrue);
+        },
+      );
 
       test('the install folder with a trailing slash or through a '
           'symlink prints no notice', () async {
