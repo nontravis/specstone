@@ -15,6 +15,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 void main() {
@@ -598,5 +599,62 @@ void main() {
         ),
       );
     });
+  });
+  group('a skill doc whose covers entry reads from the project root', () {
+    Future<(ReadSession, Directory)> skillProject({String? codeRoot}) async {
+      final project = await writeLoginProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${skillPinsConfig()}${codeRoot == null ? '' : 'code_root: $codeRoot\n'}',
+          ...skillDocFile([skillFile]),
+          skillFile: skillText,
+          if (codeRoot != null) '$codeRoot/keep.txt': '',
+        },
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+      return (session, project);
+    }
+
+    Bundle skillBundle(ReadSession session, Directory project) =>
+        pickCodeBundle(
+          session.index,
+          resolveCodePath(
+            skillFile,
+            workingDirectory: project,
+            targets: session.project.targets,
+            codeRootOf: session.project.codeRootOf,
+          ),
+          BundleMode.implement,
+          noProject: false,
+        );
+
+    test(
+      'is never a spec match, so its file gets the no-doc warning',
+      () async {
+        final (session, project) = await skillProject();
+        final bundle = skillBundle(session, project);
+
+        expect(bundle.docPaths, isNot(contains(skillDoc)));
+        expect(bundle.warnings, ['no doc covers or implements $skillFile']);
+      },
+    );
+    test(
+      'leaves its file outside the code root, which refuses the path',
+      () async {
+        final (session, project) = await skillProject(codeRoot: 'specstone');
+
+        expect(
+          () => skillBundle(session, project),
+          throwsA(
+            isA<IndexFault>().having(
+              (x) => x.code,
+              'code',
+              IndexFaultCode.codePathOutsideProject,
+            ),
+          ),
+        );
+      },
+    );
   });
 }

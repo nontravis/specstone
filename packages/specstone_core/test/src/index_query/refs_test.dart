@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 
 const _journeyDoc = 'docs/prds/journeys/sign_in/JOURNEY.md';
 
@@ -865,6 +866,25 @@ void main() {
       expect(text, isNot(contains(fingerprint)));
     },
   );
+
+  test('a root: project covers entry lists its path from the project root, '
+      'without the fingerprint', () async {
+    const fingerprint = '5d1e0c4b7a92';
+    final session = openSession(
+      await writeLoginProject(
+        extra: {
+          '.specstone/config.yaml': skillPinsConfig(),
+          ...skillDocFile(['$skillFile $fingerprint']),
+        },
+      ),
+    );
+    addTearDown(session.close);
+
+    final text = answerRefs(session.index, 'skill:review').text;
+
+    expect(text, contains('- covers: $skillFile\n'));
+    expect(text, isNot(contains(fingerprint)));
+  });
 
   test(
     'an implements line lists the pointer alone, without the fingerprint',

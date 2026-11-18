@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart'
     show absoluteFrom, pathInside;
+import 'package:specstone_core/src/consistency_check/code_rules.dart'
+    show coversFieldsOf, readsFromProjectRoot;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -9,7 +11,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
-const _coversField = 'covers';
 const _implementsField = 'implements';
 
 /// A file or folder under a code root a `context --code` call names.
@@ -136,6 +137,9 @@ Iterable<IndexedDoc> _docsOf(DocIndex index, CodePath code) =>
 
 /// Returns the docs whose `covers:` entry is the longest prefix of [code].
 ///
+/// A field that reads from the project root joins no match, since its entries
+/// name no path under a code root.
+///
 /// With two or more targets only [code]'s target's docs compete, since a
 /// shared doc's code paths count for no target.
 List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
@@ -145,16 +149,19 @@ List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
     if (doc.docTypeId == null || index.hasTwins && doc.target == null) {
       continue;
     }
-    for (final entry in doc.valuesOf(_coversField)) {
-      final covered = _withoutTrailingSlash(CodeLinkEntry(entry).pointer);
-      if (covered.isEmpty || !_isPrefixOf(covered, code.path)) continue;
-      if (covered.length > longest) {
-        longest = covered.length;
-        matches
-          ..clear()
-          ..add(doc);
-      } else if (covered.length == longest && !matches.contains(doc)) {
-        matches.add(doc);
+    for (final field in coversFieldsOf(index.typeOf(doc))) {
+      if (readsFromProjectRoot(field)) continue;
+      for (final entry in doc.valuesOf(field.id)) {
+        final covered = _withoutTrailingSlash(CodeLinkEntry(entry).pointer);
+        if (covered.isEmpty || !_isPrefixOf(covered, code.path)) continue;
+        if (covered.length > longest) {
+          longest = covered.length;
+          matches
+            ..clear()
+            ..add(doc);
+        } else if (covered.length == longest && !matches.contains(doc)) {
+          matches.add(doc);
+        }
       }
     }
   }
