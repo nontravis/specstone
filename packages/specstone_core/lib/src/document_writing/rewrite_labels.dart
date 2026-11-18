@@ -9,8 +9,6 @@ import 'package:specstone_core/src/index_query/override_chain.dart'
     show carriesOverrides;
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
-import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
-    show withEntriesRestamped;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 // MARK: - Constants
@@ -123,14 +121,13 @@ String? rewriteMovedFrTraces(
 /// [fromNumber] set to Scenario [toNumber] of [targetStory]; null when none.
 ///
 /// A bare `S<N>` matches when [isInSourceStory], `<story>#S<N>` when
-/// [isSourceStory] does, by value; it turns bare when [isInTargetStory]. A
-/// matched `confirmed` entry is re-stamped by [fingerprints], null for none.
+/// [isSourceStory] does, by value; it turns bare when [isInTargetStory]. Each
+/// fingerprint keeps its text.
 String? rewriteScenarioTraces(
   String lfText, {
   required int fromNumber,
   required String targetStory,
   required int toNumber,
-  required MovedFingerprints? fingerprints,
   required bool Function(String storyName) isSourceStory,
   required bool isInSourceStory,
   required bool isInTargetStory,
@@ -146,14 +143,7 @@ String? rewriteScenarioTraces(
     return null;
   }
 
-  final stamped =
-      fingerprints?.restampIn(
-        lfText,
-        _confirmedKey,
-        (label) => newLabel(label) != null,
-      ) ??
-      lfText;
-  final result = _withScenarioEntries(stamped, newLabel);
+  final result = _withScenarioEntries(lfText, newLabel);
   return result == lfText ? null : result;
 }
 
@@ -181,14 +171,13 @@ String _withScenarioEntries(
 /// Returns the journey [lfText] with each `step:` line and `confirmed`
 /// entry that names Scenario [fromNumber] of a story [isSourceStory]
 /// accepts set to Scenario [toNumber] of [targetStory]; null when nothing
-/// changes. A matched entry is re-stamped as [rewriteScenarioTraces] does.
+/// changes.
 String? rewriteScenarioSteps(
   String lfText, {
   required MergedDocType docType,
   required int fromNumber,
   required String targetStory,
   required int toNumber,
-  required MovedFingerprints? fingerprints,
   required bool Function(String storyName) isSourceStory,
 }) {
   String? newStep(String value, StepTarget target) {
@@ -214,7 +203,6 @@ String? rewriteScenarioSteps(
         fromNumber: fromNumber,
         targetStory: targetStory,
         toNumber: toNumber,
-        fingerprints: fingerprints,
         isSourceStory: isSourceStory,
         isInSourceStory: false,
         isInTargetStory: false,
@@ -268,33 +256,6 @@ String _withRenamedBlock(
   if (block == null) return text;
   final renamed = rewrite(block);
   return renamed == block.text ? text : withKeyBlock(text, name, renamed);
-}
-
-// MARK: - Fingerprints
-
-/// The fingerprint of the block a moved item's entries track, before the move
-/// and once landed.
-final class MovedFingerprints {
-  const new({required this.before, required this.after});
-
-  final String before;
-
-  /// Null when the item lands as no block such an entry tracks.
-  final String? after;
-
-  /// Returns [lfText] with each entry of the frontmatter key [key] whose label
-  /// [names] accepts and whose fingerprint is [before] set to [after], by the
-  /// upgrade's re-stamp rule ([withEntriesRestamped]); a stale one is kept.
-  String restampIn(
-    String lfText,
-    String key,
-    bool Function(String label) names,
-  ) => withEntriesRestamped(
-    lfText,
-    key,
-    matched: (_, label, fingerprint) => fingerprint == before && names(label),
-    after: (_) => after,
-  ).lfText;
 }
 
 // MARK: - Body

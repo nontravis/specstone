@@ -206,7 +206,11 @@ void main() {
 
     List<StaleMention> spansAfter(Directory root) => writeIn(root, (session) {
       final renamed = renamedNamesOf(session, renameLogin);
-      final rewrites = planRewrites(session, renameLogin, renamed: renamed);
+      final rewrites = planRewrites(
+        session,
+        renameLogin,
+        renamed: renamed,
+      ).rewrites;
       return staleMentions(
         session,
         renameLogin,

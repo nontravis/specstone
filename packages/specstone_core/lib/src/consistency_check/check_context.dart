@@ -42,10 +42,13 @@ enum CodeRead {
 /// What every rule of one check run reads: the index, per-doc caches, and the
 /// warnings the findings have stated.
 final class CheckContext {
-  new(this._session);
+  /// Reads [contents], by DocPath, in place of the index's content of those
+  /// docs, as a write reads its planned texts.
+  new(this._session, {Map<String, DocContent> contents = const {}})
+    : _contents = {...contents};
 
   final ReadSession _session;
-  final Map<String, DocContent> _contents = {};
+  final Map<String, DocContent> _contents;
   final Map<String, DocLines> _lines = {};
   // A null target keys a read from the project root.
   final Map<(CodeTarget?, String), List<int>?> _codeBytes = {};
