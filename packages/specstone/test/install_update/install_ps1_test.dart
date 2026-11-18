@@ -597,7 +597,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       // Every refused form runs in one session; a NUL crosses in the base64
       // text, which an environment value could not carry. `-Version ''` is no
       // version.
-      test('every refused form is '
+      test('each refused form is '
           'refused before any download', () async {
         final forms = [
           for (final v in refusedVersions)
@@ -1052,7 +1052,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
       for (final MapEntry(key: label, value: pathOf)
           in pathsWithRelativeEntries.entries) {
-        pathTest('$label on PATH never starts a program from there; the '
+        pathTest('$label on PATH starts no program from there; the '
             'absolute git runs', () async {
           final sb = await sandboxWith();
           sb.stub(
@@ -1474,7 +1474,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(flat(r.stdout), isNot(contains(second)));
       });
 
-      pathTest('no other stn prints no notice', () async {
+      pathTest('without another stn the run prints no notice', () async {
         final sb = await sandboxWithShim();
 
         final r = await runInstall(
@@ -1489,7 +1489,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
       });
 
-      pathTest('a stn on a relative entry only prints no notice', () async {
+      pathTest('a stn on only a relative entry prints no notice', () async {
         final sb = await sandboxWithShim();
         otherStn('${sb.root.path}\\rel', 'exe');
 
@@ -1505,7 +1505,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
       });
 
-      pathTest('the install folder with a trailing '
+      pathTest('the install folder spelled with a trailing '
           'backslash, another case, a quoted spelling, or through a junction '
           'prints no notice', () async {
         final sb = await sandboxWithShim();
