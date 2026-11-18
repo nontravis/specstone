@@ -99,10 +99,22 @@ List<_Line> _linesOf(List<BodyLine> body) => [
 
 /// One item's place in the body lines: its first and last line index, and the
 /// index of its table's header line when it is a table row.
-typedef _Span = ({DocItem item, int start, int end, int? headerAt});
+final class _ItemSpan {
+  const new({
+    required this.item,
+    required this.start,
+    required this.end,
+    required this.headerAt,
+  });
 
-List<_Span> _spansOf(List<BodyLine> body, List<_Line> lines) {
-  final spans = <_Span>[];
+  final DocItem item;
+  final int start;
+  final int end;
+  final int? headerAt;
+}
+
+List<_ItemSpan> _spansOf(List<BodyLine> body, List<_Line> lines) {
+  final spans = <_ItemSpan>[];
   var i = 0;
   while (i < lines.length) {
     final line = lines[i];
@@ -116,12 +128,14 @@ List<_Span> _spansOf(List<BodyLine> body, List<_Line> lines) {
       final end = line.kind == _Kind.heading
           ? _headingEnd(lines, i)
           : _paragraphEnd(lines, i);
-      spans.add((
-        item: _itemOf(body, lines, i, end),
-        start: i,
-        end: end,
-        headerAt: null,
-      ));
+      spans.add(
+        _ItemSpan(
+          item: _itemOf(body, lines, i, end),
+          start: i,
+          end: end,
+          headerAt: null,
+        ),
+      );
       i = end + 1;
     }
   }
@@ -149,6 +163,14 @@ int? firstTableOf(List<BodyLine> body, int rows) {
 
 enum _Kind { blank, fence, rule, heading, list, text }
 
+/// The count of `>` marks at the start of a line, and the index after the last.
+final class _QuoteMarks {
+  const new({required this.quote, required this.end});
+
+  final int quote;
+  final int end;
+}
+
 /// One body line split into its blockquote depth and the text after it.
 final class _Line {
   const new(this.kind, this.quote, this.inner);
@@ -156,14 +178,14 @@ final class _Line {
   /// Reads [line]; a fenced line is code, so it holds no `>` mark.
   factory of(BodyLine line) {
     if (line.fenced) return _Line(_Kind.fence, 0, line.text);
-    final (:quote, :end) = _quoteMarksOf(line.text);
+    final _QuoteMarks(:quote, :end) = _quoteMarksOf(line.text);
     final inner = end == 0 ? line.text : line.text.substring(end);
     return _Line(_kindOf(inner), quote, inner);
   }
 
   /// Returns the count of `>` marks at the start of [text], each after up to
   /// 3 spaces and before one optional space, and the index after the last.
-  static ({int quote, int end}) _quoteMarksOf(String text) {
+  static _QuoteMarks _quoteMarksOf(String text) {
     var quote = 0;
     var end = 0;
     while (true) {
@@ -179,7 +201,7 @@ final class _Line {
       end = at;
       quote++;
     }
-    return (quote: quote, end: end);
+    return _QuoteMarks(quote: quote, end: end);
   }
 
   static _Kind _kindOf(String inner) {
@@ -232,7 +254,7 @@ bool _startsTable(List<_Line> lines, int i) {
 /// Adds one span per row below the delimiter row of the table at [i] to
 /// [spans] and returns the index of the line after the table.
 int _addTableRows(
-  List<_Span> spans,
+  List<_ItemSpan> spans,
   List<BodyLine> body,
   List<_Line> lines,
   int i,
@@ -241,12 +263,14 @@ int _addTableRows(
   while (next < lines.length &&
       lines[next].kind == _Kind.text &&
       lines[next].quote == lines[i].quote) {
-    spans.add((
-      item: _itemOf(body, lines, next, next),
-      start: next,
-      end: next,
-      headerAt: i,
-    ));
+    spans.add(
+      _ItemSpan(
+        item: _itemOf(body, lines, next, next),
+        start: next,
+        end: next,
+        headerAt: i,
+      ),
+    );
     next++;
   }
   return next;
