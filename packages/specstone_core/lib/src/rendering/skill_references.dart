@@ -138,10 +138,41 @@ sealed class SkillPlan {
 
 /// A skill doc whose reference files the run writes.
 final class ExportedSkill extends SkillPlan {
-  const new(super.path, this.files);
+  const new(super.path, this.files, this._referencesFolder, this._prefix);
 
   /// One file per Sources doc, in code point order of path.
   final List<ReferenceFile> files;
+
+  final Directory _referencesFolder;
+
+  /// The path of [_referencesFolder] from the project root, ending in `/`.
+  final String _prefix;
+
+  /// Returns the path, from the project root, of each regular file under the
+  /// references folder that no planned file names, in code point order.
+  ///
+  /// A symbolic link is not followed and not listed.
+  List<String> get leftoverPaths {
+    if (!_referencesFolder.existsSync()) return const [];
+    final planned = {for (final file in files) file.path};
+    final found = <String>[];
+    try {
+      for (final entity in _referencesFolder.listSync(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (entity is! File) continue;
+        final relative = entity.path
+            .substring(_referencesFolder.path.length + 1)
+            .replaceAll(Platform.pathSeparator, '/');
+        final path = '$_prefix$relative';
+        if (!planned.contains(path)) found.add(path);
+      }
+    } on FileSystemException {
+      // An unlistable folder lists no leftover, as the doc walk skips it.
+    }
+    return found..sort(compareCodePoints);
+  }
 }
 
 /// A skill doc the run refuses, writing none of its files.
@@ -291,7 +322,13 @@ final class _Planner {
       for (final source in sources.values)
         _referenceFile(placed[source.docPath]!, source, sources.keys.toSet()),
     ]..sort((a, b) => compareCodePoints(a.path, b.path));
-    return ExportedSkill(skill.path, files);
+    final folder = [...segments, _referencesFolder];
+    return ExportedSkill(
+      skill.path,
+      files,
+      Directory(_joined(folder)),
+      '${folder.join('/')}/',
+    );
   }
 
   /// Returns the message of the folder cause [segments] meets, or null.

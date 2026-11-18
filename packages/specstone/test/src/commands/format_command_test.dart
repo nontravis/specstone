@@ -829,5 +829,42 @@ sections:
       );
       expect(Directory('${project.path}/.claude').existsSync(), isFalse);
     });
+
+    test('--check lists a stale and a leftover reference file, exit 1, and '
+        '--json gives each its status; format keeps the leftover', () async {
+      final project = await writeTree(files([tokensLink]));
+      await run(project, ['format']);
+      const old = '.claude/skills/review/references/specs/old.md';
+      File('${project.path}/$old')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('# Old\n');
+      File('${project.path}/$tokens')
+          .writeAsStringSync('# Tokens\n\n## Token list\n\n- color.accent\n');
+      final before = File('${project.path}/$references/foundations/TOKENS.md')
+          .readAsStringSync();
+
+      final text = await run(project, ['format', '--check']);
+      final json = await run(project, ['format', '--check', '--json']);
+
+      expect(text.exitCode, 1, reason: '${text.stderr}');
+      expect(
+        text.stdout,
+        '$references/foundations/TOKENS.md\n$old: leftover\n',
+      );
+      expect(
+        (jsonDecode(json.stdout as String) as Map<String, Object?>)['files'],
+        containsAllInOrder([
+          {'path': '$references/foundations/TOKENS.md', 'status': 'formatted'},
+          {'path': old, 'status': 'leftover'},
+        ]),
+      );
+      expect(
+        File('${project.path}/$references/foundations/TOKENS.md')
+            .readAsStringSync(),
+        before,
+      );
+      await run(project, ['format']);
+      expect(File('${project.path}/$old').existsSync(), isTrue);
+    });
   });
 }

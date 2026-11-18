@@ -10,6 +10,7 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/rendering/skill_references.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 
 /// What a format run did with one doc.
 enum FileStatus {
@@ -24,6 +25,10 @@ enum FileStatus {
 
   /// Left alone because its headers or doc types are ambiguous.
   refused,
+
+  /// A reference file under a skill's `references/` that no Sources doc maps
+  /// to; only `check` reports it, and `format` never deletes it.
+  leftover,
 }
 
 /// The outcome of one doc in a [FormatReport].
@@ -115,17 +120,20 @@ final class FormatReport {
   /// Warnings as plain message text.
   final List<String> warnings;
 
-  /// 1 when a doc is refused, or under [check] a doc would change; else 0.
+  /// 1 when a doc is refused or a reference file is left over, or under
+  /// [check] a doc would change; else 0.
   int get exitStatus {
     final failed = files.any(
       (file) =>
           file.status == FileStatus.refused ||
+          file.status == FileStatus.leftover ||
           (check && file.status == FileStatus.formatted),
     );
     return failed ? 1 : 0;
   }
 
-  /// Returns one line per formatted or refused doc, `''` when none.
+  /// Returns one line per formatted, refused, or leftover file, `''` when
+  /// none.
   String toText() {
     final out = StringBuffer();
     for (final file in files) {
@@ -134,6 +142,8 @@ final class FormatReport {
           out.writeln(check ? file.path : '${file.path}: formatted');
         case FileStatus.refused:
           out.writeln('${file.path}: refused: ${file._reasons}');
+        case FileStatus.leftover:
+          out.writeln('${file.path}: leftover');
         case FileStatus.unchanged || FileStatus.skipped:
           break;
       }
@@ -223,8 +233,9 @@ FormatReport runFormat<R>(
 }
 
 /// Returns [report] with a result for each reference file of [skills] that
-/// differs from its file on disk, right after its skill doc's result; each
-/// is written unless the run only checks.
+/// differs from its file on disk, right after its skill doc's result, in path
+/// order; each is written unless the run only checks. A check also lists each
+/// leftover file of the skill's `references/` folder.
 FormatReport _withReferences(
   DocsProject project,
   FormatReport report,
@@ -235,13 +246,27 @@ FormatReport _withReferences(
     for (final result in report.files) ...[
       result,
       if (result.skillRefusal == null)
-        if (skills.of(result.path) case ExportedSkill(files: final references))
-          for (final reference in references)
-            if (_differsOnDisk(reference))
-              _referenceResult(project, reference, check: check),
+        if (skills.of(result.path) case final ExportedSkill skill)
+          ..._referenceResults(project, skill, check: check),
     ],
   ];
   return FormatReport(check: check, files: files, warnings: report.warnings);
+}
+
+List<FileResult> _referenceResults(
+  DocsProject project,
+  ExportedSkill skill, {
+  required bool check,
+}) {
+  final results = [
+    for (final reference in skill.files)
+      if (_differsOnDisk(reference))
+        _referenceResult(project, reference, check: check),
+    if (check)
+      for (final path in skill.leftoverPaths)
+        FileResult(path: path, status: FileStatus.leftover),
+  ];
+  return results..sort((a, b) => compareCodePoints(a.path, b.path));
 }
 
 bool _differsOnDisk(ReferenceFile reference) {

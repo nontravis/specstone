@@ -421,4 +421,32 @@ void main() {
       expect([for (final skill in plan.skills) skill.path], [_skill]);
     });
   });
+
+  group('the leftover files of an exported skill', () {
+    test('lists each regular file under references that no planned file '
+        'names, in path order', () async {
+      final project = await openSkillProject({
+        _skill: skillDocText(sources: [_tokensLink]),
+        _tokens: _tokensDoc,
+        '$_references/specs/old.md': '# Old\n',
+        '$_references/a/b/older.md': '# Older\n',
+        _tokensReference: _tokensDoc,
+        '$_output/SKILL.md': '# Review\n',
+      });
+
+      expect(_exported(_plan(project), _skill).leftoverPaths, [
+        '$_references/a/b/older.md',
+        '$_references/specs/old.md',
+      ]);
+    });
+
+    test('lists nothing when the references folder is absent', () async {
+      final project = await openSkillProject({
+        _skill: skillDocText(sources: [_tokensLink]),
+        _tokens: _tokensDoc,
+      });
+
+      expect(_exported(_plan(project), _skill).leftoverPaths, isEmpty);
+    });
+  });
 }

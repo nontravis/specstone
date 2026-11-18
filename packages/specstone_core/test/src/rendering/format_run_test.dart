@@ -1153,6 +1153,189 @@ void main() {
       expect(project.file(output).existsSync(), isFalse);
     });
 
+    group('--check', () {
+      const oldReference = '$output/references/specs/old.md';
+
+      Future<SkillProject> formatted(Map<String, String> more) async {
+        final project = await openSkillProject({
+          skill: skillDocText(sources: [tokensLink, buttonLink]),
+          button: buttonFormatted,
+          tokens: tokensDoc,
+          ...more,
+        });
+        format(project);
+        return project;
+      }
+
+      Map<String, String> snapshot(SkillProject project) => {
+        for (final entity in project.root.listSync(recursive: true))
+          if (entity is File) entity.path: entity.readAsStringSync(),
+      };
+
+      test('a changed Sources doc lists its reference file alone and exits '
+          '1', () async {
+        final project = await formatted({});
+        project.file(tokens).writeAsStringSync('$tokensDoc\n- color.accent\n');
+
+        final report = format(project, check: true);
+
+        expect(report.toText(), '$tokensReference\n');
+        expect(report.exitStatus, 1);
+      });
+
+      test(
+        'a run of format, then --check, lists nothing and exits 0',
+        () async {
+          final project = await formatted({});
+
+          final report = format(project, check: true);
+
+          expect(report.toText(), '');
+          expect(report.exitStatus, 0);
+        },
+      );
+
+      test('a reference file no Sources doc maps to is listed as leftover and '
+          'exits 1; format keeps it, so the check lists it again', () async {
+        final project = await formatted({oldReference: '# Old\n'});
+
+        final first = format(project, check: true);
+        format(project);
+        final second = format(project, check: true);
+
+        expect(first.toText(), '$oldReference: leftover\n');
+        expect(first.exitStatus, 1);
+        expect(second.toText(), '$oldReference: leftover\n');
+        expect(project.read(oldReference), '# Old\n');
+      });
+
+      test('a stale and a leftover file are listed in path order, after '
+          'their skill doc', () async {
+        final project = await formatted({
+          '$output/references/specs/design_system/foundations/AAA.md': '# A\n',
+        });
+        project.file(tokens).writeAsStringSync('$tokensDoc\n- color.accent\n');
+        project
+            .file(skill)
+            .writeAsStringSync(skillOutOfOrder([tokensLink, buttonLink]));
+
+        final report = format(project, check: true);
+
+        expect(
+          report.toText(),
+          '$skill\n'
+          '$output/references/specs/design_system/foundations/AAA.md: '
+          'leftover\n'
+          '$tokensReference\n',
+        );
+      });
+
+      test('a leftover file inside a folder under references is listed; a '
+          'link and a folder are not', () async {
+        final project = await formatted({
+          '$output/references/specs/deep/er/old.md': '# Old\n',
+        });
+        final target = project.file(tokens).path;
+        Link('${project.root.path}/$output/references/link.md')
+            .createSync(target);
+        Directory('${project.root.path}/$output/references/empty').createSync();
+
+        final report = format(project, check: true);
+
+        expect(
+          report.toText(),
+          '$output/references/specs/deep/er/old.md: leftover\n',
+        );
+      }, skip: Platform.isWindows ? 'links need privileges on Windows' : null);
+
+      test('a changed SKILL.md is not listed', () async {
+        final project = await formatted({'$output/SKILL.md': '# Review\n'});
+        project.file('$output/SKILL.md').writeAsStringSync('# Changed\n');
+
+        expect(format(project, check: true).toText(), '');
+      });
+
+      test('a refused skill doc lists as refused, with none of its files and '
+          'no leftover', () async {
+        final project = await openSkillProject({
+          skill: skillDocText(sources: [tokensLink, missingLink]),
+          tokens: tokensDoc,
+          oldReference: '# Old\n',
+        });
+
+        final report = format(project, check: true);
+
+        expect(
+          report.toText(),
+          '$skill: refused: skill_source_missing: the source names no doc: '
+          '../design_system/OLD.md\n',
+        );
+        expect(report.exitStatus, 1);
+      });
+
+      test('a drifted skill doc lists itself alone when its references are '
+          'current', () async {
+        final project = await formatted({});
+        project
+            .file(skill)
+            .writeAsStringSync(skillOutOfOrder([tokensLink, buttonLink]));
+
+        final report = format(project, check: true);
+
+        expect(report.toText(), '$skill\n');
+      });
+
+      test('--json gives each entry its path and status', () async {
+        final project = await formatted({oldReference: '# Old\n'});
+        project.file(tokens).writeAsStringSync('$tokensDoc\n- color.accent\n');
+
+        final report = format(project, check: true);
+
+        expect(
+          report.toJson()['files'],
+          containsAllInOrder([
+            {'path': skill, 'status': 'unchanged'},
+            {'path': tokensReference, 'status': 'formatted'},
+            {'path': oldReference, 'status': 'leftover'},
+          ]),
+        );
+      });
+
+      test('writes no file', () async {
+        final project = await formatted({oldReference: '# Old\n'});
+        project.file(tokens).writeAsStringSync('$tokensDoc\n- color.accent\n');
+        final before = snapshot(project);
+
+        format(project, check: true);
+
+        expect(snapshot(project), before);
+      });
+
+      test('a CRLF checkout after a format lists nothing', () async {
+        final project = await formatted({});
+        for (final path in [
+          skill,
+          button,
+          tokens,
+          buttonReference,
+          tokensReference,
+        ]) {
+          final file = project.file(path);
+          file.writeAsStringSync(
+            file
+                .readAsStringSync()
+                .replaceAll('\r\n', '\n')
+                .replaceAll('\n', '\r\n'),
+          );
+        }
+
+        final report = format(project, check: true);
+
+        expect(report.toText(), '');
+        expect(report.exitStatus, 0);
+      });
+    });
+
     test('a run with no link rewriter writes no reference file', () async {
       final project = await openSkillProject({
         skill: skillDocText(sources: [tokensLink]),
