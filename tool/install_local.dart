@@ -183,35 +183,27 @@ Future<String> _devVersionOf(String commit) async {
 
 /// Sets `specstoneVersion` in the `version.dart` of [export] to [version].
 ///
-/// Only the first such line's quoted value changes. A missing file or line
-/// refuses naming the file; an unreadable one refuses with the read error.
+/// Only the first such line's quoted value changes. A missing file or line, or
+/// a file that cannot be read or written, refuses naming the file.
 Future<void> _setVersion(String export, String version) async {
   final file = File('$export/$_versionPath');
   final missing = _Refusal(
     'no specstoneVersion line in $_versionPath; $_unchanged',
   );
-  final String text;
   try {
-    text = await file.readAsString();
-  } on PathNotFoundException {
-    throw missing;
-  } on FileSystemException catch (error) {
-    throw _Refusal(
-      'could not read $_versionPath: ${error.message}; $_unchanged',
-    );
-  }
-  if (!_versionLine.hasMatch(text)) throw missing;
-  try {
+    final text = await file.readAsString();
+    if (!_versionLine.hasMatch(text)) throw missing;
     await file.writeAsString(
       text.replaceFirstMapped(
         _versionLine,
         (match) => '${match[1]}$version${match[2]}',
       ),
     );
+  } on PathNotFoundException {
+    throw missing;
   } on FileSystemException catch (error) {
     throw _Refusal(
-      'could not write $_versionPath: ${error.message}; '
-      '$_unchanged',
+      'could not change $_versionPath: ${error.message}; $_unchanged',
     );
   }
 }
