@@ -4,12 +4,14 @@ import 'dart:io';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show pathFromProjectRoot, requireNotUnderGit, requireWritableTarget;
+import 'package:specstone_core/src/index_query/folder_prune.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show tokenSizeOf;
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer;
 import 'package:specstone_core/src/rendering/build_output.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 
 /// The characters a file name writes as `-`.
 const _nameSeparators = ['/', r'\', ':', '#', '@'];
@@ -139,8 +141,12 @@ RenderFault _refusal(String message, String file) =>
 /// The reply names the canonical absolute path of [file]; [warnings] and
 /// [exitStatus] pass through to the reply.
 ///
+/// With a [projectRoot] and [cleanup], it then prunes the project's
+/// `.specstone/bundles/` and `reports/` by those bounds, keeping [file]; a null
+/// of either prunes nothing.
+///
 /// Throws `output_not_writable` as [requireOutPath] and for a write that
-/// fails, before any file changes.
+/// fails, before any file changes and any prune.
 ReadAnswer answerOutFile({
   required String command,
   required String text,
@@ -149,6 +155,7 @@ ReadAnswer answerOutFile({
   Directory? docsRoot,
   required bool isBare,
   required bool asJson,
+  CleanupBounds? cleanup,
   List<String> warnings = const [],
   int exitStatus = 0,
 }) {
@@ -160,6 +167,14 @@ ReadAnswer answerOutFile({
     isBare: isBare,
   );
   writeBuildOutput(File(shownPath), utf8.encode(text), displayPath: shownPath);
+  if (projectRoot != null && cleanup != null) {
+    pruneSpecstoneFolder(
+      projectRoot,
+      keep: {shownPath},
+      bounds: cleanup,
+      now: DateTime.now(),
+    );
+  }
   final lines = const LineSplitter().convert(text).length;
   final tokens = tokenSizeOf(text);
   return ReadAnswer(

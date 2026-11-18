@@ -9,6 +9,8 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart'
+    show shippedPinsConfig;
 import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -1970,14 +1972,27 @@ void main() {
     const story = 'login/email_login';
     final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
 
-    /// Writes [path] under [project], two days old, and returns it.
-    File aged(Directory project, String path) {
-      final file = File('${project.path}/$path')
+    /// Writes [path] under [project], last modified and read [age] ago (two
+    /// days by default), and returns it.
+    File aged(Directory project, String path, {Duration? age}) {
+      final then = age == null ? twoDaysAgo : DateTime.now().subtract(age);
+      return File('${project.path}/$path')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('old\n')
-        ..setLastModifiedSync(twoDaysAgo);
-      return file;
+        ..setLastModifiedSync(then)
+        ..setLastAccessedSync(then);
     }
+
+    /// The `--out` commands that prune, each with the report file it writes.
+    const writers = {
+      'get': (['get', story, '--out'], 'get.login-email_login.txt'),
+      'check': (['check', story, '--out'], 'check.login-email_login.txt'),
+      'guide': (['guide', 'feature', '--out'], 'guide.feature.txt'),
+    };
+
+    /// Returns the config text of the fixture project with a `cleanup:` map.
+    String cleanupConfig(String bounds) =>
+        '${shippedPinsConfig()}cleanup:\n$bounds';
 
     Future<(int, String)> run(Directory project, List<String> args) async {
       final result = readRunner(project);
@@ -2068,17 +2083,135 @@ void main() {
       }
     });
 
-    test('get --out, and context with no --out, prune nothing', () async {
+    test('get --out, check --out, and guide --out each prune an aged bundle and report and keep their own file', () async {
+      for (final MapEntry(key: name, value: (args, written))
+          in writers.entries) {
+        final project = await writeReadProject();
+        final oldBundle = aged(project, '.specstone/bundles/old.txt');
+        final oldReport = aged(
+          project,
+          '.specstone/reports/old.txt',
+          age: const Duration(days: 8),
+        );
+        final result = readRunner(project);
+        final status = await result.runner.run(args);
+        expect(status, anyOf(0, 1), reason: '$name ${result.err}');
+        expect(oldBundle.existsSync(), isFalse, reason: name);
+        expect(oldReport.existsSync(), isFalse, reason: name);
+        expect(
+          File('${project.path}/.specstone/reports/$written').existsSync(),
+          isTrue,
+          reason: name,
+        );
+      }
+    });
+
+    test('check --out with a finding exits 1 and prunes', () async {
       final project = await writeReadProject();
       final old = aged(project, '.specstone/bundles/old.txt');
+      final (status, _) = await run(project, ['check', story, '--out']);
+      expect(status, 1);
+      expect(old.existsSync(), isFalse);
+    });
+
+    test('get and context with no --out delete nothing', () async {
+      final project = await writeReadProject();
+      final old = aged(project, '.specstone/bundles/old.txt');
+      final oldReport = aged(
+        project,
+        '.specstone/reports/old.txt',
+        age: const Duration(days: 8),
+      );
       for (final args in [
-        ['get', story, '--out'],
+        ['get', story],
         ['context', story, '--for', 'implement'],
+        ['check', story],
+        ['guide', 'feature'],
       ]) {
         final (status, _) = await run(project, args);
-        expect(status, 0, reason: '$args');
+        expect(status, anyOf(0, 1), reason: '$args');
         expect(old.existsSync(), isTrue, reason: '$args');
+        expect(oldReport.existsSync(), isTrue, reason: '$args');
       }
+    });
+
+    test('a refused get --out and check --out keep every aged file', () async {
+      final project = await writeReadProject();
+      final files = [
+        aged(project, '.specstone/bundles/old.txt'),
+        aged(
+          project,
+          '.specstone/reports/old.txt',
+          age: const Duration(days: 8),
+        ),
+      ];
+      for (final command in ['get', 'check']) {
+        for (final out in ['docs/prds/b.txt', '.specstone/config.yaml', '']) {
+          final (status, _) = await run(project, [
+            command,
+            story,
+            '--out',
+            out,
+          ]);
+          expect(status, anyOf(64, 73), reason: '$command $out');
+          for (final file in files) {
+            expect(file.existsSync(), isTrue, reason: '$command $out');
+          }
+        }
+      }
+    });
+
+    test(
+      'a cleanup map in the config moves the bundle and the report bound',
+      () async {
+        final tighter = await writeReadProject(
+          extra: {
+            '.specstone/config.yaml': cleanupConfig(
+              '  bundles_max_age_hours: 1\n  reports_max_age_days: 1\n',
+            ),
+          },
+        );
+        final tightBundle = aged(
+          tighter,
+          '.specstone/bundles/old.txt',
+          age: const Duration(hours: 3),
+        );
+        final tightReport = aged(tighter, '.specstone/reports/old.txt');
+        expect((await run(tighter, ['get', story, '--out'])).$1, 0);
+        expect(tightBundle.existsSync(), isFalse);
+        expect(tightReport.existsSync(), isFalse);
+
+        final looser = await writeReadProject(
+          extra: {
+            '.specstone/config.yaml': cleanupConfig(
+              '  bundles_max_age_hours: 72\n  reports_max_age_days: 30\n',
+            ),
+          },
+        );
+        final looseBundle = aged(looser, '.specstone/bundles/old.txt');
+        final looseReport = aged(
+          looser,
+          '.specstone/reports/old.txt',
+          age: const Duration(days: 8),
+        );
+        expect((await run(looser, ['get', story, '--out'])).$1, 0);
+        expect(looseBundle.existsSync(), isTrue);
+        expect(looseReport.existsSync(), isTrue);
+      },
+    );
+
+    test('a guide --out <path> with no project above it exits 0 and touches no folder', () async {
+      final folder = await writeTree({'.keep': ''});
+      final (status, out) = await run(folder, [
+        'guide',
+        'feature',
+        '--out',
+        'out/guide.txt',
+      ]);
+      expect(status, 0);
+      expect(out, contains('guide.txt'));
+      expect(File('${folder.path}/out/guide.txt').existsSync(), isTrue);
+      expect(Directory('${folder.path}/.specstone').existsSync(), isFalse);
     });
 
     test('a path under .specstone/ outside bundles/ and reports/ is refused and prunes nothing', () async {
@@ -2102,27 +2235,24 @@ void main() {
       }
     });
 
-    test('check --out and guide --out prune nothing', () async {
-      final project = await writeReadProject();
-      final old = aged(project, '.specstone/bundles/old.txt');
-      for (final args in [
-        ['check', story, '--out'],
-        ['guide', 'feature', '--out'],
-      ]) {
-        final result = readRunner(project);
-        final status = await result.runner.run(args);
-        expect(status, anyOf(0, 1), reason: '$args ${result.err}');
-        expect(
-          File(
-            '${project.path}/.specstone/reports/'
-            '${args.first}.${args.last == '--out' ? args[1].replaceAll('/', '-') : ''}.txt',
-          ).existsSync(),
-          isTrue,
-          reason: '$args',
-        );
-        expect(old.existsSync(), isTrue, reason: '$args');
-      }
-    });
+    test(
+      'get, check, and guide print the same with a file to prune as without',
+      () async {
+        for (final MapEntry(key: name, value: (args, _)) in writers.entries) {
+          for (final flag in ['', '--json']) {
+            final withFlag = [...args, if (flag.isNotEmpty) flag];
+            final project = await writeReadProject();
+            final (cleanStatus, clean) = await run(project, withFlag);
+            final old = aged(project, '.specstone/bundles/old.txt');
+            final (status, pruned) = await run(project, withFlag);
+            expect(old.existsSync(), isFalse, reason: '$name $flag');
+            expect(status, cleanStatus, reason: '$name $flag');
+            expect(pruned, clean, reason: '$name $flag');
+            expect(pruned, isNot(contains('old.txt')), reason: '$name $flag');
+          }
+        }
+      },
+    );
 
     test('a pruning run deletes nothing under reports/, trash/, build/, or of the index', () async {
       final project = await writeReadProject();

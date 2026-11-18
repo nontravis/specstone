@@ -200,7 +200,8 @@ abstract class SpecstoneCommand extends Command<int> {
   ///
   /// Outside a project ([projectRoot] null) a bare file goes under the working
   /// directory, and the write refuses it. [flags], [args], and [codeTarget]
-  /// shape the bare file name.
+  /// shape the bare file name. With a [projectRoot] and [cleanup], the write
+  /// prunes the project's `.specstone/` folders by those bounds.
   ///
   /// Throws the fault of `answerOutFile`.
   ReadAnswer answerOut({
@@ -210,6 +211,7 @@ abstract class SpecstoneCommand extends Command<int> {
     required Directory? projectRoot,
     required Directory? docsRoot,
     required bool asJson,
+    CleanupBounds? cleanup,
     List<String> flags = const [],
     List<String> args = const [],
     String? codeTarget,
@@ -236,6 +238,7 @@ abstract class SpecstoneCommand extends Command<int> {
       docsRoot: docsRoot,
       isBare: outPath == null,
       asJson: asJson,
+      cleanup: cleanup,
       warnings: warnings,
       exitStatus: exitStatus,
     );

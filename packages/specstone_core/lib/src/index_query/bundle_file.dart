@@ -18,7 +18,6 @@ import 'package:specstone_core/src/index_query/read_answer.dart'
 import 'package:specstone_core/src/rendering/build_output.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
-import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 
 /// The most lines an index keeps its sections within, its header included.
 const _indexLineCap = 200;
@@ -178,7 +177,12 @@ ReadAnswer answerBundleFile(
   for (final MapEntry(key: path, value: text) in writes.entries) {
     writeBuildOutput(File(path), utf8.encode(text), displayPath: path);
   }
-  _pruneBundlesOf(project.projectRoot, keep: writes.keys.toSet());
+  pruneSpecstoneFolder(
+    project.projectRoot,
+    keep: writes.keys.toSet(),
+    bounds: project.cleanup,
+    now: DateTime.now(),
+  );
   return ReadAnswer(
     text: bundleIndex(answer, shownPath, refsPath: refsPath),
     json: bundleIndexJson(answer, shownPath, refsPath: refsPath),
@@ -246,17 +250,6 @@ BundleEntry _shifted(BundleEntry entry, int lines) => BundleEntry(
       EntrySection(key: section.key, first: section.first + lines),
   ],
 );
-
-/// Prunes the project's `.specstone/bundles/` and `reports/` by the default
-/// bounds, keeping [keep].
-void _pruneBundlesOf(Directory projectRoot, {required Set<String> keep}) {
-  pruneSpecstoneFolder(
-    projectRoot,
-    keep: keep,
-    bounds: CleanupBounds.defaults,
-    now: DateTime.now(),
-  );
-}
 
 // MARK: - Index
 
