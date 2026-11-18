@@ -45,6 +45,7 @@ const _procedures = <String>[
   'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/design-check.md',
+  'specstone-brainstorming-sdd/references/removal.md',
 ];
 
 /// The goal-move reference of bootstrap-prd, under the plugin folder.
