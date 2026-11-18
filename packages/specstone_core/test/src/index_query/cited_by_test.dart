@@ -334,6 +334,65 @@ void main() {
     });
   });
 
+  test('a section or whole-doc link many docs cite gets one line per link, none dropped', () async {
+    const toDomain = '../f02_signup/DOMAIN.md';
+    final index = await _index(
+      'See [the invariants]($_specs/f02_signup/DOMAIN.md#invariants) and [the domain]($_specs/f02_signup/DOMAIN.md).',
+      extra: {
+        'docs/specs/topics/guide.md':
+            '# Guide\n\n## Purpose\nFirst [i]($toDomain#invariants).\n\nSecond [i]($toDomain#invariants).\n\n'
+            'Third [d]($toDomain).\n\nFourth [d]($toDomain).\n',
+      },
+    );
+    final cited = _citedBy(index);
+
+    expect(_ofSection(cited, _domain, 'invariants').map((c) => c.name), [
+      _frName,
+      'guide',
+      'guide',
+    ]);
+    expect(_ofDoc(cited, _domain).map((c) => c.name), [
+      _frName,
+      'guide',
+      'guide',
+    ]);
+    expect(
+      _ofSection(cited, _domain, 'invariants').skip(1).map((c) => c.line),
+      ['First [i]($toDomain#invariants).', 'Second [i]($toDomain#invariants).'],
+    );
+  });
+
+  test('a persona field, a journey step, and an FR traced_from give no line', () async {
+    const toStory =
+        '../../prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const toPersona = '../../prds/personas/buyer/PERSONA.md';
+    final index = await _index(
+      'Check it.',
+      extra: {
+        'docs/prds/features/f01_login/us02_reset_password/fr02_trace.md': '---\nverify_method: test\ntraced_from:\n  - S1\n  - email_login#S2\n---\n\n# Trace\n\n## Statement\nThe system shall trace.\n',
+        'docs/prds/journeys/sign_in/JOURNEY.md': '---\npersona:\n  - buyer\n---\n\n# Sign in\n\n## Steps\n### 1. Enter\nstep: login/email_login S1\n',
+        'docs/specs/topics/guide.md':
+            '# Guide\n\n## Purpose\nSee [the story]($toStory) and [the buyer]($toPersona).\n',
+      },
+    );
+    final cited = _citedBy(index);
+    const story = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const persona = 'prds/personas/buyer/PERSONA.md';
+
+    expect(index.at('prds/journeys/sign_in/JOURNEY.md')!.isTyped, isTrue);
+    expect(_ofDoc(cited, story).map((c) => c.name), ['guide']);
+    expect(_ofDoc(cited, persona).map((c) => c.name), ['guide']);
+    expect(
+      cited.keys.where(
+        (k) =>
+            k.docPath ==
+                'prds/features/f01_login/us02_reset_password/USER_STORY.md' ||
+            k.docPath == 'prds/journeys/sign_in/JOURNEY.md',
+      ),
+      isEmpty,
+    );
+  });
+
   test('a doc link or a section link names no item', () async {
     final cited = _citedBy(
       await _index(
@@ -496,6 +555,28 @@ void main() {
       final picked = docsOf(design(index))
           .firstWhere((d) => d['name'] == _frName);
       expect((picked['citedBy']! as List).single, containsPair('kind', 'doc'));
+    });
+
+    test('an unplaced-anchor line prints right after the naming line of the doc', () async {
+      const line = 'See [the title]($toFr#validate-credentials).';
+      final text = design(
+        await _index(
+          'Check it.',
+          extra: {
+            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n',
+          },
+        ),
+      ).text;
+
+      expect(
+        text,
+        contains(
+          '==> $_frName (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
+          '  · cited by guide (topic) —: $line\n'
+          '---\nverify_method: test',
+        ),
+      );
+      expect('cited by guide'.allMatches(text), hasLength(1));
     });
 
     test('an anchor matching nothing gets no line', () async {
