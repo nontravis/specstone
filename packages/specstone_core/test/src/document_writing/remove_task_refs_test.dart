@@ -247,6 +247,52 @@ void main() {
       },
     );
 
+    test(
+      'a shared doc loses its entry when --target limits the scope',
+      () async {
+        final root = await writeTwinProject();
+        for (final docPath in [
+          _loginApiDoc,
+          flutterArchitecture,
+          jasprArchitecture,
+        ]) {
+          docFile(root, docPath).writeAsStringSync(
+            _withTasks(readDoc(root, docPath), ['ENG-42', 'ENG-50']),
+          );
+        }
+
+        final answer = _remove(root, ['ENG-42'], codeTarget: 'jaspr');
+
+        expect(readDoc(root, _loginApiDoc), isNot(contains('ENG-42')));
+        expect(readDoc(root, _loginApiDoc), contains('ENG-50'));
+        expect(readDoc(root, jasprArchitecture), isNot(contains('ENG-42')));
+        expect(readDoc(root, flutterArchitecture), contains('ENG-42'));
+        expect(answer.json['docs'], [
+          containsPair('path', _loginApiDoc),
+          containsPair('path', jasprArchitecture),
+        ]);
+      },
+    );
+
+    test(
+      'an approved doc gains no draft flag and keeps its approval stamp',
+      () async {
+        final root = await _project();
+        final before = readDoc(root, loginArch);
+        expect(before, contains('approved:'));
+        expect(before, isNot(contains('draft:')));
+
+        _remove(root, ['ENG-42']);
+
+        final after = readDoc(root, loginArch);
+        expect(after, isNot(contains('draft:')));
+        expect(
+          RegExp('approved: .*').firstMatch(after)!.group(0),
+          RegExp('approved: .*').firstMatch(before)!.group(0),
+        );
+      },
+    );
+
     test('an approved doc stays approved and a draft stays a draft', () async {
       final root = await _project(
         extra: {

@@ -368,6 +368,40 @@ void main() {
       expect(_cited(report), ['README.md:1 $_fr', 'app/lib/auth.dart:1 $_fr']);
     });
 
+    test('a doc under the docs root that names a doc gives no finding when '
+        'the code list is empty', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            ..._noCodeRoots,
+            'README.md': 'Use `$_fr`.\n',
+            'docs/notes/README.md': 'Use `$_fr`.\n',
+            'docs/specs/notes.md': '// `$_featureDoc`\n',
+          },
+        ),
+      );
+      expect(_cited(report), ['README.md:1 $_fr']);
+    });
+
+    test("a per-target type's layout path in a comment or a skill file raises "
+        'nothing with two targets', () async {
+      const flutterStack = 'specs/flutter/TECH_STACK.md';
+      const jasprStack = 'specs/jaspr/TECH_STACK.md';
+      final report = await checkOf(
+        await writeTwinProject(
+          extra: {
+            'flutter_ws/app/lib/auth.dart':
+                '// see $flutterStack\n'
+                '// see $_featureDoc\n',
+            'jaspr_ws/app/lib/auth.dart': '// see `docs/$jasprStack`\n',
+            'flutter_ws/app/lib/SKILL.md':
+                'Read `$flutterStack` and `$jasprStack`.\n',
+          },
+        ),
+      );
+      expect(_cited(report), ['flutter_ws/app/lib/auth.dart:2 $_featureDoc']);
+    });
+
     test('a run with a doc target reports no code mention', () async {
       final project = await writeCheckProject(
         extra: {'app/lib/auth.dart': '// `$_fr`\n'},

@@ -160,6 +160,26 @@ void main() {
     },
   );
 
+  test(
+    'UTF-16 and UTF-8 in plain prose outside a code span give none',
+    () async {
+      final findings = await labelsInFeature(
+        'Files are UTF-16 here, not UTF-8, and x-${fr(12)} stays.',
+      );
+      expect(findings, isEmpty);
+    },
+  );
+
+  test('plain-text story and FR labels give one finding keyed by both labels '
+      'as written', () async {
+    final run = '${us(7)} ${fr(8)}';
+    final findings = await labelsInFeature('Cite $run for the rule.');
+
+    expect(findings, hasLength(1));
+    expect(findings.single.line, _lineNumber);
+    expect(findings.single.keys, {'label': run});
+  });
+
   test('a placeholder label gives none', () async {
     final findings = await labelsInFeature(
       'Cite F-<nn> US-<nn> FR-<nn> or f<nn>/us<nn>/fr<nn>.',

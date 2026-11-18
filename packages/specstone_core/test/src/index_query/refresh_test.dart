@@ -916,6 +916,75 @@ void main() {
         reason: 'a code_root change alone rebuilds nothing (INV-2)',
       );
     });
+    test('an edit hidden by a matching stat is not seen until the file changes again', () async {
+      final project = await writeLoginProject();
+      backdate(project);
+      final (:result, :store) = refresh(project);
+      expect(result.fullBuild, isTrue);
+      final feature = File('${project.path}/$featureKey');
+      final before = feature.statSync();
+      feature
+        ..writeAsStringSync(
+          feature.readAsStringSync().replaceFirst('# Login\n', '# Logon\n'),
+        )
+        ..setLastModifiedSync(before.modified);
+      final after = feature.statSync();
+      expect(after.size, before.size);
+      // A stat that a copy or a clock lag leaves equal to the stored one.
+      store.write(
+        () => store.setStatKey(featureDoc, (
+          size: after.size,
+          modified: after.modified.microsecondsSinceEpoch,
+          changed: after.changed.microsecondsSinceEpoch,
+          mode: after.mode,
+        )),
+      );
+
+      final hidden = refresh(project);
+
+      expect(hidden.result.reindexed, 0);
+      expect(docAt(hidden.store, featureDoc).title, 'Login');
+
+      feature.writeAsStringSync(
+        feature.readAsStringSync().replaceFirst('# Logon\n', '# Logon v2\n'),
+      );
+      final seen = refresh(project);
+      expect(seen.result.reindexed, 1);
+      expect(docAt(seen.store, featureDoc).title, 'Logon v2');
+    });
+    test('a target removed from two, and targets put in place of code_root:, each rebuild the whole index', () async {
+      final project = await writeLoginProject();
+      for (final folder in ['flutter_lib', 'jaspr_lib']) {
+        Directory('${project.path}/$folder').createSync();
+      }
+      void configure(String body) =>
+          File('${project.path}/.specstone/config.yaml')
+              .writeAsStringSync('${shippedPinsConfig()}$body');
+      configure('code_root: flutter_lib\n');
+      expect(refresh(project).result.fullBuild, isTrue);
+      expect(refresh(project).result.fullBuild, isFalse);
+
+      configure('targets:\n  flutter:\n    code_root: flutter_lib\n');
+      expect(
+        refresh(project).result.fullBuild,
+        isTrue,
+        reason: 'targets: in place of code_root:',
+      );
+
+      configure(
+        'targets:\n  flutter:\n    code_root: flutter_lib\n'
+        '  jaspr:\n    code_root: jaspr_lib\n',
+      );
+      expect(refresh(project).result.fullBuild, isTrue, reason: 'two targets');
+      expect(refresh(project).result.fullBuild, isFalse);
+
+      configure('targets:\n  flutter:\n    code_root: flutter_lib\n');
+      expect(
+        refresh(project).result.fullBuild,
+        isTrue,
+        reason: 'a target removed',
+      );
+    });
     test(
       'an edit under .specstone/templates/ rebuilds the whole index',
       () async {

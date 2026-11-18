@@ -180,9 +180,8 @@ void main() {
     );
   });
 
-  test('every kind '
-      'waits for the Owner or the Agent, the Owner only for the kinds the '
-      'Output lists', () {
+  test('every kind waits for the Owner or the Agent, the Owner only for the '
+      'kinds the Output lists', () {
     const owner = {
       FindingKind.approvalStale,
       FindingKind.bundleOverLimit,
@@ -236,9 +235,8 @@ void main() {
     expect(byRule.waitsFor, WaitsFor.owner);
   });
 
-  test('an owner '
-      'finding ends its line with the tag; its JSON holds waitsFor after '
-      'message and no tag in the message', () {
+  test('an owner finding ends its line with the tag; its JSON holds waitsFor '
+      'after message and no tag in the message', () {
     const finding = Finding(
       kind: FindingKind.approvalStale,
       path: 'prds/a.md',

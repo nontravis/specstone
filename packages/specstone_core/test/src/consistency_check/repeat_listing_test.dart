@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/repeat_listing.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -22,11 +23,25 @@ const _clause =
 const String _run = _clause;
 
 const _frEdge = 'An empty password → refused.';
+const _firstEdge = '1. E01 — $_frEdge';
 const _nfStatement = 'The system shall sign in within 1 s.';
 
 Map<String, String> _edge(String text) => doc(loginFr, _frEdge, text);
 
 Map<String, String> _statement(String text) => doc(loginNf, _nfStatement, text);
+
+/// The DocPath of the second FR of the login story the tests add.
+const _secondFr =
+    'prds/features/f01_login/us01_email_login/fr02_reset_token.md';
+
+/// Returns a second FR of the login story whose first edge case reads [text].
+Map<String, String> _secondFrEdge(String text, {String frontmatter = ''}) => {
+  'docs/$_secondFr': checkProjectFiles()['docs/$loginFr']!
+      .replaceFirst('traced_from:', '${frontmatter}traced_from:')
+      .replaceFirst('# Check the password', '# Reset the token')
+      .replaceFirst(checkPasswordStatement, 'The system shall mint a token.')
+      .replaceFirst(_firstEdge, text),
+};
 
 Map<String, String> _invariant(String text) => {
   'docs/$_domain':
@@ -143,6 +158,86 @@ void main() {
     );
     expect(_groupsOf(project), isEmpty);
   });
+
+  test('two FRs whose edge cases share an 11-word clause give one group '
+      'naming both items', () async {
+    const clause = 'the stale token is refused and the user asks for another';
+    final project = await writeCheckProject(
+      extra: {
+        ...doc(
+          loginFr,
+          '1. E01 — $_frEdge',
+          '1. E01 — Alpha opens $clause closes.',
+        ),
+        ..._secondFrEdge('1. E01 — Beta begins $clause ends.'),
+      },
+    );
+
+    final groups = _groupsOf(project);
+
+    expect(groups, hasLength(1));
+    expect(groups.single.run, clause);
+    expect(
+      [for (final i in groups.single.items) (i.docPath, i.item)],
+      [(loginFr, 'E01'), (_secondFr, 'E01')],
+    );
+  });
+
+  test(
+    'a shared run in a generated block or in frontmatter is not read',
+    () async {
+      final block = [
+        '1. E01 — Alpha opens one.',
+        '<!-- specstone:generated scenario_copy (do not edit) -->',
+        '2. E02 — Alpha opens $_clause closes.',
+        generatedEndMarker,
+      ].join('\n');
+      final sibling = block
+          .replaceAll('Alpha opens', 'Beta begins')
+          .replaceAll('closes', 'ends');
+      final blocks = {
+        ...doc(loginFr, '1. E01 — $_frEdge', block),
+        ..._secondFrEdge(sibling),
+      };
+
+      final read = await writeCheckProject(extra: blocks);
+      expect(_groupsOf(read), hasLength(1), reason: 'listed no generator');
+      final generated = await writeCheckProject(
+        extra: {
+          ...blocks,
+          '.specstone/templates/fr.yaml': 'generators: [scenario_copy]\n',
+        },
+      );
+      expect(_groupsOf(generated), isEmpty, reason: 'a generated block');
+
+      String shared(String lead) => '$lead $_clause closes.';
+      final inBody = await writeCheckProject(
+        extra: {
+          ...doc(loginFr, _firstEdge, '1. E01 — ${shared('Alpha opens')}'),
+          ..._secondFrEdge('1. E01 — ${shared('Beta begins')}'),
+        },
+      );
+      expect(
+        _groupsOf(inBody),
+        hasLength(1),
+        reason: 'the same text in a body',
+      );
+      final inFrontmatter = await writeCheckProject(
+        extra: {
+          ...doc(
+            loginFr,
+            'traced_from:',
+            'summary: ${shared('Alpha opens')}\ntraced_from:',
+          ),
+          ..._secondFrEdge(
+            _firstEdge,
+            frontmatter: 'summary: ${shared('Beta begins')}\n',
+          ),
+        },
+      );
+      expect(_groupsOf(inFrontmatter), isEmpty, reason: 'frontmatter');
+    },
+  );
 
   test('a Given line, a table row, fenced code, a heading, and an HTML comment are not read', () async {
     final shapes = <String, String Function(String)>{

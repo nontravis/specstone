@@ -363,6 +363,90 @@ void main() {
       expect(_sizeFindings(session, cartFeature), isEmpty);
     });
 
+    test('a story file filled by its own text or by its linked spec pieces '
+        'names the story as doc, its fix a story split', () async {
+      final ownText = await writeNestedProject(
+        extra: {
+          'docs/$cartAdd': nestedFiles()['docs/$cartAdd']!.replaceFirst(
+            '## Acceptance Criteria\n',
+            '## Acceptance Criteria\n${'a' * _overBound}\n',
+          ),
+        },
+      );
+      final pieces = await _writeCitedInvariants(
+        linked: _overBound,
+        unlinked: 1000,
+        extra: {
+          'docs/$cartDrop':
+              '# Agent drops an item\n\n## Use Case\nDrops an item.\n',
+        },
+      );
+      for (final (name, project) in [
+        ('own text', ownText),
+        ('pieces', pieces),
+      ]) {
+        final session = openSession(project);
+        addTearDown(session.close);
+
+        final found = _sizeFindings(session, cartFeature).single;
+
+        expect(found.path, cartFeature, reason: name);
+        expect(found.waitsFor, WaitsFor.owner, reason: name);
+        expect(found.keys['doc'], 'shop/cart/add_item', reason: name);
+        expect(
+          found.keys['actual'],
+          _headerSizeOf(session, project, 'shop/cart/add_item', summary: false),
+          reason: name,
+        );
+        expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      }
+      final fix = _sizeFix.split('## A bundle over its limit').last;
+      expect(
+        fix,
+        contains(
+          '- `doc` is a story: split it in its feature into two stories, '
+          'one `specstone new user_story --parent <feature> --slug\n'
+          '  <slug>`, then one `specstone move <fr> … --under <new story>` '
+          'per FR and nf that goes to it, so the FRs and nfs are\n'
+          '  shared between the two stories.',
+        ),
+      );
+    });
+
+    test('a feature whose children are sub-features keeps the finding, its fix '
+        'no story split but moves of the items one sub-feature uses', () async {
+      final project = await writeNestedProject(extra: _bigShop(_overBound));
+      final session = openSession(project);
+      addTearDown(session.close);
+      final shop = session.index.at(shopFeature)!;
+      final children = session.index.childrenOf(shop);
+      expect(children.map((c) => c.docTypeId), isNot(contains('user_story')));
+      expect(
+        children.map((c) => c.docPath),
+        containsAll([cartFeature, payFeature]),
+      );
+
+      final found = _sizeFindings(session, shopFeature).single;
+
+      expect(found.waitsFor, WaitsFor.owner);
+      expect(found.keys, {
+        'doc': 'shop',
+        'limit': 24000,
+        'actual': _headerSizeOf(session, project, 'shop', summary: true),
+      });
+      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      final fix = _sizeFix.split('## A bundle over its limit').last;
+      expect(
+        fix,
+        contains(
+          '- `doc` is a feature whose children are sub-features: one '
+          '`specstone move <doc>#<ID> … --under <sub-feature>` per\n'
+          '  spec item that one sub-feature alone uses. With no such item, no '
+          'fix applies.',
+        ),
+      );
+    });
+
     test('a sub-feature over the bound is its own finding, its fix a split of '
         'its stories', () async {
       final project = await _writeCitedInvariants(

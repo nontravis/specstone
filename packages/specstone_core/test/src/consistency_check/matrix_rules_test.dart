@@ -128,6 +128,29 @@ void main() {
     expect(report.warnings, isEmpty);
   });
 
+  test('a literal holding a backtick, written in a double-backtick span, is '
+      'matched against the test file as written', () async {
+    const body =
+        "void main() {\n  test('refuses a `quoted` password', () {});\n}\n";
+    final held = await _run(
+      await _project(
+        _record(rows: ['- $_fr E01: `` refuses a `quoted` password ``']),
+        extra: {_testFile: body},
+      ),
+    );
+    expect(_matrix(held), isEmpty);
+
+    final record = _record(
+      rows: ['- $_fr E01: `` refuses a `quoted` secret ``'],
+    );
+    final missing = await _run(
+      await _project(record, extra: {_testFile: body}),
+    );
+    final finding = _matrix(missing).single;
+    expect(finding.kind, FindingKind.matrixTestUnresolved);
+    expect(finding.keys, {'item': _fr, 'name': 'refuses a `quoted` secret'});
+  });
+
   test('a renamed literal is unresolved', () async {
     final record = _record(rows: ['- $_fr E01: `refuses a blank password`']);
 
@@ -439,6 +462,35 @@ void main() {
         expect(_matrix(report).single.kind, FindingKind.matrixTestUnresolved);
       });
     }
+
+    test('with the coverage key absent or false, a stale row fingerprint '
+        'still turns suspect', () async {
+      final record = _record(
+        rows: ['- $_fr E01: `refuses an empty password` 3f9a1c0b7e2d'],
+      );
+      for (final (name, config) in [
+        ('the key absent', shippedPinsConfig()),
+        ('the key false', _coverageConfig(false)),
+      ]) {
+        final project = await _project(
+          record,
+          extra: {..._frWithTwoEdgeCases(), '.specstone/config.yaml': config},
+        );
+
+        final report = await _run(project);
+
+        expect(_missing(report), isEmpty, reason: name);
+        expect(
+          [
+            for (final f in report.findings)
+              if (f.path == loginRecord && f.kind == FindingKind.suspect)
+                f.line,
+          ],
+          [_rowLine(record, 0)],
+          reason: name,
+        );
+      }
+    });
 
     test('a skip row or an unresolved row covers its edge case', () async {
       final record = _record(
