@@ -16,6 +16,7 @@ import 'package:specstone_core/src/index_query/cite_candidates.dart'
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show MermaidBlock;
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
 import 'package:yaml/yaml.dart';
@@ -57,9 +58,6 @@ int _allLines(String text) {
   final breaks = scanText(text).breaks;
   return text.endsWith('\n') ? breaks : breaks + 1;
 }
-
-/// The 1-based file lines `first` through `last`, both included.
-typedef LineRange = ({int first, int last});
 
 /// The frontmatter YAML read once: the mapping it holds, or the line that
 /// makes it invalid.
@@ -265,7 +263,7 @@ final class LineFacts {
       sectionCounts: sectionCounts,
       fenced: [
         for (final range in fenced.cast<List<Object?>>())
-          (first: range[0]! as int, last: range[1]! as int),
+          LineRange(first: range[0]! as int, last: range[1]! as int),
       ],
       lineCount: json['lines']! as int,
       charCount: json['chars']! as int,
@@ -515,12 +513,12 @@ List<LineRange> _fencedRanges(String body, int bodyStart) {
     if (fenced[i]) {
       first ??= bodyStart + i + 1;
     } else if (first != null) {
-      ranges.add((first: first, last: bodyStart + i));
+      ranges.add(LineRange(first: first, last: bodyStart + i));
       first = null;
     }
   }
   if (first != null) {
-    ranges.add((first: first, last: bodyStart + fenced.length));
+    ranges.add(LineRange(first: first, last: bodyStart + fenced.length));
   }
   return ranges;
 }

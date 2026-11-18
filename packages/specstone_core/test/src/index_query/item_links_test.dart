@@ -6,6 +6,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:test/test.dart';
 
@@ -503,7 +504,7 @@ void main() {
         _body('### Notes\n\ntext\n\n#### Deeper\n\nmore\n\n### Next\n'),
         20,
       );
-      expect(extent, (first: 20, last: 26));
+      expect(extent, const LineRange(first: 20, last: 26));
     });
 
     test('a heading inside fenced code ends nothing', () {
@@ -511,7 +512,7 @@ void main() {
         _body('### Notes\n```\n### no\n```\ntail\n'),
         20,
       );
-      expect(extent, (first: 20, last: 24));
+      expect(extent, const LineRange(first: 20, last: 24));
     });
 
     test('a line that is no heading has no block', () {

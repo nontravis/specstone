@@ -17,6 +17,7 @@ import 'package:specstone_core/src/index_query/item_facts.dart'
     show ItemFact, itemKeyOfHead;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -220,7 +221,7 @@ BigInt? _numberOf(String id, String? prefix) {
 /// [prefixId] and [isAcceptanceCriteria] are the section's; the ID is read
 /// as the index reads it (`itemKeyOfHead`), so this and `check` agree on
 /// which items exist.
-({int first, int last})? itemExtentOf(
+LineRange? itemExtentOf(
   List<BodyLine> section,
   String itemId, {
   required String? prefixId,
@@ -278,10 +279,7 @@ Map<String, LineRange> itemExtentsOf(
 ///
 /// A heading inside fenced code is no heading, and a quoted `> ###` heading
 /// reads as its level.
-({int first, int last})? headingBlockExtentOf(
-  List<BodyLine> section,
-  int headingLine,
-) {
+LineRange? headingBlockExtentOf(List<BodyLine> section, int headingLine) {
   final start = section.indexWhere((l) => l.line == headingLine);
   if (start < 0) return null;
   final level = _headingLevelOf(section[start]);
@@ -297,7 +295,7 @@ Map<String, LineRange> itemExtentsOf(
   while (end > start && section[end].text.trim().isEmpty) {
     end--;
   }
-  return (first: headingLine, last: section[end].line);
+  return LineRange(first: headingLine, last: section[end].line);
 }
 
 final _quoteMarks = RegExp('^(?: {0,3}> ?)*');
@@ -317,11 +315,7 @@ int _lastLineOf(SectionItem item) =>
 /// The extent of the item at [i]: its own lines, then each item indented
 /// deeper than it and each fenced block indented deeper than it, up to the
 /// first item indented no deeper.
-({int first, int last}) _listExtent(
-  List<BodyLine> section,
-  List<SectionItem> items,
-  int i,
-) {
+LineRange _listExtent(List<BodyLine> section, List<SectionItem> items, int i) {
   final base = _indentOf(items[i].firstLine);
   var end = _lastLineOf(items[i]);
   for (var k = i + 1; ; k++) {
@@ -330,7 +324,7 @@ int _lastLineOf(SectionItem item) =>
     if (next == null || _indentOf(next.firstLine) <= base) break;
     end = _lastLineOf(next);
   }
-  return (first: items[i].line, last: end);
+  return LineRange(first: items[i].line, last: end);
 }
 
 /// Returns [end], moved past each fenced block that follows it, blank lines

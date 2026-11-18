@@ -5,8 +5,8 @@ import 'package:specstone_core/src/index_query/html_comments.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show CitedSection, citedSectionsOf;
-import 'package:specstone_core/src/index_query/line_facts.dart' show LineRange;
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -180,7 +180,7 @@ List<IndexedSection> summarySectionsOf(
 /// starts on the line after its header.
 LineRange _bodyRangeOf(DocContent content, int at, String printed) {
   final first = content.lineFacts.sectionLines[at] + 1;
-  return (first: first, last: first + lineCountOf(printed) - 1);
+  return LineRange(first: first, last: first + lineCountOf(printed) - 1);
 }
 
 /// Returns the `summary_rows` count of the merged section [key] of [docType],

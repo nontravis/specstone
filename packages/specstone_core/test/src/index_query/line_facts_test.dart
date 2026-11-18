@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -141,7 +142,7 @@ void main() {
         '1-based file lines', () {
       final facts = _factsOf(text);
       expect(facts.sectionLines, [7, 13]);
-      expect(facts.fenced, [(first: 9, last: 11)]);
+      expect(facts.fenced, [const LineRange(first: 9, last: 11)]);
       expect(facts.lineCount, 8);
       expect(facts.charCount, text.runes.length);
       expect(facts.frontmatterErrorLine, isNull);
@@ -273,7 +274,7 @@ void main() {
 
     test('an unclosed fence runs to the end of the file', () {
       final facts = _factsOf('# T\n\n```\n## hidden\nmore\n');
-      expect(facts.fenced, [(first: 3, last: 5)]);
+      expect(facts.fenced, [const LineRange(first: 3, last: 5)]);
       expect(facts.sectionLines, isEmpty);
     });
 
@@ -343,20 +344,20 @@ void main() {
     test('a fence indented up to three spaces counts, four spaces is code, and '
         'the last line may open one', () {
       expect(_factsOf('# T\n   ```\n## no\n   ```\n').fenced, [
-        (first: 2, last: 4),
+        const LineRange(first: 2, last: 4),
       ]);
       expect(_factsOf('# T\n    ```\n## yes\n').fenced, isEmpty);
-      expect(_factsOf('# T\n```').fenced, [(first: 2, last: 2)]);
+      expect(_factsOf('# T\n```').fenced, [const LineRange(first: 2, last: 2)]);
     });
 
     test('a tilde fence and a CRLF fence hide their ## lines', () {
       final tilde = _factsOf('# T\n~~~\n## no\n~~~\n## yes\n');
-      expect(tilde.fenced, [(first: 2, last: 4)]);
+      expect(tilde.fenced, [const LineRange(first: 2, last: 4)]);
       expect(tilde.sectionLines, [5]);
       final crlf = _factsOf(
         '---\r\na: 1\r\n---\r\n# T\r\n```\r\n## no\r\n```\r\n',
       );
-      expect(crlf.fenced, [(first: 5, last: 7)]);
+      expect(crlf.fenced, [const LineRange(first: 5, last: 7)]);
       expect(crlf.sectionLines, isEmpty);
     });
   });
@@ -374,7 +375,7 @@ void main() {
       expect(back.links, facts.links);
       expect(back.fileLinks, facts.fileLinks);
       expect(back.sectionLines, [7, 13]);
-      expect(back.fenced, [(first: 9, last: 11)]);
+      expect(back.fenced, [const LineRange(first: 9, last: 11)]);
       expect(back.isFenced(10), isTrue);
       expect(back.isFenced(12), isFalse);
     });

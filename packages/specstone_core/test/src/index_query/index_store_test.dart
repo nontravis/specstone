@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -510,7 +511,7 @@ void main() {
         expect(facts.toJson(), written.content.lineFacts.toJson());
         expect(facts.sectionCounts, written.content.lineFacts.sectionCounts);
         expect(facts.sectionLines, [7, 13]);
-        expect(facts.fenced, [(first: 9, last: 11)]);
+        expect(facts.fenced, [const LineRange(first: 9, last: 11)]);
         expect(facts.sectionCounts.last, (lines: 2, chars: 12));
       },
     );
