@@ -139,40 +139,44 @@ Future<void> _installLocal(List<String> args) async {
   Directory? temp;
   _Refusal? failure;
   try {
-    temp = await _createTemp();
-    final bundle = await _build(commit, devVersion, temp, interrupt);
-    final shim = File('${temp.path}/$_exportFolder/$_shimPath');
-    final version = interrupt.isRaised
-        ? null
-        : await _versionOf(bundle, interrupt);
-    if (version != null && !interrupt.isRaised) {
-      placing = true;
-      await _place(
-        bundle,
-        install,
-        _buildRecord(ref, commit, DateTime.now()),
-        shim,
-      );
-      await _write(
-        stdout,
-        'installed specstone $version ($ref @ $shortCommit) '
-        'in ${install.path}/bin',
-      );
+    try {
+      temp = await _createTemp();
+      final bundle = await _build(commit, devVersion, temp, interrupt);
+      final shim = File('${temp.path}/$_exportFolder/$_shimPath');
+      final version = interrupt.isRaised
+          ? null
+          : await _versionOf(bundle, interrupt);
+      if (version != null && !interrupt.isRaised) {
+        placing = true;
+        await _place(
+          bundle,
+          install,
+          _buildRecord(ref, commit, DateTime.now()),
+          shim,
+        );
+        await _write(
+          stdout,
+          'installed specstone $version ($ref @ $shortCommit) '
+          'in ${install.path}/bin',
+        );
+      }
+    } on _Refusal catch (stepFailure) {
+      failure = stepFailure;
+    } finally {
+      await interrupt.cancel();
     }
-  } on _Refusal catch (stepFailure) {
-    failure = stepFailure;
+    // An interrupt outranks the step it killed, unless the placement had begun:
+    // then the install may have changed, and the placement's own outcome
+    // stands. A refusal that loses is still printed.
+    final refusal = interrupt.isRaised && !placing
+        ? _Refusal('interrupted; $_unchanged')
+        : failure;
+    if (failure != null && failure != refusal) await _say(failure.message);
+    if (refusal != null) await _refuse(refusal);
   } finally {
-    await interrupt.cancel();
+    // After the run's own output, and on every exit once the folder exists.
+    if (temp != null) await _deleteTemp(temp);
   }
-  // An interrupt outranks the step it killed, unless the placement had begun:
-  // then the install may have changed, and the placement's own outcome stands.
-  // A refusal that loses is still printed.
-  final refusal = interrupt.isRaised && !placing
-      ? _Refusal('interrupted; $_unchanged')
-      : failure;
-  if (failure != null && failure != refusal) await _say(failure.message);
-  if (refusal != null) await _refuse(refusal);
-  if (temp != null) await _deleteTemp(temp);
 }
 
 /// Returns the ref to build: `develop`, or the value of `--branch`.
