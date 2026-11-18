@@ -94,6 +94,33 @@ void main() {
       expect(out.toString(), isEmpty);
       expect(err.toString(), contains('locked.md'));
       expect(_bytesUnder(root), before);
+
+      final hidden = File('${root.path}/docs/prds/hidden.md')
+        ..writeAsStringSync('# Hidden\n');
+      File('${root.path}/.git/info/exclude')
+          .writeAsStringSync('/docs/prds/hidden.md\n', mode: FileMode.append);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+      final head = git(root, ['rev-parse', 'HEAD']).stdout;
+      final beforeApply = _bytesUnder(root);
+      expect(Process.runSync('chmod', ['000', hidden.path]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', hidden.path]));
+      final applying = writeRunner(
+        root,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['y'],
+        ),
+      );
+
+      final applied = await applying.runner.run(['migrate']);
+
+      Process.runSync('chmod', ['644', hidden.path]);
+      expect(applied, 73, reason: applying.err.toString());
+      expect(applying.err.toString(), contains('hidden.md'));
+      expect(_bytesUnder(root), beforeApply);
+      expect(git(root, ['rev-parse', 'HEAD']).stdout, head);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
     },
     skip: Platform.isWindows
         ? 'the file is made unreadable by chmod'
@@ -411,26 +438,43 @@ void main() {
 
     test('no other command reads the old plugin settings, even with the '
         'plugin on', () async {
+      final home = testHome();
+      File('${home.path}/.claude/settings.json')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(on);
+      final config = await writeTree({'settings.json': on});
       for (final args in [
         ['check'],
         ['upgrade'],
         ['structure'],
       ]) {
-        final root = await configured({'.claude/settings.json': on});
-        final (:runner, :out, :err) = writeRunner(root);
+        final root = await configured({
+          '.claude/settings.json': on,
+          '.claude/settings.local.json': on,
+        });
+        for (final environment in [
+          <String, String>{},
+          {'CLAUDE_CONFIG_DIR': config.path},
+        ]) {
+          final (:runner, :out, :err) = writeRunner(
+            root,
+            environment: environment,
+          );
 
-        await runner.run(args);
+          await runner.run(args);
 
-        expect(
-          err.toString(),
-          isNot(contains('plugin for Claude Code')),
-          reason: args.join(' '),
-        );
-        expect(
-          err.toString(),
-          isNot(contains('specstone@specstone')),
-          reason: args.join(' '),
-        );
+          final reason = '${args.join(' ')} $environment';
+          expect(
+            err.toString(),
+            isNot(contains('plugin for Claude Code')),
+            reason: reason,
+          );
+          expect(
+            err.toString(),
+            isNot(contains('specstone@specstone')),
+            reason: reason,
+          );
+        }
       }
     });
 
