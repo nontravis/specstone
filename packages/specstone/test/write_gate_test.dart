@@ -7,8 +7,6 @@ import '../../specstone_core/test/helpers/temp_tree.dart';
 import '../../specstone_core/test/helpers/write_fixture.dart';
 import 'helpers/write_runner.dart';
 
-const _gate = 'document_writing/delete_doc_subtree/finish_interrupted_move';
-
 final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
     : null;
@@ -44,7 +42,7 @@ Future<(int, String)> _run(Directory root, List<String> args) async {
 }
 
 void main() {
-  group('$_gate: a committed link at .specstone/index.sqlite', () {
+  group('a committed link at .specstone/index.sqlite', () {
     late Directory outside;
     late Directory root;
 
@@ -54,7 +52,7 @@ void main() {
     });
 
     for (final MapEntry(:key, :value) in _commands.entries) {
-      test('$_gate: $key refuses 73 when the link leads to a path that '
+      test('$key refuses 73 when the link leads to a path that '
           'does not exist outside the project, and creates nothing', () async {
         final target = File('${outside.path}/not-yet.sqlite');
         Link('${root.path}/.specstone/index.sqlite').createSync(target.path);

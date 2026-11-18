@@ -35,7 +35,7 @@ void main() {
       expect(out.label, 'confirmed (1)');
     });
 
-    test('f06/us01/fr06, s03/inv12: a flow-list confirmed stays as written, '
+    test('a flow-list confirmed stays as written, '
         'with no entry, and the FR cell is still rewritten', () {
       final api = _api([
         '`us01/fr01_check_target`',

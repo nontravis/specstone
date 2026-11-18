@@ -16,7 +16,7 @@ void main() {
   });
 
   for (final id in ['user_story', 'fr']) {
-    test('f03/us07/fr02/e09, f03/us07/fr03/e02: with software-tech, $id keeps '
+    test('with software-tech, $id keeps '
         'the prd-core guide, path, parent, sections, lint, and sources', () {
       final merged = prdCoreDocType(both, id);
       final base = prdCoreDocType(prdOnly, id);
@@ -38,7 +38,7 @@ void main() {
     });
   }
 
-  test('f03/us07/s5, f03/us07/fr01/e02: a project listing only prd-core has no '
+  test('a project listing only prd-core has no '
       'field that points at code and no spec doc type', () {
     for (final docType in prdOnly.docTypes) {
       expect(

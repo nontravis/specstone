@@ -65,7 +65,7 @@ List<String> _lines(ReadAnswer answer) =>
     answer.text.split('\n').where((l) => l.isNotEmpty).toList();
 
 void main() {
-  test('f10/us04/s1, f10/us04/fr01/e01: a three-scenario story whose '
+  test('a three-scenario story whose '
       'Scenario 1 one step names lists S2 and S3', () async {
     final answer = await _unwalked(_files(['$_story S1']));
     final lines = _lines(answer);
@@ -77,7 +77,7 @@ void main() {
     expect((docs.single as Map)['unwalked'], ['S2', 'S3']);
   });
 
-  test('f10/us04/s2, f10/us04/fr01/e06: a story whose scenarios are all '
+  test('a story whose scenarios are all '
       'walked is not listed', () async {
     final answer = await _unwalked(
       _files(['$_story S1', '$_story S2', '$_story S3']),
@@ -117,7 +117,7 @@ void main() {
     expect(_lines(answer).skip(1), hasLength(3));
   });
 
-  test('f10/us04/s4, f10/us04/fr01/e05: list feature --unwalked is '
+  test('list feature --unwalked is '
       'argument_invalid, exit 64', () async {
     await expectLater(
       _unwalked(_files([]), docType: 'feature'),

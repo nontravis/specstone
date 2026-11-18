@@ -2,8 +2,6 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/layout.dart';
 import 'package:test/test.dart';
 
-const _slug = 'rendering/format_docs/normalize_layout_whitespace';
-
 void main() {
   final laidOut = <({String input, bool underHeading, Set<String> kinds})>[];
 
@@ -15,7 +13,7 @@ void main() {
     Set<String> blockKinds = const {},
   }) {
     laidOut.add((input: input, underHeading: underHeading, kinds: blockKinds));
-    test('$_slug $name', () {
+    test(name, () {
       expect(
         layOutText(input, underHeading: underHeading, blockKinds: blockKinds),
         expected,
@@ -358,7 +356,7 @@ void main() {
     check('a final line break is kept', 'a\n\nb\n', 'a\n\nb\n');
   });
 
-  test('$_slug E07: laying out twice equals once', () {
+  test('laying out twice equals once', () {
     for (final c in laidOut) {
       String run(String s) =>
           layOutText(s, underHeading: c.underHeading, blockKinds: c.kinds);

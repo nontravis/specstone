@@ -125,7 +125,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us01/s8, f03/us01/fr01: --json lists id, pack, and description '
+    test('--json lists id, pack, and description '
         'of each doc type', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -156,7 +156,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us01/s4, f03/us01/fr03: a type with --json prints the merged '
+    test('a type with --json prints the merged '
         'schema with a two-space indent', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -238,7 +238,7 @@ void main() {
       );
     });
 
-    test('f03/us01/fr03, db-r7: guide <type> --json prints a section summary '
+    test('guide <type> --json prints a section summary '
         'set by a project layer', () async {
       final runner = await runnerIn(
         await projectWith({
@@ -254,7 +254,7 @@ void main() {
       expect(sections.first['summary'], isTrue);
     });
 
-    test('f03/us01/s6, f03/us01/fr02/e01: an unknown type prints usage and '
+    test('an unknown type prints usage and '
         'exits 64', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -283,7 +283,7 @@ void main() {
       );
     });
 
-    test('f03/us01/s7, f03/us01/fr01/e02: a broken project '
+    test('a broken project '
         'template prints file and line on stderr and exits 78', () async {
       final runner = await runnerIn(
         await projectWith({'.specstone/templates/feature.yaml': 'id: [\n'}),
@@ -390,8 +390,7 @@ void main() {
       <String>[],
       ['help', 'guide'],
     ]) {
-      test('f03/us05/s2, f03/us01/fr04/e04, f03/us05/fr01/e07, '
-          '`${args.join(' ')}` ignores a broken config', () async {
+      test('`${args.join(' ')}` ignores a broken config', () async {
         final project = await writeTree({_configPath: 'packs: [\n'});
         final runner = await runnerIn(project);
 
@@ -428,7 +427,7 @@ void main() {
       );
     });
 
-    test('E01: two '
+    test('two '
         'unknown ids among known ones refuse the whole call, name each, and '
         'print no guide', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -443,7 +442,7 @@ void main() {
       );
     });
 
-    test('E01: one '
+    test('one '
         'unknown id among known ones names it in the singular form and '
         'prints no guide', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -456,7 +455,7 @@ void main() {
       );
     });
 
-    test('E01: an '
+    test('an '
         'unknown id named twice is named once', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -468,7 +467,7 @@ void main() {
       );
     });
 
-    test('E07: a repeated '
+    test('a repeated '
         'id prints once at its first place under ==> lines', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -483,7 +482,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('E08: one id '
+    test('one id '
         'named twice prints its guide once, with no ==> line', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -531,7 +530,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('E01: an empty '
+    test('an empty '
         'id refuses the call with exit 64 and names ""', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -543,7 +542,7 @@ void main() {
       );
     });
 
-    test('E01: an empty '
+    test('an empty '
         'id beside a known one refuses the whole call', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -577,7 +576,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('E04: a broken '
+    test('a broken '
         'template file with an unknown id among the types exits 78 with the '
         'template fault and no output', () async {
       final runner = await runnerIn(
@@ -592,7 +591,7 @@ void main() {
       );
     });
 
-    test('E04: a broken '
+    test('a broken '
         'template file with an unknown id among the types exits 78 with one '
         'JSON envelope', () async {
       final runner = await runnerIn(
@@ -621,7 +620,7 @@ void main() {
       );
     });
 
-    test('E01: unknown '
+    test('unknown '
         'ids with --json print one envelope naming each, and stdout stays '
         'empty', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -642,7 +641,7 @@ void main() {
       );
     });
 
-    test('E01: one '
+    test('one '
         'unknown id among known ones with --json names it in the singular '
         'form', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -657,7 +656,7 @@ void main() {
     });
 
     test(
-      'E07: a '
+      'a '
       'repeated id with --json prints one array in order, the id once',
       () async {
         final runner = await runnerIn(await projectWith(_frLayer));
@@ -728,12 +727,15 @@ void main() {
           for (final section
               in (json['sections']! as List<Object?>)
                   .cast<Map<String, Object?>>()) {
-            final mark = section['required'] == true
-                ? 'Required section.'
-                : 'Optional section.';
+            final isConditional =
+                section['whenField'] != null || section['requiredWhen'] != null;
+            final isRequired =
+                section['required'] == true || section['requiredWhen'] != null;
+            final word = isRequired ? 'Required' : 'Optional';
+            final mark = isConditional ? '$word when ' : '$word section.\n';
             expect(
               text,
-              contains('## ${section['header']}\n\n$mark\n'),
+              contains('## ${section['header']}\n\n$mark'),
               reason: '$id.${section['id']}',
             );
           }
@@ -1324,6 +1326,46 @@ items:
       expect(error['code'], 'unknown_value');
       expect(error['file'], disabledFile);
       expect(error['key'], 'sections.out_of_scope');
+    });
+  });
+
+  group('specstone guide in the built CLI with a conditional section', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    test('anti_persona prints a condition line, not a required mark, under '
+        'each section its anti_type binds', () async {
+      final project = await writeTree({_configPath: shippedPinsConfig()});
+
+      final result = await Process.run(binary, [
+        'guide',
+        'anti_persona',
+      ], workingDirectory: project.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final sections = {
+        for (final block in (result.stdout as String).split('\n## ').skip(1))
+          block.split('\n').first: block,
+      };
+      const bound = [
+        'Motivations',
+        'Actions',
+        'Tools',
+        'Needs',
+        'Consequences',
+      ];
+      for (final header in bound) {
+        expect(
+          sections[header],
+          startsWith(
+            '$header\n\nRequired when `anti_type` is `misuser`; '
+            'left out otherwise.\n',
+          ),
+          reason: header,
+        );
+        expect(sections[header], isNot(contains('Required section.')));
+      }
     });
   });
 

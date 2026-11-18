@@ -154,7 +154,7 @@ void main() {
       ({'prd-core': '1.8.0'}, true),
       (<String, String>{'acme': '9.0.0'}, false),
     ]) {
-      test('domain:document_writing Approval: pins $pins -> $expected', () {
+      test('Approval: pins $pins -> $expected', () {
         expect(
           stampsHaveRun({for (final e in pins.entries) e.key: v(e.value)}),
           expected,
@@ -171,14 +171,11 @@ void main() {
     String hash(String text) =>
         approvalHashOf(text, _docType, statusesOutside: true);
 
-    test(
-      'domain:document_writing ApprovalHash: 12 lowercase hex characters',
-      () {
-        expect(hash(body), matches(RegExp(r'^[0-9a-f]{12}$')));
-      },
-    );
+    test('ApprovalHash: 12 lowercase hex characters', () {
+      expect(hash(body), matches(RegExp(r'^[0-9a-f]{12}$')));
+    });
 
-    test('report_stale_approvals E02: padded cells give the same hash', () {
+    test('padded cells give the same hash', () {
       final padded = body.replaceFirst(
         '| a | b |\n|---|---|\n| x | y |',
         '| a   | b   |\n|-----|-----|\n| x   | y   |',
@@ -187,20 +184,17 @@ void main() {
       expect(hash(padded), hash(body));
     });
 
-    test(
-      'report_stale_approvals E02: a blank line under a heading is ignored',
-      () {
-        final spaced = body.replaceFirst('## Statement\n\n', '## Statement\n');
-        expect(spaced, isNot(body));
-        expect(hash(spaced), hash(body));
-      },
-    );
+    test('a blank line under a heading is ignored', () {
+      final spaced = body.replaceFirst('## Statement\n\n', '## Statement\n');
+      expect(spaced, isNot(body));
+      expect(hash(spaced), hash(body));
+    });
 
     test('CRLF line ends hash as LF once the caller converts', () {
       expect(hash(toLf(body.replaceAll('\n', '\r\n'))), hash(body));
     });
 
-    test('report_stale_approvals E03: a changed implements entry keeps it', () {
+    test('a changed implements entry keeps it', () {
       expect(hash(body.replaceFirst('a.dart:one', 'b.dart:two')), hash(body));
     });
 
@@ -229,17 +223,14 @@ void main() {
       },
     );
 
-    test(
-      'report_stale_approvals E03: a refreshed generated block keeps it',
-      () {
-        String withBlock(String inner) =>
-            '$body\n${generatedOpenMarker('scenario_copy')}\n$inner'
-            '$generatedEndMarker\n';
-        expect(hash(withBlock('first\n')), hash(withBlock('second\n')));
-      },
-    );
+    test('a refreshed generated block keeps it', () {
+      String withBlock(String inner) =>
+          '$body\n${generatedOpenMarker('scenario_copy')}\n$inner'
+          '$generatedEndMarker\n';
+      expect(hash(withBlock('first\n')), hash(withBlock('second\n')));
+    });
 
-    test('report_stale_approvals E02: one changed sentence differs', () {
+    test('one changed sentence differs', () {
       expect(
         hash(body.replaceFirst('shall do it', 'shall not do it')),
         isNot(hash(body)),
@@ -261,7 +252,7 @@ void main() {
       );
     });
 
-    test('mark_doc_approved E09: a block a format run inserts keeps it', () {
+    test('a block a format run inserts keeps it', () {
       final inserted = fillGeneratedBlocks(
         body,
         _docType,
@@ -288,7 +279,7 @@ void main() {
         '---\ndraft: true\nstatus: planned\n---\n\n# Doc\n\n'
         '## Statement\n\nText.\n';
 
-    test('mark_doc_approved E11: the double-quoted hash at the field slot', () {
+    test('the double-quoted hash at the field slot', () {
       final written = withApprovalHash(draft, _docType, statusesOutside: true);
       final hash = approvalHashOf(draft, _docType, statusesOutside: true);
       expect(
@@ -298,7 +289,7 @@ void main() {
       );
     });
 
-    test('mark_doc_approved E11: replaces approved: true in place', () {
+    test('replaces approved: true in place', () {
       const old =
           '---\napproved: true\nstatus: planned\n---\n\n# Doc\n\n'
           '## Statement\n\nText.\n';
@@ -318,7 +309,7 @@ void main() {
       ('with frontmatter', draft),
       ('without frontmatter', '# Doc\n\n## Statement\n\nText.\n'),
     ]) {
-      test('mark_doc_approved E10, E11: a doc $label matches its stamp', () {
+      test('a doc $label matches its stamp', () {
         final written = withApprovalHash(text, _docType, statusesOutside: true);
         final stamp = RegExp('approved: "([0-9a-f]{12})"')
             .firstMatch(written)!
@@ -340,7 +331,7 @@ void main() {
     const base = '# Signup\n\nBody.\n';
     final hashed = withApprovalHash(base, _docType, statusesOutside: true);
 
-    test('E19, E20: its own hash counts; a stale hash, a draft, '
+    test('its own hash counts; a stale hash, a draft, '
         'or no mark does not', () {
       expect(countsAsApprovedCopy(hashed, _docType), isTrue);
       expect(
@@ -354,21 +345,21 @@ void main() {
       expect(countsAsApprovedCopy(base, _docType), isFalse);
     });
 
-    test('E11: a copy holding its own hash counts, and the '
+    test('a copy holding its own hash counts, and the '
         'approval view compares it without the mark', () {
       expect(hashed, contains('approved: "'));
       expect(countsAsApprovedCopy(hashed, _docType), isTrue);
       expect(withoutApprovalMarks(hashed), isNot(contains('approved')));
     });
 
-    test('E11: `approved: true` counts, even with no doc type', () {
+    test('`approved: true` counts, even with no doc type', () {
       expect(
         countsAsApprovedCopy('---\napproved: true\n---\n$base', null),
         isTrue,
       );
     });
 
-    test('E21: an unquoted digits hash is no hash', () {
+    test('an unquoted digits hash is no hash', () {
       expect(
         countsAsApprovedCopy('---\napproved: 123456789012\n---\n$base', null),
         isFalse,
@@ -377,7 +368,7 @@ void main() {
   });
 
   test(
-    'domain:document_writing INV-5: the one-parse ApprovalHash equals '
+    'the one-parse ApprovalHash equals '
     'the key-by-key recipe on every fixture doc and each frontmatter edge',
     () async {
       final matcher = DocTypeMatcher(
@@ -462,7 +453,7 @@ void main() {
         ('IndexedDoc', ApprovalFields.ofIndexed(_indexed(lines))),
       ]) {
         final (reader, f) = fields;
-        test('walk_drafts E11-E14, the approval rule: $label via $reader', () {
+        test('the approval rule: $label via $reader', () {
           expect(
             awaitsApproval(f, hashOf(lines), stampsHaveRun: false),
             belowAwaits,
@@ -488,36 +479,33 @@ void main() {
       expect(isGuarded(f), isTrue);
     });
 
-    test(
-      'domain:document_writing INV-5: a frontmatter that is no YAML holds no '
-      'value, never awaits approval, and stays guarded',
-      () {
-        const text = '---\ndraft: true\napproved: [\n---\n# A\n';
-        final f = ApprovalFields.of(Doc.parse(text));
-        expect(f.isDraft, isFalse);
-        expect(comparedApprovalHash(text, null, statusesOutside: true), isNull);
-        for (final ran in [false, true]) {
-          expect(
-            awaitsApproval(
-              f,
-              comparedApprovalHash(text, null, statusesOutside: true),
-              stampsHaveRun: ran,
-            ),
-            isFalse,
-          );
-        }
-        expect(isGuarded(f), isTrue);
+    test('a frontmatter that is no YAML holds no '
+        'value, never awaits approval, and stays guarded', () {
+      const text = '---\ndraft: true\napproved: [\n---\n# A\n';
+      final f = ApprovalFields.of(Doc.parse(text));
+      expect(f.isDraft, isFalse);
+      expect(comparedApprovalHash(text, null, statusesOutside: true), isNull);
+      for (final ran in [false, true]) {
         expect(
-          parseIndexedDoc(
-            docPath: 'a.md',
-            bytes: utf8.encode(text),
-            match: const NoDocType(),
-            statusesOutside: true,
-          ).doc.approvalHash,
-          isNull,
+          awaitsApproval(
+            f,
+            comparedApprovalHash(text, null, statusesOutside: true),
+            stampsHaveRun: ran,
+          ),
+          isFalse,
         );
-      },
-    );
+      }
+      expect(isGuarded(f), isTrue);
+      expect(
+        parseIndexedDoc(
+          docPath: 'a.md',
+          bytes: utf8.encode(text),
+          match: const NoDocType(),
+          statusesOutside: true,
+        ).doc.approvalHash,
+        isNull,
+      );
+    });
 
     test('an invalid YAML key reads as no value through both readers', () {
       const text = '---\nstatus: [\ndraft: true\napproved: true\n---\n# A\n';
@@ -537,7 +525,7 @@ void main() {
       }
     });
 
-    test('HD4: a quoted "approved" key is read', () {
+    test('a quoted "approved" key is read', () {
       final f = ApprovalFields.of(
         Doc.parse('---\ndraft: true\n"approved": true\n---\n# A\n'),
       );
@@ -546,7 +534,7 @@ void main() {
     });
   });
 
-  test('f02/us03/s2, f02/us03/fr02/e01, dw-s03/inv11: the newest committed copy without draft is found', () async {
+  test('the newest committed copy without draft is found', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedText});
     commitAll(repo, 'approved');
     File('${repo.path}/docs/$signupFeature').writeAsStringSync(_draftText);
@@ -562,7 +550,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e01, dw-s03/inv11: the approved copy names its commit and path', () async {
+  test('the approved copy names its commit and path', () async {
     const path = 'docs/$signupFeature';
     final repo = await _repo({path: _approvedText});
     commitAll(repo, 'approved');
@@ -579,7 +567,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test("f02/us03/fr02/e02, dw-s03/inv11: a renamed doc's approved copy names its old path", () async {
+  test("a renamed doc's approved copy names its old path", () async {
     const oldPath = 'docs/$story3';
     const newPath =
         'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
@@ -598,7 +586,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e01, e15: a project below the repository top-level names '
+  test('a project below the repository top-level names '
       'its copy by project path', () async {
     const path = 'docs/$signupFeature';
     final repo = await _repo({'sub/$path': _approvedText});
@@ -618,7 +606,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e15, H29: a non-ASCII folder above the project strips '
+  test('a non-ASCII folder above the project strips '
       'from the path', () async {
     const sub = 'my ล็อก';
     const path = 'docs/$signupFeature';
@@ -639,7 +627,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e02, e15: a rename inside a project below the '
+  test('a rename inside a project below the '
       'top-level names the old project path', () async {
     const oldPath = 'docs/$story3';
     const newPath =
@@ -665,7 +653,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e02, e15: a doc renamed in from outside the project '
+  test('a doc renamed in from outside the project '
       'keeps its top-level path', () async {
     const oldPath = 'elsewhere/$story3';
     const newPath = 'docs/$story3';
@@ -727,7 +715,7 @@ void main() {
     );
   }, skip: skipGit);
 
-  test('f02/us03/fr02/e02, dw-s03/inv11, FM1: a SHA-256 repository reaches the '
+  test('a SHA-256 repository reaches the '
       'approved copy under its old path', () async {
     const oldPath = 'docs/$story3';
     const newPath =
@@ -747,47 +735,39 @@ void main() {
     );
   }, skip: skipSha256);
 
-  test(
-    'E03, domain:document_writing INV-11: a committed copy with neither key is '
-    'no approval',
-    () async {
-      final repo = await _repo({'docs/$signupFeature': _approvedBody});
-      commitAll(repo, 'written by hand');
+  test('a committed copy with neither key is '
+      'no approval', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedBody});
+    commitAll(repo, 'written by hand');
 
-      expect(
-        ApprovalHistory().lastApproved(
-          repo,
-          'docs/$signupFeature',
-          docType: _docType,
-        ),
-        isA<NoApprovedCopy>(),
-      );
-    },
-    skip: skipGit,
-  );
+    expect(
+      ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<NoApprovedCopy>(),
+    );
+  }, skip: skipGit);
 
-  test(
-    'E05, domain:document_writing INV-11: an edit before any commit leaves the '
-    'committed approved copy the newest',
-    () async {
-      final repo = await _repo({'docs/$signupFeature': _approvedText});
-      commitAll(repo, 'approved');
-      File('${repo.path}/docs/$signupFeature')
-          .writeAsStringSync('$_approvedText\nUncommitted edit.\n');
+  test('an edit before any commit leaves the '
+      'committed approved copy the newest', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedText});
+    commitAll(repo, 'approved');
+    File('${repo.path}/docs/$signupFeature')
+        .writeAsStringSync('$_approvedText\nUncommitted edit.\n');
 
-      expect(
-        ApprovalHistory().lastApproved(
-          repo,
-          'docs/$signupFeature',
-          docType: _docType,
-        ),
-        isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
-      );
-    },
-    skip: skipGit,
-  );
+    expect(
+      ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+    );
+  }, skip: skipGit);
 
-  test('E19, domain:document_writing INV-11: a newer copy with no draft and no '
+  test('a newer copy with no draft and no '
       '`approved:` value is passed over for an older approved one', () async {
     final repo = await _repo({'docs/$signupFeature': _approvedText});
     commitAll(repo, 'approved');
@@ -805,53 +785,45 @@ void main() {
     );
   }, skip: skipGit);
 
-  test(
-    'E20, domain:document_writing INV-11: an edit committed with its old hash '
-    'counts as no approval',
-    () async {
-      final repo = await _repo({'docs/$signupFeature': _approvedText});
-      commitAll(repo, 'approved');
-      File('${repo.path}/docs/$signupFeature')
-          .writeAsStringSync(_approvedText.replaceFirst('Approved', 'Edited'));
-      commitAll(repo, 'edited in an editor');
+  test('an edit committed with its old hash '
+      'counts as no approval', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedText});
+    commitAll(repo, 'approved');
+    File('${repo.path}/docs/$signupFeature')
+        .writeAsStringSync(_approvedText.replaceFirst('Approved', 'Edited'));
+    commitAll(repo, 'edited in an editor');
 
-      expect(
-        ApprovalHistory().lastApproved(
-          repo,
-          'docs/$signupFeature',
-          docType: _docType,
-        ),
-        isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
-      );
-    },
-    skip: skipGit,
-  );
+    expect(
+      ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+    );
+  }, skip: skipGit);
 
-  test(
-    'E21, domain:document_writing INV-11: an unquoted digits hash is no hash',
-    () async {
-      final digits = RegExp(r'"(\d{12})"');
-      final text = _approvedBody.replaceFirst(
-        '# Signup',
-        '---\napproved: 123456789012\n---\n# Signup',
-      );
-      expect(digits.hasMatch(text), isFalse);
-      final repo = await _repo({'docs/$signupFeature': text});
-      commitAll(repo, 'unquoted');
+  test('an unquoted digits hash is no hash', () async {
+    final digits = RegExp(r'"(\d{12})"');
+    final text = _approvedBody.replaceFirst(
+      '# Signup',
+      '---\napproved: 123456789012\n---\n# Signup',
+    );
+    expect(digits.hasMatch(text), isFalse);
+    final repo = await _repo({'docs/$signupFeature': text});
+    commitAll(repo, 'unquoted');
 
-      expect(
-        ApprovalHistory().lastApproved(
-          repo,
-          'docs/$signupFeature',
-          docType: _docType,
-        ),
-        isA<NoApprovedCopy>(),
-      );
-    },
-    skip: skipGit,
-  );
+    expect(
+      ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<NoApprovedCopy>(),
+    );
+  }, skip: skipGit);
 
-  group('an uncommitted move (document_writing/approve_drafts/show_changes_since_approval E18)', () {
+  group('an uncommitted move', () {
     const oldPath = 'docs/$story3';
     const newPath =
         'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
@@ -1038,7 +1010,7 @@ void main() {
     );
   });
 
-  test('f02/us03/s3, f02/us03/fr02/e03, f02/us03/fr02/e05: no committed copy without draft is NoApprovedCopy', () async {
+  test('no committed copy without draft is NoApprovedCopy', () async {
     final repo = await _repo({'docs/$signupFeature': _draftText});
     commitAll(repo, 'draft');
     File('${repo.path}/docs/$signupFeature')
@@ -1055,21 +1027,17 @@ void main() {
     );
   }, skip: skipGit);
 
-  test(
-    'f02/us03/fr02/e03, dw-s03/inv11: a path with no commit is NoApprovedCopy',
-    () async {
-      final repo = await _repo({'docs/$signupFeature': _approvedText});
-      commitAll(repo, 'approved');
+  test('a path with no commit is NoApprovedCopy', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedText});
+    commitAll(repo, 'approved');
 
-      expect(
-        ApprovalHistory().lastApproved(repo, 'docs/$story1', docType: _docType),
-        isA<NoApprovedCopy>(),
-      );
-    },
-    skip: skipGit,
-  );
+    expect(
+      ApprovalHistory().lastApproved(repo, 'docs/$story1', docType: _docType),
+      isA<NoApprovedCopy>(),
+    );
+  }, skip: skipGit);
 
-  test('f02/us03/fr02/e04, dw-s03/inv11: outside a repo, or with git missing, the history is unknown', () async {
+  test('outside a repo, or with git missing, the history is unknown', () async {
     expect(
       ApprovalHistory().lastApproved(
         await writeWriteProject(),
@@ -1093,7 +1061,7 @@ void main() {
     );
   });
 
-  test('f02/us03/fr02/e04, dw-s03/inv11, final Important 3: git output that is not UTF-8 makes the history unknown', () {
+  test('git output that is not UTF-8 makes the history unknown', () {
     final garbled = ApprovalHistory(
       runGit: (_, {required workingDirectory, environment}) =>
           throw const FormatException('Missing extension byte'),
@@ -1108,24 +1076,28 @@ void main() {
     );
   });
 
-  test('f02/us03/fr02/e01, dw-s03/inv11, H28: a file deleted and added again finds its older approved copy', () async {
-    const path = 'docs/$signupFeature';
-    final repo = await _repo({path: _approvedText});
-    commitAll(repo, 'approved');
-    expect(git(repo, ['rm', '-q', path]).exitCode, 0);
-    commitAll(repo, 'deleted');
-    File('${repo.path}/$path')
-      ..createSync(recursive: true)
-      ..writeAsStringSync(_draftText);
-    commitAll(repo, 'added again as draft');
+  test(
+    'a file deleted and added again finds its older approved copy',
+    () async {
+      const path = 'docs/$signupFeature';
+      final repo = await _repo({path: _approvedText});
+      commitAll(repo, 'approved');
+      expect(git(repo, ['rm', '-q', path]).exitCode, 0);
+      commitAll(repo, 'deleted');
+      File('${repo.path}/$path')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(_draftText);
+      commitAll(repo, 'added again as draft');
 
-    expect(
-      ApprovalHistory().lastApproved(repo, path, docType: _docType),
-      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
-    );
-  }, skip: skipGit);
+      expect(
+        ApprovalHistory().lastApproved(repo, path, docType: _docType),
+        isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+      );
+    },
+    skip: skipGit,
+  );
 
-  test('f02/us03/fr02/e01, dw-s03/inv11, H29: a non-ASCII path finds its approved copy', () async {
+  test('a non-ASCII path finds its approved copy', () async {
     const path =
         'docs/prds/features/f01_login/us01_\u0e25\u0e47\u0e2d\u0e01/USER_STORY.md';
     final repo = await _repo({path: _approvedText});
@@ -1141,28 +1113,25 @@ void main() {
     );
   }, skip: skipGit);
 
-  test(
-    'f02/us03/fr02/e04, dw-s03/inv11: a failing git show is UnknownHistory',
-    () {
-      final sha = 'a' * 40;
-      final failing = ApprovalHistory(
-        runGit: (arguments, {required workingDirectory, environment}) =>
-            switch (arguments.first) {
-              'rev-parse' => ProcessResult(0, 0, '\n', ''),
-              'log' => ProcessResult(0, 0, '$sha\x00\ndocs/$story1\x00', ''),
-              _ => ProcessResult(0, 128, '', 'fatal: bad object'),
-            },
-      );
-      expect(
-        failing.lastApproved(
-          Directory.systemTemp,
-          'docs/$story1',
-          docType: _docType,
-        ),
-        isA<UnknownHistory>(),
-      );
-    },
-  );
+  test('a failing git show is UnknownHistory', () {
+    final sha = 'a' * 40;
+    final failing = ApprovalHistory(
+      runGit: (arguments, {required workingDirectory, environment}) =>
+          switch (arguments.first) {
+            'rev-parse' => ProcessResult(0, 0, '\n', ''),
+            'log' => ProcessResult(0, 0, '$sha\x00\ndocs/$story1\x00', ''),
+            _ => ProcessResult(0, 128, '', 'fatal: bad object'),
+          },
+    );
+    expect(
+      failing.lastApproved(
+        Directory.systemTemp,
+        'docs/$story1',
+        docType: _docType,
+      ),
+      isA<UnknownHistory>(),
+    );
+  });
 
   group('mark_doc_approved: a code target record', () {
     const record = MergedDocType(
@@ -1185,7 +1154,7 @@ void main() {
         '---\nstatuses:\n  - login/check:$status\nimplements:\n'
         '  - login/check:$path\n---\n\n# Record\n';
 
-    test('E09: the code paths of a record stay outside its hash', () {
+    test('the code paths of a record stay outside its hash', () {
       for (final outside in [true, false]) {
         expect(
           approvalHashOf(

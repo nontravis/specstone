@@ -113,7 +113,7 @@ Map<String, String> _bytesUnder(Directory root) {
 }
 
 void main() {
-  test('f06/us03/fr02, f06/us03/s1: an empty folder gets six empty drafts, '
+  test('an empty folder gets six empty drafts, '
       'then the config', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
@@ -174,29 +174,26 @@ void main() {
     expect(spots(await checkOf(root), FindingKind.formatDrift), isEmpty);
   });
 
-  test(
-    'f06/us03/fr02/e01, f06/us03/s3: an existing doc is kept and named',
-    () async {
-      final root = await writeTree({'docs/prds/PROJECT.md': '# Mine\n'});
+  test('an existing doc is kept and named', () async {
+    final root = await writeTree({'docs/prds/PROJECT.md': '# Mine\n'});
 
-      final (status, lines) = await _run(root);
+    final (status, lines) = await _run(root);
 
-      expect(status, 0);
-      expect(lines, [
-        'kept docs/prds/PROJECT.md: exists',
-        'created docs/prds/GOAL.md (draft)',
-        'created docs/prds/GLOSSARY.md (draft)',
-        'created docs/prds/FEATURES.md (draft)',
-        'created docs/prds/GNFR.md (draft)',
-        'created docs/specs/TECH_STACK.md (draft)',
-        'created .specstone/AGENT.md',
-        'created AGENTS.md',
-        ...skillCountLines(),
-        _configLine(),
-      ]);
-      expect(_read(root, 'docs/prds/PROJECT.md'), '# Mine\n');
-    },
-  );
+    expect(status, 0);
+    expect(lines, [
+      'kept docs/prds/PROJECT.md: exists',
+      'created docs/prds/GOAL.md (draft)',
+      'created docs/prds/GLOSSARY.md (draft)',
+      'created docs/prds/FEATURES.md (draft)',
+      'created docs/prds/GNFR.md (draft)',
+      'created docs/specs/TECH_STACK.md (draft)',
+      'created .specstone/AGENT.md',
+      'created AGENTS.md',
+      ...skillCountLines(),
+      _configLine(),
+    ]);
+    expect(_read(root, 'docs/prds/PROJECT.md'), '# Mine\n');
+  });
 
   test('a run stopped before the config is finished by '
       'the next init', () async {
@@ -476,7 +473,7 @@ void main() {
     },
   );
 
-  test('E05: a '
+  test('a '
       'malformed file refuses before any write', () async {
     final root = await writeTree({
       'CLAUDE.md': '<!-- BEGIN specstone v1.0.0 -->\nno end\n',
@@ -497,7 +494,7 @@ void main() {
   });
 
   test(
-    'E09: a rerun '
+    'a rerun '
     'after a stop before the config changes 0 bytes of the agent files',
     () async {
       final root = await writeTree({'CLAUDE.md': "Owner's rules\n"});
@@ -535,7 +532,7 @@ void main() {
     expect(_read(root, 'shared/rules.md'), contains('@.specstone/AGENT.md'));
   });
 
-  test('E18: a repository '
+  test('a repository '
       'top inside the project that a code entry reaches is upserted, printed, '
       'and listed in the config', () async {
     final base = await writeTree({
@@ -562,7 +559,7 @@ void main() {
     );
   });
 
-  test('R99: a '
+  test('a '
       'repository top outside the project root is named, never written, and '
       'not listed', () async {
     final base = await writeTree({
@@ -705,7 +702,7 @@ void main() {
     (real: 'AGENTS.md', link: 'CLAUDE.md'),
     (real: 'CLAUDE.md', link: 'AGENTS.md'),
   ]) {
-    test('E22: $link '
+    test('$link '
         'linked to $real takes the inline block and prints one line', () async {
       final root = await writeTree({real: 'Owner\n'});
       try {
@@ -730,7 +727,7 @@ void main() {
     });
   }
 
-  test('f06/us03/fr02/e02, f06/us03/fr02/e03: init writes no .gitignore and '
+  test('init writes no .gitignore and '
       'no templates folder', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
@@ -775,7 +772,7 @@ void main() {
     expect(untracked, contains('docs/prds/PROJECT.md'));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us03/fr01/e01, f06/us03/s5: a configured folder refuses '
+  test('a configured folder refuses '
       'config_exists and writes nothing', () async {
     for (final legacy in [null, acmeLegacy]) {
       final root = await writeTree({
@@ -803,7 +800,7 @@ void main() {
     }
   });
 
-  test('f06/us03/fr01/e02, f06/us03/s4: a legacy folder enters the migrate '
+  test('a legacy folder enters the migrate '
       'run at its git checks', () async {
     final root = await gitFixture(acmeLegacy);
 
@@ -823,8 +820,7 @@ void main() {
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('E07: '
-      'init on a legacy tree stamps each typed doc it leaves and keeps the '
+  test('init on a legacy tree stamps each typed doc it leaves and keeps the '
       'created draft', () async {
     final root = await gitFixture(acmeLegacy);
 
@@ -846,7 +842,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('E08: init on a '
+  test('init on a '
       'legacy tree writes the agent files in commit 2', () async {
     final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
 
@@ -876,7 +872,7 @@ void main() {
     expect(lines, contains('  agent files: ${2 + skillFileCount} files'));
   }, skip: hasGit ? null : 'git is not available');
 
-  test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "
+  test("a legacy folder under --yes with migrate's dry-run plan hash "
       'applies the migrate run with no prompt', () async {
     final root = await gitFixture(acmeLegacy);
     final dryRun = StringBuffer();
@@ -910,7 +906,7 @@ void main() {
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isFalse);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('ms-r11: a legacy folder under --yes with a stale plan hash refuses '
+  test('a legacy folder under --yes with a stale plan hash refuses '
       'plan_mismatch and writes nothing', () async {
     final root = await gitFixture(acmeLegacy);
     final legacy = _bytesUnder(root);
@@ -1207,7 +1203,7 @@ void main() {
     );
   });
 
-  test('f06/us03/fr01, final M6: a folder that refuses writes is '
+  test('a folder that refuses writes is '
       'output_not_writable naming the path', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     expect(Process.runSync('chmod', ['555', root.path]).exitCode, 0);

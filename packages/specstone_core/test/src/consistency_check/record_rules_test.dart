@@ -577,6 +577,55 @@ void main() {
       );
     });
 
+    test('the rows of an item outside the feature get only the unresolved '
+        'finding', () async {
+      final record = withRows(_record(), [
+        '- signup/create E01: `signs up`',
+        '- signup/create E01: `signs up`',
+        '- signup/create E01 skipped: no signup here',
+      ]);
+
+      final report = await _check(record);
+
+      expect(bothRules(report), [
+        '${rowLine(record, 0)} record_entry_unresolved',
+        '${rowLine(record, 1)} record_entry_unresolved',
+        '${rowLine(record, 2)} record_entry_unresolved',
+      ]);
+    });
+
+    test('a row of a skipped item gets no finding of any kind but the skip '
+        "rule's", () async {
+      for (final statuses in [
+        ['$_fr:skipped:no toast host'],
+        ['$_story:skipped:no toast host'],
+        [':skipped:no web view'],
+      ]) {
+        final record = withRows(_record(statuses: statuses), [
+          '- $_fr E01: `shows a toast`',
+          '- $_fr E01: `shows a toast` 3f9a1c0b7e2d',
+          '- $_fr E99: `shows a toast`',
+          '- $_fr E01 skipped: no host',
+        ]);
+
+        final report = await _check(record);
+
+        final kinds = [
+          for (final f in report.findings)
+            if (f.path == _recordPath && f.line >= rowLine(record, 0)) f.kind,
+        ];
+
+        expect(kinds, hasLength(4), reason: '$statuses');
+        expect(
+          kinds,
+          everyElement(
+            anyOf(FindingKind.skipWithCode, FindingKind.entryUnderSkip),
+          ),
+          reason: '$statuses',
+        );
+      }
+    });
+
     test('a row of an item that holds no fault gives no finding, a row '
         'naming a story included', () async {
       final record = withRows(
@@ -661,7 +710,7 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr05, Review Focus 5: a CRLF record reports a faulty line '
+  test('a CRLF record reports a faulty line '
       'once, at its line', () async {
     final crlf = _record(statuses: ['$_story:planned', 'ghost:planned'])
         .replaceAll('\n', '\r\n');
@@ -670,7 +719,7 @@ void main() {
     expect(_found(report), ['${_statusLine(1)} record_entry_unresolved']);
   });
 
-  test('f04/us03/fr05, Review Focus 5: a record with malformed frontmatter '
+  test('a record with malformed frontmatter '
       'is reported once, as invalid YAML', () async {
     final report = await _check(
       '---\nstatuses:\n  - ghost:planned\n  : [\n---\n\n# Record\n',
@@ -705,7 +754,7 @@ void main() {
 
     const jaspr = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
 
-    test('f04/us03/fr05, INV-32: each record is checked in its own target, '
+    test('each record is checked in its own target, '
         'once', () async {
       final report = await check();
 
@@ -719,7 +768,7 @@ void main() {
       );
     });
 
-    test('f04/us03/fr05, INV-32: --target keeps the records of that target '
+    test('--target keeps the records of that target '
         'alone', () async {
       final flutter = await check(codeTarget: 'flutter');
       final jasprOnly = await check(codeTarget: 'jaspr');

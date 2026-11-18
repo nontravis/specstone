@@ -74,7 +74,7 @@ void main() {
       );
     });
 
-    test('f03/us06/fr01, f03/us06/fr01/e01: a project listing only prd-core '
+    test('a project listing only prd-core '
         'holds exactly the fourteen doc types', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.map((d) => d.id), prdCoreIds);
@@ -176,7 +176,7 @@ void main() {
       expect(sectionOf(gnfr, 'availability').prefixId, 'NFR-A');
     });
 
-    test('f03/us06/fr03/e03, f03/us02/fr03/e08: a project changes the fr '
+    test('a project changes the fr '
         'Statement list with add and remove', () async {
       final set = await resolvePrdCore(
         templates: {

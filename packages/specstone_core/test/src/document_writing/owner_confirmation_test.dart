@@ -6,7 +6,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('f02/us03/s7, f02/us03/fr01/e04, dw-s03/inv12, ms-r11: neither a terminal nor --yes is owner_terminal_required, exit 77, naming both ways', () {
+  test('neither a terminal nor --yes is owner_terminal_required, exit 77, naming both ways', () {
     final missing = OwnerConfirmation.of(yes: false, interactive: false);
     expect(missing, OwnerConfirmation.missing);
     expect(
@@ -24,7 +24,7 @@ void main() {
     );
   });
 
-  test('ms-r11: a terminal prompts, --yes confirms with no prompt and wins over a terminal', () {
+  test('a terminal prompts, --yes confirms with no prompt and wins over a terminal', () {
     final terminal = OwnerConfirmation.of(yes: false, interactive: true);
     expect(terminal, OwnerConfirmation.prompt);
     expect(terminal.prompts, isTrue);

@@ -51,7 +51,7 @@ void main() {
       (matcher.match(path) as MatchedDocType).docType;
 
   group('Index each doc', () {
-    test('E21: a lead paragraph is a _lead count and an item with no ID, '
+    test('a lead paragraph is a _lead count and an item with no ID, '
         'and each edge case holds its ID, line, and characters', () {
       const text =
           '---\nstatus: planned\n---\n\n# Validate credentials\n\n'
@@ -74,7 +74,7 @@ void main() {
       ]);
     });
 
-    test('E08: text before the first ## is a lead of its own, apart from '
+    test('text before the first ## is a lead of its own, apart from '
         'the sections', () {
       final facts = factsOf('README.md', '# T\n\nLead text.\n\n## Notes\nx\n');
 
@@ -85,7 +85,7 @@ void main() {
       ]);
     });
 
-    test('E18: a padded table row and an item under a ### heading count as '
+    test('a padded table row and an item under a ### heading count as '
         'the laid-out text, and their lines are its lines', () {
       const text =
           '# V\n\n## Input / Output\n\n| Field | Type |\n|---|---|\n'
@@ -107,7 +107,7 @@ void main() {
       );
     });
 
-    test('E18: a doc with sections out of template order has each section '
+    test('a doc with sections out of template order has each section '
         'take the items of its laid-out twin', () {
       const text =
           '# Validate credentials\n\n## Edge cases\n'
@@ -136,7 +136,7 @@ void main() {
       expect(laid[4], startsWith('The system'));
     });
 
-    test('E18: a lead that differs between the laid-out and the on-disk text '
+    test('a lead that differs between the laid-out and the on-disk text '
         'takes its items from the laid-out head', () {
       const text =
           '# V\n\n| A | B |\n|---|---|\n| x     | y     |\n\n'
@@ -152,7 +152,7 @@ void main() {
       expect(facts.lead, (lines: 3, chars: 9 + 1 + 9 + 1 + 9));
     });
 
-    test('E18: a drifted doc whose section holds a fenced ## line gives each '
+    test('a drifted doc whose section holds a fenced ## line gives each '
         'section its own items', () {
       const text =
           '# V\n\n## Edge cases\n1. E01 — a\n\n```\n## not a header\n```\n\n'
@@ -174,7 +174,7 @@ void main() {
       expect(laid[4], 'Shall.');
     });
 
-    test('E19: a doc the format command refuses for a repeated header gives '
+    test('a doc the format command refuses for a repeated header gives '
         'each of its two sections its own items, counted on disk', () {
       const text =
           '# Validate credentials\n\n## Statement\nfirst one\n\n'
@@ -188,7 +188,7 @@ void main() {
       ]);
     });
 
-    test('E19: a doc the format command refuses for an unknown header counts '
+    test('a doc the format command refuses for an unknown header counts '
         'its items as on disk, trailing spaces included', () {
       const text =
           '# V\n\n## Statement\nShall.\n\n## Mystery\nx  \n\n'
@@ -210,7 +210,7 @@ void main() {
       ]);
     });
 
-    test('E20: a doc whose bytes are invalid text counts its items as decoded, '
+    test('a doc whose bytes are invalid text counts its items as decoded, '
         'a replacement character once', () {
       final bytes = [
         ...utf8.encode('# V\n\n## Statement\nab'),
@@ -225,7 +225,7 @@ void main() {
       ]);
     });
 
-    test('E18: a ### Scenario heading of acceptance_criteria holds the key '
+    test('a ### Scenario heading of acceptance_criteria holds the key '
         'check holds it by, its number by value', () {
       const text =
           '# Email login\n\n## Acceptance Criteria\n### Scenario 01\n'
@@ -251,7 +251,7 @@ void main() {
   });
 
   group('lead', () {
-    test('E08: a doc with no title line takes its whole head as the lead', () {
+    test('a doc with no title line takes its whole head as the lead', () {
       final facts = factsOf(
         'README.md',
         'Intro line\n\n- a\n- b\n\n## Notes\nx\n',
@@ -265,7 +265,7 @@ void main() {
       ]);
     });
 
-    test('E08: text above the title line is neither title nor lead', () {
+    test('text above the title line is neither title nor lead', () {
       final facts = factsOf(
         'README.md',
         'Above\n# T\nlead text\n\n## Notes\nx\n',
@@ -275,7 +275,7 @@ void main() {
       expect(plainItems(facts.leadItems), [(id: null, line: 3, chars: 9)]);
     });
 
-    test('print_docs_tree E12: a lead of blank lines only holds no count '
+    test('a lead of blank lines only holds no count '
         'and no item', () {
       final facts = factsOf('README.md', '# T\n\n\n## Notes\nx\n');
 

@@ -20,7 +20,7 @@ void main() {
   ];
   for (final command in commands) {
     test(
-      'f01/us01/fr05/e03, s03/inv23: ${command.first} answers with the damaged warning when the index lost its later pages',
+      '${command.first} answers with the damaged warning when the index lost its later pages',
       () async {
         final project = await writeReadProject();
         expect(await readRunner(project).runner.run(command), 0);
@@ -73,7 +73,7 @@ void main() {
   ];
   for (final command in answerCommands) {
     test(
-      'f01/us01/fr05/e03, s03/inv23: ${command.first} answers as an intact index does, with the damaged warning, when a page only the answer reads is lost',
+      '${command.first} answers as an intact index does, with the damaged warning, when a page only the answer reads is lost',
       () async {
         final project = await writeReadProject();
         final intact = readRunner(project);
@@ -86,7 +86,7 @@ void main() {
       },
     );
     test(
-      'f01/us01/fr05/e03, s03/inv23: ${command.first} --json answers as an intact index does, with the damaged warning, when a page only the answer reads is lost',
+      '${command.first} --json answers as an intact index does, with the damaged warning, when a page only the answer reads is lost',
       () async {
         final project = await writeReadProject();
         final json = [...command, '--json'];

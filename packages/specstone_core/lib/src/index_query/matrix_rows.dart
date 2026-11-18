@@ -309,9 +309,13 @@ String _writtenOf(String text, String? fingerprint) {
       : body.substring(0, body.length - fingerprint.length).trimRight();
 }
 
-// The one finder of the matrix section: the rows, the size counts, and the
-// approval hash all read the section it names.
-int? _matrixSectionIndex(Doc doc, MergedDocType recordType) =>
+/// Returns the index of the Verification matrix section of [doc], a doc of
+/// [recordType]; null when [recordType] has no enabled matrix section or [doc]
+/// holds none.
+///
+/// The one finder of the section: the rows read, the rows added, the size
+/// counts, and the approval hash all go through it.
+int? matrixSectionIndexOf(Doc doc, MergedDocType recordType) =>
     verificationMatrixOf(recordType) == null
     ? null
     : sectionIndexOf(doc, recordType, verificationMatrixKey);
@@ -322,7 +326,7 @@ int? _matrixSectionIndex(Doc doc, MergedDocType recordType) =>
 /// The cut is [withoutSection]; the text as it is when [recordType] has no
 /// enabled matrix section or [doc] holds none.
 String withoutMatrixSection(Doc doc, MergedDocType recordType) {
-  final at = _matrixSectionIndex(doc, recordType);
+  final at = matrixSectionIndexOf(doc, recordType);
   return at == null ? doc.text : withoutSection(doc.text, at);
 }
 
@@ -342,7 +346,7 @@ List<MatrixLine> matrixLinesOfDoc(
   String lfText,
   MergedDocType recordType,
 ) {
-  final at = _matrixSectionIndex(doc, recordType);
+  final at = matrixSectionIndexOf(doc, recordType);
   if (at == null) return const [];
   final headerLine =
       linesBeforeBodyOf(doc, lfText) + doc.sectionLineIndexes[at] + 1;

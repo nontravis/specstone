@@ -185,7 +185,7 @@ void main() {
       expect(plan.left, ['prds/features/f01_login/us01_a/notes.md']);
     });
 
-    test('f06/us01/fr03/e04, f06/us01/fr03/e06: a grouped feature moves '
+    test('a grouped feature moves '
         'under its group and the container doc beside it, untyped', () {
       final plan = _plan(containerLegacy);
 
@@ -409,7 +409,7 @@ void main() {
       });
     });
 
-    test('f06/us01/fr03/e10, f06/us01/s4: two API files of one feature keep '
+    test('two API files of one feature keep '
         'their old names, untyped', () {
       final plan = _plan(acmeLegacy);
 
@@ -528,7 +528,7 @@ void main() {
       expect(plan.kindOf['specs/topics/caching.md'], LegacyKind.topic);
     });
 
-    group('e11 same-name spec files', () {
+    group('same-name spec files', () {
       Map<String, String> sameName(Map<String, String> files) => {
         ..._threeFeatures,
         'docs/specs/INDEX.md': _specIndex([
@@ -620,8 +620,8 @@ void main() {
         );
       });
 
-      test('f06/us01/fr03/e11, e14: two files of one name in one old folder '
-          'take its whole path and E14 refuses the targets', () {
+      test('two files of one name in one old folder '
+          'take its whole path and the run refuses the targets', () {
         final lines = _refusal(
           sameName({'x/s02_api_Users.md': '#', 'x/s02_api_users.md': '#'}),
         );
@@ -633,8 +633,8 @@ void main() {
         expect(lines.single.message, contains('specs/x/s02_api_users.md'));
       });
 
-      test('f06/us01/fr03/e11, e14: Server/ and server/ folders of one name '
-          'take their whole paths and E14 refuses the targets', () {
+      test('Server/ and server/ folders of one name '
+          'take their whole paths and the run refuses the targets', () {
         final lines = _refusal(
           sameName({
             'Server/ai05_chat_generation/s01_architecture.md': '#',
@@ -654,7 +654,7 @@ void main() {
         );
       });
 
-      test('f06/us01/fr03/e11, e14: each whole-path fallback in one tree '
+      test('each whole-path fallback in one tree '
           'gives its own target line, in code point order', () {
         final lines = _refusal(
           sameName({
@@ -730,7 +730,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e11, e14: a case pair in the nested folder a/x/ '
+      test('a case pair in the nested folder a/x/ '
           'beside b/x/ takes the whole path a/x, not x', () {
         final lines = _refusal(
           sameName({
@@ -745,7 +745,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e11, e12: a cross-cutting folder of the same file '
+      test('a cross-cutting folder of the same file '
           'name leaves the set and lands in specs/topics/', () {
         final tree = _specTree(
           {'a': '`f01_alpha`', 'b': '`f01_alpha`', 'auth': '—'},
@@ -811,7 +811,7 @@ void main() {
       });
     });
 
-    group('e12 cross-cutting folders', () {
+    group('cross-cutting folders', () {
       test('folders sharing a last segment each move '
           'under their trailing run and none stays', () {
         final tree = {
@@ -907,7 +907,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e12, e13: specs/INDEX.md stays under a cross-cutting '
+      test('specs/INDEX.md stays under a cross-cutting '
           'row of specs/, its other files move', () {
         final tree = {
           'docs/specs/INDEX.md': _specIndex(['| `c/` | `specs/` | — |']),
@@ -944,7 +944,7 @@ void main() {
       });
     });
 
-    group('e14 collisions', () {
+    group('collisions', () {
       test('a move onto a file that stays refuses with '
           'the target as file and says the file stays', () {
         final lines = _refusal({
@@ -1170,7 +1170,7 @@ void main() {
       });
     });
 
-    group('e14 case-blind', () {
+    group('case-blind', () {
       test('a move onto ARCHITECTURE.md beside a staying '
           'architecture.md refuses and says it stays', () {
         final lines = _refusal(

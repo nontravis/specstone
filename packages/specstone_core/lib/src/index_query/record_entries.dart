@@ -5,7 +5,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
-    show sectionIndexOf, withTemplateSection;
+    show withTemplateSection;
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -437,7 +437,7 @@ String _withRowsAdded(
 ) {
   if (verificationMatrixOf(recordType) == null || rows.isEmpty) return lfText;
   final doc = Doc.parse(lfText);
-  final held = sectionIndexOf(doc, recordType, verificationMatrixKey);
+  final held = matrixSectionIndexOf(doc, recordType);
   final added = rows.join('\n');
   if (held != null) {
     final kept = sectionBodyOf(doc.sections[held].body);

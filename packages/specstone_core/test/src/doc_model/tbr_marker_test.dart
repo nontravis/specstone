@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('tbrMarkerLinesIn', () {
-    test('E02: a '
+    test('a '
         'marker in a paragraph and in a table cell is read at its line', () {
       const body =
           '# T\n'
@@ -21,7 +21,7 @@ void main() {
       ]);
     });
 
-    test('E02: the '
+    test('the '
         'text of a marker ends at the next marker on its line', () {
       expect(tbrMarkerLinesIn('TBR — pick one TBR — and two\n'), [
         const TbrMarkerLine(line: 0, rest: 'pick one'),
@@ -29,7 +29,7 @@ void main() {
       ]);
     });
 
-    test('E02: a '
+    test('a '
         'line of 5,000 markers stores no text between them', () {
       final found = tbrMarkerLinesIn('${'TBR — ' * 5000}\n');
 
@@ -37,13 +37,13 @@ void main() {
       expect(found.every((marker) => marker.rest.isEmpty), isTrue);
     });
 
-    test('E03: a '
+    test('a '
         'marker inside a code span is no marker', () {
       expect(tbrMarkerLinesIn('The form is `TBR — <why>` here.\n'), isEmpty);
       expect(tbrMarkerLinesIn('A ``TBR — x`` and `TBR — y`.\n'), isEmpty);
     });
 
-    test('E03: a '
+    test('a '
         'marker inside fenced code is no marker, and one after it is', () {
       const body =
           'Before.\n'
@@ -59,7 +59,7 @@ void main() {
       ]);
     });
 
-    test('E03: a '
+    test('a '
         'longer fence holds a shorter fence line and its marker', () {
       const body =
           '````md\n'
@@ -76,14 +76,14 @@ void main() {
       ]);
     });
 
-    test('E03: a '
+    test('a '
         'marker after a code span on the same line is still read', () {
       expect(tbrMarkerLinesIn('See `x` then TBR — later.\n'), [
         const TbrMarkerLine(line: 0, rest: 'later.'),
       ]);
     });
 
-    test('E07: a '
+    test('a '
         'hyphen, a missing dash, or a missing space is no marker', () {
       const body =
           'TBR - hyphen\n'
@@ -94,7 +94,7 @@ void main() {
       expect(tbrMarkerLinesIn(body), isEmpty);
     });
 
-    test('E02: a '
+    test('a '
         'marker at the end of its line has an empty text', () {
       expect(tbrMarkerLinesIn('TBR —\nTBR — \nA gap TBR —\n'), [
         const TbrMarkerLine(line: 0, rest: ''),
@@ -107,7 +107,7 @@ void main() {
       ]);
     });
 
-    test('E07: a '
+    test('a '
         'dash with no space after it, or a hyphen, is no marker even at a '
         'line end', () {
       expect(tbrMarkerLinesIn('TBR—x\nTBR -\nTBR —x TBR - y\n'), isEmpty);

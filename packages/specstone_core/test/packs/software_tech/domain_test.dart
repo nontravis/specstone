@@ -13,7 +13,7 @@ void main() {
     domain = prdCoreDocType(await resolveSoftwareTech(), 'domain');
   });
 
-  test('f03/us07/fr01, f03/us07/fr01/e06: domain sits under '
+  test('domain sits under '
       'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
       'fields, and eight sections', () {
     expect(domain.path, 'specs/f{nn}_{slug}/DOMAIN.md');

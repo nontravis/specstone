@@ -10,9 +10,6 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
 
-const _story = 'document_writing/edit_one_section_or_field';
-const _wb = '$_story/write_a_batch';
-
 typedef _Run = ({int code, String out, String err});
 
 void main() {
@@ -77,179 +74,164 @@ void main() {
 
   String journalOf(Directory root) => '${root.path}/${MoveJournal.journalPath}';
 
-  test(
-    '$_story S14: three docs read in one call, one unchanged, write each changed doc and print each base, the unchanged doc kept',
-    () async {
-      final root = await writeWriteProject();
-      final untouched = docFile(root, loginArch).readAsBytesSync();
-      var text = await getText(root, [story2, fr11, loginArch]);
-      text = edit(text, 'Sign out.', 'Sign out everywhere.');
-      text = edit(text, 'check the email', 'check the email twice, then');
-      final file = await batchFile(text);
+  test('three docs read in one call, one unchanged, write each changed doc and print each base, the unchanged doc kept', () async {
+    final root = await writeWriteProject();
+    final untouched = docFile(root, loginArch).readAsBytesSync();
+    var text = await getText(root, [story2, fr11, loginArch]);
+    text = edit(text, 'Sign out.', 'Sign out everywhere.');
+    text = edit(text, 'check the email', 'check the email twice, then');
+    final file = await batchFile(text);
 
-      final result = await specstone(root, ['set', '--batch', file]);
+    final result = await specstone(root, ['set', '--batch', file]);
 
-      expect(result.code, 0, reason: result.err);
-      expect(result.err, isEmpty);
-      expect(readDoc(root, story2), contains('Sign out everywhere.'));
-      expect(readDoc(root, story2), contains('draft: true\n'));
-      expect(readDoc(root, fr11), contains('check the email twice, then'));
-      expect(docFile(root, loginArch).readAsBytesSync(), untouched);
-      final lines = result.out.trimRight().split('\n');
-      expect(lines, hasLength(3));
-      expect(
-        lines[0],
-        matches(
-          RegExp(
-            '^==> login/sign_out \\(user_story\\) · ${RegExp.escape(story2)} · base [0-9a-f]{12} <==\$',
-          ),
+    expect(result.code, 0, reason: result.err);
+    expect(result.err, isEmpty);
+    expect(readDoc(root, story2), contains('Sign out everywhere.'));
+    expect(readDoc(root, story2), contains('draft: true\n'));
+    expect(readDoc(root, fr11), contains('check the email twice, then'));
+    expect(docFile(root, loginArch).readAsBytesSync(), untouched);
+    final lines = result.out.trimRight().split('\n');
+    expect(lines, hasLength(3));
+    expect(
+      lines[0],
+      matches(
+        RegExp(
+          '^==> login/sign_out \\(user_story\\) · ${RegExp.escape(story2)} · base [0-9a-f]{12} <==\$',
         ),
-      );
-      expect(lines[1], endsWith(' <=='));
-      expect(lines[1], isNot(contains('unchanged')));
-      expect(lines[2], endsWith(' · unchanged <=='));
-      expect(File(journalOf(root)).existsSync(), isFalse);
-    },
-  );
+      ),
+    );
+    expect(lines[1], endsWith(' <=='));
+    expect(lines[1], isNot(contains('unchanged')));
+    expect(lines[2], endsWith(' · unchanged <=='));
+    expect(File(journalOf(root)).existsSync(), isFalse);
+  });
 
-  test(
-    '$_story S15: one stale doc refuses the whole batch, writes no doc, and prints its current text under its naming line, exit 75',
-    () async {
-      final root = await writeWriteProject();
-      var text = await getText(root, [story2, fr11]);
-      text = edit(text, 'Sign out.', 'Sign out everywhere.');
-      text = edit(text, 'check the email', 'check the email twice, then');
-      final file = await batchFile(text);
-      final changed = readDoc(
-        root,
-        fr11,
-      ).replaceFirst('shall check', 'shall carefully check');
-      docFile(root, fr11).writeAsStringSync(changed);
-      final before = docBytes(root);
+  test('one stale doc refuses the whole batch, writes no doc, and prints its current text under its naming line, exit 75', () async {
+    final root = await writeWriteProject();
+    var text = await getText(root, [story2, fr11]);
+    text = edit(text, 'Sign out.', 'Sign out everywhere.');
+    text = edit(text, 'check the email', 'check the email twice, then');
+    final file = await batchFile(text);
+    final changed = readDoc(
+      root,
+      fr11,
+    ).replaceFirst('shall check', 'shall carefully check');
+    docFile(root, fr11).writeAsStringSync(changed);
+    final before = docBytes(root);
 
-      final result = await specstone(root, ['set', '--batch', file]);
+    final result = await specstone(root, ['set', '--batch', file]);
 
-      expect(result.code, 75);
-      expect(docBytes(root), before);
-      expect(
-        result.err,
-        matches(
-          RegExp(
-            '^${RegExp.escape(fr11)}: doc: the doc changed since base [0-9a-f]{12}\n\$',
-          ),
+    expect(result.code, 75);
+    expect(docBytes(root), before);
+    expect(
+      result.err,
+      matches(
+        RegExp(
+          '^${RegExp.escape(fr11)}: doc: the doc changed since base [0-9a-f]{12}\n\$',
         ),
-      );
-      final heading = RegExp(
-        '^==> login/email_login/validate_credentials \\(fr\\) · ${RegExp.escape(fr11)} · base [0-9a-f]{12} <==\n',
-      );
-      expect(result.out, matches(heading));
-      expect(result.out.replaceFirst(heading, ''), changed);
-    },
-  );
+      ),
+    );
+    final heading = RegExp(
+      '^==> login/email_login/validate_credentials \\(fr\\) · ${RegExp.escape(fr11)} · base [0-9a-f]{12} <==\n',
+    );
+    expect(result.out, matches(heading));
+    expect(result.out.replaceFirst(heading, ''), changed);
+  });
 
-  test(
-    '$_wb E02: two stale blocks print each current text under its naming line, in file order, on stdout only',
-    () async {
-      final root = await writeWriteProject();
-      var text = await getText(root, [story2, fr11]);
-      text = edit(text, 'Sign out.', 'Sign out everywhere.');
-      text = edit(text, 'check the email', 'check the email twice, then');
-      final file = await batchFile(text);
-      final signOut = readDoc(
-        root,
-        story2,
-      ).replaceFirst('Sign out.', 'Sign out now.');
-      final validate = readDoc(
-        root,
-        fr11,
-      ).replaceFirst('shall check', 'shall carefully check');
-      docFile(root, story2).writeAsStringSync(signOut);
-      docFile(root, fr11).writeAsStringSync(validate);
+  test('two stale blocks print each current text under its naming line, in file order, on stdout only', () async {
+    final root = await writeWriteProject();
+    var text = await getText(root, [story2, fr11]);
+    text = edit(text, 'Sign out.', 'Sign out everywhere.');
+    text = edit(text, 'check the email', 'check the email twice, then');
+    final file = await batchFile(text);
+    final signOut = readDoc(
+      root,
+      story2,
+    ).replaceFirst('Sign out.', 'Sign out now.');
+    final validate = readDoc(
+      root,
+      fr11,
+    ).replaceFirst('shall check', 'shall carefully check');
+    docFile(root, story2).writeAsStringSync(signOut);
+    docFile(root, fr11).writeAsStringSync(validate);
 
-      final result = await specstone(root, ['set', '--batch', file]);
+    final result = await specstone(root, ['set', '--batch', file]);
 
-      expect(result.code, 75);
-      expect(result.err.trimRight().split('\n'), hasLength(2));
-      final firstAt = result.out.indexOf(signOut);
-      final secondAt = result.out.indexOf(validate);
-      expect(firstAt, greaterThan(0));
-      expect(secondAt, greaterThan(firstAt + signOut.length));
-      expect(
-        RegExp('^==> ', multiLine: true).allMatches(result.out),
-        hasLength(2),
-      );
-    },
-  );
+    expect(result.code, 75);
+    expect(result.err.trimRight().split('\n'), hasLength(2));
+    final firstAt = result.out.indexOf(signOut);
+    final secondAt = result.out.indexOf(validate);
+    expect(firstAt, greaterThan(0));
+    expect(secondAt, greaterThan(firstAt + signOut.length));
+    expect(
+      RegExp('^==> ', multiLine: true).allMatches(result.out),
+      hasLength(2),
+    );
+  });
 
-  test(
-    '$_wb E02: --json with only stale blocks exits 75, prints nothing on stdout, and each blocks entry carries its current text',
-    () async {
-      final root = await writeWriteProject();
-      var text = await getText(root, [story2, fr11]);
-      text = edit(text, 'Sign out.', 'Sign out everywhere.');
-      text = edit(text, 'check the email', 'check the email twice, then');
-      final file = await batchFile(text);
-      final signOut = readDoc(
-        root,
-        story2,
-      ).replaceFirst('Sign out.', 'Sign out now.');
-      final validate = readDoc(
-        root,
-        fr11,
-      ).replaceFirst('shall check', 'shall carefully check');
-      docFile(root, story2).writeAsStringSync(signOut);
-      docFile(root, fr11).writeAsStringSync(validate);
-      final before = docBytes(root);
+  test('--json with only stale blocks exits 75, prints nothing on stdout, and each blocks entry carries its current text', () async {
+    final root = await writeWriteProject();
+    var text = await getText(root, [story2, fr11]);
+    text = edit(text, 'Sign out.', 'Sign out everywhere.');
+    text = edit(text, 'check the email', 'check the email twice, then');
+    final file = await batchFile(text);
+    final signOut = readDoc(
+      root,
+      story2,
+    ).replaceFirst('Sign out.', 'Sign out now.');
+    final validate = readDoc(
+      root,
+      fr11,
+    ).replaceFirst('shall check', 'shall carefully check');
+    docFile(root, story2).writeAsStringSync(signOut);
+    docFile(root, fr11).writeAsStringSync(validate);
+    final before = docBytes(root);
 
-      final result = await specstone(root, ['set', '--batch', file, '--json']);
+    final result = await specstone(root, ['set', '--batch', file, '--json']);
 
-      expect(result.code, 75);
-      expect(result.out, isEmpty);
-      expect(docBytes(root), before);
-      final error = decode(result.err)['error']! as Map<String, Object?>;
-      expect(error['code'], 'base_mismatch');
-      final blocks = (error['blocks']! as List).cast<Map<String, Object?>>();
-      expect(blocks.map((b) => b['file']), [story2, fr11]);
-      expect(blocks.map((b) => (b['current']! as Map)['text']), [
-        signOut,
-        validate,
-      ]);
-    },
-  );
+    expect(result.code, 75);
+    expect(result.out, isEmpty);
+    expect(docBytes(root), before);
+    final error = decode(result.err)['error']! as Map<String, Object?>;
+    expect(error['code'], 'base_mismatch');
+    final blocks = (error['blocks']! as List).cast<Map<String, Object?>>();
+    expect(blocks.map((b) => b['file']), [story2, fr11]);
+    expect(blocks.map((b) => (b['current']! as Map)['text']), [
+      signOut,
+      validate,
+    ]);
+  });
 
-  test(
-    '$_wb: --json prints one object holding blocks in file order and an empty warnings array',
-    () async {
-      final root = await writeWriteProject();
-      var text = await getText(root, [story2, fr11, loginArch]);
-      text = edit(text, 'Sign out.', 'Sign out everywhere.');
-      text = edit(
-        text,
-        'Collects the email and the password',
-        'Collects the email',
-      );
-      final file = await batchFile(text);
+  test('--json prints one object holding blocks in file order and an empty warnings array', () async {
+    final root = await writeWriteProject();
+    var text = await getText(root, [story2, fr11, loginArch]);
+    text = edit(text, 'Sign out.', 'Sign out everywhere.');
+    text = edit(
+      text,
+      'Collects the email and the password',
+      'Collects the email',
+    );
+    final file = await batchFile(text);
 
-      final result = await specstone(root, ['set', '--batch', file, '--json']);
+    final result = await specstone(root, ['set', '--batch', file, '--json']);
 
-      expect(result.code, 0, reason: result.err);
-      expect(result.err, isEmpty);
-      final printed = decode(result.out);
-      expect(printed.keys, unorderedEquals(['blocks', 'warnings']));
-      expect(printed['warnings'], isEmpty);
-      final blocks = (printed['blocks']! as List).cast<Map<String, Object?>>();
-      expect(blocks.map((b) => b['path']), [story2, fr11, loginArch]);
-      expect(blocks.map((b) => b['written']), [true, false, true]);
-      for (final block in blocks) {
-        expect(block.keys, containsAll(['name', 'docType', 'path', 'key']));
-        expect(block['key'], 'doc');
-        expect(block['base'], matches(RegExp(r'^[0-9a-f]{12}$')));
-        expect(block['draft'], isA<bool>());
-      }
-    },
-  );
+    expect(result.code, 0, reason: result.err);
+    expect(result.err, isEmpty);
+    final printed = decode(result.out);
+    expect(printed.keys, unorderedEquals(['blocks', 'warnings']));
+    expect(printed['warnings'], isEmpty);
+    final blocks = (printed['blocks']! as List).cast<Map<String, Object?>>();
+    expect(blocks.map((b) => b['path']), [story2, fr11, loginArch]);
+    expect(blocks.map((b) => b['written']), [true, false, true]);
+    for (final block in blocks) {
+      expect(block.keys, containsAll(['name', 'docType', 'path', 'key']));
+      expect(block['key'], 'doc');
+      expect(block['base'], matches(RegExp(r'^[0-9a-f]{12}$')));
+      expect(block['draft'], isA<bool>());
+    }
+  });
 
-  group('$_wb E13:', () {
+  group('options beside --batch', () {
     test('a doc address beside --batch refuses argument_conflict, before the file is read', () async {
       final root = await writeWriteProject();
       final before = docBytes(root);
@@ -356,7 +338,7 @@ void main() {
     });
   });
 
-  group('$_wb E17:', () {
+  group('a --batch path that cannot be read', () {
     test('a path that cannot be read refuses alone: one stderr line, path as given', () async {
       final root = await writeWriteProject();
 

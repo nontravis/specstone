@@ -17,8 +17,6 @@ import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart' show testHome;
 
-const _scope = 'setup_migration/choose_migrate_run';
-
 final String? _skip = !hasGit
     ? 'git is not available'
     : Platform.isWindows
@@ -146,7 +144,7 @@ void main() {
   };
 
   for (final MapEntry(:key, :value) in configs.entries) {
-    test('$_scope E10: migrate refuses a committed git dir reached through a '
+    test('migrate refuses a committed git dir reached through a '
         'docs link and runs no command its $key names', () async {
       final clone = await _evilClone(value(marker));
 
@@ -158,7 +156,7 @@ void main() {
       expect(marker.existsSync(), isFalse);
     }, skip: _skip);
 
-    test('$_scope E10: the same clone under a git before 2.38 is refused by '
+    test('the same clone under a git before 2.38 is refused by '
         'the git dir check before any command runs ($key)', () async {
       final clone = await _evilClone(value(marker));
 
@@ -170,7 +168,7 @@ void main() {
       expect(marker.existsSync(), isFalse);
     }, skip: _skip);
 
-    test('$_scope E10: a caller outside migrate gets the same refusal from '
+    test('a caller outside migrate gets the same refusal from '
         'a git before 2.38, and no command runs ($key)', () async {
       final clone = await _evilClone(value(marker));
       final evil = Directory('${clone.path}/evil');
@@ -197,7 +195,7 @@ void main() {
       expect(marker.existsSync(), isFalse);
     }, skip: _skip);
 
-    test('$_scope E10: a version line git cannot read does not skip the '
+    test('a version line git cannot read does not skip the '
         'check ($key)', () async {
       final clone = await _evilClone(value(marker));
 
@@ -214,7 +212,7 @@ void main() {
     }, skip: _skip);
   }
 
-  group('$_scope E10: a repository the project really lives in still runs', () {
+  group('a repository the project really lives in still runs', () {
     test('a normal work tree passes on a git before 2.38', () async {
       final root = await gitFixture(acmeLegacy);
 

@@ -342,7 +342,7 @@ void main() {
     );
   });
   group('upgrade a pack pin', () {
-    test('f06/us02/s1, f06/us02/fr02/e01, f06/us01/fr07/e01: a release that '
+    test('a release that '
         'only adds makes one commit that changes only the pins', () async {
       final home = await _home(migrations: '');
       final root = await _project(files: {_runbookPath: _runbookDoc});
@@ -449,7 +449,7 @@ void main() {
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     });
 
-    test('f06/us02/fr02/e04, f06/us02/s3: a release that moves files makes a '
+    test('a release that moves files makes a '
         'pure-rename first commit, then links and pins', () async {
       final home = await _home(
         migrations: _moveMigrations,
@@ -503,7 +503,7 @@ void main() {
       );
     });
 
-    test('f06/us02/fr02/e06, f06/us02/s5: a removed section stays and check '
+    test('a removed section stays and check '
         'lists it', () async {
       final home = await _home(
         migrations: '',
@@ -529,8 +529,7 @@ void main() {
       ], contains('section_undeclared'));
     });
 
-    test('E11, '
-        'E04: pins equal '
+    test('pins equal '
         'and one doc off its layout makes one layout-only commit, then a rerun '
         'has nothing to migrate', () async {
       final home = await _home(migrations: '');
@@ -590,7 +589,7 @@ void main() {
     });
 
     test(
-      'R51: with equal pins, an override that does not merge stops migrate '
+      'with equal pins, an override that does not merge stops migrate '
       'and check with override_id_not_found naming the override file',
       () async {
         final home = await _home(version: '1.0.0', migrations: '');
@@ -613,7 +612,7 @@ void main() {
       },
     );
 
-    test('f06/us02/s7, f06/us02/fr01/e03: a pin newer than Specstone refuses', () async {
+    test('a pin newer than Specstone refuses', () async {
       final home = await _home(version: '1.2.0');
       final root = await _project(pin: '9.0.0');
 
@@ -634,7 +633,7 @@ void main() {
       }
     });
 
-    test('f06/us02/s8, f06/us02/fr03/e05: an override left pointing at nothing '
+    test('an override left pointing at nothing '
         'refuses in the dry run and in bare migrate, and the edited override '
         'prints the plan', () async {
       final home = await _home();
@@ -711,7 +710,7 @@ void main() {
       expect([for (final m in commits) m[1]], ['1', '2']);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
 
-    test('f06/us01/fr07, f06/us02/fr02: an upgrade stopped after commit 1 '
+    test('an upgrade stopped after commit 1 '
         'resumes with its own output and the closing count', () async {
       final home = await _home(
         migrations: _moveMigrations,
@@ -854,7 +853,7 @@ void main() {
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     });
 
-    test('f06/us02/fr02/e08, F6-D35: a chained move stopped after commit 1 '
+    test('a chained move stopped after commit 1 '
         'resumes without overwriting the doc it landed', () async {
       final home = await _home(
         migrations: _chainMigrations,
@@ -882,7 +881,7 @@ void main() {
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
 
-    group('f06/us02/fr02/e08, F6-D34: a rotation through a temporary name', () {
+    group('a rotation through a temporary name', () {
       const notesPath = 'docs/prds/runbooks/deploy/NOTES.md';
       const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
       const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
@@ -905,7 +904,7 @@ void main() {
         expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
       }
 
-      test('f06/us02/fr02/e08, F6-D34: trades the two docs and prints no '
+      test('trades the two docs and prints no '
           'stage path', () async {
         final result = await _run(root, home, ['migrate'], console: _owner());
 
@@ -914,7 +913,7 @@ void main() {
         expectTraded();
       });
 
-      test('f06/us02/fr02/e08, F6-D35: stopped after commit 1, resumes '
+      test('stopped after commit 1, resumes '
           'without trading them back', () async {
         final hook = _refuseCommit2(root);
         final stopped = await _run(root, home, ['migrate'], console: _owner());
@@ -944,7 +943,7 @@ void main() {
         ...files,
       });
 
-      test('user_story:setup_migration/upgrade_pack_pins S9: a stale block is '
+      test('a stale block is '
           'rewritten alone and the pins stay', () async {
         final root = await agentProject({
           '.specstone/AGENT.md': agentMdText,
@@ -994,7 +993,7 @@ void main() {
       });
 
       test(
-        'user_story:setup_migration/upgrade_pack_pins S10: a mixed pair '
+        'a mixed pair '
         'with one pin below agentFilesSince triggers the one-time write',
         () async {
           final root = await agentProject({
@@ -1014,7 +1013,7 @@ void main() {
         },
       );
 
-      test('user_story:setup_migration/upgrade_pack_pins S10: a pin below '
+      test('a pin below '
           'agentFilesSince writes the files once and a deleted block stays '
           'deleted', () async {
         final root = await agentProject({
@@ -1055,7 +1054,7 @@ void main() {
         expect(_read(root, 'CLAUDE.md'), '# Owner rules\n');
       });
 
-      test('user_story:setup_migration/upgrade_pack_pins S10: a top the config '
+      test('a top the config '
           'does not list takes its files outside both commits', () async {
         final root = await agentProject(
           {},
@@ -1389,7 +1388,7 @@ agent_file_roots:
         expect(hashOf(first.out), isNot(hashOf(second.out)));
       });
 
-      test('E16: a malformed file refuses '
+      test('a malformed file refuses '
           'before anything prints', () async {
         final root = await agentProject({
           'AGENTS.md': '$begin\nbody\n',
@@ -1405,7 +1404,6 @@ agent_file_roots:
     });
 
     group('renumber pass', () {
-      const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
       const topicPath = 'docs/specs/topics/doc_model.md';
       const storyPath = 'docs/prds/features/f01_a/us01_b/USER_STORY.md';
       const tracingPath = 'docs/prds/features/f01_a/us01_b/fr01_c.md';
@@ -1444,7 +1442,7 @@ agent_file_roots:
         ];
       }
 
-      test('$fr E18: the first check after the run raises no item_id_lettered '
+      test('the first check after the run raises no item_id_lettered '
           'and no suspect link the pass made, a later upgrade renumbers '
           'nothing, and a lettered ID written after it gets the '
           'finding', () async {
@@ -1520,7 +1518,7 @@ agent_file_roots:
         );
       });
 
-      test('$fr E18 (W15): an upgrade over every renumber case raises no '
+      test('an upgrade over every renumber case raises no '
           'finding of any kind the tree lacked before, and a second upgrade '
           'changes nothing', () async {
         const anchor = 'scenario-6a--edge-lettered';
@@ -1638,9 +1636,7 @@ agent_file_roots:
     });
 
     group('label pass', () {
-      const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
-
-      test('$fr E26, E27: the run converts a label in a doc, keeps the rest '
+      test('the run converts a label in a doc, keeps the rest '
           'listed, and reads no file under the code roots', () async {
         final home = await writeTree({});
         final root = await gitFixture({
@@ -1692,9 +1688,7 @@ agent_file_roots:
     });
 
     group('item limit', () {
-      const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
-
-      test('$fr E32: the upgrade of E14 keeps an over-limit invariant as one '
+      test('the upgrade keeps an over-limit invariant as one '
           'item, and the first check reports it with waitsFor owner', () async {
         const domainPath = 'docs/specs/f01_a/DOMAIN.md';
         final invariant = '- **INV-1** ${'A long rule'.padRight(15600, '.')}';
@@ -1750,9 +1744,7 @@ agent_file_roots:
     });
 
     group('stamp pass', () {
-      const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
-
-      test('$fr E30, E31: the first check after the upgrade of a 1.1.0 tree '
+      test('the first check after the upgrade of a 1.1.0 tree '
           'raises no suspect and no approval_stale', () async {
         const table =
             '### Scenario 1 — [happy] Table\n| Item | Count |\n| --- | --- |\n'

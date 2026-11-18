@@ -41,13 +41,12 @@ void main() {
       expect(MigrateFaultCode.gitFailed.exitStatus, 75);
     });
 
-    test('ms-r11: plan_mismatch exits 75', () {
+    test('plan_mismatch exits 75', () {
       expect(MigrateFaultCode.planMismatch.wire, 'plan_mismatch');
       expect(MigrateFaultCode.planMismatch.exitStatus, 75);
     });
 
-    test('E05: '
-        'agent_block_malformed exits 65', () {
+    test('agent_block_malformed exits 65', () {
       expect(
         MigrateFaultCode.agentBlockMalformed.wire,
         'agent_block_malformed',

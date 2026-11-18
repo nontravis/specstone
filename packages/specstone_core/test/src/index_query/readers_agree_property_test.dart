@@ -92,7 +92,7 @@ String _body(Random random) {
 }
 
 void main() {
-  test('R74: the link scan and markdown read the same links on 6,000 bodies '
+  test('the link scan and markdown read the same links on 6,000 bodies '
       'of footnotes, folded labels, images, and code spans', () {
     var parsed = 0;
     for (final seed in const [1, 2, 3]) {

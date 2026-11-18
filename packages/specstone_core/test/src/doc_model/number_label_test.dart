@@ -21,7 +21,7 @@ List<String> writtenIn(String line) => [
 const _applyName = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
 void main() {
-  group('numberLabelsIn, the shapes of $_applyName E26', () {
+  group('numberLabelsIn, the shapes of $_applyName', () {
     test('a full label of three parts', () {
       final run = '${f(12)} ${us(3)} ${fr(4)}';
       final labels = numberLabelsIn('Cite $run here.', itemPrefixes: const {});
@@ -102,8 +102,7 @@ void main() {
     });
   });
 
-  group('numberLabelsIn, the boundary of '
-      'E09', () {
+  group('numberLabelsIn, the boundary of a label', () {
     test('a letter before the label is no boundary', () {
       expect(writtenIn('UTF-8 and UTF-16 and x-${fr(12)}'), isEmpty);
     });
@@ -136,7 +135,7 @@ void main() {
   });
 
   group('numberLabelsIn, what is no label', () {
-    test('a placeholder is no label (R81)', () {
+    test('a placeholder is no label', () {
       expect(writtenIn('F-<nn> US-<nn> FR-<nn> f<nn>/us<nn>/fr<nn>'), isEmpty);
     });
 

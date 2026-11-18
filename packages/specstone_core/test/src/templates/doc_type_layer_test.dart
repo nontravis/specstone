@@ -64,15 +64,13 @@ void main() {
       expect(_parse('max_depth: 1\n').docTypeId, 'feature');
     });
 
-    test('E32, INV-30: '
-        'per_target reads a boolean', () {
+    test('per_target reads a boolean', () {
       expect(_parse('per_target: true\n').perTarget, isTrue);
       expect(_parse('per_target: false\n').perTarget, isFalse);
       expect(_parse('path: a/{slug}.md\n').perTarget, isNull);
     });
 
-    test('E32, INV-30: '
-        'a per_target that is not a boolean is unknown_value', () {
+    test('a per_target that is not a boolean is unknown_value', () {
       expect(
         () => _parse('per_target: yes please\n'),
         throwsA(_fault(FaultCode.unknownValue, key: 'per_target')),
@@ -92,8 +90,7 @@ void main() {
       );
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file, INV-13: '
-        'record_status is an accepted field type', () {
+    test('record_status is an accepted field type', () {
       final layer = _parse('fields: [{id: status_of, type: record_status}]');
       expect(layer.fields.single.type, FieldType.recordStatus);
     });
@@ -116,22 +113,21 @@ void main() {
       );
     });
 
-    test('E17, INV-13: '
-        'item_exact is an accepted pointer kind', () {
+    test('item_exact is an accepted pointer kind', () {
       final layer = _parse(
         'fields: [{id: implements, type: output_ref, pointer: item_exact}]',
       );
       expect(layer.fields.single.pointer, 'item_exact');
     });
 
-    test('f03/us03/fr01/e09, s03/inv15: an id unlike the file name is doc_type_id_mismatch', () {
+    test('an id unlike the file name is doc_type_id_mismatch', () {
       expect(
         () => _parse('id: epic\n'),
         throwsA(_fault(FaultCode.docTypeIdMismatch, key: 'id')),
       );
     });
 
-    test('f03/us03/s4, f03/us03/fr01/e02, s03/inv10: a top-level unknown key is unknown_key', () {
+    test('a top-level unknown key is unknown_key', () {
       expect(
         () => _parse('color: red\n'),
         throwsA(_fault(FaultCode.unknownKey, key: 'color')),
@@ -157,7 +153,7 @@ void main() {
       }
     });
 
-    test('f03/us03/fr01/e28, is-s03/inv4: a section id starting with _ is unknown_value', () {
+    test('a section id starting with _ is unknown_value', () {
       expect(
         () => _parse('sections: [{id: _notes}]'),
         throwsA(
@@ -185,36 +181,35 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e03, s03/inv10: a field with no id is missing_key at the index', () {
+    test('a field with no id is missing_key at the index', () {
       expect(
         () => _parse('fields: [{type: string}]'),
         throwsA(_fault(FaultCode.missingKey, key: 'fields[0].id')),
       );
     });
 
-    test('f03/us03/s5, f03/us03/fr01/e03: a section with no id is missing_key at the index', () {
+    test('a section with no id is missing_key at the index', () {
       expect(
         () => _parse('sections: [{header: Goal}]'),
         throwsA(_fault(FaultCode.missingKey, key: 'sections[0].id')),
       );
     });
 
-    test('f03/us03/s10, f03/us03/fr01/e05, s03/inv13: a field type outside the seven is unknown_value', () {
+    test('a field type outside the seven is unknown_value', () {
       expect(
         () => _parse('fields: [{id: size, type: float}]'),
         throwsA(_fault(FaultCode.unknownValue, key: 'fields.size.type')),
       );
     });
 
-    test('f03/us03/fr01/e06, s03/inv13: an enum field with no enum list is missing_key', () {
+    test('an enum field with no enum list is missing_key', () {
       expect(
         () => _parse('fields: [{id: kind, type: enum}]'),
         throwsA(_fault(FaultCode.missingKey, key: 'fields.kind.enum')),
       );
     });
 
-    test('f03/us03/fr01/e16, s03/inv13: '
-        'an output_ref field with no pointer is missing_key', () {
+    test('an output_ref field with no pointer is missing_key', () {
       expect(
         () => _parse('fields: [{id: covers, type: output_ref}]'),
         throwsA(_fault(FaultCode.missingKey, key: 'fields.covers.pointer')),
@@ -222,7 +217,6 @@ void main() {
     });
 
     test(
-      'f03/us03/fr01/e17, s03/inv13: '
       'an output_ref pointer other than exact or prefix is unknown_value',
       () {
         expect(
@@ -233,8 +227,7 @@ void main() {
       },
     );
 
-    test('f03/us03/fr01/e17, s03/inv13: '
-        'an output_ref pointer that is not a string is unknown_value', () {
+    test('an output_ref pointer that is not a string is unknown_value', () {
       expect(
         () => _parse('fields: [{id: covers, type: output_ref, pointer: 3}]'),
         throwsA(_fault(FaultCode.unknownValue, key: 'fields.covers.pointer')),
@@ -250,7 +243,6 @@ void main() {
     });
 
     test(
-      'f03/us03/fr01/e18, s03/inv13: '
       'a pointer on a field of another type is accepted, whatever its kind',
       () {
         expect(
@@ -270,8 +262,7 @@ void main() {
       },
     );
 
-    test('f03/us03/fr01/e18, s03/inv13: '
-        'a pointer that is not a string on a field of another type '
+    test('a pointer that is not a string on a field of another type '
         'is accepted', () {
       expect(
         _parse('fields: [{id: size, type: string, pointer: 3}]')
@@ -311,8 +302,7 @@ void main() {
       expect(_parse('lint: {max_chars: 400}').lint?.maxItemChars, isNull);
     });
 
-    test('Override lint settings '
-        'E16: a section lint that writes max_item_chars is unknown_key', () {
+    test('a section lint that writes max_item_chars is unknown_key', () {
       expect(
         () => _parse(
           'sections: [{id: goal, header: G, lint: {max_item_chars: 900}}]',
@@ -339,7 +329,7 @@ void main() {
       );
     });
 
-    test('f03/us02/fr03, f03/us03/fr01: a section lint holds banned_words, '
+    test('a section lint holds banned_words, '
         'allowed_words, and line_prefix', () {
       final lint = _parse(
         'sections: [{id: goal, header: G, lint: {banned_words: [fast], '
@@ -528,21 +518,18 @@ lint:
       expect(plain.items.last.toJson(), {'title': 'Book'});
     });
 
-    test(
-      'f03/us02/fr05, f03/us03/fr03/e09: a reference add map parses entries',
-      () {
-        final layer = _parse(
-          'reference: {add: [{title: T, file: refs/handbook.md}], '
-          'remove: [Book]}',
-        );
-        final change = switch (layer.reference) {
-          final ListChange<ReferenceEntry> listChange => listChange,
-          _ => fail('reference is not a ListChange'),
-        };
-        expect(change.add.single.file, 'refs/handbook.md');
-        expect(change.remove, ['Book']);
-      },
-    );
+    test('a reference add map parses entries', () {
+      final layer = _parse(
+        'reference: {add: [{title: T, file: refs/handbook.md}], '
+        'remove: [Book]}',
+      );
+      final change = switch (layer.reference) {
+        final ListChange<ReferenceEntry> listChange => listChange,
+        _ => fail('reference is not a ListChange'),
+      };
+      expect(change.add.single.file, 'refs/handbook.md');
+      expect(change.remove, ['Book']);
+    });
 
     test('a link conflict inside parse keeps its index key', () {
       expect(
@@ -553,7 +540,7 @@ lint:
       );
     });
 
-    test('f03/us03/fr01, tpl-s03/inv23: bundle and a section query are read as written', () {
+    test('bundle and a section query are read as written', () {
       final layer = _parse(
         'bundle: [query, implement]\nsections: [{id: goal, query: true}]\n',
       );
@@ -587,7 +574,7 @@ lint:
       expect(_parse('sections: [{id: goal}]\n').generators, isNull);
     });
 
-    test('f03/us03/fr01/e19, tpl-s03/inv23: a bundle entry outside the three modes is unknown_value', () {
+    test('a bundle entry outside the three modes is unknown_value', () {
       expect(
         () => _parse('bundle: [query, deploy]\n'),
         throwsA(_fault(FaultCode.unknownValue, key: 'bundle')),
@@ -598,7 +585,7 @@ lint:
       );
     });
 
-    test('f03/us03/fr01, tpl-s03/inv23, db-r7: a section summary is read as '
+    test('a section summary is read as '
         'written', () {
       expect(
         _parse('sections: [{id: goal, summary: true}]\n')
@@ -609,7 +596,7 @@ lint:
       );
     });
 
-    test('f03/us03/fr01/e19, tpl-s03/inv23, db-r7: a section summary that is '
+    test('a section summary that is '
         'not a boolean is unknown_value', () {
       expect(
         () => _parse('sections: [{id: goal, summary: yes please}]\n'),
@@ -647,7 +634,7 @@ lint:
       );
     });
 
-    test('f03/us03/fr01/e19, tpl-s03/inv23: a section query that is not a boolean is unknown_value', () {
+    test('a section query that is not a boolean is unknown_value', () {
       expect(
         () => _parse('sections: [{id: goal, query: yes please}]\n'),
         throwsA(_fault(FaultCode.unknownValue, key: 'sections.goal.query')),

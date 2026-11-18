@@ -63,18 +63,18 @@ Refused _refused(String disk, MergedDocType docType) {
 
 void main() {
   group('headerKey', () {
-    test('f05/us01/fr04/e01, s03/inv5: lowercases, trims, collapses '
+    test('lowercases, trims, collapses '
         'whitespace', () {
       expect(headerKey('  Feature \t  GOAL '), 'feature goal');
     });
 
-    test('f05/us01/fr04/e01, s03/inv5: keeps words that differ apart', () {
+    test('keeps words that differ apart', () {
       expect(headerKey('Featuregoal'), isNot(headerKey('Feature goal')));
     });
   });
 
   group('formatDoc', () {
-    test('f05/us01/fr03, s03/inv1, s03/inv2: sections and keys follow the '
+    test('sections and keys follow the '
         'template, bodies unchanged', () async {
       final feature = await _feature();
       const disk =
@@ -119,7 +119,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr03/e03, s03/inv2: a key block moves whole, comment and '
+    test('a key block moves whole, comment and '
         'value bytes unchanged', () async {
       final feature = await _feature();
       const disk =
@@ -145,7 +145,7 @@ void main() {
       expect(text, '## Feature name\n\nn\n\n## Feature goal\n\ng\n');
     });
 
-    test('f05/us01/fr03/e05, s03/inv2: a missing required key is not '
+    test('a missing required key is not '
         'added', () async {
       final owned = (await fixtureDocTypes(extra: {'owned.yaml': _owned}))
           .lookup('owned')!;
@@ -156,7 +156,7 @@ void main() {
       expect(text, '---\nstatus: planned\n---\n\n# T\n');
     });
 
-    test('f05/us01/fr03/e06, s03/inv7: one blank line between sections, one '
+    test('one blank line between sections, one '
         'final line break', () async {
       final feature = await _feature();
 
@@ -169,7 +169,7 @@ void main() {
       expect(text.endsWith('\n\n'), isFalse);
     });
 
-    test('f05/us01/fr04/e01, s03/inv5: a header matches apart from case and '
+    test('a header matches apart from case and '
         'whitespace and is written as the template writes it', () async {
       final feature = await _feature();
 
@@ -179,7 +179,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr04/e02, s03/inv6: unknown headers are refused as '
+    test('unknown headers are refused as '
         'written, in file order', () async {
       final feature = await _feature();
 
@@ -192,7 +192,7 @@ void main() {
       expect(refused.duplicateHeaders, isEmpty);
     });
 
-    test('f05/us01/fr04/e03, s03/inv6: a duplicate header is refused in '
+    test('a duplicate header is refused in '
         'template form', () async {
       final feature = await _feature();
 
@@ -205,7 +205,7 @@ void main() {
       expect(refused.unknownHeaders, isEmpty);
     });
 
-    test('f05/us01/fr04/e03, s03/inv6: a header three times is listed once, '
+    test('a header three times is listed once, '
         'in file order', () async {
       final feature = await _feature();
 
@@ -284,7 +284,7 @@ void main() {
       expect(_refused('## Notes\nx\n', feature).unclosedFence, isFalse);
     });
 
-    test('f05/us01/fr04/e02, f05/us01/fr04/e03: a doc with both faults '
+    test('a doc with both faults '
         'reports both lists', () async {
       final feature = await _feature();
 
@@ -297,7 +297,7 @@ void main() {
       expect(refused.duplicateHeaders, ['## Feature name']);
     });
 
-    test('E01: a missing required '
+    test('a missing required '
         'section stays absent', () async {
       final feature = await _feature();
 
@@ -311,7 +311,7 @@ void main() {
       );
     });
 
-    test('E02: a missing optional '
+    test('a missing optional '
         'section stays absent', () async {
       final feature = await _feature();
 
@@ -323,7 +323,7 @@ void main() {
       expect(text, isNot(contains('Feature flow')));
     });
 
-    test('E03: draft stays as '
+    test('draft stays as '
         'written when a section is missing', () async {
       final feature = await _feature();
 
@@ -353,7 +353,7 @@ void main() {
       );
     });
 
-    test('E07: a laid-out '
+    test('a laid-out '
         'doc comes back byte-equal', () async {
       final feature = await _feature();
       const disk = '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
@@ -361,7 +361,7 @@ void main() {
       expect(_format(disk, feature), disk);
     });
 
-    test('E09: a '
+    test('a '
         'frontmatter line starting "# " and a key block line ending in '
         'spaces stay verbatim', () async {
       final feature = await _feature();
@@ -372,7 +372,7 @@ void main() {
       expect(_format(disk, feature), disk);
     });
 
-    test('doc_model/s03/inv6, s03/inv2: a keyless frontmatter block is '
+    test('a keyless frontmatter block is '
         'emitted first and verbatim', () async {
       final feature = await _feature();
       const above =
@@ -388,7 +388,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/inv6: a keyless block in an already formatted doc '
+    test('a keyless block in an already formatted doc '
         'survives formatting unchanged', () async {
       final feature = await _feature();
       const disk =
@@ -426,7 +426,7 @@ void main() {
       }
     });
 
-    test('s03/inv7: formatting a Formatted text again yields the same '
+    test('formatting a Formatted text again yields the same '
         'text', () async {
       final feature = await _feature();
       const disk =
@@ -451,8 +451,7 @@ void main() {
     Future<MergedDocType> journey() async =>
         prdCoreDocType(await resolvePrdCore(), 'journey');
 
-    test('E06: '
-        'an opening marker of a listed kind with no end marker is refused, '
+    test('an opening marker of a listed kind with no end marker is refused, '
         'naming the marker and its kind', () async {
       final docType = await journey();
 
@@ -466,8 +465,7 @@ void main() {
       }
     });
 
-    test('E06: '
-        'a doc with an open generated block is written as given and is not '
+    test('a doc with an open generated block is written as given and is not '
         'laid out', () async {
       final docType = await journey();
 
@@ -475,8 +473,7 @@ void main() {
       expect(isLaidOut(Doc.parse(unclosed), unclosed, docType), isFalse);
     });
 
-    test('Write each generated block '
-        'E06: a marker whose line ends in spaces or a tab, with no end '
+    test('a marker whose line ends in spaces or a tab, with no end '
         'marker, is refused, naming the marker as written', () async {
       final docType = await journey();
 
@@ -490,8 +487,7 @@ void main() {
       }
     });
 
-    test('E04: '
-        'an open marker of a kind the type does not list is text', () async {
+    test('an open marker of a kind the type does not list is text', () async {
       final docType = await journey();
       final other = generatedOpenMarker('note_toc');
       final text = '# J\n\n## Goal\n\n$other\nGo.\n';

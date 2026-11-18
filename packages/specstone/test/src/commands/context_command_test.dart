@@ -34,15 +34,23 @@ void main() {
     expect(withBareOut(['list', '--out']), ['list', '--out']);
   });
 
-  test('f01/us05/s1: context for a story prints the bundle and its doc list, exit 0', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(
-      await runner.run(['context', 'login/email_login', '--for', 'implement']),
-      0,
-    );
-    expect(out.toString(), contains('==> bundle: '));
-    expect(out.toString(), endsWith('- login (architecture)\n'));
-  });
+  test(
+    'context for a story prints the bundle and its doc list, exit 0',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run([
+          'context',
+          'login/email_login',
+          '--for',
+          'implement',
+        ]),
+        0,
+      );
+      expect(out.toString(), contains('==> bundle: '));
+      expect(out.toString(), endsWith('- login (architecture)\n'));
+    },
+  );
   test('context on a story lists the root spec doc in its index', () async {
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(
@@ -62,7 +70,7 @@ void main() {
       hasLength(1),
     );
   });
-  test('f01/us05/fr01/e10: no target, no --for, or another --for value refuses with exit 64', () async {
+  test('no target, no --for, or another --for value refuses with exit 64', () async {
     final project = await writeReadProject();
     final noTarget = readRunner(project);
     expect(await noTarget.runner.run(['context', '--for', 'implement']), 64);
@@ -86,18 +94,21 @@ void main() {
       '--for takes query, implement, or design, not deploy\n',
     );
   });
-  test('f01/us05/s15, db-r6: context --summary on a feature prints its stories in summary, exit 0', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(
-      await runner.run(['context', 'login', '--for', 'design', '--summary']),
-      0,
-    );
-    expect(
-      out.toString(),
-      contains('- login/email_login (user_story) · summary\n'),
-    );
-  });
-  test('f01/us05/fr01/e18, db-c2: --summary with another mode or --code refuses with exit 64', () async {
+  test(
+    'context --summary on a feature prints its stories in summary, exit 0',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run(['context', 'login', '--for', 'design', '--summary']),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains('- login/email_login (user_story) · summary\n'),
+      );
+    },
+  );
+  test('--summary with another mode or --code refuses with exit 64', () async {
     final project = await writeReadProject();
     final mode = readRunner(project);
     expect(
@@ -125,26 +136,23 @@ void main() {
     );
     expect(code.err.toString(), 'give --summary with a target, not --code\n');
   });
-  test(
-    'f01/us05/fr01/e17, db-c2: --summary on a story refuses with exit 64',
-    () async {
-      final r = readRunner(await writeReadProject());
-      expect(
-        await r.runner.run([
-          'context',
-          'login/email_login',
-          '--for',
-          'design',
-          '--summary',
-        ]),
-        64,
-      );
-      expect(
-        r.err.toString(),
-        '--summary takes a doc with children, such as a feature; login/email_login (user_story) is not one\n',
-      );
-    },
-  );
+  test('--summary on a story refuses with exit 64', () async {
+    final r = readRunner(await writeReadProject());
+    expect(
+      await r.runner.run([
+        'context',
+        'login/email_login',
+        '--for',
+        'design',
+        '--summary',
+      ]),
+      64,
+    );
+    expect(
+      r.err.toString(),
+      '--summary takes a doc with children, such as a feature; login/email_login (user_story) is not one\n',
+    );
+  });
   test(
     'over budget with --json exits 1 with stdout one object and stderr empty',
     () async {
@@ -165,7 +173,7 @@ void main() {
       expect(err.toString(), isEmpty);
     },
   );
-  test('f01/us01/s7, f01/us05/s10: an untyped target exits 64 with the untyped_target message', () async {
+  test('an untyped target exits 64 with the untyped_target message', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(
       await runner.run([
@@ -181,7 +189,7 @@ void main() {
       'prds/d01_context.md has no doc type, so it never joins a bundle; read it with specstone get\n',
     );
   });
-  test('f01/us05/s13, f01/us05/fr01/e12: outside a project, or under a 9.9.9 pin, exits 78', () async {
+  test('outside a project, or under a 9.9.9 pin, exits 78', () async {
     expect(
       await readRunner(await writeTree({})).runner
           .run(['context', 'login', '--for', 'query']),
@@ -196,7 +204,7 @@ void main() {
       78,
     );
   });
-  test('f01/us05/s11, f01/us05/fr04/e07: a target and --code together are argument_conflict, exit 64', () async {
+  test('a target and --code together are argument_conflict, exit 64', () async {
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(extra: {'app/lib/main.dart': ''}),
     );
@@ -213,7 +221,7 @@ void main() {
     );
     expect(err.toString(), 'give a target or --code, not both\n');
   });
-  test('f01/us05/s7, f01/us05/fr04/e06: an unmatched code path exits 0 with the warning on stderr', () async {
+  test('an unmatched code path exits 0 with the warning on stderr', () async {
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(extra: {'app/lib/main.dart': ''}),
     );
@@ -249,7 +257,7 @@ void main() {
     );
     expect((jsonDecode(out.toString()) as Map).keys.first, 'code');
   });
-  test('f01/us05/s12, f01/us05/fr04/e09: a code path outside the project exits 64 and names it', () async {
+  test('a code path outside the project exits 64 and names it', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(
       await runner.run(['context', '--code', '../', '--for', 'implement']),
@@ -257,7 +265,7 @@ void main() {
     );
     expect(err.toString(), 'the code path ../ lies outside the code root\n');
   });
-  test('f01/us05/fr04/e12, s05: --code "" is argument_invalid, exit 64, and opens no index', () async {
+  test('--code "" is argument_invalid, exit 64, and opens no index', () async {
     final project = await writeReadProject();
     final (:runner, :out, :err) = readRunner(project);
     expect(
@@ -271,7 +279,7 @@ void main() {
       isFalse,
     );
   });
-  group('f01/us05/fr01, per code target', () {
+  group('per code target', () {
     /// Writes the two-target fixture of pick_bundle_docs E23: the feature
     /// `feedback/toast`, its story `show`, and its architecture doc in both
     /// targets.
@@ -332,26 +340,29 @@ void main() {
       },
     );
 
-    test('f01/us05/fr01/e23: implement with two targets and no --target exits 64 naming them', () async {
-      final (:runner, :out, :err) = readRunner(await writeToastProject());
-      expect(
-        await runner.run([
-          'context',
-          'feedback/toast/show',
-          '--for',
-          'implement',
-        ]),
-        64,
-      );
-      expect(
-        err.toString(),
-        '--for implement needs --target with two or more code targets; '
-        'the targets are flutter, jaspr\n',
-      );
-      expect(out.toString(), isEmpty);
-    });
+    test(
+      'implement with two targets and no --target exits 64 naming them',
+      () async {
+        final (:runner, :out, :err) = readRunner(await writeToastProject());
+        expect(
+          await runner.run([
+            'context',
+            'feedback/toast/show',
+            '--for',
+            'implement',
+          ]),
+          64,
+        );
+        expect(
+          err.toString(),
+          '--for implement needs --target with two or more code targets; '
+          'the targets are flutter, jaspr\n',
+        );
+        expect(out.toString(), isEmpty);
+      },
+    );
 
-    test('f01/us05/fr04, domain:agent_plugin INV-25: --code names its code '
+    test('--code names its code '
         'target on the first text line, covered or not', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': '', 'jaspr_lib/other/x.dart': ''},
@@ -389,7 +400,7 @@ void main() {
       );
     });
 
-    test('f01/us05/fr04, domain:agent_plugin INV-25: --json carries codeTarget '
+    test('--json carries codeTarget '
         'for a covered and an uncovered path', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': '', 'jaspr_lib/other/x.dart': ''},
@@ -413,7 +424,7 @@ void main() {
       }
     });
 
-    test('f01/us05/fr03, domain:agent_plugin INV-25: the over-budget --code '
+    test('the over-budget --code '
         'reply names its code target in text and JSON', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': ''},
@@ -559,7 +570,7 @@ void main() {
       expect(same.err.toString(), isEmpty);
     });
 
-    test('s04/inv26: --code with an unheld or premature --target is argument_invalid, exit 64', () async {
+    test('--code with an unheld or premature --target is argument_invalid, exit 64', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': ''},
       );
@@ -602,7 +613,7 @@ void main() {
       );
     });
 
-    test('s04/inv26: --code naming a missing path with an unheld --target is argument_invalid first, as every other command checks the target first', () async {
+    test('--code naming a missing path with an unheld --target is argument_invalid first, as every other command checks the target first', () async {
       final (:runner, :out, :err) = readRunner(await writeToastProject());
       expect(
         await runner.run([
@@ -646,7 +657,7 @@ void main() {
       );
     });
 
-    test('f01/us05/fr04/e14, review focus 2: nested code roots pick the longest that holds the path', () async {
+    test('nested code roots pick the longest that holds the path', () async {
       final project = await writeReadProject(
         extra: {
           '.specstone/templates/implementation.yaml':

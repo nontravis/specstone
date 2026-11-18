@@ -100,18 +100,15 @@ void _expectE05(String out) {
 }
 
 void main() {
-  test(
-    'f08/us06/fr02/e01, f08/us06/s1: a doc that passes prints nothing, exit 0',
-    () async {
-      final root = await writeCheckProject();
-      final result = await postEdit(root, abs(root, loginFr));
-      expect(result.status, 0);
-      expect(result.out, isEmpty);
-      expect(result.err, isEmpty);
-    },
-  );
+  test('a doc that passes prints nothing, exit 0', () async {
+    final root = await writeCheckProject();
+    final result = await postEdit(root, abs(root, loginFr));
+    expect(result.status, 0);
+    expect(result.out, isEmpty);
+    expect(result.err, isEmpty);
+  });
 
-  test('f08/us06/fr02/e05, f08/us06/s2: a broken link hands back the s02 findings object, exit 0', () async {
+  test('a broken link hands back the findings object, exit 0', () async {
     final root = await writeCheckProject(extra: _brokenStory());
     final result = await postEdit(root, abs(root, loginStory));
     expect(result.status, 0);
@@ -123,48 +120,39 @@ void main() {
     );
   });
 
-  test(
-    "f08/us06/fr02/e06, f08/us06/s3: another doc's findings stay out",
-    () async {
-      final original = checkProjectFiles()['docs/$loginFr']!;
-      final root = await writeCheckProject(
-        extra: {'docs/$loginFr': '$original\nSee $_brokenLink.\n'},
-      );
-      final result = await postEdit(root, abs(root, loginStory));
-      expect(result.status, 0);
-      expect(result.out, isEmpty);
-    },
-  );
+  test("another doc's findings stay out", () async {
+    final original = checkProjectFiles()['docs/$loginFr']!;
+    final root = await writeCheckProject(
+      extra: {'docs/$loginFr': '$original\nSee $_brokenLink.\n'},
+    );
+    final result = await postEdit(root, abs(root, loginStory));
+    expect(result.status, 0);
+    expect(result.out, isEmpty);
+  });
 
-  test(
-    'api:agent_plugin: a design document under docs/designs gets no check',
-    () async {
-      final root = await writeCheckProject(
-        extra: {
-          'docs/designs/2026-11-11-x-design.md': '# X\n\nSee $_brokenLink.\n',
-        },
-      );
-      final result = await postEdit(
-        root,
-        abs(root, 'designs/2026-11-11-x-design.md'),
-      );
-      expect(result.status, 0);
-      expect(result.out, isEmpty);
-    },
-  );
+  test('a design document under docs/designs gets no check', () async {
+    final root = await writeCheckProject(
+      extra: {
+        'docs/designs/2026-11-11-x-design.md': '# X\n\nSee $_brokenLink.\n',
+      },
+    );
+    final result = await postEdit(
+      root,
+      abs(root, 'designs/2026-11-11-x-design.md'),
+    );
+    expect(result.status, 0);
+    expect(result.out, isEmpty);
+  });
 
-  test(
-    'api:agent_plugin: a design document under a nested docs/superpowers/specs '
-    'folder gets no check',
-    () async {
-      final root = await writeCheckProject(
-        extra: {'docs/superpowers/specs/x.md': '# X\n\nSee $_brokenLink.\n'},
-      );
-      final result = await postEdit(root, abs(root, 'superpowers/specs/x.md'));
-      expect(result.status, 0);
-      expect(result.out, isEmpty);
-    },
-  );
+  test('a design document under a nested docs/superpowers/specs '
+      'folder gets no check', () async {
+    final root = await writeCheckProject(
+      extra: {'docs/superpowers/specs/x.md': '# X\n\nSee $_brokenLink.\n'},
+    );
+    final result = await postEdit(root, abs(root, 'superpowers/specs/x.md'));
+    expect(result.status, 0);
+    expect(result.out, isEmpty);
+  });
 
   test('a code file prints nothing', () async {
     final root = await writeCheckProject();
@@ -176,7 +164,7 @@ void main() {
     expect(result.out, isEmpty);
   });
 
-  test('f08/us06/fr02/e02, f08/us06/s5, f08/us01/fr03/e04: outside a project nothing prints, exit 0', () async {
+  test('outside a project nothing prints, exit 0', () async {
     final root = await writeTree({'docs/prds/x.md': '# X\n'});
     final result = await postEdit(
       root,
@@ -208,7 +196,7 @@ void main() {
     },
   );
 
-  test('E08: an owner '
+  test('an owner '
       "finding's line keeps its tag in the hook context", () async {
     final root = await writeCheckProject(
       extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
@@ -224,7 +212,7 @@ void main() {
     expect(context, endsWith(' (waits for the Owner)\n1 finding'));
   });
 
-  test("f08/us06/fr02/e08, f08/us06/s6: the platform's separators read as the same DocPath", () async {
+  test("the platform's separators read as the same DocPath", () async {
     final root = await writeCheckProject(extra: _brokenStory());
     final result = await postEdit(root, abs(root, loginStory));
     expect(result.status, 0);
@@ -381,7 +369,7 @@ void main() {
       return (status: await process.exitCode, out: await out, err: await err);
     }
 
-    test('f08/us06/s6, f08/us06/fr02: the built binary reads the hook JSON on its own stdin', () async {
+    test('the built binary reads the hook JSON on its own stdin', () async {
       final root = await writeCheckProject(extra: _brokenStory());
       final result = await spawn(root, _request(abs(root, loginStory)));
       expect(result.status, 0);

@@ -197,9 +197,9 @@ int? summaryRowCountOf(MergedDocType? docType, String key) {
 /// removed, trimmed at its end.
 ///
 /// [bodyLine] is the file line of the body's first line, and [after] gives
-/// the lines to print after a file line (see [printedBodyOf]). The Verification
-/// matrix section leaves out the body lines on the file lines [matrixCut]
-/// holds; any other section ignores it.
+/// the lines to print after a file line (see [printedBodyOf]). The body leaves
+/// out its lines on the file lines [matrixCut] holds, which are matrix rows,
+/// so a section holding none of them prints whole.
 String sectionBlockOf(
   IndexedSection section, {
   int bodyLine = 1,
@@ -207,9 +207,10 @@ String sectionBlockOf(
   Set<int> matrixCut = const {},
 }) {
   final headerLine = bodyLine - 1;
-  final cut = section.key == verificationMatrixKey ? matrixCut : const <int>{};
   final body = printedBodyOf(
-    cut.isEmpty ? section.body : _withoutLines(section.body, bodyLine, cut),
+    matrixCut.isEmpty
+        ? section.body
+        : _withoutLines(section.body, bodyLine, matrixCut),
     firstLine: bodyLine,
     after: {
       for (final MapEntry(:key, :value) in after.entries)

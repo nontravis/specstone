@@ -82,7 +82,7 @@ List<String> ids(Iterable<Object> entries) => [
 
 void main() {
   group('DocTypeMerger.builtInBase', () {
-    test('f03/us02/fr04, f03/us02/fr04/e07, f03/us03/fr01/e15, s03/inv12, s03/inv20: a doc type with '
+    test('a doc type with '
         'no fields still holds the five built-ins in order', () {
       final merged = merger.apply(
         merger.builtInBase('runbook'),
@@ -119,47 +119,40 @@ void main() {
   });
 
   group('DocTypeMerger.apply', () {
-    test(
-      'f03/us02/fr01/e01, f03/us02/s7, s03/inv2: an incomplete new section is '
-      'override_id_not_found',
-      () {
-        expect(
-          () =>
-              project(shipped(), 'sections: [{id: goal_typo, description: x}]'),
-          throwsA(
-            fault(
-              FaultCode.overrideIdNotFound,
-              'sections.goal_typo',
-              message:
-                  'no section "goal_typo" in the merged doc type and no '
-                  'header to add it',
-            ),
+    test('an incomplete new section is '
+        'override_id_not_found', () {
+      expect(
+        () => project(shipped(), 'sections: [{id: goal_typo, description: x}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.goal_typo',
+            message:
+                'no section "goal_typo" in the merged doc type and no '
+                'header to add it',
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
-    test(
-      'f03/us02/fr01/e02, s03/inv2: a disabled entry for a missing section is '
-      'override_id_not_found',
-      () {
-        expect(
-          () => project(
-            shipped(),
-            'sections: [{id: nope, header: N, disabled: true}]',
+    test('a disabled entry for a missing section is '
+        'override_id_not_found', () {
+      expect(
+        () => project(
+          shipped(),
+          'sections: [{id: nope, header: N, disabled: true}]',
+        ),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.nope',
+            message: 'no section "nope" in the merged doc type to disable',
           ),
-          throwsA(
-            fault(
-              FaultCode.overrideIdNotFound,
-              'sections.nope',
-              message: 'no section "nope" in the merged doc type to disable',
-            ),
-          ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
-    test('f03/us02/fr01/e02, s03/inv2: a disabled entry for a missing field is '
+    test('a disabled entry for a missing field is '
         'override_id_not_found', () {
       expect(
         () => project(shipped(), 'fields: [{id: nope, disabled: true}]'),
@@ -173,33 +166,30 @@ void main() {
       );
     });
 
-    test(
-      'f03/us03/fr02/e02, s03/inv2: a field with no type on a new doc type is '
-      'override_id_not_found',
-      () {
-        expect(
-          () => merger.apply(
-            merger.builtInBase('runbook'),
-            DocTypeLayer.parse(
-              'description: Runbook\nfields: [{id: size}]',
-              file: _projectFile,
-              docTypeId: 'runbook',
-              kind: LayerKind.project,
-              files: const _NoFiles(),
-            ),
+    test('a field with no type on a new doc type is '
+        'override_id_not_found', () {
+      expect(
+        () => merger.apply(
+          merger.builtInBase('runbook'),
+          DocTypeLayer.parse(
+            'description: Runbook\nfields: [{id: size}]',
+            file: _projectFile,
+            docTypeId: 'runbook',
+            kind: LayerKind.project,
+            files: const _NoFiles(),
           ),
-          throwsA(
-            fault(
-              FaultCode.overrideIdNotFound,
-              'fields.size',
-              message:
-                  'no field "size" in the merged doc type and no type to '
-                  'add it',
-            ),
+        ),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'fields.size',
+            message:
+                'no field "size" in the merged doc type and no type to '
+                'add it',
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     test('a second layer disabling a section a lower layer disabled keeps the '
         'doc type as it is', () {
@@ -320,7 +310,7 @@ void main() {
       );
     });
 
-    test('f03/us02/s1, f03/us02/fr01: disabled: true drops a section', () {
+    test('disabled: true drops a section', () {
       final merged = project(
         shipped(),
         'sections: [{id: scope, disabled: true}]',
@@ -329,7 +319,7 @@ void main() {
       expect(ids(merged.sections), ['goal']);
     });
 
-    test('f03/us02/s2, f03/us02/fr01: a complete new field is added last', () {
+    test('a complete new field is added last', () {
       final merged = project(shipped(), 'fields: [{id: size, type: integer}]');
 
       expect(ids(merged.fields), [
@@ -355,7 +345,7 @@ void main() {
       expect(merged.sections.last.required, isTrue);
     });
 
-    test('f03/us02/s3, f03/us02/fr02, s03/inv3: an added section lands right after the '
+    test('an added section lands right after the '
         'section its after names', () {
       final merged = project(
         shipped(),
@@ -374,21 +364,18 @@ void main() {
       expect(ids(merged.sections), ['goal', 'scope', 'risks']);
     });
 
-    test(
-      'f03/us02/fr02/e03, s03/inv3: after on a held section moves it and keeps '
-      'merging its other properties',
-      () {
-        final merged = project(
-          shipped(),
-          'sections: [{id: goal, after: scope, description: D}]',
-        );
+    test('after on a held section moves it and keeps '
+        'merging its other properties', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, after: scope, description: D}]',
+      );
 
-        expect(ids(merged.sections), ['scope', 'goal']);
-        final goal = merged.sections.last;
-        expect(goal.description, 'D');
-        expect(goal.header, 'Feature goal');
-      },
-    );
+      expect(ids(merged.sections), ['scope', 'goal']);
+      final goal = merged.sections.last;
+      expect(goal.description, 'D');
+      expect(goal.header, 'Feature goal');
+    });
 
     test('after naming the section itself leaves it in '
         'place', () {
@@ -401,7 +388,7 @@ void main() {
       expect(merged.sections.first.description, 'D');
     });
 
-    test('f03/us02/s8, f03/us02/fr02/e01, s03/inv3: an added section after a missing '
+    test('an added section after a missing '
         'id is after_id_not_found', () {
       expect(
         () => project(
@@ -412,16 +399,13 @@ void main() {
       );
     });
 
-    test(
-      'f03/us02/fr02/e01, s03/inv3: a held section moved after a missing id is '
-      'after_id_not_found',
-      () {
-        expect(
-          () => project(shipped(), 'sections: [{id: goal, after: nope}]'),
-          throwsA(fault(FaultCode.afterIdNotFound, 'sections.goal.after')),
-        );
-      },
-    );
+    test('a held section moved after a missing id is '
+        'after_id_not_found', () {
+      expect(
+        () => project(shipped(), 'sections: [{id: goal, after: nope}]'),
+        throwsA(fault(FaultCode.afterIdNotFound, 'sections.goal.after')),
+      );
+    });
 
     test('entries of one layer place in file order, so a '
         'later entry may follow an earlier one', () {
@@ -438,7 +422,7 @@ sections:
       expect(ids(merged.sections), ['goal', 'risks', 'notes', 'scope']);
     });
 
-    test('f03/us02/s4, f03/us02/fr01/e03: an override changes only the '
+    test('an override changes only the '
         'properties it writes', () {
       final merged = project(
         shipped(),
@@ -496,19 +480,16 @@ sections:
     });
 
     for (final id in ['slug', 'status', 'draft', 'approved', 'reference']) {
-      test(
-        'f03/us02/s9, f03/us02/fr04/e01, s03/inv1, s03/inv20: disabling the built-in $id is '
-        'locked_field_disabled',
-        () {
-          expect(
-            () => project(shipped(), 'fields: [{id: $id, disabled: true}]'),
-            throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.$id')),
-          );
-        },
-      );
+      test('disabling the built-in $id is '
+          'locked_field_disabled', () {
+        expect(
+          () => project(shipped(), 'fields: [{id: $id, disabled: true}]'),
+          throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.$id')),
+        );
+      });
     }
 
-    test('f03/us02/fr04/e06, s03/inv1, s03/inv20: changing the type of a built-in is '
+    test('changing the type of a built-in is '
         'locked_field_disabled', () {
       expect(
         () => project(shipped(), 'fields: [{id: draft, type: string}]'),
@@ -531,33 +512,27 @@ sections:
     });
 
     for (final type in ['boolean', 'integer', 'date']) {
-      test(
-        'E06, E09: writing type $type on approved is locked_field_disabled',
-        () {
-          expect(
-            () => project(shipped(), 'fields: [{id: approved, type: $type}]'),
-            throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
-          );
-        },
-      );
+      test('writing type $type on approved is locked_field_disabled', () {
+        expect(
+          () => project(shipped(), 'fields: [{id: approved, type: $type}]'),
+          throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+        );
+      });
     }
 
-    test(
-      'E09: approved is of type string, so writing type string is accepted',
-      () {
-        final merged = project(
-          shipped(),
-          'fields: [{id: approved, type: string}]',
-        );
+    test('approved is of type string, so writing type string is accepted', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: approved, type: string}]',
+      );
 
-        expect(
-          merged.fields.singleWhere((f) => f.id == 'approved').type,
-          FieldType.string,
-        );
-      },
-    );
+      expect(
+        merged.fields.singleWhere((f) => f.id == 'approved').type,
+        FieldType.string,
+      );
+    });
 
-    test('E10: writing enum values on approved is locked_field_disabled', () {
+    test('writing enum values on approved is locked_field_disabled', () {
       expect(
         () => project(
           shipped(),
@@ -567,14 +542,14 @@ sections:
       );
     });
 
-    test('E10: writing list on approved is locked_field_disabled', () {
+    test('writing list on approved is locked_field_disabled', () {
       expect(
         () => project(shipped(), 'fields: [{id: approved, list: true}]'),
         throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
       );
     });
 
-    test('E10: writing enum values with no type on approved is '
+    test('writing enum values with no type on approved is '
         'locked_field_disabled', () {
       expect(
         () => project(shipped(), 'fields: [{id: approved, enum: [a, b]}]'),
@@ -582,7 +557,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr04/e02, s03/inv1: clearing a parent the base has is '
+    test('clearing a parent the base has is '
         'locked_field_disabled', () {
       final base = merger.apply(
         merger.builtInBase('feature'),
@@ -595,7 +570,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr04/e04, s03/inv1: a layer may change the parent to another doc '
+    test('a layer may change the parent to another doc '
         'type', () {
       final base = merger.apply(
         merger.builtInBase('feature'),
@@ -615,7 +590,7 @@ sections:
       expect(project(base, 'description: Other\n').parent, 'project');
     });
 
-    test('f03/us02/s6, f03/us02/fr04/e03, s03/inv1: a layer may change the enum values '
+    test('a layer may change the enum values '
         'of status', () {
       final merged = project(
         shipped(),
@@ -703,7 +678,7 @@ sections:
       expect(merged.fields[2].description, 'Hidden');
     });
 
-    test('f03/us02/s2, f03/us03/fr01: a new output_ref field keeps its '
+    test('a new output_ref field keeps its '
         'pointer', () {
       final merged = project(
         shipped(),
@@ -810,7 +785,7 @@ sections:
     MergedDocType withBannedWords() =>
         project(shipped(), 'lint: {banned_words: [fast, robust]}');
 
-    test('f03/us02/s5, f03/us02/fr03/e03, s03/inv17: add and remove change a lower '
+    test('add and remove change a lower '
         'word list', () {
       final merged = project(
         withBannedWords(),
@@ -820,7 +795,7 @@ sections:
       expect(merged.lint.bannedWords, ['robust', 'simply']);
     });
 
-    test('f03/us02/fr03/e05, s03/inv17: removing a word the base lacks is '
+    test('removing a word the base lacks is '
         'lint_word_not_found', () {
       expect(
         () => project(
@@ -831,7 +806,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr03/e05, s03/inv17: removing an allowed word the base lacks names '
+    test('removing an allowed word the base lacks names '
         'lint.allowed_words', () {
       expect(
         () => project(shipped(), 'lint: {allowed_words: {remove: [API]}}'),
@@ -839,7 +814,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr03/e06, s03/inv17: a plain list over a defined list is '
+    test('a plain list over a defined list is '
         'list_override_needs_add_remove', () {
       expect(
         () => project(withBannedWords(), 'lint: {banned_words: [x]}'),
@@ -849,7 +824,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr03/e06, s03/inv17: a plain allowed_words list over a defined list '
+    test('a plain allowed_words list over a defined list '
         'names lint.allowed_words', () {
       final base = project(shipped(), 'lint: {allowed_words: [API]}');
 
@@ -861,7 +836,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr03/e07, s03/inv17: a plain list is accepted where no lower layer '
+    test('a plain list is accepted where no lower layer '
         'defines it', () {
       final merged = project(shipped(), 'lint: {allowed_words: [API]}');
 
@@ -869,7 +844,7 @@ sections:
       expect(merged.lint.bannedWords, isNull);
     });
 
-    test('f03/us02/fr03/e07, s03/inv17: add on an undefined list starts from empty', () {
+    test('add on an undefined list starts from empty', () {
       final merged = project(shipped(), 'lint: {banned_words: {add: [fast]}}');
 
       expect(merged.lint.bannedWords, ['fast']);
@@ -901,8 +876,7 @@ sections:
       expect(merged.lint.maxLines, 300);
     });
 
-    test('Override lint settings '
-        'E15: a project max_item_chars sets that doc type; every other keeps '
+    test('a project max_item_chars sets that doc type; every other keeps '
         'the 600 default', () {
       final domain = merger.apply(
         merger.builtInBase('domain'),
@@ -939,8 +913,7 @@ sections:
       expect(project(base, 'lint: {max_chars: 50}').lint.maxItemChars, 900);
     });
 
-    test('Override lint settings '
-        'E01: a doc-level lint key outside the list is unknown_key, and '
+    test('a doc-level lint key outside the list is unknown_key, and '
         'max_item_chars is inside it', () {
       expect(
         () => project(shipped(), 'lint: {max_words: 3}'),
@@ -1074,20 +1047,17 @@ sections:
       for (final entry in type.reference!) entry.title,
     ];
 
-    test(
-      'f03/us02/s10, f03/us02/fr05, s03/inv14: add and remove change the lower '
-      'reference list',
-      () {
-        final merged = project(
-          withReferences(),
-          'reference: {add: [{title: C}], remove: [A]}',
-        );
+    test('add and remove change the lower '
+        'reference list', () {
+      final merged = project(
+        withReferences(),
+        'reference: {add: [{title: C}], remove: [A]}',
+      );
 
-        expect(titles(merged), ['B', 'C']);
-      },
-    );
+      expect(titles(merged), ['B', 'C']);
+    });
 
-    test('f03/us02/s11, f03/us02/fr05/e01, s03/inv14: removing a title the base lacks '
+    test('removing a title the base lacks '
         'is reference_title_not_found', () {
       expect(
         () => project(withReferences(), 'reference: {remove: [Z]}'),
@@ -1101,7 +1071,7 @@ sections:
       expect(titles(merged), ['A', 'B']);
     });
 
-    test('f03/us02/fr05/e04, s03/inv14: a plain list over a defined list is '
+    test('a plain list over a defined list is '
         'list_override_needs_add_remove', () {
       expect(
         () => project(withReferences(), 'reference: [{title: D}]'),
@@ -1109,15 +1079,12 @@ sections:
       );
     });
 
-    test(
-      'f03/us02/fr05, s03/inv14: a plain list is accepted where no lower layer '
-      'defines it',
-      () {
-        expect(titles(withReferences()), ['A', 'B']);
-      },
-    );
+    test('a plain list is accepted where no lower layer '
+        'defines it', () {
+      expect(titles(withReferences()), ['A', 'B']);
+    });
 
-    test('f03/us02/fr05, s03/inv14: add over a base with no reference list gives exactly '
+    test('add over a base with no reference list gives exactly '
         'the added entries', () {
       final merged = project(shipped(), 'reference: {add: [{title: C}]}');
 
@@ -1169,18 +1136,15 @@ sections:
   });
 
   group('DocTypeMerger.apply bundle', () {
-    test(
-      'f03/us03/fr01, tpl-s03/inv23: the first layer that writes bundle sets '
-      'it plain',
-      () {
-        expect(project(shipped(), 'bundle: [implement, design]\n').bundle, [
-          'implement',
-          'design',
-        ]);
-      },
-    );
+    test('the first layer that writes bundle sets '
+        'it plain', () {
+      expect(project(shipped(), 'bundle: [implement, design]\n').bundle, [
+        'implement',
+        'design',
+      ]);
+    });
 
-    test('f03/us03/fr01/e20, tpl-s03/inv23: a plain bundle over a lower one is '
+    test('a plain bundle over a lower one is '
         'list_override_needs_add_remove', () {
       final base = project(shipped(), 'bundle: [query]\n');
       expect(
@@ -1189,25 +1153,22 @@ sections:
       );
     });
 
-    test(
-      'f03/us03/fr01/e21, tpl-s03/inv23: removing a mode the lower list lacks '
-      'is bundle_mode_not_found',
-      () {
-        final base = project(shipped(), 'bundle: [query]\n');
-        expect(
-          () => project(base, 'bundle: {remove: [design]}\n'),
-          throwsA(
-            fault(
-              FaultCode.bundleModeNotFound,
-              'bundle',
-              message:
-                  'cannot remove design from bundle; no lower layer holds '
-                  'it',
-            ),
+    test('removing a mode the lower list lacks '
+        'is bundle_mode_not_found', () {
+      final base = project(shipped(), 'bundle: [query]\n');
+      expect(
+        () => project(base, 'bundle: {remove: [design]}\n'),
+        throwsA(
+          fault(
+            FaultCode.bundleModeNotFound,
+            'bundle',
+            message:
+                'cannot remove design from bundle; no lower layer holds '
+                'it',
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     test('add and remove change the lower list in order', () {
       final base = project(shipped(), 'bundle: [query, implement]\n');
@@ -1230,7 +1191,7 @@ sections:
       expect(later.sections.firstWhere((s) => s.id == 'goal').query, isTrue);
     });
 
-    test('f03/us03/fr01, db-r7: a section summary survives a layer that leaves '
+    test('a section summary survives a layer that leaves '
         'it out; a later false turns it off', () {
       final on = project(shipped(), 'sections: [{id: goal, summary: true}]\n');
       final kept = project(
@@ -1684,7 +1645,7 @@ lint: {banned_words: [simply]}
     MergedSection section(MergedDocType type, String id) =>
         type.sections.firstWhere((s) => s.id == id);
 
-    test('f03/us02/fr03/e08, tpl-s03/inv17: removing a word changes that '
+    test('removing a word changes that '
         'section only', () {
       final merged = project(
         withSectionWords(),
@@ -1697,7 +1658,7 @@ lint: {banned_words: [simply]}
       expect(section(merged, 'goal').linePrefix, '- **Statement:**');
     });
 
-    test('f03/us02/fr03/e05, tpl-s03/inv17: a removed section word the lower '
+    test('a removed section word the lower '
         'list lacks is lint_word_not_found', () {
       expect(
         () => project(
@@ -1757,8 +1718,7 @@ lint: {banned_words: [simply]}
       expect(project(base, 'description: Another').maxDepth, 3);
     });
 
-    test('Input per_target, '
-        'INV-30: a higher layer replaces per_target; a layer that writes none '
+    test('a higher layer replaces per_target; a layer that writes none '
         'keeps the lower value', () {
       final base = project(shipped(), 'per_target: true');
       expect(base.isPerTarget, isTrue);
@@ -1775,7 +1735,7 @@ lint: {banned_words: [simply]}
       expect(shipped().bundleRefs, isNull);
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file, INV-13: an '
+    test('an '
         'item_exact pointer survives the merge, and a record_status field '
         'merges', () {
       final merged = project(

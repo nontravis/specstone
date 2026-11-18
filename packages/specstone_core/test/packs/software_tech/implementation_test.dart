@@ -25,8 +25,7 @@ void main() {
   });
 
   test(
-    'template_packs/write_spec_docs_from_software_tech/'
-    'set_spec_lint_and_sources E04: a record holding an entry for every '
+    'a record holding an entry for every '
     'story and FR of a large feature passes check with no size finding',
     () async {
       const stories = 40;

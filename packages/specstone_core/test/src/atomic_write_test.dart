@@ -32,7 +32,7 @@ void main() {
       expect(file.statSync().mode & 0xFFF, 493);
     }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
 
-    test('NFR-DI01: replaces the file and leaves no temp sibling', () {
+    test('replaces the file and leaves no temp sibling', () {
       final file = File('${folder.path}/FEATURE.md')
         ..writeAsStringSync('old\n');
 
@@ -42,7 +42,7 @@ void main() {
       expect(tempNames(), isEmpty);
     });
 
-    test('NFR-DI01: a rename failure throws, keeps the target folder and '
+    test('a rename failure throws, keeps the target folder and '
         'leaves no temp sibling', () {
       final target = Directory('${folder.path}/FEATURE.md')..createSync();
       File('${target.path}/keep.txt').writeAsStringSync('kept');
@@ -68,7 +68,7 @@ void main() {
       expect(Directory('${folder.path}/missing').existsSync(), isFalse);
     });
 
-    test('f01/us01/fr04, s03/inv22, NFR-DI01, FM2: a replace outwaits a reader '
+    test('a replace outwaits a reader '
         'that holds the target open for 300 ms', () async {
       final file = File('${folder.path}/.gitignore')
         ..writeAsStringSync('old\n');
@@ -84,7 +84,7 @@ void main() {
     });
 
     test(
-      'f01/us01/fr04, s03/inv22, NFR-DI01, FM2: a replace blocked for longer '
+      'a replace blocked for longer '
       'than 1 s throws after 1 s and leaves no temp sibling',
       () async {
         final file = File('${folder.path}/.gitignore')
@@ -114,19 +114,16 @@ void main() {
   });
 
   group('writeTempSibling', () {
-    test(
-      'f05/us01/fr07/e03, NFR-DI01: a write stopped before the rename leaves '
-      'the target untouched',
-      () {
-        final file = File('${folder.path}/FEATURE.md')
-          ..writeAsStringSync('old\n');
+    test('a write stopped before the rename leaves '
+        'the target untouched', () {
+      final file = File('${folder.path}/FEATURE.md')
+        ..writeAsStringSync('old\n');
 
-        final temp = writeTempSibling(file, utf8.encode('new\n'));
+      final temp = writeTempSibling(file, utf8.encode('new\n'));
 
-        expect(file.readAsStringSync(), 'old\n');
-        expect(temp.readAsStringSync(), 'new\n');
-      },
-    );
+      expect(file.readAsStringSync(), 'old\n');
+      expect(temp.readAsStringSync(), 'new\n');
+    });
 
     test(
       'names the temp .<name>.<pid>.<hex>.specstone.tmp beside the target',

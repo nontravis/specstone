@@ -35,12 +35,12 @@ void main() {
   });
 
   group('heading slugs', () {
-    test('resolve_doc_links E17: ### `move` — FR-01 gives move--fr-01', () {
+    test('### `move` — FR-01 gives move--fr-01', () {
       final anchors = anchorsOf(_parse('### `move` — FR-01\n'));
       expect(anchors.headingSlugs, ['move--fr-01']);
     });
 
-    test('E17: the second ## Notes of one doc gives notes-1', () {
+    test('the second ## Notes of one doc gives notes-1', () {
       final anchors = anchorsOf(_parse('## Notes\n\n## Notes\n'));
       expect(anchors.headingSlugs, ['notes', 'notes-1']);
     });
@@ -72,7 +72,7 @@ void main() {
       expect(anchors.headingSlugs, ['ภาษาไทย-ทดสอบ']);
     });
 
-    test('RULE-13: a word-final capital sigma lower-cases to final sigma, as '
+    test('a word-final capital sigma lower-cases to final sigma, as '
         'V8 does; any other stays medial', () {
       expect(headingSlugOf('ΟΔΟΣ ΟΔΟΣ'), 'οδος-οδος');
       expect(headingSlugOf('ΑΣ. ΑΣ1'), 'ας-ας1');
@@ -115,7 +115,7 @@ void main() {
   });
 
   group('html ids', () {
-    test('resolve_doc_links E16: <a id>, <span id>, <a name> all count', () {
+    test('<a id>, <span id>, <a name> all count', () {
       final anchors = anchorsOf(
         _parse(
           '<a id="my-id"></a>\n<span id="my-id"></span>\n'
@@ -126,7 +126,7 @@ void main() {
       expect(anchors.holds('my-id'), isTrue);
     });
 
-    test('RULE-13: A, A-1, A headings and a body id a', () {
+    test('A, A-1, A headings and a body id a', () {
       final anchors = anchorsOf(
         _parse('<p id="A">x</p>\n\n## A\n\n## A\n\n## A-1\n\n## A\n'),
       );
@@ -176,7 +176,7 @@ void main() {
     });
   });
 
-  group('anchorsOfBody (P17 scoped parse)', () {
+  group('anchorsOfBody (scoped parse)', () {
     // Each body has no link syntax, so it takes the scoped parse; its anchors
     // must equal the full parse's.
     void pinsToFullParse(String name, String body) {

@@ -39,7 +39,7 @@ void main() {
       expect(pageStylesheet, contains('section.doc { break-before: page; }'));
     });
 
-    test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: loads nothing and uses '
+    test('loads nothing and uses '
         'system fonts only', () {
       expect(pageStylesheet, isNot(contains('@import')));
       expect(pageStylesheet, isNot(contains('url(')));
@@ -56,7 +56,7 @@ void main() {
       expect(pageStylesheet, contains('border:'));
     });
 
-    test('f05/us02/fr05, DP4: print keeps colors and drops the body box', () {
+    test('print keeps colors and drops the body box', () {
       const screenBody =
           'margin: 2rem auto; max-width: 56rem; padding: 0 1rem;';
       const printColors =
@@ -109,7 +109,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr05, s03/inv25: the stylesheet ends with the page '
+    test('the stylesheet ends with the page '
         'rule', () {
       const rule = '@page { size: A4 portrait; margin: 20mm; }';
       final html = _page(const [_oneDoc]);
@@ -125,7 +125,7 @@ void main() {
       expect(landscape, contains('@page { size: A5 landscape; margin: 1in; }'));
     });
 
-    test('f05/us02/fr05, s03/inv25: no page number or header', () {
+    test('no page number or header', () {
       final html = _page(const [_oneDoc]);
 
       expect(html, isNot(contains('@top-')));
@@ -145,7 +145,7 @@ void main() {
       expect(html, contains('<title>&lt;x&gt;</title>'));
     });
 
-    test('f05/us02/fr02/e03, s03/inv13: inlines mermaid once, the license '
+    test('inlines mermaid once, the license '
         'comment first, then starts it', () {
       final html = _page(const [_oneDoc]);
 
@@ -158,7 +158,7 @@ void main() {
       expect(html, endsWith('$_start</body></html>\n'));
     });
 
-    test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: the csp meta denies every '
+    test('the csp meta denies every '
         'fetch', () {
       final html = _page(const [_oneDoc]);
 
@@ -174,7 +174,7 @@ void main() {
       expect(html, isNot(contains("script-src 'unsafe-inline'")));
     });
 
-    test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: a doc body with an inline '
+    test('a doc body with an inline '
         'script, an external image, and an external script follows the csp '
         'meta; only the two page scripts carry the csp nonce', () {
       final html = _page(const [
@@ -198,7 +198,7 @@ void main() {
       expect(withoutMermaid, contains("default-src 'none'"));
     });
 
-    test('f05/us02/fr02/e04, s03/inv13: every page gets a fresh nonce', () {
+    test('every page gets a fresh nonce', () {
       final first = _cspNonce.firstMatch(_page(const [_oneDoc]))!.group(1);
       final second = _cspNonce.firstMatch(_page(const [_oneDoc]))!.group(1);
 
@@ -206,7 +206,7 @@ void main() {
       expect(first, matches(RegExp(r'^[A-Za-z0-9_-]{22}==$')));
     });
 
-    test('f05/us02/fr02/e04, s03/inv13, NFR-Pr01: without the mermaid script '
+    test('without the mermaid script '
         'nothing external is loaded', () {
       final html = _page(const [_oneDoc]).replaceAll(mermaidScript, '');
 
@@ -307,7 +307,7 @@ void main() {
       expect(html, isNot(contains('class="draft"')));
     });
 
-    test('f05/us02/fr02/e03, s03/inv13: a mermaid fence becomes a '
+    test('a mermaid fence becomes a '
         'pre.mermaid with its source escaped', () {
       final html = _body(
         Doc.parse('# T\n\n```mermaid\ngraph TD; A-->B\n```\n'),

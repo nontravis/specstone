@@ -87,7 +87,7 @@ List<String> _mermaidWarnings(CheckReport report) => [
 ];
 
 void main() {
-  test('E01 E02: a refused block is one finding at its fence line plus the named block line, keyed by the diagram', () async {
+  test('a refused block is one finding at its fence line plus the named block line, keyed by the diagram', () async {
     final node = _FakeNode({_refused: _refusedAnswer});
     final project = await _project(architecture: _refused);
 
@@ -117,7 +117,7 @@ void main() {
     expect(finding.keys, isEmpty);
   });
 
-  test('E03: an error that names no line sits at the opening fence', () async {
+  test('an error that names no line sits at the opening fence', () async {
     final node = _FakeNode({
       _refused: const _Answer(
         diagram: 'sequence',
@@ -134,23 +134,20 @@ void main() {
     ]);
   });
 
-  test(
-    'E04: a block that parses gives no finding, and no warning prints',
-    () async {
-      final node = _FakeNode({});
-      final project = await _project(architecture: _parsing);
+  test('a block that parses gives no finding, and no warning prints', () async {
+    final node = _FakeNode({});
+    final project = await _project(architecture: _parsing);
 
-      final report = await _check(project, node.runner);
+    final report = await _check(project, node.runner);
 
-      expect(_parseFindings(report), isEmpty);
-      expect(report.warnings, isEmpty);
-      expect(node.sent, [
-        [_parsing],
-      ]);
-    },
-  );
+    expect(_parseFindings(report), isEmpty);
+    expect(report.warnings, isEmpty);
+    expect(node.sent, [
+      [_parsing],
+    ]);
+  });
 
-  test('E07 E08: with no node an unstored block gives no finding and stores nothing, while a stored block reports', () async {
+  test('with no node an unstored block gives no finding and stores nothing, while a stored block reports', () async {
     final project = await _project(architecture: _refused, feature: _parsing);
     await _check(project, _FakeNode({_refused: _refusedAnswer}).runner);
     File.fromUri(project.uri.resolve('docs/$loginFeature'))
@@ -172,7 +169,7 @@ void main() {
     ]);
   });
 
-  test('E11: a second run with every row stored starts no process, prints no warning, and reports from the rows', () async {
+  test('a second run with every row stored starts no process, prints no warning, and reports from the rows', () async {
     final project = await _project(architecture: _refused);
     await _check(project, _FakeNode({_refused: _refusedAnswer}).runner);
     final second = _FakeNode({});
@@ -186,7 +183,7 @@ void main() {
     ]);
   });
 
-  test('E12: an edited block parses again', () async {
+  test('an edited block parses again', () async {
     final project = await _project(architecture: _parsing);
     await _check(project, _FakeNode({}).runner);
     File.fromUri(project.uri.resolve('docs/$loginArchitecture'))
@@ -201,7 +198,7 @@ void main() {
     expect(_parseFindings(report), hasLength(1));
   });
 
-  test('E13: after the index is deleted every block parses again', () async {
+  test('after the index is deleted every block parses again', () async {
     final project = await _project(architecture: _parsing, feature: _refused);
     await _check(project, _FakeNode({_refused: _refusedAnswer}).runner);
     for (final suffix in ['', '-wal', '-shm']) {
@@ -215,7 +212,7 @@ void main() {
     expect(next.sent.single, unorderedEquals([_parsing, _refused]));
   });
 
-  test('E14: a node label with an unquoted bracket gives the parse finding and the label finding', () async {
+  test('a node label with an unquoted bracket gives the parse finding and the label finding', () async {
     const block = 'flowchart TD\nA[Save (draft)] -->|reads| B[Index]';
     final node = _FakeNode({
       block: const _Answer(
@@ -240,7 +237,7 @@ void main() {
     );
   });
 
-  test('E21: a write met by a held lock still returns the findings, stores nothing, and warns with the code', () async {
+  test('a write met by a held lock still returns the findings, stores nothing, and warns with the code', () async {
     final project = await _project(architecture: _refused);
     final session = openSession(
       project,
@@ -275,7 +272,7 @@ void main() {
     ]);
   });
 
-  test('E10: a partial answer reports and stores the answered block, warns once, and leaves the other unstored', () async {
+  test('a partial answer reports and stores the answered block, warns once, and leaves the other unstored', () async {
     final project = await _project(architecture: _refused, feature: _parsing);
     final node = _FakeNode(
       {_refused: _refusedAnswer},
@@ -302,7 +299,7 @@ void main() {
   });
 
   test(
-    'E21: a write refused as index_not_writable still returns the findings and warns with the code',
+    'a write refused as index_not_writable still returns the findings and warns with the code',
     skip: unreadablePathSkipReason(),
     () async {
       final project = await _project(architecture: _refused);
@@ -364,7 +361,7 @@ void main() {
   );
 
   group('oneLineMessage', () {
-    test('E22: a jison error reads on one line', () {
+    test('a jison error reads on one line', () {
       expect(
         oneLineMessage(
           "Parse error on line 2:\n...equenceDiagramA->>B\n----------------------^\nExpecting 'TXT', got 'NEWLINE'",
@@ -373,7 +370,7 @@ void main() {
       );
     });
 
-    test('E23: a Langium error loses its trailing space', () {
+    test('a Langium error loses its trailing space', () {
       expect(
         oneLineMessage(
           'Parsing failed: Lexer error on line 2, column 9: unexpected character: ->x<- at offset: 12, skipped 1 characters. ',

@@ -133,6 +133,8 @@ final class _MatrixWalk {
             '`<test name>`" or "- <item> <edge case> skipped: <reason>"',
             {'row': text},
           );
+        case final MatrixRow row when _isRecordRules(row):
+          break;
         case final MatrixRow row:
           yield* _resolved(row);
           yield* _related(row);
@@ -140,9 +142,16 @@ final class _MatrixWalk {
     }
   }
 
-  Iterable<Finding> _resolved(MatrixRow row) sync* {
+  // The record entry rule reports a row of an item outside the feature, and
+  // of a skipped FR, alone.
+  bool _isRecordRules(MatrixRow row) {
     final item = _items[row.item];
-    if (item == null) return;
+    if (item == null) return true;
+    return item.docTypeId == frType && isSkippedIn(_context, _record, item);
+  }
+
+  Iterable<Finding> _resolved(MatrixRow row) sync* {
+    final item = _items[row.item]!;
     if (item.docTypeId != frType) {
       yield _finding(
         FindingKind.matrixRowUnresolved,
