@@ -24,9 +24,6 @@ import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
-export 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
-    show BodyLine;
-
 /// Why a rule reads a code file, which names what an unreadable file leaves
 /// unchecked.
 enum CodeRead {

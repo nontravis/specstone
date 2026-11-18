@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';

@@ -9,8 +9,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 export 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show acceptanceSectionId;
-export 'package:specstone_core/src/index_query/held_sections.dart'
-    show BodyLine;
 
 const _statementPrefix = '- **Statement:**';
 const _goalIdPrefix = 'PG-';
