@@ -3,7 +3,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/section_fields.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
-    show RequiredWhenLint, WhenField;
+    show MergedSection, RequiredWhenLint, WhenField;
 
 /// Whether a section with [whenField] belongs on [doc]: it sets none, or the
 /// doc's field holds one of its values; an unset field holds none.
@@ -27,6 +27,14 @@ bool requiredWhenMet(
   if (index == null) return false;
   final fields = readSectionFields(context.itemsIn(doc, index));
   return fields.values[rule.field]?.contains(rule.value) ?? false;
+}
+
+/// Whether [section] is required on [doc]: it sets `required` and applies, or
+/// its `required_when` rule is met.
+bool isRequiredOn(CheckContext context, IndexedDoc doc, MergedSection section) {
+  if (section.required && appliesTo(doc, section.whenField)) return true;
+  final rule = section.requiredWhen;
+  return rule != null && requiredWhenMet(context, doc, rule);
 }
 
 /// Returns the `required_section_missing` finding of [sectionId] on [doc].

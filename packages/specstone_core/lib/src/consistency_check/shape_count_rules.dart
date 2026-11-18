@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/required_sections.dart';
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/readability_facts.dart';
@@ -20,9 +21,11 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
     final template = context.templateSectionAt(doc, i);
     if (template == null) continue;
     final headerLine = lines.sectionLines[i];
+    final blankRequired =
+        isBlankAt(context, doc, i) && isRequiredOn(context, doc, template);
     final minLines = template.minLines;
     final actualLines = lines.sectionCounts[i].lines;
-    if (minLines != null && actualLines < minLines) {
+    if (!blankRequired && minLines != null && actualLines < minLines) {
       yield context.finding(
         doc,
         FindingKind.linesUnderLimit,
@@ -56,7 +59,14 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
       yield* _sentenceFindings(context, doc, section, limit);
     }
     if (count != null) {
-      yield* _countFindings(context, doc, section, headerLine, count);
+      yield* _countFindings(
+        context,
+        doc,
+        section,
+        headerLine,
+        count,
+        skipMin: blankRequired,
+      );
     }
   }
 }
@@ -155,14 +165,15 @@ Iterable<Finding> _countFindings(
   IndexedDoc doc,
   _Block section,
   int headerLine,
-  ItemCountLint lint,
-) sync* {
+  ItemCountLint lint, {
+  required bool skipMin,
+}) sync* {
   if (!lint.perSubsection) {
-    yield* _countIn(context, doc, section, headerLine, lint);
+    yield* _countIn(context, doc, section, headerLine, lint, skipMin: skipMin);
     return;
   }
   for (final (:line, :block) in section.subsections) {
-    yield* _countIn(context, doc, block, line, lint);
+    yield* _countIn(context, doc, block, line, lint, skipMin: skipMin);
   }
 }
 
@@ -171,10 +182,11 @@ Iterable<Finding> _countIn(
   IndexedDoc doc,
   _Block block,
   int line,
-  ItemCountLint lint,
-) sync* {
+  ItemCountLint lint, {
+  required bool skipMin,
+}) sync* {
   final actual = block.items.length;
-  final min = lint.min;
+  final min = skipMin ? null : lint.min;
   final max = lint.max;
   final (bound, message) = switch ((min, max)) {
     (final min?, _) when actual < min => (

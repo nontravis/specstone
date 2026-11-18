@@ -400,28 +400,41 @@ void main() {
     },
   );
 
-  test(
-    'a section with an empty body under its min_lines floor reports actual 0',
-    () async {
-      final edits = fr('A wrong password must not sign in.', '');
-      final found = await _found(
-        _frLayer,
-        _sectionLint('rationale', '      min_lines: 2\n'),
-        edits: edits,
-      );
-      expect(found, hasLength(1));
-      expect(found.single.kind, FindingKind.linesUnderLimit);
-      expect(found.single.line, lineOfFirst(_project, loginFr, '## Rationale'));
-      expect(
-        found.single.toJson(),
-        allOf(
-          containsPair('section', 'rationale'),
-          containsPair('limit', 2),
-          containsPair('actual', 0),
-        ),
-      );
-    },
-  );
+  test('a blank required section skips min_lines', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', '      min_lines: 2\n'),
+      edits: fr('A wrong password must not sign in.', ''),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a blank required section skips the item_count minimum', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', '''
+      item_count:
+        min: 3
+'''),
+      edits: fr('A wrong password must not sign in.', ''),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a blank optional section keeps its min_lines result', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('input_output', '      min_lines: 2\n'),
+      edits: fr('## Edge cases', '## Input / Output\n\n## Edge cases'),
+    );
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.linesUnderLimit);
+    expect(
+      found.single.line,
+      lineOfFirst(_project, loginFr, '## Input / Output'),
+    );
+    expect(found.single.toJson(), containsPair('actual', 0));
+  });
 
   test('one body line under a min_lines floor of 2 reports actual 1, the '
       'header line counting none', () async {
@@ -463,6 +476,34 @@ void main() {
         containsPair('limit', 2),
         containsPair('actual', 1),
       ),
+    );
+  });
+
+  test('a blank persona snapshot reports the section and no floor', () async {
+    const personaPath = 'prds/personas/buyer/PERSONA.md';
+    final project = await writeCheckProject(
+      extra: {
+        'docs/$personaPath':
+            '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n'
+            '# Buyer\n\n## Snapshot\n',
+      },
+    );
+    final findings = (await checkOf(project)).findings
+        .where((f) => f.path == personaPath)
+        .toList();
+    final missing = findings.where(
+      (f) =>
+          f.kind == FindingKind.requiredSectionMissing &&
+          f.toJson()['section'] == 'snapshot',
+    );
+    expect(missing, hasLength(1));
+    expect(
+      missing.single.line,
+      lineOfFirst(project, personaPath, '## Snapshot'),
+    );
+    expect(
+      findings.map((f) => f.kind),
+      isNot(contains(FindingKind.linesUnderLimit)),
     );
   });
 
