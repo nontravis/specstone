@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show withoutLegacyTitleLabel;
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
@@ -24,9 +26,6 @@ import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
 import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
     show LabelTree;
 
-final _numberedTitle = RegExp(
-  r'^(?:[A-Z][A-Z0-9]*-\d+|[a-z][a-z0-9_]*(?:/[a-z][a-z0-9_]*)+) — ',
-);
 final _humanLine = RegExp(r'^- \*\*Human:\*\* (.+)$', multiLine: true);
 
 const _featureNameHeader = 'Feature name';
@@ -254,7 +253,7 @@ String? _retitled(String lf, LegacyKind kind) {
   final title = Doc.parse(lf).title;
   if (title == null) return null;
   final fixed = _fixedTitles[kind];
-  final retitled = fixed ?? title.replaceFirst(_numberedTitle, '');
+  final retitled = fixed ?? withoutLegacyTitleLabel(title);
   return retitled == title ? null : withTitle(lf, retitled);
 }
 

@@ -148,11 +148,6 @@ final _allowed = <_Allowed>[
     'Legacy reader: finds a frontmatter key line by name.',
   ),
   _core(
-    'setup_migration/legacy_rewrites.dart',
-    r"""RegExp(r'^[A-Z][A-Z0-9]*-\d+ — '""",
-    'Legacy reader: drops a pre-1.2.0 `US-01 — ` title prefix.',
-  ),
-  _core(
     'setup_migration/legacy_tree.dart',
     r"""RegExp(r'^:?-+:?$'""",
     'Legacy reader: table delimiter cell, no reference.',
