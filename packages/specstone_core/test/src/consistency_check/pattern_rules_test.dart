@@ -167,6 +167,28 @@ void main() {
     expect(found.single.line, 14);
   });
 
+  test('doc-level entries hit every line of a line_prefix section, a section '
+      'entry only the prefixed one', () async {
+    final found = await _findings(
+      '${_banned('''
+      - id: zed
+        pattern: 'zed'
+        message: no zed
+''')}${_sectionLayer('statement', '''
+      line_prefix: '- **Statement:**'
+      banned_patterns:
+        add:
+          - id: here
+            pattern: 'here'
+            message: no here
+''')}',
+      edits: fr(checkPasswordStatement, '- **Statement:** zed here\nzed there'),
+    );
+    expect([
+      for (final f in found) (f.toJson()['pattern'], f.line),
+    ], unorderedEquals([('zed', 14), ('zed', 15), ('here', 14)]));
+  });
+
   test('a match naming a doc-tree folder, or a run of them, '
       'gives nothing', () async {
     final found = await _findings(
@@ -207,6 +229,50 @@ void main() {
     // The shipped doc_citation entry also fires here; only `tree` is ours.
     final own = allScope.where((f) => f.toJson()['pattern'] == 'tree');
     expect(own.map((f) => f.toJson()['match']), ['docs/superpowers']);
+  });
+
+  test('text and all entries still report a bare folder name', () async {
+    final found = await _findings(
+      _banned('''
+      - id: by-text
+        pattern: 'f01_login'
+        message: no folder
+      - id: by-all
+        pattern: 'us01_email_login'
+        message: no folder
+        in: all
+'''),
+      edits: fr(
+        checkPasswordStatement,
+        'The system shall refuse f01_login and `us01_email_login` within 1 s.',
+      ),
+    );
+    expect(
+      [for (final f in found) (f.toJson()['pattern'], f.toJson()['match'])],
+      unorderedEquals([
+        ('by-text', 'f01_login'),
+        ('by-all', 'us01_email_login'),
+      ]),
+    );
+  });
+
+  test('a span naming a doc the project holds is no hit, as an absent '
+      'name is none', () async {
+    final found = await _findings(
+      _banned(r'''
+      - id: any_code
+        pattern: '\S+'
+        message: no code
+        in: code
+'''),
+      edits: fr(
+        checkPasswordStatement,
+        'The system shall refuse `login/email_login` and '
+        '`fr:login/email_login/check_password` and `feature:login` '
+        'and `parseDoc()` within 1 s.',
+      ),
+    );
+    expect(found.map((f) => f.toJson()['match']).toSet(), {'parseDoc()'});
   });
 
   test('a code span the grammar reads as a doc address with no lookup is no '
@@ -495,6 +561,35 @@ sections:
       );
     });
 
+    test('a section entry and a required entry never read the value', () async {
+      _project = await writeCheckProject(
+        extra: {
+          featureLayer: '''
+sections:
+  - id: problem
+    lint:
+      banned_patterns:
+        add:
+          - id: sign-word
+            pattern: 'sign in'
+            message: no sign
+      required_patterns:
+        - id: sign-needed
+          pattern: 'sign in'
+          message: Write sign in
+''',
+        },
+      );
+      final report = await checkOf(_project);
+      final own = [
+        for (final f in report.findings)
+          if (f.toJson()['pattern'] == 'sign-word' ||
+              f.toJson()['pattern'] == 'sign-needed')
+            (f.kind, f.toJson()['pattern']),
+      ];
+      expect(own, [(FindingKind.patternMissing, 'sign-needed')]);
+    });
+
     test('a code span the grammar reads as an address is no hit', () async {
       final found = await fieldFindings(
         'Uses `index_query/read_doc` today.',
@@ -534,6 +629,22 @@ sections:
         await citationsIn('$open\n- Applies the ruling.\n$generatedEndMarker'),
         isEmpty,
       );
+    });
+
+    test('a history match is not reported', () async {
+      expect(
+        await citationsIn(
+          '$open\n- Previously the login was slow.\n$generatedEndMarker',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a history match beside the block is reported', () async {
+      final found = await citationsIn(
+        '$open\n- A login.\n$generatedEndMarker\n\nPreviously slow.',
+      );
+      expect(found.map((f) => f.toJson()['pattern']), ['history']);
     });
 
     test('the same text beside the block is reported', () async {
