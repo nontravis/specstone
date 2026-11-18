@@ -71,6 +71,16 @@ void main() {
     }
   });
 
+  test('the goal and glossary docs are named by their doc type id', () {
+    for (final (path, id) in [
+      ('prds/GOAL.md', 'goal'),
+      ('prds/GLOSSARY.md', 'glossary'),
+    ]) {
+      final doc = parse(path, '# T\n').doc;
+      expect((doc.docTypeId, doc.name), (id, id));
+    }
+  });
+
   test('a persona and an anti-persona in one slug folder share the name', () {
     expect(parse('prds/personas/buyer/PERSONA.md', '# B\n').doc.name, 'buyer');
     expect(
@@ -256,6 +266,24 @@ void main() {
     },
   );
 
+  test('a typed doc the parser fails on keeps its title, frontmatter values, '
+      'and sections', () {
+    final parsed = parse(
+      'prds/features/f01_login/FEATURE.md',
+      '---\nvision: [PV-01]\n---\n\n# Login\n\n## Problem\n'
+          'See [y](y.md).\n\n[a]:<b\\',
+    );
+
+    expect(parsed.doc.title, 'Login');
+    expect(parsed.doc.valuesOf('vision'), ['PV-01']);
+    expect(parsed.content.sections.map((s) => s.key), ['problem']);
+    expect(parsed.content.links, isEmpty);
+    expect(parsed.doc.warnings, [
+      markdownUnparsedWarning('prds/features/f01_login/FEATURE.md'),
+    ]);
+    expect(parsed.content.itemFacts.sectionItems, hasLength(1));
+  });
+
   test(
     'the warning of a doc names the parser failing on it, or the link '
     'scan and the parser reading its links differently, and nothing else',
@@ -360,8 +388,8 @@ void main() {
     expect(nameOf(domainPath), 'shop/cart');
   });
 
-  test('both target twins '
-      'index with their own target and one target-free name', () {
+  test('both target twins index with their own target '
+      'and one target-free name', () {
     final targeted = DocTypeMatcher(
       MergedSet(
         docTypes: [

@@ -6,6 +6,8 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/setup_migration/project_root.dart'
+    show legacyContextPath;
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -174,6 +176,35 @@ void main() {
         isTrue,
       );
     });
+  });
+
+  group('project migrate: .specstone must be a real folder', () {
+    Future<void> refusesFile({required bool dryRun}) async {
+      final base = await writeTree({
+        'proj/$legacyContextPath': '# D-01\n',
+        'proj/.specstone': 'not a folder\n',
+      });
+      final before = _snapshot(base);
+
+      await expectLater(
+        () => runMigrate(
+          _migrate(Directory('${base.path}/proj'), dryRun: dryRun),
+        ),
+        _refusesSpecstone(),
+      );
+
+      expect(_snapshot(base), before);
+    }
+
+    test(
+      'a bare migrate refuses a .specstone file before it touches it',
+      () => refusesFile(dryRun: false),
+    );
+
+    test(
+      'a migrate dry run refuses a .specstone file before it touches it',
+      () => refusesFile(dryRun: true),
+    );
   });
 
   group('project open: the docs-link layout stays', () {

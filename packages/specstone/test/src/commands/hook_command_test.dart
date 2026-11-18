@@ -2,9 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone/src/command_runner.dart';
+import 'package:specstone_core/specstone_core.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
+import '../../../../specstone_core/test/helpers/posix_modes.dart';
+import '../../../../specstone_core/test/helpers/write_fixture.dart'
+    show testHome;
 import '../../helpers/built_cli.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
@@ -254,6 +260,76 @@ void main() {
     );
   }
 
+  test('no project exits 0 with nothing printed where search refuses with '
+      'project_not_found, exit 78', () async {
+    final root = await writeTree({'docs/prds/x.md': '# X\n'});
+    final hook = await postEdit(
+      root,
+      [root.path, 'docs', 'prds', 'x.md'].join(Platform.pathSeparator),
+    );
+    expect(hook.status, 0);
+    expect(hook.out, isEmpty);
+    expect(hook.err, isEmpty);
+
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['search', 'login', '--json']), 78);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'project_not_found',
+    );
+    expect(out.toString(), isEmpty);
+  });
+
+  test('an index_busy fault prints its line on stderr and exits 75, '
+      'never 2', () async {
+    final root = await writeCheckProject();
+    final path = abs(root, loginFr);
+    expect((await postEdit(root, path)).status, 0);
+    final holder = sqlite3.open('${root.path}/.specstone/index.sqlite')
+      ..execute('BEGIN IMMEDIATE');
+    addTearDown(
+      () => holder
+        ..execute('ROLLBACK')
+        ..close(),
+    );
+    File(path).writeAsStringSync('${File(path).readAsStringSync()}\nMore.\n');
+    final out = StringBuffer();
+    final err = StringBuffer();
+    final runner = SpecstoneCommandRunner(
+      out: out,
+      err: err,
+      templates: TemplateResolver(),
+      workingDirectory: root,
+      homeDirectory: testHome(),
+      console: FakeConsole(input: _request(path)),
+      busyTimeout: const Duration(milliseconds: 200),
+    );
+
+    final status = await runner.run(['hook', 'post-edit']);
+
+    expect(status, 75);
+    expect(out.toString(), isEmpty);
+    expect(err.toString().trimRight(), isNotEmpty);
+    expect(err.toString().trimRight().split('\n'), hasLength(1));
+  });
+
+  test('a run with findings prints no decision key and exits 0, never '
+      '2', () async {
+    final root = await writeCheckProject(extra: _brokenStory());
+
+    final result = await postEdit(root, abs(root, loginStory));
+
+    expect(result.status, 0);
+    final decoded = jsonDecode(result.out) as Map<String, Object?>;
+    expect(decoded.keys, ['hookSpecificOutput']);
+    expect((decoded['hookSpecificOutput']! as Map<String, Object?>).keys, [
+      'hookEventName',
+      'additionalContext',
+    ]);
+    expect(result.out, isNot(contains('decision')));
+    expect(result.out, isNot(contains('block')));
+  });
+
   test('hook post-edit takes no argument', () async {
     final root = await writeCheckProject();
     final (:runner, :out, :err) = writeRunner(
@@ -431,6 +507,40 @@ void main() {
         expect(result.out, isEmpty);
         expect(result.err, isEmpty);
       },
+    );
+
+    test(
+      'with an index the hook cannot write it hands back the finding and '
+      'prints no not-stored warning, exit 0',
+      () async {
+        final root = await writeCheckProject(extra: _refusedArchitecture());
+        final made = await Process.run(bin, [
+          'structure',
+        ], workingDirectory: root.path);
+        expect(made.exitCode, 0, reason: '${made.stdout}\n${made.stderr}');
+        final index = File('${root.path}/.specstone/index.sqlite');
+        expect(index.existsSync(), isTrue);
+        Process.runSync('chmod', ['444', index.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', index.path]));
+
+        final check = await Process.run(bin, [
+          'check',
+        ], workingDirectory: root.path);
+        expect(check.stderr, contains('Mermaid parse results not stored'));
+
+        final result = await spawn(
+          root,
+          _request(abs(root, loginArchitecture)),
+        );
+
+        expect(result.status, 0, reason: '${result.out}\n${result.err}');
+        expect(result.out, contains('diagram_parse_failed'));
+        expect(result.out, isNot(contains('not stored')));
+        expect(result.err, isEmpty);
+      },
+      skip:
+          unreadablePathSkipReason() ??
+          (_nodeStarts() ? null : 'node is not on PATH'),
     );
 
     test('the built binary exits 64 on stdin that is no JSON', () async {

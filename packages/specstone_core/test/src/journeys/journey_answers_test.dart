@@ -367,6 +367,28 @@ void main() {
       });
       expect(answer.warnings, ['$_slug: step 2 names no scenario']);
     });
+
+    test(
+      '--json leaves out the group of steps on no path, and warns',
+      () async {
+        final answer = await _paths([_step('1', 1), _step('2', 2, after: '7')]);
+
+        final journeys = answer.json['journeys']! as List<Object?>;
+        final paths =
+            (journeys.single! as Map<String, Object?>)['paths']!
+                as List<Object?>;
+        expect(paths, hasLength(1));
+        final path = paths.single! as Map<String, Object?>;
+        expect(path['id'], '1');
+        expect(path['steps']! as List<Object?>, hasLength(1));
+        final text = answer.json.toString();
+        expect(text, isNot(contains('no path')));
+        expect(text, isNot(contains('Heading 2')));
+        expect(answer.warnings, [
+          '$_slug: step 2 follows no step above it, so it is on no path',
+        ]);
+      },
+    );
   });
 
   group('answerJourneyCode', () {
@@ -457,6 +479,54 @@ void main() {
       },
     );
 
+    test('an FR listed under a step prints - none when the merged set holds '
+        'no record doc type', () async {
+      final answer = await _code(
+        [_step('2', 2)],
+        extra: {
+          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+        },
+      );
+
+      expect(
+        answer.text,
+        endsWith(
+          '${_stepLine('2', 2)}\n  $_story (user_story)\n  - none\n'
+          '  $frName (fr)\n  - none\n',
+        ),
+      );
+      expect(answer.warnings, isEmpty);
+    });
+
+    test('an FR of a sibling story tracing the step prints its record '
+        'code paths', () async {
+      const sibling = 'docs/prds/features/f01_login/us02_reset_password';
+      final answer = await _code(
+        [_step('1', 2)],
+        extra: {
+          ..._oneTarget([
+            storyCode,
+            frCode,
+            'reset_password/send_link:app/lib/reset.dart:sendLink 5d1e0c4b7a92',
+          ]),
+          '$sibling/USER_STORY.md': '# Reset\n\n## Use Case\nReset.\n',
+          '$sibling/fr01_send_link.md':
+              '---\ntraced_from:\n  - S1\n  - $_story#S2\n---\n\n'
+              '# sendLink\n\n## Statement\nThe system shall.\n',
+        },
+      );
+
+      expect(
+        answer.text,
+        endsWith(
+          '  $frName (fr)\n'
+          '  - implements: app/lib/login.dart:checkPassword\n'
+          '  login/reset_password/send_link (fr)\n'
+          '  - implements: app/lib/reset.dart:sendLink\n',
+        ),
+      );
+    });
+
     test('a record code path naming a missing file '
         'prints as written', () async {
       final answer = await _code([
@@ -498,7 +568,7 @@ void main() {
       );
     });
 
-    test('a step naming a missing '
+    test('a code listing of a step naming a missing '
         'story, or S9 of a five-scenario story, prints its line with no '
         'entries and a warning', () async {
       final answer = await _code([

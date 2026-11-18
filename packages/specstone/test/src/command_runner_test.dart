@@ -83,6 +83,20 @@ void main() {
       );
     });
 
+    test("the help command lists folder as `Print the project's "
+        '.specstone folder.`', () async {
+      expect(await runner.run(['help']), 0);
+      expect(
+        out.toString(),
+        matches(
+          RegExp(
+            r"^\s+folder\s+Print the project's \.specstone folder\.$",
+            multiLine: true,
+          ),
+        ),
+      );
+    });
+
     test(
       'mcp is no command: mcp --help prints usage to stderr and exits 64',
       () async {

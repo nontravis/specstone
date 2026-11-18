@@ -498,6 +498,41 @@ void main() {
       throwsA(isA<IndexFault>()),
     );
   });
+  test('get of a path holding # then a section key splits at the first #: doc_not_found, exit 64, naming the text before it', () async {
+    final noted = await indexWith({'docs/prds/notes#draft.md': '# Draft\n'});
+
+    expect(
+      () => answerGet(noted, ['prds/notes#draft.md#scope']),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+            .having((f) => f.exitStatus, 'exitStatus', 64)
+            .having((f) => f.message, 'message', contains('prds/notes')),
+      ),
+    );
+  });
+  test('get splits a key off the first #, never the last, once the whole text names no doc', () async {
+    final noted = await indexWith({
+      'docs/prds/notes#draft.md': '# Draft\n\n## Scope\n\nInner.\n',
+    });
+
+    for (final name in ['prds/notes#draft.md#scope', 'prds/notes#scope']) {
+      expect(
+        () => answerGet(noted, [name]),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no doc carries the name prds/notes',
+              ),
+        ),
+        reason: name,
+      );
+    }
+    expect(answerGet(noted, ['prds/notes#draft.md']).text, contains('Inner.'));
+  });
   group('several names', () {
     const featurePath = 'prds/features/f01_login/FEATURE.md';
     const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';

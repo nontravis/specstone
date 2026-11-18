@@ -118,6 +118,65 @@ void main() {
       expect(entry.file, 'refs/handbook.md');
     });
 
+    test('an entry with no title exits with status 78, naming the file '
+        'and the key', () {
+      expect(
+        () => parseRef('{url: https://x}'),
+        throwsA(
+          _fault(
+            FaultCode.missingKey,
+            key: 'reference[0].title',
+          ).having((f) => f.exitStatus, 'exit status', 78),
+        ),
+      );
+    });
+
+    test('an entry holding url, file, and doc together is '
+        'reference_link_conflict, exit 78', () {
+      expect(
+        () => parseRef(
+          '{title: T, url: https://x, file: refs/handbook.md, doc: prd/feature}',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.referenceLinkConflict,
+            key: 'reference[0]',
+          ).having((f) => f.exitStatus, 'exit status', 78),
+        ),
+      );
+    });
+
+    test('a file outside the folder is refused with status 78, naming '
+        'the cited file', () {
+      for (final cited in ['/etc/hosts', 'refs/../../x.md']) {
+        expect(
+          () => parseRef('{title: T, file: $cited}'),
+          throwsA(
+            _fault(FaultCode.referenceFileOutside, key: 'reference[0]')
+                .having((f) => f.message, 'message', contains(cited))
+                .having((f) => f.exitStatus, 'exit status', 78),
+          ),
+          reason: cited,
+        );
+      }
+    });
+
+    test('a doc entry in a shipped or personal layer is refused with '
+        'status 78, naming the file and the entry', () {
+      for (final kind in [LayerKind.shipped, LayerKind.personal]) {
+        expect(
+          () => parseRef('{title: T, doc: prd/feature}', kind: kind),
+          throwsA(
+            _fault(
+              FaultCode.referenceDocOutsideProject,
+              key: 'reference[0]',
+            ).having((f) => f.exitStatus, 'exit status', 78),
+          ),
+          reason: '$kind',
+        );
+      }
+    });
+
     test('an unknown entry key is unknown_key', () {
       expect(
         () => parseRef('{title: T, href: https://x}'),

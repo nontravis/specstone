@@ -144,6 +144,9 @@ const scenarioIdPrefix = 'Scenario ';
 /// Id of the story section that holds the scenarios.
 const acceptanceSectionId = 'acceptance_criteria';
 
+/// Key of the requirement section that holds the edge cases.
+const edgeCasesSectionKey = 'edge_cases';
+
 /// Reads the ID of [prefix] at the start of [text], after one optional `**`;
 /// null when [text] does not open with [prefix] and an ASCII digit.
 IdRead? readItemId(String text, String prefix) =>
@@ -578,6 +581,14 @@ final _rootedOrDrivePath = RegExp(r'^(?:[/\\]|[A-Za-z]:)');
 /// Whether [path] opens with a `/` or `\`, or a drive letter and `:`: a path
 /// that is not relative to the folder it is read in.
 bool isRootedOrDrivePath(String path) => _rootedOrDrivePath.hasMatch(path);
+
+final _legacyTitleLabel = RegExp(
+  r'^(?:[A-Z][A-Z0-9]*-\d+|[a-z][a-z0-9_]*(?:/[a-z][a-z0-9_]*)+) — ',
+);
+
+/// Returns [title] without its leading item ID or doc address and ` — `.
+String withoutLegacyTitleLabel(String title) =>
+    title.replaceFirst(_legacyTitleLabel, '');
 
 final _angleDestinationOpen = RegExp(r'\]\(\s*<');
 

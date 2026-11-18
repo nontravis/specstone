@@ -206,6 +206,29 @@ void main() {
     );
   });
 
+  test(
+    'two markers on one line give two findings at that line with the '
+    'values 2 s and 5 MB, and a longer value is cut to 80 code points',
+    () async {
+      final (:project, :found) = await _run(
+        _frWith(
+          'Cite ${_marker}2 s $_marker'
+          '5 MB',
+        ),
+      );
+
+      final line = lineOfFirst(project, loginFr, _marker);
+      expect(found.map((f) => f.line), [line, line]);
+      expect([
+        for (final f in found) f.message,
+      ], unorderedEquals(['${_stillOpen}2 s', '${_stillOpen}5 MB']));
+      expect(tbrValueLimit, 80);
+      final long = 'y' * 81;
+      final cut = await _run(_frWith('Cite $_marker$long'));
+      expect(cut.found.single.message, '$_stillOpen${'y' * 80}\u2026');
+    },
+  );
+
   test('a marker with nothing after it names no value after '
       'the sentence', () async {
     final (:found, project: _) = await _run(

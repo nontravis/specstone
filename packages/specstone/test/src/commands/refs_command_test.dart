@@ -35,6 +35,47 @@ void main() {
     );
     expect(await readRunner(pinned).runner.run(['refs', 'login']), 78);
   });
+  test('no name under --json is the argument_missing error, exit 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+
+    expect(await runner.run(['refs', '--json']), 64);
+
+    expect(out.toString(), isEmpty);
+    expect(jsonDecode(err.toString()), {
+      'error': {
+        'code': 'argument_missing',
+        'message': 'refs needs a name, such as specstone refs login',
+      },
+    });
+  });
+  test('no project is project_not_found and a template fault keeps its '
+      'code, exit 78, with no index read or written', () async {
+    final bare = await writeTree({});
+    final none = readRunner(bare);
+    expect(await none.runner.run(['refs', 'login', '--json']), 78);
+    expect((jsonDecode(none.err.toString()) as Map)['error'], {
+      'code': 'project_not_found',
+      'message': 'no Specstone project: no folder from the working directory upward holds .specstone/config.yaml',
+    });
+    expect(bare.listSync(), isEmpty);
+
+    final pinned = await writeReadProject(
+      extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
+    );
+    final fault = readRunner(pinned);
+    expect(await fault.runner.run(['refs', 'login', '--json']), 78);
+    expect(
+      (jsonDecode(fault.err.toString()) as Map)['error'],
+      containsPair('code', 'pack_pin_newer'),
+    );
+    expect(fault.out.toString(), isEmpty);
+    expect(
+      Directory('${pinned.path}/.specstone')
+          .listSync()
+          .map((entity) => entity.uri.pathSegments.last),
+      ['config.yaml'],
+    );
+  });
   group('two targets', () {
     Future<Directory> twoTargets() => writeReadProject(
       extra: {

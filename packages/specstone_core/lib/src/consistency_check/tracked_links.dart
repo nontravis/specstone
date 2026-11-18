@@ -8,14 +8,21 @@ import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart'
+    show itemKeyOfHead;
+import 'package:specstone_core/src/index_query/item_links.dart'
+    show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart'
     show recordItemsOf;
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart'
+    show verificationMatrixKey;
 
 const _frType = 'fr';
 const _nfType = 'nf';
@@ -33,12 +40,82 @@ const _relax = 'relax';
 /// Whether a tracked link is current, changed, or without a matching entry.
 enum LinkState { clean, suspect, unconfirmed }
 
+/// What kind of upstream block a tracked entry records.
+enum TrackedBlockKind { scenario, item, frStatement, nfrStatement, edgeCase }
+
+/// The upstream block a tracked entry records a fingerprint of.
+final class TrackedBlock {
+  const new({
+    required this.kind,
+    required this.upstream,
+    required this.key,
+    this.section,
+  });
+
+  final TrackedBlockKind kind;
+
+  /// The DocPath of the doc that holds the block.
+  final String upstream;
+
+  /// The block's key in that doc: a scenario key `S<N>`, an item ID, an
+  /// edge case ID, an NFR id, or `Statement` for an FR's Statement.
+  final String key;
+
+  /// The key of the section an item sits in, as a cited section reads it;
+  /// null for any other kind.
+  final String? section;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is TrackedBlock &&
+      other.kind == kind &&
+      other.upstream == upstream &&
+      other.key == key &&
+      other.section == section;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(kind, upstream, key, section);
+}
+
+/// One recorded fingerprint of a downstream doc: a `confirmed` or `overrides`
+/// entry, or a record's Verification matrix row.
+final class TrackedEntry {
+  const new({
+    required this.docPath,
+    required this.entryKey,
+    required this.label,
+    required this.block,
+    this.literal,
+    this.recorded,
+  });
+
+  /// The DocPath of the doc that holds the entry.
+  final String docPath;
+
+  /// `confirmed`, `overrides`, or `verification_matrix` for a row.
+  final String entryKey;
+
+  /// The link label the entry names.
+  final String label;
+
+  /// The block the entry records.
+  final TrackedBlock block;
+
+  /// A row's literal, or a skip row's reason; null for any other entry.
+  final String? literal;
+
+  /// The fingerprint the entry records; null for a row that records none.
+  final String? recorded;
+}
+
 /// One link from a downstream doc to an upstream block.
 final class TrackedLink {
   /// The link [label] traced at [traceLine].
   ///
-  /// [upstream], [block], [source], and [fingerprint] stay null when the
-  /// upstream block is missing; the link then has no [LinkState].
+  /// [upstream], [block], [source], [fingerprint], and [tracked] stay null
+  /// when the upstream block is missing; the link then has no [LinkState].
   const new({
     required this.label,
     required this.traceLine,
@@ -46,6 +123,7 @@ final class TrackedLink {
     this.block,
     this.source,
     this.fingerprint,
+    this.tracked,
     this.entryKey = _confirmedKey,
   });
 
@@ -72,7 +150,86 @@ final class TrackedLink {
 
   /// The Fingerprint of the upstream block now.
   final String? fingerprint;
+
+  /// The upstream block's address, as [trackedBlockTextOf] reads it.
+  final TrackedBlock? tracked;
 }
+
+/// Returns the text of [block] as [context] holds it, or null when its doc or
+/// the block is missing.
+///
+/// The one reader of a tracked block's text, for the check and for the
+/// re-stamp of a restructure write. An item is the first of its ID in the
+/// first held section of its section key, its own text, nested items aside.
+String? trackedBlockTextOf(CheckContext context, TrackedBlock block) {
+  final doc = context.index.at(block.upstream);
+  if (doc == null) return null;
+  return switch (block.kind) {
+    TrackedBlockKind.scenario => context.scenarioBlocksOf(doc)[block.key],
+    TrackedBlockKind.edgeCase => edgeCaseBlocksOf(context, doc)[block.key],
+    TrackedBlockKind.frStatement =>
+      context.heldSection(doc, _statementSection)?.body ?? '',
+    TrackedBlockKind.nfrStatement => context.nfrStatements()[block.key]?.text,
+    TrackedBlockKind.item => _itemTextOf(context, doc, block),
+  };
+}
+
+String? _itemTextOf(CheckContext context, IndexedDoc doc, TrackedBlock block) {
+  final sections = citedSectionsOf(context.contentOf(doc), context.typeOf(doc));
+  final at = sections.indexWhere((section) => section.key == block.section);
+  if (at < 0) return null;
+  final section = sections[at];
+  for (final item in context.itemsIn(doc, at)) {
+    final key = itemKeyOfHead(
+      item.head,
+      isHeading: item.kind == SectionItemKind.heading,
+      prefixId: section.prefixId,
+      isAcceptanceCriteria: section.isAcceptanceCriteria,
+    );
+    if (key == block.key) return item.text;
+  }
+  return null;
+}
+
+/// Returns the `confirmed` and `overrides` entries [doc] records for the
+/// links it tracks, and its Verification matrix rows, each with its block.
+///
+/// A link with no upstream block, or with no entry, yields none; a row whose
+/// edge case is missing yields none, as the check reads them.
+List<TrackedEntry> trackedEntriesOf(CheckContext context, IndexedDoc doc) {
+  final rows = [
+    for (final link in _rowLinksOf(context, doc))
+      TrackedEntry(
+        docPath: doc.docPath,
+        entryKey: verificationMatrixKey,
+        label: link.row.label,
+        block: link.block,
+        literal: matrixRowLiteralOf(link.row),
+        recorded: link.row.fingerprint,
+      ),
+  ];
+  if (_entryKeysOf(context, doc).isEmpty) return rows;
+  final lines = context.linesOf(doc);
+  return [
+    ...rows,
+    for (final link in trackedLinksOf(context, doc))
+      if (link.tracked case final block?)
+        if (_entryOf(lines, link) case final entry?)
+          TrackedEntry(
+            docPath: doc.docPath,
+            entryKey: link.entryKey,
+            label: link.label,
+            block: block,
+            recorded: entry.fingerprint,
+          ),
+  ];
+}
+
+/// Returns [row]'s literal, or a skip row's reason.
+String matrixRowLiteralOf(MatrixRow row) => switch (row) {
+  TestRow(:final literal) => literal,
+  SkipRow(:final reason) => reason,
+};
 
 /// Returns the links [doc] tracks, one per link identity, in trace order:
 /// `S6` and `S06` are one link.
@@ -110,9 +267,19 @@ Iterable<TrackedLink> _overrideLineLinks(
   IndexedDoc doc,
 ) sync* {
   for (final line in overrideLinesOf(context, doc)) {
-    if (line case OverrideLine(:final address?, :final upstream?)) {
-      final itemId = line.itemId;
-      final text = line.itemText;
+    if (line case OverrideLine(
+      :final address?,
+      :final upstream?,
+      :final itemId?,
+      :final section?,
+    )) {
+      final tracked = TrackedBlock(
+        kind: TrackedBlockKind.item,
+        upstream: upstream,
+        key: itemId,
+        section: section,
+      );
+      final text = trackedBlockTextOf(context, tracked);
       yield text == null
           ? TrackedLink(
               label: address,
@@ -126,6 +293,7 @@ Iterable<TrackedLink> _overrideLineLinks(
               block: itemId,
               source: text,
               fingerprint: fingerprintOf(text),
+              tracked: tracked,
               entryKey: _overrideEntriesKey,
             );
     }
@@ -144,7 +312,15 @@ Iterable<TrackedLink> _scenarioLinks(
     if (ref == null) continue;
     final traced = tracedStoryOf(context.index, story, ref);
     if (traced == null) continue;
-    final text = context.scenarioBlocksOf(traced)[scenarioKeyOf(ref)];
+    final key = scenarioKeyOf(ref);
+    final tracked = key == null
+        ? null
+        : TrackedBlock(
+            kind: TrackedBlockKind.scenario,
+            upstream: traced.docPath,
+            key: key,
+          );
+    final text = tracked == null ? null : trackedBlockTextOf(context, tracked);
     yield text == null
         ? TrackedLink(label: ref.label, traceLine: line)
         : TrackedLink(
@@ -154,6 +330,7 @@ Iterable<TrackedLink> _scenarioLinks(
             block: 'Scenario ${ref.scenario}',
             source: text,
             fingerprint: fingerprintOf(text),
+            tracked: tracked,
           );
   }
 }
@@ -168,16 +345,25 @@ Iterable<TrackedLink> _overrideLinks(
   if ((kind != _tighten && kind != _relax) || id == null || line == null) {
     return;
   }
-  final statement = context.nfrStatements()[id];
-  yield statement == null
+  final path = context.nfrStatements()[id]?.path;
+  final tracked = path == null
+      ? null
+      : TrackedBlock(
+          kind: TrackedBlockKind.nfrStatement,
+          upstream: path,
+          key: id,
+        );
+  final text = tracked == null ? null : trackedBlockTextOf(context, tracked);
+  yield path == null || text == null
       ? TrackedLink(label: id, traceLine: line)
       : TrackedLink(
           label: id,
           traceLine: line,
-          upstream: statement.path,
+          upstream: path,
           block: '$id $_statementBlock',
-          source: statement.text,
-          fingerprint: fingerprintOf(statement.text),
+          source: text,
+          fingerprint: fingerprintOf(text),
+          tracked: tracked,
         );
 }
 
@@ -198,7 +384,12 @@ TrackedLink _statementLink(
   int line,
   IndexedDoc fr,
 ) {
-  final statement = context.heldSection(fr, _statementSection)?.body ?? '';
+  final tracked = TrackedBlock(
+    kind: TrackedBlockKind.frStatement,
+    upstream: fr.docPath,
+    key: _statementBlock,
+  );
+  final statement = trackedBlockTextOf(context, tracked) ?? '';
   return TrackedLink(
     label: label,
     traceLine: line,
@@ -206,6 +397,7 @@ TrackedLink _statementLink(
     block: _statementBlock,
     source: statement,
     fingerprint: fingerprintOf(statement),
+    tracked: tracked,
   );
 }
 
@@ -224,18 +416,24 @@ Iterable<TrackedLink> _stepLinks(
     if (target == null || stepIndex == null) continue;
     final line = body[stepIndex].line;
     final story = storyNamed(context.index, target.identity);
-    final text = story == null
+    final tracked = story == null
         ? null
-        : context.scenarioBlocksOf(story)[target.scenarioLabel];
-    yield text == null
+        : TrackedBlock(
+            kind: TrackedBlockKind.scenario,
+            upstream: story.docPath,
+            key: target.scenarioLabel,
+          );
+    final text = tracked == null ? null : trackedBlockTextOf(context, tracked);
+    yield tracked == null || text == null
         ? TrackedLink(label: target.label, traceLine: line)
         : TrackedLink(
             label: target.label,
             traceLine: line,
-            upstream: story!.docPath,
+            upstream: tracked.upstream,
             block: 'Scenario ${target.scenario}',
             source: text,
             fingerprint: fingerprintOf(text),
+            tracked: tracked,
           );
   }
 }
@@ -318,6 +516,12 @@ final class _RowLink {
   /// The Fingerprint of the edge case's block now.
   final String fingerprint;
 
+  TrackedBlock get block => TrackedBlock(
+    kind: TrackedBlockKind.edgeCase,
+    upstream: fr.docPath,
+    key: row.edgeCase,
+  );
+
   bool get isSuspect {
     final recorded = row.fingerprint;
     return recorded != null && recorded != fingerprint;
@@ -330,6 +534,7 @@ final class _RowLink {
 
 // The rows of [record] whose edge case exists: a row naming a story, a
 // missing item, a missing edge case, or a skipped requirement takes no state.
+// The edge case blocks are those [trackedBlockTextOf] reads, cached per FR.
 Iterable<_RowLink> _rowLinksOf(CheckContext context, IndexedDoc record) sync* {
   final read = recordDocOf(context, record);
   if (read == null || record.matrixLines.isEmpty) return;

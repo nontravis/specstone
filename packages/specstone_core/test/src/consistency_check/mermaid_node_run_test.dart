@@ -69,6 +69,38 @@ $_twoResultLines
     expect(outcome.answered['h1']!.blockHash, 'h1');
   });
 
+  test(
+    'with no timeout given a hang is cut after 10 s and the child is killed',
+    () async {
+      final beat = File.fromUri(temp.uri.resolve('beat.txt'))..createSync();
+      final stopwatch = Stopwatch()..start();
+
+      final outcome = await MermaidNodeRun(
+        start: fake("""
+$_twoResultLines
+  final beat = File(r'${beat.path}');
+  while (true) {
+    beat.writeAsStringSync('x', mode: FileMode.append, flush: true);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+"""),
+      ).parse(_blocks);
+      stopwatch.stop();
+
+      expect(outcome.skipReason, 'node timed out after 10 s');
+      expect(
+        stopwatch.elapsed,
+        greaterThanOrEqualTo(const Duration(seconds: 10)),
+      );
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 20)));
+      expect(outcome.answered.keys, ['h0', 'h1']);
+      final sizeAtReturn = beat.lengthSync();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(beat.lengthSync(), sizeAtReturn);
+    },
+    timeout: const Timeout(Duration(seconds: 60)),
+  );
+
   test('a hang mid-line drops the cut line and keeps the whole ones', () async {
     final outcome = await MermaidNodeRun(
       start: fake('''

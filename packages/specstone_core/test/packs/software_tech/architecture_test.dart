@@ -40,4 +40,19 @@ void main() {
       SectionSpec('open_questions', 'Open questions'),
     ]);
   });
+
+  test('the component details guide asks for one ### Component subsection per '
+      'component that needs more than its row', () {
+    final details = sectionOf(architecture, 'component_details');
+
+    expect(details.required, isFalse);
+    expect(
+      details.description,
+      allOf(
+        contains('only when a component needs more than its row'),
+        contains('one `### <Component>` subsection per such component'),
+        contains("headed with the row's Component cell"),
+      ),
+    );
+  });
 }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/rendering/doc_html.dart';
 import 'package:specstone_core/src/rendering/html_page.dart';
@@ -156,6 +158,15 @@ void main() {
       expect(script, greaterThan(license));
       expect(html.indexOf(mermaidScript), html.lastIndexOf(mermaidScript));
       expect(html, endsWith('$_start</body></html>\n'));
+    });
+
+    test('the inline mermaid script grows the page by about 3 MB', () {
+      final html = _page(const [_oneDoc]);
+      final growth =
+          utf8.encode(html).length -
+          utf8.encode(html.replaceAll(mermaidScript, '')).length;
+
+      expect(growth, inInclusiveRange(2500000, 4000000));
     });
 
     test('the csp meta denies every '

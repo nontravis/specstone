@@ -7,8 +7,10 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/relative_link.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
+import '../../helpers/temp_tree.dart';
 
 typedef _Run = ({int code, String out, String err});
 
@@ -136,6 +138,35 @@ void main() {
     );
     expect(result.out, matches(heading));
     expect(result.out.replaceFirst(heading, ''), changed);
+  });
+
+  test('a stale section block prints its fault line and its current section under its naming line, exit 75, no doc written', () async {
+    final root = await writeWriteProject();
+    const section = 'user_story:login/sign_out#use_case';
+    final text = await getText(root, [section]);
+    final file = await batchFile(
+      edit(text, 'Sign out.', 'Sign out everywhere.'),
+    );
+    docFile(root, story2).writeAsStringSync(
+      readDoc(root, story2).replaceFirst('Sign out.', 'Sign out now.'),
+    );
+    final before = docBytes(root);
+
+    final result = await specstone(root, ['set', '--batch', file]);
+
+    expect(result.code, 75);
+    expect(docBytes(root), before);
+    expect(
+      result.err,
+      matches(
+        RegExp(
+          '^${RegExp.escape(story2)}: use_case: the section changed since base [0-9a-f]{12}\n\$',
+        ),
+      ),
+    );
+    final current = await getText(root, [section]);
+    expect(current, contains('Sign out now.'));
+    expect(result.out, current);
   });
 
   test('two stale blocks print each current text under its naming line, in file order, on stdout only', () async {
@@ -306,6 +337,36 @@ void main() {
       }
     });
 
+    test('each option beside --batch names the conflict on stderr, exit 64, also outside a project', () async {
+      final root = await writeWriteProject();
+      final outside = await Directory.systemTemp.createTemp('specstone_batch_');
+      addTearDown(() => outside.delete(recursive: true));
+      const message =
+          '--batch takes no doc address, --base, --field, --title, or --target';
+
+      for (final dir in [root, outside]) {
+        for (final beside in [
+          ['user_story:login/sign_out'],
+          ['--base', '7e11fc4a24d2'],
+          ['--field', 'size'],
+          ['--title'],
+          ['--target', 'flutter'],
+        ]) {
+          final result = await specstone(dir, [
+            'set',
+            '--batch',
+            'missing.md',
+            ...beside,
+          ]);
+
+          final reason = '${dir == root ? 'in' : 'outside'} a project: $beside';
+          expect(result.code, 64, reason: reason);
+          expect(result.out, isEmpty, reason: reason);
+          expect(result.err, contains(message), reason: reason);
+        }
+      }
+    });
+
     test('stdin is never read: an open pipe that never closes does not hold the run, and its text is ignored', () async {
       final root = await writeWriteProject();
       final text = edit(
@@ -360,4 +421,36 @@ void main() {
       expect(result.err, '$file: $file holds no block\n');
     });
   });
+
+  test('a batch in a project whose roots wait for the trust record of the Owner refuses output_not_writable, exit 73, naming the journal, and leaves the linked docs as they are', () async {
+    final base = await writeTree({
+      for (final MapEntry(:key, :value) in writeProject.entries)
+        if (key.startsWith('docs/'))
+          'ext/${key.substring(5)}': value
+        else
+          'src/clone/$key': value,
+    });
+    createRelativeLink('${base.path}/src/clone/docs', '../../ext');
+    final clone = Directory('${base.path}/src/clone');
+    final before = treeBytes(Directory('${base.path}/ext'));
+    final text = edit(
+      await getText(clone, [story1]),
+      'Sign in with an email.',
+      'Sign in with a passkey.',
+    );
+    final file = await batchFile(text);
+
+    final result = await specstone(clone, ['set', '--batch', file, '--json']);
+
+    expect(result.code, 73, reason: result.err);
+    expect(result.out, isEmpty);
+    final error = decode(result.err)['error']! as Map;
+    expect(error['code'], 'output_not_writable');
+    expect(error['file'], MoveJournal.journalPath);
+    expect(
+      error['message'],
+      endsWith('run specstone trust at a terminal to allow it'),
+    );
+    expect(treeBytes(Directory('${base.path}/ext')), before);
+  }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : false);
 }

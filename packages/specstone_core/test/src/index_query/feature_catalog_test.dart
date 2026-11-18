@@ -178,6 +178,27 @@ void main() {
       });
     }
 
+    test('a summary of spaces alone shows a dash in the what it does '
+        'cell', () async {
+      final index = await _open(
+        _feature('f01_a', 'A', front: 'summary: "  "\n'),
+      );
+
+      expect(_cells(_rows(_text(index)).single)[1], _dash);
+    });
+
+    test('a blank line between summary lines and outer spaces give one '
+        'trimmed space', () async {
+      final index = await _open(
+        _feature('f01_a', 'A', front: 'summary: "  One\\n\\ntwo.  "\n'),
+      );
+
+      final rows = _rows(_text(index));
+
+      expect(rows, hasLength(1));
+      expect(_cells(rows.single)[1], 'One two.');
+    });
+
     test('a top feature serves its vision values then its goals values, or a '
         'dash with neither', () async {
       final index = await _open({
@@ -369,6 +390,16 @@ void main() {
         final index = await _open({}, targets: ['flutter', 'jaspr']);
 
         expect(_text(index), '0 features · 0 stories');
+      });
+
+      test('a tree with no feature doc and one named target gives the zero '
+          'line and no table', () async {
+        final index = await _open({}, targets: ['flutter']);
+
+        final text = _text(index);
+
+        expect(text, '0 features · 0 stories');
+        expect(text, isNot(contains(_tableHeader)));
       });
     });
 

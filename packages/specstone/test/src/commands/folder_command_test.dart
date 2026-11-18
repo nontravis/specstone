@@ -205,6 +205,17 @@ void main() {
       expect(names, {'config.yaml', 'reports'});
     });
 
+    test('a .specstone regular file below a project lets the search go '
+        'upward to that project', () async {
+      final root = await writeTree({..._project(), 'app/.specstone': 'x'});
+
+      final result = await run('${root.path}/app/lib');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, '${_folderOf(root)}\n');
+      expect(File('${root.path}/app/.specstone').readAsStringSync(), 'x');
+    });
+
     test('a .specstone regular file with no project '
         'above it is project_not_found, exit 78', () async {
       final tree = await writeTree({'.specstone': 'x', 'lib/main.dart': ''});

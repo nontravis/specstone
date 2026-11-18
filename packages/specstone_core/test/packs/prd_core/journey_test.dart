@@ -1,8 +1,10 @@
+import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/index_fixture.dart';
 import '../../helpers/prd_core.dart';
 
 void main() {
@@ -31,6 +33,23 @@ void main() {
     expect(
       docNameOf('prds/journeys/first_project_to_html/JOURNEY.md', journey),
       'first_project_to_html',
+    );
+  });
+
+  test('a journey titled in words keeps its slug as its Name, and get reads '
+      'it by that Name', () async {
+    final index = await indexWith({
+      'docs/prds/journeys/first_project_to_html/JOURNEY.md':
+          '# First project to HTML\n\n## Goal\nShip a page.\n\n## Flow\n\n'
+          '## Steps\n### 1. Open the page\nstep: login/email_login S1\n',
+    });
+
+    expect(
+      answerGet(index, ['journey:first_project_to_html']).text,
+      startsWith(
+        '==> first_project_to_html (journey) · '
+        'prds/journeys/first_project_to_html/JOURNEY.md · base ',
+      ),
     );
   });
 }

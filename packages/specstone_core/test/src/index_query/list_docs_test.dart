@@ -1,11 +1,14 @@
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/feature_catalog.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/list_docs.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/index_query/structure.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' as check;
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/shipped_pins.dart';
@@ -109,6 +112,47 @@ void main() {
       final docs = (answer.json['docs']! as List).cast<Map<String, Object?>>();
       expect(docs.first.containsKey('summary'), isFalse);
     });
+
+    test('structure answer on a feature with a summary omits it', () async {
+      final withSummary = await withSummaries('Grounds a task in one call.');
+      final answer = answerStructure(withSummary, target: 'login');
+      expect(answer.text.split('\n').first, startsWith('login (feature)'));
+      expect(answer.text, isNot(contains('Grounds a task')));
+      expect(answer.json.toString(), isNot(contains('Grounds a task')));
+    });
+
+    test(
+      'check reports a summary of 42 as field_value_mismatch at its line',
+      () async {
+        final report = await check.checkOf(
+          await check.writeCheckProject(
+            extra: check.doc(
+              check.loginFeature,
+              'summary: Lets an agent sign in.',
+              'summary: 42',
+            ),
+          ),
+        );
+        expect(check.spots(report, FindingKind.fieldValueMismatch), [
+          '${check.loginFeature}:3: field_value_mismatch',
+        ]);
+      },
+    );
+
+    test(
+      'a blank line inside a block scalar summary reads as one space',
+      () async {
+        final answer = answerList(
+          await withSummaries('|\n  Finds docs.\n\n  Lists them.'),
+          'feature',
+          const ListFilters(),
+        );
+        expect(
+          answer.text.split('\n').first,
+          endsWith(' — Finds docs. Lists them.'),
+        );
+      },
+    );
   });
   test(
     '--under a story keeps only its FRs; --under a feature its stories',
@@ -201,6 +245,34 @@ void main() {
     expect(answer.text, isEmpty);
     expect(answer.json['docs'], isEmpty);
     expect(answer.exitStatus, 0);
+  });
+  test('a doc type that holds no doc is an empty list and success', () async {
+    expect(index.docs.any((d) => d.docTypeId == 'measurement'), isFalse);
+    final answer = answerList(index, 'measurement', const ListFilters());
+    expect(answer.text, isEmpty);
+    expect(answer.json['docs'], isEmpty);
+    expect(answer.exitStatus, 0);
+  });
+  test('doc_type_unknown for featur carries exit status 64', () async {
+    expect(
+      () => answerList(index, 'featur', const ListFilters()),
+      throwsA(
+        isA<TemplateFault>()
+            .having((f) => f.code, 'code', FaultCode.docTypeUnknown)
+            .having((f) => f.exitStatus, 'exit status', 64),
+      ),
+    );
+  });
+  test('--under logn is doc_not_found, exit 64, naming logn', () async {
+    expect(
+      () => answerList(index, 'fr', const ListFilters(under: 'logn')),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+            .having((f) => f.exitStatus, 'exit status', 64)
+            .having((f) => f.message, 'message', contains('logn')),
+      ),
+    );
   });
   test('an unknown doc type is doc_type_unknown naming it', () async {
     expect(
@@ -342,6 +414,19 @@ void main() {
         );
       }
     });
+
+    test(
+      'two targets and no --target refuse --status with exit status 64',
+      () async {
+        final index = await twoTargets();
+        expect(
+          () => answerList(index, 'fr', const ListFilters(status: 'planned')),
+          throwsA(
+            isA<IndexFault>().having((f) => f.exitStatus, 'exit status', 64),
+          ),
+        );
+      },
+    );
 
     test('list user_story --status skipped --target jaspr keeps the stories '
         'jaspr skips', () async {

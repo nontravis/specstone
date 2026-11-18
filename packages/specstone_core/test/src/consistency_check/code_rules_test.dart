@@ -92,6 +92,30 @@ Future<Directory> _campaignProject(
   without: {loginRecord},
 );
 
+/// Writes the login project whose `code_root` is a folder beside it holding
+/// [outside], with the code of the project's own `app/` folder left out.
+///
+/// Returns the project folder. [docs] replaces or adds a project file.
+Future<Directory> _outsideRootProject({
+  Map<String, String> docs = const {},
+  Map<String, String> outside = const {},
+  Set<String> without = const {},
+}) async {
+  final files = withApprovalHashes({...checkProjectFiles(), ...docs});
+  final workspace = await writeTree({
+    for (final MapEntry(:key, :value) in files.entries)
+      if (!key.startsWith('app/') &&
+          key != '.specstone/config.yaml' &&
+          !without.contains(key))
+        'project/$key': value,
+    'project/.specstone/config.yaml':
+        '${shippedPinsConfig()}code_root: ../stratum_ui/example\n',
+    for (final MapEntry(:key, :value) in outside.entries)
+      'stratum_ui/example/$key': value,
+  });
+  return Directory.fromUri(workspace.uri.resolve('project/'));
+}
+
 Future<CheckReport> _run(Directory project, {String? codeTarget}) async {
   final session = openSession(project);
   try {
@@ -180,6 +204,61 @@ void main() {
     );
   });
 
+  test('covers and code roots resolve against a code_root outside the project '
+      'root', () async {
+    final project = await _outsideRootProject(
+      docs: {
+        loginRecord: _record([_implemented]),
+        ...doc(
+          loginArchitecture,
+          '  - app/lib/\n',
+          '  - app/lib/\n  - app/lib/gone/\n',
+        ),
+        ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - api/lib/\n'),
+      },
+      outside: {
+        'app/lib/login.dart': checkProjectFiles()['app/lib/login.dart']!,
+      },
+    );
+
+    final report = await _run(project);
+
+    expect(_of(report, FindingKind.coversPathMissing), [
+      '$loginArchitecture: app/lib/gone/',
+    ]);
+    expect(_of(report, FindingKind.codeRootMissing), ['$techStack: api/lib/']);
+  });
+
+  test('the files listed under a code_root outside the project root are '
+      'named from that code root', () async {
+    final project = await _outsideRootProject(
+      docs: {
+        ...doc(techStack, '  - app/lib/\n', '  - lib/\n'),
+        ...doc(loginArchitecture, '  - app/lib/\n', '  - lib/a.dart\n'),
+      },
+      outside: {'lib/a.dart': '', 'lib/b.dart': ''},
+      without: {loginRecord},
+    );
+
+    final report = await _run(project);
+
+    expect(_of(report, FindingKind.codeUncovered), ['$techStack: lib/b.dart']);
+    expect(report.findings.single.message, startsWith('lib/b.dart '));
+  });
+
+  test('an uncovered generated file still gives code_uncovered, as no exclude '
+      'list exists', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {...narrow('app/lib/login.dart'), 'app/lib/a.g.dart': ''},
+      ),
+    );
+
+    expect(_of(report, FindingKind.codeUncovered), [
+      '$techStack: app/lib/a.g.dart',
+    ]);
+  });
+
   test('with no code field the check does not run', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -254,8 +333,7 @@ void main() {
     },
   );
 
-  test('a covers entry '
-      'names a file or a folder, with or without a final slash; one that moved names nothing', () async {
+  test('a covers entry names a file or a folder, with or without a final slash; one that moved names nothing', () async {
     for (final entry in ['app/lib/login.dart', 'app/lib']) {
       expect(
         spots(
@@ -655,6 +733,81 @@ void main() {
       );
     });
 
+    test('the paths of a shared doc resolve against no code root and cover no '
+        'file', () async {
+      const topic =
+          '---\ncovers:\n  - app/lib/\n  - app/lib/gone/\n---\n\n# Doc model\n\n'
+          '## Purpose\n\nOne rule set.\n\n## Scope\n\nThe lib folder.\n';
+      final project = await _twin(
+        extra: {
+          _flutterRecord: _record([_implemented]),
+          _jasprRecord: _record([_implemented]),
+          'docs/$_sharedTopic': topic,
+          'flutter_ws/app/lib/main.dart': '',
+          'jaspr_ws/app/lib/main.dart': '',
+          'docs/$flutterArchitecture': _arch('app/lib/login.dart'),
+          'docs/$jasprArchitecture': _arch('app/lib/login.dart'),
+        },
+      );
+
+      final report = await _run(project);
+
+      expect(_of(report, FindingKind.coversPathMissing), isEmpty);
+      expect(_of(report, FindingKind.codeUncovered), [
+        '$_flutterTech: app/lib/main.dart',
+        '$_jasprTech: app/lib/main.dart',
+      ]);
+    });
+
+    test('a shared doc with covers beside one named target is no '
+        'shared_doc_code_path', () async {
+      final project = await writeTwinProject(
+        without: {
+          'docs/$_jasprTech',
+          'docs/$jasprArchitecture',
+          'jaspr_ws/app/lib/login.dart',
+        },
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  flutter:\n'
+              '    code_root: flutter_ws\n',
+          '.specstone/templates/topic.yaml': 'id: topic\nper_target: false\n',
+          'docs/$_flutterTech': _tech(['app/lib/']),
+          'docs/$_sharedTopic': _sharedTopic1,
+        },
+      );
+
+      final report = await _run(project);
+
+      expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
+    });
+
+    test('each doc of no target that holds a code entry is one '
+        'shared_doc_code_path', () async {
+      final project = await writeTwinProject(
+        without: {'docs/$_flutterTech', 'docs/$_jasprTech'},
+        extra: {
+          '.specstone/templates/topic.yaml': 'id: topic\nper_target: false\n',
+          '.specstone/templates/tech_stack.yaml':
+              'id: tech_stack\nper_target: false\n',
+          'docs/$_sharedTopic': _sharedTopic1,
+        },
+      );
+      File('${project.path}/docs/$techStack').writeAsStringSync(
+        withApprovalHashes(checkProjectFiles())['docs/$techStack']!,
+      );
+
+      final report = await _run(project);
+
+      expect(
+        [
+          for (final f in report.findings)
+            if (f.kind == FindingKind.sharedDocCodePath) f.path,
+        ],
+        [techStack, _sharedTopic],
+      );
+    });
+
     test('a --target run lists the files of that target only', () async {
       final project = await _twin(
         extra: {
@@ -800,6 +953,28 @@ void main() {
       expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
       expect(_of(report, FindingKind.coversPathMissing), ['$skillDoc: $gone']);
       expect(_of(report, FindingKind.codeSuspect), ['$skillDoc: $skillFile']);
+    });
+
+    test('with two targets covers no target code, so a skill file under a '
+        'code root stays code_uncovered', () async {
+      const skillUnderRoot = 'skills/review/SKILL.md';
+      final project = await _twin(
+        extra: {
+          '.specstone/config.yaml':
+              '${skillPinsConfig()}targets:\n  flutter:\n    code_root: .\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          'docs/$_flutterTech': _tech(['skills/']),
+          ...skillDocFile([skillUnderRoot]),
+          skillUnderRoot: skillText,
+        },
+      );
+
+      final report = await _run(project);
+
+      expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
+      expect(_of(report, FindingKind.codeUncovered), [
+        '$_flutterTech: $skillUnderRoot',
+      ]);
     });
 
     test('covers no target code, so a skill file under a code root stays '

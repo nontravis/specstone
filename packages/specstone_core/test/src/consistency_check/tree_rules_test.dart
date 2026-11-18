@@ -407,6 +407,34 @@ void main() {
     );
   });
 
+  test('the other docs in an over-limit FEATURE.md folder still report '
+      'file_not_utf8 and path_over_limit, and no untyped_doc', () async {
+    const folder = 'prds/features/f02_shop/f01_cart/f01_a/f01_b/f01_c';
+    const longPrefix = 'docs/$folder/NOTES_';
+    final longName = 'NOTES_${'a' * (201 - longPrefix.length)}.md';
+    final project = await writeNestedProject(
+      extra: {
+        'docs/$folder/FEATURE.md': nestedFiles()['docs/$cartFeature']!,
+        'docs/$folder/$longName': '# Notes\n',
+      },
+    );
+    File('${project.path}/docs/$folder/CAFE.md')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(latin1.encode('# Caf\u00e9\n'));
+
+    final report = await checkOf(project);
+
+    final inFolder = [
+      for (final f in report.findings)
+        if (f.path.startsWith('$folder/') && f.path != '$folder/FEATURE.md')
+          '${f.path.split('/').last == longName ? 'LONG' : f.path.split('/').last}:${f.line}: ${f.kind.wire}',
+    ]..sort();
+    expect(inFolder, ['CAFE.md:1: file_not_utf8', 'LONG:1: path_over_limit']);
+    expect(spots(report, FindingKind.nestingOverLimit), [
+      '$folder/FEATURE.md:1: nesting_over_limit',
+    ]);
+  });
+
   test('the checked folders of the shipped set hold prds, specs, and '
       'measurements', () async {
     final project = await writeTree({
@@ -467,6 +495,20 @@ void main() {
       ]);
       expect(_missingOf(report).single.keys, {'type': 'project'});
       expect(_missingOf(report).single.name, isNull);
+    });
+
+    test('no project doc is one singular_doc_missing beside the roles and '
+        'IDs it leaves unresolved', () async {
+      final report = await checkOf(
+        await writeCheckProject(without: {'docs/$projectDoc'}),
+      );
+
+      expect(spots(report), [
+        '$_goalDoc:11: vision_goal_unresolved',
+        '$projectDoc:1: singular_doc_missing',
+        'prds/features/f01_login/FEATURE.md:4: vision_goal_unresolved',
+        '$loginStory:11: role_unresolved',
+      ]);
     });
 
     test('a project-layer type at prds/STYLE.md with no '
@@ -547,6 +589,64 @@ void main() {
         _missingOf(await runCheck(session)).map((f) => f.keys['type']),
         isNot(contains('glossary')),
       );
+    });
+
+    test('a project on prd-core 1.15.0, which ships the glossary type, with '
+        'no glossary doc is one finding', () async {
+      const pinned = '1.15.0';
+      final shipped = shippedPackVersions()['prd-core'];
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
+            'prd-core: $shipped',
+            'prd-core: $pinned',
+          ),
+        },
+        without: {'docs/$_glossaryDoc'},
+      );
+      final session = ReadSession.open(
+        templates: resolverCarrying({'prd-core': pinned}),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      addTearDown(session.close);
+
+      final report = await runCheck(session);
+
+      expect(spots(report, FindingKind.singularDocMissing), [
+        '$_glossaryDoc:1: singular_doc_missing',
+      ]);
+      expect(_missingOf(report).single.keys, {'type': 'glossary'});
+    });
+
+    test('the merged set of a project pinned below the pack that ships the '
+        'glossary type holds no glossary doc type', () async {
+      const pinned = '1.14.0';
+      final shipped = shippedPackVersions()['prd-core'];
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
+            'prd-core: $shipped',
+            'prd-core: $pinned',
+          ),
+        },
+        without: {'docs/$_glossaryDoc'},
+      );
+      final session = ReadSession.open(
+        templates: resolverCarrying(
+          {'prd-core': pinned},
+          without: {'prd-core/glossary.yaml'},
+        ),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      addTearDown(session.close);
+
+      expect([
+        for (final type in session.index.set.docTypes) type.id,
+      ], isNot(contains('glossary')));
+      final report = await runCheck(session);
+      expect(spots(report, FindingKind.singularDocMissing), isEmpty);
     });
 
     test('one code target and no tech stack doc is one '

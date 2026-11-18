@@ -8,12 +8,18 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
+import 'package:specstone_core/src/document_writing/approve_drafts.dart'
+    show approveDryRun;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart'
     show parseBatchFile;
+import 'package:specstone_core/src/document_writing/delete_doc.dart';
+import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/set_batch.dart';
+import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -21,16 +27,21 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/init_project.dart';
+import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart'
     show checkOf, loginRecord, spots, writeCheckProject;
+import '../../helpers/git_repo.dart' show hasGit;
 import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/legacy_fixture.dart' show acmeLegacy, gitFixture;
 import '../../helpers/matrix_record_fixture.dart' show writeMatrixRecordProject;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart'
-    show pinStatusesBelow, statusesBelowResolver;
+    show pinStatusesBelow, shippedPinsConfig, statusesBelowResolver;
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -264,6 +275,53 @@ void main() {
       wholeLine(_story1Line, story1, docBase(root, story1)),
     );
     expect(staleWhole.current!.text, readDoc(root, story1));
+  });
+
+  test('a stale section block has its own fault line and a --json entry carrying its current text and base, as a stale whole-doc block has', () async {
+    final root = await writeWriteProject();
+    final staleSection = partBase(root, _signOutUseCase);
+    final staleDoc = docBase(root, story1);
+    final section = getText(root, [_signOutUseCase]);
+    final whole = getText(root, [story1]);
+    final text = '${edit(section, 'Sign out.', 'Sign out now.')}\n$whole';
+    docFile(root, story2).writeAsStringSync(
+      readDoc(root, story2).replaceFirst('Sign out.', 'Log out.'),
+    );
+    docFile(root, story1).writeAsStringSync(
+      readDoc(root, story1).replaceFirst('Sign in with', 'Please sign in with'),
+    );
+
+    final fault = refuse(root, text);
+
+    expect(
+      fault.toText(),
+      '$story2: use_case: the section changed since base $staleSection\n'
+      '$story1: doc: the doc changed since base $staleDoc',
+    );
+    final error = fault.toJson()['error']! as Map<String, Object?>;
+    expect(error['blocks'], [
+      {
+        'code': 'base_mismatch',
+        'message': 'the section changed since base $staleSection',
+        'file': story2,
+        'key': 'use_case',
+        'current': {
+          'text': '## Use Case\n\nLog out.\n',
+          'base': partBase(root, _signOutUseCase),
+        },
+      },
+      {
+        'code': 'base_mismatch',
+        'message': 'the doc changed since base $staleDoc',
+        'file': story1,
+        'key': 'doc',
+        'current': {
+          'text': readDoc(root, story1),
+          'base': docBase(root, story1),
+        },
+      },
+    ]);
+    expect(fault.exitStatus, 75);
   });
 
   test('a block whose path names no doc, or a doc deleted since the read, refuses with doc_not_found naming the block by its path, and the name part resolves nothing', () async {
@@ -547,6 +605,31 @@ void main() {
     expect(entry.message, 'a title is one line; stdin held 0 lines');
   });
 
+  test('a whole-doc block leaves a title and a lead as on disk unchecked, though a single set of either text would refuse it', () async {
+    final root = await writeWriteProject();
+    docFile(root, story2).writeAsStringSync(
+      readDoc(root, story2).replaceFirst('# Sign out\n\n', ''),
+    );
+    docFile(root, story1).writeAsStringSync(
+      readDoc(root, story1).replaceFirst(
+        '# Sign in with email\n\n',
+        '# Sign in with email\n\nIntro.\n\n# Aside\n\n',
+      ),
+    );
+    final text = [
+      edit(getText(root, [story2]), 'Sign out.', 'Sign out now.'),
+      edit(getText(root, [story1]), 'Sign in with an email.', 'Sign in.'),
+    ].join('\n');
+
+    final answer = runBatch(root, text);
+
+    expect(answer.text, isNot(contains('unchanged')));
+    expect(readDoc(root, story2), contains('Sign out now.'));
+    expect(readDoc(root, story2), isNot(contains('\n# ')));
+    expect(readDoc(root, story1), contains('\n# Aside\n'));
+    expect(readDoc(root, story1), contains('Sign in.'));
+  });
+
   test('a whole-doc block holding a second title line refuses with argument_invalid as a lead holding a # line does, and writes nothing', () async {
     final root = await writeWriteProject();
     final text = getText(root, [story1]);
@@ -662,6 +745,53 @@ void main() {
     runBatch(root, text);
 
     expect(readDoc(root, story1), writeProject['docs/$story1']);
+  });
+
+  test('the block get prints for a doc with two sections of one key, fed back unedited, refuses on its second header line as a single set does', () async {
+    final root = await writeWriteProject();
+    docFile(root, story2).writeAsStringSync(
+      readDoc(root, story2).replaceFirst(
+        '## Acceptance Criteria',
+        '## Use Case\n\nSign out twice.\n\n## Acceptance Criteria',
+      ),
+    );
+    final text = getText(root, [_signOutUseCase]);
+    expect(
+      RegExp(r'^## Use Case$', multiLine: true).allMatches(text),
+      hasLength(2),
+      reason: 'both sections sit under one naming line',
+    );
+
+    final fault = refuse(root, text);
+
+    expect(fault, refusedWith('argument_invalid'));
+    expect(
+      onlyEntry(fault).toText(),
+      '$story2: use_case: the body holds the header line "## Use Case"; send the body only',
+    );
+    final body = text.substring(text.indexOf('\n') + 1);
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(
+            _signOutUseCase,
+            base: partBase(root, _signOutUseCase),
+          ),
+          body,
+        ),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              contains('the body holds the header line "## Use Case"'),
+            ),
+      ),
+    );
   });
 
   test('a section block holding the ## line of another section outside fenced code refuses with argument_invalid', () async {
@@ -919,6 +1049,31 @@ void main() {
     expect(records.listSync(), isEmpty);
   }, skip: unreadablePathSkipReason() ?? false);
 
+  test('a journal step that fails is output_not_writable with exit 73, naming the doc, and the steps before it stay done', () async {
+    final root = await writeWriteProject();
+    var text = getText(root, [story1, story3, fr31]);
+    text = edit(text, 'Sign in with an email.', 'Sign in with a passkey.');
+    text = edit(text, 'Reset a password.', 'Reset the password.');
+    text = edit(text, 'send a link', 'send a reset link');
+    final stuck = docFile(root, story3).parent;
+    Process.runSync('chmod', ['555', stuck.path]);
+    addTearDown(() => Process.runSync('chmod', ['755', stuck.path]));
+
+    expect(
+      () => runBatch(root, text),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.exitStatus, 'exit', 73)
+            .having((f) => f.message, 'message', contains(story3)),
+      ),
+    );
+
+    expect(readDoc(root, story1), contains('a passkey'));
+    expect(readDoc(root, story3), isNot(contains('Reset the password.')));
+    expect(readDoc(root, fr31), isNot(contains('send a reset link')));
+  }, skip: unreadablePathSkipReason() ?? false);
+
   test('a stopped journal of guarded write steps is finished by the next write command, which leaves a doc edited after the stop as it is', () async {
     final root = await writeWriteProject();
     final twin = await writeWriteProject();
@@ -981,6 +1136,167 @@ void main() {
     expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
   });
 
+  test('the no-home refusal of a batch names the journal as its file and writes no journal', () async {
+    final root = await writeWriteProject();
+    final text = edit(
+      getText(root, [story1]),
+      'Sign in with an email.',
+      'Sign in with a passkey.',
+    );
+
+    expect(
+      () => writeInNoHome(
+        root,
+        (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+      ),
+      throwsA(
+        isA<RenderFault>().having(
+          (f) => f.file,
+          'file',
+          '.specstone/trash/journal.json',
+        ),
+      ),
+    );
+
+    expect(File(journalPathOf(root)).existsSync(), isFalse);
+  });
+
+  test('init on a legacy tree with no home folder refuses with output_not_writable, exit 73, and the journal as its file, and changes nothing', () async {
+    final root = await gitFixture(acmeLegacy);
+    final before = treeBytes(root);
+    final out = StringBuffer();
+
+    await expectLater(
+      () async => await runInit(
+        InitRequest(
+          workingDirectory: root,
+          homeDirectory: null,
+          templates: TemplateResolver(),
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          out: out,
+        ),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.exitStatus, 'exit', 73)
+            .having((f) => f.file, 'file', '.specstone/trash/journal.json')
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write .specstone/trash/journal.json: no home folder to record it in',
+            ),
+      ),
+    );
+
+    expect(out.toString(), isNot(contains('apply?')));
+    expect(treeBytes(root), before);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('a single set, a batch of unchanged blocks, a migrate with nothing to do, and every dry run are unaffected by the no-home refusal', () async {
+    final root = await writeWriteProject();
+    final before = docBytes(root);
+    final text = getText(root, [story1]);
+
+    final unchanged = writeInNoHome(
+      root,
+      (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+    );
+    writeInNoHome(
+      root,
+      (s) => answerRename(
+        s,
+        'user_story:login/reset_password',
+        slug: 'x',
+        dryRun: true,
+      ),
+    );
+    writeInNoHome(
+      root,
+      (s) => answerReorder(
+        s,
+        'user_story:login/reset_password',
+        place: '1',
+        dryRun: true,
+      ),
+    );
+    writeInNoHome(
+      root,
+      (s) => answerMove(
+        s,
+        ['user_story:login/reset_password'],
+        under: 'signup',
+        dryRun: true,
+      ),
+    );
+    writeInNoHome(
+      root,
+      (s) =>
+          answerDeleteDryRun(s, ['fr:login/email_login/lock_after_failures']),
+    );
+
+    writeInNoHome(root, approveDryRun);
+
+    expect(unchanged.text, contains(' · unchanged <=='));
+    expect(docBytes(root), before);
+    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+
+    final single = writeInNoHome(
+      root,
+      (s) => answerSet(
+        s,
+        SetRequest.parse(_useCase, base: partBase(root, _useCase)),
+        'Sign in with a passkey.\n',
+      ),
+    );
+
+    expect(single.text, contains('$story1#use_case'));
+    expect(readDoc(root, story1), contains('a passkey'));
+    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+
+    final upToDate = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+    });
+    for (final dryRun in [false, true]) {
+      final out = StringBuffer();
+      final status = await runMigrate(
+        MigrateRequest(
+          workingDirectory: upToDate,
+          homeDirectory: null,
+          templates: TemplateResolver(),
+          dryRun: dryRun,
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => 'y',
+          out: out,
+        ),
+      );
+
+      expect(status, 0, reason: 'dryRun $dryRun');
+      expect(out.toString(), 'nothing to migrate\n', reason: 'dryRun $dryRun');
+    }
+
+    if (!hasGit) return;
+    final legacy = await gitFixture(acmeLegacy);
+    final legacyBefore = treeBytes(legacy);
+    final plan = StringBuffer();
+    final planStatus = await runMigrate(
+      MigrateRequest(
+        workingDirectory: legacy,
+        homeDirectory: null,
+        templates: TemplateResolver(),
+        dryRun: true,
+        confirmation: OwnerConfirmation.prompt,
+        readLine: () => 'y',
+        out: plan,
+      ),
+    );
+
+    expect(planStatus, 0);
+    expect(plan.toString(), startsWith('legacy migration: '));
+    expect(treeBytes(legacy), legacyBefore);
+  });
+
   test('a batch in a project whose roots wait for the trust record of the Owner refuses with the trust text before any change', () async {
     final base = await writeTree({
       for (final MapEntry(:key, :value) in writeProject.entries)
@@ -1019,6 +1335,35 @@ void main() {
       File('${base.path}/ext/$story1').readAsStringSync(),
       contains('a passkey'),
     );
+  }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : false);
+
+  test('roots that wait for the trust record refuse a batch with the code output_not_writable and leave the linked docs as they are', () async {
+    final base = await writeTree({
+      for (final MapEntry(:key, :value) in writeProject.entries)
+        if (key.startsWith('docs/'))
+          'ext/${key.substring(5)}': value
+        else
+          'src/clone/$key': value,
+    });
+    createRelativeLink('${base.path}/src/clone/docs', '../../ext');
+    final clone = Directory('${base.path}/src/clone');
+    final before = treeBytes(Directory('${base.path}/ext'));
+    final text = edit(
+      getText(clone, [story1]),
+      'Sign in with an email.',
+      'Sign in with a passkey.',
+    );
+
+    expect(
+      () => runBatch(clone, text),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.exitStatus, 'exit', 73),
+      ),
+    );
+
+    expect(treeBytes(Directory('${base.path}/ext')), before);
   }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : false);
 
   test('a doc the formatter refuses once its blocks are spliced in is written as spliced, every other byte kept', () async {
@@ -1401,6 +1746,41 @@ void main() {
       );
     },
   );
+
+  test('a doc holding a naming-line-shaped line is split there by get, and the batch refuses it as a line fault or reads it as a naming line', () async {
+    final root = await writeWriteProject();
+    const bare = '==> stray <==';
+    const named =
+        '==> keep (user_story) · prds/features/f09_gone/USER_STORY.md · base 0123456789ab <==';
+    docFile(root, story2).writeAsStringSync(
+      readDoc(root, story2).replaceFirst('Sign out.', 'Sign out.\n$bare'),
+    );
+
+    final text = getText(root, [story2]);
+    final bareFault = refuse(root, text);
+
+    expect(text, contains('\n$bare\n'));
+    final lineFaults = bareFault.entries.where((e) => e.line != null);
+    expect(lineFaults.map((e) => (e.line, e.code)), [
+      (text.split('\n').indexOf(bare) + 1, 'argument_invalid'),
+    ]);
+    expect(
+      lineFaults.single.message,
+      'the naming line holds no base of 12 lowercase hex characters',
+    );
+
+    docFile(
+      root,
+      story2,
+    ).writeAsStringSync(readDoc(root, story2).replaceFirst(bare, named));
+    final readAsBlock = refuse(root, getText(root, [story2]));
+
+    expect(
+      readAsBlock.entries.map((e) => (e.file, e.code)),
+      contains(('prds/features/f09_gone/USER_STORY.md', 'doc_not_found')),
+    );
+    expect(readAsBlock.entries.where((e) => e.line != null), isEmpty);
+  });
 
   test('a block text holding a naming-line shape at column 0 outside a fence refuses with nothing written; a fenced or indented one is text', () async {
     final root = await writeWriteProject();

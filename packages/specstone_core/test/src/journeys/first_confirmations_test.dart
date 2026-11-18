@@ -357,6 +357,63 @@ void main() {
     expect(_count(text, '$_story#S1 '), 0);
   });
 
+  test(
+    'a flow-list confirmed is written as given and each step stays unconfirmed',
+    () async {
+      final root = await _project();
+      const held = 'confirmed: [other#S9 abc123]\n';
+      final stdin = '---\n$held---\n\n${_body([_step(1, 1), _step(2, 2)])}';
+
+      final text = _new(root, text: stdin);
+
+      expect(text, startsWith('---\ndraft: true\n$held---\n'));
+      expect(_count(text, '$_story#S1 '), 0);
+      expect(_count(text, '$_story#S2 '), 0);
+      final waiting = await _check(root);
+      expect(
+        waiting.where((f) => f.kind == FindingKind.unconfirmed),
+        hasLength(2),
+      );
+    },
+  );
+
+  test(
+    'a malformed confirmed list leaves each step unconfirmed in check',
+    () async {
+      final root = await _project();
+      const held = 'confirmed:\n  - "login/email_login#S1\n';
+      final stdin = '---\n$held---\n\n${_body([_step(1, 1), _step(2, 2)])}';
+
+      _new(root, text: stdin);
+
+      final waiting = await _check(root);
+      expect(
+        waiting.where((f) => f.kind == FindingKind.unconfirmed),
+        hasLength(2),
+      );
+    },
+  );
+
+  test(
+    'format refuses a journey that holds an opening marker with no end marker',
+    () async {
+      final root = await _project();
+      final open = '${generatedOpenMarker(journeyFlowKind)}\n';
+      final stdin = _body([_step(1, 1)])
+          .replaceFirst('## Flow\n', '## Flow\n$open');
+      final text = _new(root, text: stdin);
+
+      final report = _format(root);
+
+      expect(
+        report.files.where((f) => f.path.endsWith('JOURNEY.md')).single.status,
+        FileStatus.refused,
+      );
+      expect(report.exitStatus, 1);
+      expect(_file(root).readAsStringSync(), text);
+    },
+  );
+
   test('a doc type with no generators is written as before', () async {
     final plain = await _project();
     final hooked = await _project();

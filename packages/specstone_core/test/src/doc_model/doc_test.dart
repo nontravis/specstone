@@ -237,8 +237,8 @@ void main() {
       expect(doc.hasUnclosedFence, isFalse);
     });
 
-    test('a fence nested in a '
-        'list item or a block quote ends where its container ends', () {
+    test('a fence nested in a list item or a block quote ends where its '
+        'container ends', () {
       for (final text in [
         '## A\n- item\n  ```\n  code\n## B\n',
         '## A\n> ```\n> code\n## B\n',
@@ -257,6 +257,46 @@ void main() {
         Doc.parse('## A\n- item\n\n    ```\n    code\n').hasUnclosedFence,
         isTrue,
       );
+    });
+
+    test('a fence indented 4 or more columns past its container opens no '
+        'fence', () {
+      for (final text in [
+        '## A\n    ```\n## B\n',
+        '## A\n- item\n\n      ```\n      code\n## B\n',
+        '## A\n>     ```\n> code\n## B\n',
+      ]) {
+        final doc = Doc.parse(text);
+
+        expect(_headers(doc), ['A', 'B'], reason: text);
+        expect(doc.hasUnclosedFence, isFalse, reason: text);
+      }
+      expect(
+        fencedLines(['## A', '- item', '', '      ```', '      code', 'after']),
+        everyElement(isFalse),
+      );
+    });
+
+    test('a closing fence outdented out of its list item opens a new '
+        'top-level fence', () {
+      final open = Doc.parse('## A\n- item\n  ```\n  code\n```\n## in\n');
+
+      expect(_headers(open), ['A']);
+      expect(open.hasUnclosedFence, isTrue);
+
+      final closed = Doc.parse(
+        '## A\n- item\n  ```\n  code\n```\n## in\n```\n## B\n',
+      );
+
+      expect(_headers(closed), ['A', 'B']);
+      expect(closed.hasUnclosedFence, isFalse);
+      expect(fencedLines(['- a', '  ```', '  x', '```', 'after']), [
+        false,
+        true,
+        true,
+        true,
+        true,
+      ]);
     });
 
     test('fencedLines marks the '

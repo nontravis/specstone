@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/bundle_size_rule.dart';
@@ -8,6 +9,7 @@ import 'package:specstone_core/src/index_query/bundle_file.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/setup_migration/agent_text.g.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -54,6 +56,17 @@ Map<String, String> _bigShop(int letters) => {
   ),
 };
 
+List<String> _filesUnder(Directory project) => [
+  for (final entity in project.listSync(recursive: true))
+    if (entity is File) entity.path,
+];
+
+final String _sizeFix = utf8.decode(
+  base64Decode(
+    agentAssetsBase64['specstone-expert-sdd/references/size-fix.md']!,
+  ),
+);
+
 const _toDomain = '../../../../../specs/f02_shop/DOMAIN.md';
 
 /// Returns the nested project's files where the story `shop/cart/drop_item`
@@ -83,11 +96,12 @@ Map<String, String> _citedInvariants({
 Future<Directory> _writeCitedInvariants({
   required int linked,
   required int unlinked,
+  Map<String, String> extra = const {},
 }) {
   final files = _citedInvariants(linked: linked, unlinked: unlinked);
   return writeCheckProject(
-    extra: {...nestedFiles(), ...files},
-    unstamped: files.keys.toSet(),
+    extra: {...nestedFiles(), ...files, ...extra},
+    unstamped: {...files.keys, ...extra.keys},
   );
 }
 
@@ -272,6 +286,26 @@ void main() {
       );
     });
 
+    test(
+      'the size is taken with no doc file read and no file written',
+      () async {
+        final project = await writeNestedProject(extra: _bigShop(_overBound));
+        final session = openSession(project);
+        addTearDown(session.close);
+        final before = _sizeFindings(session, shopFeature).single.toJson();
+        final files = _filesUnder(project);
+
+        Directory('${project.path}/docs').deleteSync(recursive: true);
+        final after = _sizeFindings(session, shopFeature).single.toJson();
+
+        expect(after, before);
+        expect(
+          _filesUnder(project).toSet(),
+          files.where((path) => !path.contains('/docs/')).toSet(),
+        );
+      },
+    );
+
     test('a story file over the bound names the story as doc', () async {
       final project = await writeNestedProject(
         extra: {
@@ -328,6 +362,205 @@ void main() {
 
       expect(_sizeFindings(session, cartFeature), isEmpty);
     });
+
+    test('a story file filled by its own text or by its linked spec pieces '
+        'names the story as doc, its fix a story split', () async {
+      final ownText = await writeNestedProject(
+        extra: {
+          'docs/$cartAdd': nestedFiles()['docs/$cartAdd']!.replaceFirst(
+            '## Acceptance Criteria\n',
+            '## Acceptance Criteria\n${'a' * _overBound}\n',
+          ),
+        },
+      );
+      final pieces = await _writeCitedInvariants(
+        linked: _overBound,
+        unlinked: 1000,
+        extra: {
+          'docs/$cartDrop':
+              '# Agent drops an item\n\n## Use Case\nDrops an item.\n',
+        },
+      );
+      for (final (name, project) in [
+        ('own text', ownText),
+        ('pieces', pieces),
+      ]) {
+        final session = openSession(project);
+        addTearDown(session.close);
+
+        final found = _sizeFindings(session, cartFeature).single;
+
+        expect(found.path, cartFeature, reason: name);
+        expect(found.waitsFor, WaitsFor.owner, reason: name);
+        expect(found.keys['doc'], 'shop/cart/add_item', reason: name);
+        expect(
+          found.keys['actual'],
+          _headerSizeOf(session, project, 'shop/cart/add_item', summary: false),
+          reason: name,
+        );
+        expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      }
+      final fix = _sizeFix.split('## A bundle over its limit').last;
+      expect(
+        fix,
+        contains(
+          '- `doc` is a story: split it in its feature into two stories, '
+          'one `specstone new user_story --parent <feature> --slug\n'
+          '  <slug>`, then one `specstone move <fr> … --under <new story>` '
+          'per FR and nf that goes to it, so the FRs and nfs are\n'
+          '  shared between the two stories.',
+        ),
+      );
+    });
+
+    test('a feature whose children are sub-features keeps the finding, its fix '
+        'no story split but moves of the items one sub-feature uses', () async {
+      final project = await writeNestedProject(extra: _bigShop(_overBound));
+      final session = openSession(project);
+      addTearDown(session.close);
+      final shop = session.index.at(shopFeature)!;
+      final children = session.index.childrenOf(shop);
+      expect(children.map((c) => c.docTypeId), isNot(contains('user_story')));
+      expect(
+        children.map((c) => c.docPath),
+        containsAll([cartFeature, payFeature]),
+      );
+
+      final found = _sizeFindings(session, shopFeature).single;
+
+      expect(found.waitsFor, WaitsFor.owner);
+      expect(found.keys, {
+        'doc': 'shop',
+        'limit': 24000,
+        'actual': _headerSizeOf(session, project, 'shop', summary: true),
+      });
+      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      final fix = _sizeFix.split('## A bundle over its limit').last;
+      expect(
+        fix,
+        contains(
+          '- `doc` is a feature whose children are sub-features: one '
+          '`specstone move <doc>#<ID> … --under <sub-feature>` per\n'
+          '  spec item that one sub-feature alone uses. With no such item, no '
+          'fix applies.',
+        ),
+      );
+    });
+
+    test('a sub-feature over the bound is its own finding, its fix a split of '
+        'its stories', () async {
+      final project = await _writeCitedInvariants(
+        linked: _overBound ~/ 2,
+        unlinked: 1000,
+        extra: {
+          for (final slug in ['edit_item', 'move_item'])
+            'docs/prds/features/f02_shop/f01_cart/us03_$slug/USER_STORY.md':
+                nestedFiles()['docs/$cartAdd']!,
+        },
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+      final cartDoc = session.index.at(cartFeature)!;
+      expect(
+        session.index.childrenOf(cartDoc).where(session.index.isChainDoc),
+        hasLength(4),
+      );
+
+      final found = _sizeFindings(session, cartFeature).single;
+      final actual = _headerSizeOf(
+        session,
+        project,
+        'shop/cart',
+        summary: true,
+      );
+
+      expect(found.path, cartFeature);
+      expect(found.waitsFor, WaitsFor.owner);
+      expect(found.keys, {
+        'doc': 'shop/cart',
+        'limit': 24000,
+        'actual': actual,
+      });
+      expect(actual, greaterThan(bundleTokenLimit));
+      final fix = _sizeFix.split('## A bundle over its limit').last;
+      expect(
+        fix,
+        contains(
+          '- `doc` is a feature whose children are stories: the sub-feature '
+          'split above',
+        ),
+      );
+    });
+
+    test('a feature at the nesting depth limit keeps the finding with no '
+        'split', () async {
+      const express = 'prds/features/f02_shop/f01_cart/f01_express/FEATURE.md';
+      const expressStory =
+          'prds/features/f02_shop/f01_cart/f01_express/us01_rush/USER_STORY.md';
+      final project = await _writeCitedInvariants(
+        linked: _overBound ~/ 2,
+        unlinked: 1000,
+        extra: {
+          'docs/$express': nestedFiles()['docs/$cartFeature']!.replaceFirst(
+            '## Problem\n',
+            '## Problem\nBuilds on [INV-2]($_toDomain#invariants) and '
+                '[INV-3]($_toDomain#invariants).\n',
+          ),
+          'docs/$expressStory': nestedFiles()['docs/$cartAdd']!,
+        },
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+
+      final found = _sizeFindings(session, express).single;
+
+      expect(found.keys['doc'], 'shop/cart/express');
+      expect(found.waitsFor, WaitsFor.owner);
+      expect(found.keys.keys, unorderedEquals(['doc', 'limit', 'actual']));
+      expect(
+        found.keys['actual'],
+        _headerSizeOf(session, project, 'shop/cart/express', summary: true),
+      );
+      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      expect(
+        session.index.childrenOf(session.index.at(express)!),
+        hasLength(1),
+      );
+      final fix = _sizeFix.split('## A bundle over its limit').last;
+      expect(
+        fix,
+        contains("No fix applies to a feature at its doc type's `max_depth`"),
+      );
+    });
+
+    test(
+      'a sub-feature of three stories keeps the finding with no split',
+      () async {
+        const thirdStory =
+            'prds/features/f02_shop/f01_cart/us03_edit_item/USER_STORY.md';
+        final project = await _writeCitedInvariants(
+          linked: _overBound ~/ 2,
+          unlinked: 1000,
+          extra: {'docs/$thirdStory': nestedFiles()['docs/$cartAdd']!},
+        );
+        final session = openSession(project);
+        addTearDown(session.close);
+
+        final found = _sizeFindings(session, cartFeature).single;
+
+        expect(found.keys['doc'], 'shop/cart');
+        expect(found.waitsFor, WaitsFor.owner);
+        expect(found.keys.keys, unorderedEquals(['doc', 'limit', 'actual']));
+        final cart = session.index.at(cartFeature)!;
+        expect(
+          session.index.childrenOf(cart).where(session.index.isChainDoc),
+          hasLength(3),
+        );
+        expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+        final fix = _sizeFix.split('## A bundle over its limit').last;
+        expect(fix, contains('whose children are fewer than 4 stories'));
+      },
+    );
 
     test('an FR, NFR, or spec doc gets no size', () async {
       final session = openSession(

@@ -1217,4 +1217,108 @@ void main() {
       );
     });
   });
+
+  group('size and shape edge cases', () {
+    test('a requirement with no Statement section carries section statement in its finding', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: fr('## Statement\n\n$checkPasswordStatement\n\n', ''),
+        ),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.requiredSectionMissing,
+      );
+      expect(finding.toJson(), containsPair('section', 'statement'));
+    });
+
+    group('a doc whose frontmatter is not valid YAML', () {
+      const badStart = '---\nverify_method: "test\n';
+      String docOf(int bodyLines) =>
+          '$badStart${'x: y\n' * 30}---\n\n# Check the password\n\n## Statement\n\n$checkPasswordStatement\n\n${'x\n' * (bodyLines - 3)}';
+
+      Future<CheckReport> reportOf(int bodyLines) async => await checkOf(
+        await writeCheckProject(extra: {'docs/$loginFr': docOf(bodyLines)}),
+      );
+
+      test(
+        'counts its body lines alone, 400 of them under the limit',
+        () async {
+          final report = await reportOf(400);
+          expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
+          expect(spots(report, FindingKind.linesOverLimit), isEmpty);
+        },
+      );
+
+      test(
+        'counts 401 body lines as over the limit, the frontmatter left out',
+        () async {
+          final finding = (await reportOf(401)).findings
+              .singleWhere((f) => f.kind == FindingKind.linesOverLimit);
+          expect(finding.toJson(), containsPair('limit', 400));
+          expect(finding.toJson(), containsPair('actual', 401));
+        },
+      );
+    });
+
+    test('a journey scenario copy counts toward the journey section limit and gives no item finding', () async {
+      final given = '- **Given** ${'x' * 710}';
+      const journeyPath = 'prds/journeys/login/JOURNEY.md';
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/templates/journey.yaml':
+              'sections:\n  - id: steps\n    lint:\n      max_chars: 400\n',
+          ...doc(
+            loginStory,
+            '- **Given** an account\n- **When** the Agent signs in',
+            '$given\n- **When** the Agent signs in',
+          ),
+          'docs/$journeyPath':
+              '# Sign in\n\n## Goal\n\nAn Agent reaches the home page.\n\n## Steps\n\n### 1. Start\n\nstep: email_login S1\n${generatedOpenMarker('scenario_copy')}\n$given\n- **When** the Agent signs in\n$generatedEndMarker\n',
+        },
+      );
+      final onJourney = (await checkOf(project)).findings
+          .where((f) => f.path == journeyPath)
+          .toList();
+      final limit = onJourney.singleWhere(
+        (f) => f.kind == FindingKind.charsOverLimit,
+      );
+      expect(limit.toJson(), containsPair('section', 'steps'));
+      expect(limit.toJson(), containsPair('limit', 400));
+      expect(limit.toJson()['actual'], greaterThan(710));
+      expect(
+        onJourney.where((f) => f.kind == FindingKind.itemOverLimit),
+        isEmpty,
+      );
+    });
+
+    test('a record whose frontmatter lines push its file past 60000 characters is chars_over_limit, its lines under the limit', () async {
+      final record =
+          "---\nstatuses:\n  - 'email_login:implemented'\n"
+          '${'  # ${'c' * 200}\n' * 300}---\n\n# Login implementation\n${'x\n' * 40}';
+      expect(record.length, greaterThan(60000));
+      final report = await checkOf(
+        await writeCheckProject(extra: {loginRecord: record}),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.charsOverLimit,
+      );
+      expect(finding.path, loginRecord);
+      expect(finding.toJson(), containsPair('limit', 60000));
+      expect(finding.toJson()['actual'], greaterThan(60000));
+      expect(spots(report, FindingKind.linesOverLimit), isEmpty);
+    });
+
+    test('a feature doc with no # line, or an empty one, is title_missing at line 1', () async {
+      for (final head in ['', '# \n\n']) {
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: doc(loginFeature, '# Login\n\n', head),
+          ),
+        );
+        expect(spots(report, FindingKind.titleMissing), [
+          '$loginFeature:1: title_missing',
+        ]);
+      }
+    });
+  });
 }

@@ -5,8 +5,23 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/posix_modes.dart';
+import '../../../../specstone_core/test/helpers/relative_link.dart';
 import '../../helpers/fixture_packs.dart';
 import '../../helpers/temp_tree.dart';
+
+final String? _linksUnavailable = Platform.isWindows
+    ? 'a link needs a privilege on Windows'
+    : null;
+
+const _zeta = '''
+id: zeta
+description: A second doc type on the feature path.
+path: prds/features/f{nn}_template_packs/FEATURE.md
+''';
+
+const _noTrustRefusal =
+    'cannot write .specstone/build/docs.html: the docs folder ';
 
 const _buildUsage =
     'Usage: specstone build <target> [--format html] '
@@ -409,6 +424,202 @@ void main() {
       expect(err.toString(), isNotEmpty);
     });
 
+    test('a template load fault prints its pack code with exit 78 and '
+        'writes nothing', () async {
+      final project = await fixtureProject({
+        ..._fixture,
+        '.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n',
+      });
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', 'docs', '--json']), 78);
+      expect(out.toString(), isEmpty);
+      final error =
+          (jsonDecode(err.toString()) as Map<String, dynamic>)['error']
+              as Map<String, dynamic>;
+      expect(error['code'], 'pack_pin_newer');
+      expectNothingWritten(project, '.specstone/build/docs.html');
+    });
+
+    test('a target that does not exist is 64 with target_not_found and '
+        'writes nothing', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', 'docs/missing', '--json']), 64);
+      expect(out.toString(), isEmpty);
+      expect(jsonDecode(err.toString()), {
+        'error': {
+          'code': 'target_not_found',
+          'message': 'the target docs/missing does not exist',
+        },
+      });
+      expectNothingWritten(project, '.specstone/build/docs/missing.html');
+    });
+
+    test('a file two doc types match is skipped with both type ids and the '
+        'rest build with exit 0', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project, packs: {'zeta.yaml': _zeta});
+
+      expect(await runner.run(['build', _featureDir]), 0);
+      expect(out.toString(), '.specstone/build/$_featureDir.html\n');
+      expect(
+        err.toString(),
+        '⚠️ WARNING: $_feature: doc types feature, zeta match this path; '
+        'skipped\n',
+      );
+      final html = read(project, '.specstone/build/$_featureDir.html');
+      expect(html, contains('Story A'));
+      expect(html, isNot(contains('F-03 Template packs')));
+    });
+
+    test('a doc that is not UTF-8 text is skipped with its warning and the '
+        'rest build with exit 0', () async {
+      final project = await fixtureProject(_fixture);
+      File.fromUri(project.uri.resolve(_storyA))
+          .writeAsBytesSync([0x23, 0x20, 0xFF, 0x0A]);
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', _featureDir]), 0);
+      expect(out.toString(), '.specstone/build/$_featureDir.html\n');
+      expect(err.toString(), '⚠️ WARNING: $_storyA: not UTF-8 text; skipped\n');
+      final html = read(project, '.specstone/build/$_featureDir.html');
+      expect(html, contains('Story B'));
+      expect(html, isNot(contains('Story A')));
+    });
+
+    test('an unreadable doc file is skipped with its warning and the rest '
+        'build with exit 0', () async {
+      final project = await fixtureProject(_fixture);
+      final doc = File.fromUri(project.uri.resolve(_storyA));
+      await Process.run('chmod', ['000', doc.path]);
+      addTearDown(() => Process.run('chmod', ['644', doc.path]));
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', _featureDir]), 0);
+      expect(err.toString(), '⚠️ WARNING: $_storyA: cannot be read; skipped\n');
+      final html = read(project, '.specstone/build/$_featureDir.html');
+      expect(html, contains('Story B'));
+      expect(html, isNot(contains('Story A')));
+    }, skip: unreadablePathSkipReason() ?? false);
+
+    test('an unlistable folder is skipped with its warning and the other docs '
+        'build with exit 0', () async {
+      final project = await fixtureProject(_fixture);
+      final folder = Directory.fromUri(
+        project.uri.resolve('$_featureDir/us02_b/'),
+      );
+      await Process.run('chmod', ['000', folder.path]);
+      addTearDown(() => Process.run('chmod', ['755', folder.path]));
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', _featureDir]), 0);
+      expect(
+        err.toString(),
+        '⚠️ WARNING: $_featureDir/us02_b/: cannot be read; skipped\n',
+      );
+      final html = read(project, '.specstone/build/$_featureDir.html');
+      expect(html, contains('Story A'));
+      expect(html, contains('Requirement X'));
+      expect(html, isNot(contains('Story B')));
+    }, skip: unreadablePathSkipReason() ?? false);
+
+    test('a doc the markdown parser fails on warns and the build exits 0 '
+        'with the file written', () async {
+      final project = await fixtureProject({
+        ..._fixture,
+        _frX: '$_frXText\n[a]:<b\\\n',
+      });
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', _featureDir]), 0);
+      expect(out.toString(), '.specstone/build/$_featureDir.html\n');
+      expect(
+        err.toString(),
+        '⚠️ WARNING: $_frX: the markdown parser failed; its body is shown as '
+        'plain text\n',
+      );
+      expect(exists(project, '.specstone/build/$_featureDir.html'), isTrue);
+    });
+
+    group(
+      'a clone whose docs link leaves the project, with no trust record',
+      () {
+        Future<({Directory clone, Directory ext})> linkedClone() async {
+          final base = await writeTree({
+            for (final MapEntry(:key, :value) in _fixture.entries)
+              'ext/${key.substring('docs/'.length)}': value,
+            'clone/.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
+          });
+          createRelativeLink('${base.path}/clone/docs', '../ext');
+          return (
+            clone: Directory('${base.path}/clone'),
+            ext: Directory('${base.path}/ext'),
+          );
+        }
+
+        test('the default output is refused with 73 and nothing is '
+            'written', () async {
+          final (:clone, :ext) = await linkedClone();
+          final runner = await runnerIn(clone);
+
+          expect(await runner.run(['build', 'docs', '--json']), 73);
+          expect(out.toString(), isEmpty);
+          expect(jsonDecode(err.toString()), {
+            'error': {
+              'code': 'output_not_writable',
+              'message':
+                  '$_noTrustRefusal${ext.resolveSymbolicLinksSync()} lies '
+                  'outside the project; run specstone trust at a terminal to '
+                  'allow it',
+              'file': '.specstone/build/docs.html',
+            },
+          });
+          expectNothingWritten(clone, '.specstone/build/docs.html');
+        }, skip: _linksUnavailable);
+
+        test('a named --output is written in a project with no trust '
+            'record', () async {
+          final (:clone, ext: _) = await linkedClone();
+          final runner = await runnerIn(clone);
+
+          expect(
+            await runner.run(['build', 'docs', '--output', 'out/a.html']),
+            0,
+          );
+          expect(out.toString(), 'out/a.html\n');
+          expect(err.toString(), isEmpty);
+          expect(read(clone, 'out/a.html'), contains('F-03 Template packs'));
+        }, skip: _linksUnavailable);
+      },
+    );
+
+    test('a .specstone/build link out of the project is refused with the '
+        'cannot write message and nothing is written', () async {
+      final project = await fixtureProject(_fixture);
+      final elsewhere = await Directory.systemTemp.createTemp(
+        'specstone_elsewhere_',
+      );
+      addTearDown(() => elsewhere.delete(recursive: true));
+      Link.fromUri(project.uri.resolve('.specstone/build'))
+          .createSync(elsewhere.path);
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['build', 'docs', '--json']), 73);
+      expect(out.toString(), isEmpty);
+      expect(jsonDecode(err.toString()), {
+        'error': {
+          'code': 'output_not_writable',
+          'message':
+              'cannot write .specstone/build/docs.html: it leads outside the '
+              'project',
+          'file': '.specstone/build/docs.html',
+        },
+      });
+      expect(elsewhere.listSync(), isEmpty);
+    }, skip: _linksUnavailable);
+
     group('an --output inside the docs root', () {
       test('html to a new file in docs/ is 73 and '
           'renders nothing', () async {
@@ -560,8 +771,7 @@ void main() {
       );
     });
 
-    test('--paper '
-        'b5 is 64 in text and json and writes nothing', () async {
+    test('--paper b5 is 64 in text and json and writes nothing', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
 

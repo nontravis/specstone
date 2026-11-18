@@ -12,6 +12,7 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';
+import 'package:specstone_core/src/rendering/mermaid_script.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -85,8 +86,7 @@ void main() {
     expect(text, contains('  s4 --> s5'));
   });
 
-  test('a '
-      'step added by hand gets its scenario text and its node', () async {
+  test('a step added by hand gets its scenario text and its node', () async {
     final root = await _project(
       _journey([_step('1', 'Open', 'S1'), _step('2', 'Wrong', 'S2')]),
     );
@@ -167,6 +167,78 @@ void main() {
     expect(build.html, contains('flowchart TD'));
     expect(build.html, contains('s1 --&gt; s2'));
     expect(build.html, isNot(contains('src="http')));
+  });
+
+  test('an html build of a journey renders its flowchart with the pinned '
+      'inline script once', () async {
+    final root = await _project(
+      _journey([_step('1', 'Open', 'S1'), _step('2', 'Type', 'S1')]),
+    );
+    _format(root);
+    final project = _open(root);
+
+    final build = buildHtml(
+      project,
+      project.resolveTarget(
+        null,
+        workingDirectory: root,
+        defaultsToDocsRoot: true,
+      ),
+    );
+
+    expect(build.html, contains(mermaidScript));
+    expect(
+      build.html.indexOf(mermaidScript),
+      build.html.lastIndexOf(mermaidScript),
+    );
+    expect(
+      build.html.replaceAll(mermaidScript, ''),
+      isNot(contains('src="http')),
+    );
+    expect(build.html, contains('<pre class="mermaid">'));
+  });
+
+  test('a copy block under a step that names a missing scenario stays as it '
+      'stands', () async {
+    final root = await _project(
+      _journey([_step('1', 'Open', 'S1'), _step('2', 'Type', 'S1')]),
+    );
+    _format(root);
+    final file = File.fromUri(root.uri.resolve(_journeyKey));
+    final text = _read(root);
+    final second = text.lastIndexOf('step: $_story S1');
+    final edited = text.replaceRange(
+      second,
+      second + 'step: $_story S1'.length,
+      'step: $_story S9',
+    );
+    file.writeAsStringSync(edited);
+    expect(_count(edited, generatedOpenMarker(scenarioCopyKind)), 2);
+
+    _format(root);
+
+    expect(_read(root), edited);
+  });
+
+  test('prose a person writes inside a step survives format byte for '
+      'byte', () async {
+    const prose =
+        'Remember: the shopper may type a wrong password.\n\n'
+        '- a note line\n  with a wrapped line and a `code span`\n';
+    final root = await _project(
+      _journey([
+        '### 1. Open\nstep: $_story S1\n\n$prose',
+        _step('2', 'Type', 'S1'),
+      ]),
+    );
+
+    _format(root);
+
+    final text = _read(root);
+    expect(text, contains(prose));
+    expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 2);
+    _format(root);
+    expect(_read(root), text);
   });
 
   group('tracked step links after a format', () {

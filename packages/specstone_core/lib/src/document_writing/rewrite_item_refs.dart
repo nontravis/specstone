@@ -1,14 +1,9 @@
-import 'package:specstone_core/src/consistency_check/fingerprint.dart'
-    show fingerprintOf;
-import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
-    show scenarioBlocksOfContent;
 import 'package:specstone_core/src/doc_model/doc_anchors.dart'
     show anchorsOfBody;
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, projectFilePathOf, relativeFilePathOf, resolveDocLink;
 import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
-import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/body_scan.dart';
 import 'package:specstone_core/src/document_writing/item_landing.dart';
@@ -19,15 +14,13 @@ import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show rebasedHref, relativeHref;
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
-    show MovedFingerprints, rewriteScenarioSteps, rewriteScenarioTraces;
+    show rewriteScenarioSteps, rewriteScenarioTraces;
 import 'package:specstone_core/src/document_writing/scenario_items.dart'
     show landedScenarioHeading;
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/item_facts.dart'
-    show itemKeyOfHead, sectionItemsAt;
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart'
     show leafTextOf, linkLabel;
@@ -41,8 +34,6 @@ import 'package:specstone_core/src/journeys/journey_steps.dart'
     show journeyTypeId;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart'
-    show MergedDocType;
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 // MARK: - Edits
@@ -114,9 +105,8 @@ ItemRefs planItemRefs(WriteSession session, List<ItemLanding> landings) {
         if (value.removals.isNotEmpty) key.docPath: value.removals,
     },
   );
-  final fingerprints = _fingerprintsOf(index, landings, landed);
-  final entries = itemEntryEdits(index, moves, fingerprints: fingerprints);
-  final traces = _scenarioTraceEdits(index, landings, fingerprints);
+  final entries = itemEntryEdits(index, moves);
+  final traces = _scenarioTraceEdits(index, landings);
   final paths = {
     for (final doc in rewritten.keys) doc.docPath,
     ...landed.keys,
@@ -164,74 +154,13 @@ TextEdit _composed(
   return result == lfText ? null : result;
 };
 
-// MARK: - Fingerprints
-
-/// Returns the fingerprint of the block each landing's entries track, before
-/// the move and in the target doc as [landed] writes it.
-Map<ItemLanding, MovedFingerprints> _fingerprintsOf(
-  DocIndex index,
-  List<ItemLanding> landings,
-  Map<String, TextEdit> landed,
-) {
-  final target = landings.first.to;
-  final type = index.typeOf(target);
-  final lf = toLf(index.contentOf(target).text);
-  final after = docStructureOf(landed[target.docPath]?.call(lf) ?? lf, type);
-  final fingerprints = <ItemLanding, MovedFingerprints>{};
-  for (final landing in landings) {
-    final source = landing.from.doc;
-    final located = locateItem(index, landing.from);
-    final before = _trackedText(
-      index.contentOf(source),
-      index.typeOf(source),
-      located,
-      landing.from.id,
-    );
-    if (before == null) continue;
-    final landedText = _trackedText(after, type, located, landing.newId);
-    fingerprints[landing] = MovedFingerprints(
-      before: fingerprintOf(before),
-      after: landedText == null ? null : fingerprintOf(landedText),
-    );
-  }
-  return fingerprints;
-}
-
-/// Returns the text an entry tracks of the item [located], held as [id] in
-/// [content], a doc of [type]: a scenario's block, as an FR or a journey
-/// traces it, else the item's own lines, as an `Overrides:` line does; null
-/// when [content] holds no such item.
-String? _trackedText(
-  DocContent content,
-  MergedDocType? type,
-  LocatedItem located,
-  String id,
-) {
-  if (located.isScenario) return scenarioBlocksOfContent(content, type)[id];
-  for (final (at, section) in citedSectionsOf(content, type).indexed) {
-    if (!located.isTakenBy(section.key, section.prefixId)) continue;
-    for (final item in sectionItemsAt(content, at, type)) {
-      final key = itemKeyOfHead(
-        item.head,
-        isHeading: item.kind == SectionItemKind.heading,
-        prefixId: located.prefix,
-        isAcceptanceCriteria: false,
-      );
-      if (key == id) return item.text;
-    }
-  }
-  return null;
-}
-
 // MARK: - Scenario traces
 
 /// Returns, by DocPath, the edit of each FR and journey whose trace entries
-/// or steps name a moved scenario: each set to its landing, and a matched
-/// `confirmed` entry re-stamped from [fingerprints].
+/// or steps name a moved scenario: each set to its landing.
 Map<String, String Function(String lfText)> _scenarioTraceEdits(
   DocIndex index,
   List<ItemLanding> landings,
-  Map<ItemLanding, MovedFingerprints> fingerprints,
 ) {
   final scenarios = [
     for (final landing in landings)
@@ -240,7 +169,7 @@ Map<String, String Function(String lfText)> _scenarioTraceEdits(
   if (scenarios.isEmpty) return const {};
   final edits = <String, String Function(String lfText)>{};
   for (final doc in index.docs) {
-    final edit = _scenarioTraceEditOf(index, doc, scenarios, fingerprints);
+    final edit = _scenarioTraceEditOf(index, doc, scenarios);
     if (edit == null) continue;
     final lf = toLf(index.contentOf(doc).text);
     if (edit(lf) != lf) edits[doc.docPath] = edit;
@@ -256,7 +185,6 @@ String Function(String lfText)? _scenarioTraceEditOf(
   DocIndex index,
   IndexedDoc doc,
   List<ItemLanding> scenarios,
-  Map<ItemLanding, MovedFingerprints> fingerprints,
 ) {
   final type = index.typeOf(doc);
   final story = index.parentOf(doc)?.docPath;
@@ -266,7 +194,6 @@ String Function(String lfText)? _scenarioTraceEditOf(
       fromNumber: _scenarioNumberOf(landing.from.id),
       targetStory: landing.to.name,
       toNumber: _scenarioNumberOf(landing.newId),
-      fingerprints: fingerprints[landing],
       isSourceStory: (name) => _namesStory(index, name, landing.from.doc),
       isInSourceStory: story == landing.from.doc.docPath,
       isInTargetStory: story == landing.to.docPath,
@@ -278,7 +205,6 @@ String Function(String lfText)? _scenarioTraceEditOf(
         fromNumber: _scenarioNumberOf(landing.from.id),
         targetStory: landing.to.name,
         toNumber: _scenarioNumberOf(landing.newId),
-        fingerprints: fingerprints[landing],
         isSourceStory: (name) => _namesStory(index, name, landing.from.doc),
       ),
     _ => null,

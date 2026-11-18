@@ -7,8 +7,6 @@ import 'package:specstone_core/src/doc_model/task_ref.dart';
 import 'package:specstone_core/src/document_writing/item_moves.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart'
     show ItemLanding, overrideCitesOf;
-import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
-    show MovedFingerprints;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -21,17 +19,15 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _overridesKey = 'overrides';
 
 /// Returns, by DocPath, the edit of each doc's frontmatter entries that follow
-/// a moved item: an `overrides` entry that names it, re-stamped from
-/// [fingerprints] when it matched, and a task ref that leaves its source doc
-/// for the target doc.
+/// a moved item: an `overrides` entry that names it, and a task ref that
+/// leaves its source doc for the target doc.
 ///
 /// Throws [RenderFault] `output_not_writable` for a task ref field that is
 /// not valid YAML.
 Map<String, String Function(String lfText)> itemEntryEdits(
   DocIndex index,
-  ItemMoves moves, {
-  required Map<ItemLanding, MovedFingerprints> fingerprints,
-}) {
+  ItemMoves moves,
+) {
   final named = <String, Map<String, ItemLanding>>{};
   for (final doc in index.docs) {
     final landings = _namedLandings(index, doc, moves);
@@ -44,7 +40,7 @@ Map<String, String Function(String lfText)> itemEntryEdits(
         final landings = named[path];
         var text = landings == null
             ? lfText
-            : _withEntriesFollowing(lfText, landings, fingerprints);
+            : _withEntriesFollowing(lfText, landings);
         if (index.at(path) case final doc?) {
           text = tasks[path]?.applyTo(text, index.typeOf(doc), path) ?? text;
         }
@@ -67,28 +63,14 @@ Map<String, ItemLanding> _namedLandings(
 };
 
 /// Returns [lfText] with each `overrides` entry naming a landing of [landings]
-/// re-stamped when it matched, then set to the label the item lands under.
-String _withEntriesFollowing(
-  String lfText,
-  Map<String, ItemLanding> landings,
-  Map<ItemLanding, MovedFingerprints> fingerprints,
-) {
-  var text = lfText;
-  for (final MapEntry(key: identity, value: landing) in landings.entries) {
-    text =
-        fingerprints[landing]?.restampIn(
-          text,
-          _overridesKey,
-          (label) => linkIdentityOf(label) == identity,
-        ) ??
-        text;
-  }
+/// set to the label the item lands under.
+String _withEntriesFollowing(String lfText, Map<String, ItemLanding> landings) {
   final renamed = {
     for (final MapEntry(key: identity, value: landing) in landings.entries)
       identity: '${landing.to.docTypeId}:${landing.to.name}#${landing.newId}',
   };
   return withBlockValues(
-    text,
+    lfText,
     _overridesKey,
     (value) => _renamedEntry(value, renamed),
   );

@@ -10,6 +10,7 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -23,6 +24,7 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart';
+import '../../helpers/write_fixture.dart' show writeIn;
 
 /// Letters that put a story or doc over the bound by a margin of 2,000 est.
 /// tokens (characters / 4).
@@ -657,6 +659,217 @@ void main() {
     );
   });
 
+  test(
+    'a doc check holds no singular_doc_missing and no agent_block_stale',
+    () async {
+      final project = await writeCheckProject(
+        without: {'docs/$projectDoc'},
+        extra: {'.specstone/AGENT.md': 'hand edit\n'},
+      );
+      final whole = await checkOf(project);
+      expect(spots(whole, FindingKind.singularDocMissing), [
+        '$projectDoc:1: singular_doc_missing',
+      ]);
+      expect(spots(whole, FindingKind.agentBlockStale), [
+        '.specstone/AGENT.md:1: agent_block_stale',
+      ]);
+
+      final doc = await checkOf(project, docPath: loginStory);
+
+      expect(spots(doc, FindingKind.singularDocMissing), isEmpty);
+      expect(spots(doc, FindingKind.agentBlockStale), isEmpty);
+    },
+  );
+
+  test('a targeted run holds no code_uncovered and no doc_cited_in_code '
+      'finding', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ...doc(loginArchitecture, 'app/lib/', 'app/lib/login.dart'),
+        'app/lib/extra.dart': 'class Extra {}\n// Implements `login/email_login/check_password`.\n',
+      },
+    );
+    final whole = await checkOf(project);
+    expect(spots(whole, FindingKind.codeUncovered), isNotEmpty);
+    expect(spots(whole, FindingKind.docCitedInCode), isNotEmpty);
+
+    final targeted = await checkOf(project, target: 'login');
+
+    expect(spots(targeted, FindingKind.codeUncovered), isEmpty);
+    expect(spots(targeted, FindingKind.docCitedInCode), isEmpty);
+  });
+
+  test(
+    'an fr target keeps a trace finding that reads its parent story',
+    () async {
+      final project = await writeCheckProject(
+        extra: fr('traced_from:\n  - S2\n', 'traced_from:\n  - S9\n'),
+      );
+      final whole = spots(
+        await checkOf(project),
+        FindingKind.scenarioTraceUnresolved,
+      );
+      expect(whole, isNotEmpty);
+
+      final targeted = await checkOf(
+        project,
+        target: 'fr:login/email_login/check_password',
+      );
+
+      expect(spots(targeted, FindingKind.scenarioTraceUnresolved), whole);
+      expect(whole.single, startsWith('$loginFr:'));
+    },
+  );
+
+  test('an untyped DocPath target reports the broken links of the doc beside '
+      'its untyped finding', () async {
+    const notes = 'prds/features/f01_login/notes.md';
+    const sibling = 'prds/features/f01_login/other.md';
+    final project = await writeCheckProject(
+      extra: {
+        'docs/$notes': '# Notes\n\nSee [x](../../../nowhere.md).\n',
+        'docs/$sibling': '# Other\n\nSee [y](../../../nowhere.md).\n',
+      },
+    );
+
+    final report = await checkOf(project, target: notes);
+
+    expect(spots(report), [
+      '$notes:1: untyped_doc',
+      '$notes:3: link_unresolved',
+    ]);
+  });
+
+  test('a user_story target reports the story, its FRs, and its nfs, and no '
+      'file of the sibling story', () async {
+    const sibling = 'prds/features/f01_login/us02_reset/notes.md';
+    final project = await writeCheckProject(
+      extra: {
+        ...edit(loginStory, [
+          (
+            'I reach my work',
+            'I reach my work, see [gone](gone/USER_STORY.md)',
+          ),
+        ]),
+        ...fr('verify_method: test\n', ''),
+        ...edit(loginNf, [('verify_method: test\n', '')]),
+        'docs/$sibling': '# Notes\n',
+      },
+    );
+
+    final report = await checkOf(
+      project,
+      target: 'user_story:login/email_login',
+    );
+
+    expect(
+      {for (final f in report.findings) f.path},
+      {loginStory, loginFr, loginNf},
+    );
+    expect(
+      spots(await checkOf(project, target: 'login')),
+      contains('$sibling:1: untyped_doc'),
+    );
+  });
+
+  test('check of an untyped file whose name holds a hash reports that one '
+      'file', () async {
+    const draft = 'prds/notes#draft.md';
+    const other = 'prds/notes.md';
+    final project = await writeCheckProject(
+      extra: {'docs/$draft': '# Draft\n', 'docs/$other': '# Other\n'},
+    );
+
+    final report = await checkOf(project, target: draft);
+
+    expect(spots(report), ['$draft:1: untyped_doc']);
+  });
+
+  test(
+    'a check target scopes to the files the delete of that target removes',
+    () async {
+      const notes = [
+        'prds/notes.md',
+        'prds/features/f01_login/notes.md',
+        'prds/features/f01_login/us01_email_login/notes.md',
+        'prds/features/f01_login/us02_reset/notes.md',
+        'specs/f01_login/notes.md',
+      ];
+      final project = await writeCheckProject(
+        extra: {for (final path in notes) 'docs/$path': '# Notes\n'},
+      );
+
+      for (final target in [
+        'feature:login',
+        'user_story:login/email_login',
+        'architecture:login',
+        'fr:login/email_login/check_password',
+        'prds/features/f01_login/notes.md',
+      ]) {
+        final removed = writeIn(
+          project,
+          (s) =>
+              answerDeleteDryRun(s, [target]).json['files']! as List<Object?>,
+        );
+        final checked = [
+          for (final f in (await checkOf(project, target: target)).findings)
+            if (f.kind == FindingKind.untypedDoc) f.path,
+        ];
+
+        expect(checked, [
+          for (final path in notes)
+            if (removed.contains(path)) path,
+        ], reason: target);
+      }
+      expect([
+        for (final f in (await checkOf(
+          project,
+          target: 'feature:login',
+        )).findings)
+          if (f.kind == FindingKind.untypedDoc) f.path,
+      ], notes.sublist(1));
+    },
+  );
+
+  test('a check with no target runs every rule over every doc and lists no '
+      'repeat', () async {
+    const copy = 'prds/features/f01_login/us01_email_login/fr02_copy.md';
+    final project = await writeCheckProject(
+      without: {'docs/prds/GLOSSARY.md'},
+      extra: {
+        ..._brokenRecordFiles(),
+        ...fr('verify_method: test\n', ''),
+        ...doc(
+          loginApi,
+          'Signs the Agent in.',
+          'Signs the Agent in. See [x](../../../nowhere.md).',
+        ),
+        ...doc(loginArchitecture, 'app/lib/', 'app/lib/login.dart'),
+        'docs/$copy': checkProjectFiles()['docs/$loginFr']!,
+        'docs/prds/features/f01_login/notes.md': '# Notes\n',
+        'app/lib/extra.dart': 'class Extra {}\n// Implements `login/email_login/check_password`.\n',
+        '.specstone/AGENT.md': 'hand edit\n',
+      },
+    );
+
+    final report = await checkOf(project);
+
+    expect(spots(report), [
+      '.specstone/AGENT.md:1: agent_block_stale',
+      '$_brokenRecord:6: implements_path_unresolved',
+      'app/lib/extra.dart:2: doc_cited_in_code',
+      'prds/GLOSSARY.md:1: singular_doc_missing',
+      'prds/features/f01_login/notes.md:1: untyped_doc',
+      '$loginFr:1: required_field_missing',
+      'specs/TECH_STACK.md:4: code_uncovered',
+      '$loginApi:19: link_target_missing',
+    ]);
+    final session = openSession(project);
+    addTearDown(session.close);
+    final repeated = runRepeats(session).groups.single;
+    expect([for (final item in repeated.items) item.docPath], [loginFr, copy]);
+  });
+
   test('an agent file finding sorts by path with the doc findings', () async {
     final project = await writeCheckProject(
       extra: {'.specstone/AGENT.md': 'hand edit\n'},
@@ -878,6 +1091,57 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('a missing singular doc of one target stays under --target for that '
+        'target and drops under the other', () async {
+      final project = await writeTwinProject(
+        without: {'docs/specs/jaspr/TECH_STACK.md'},
+      );
+      const kind = FindingKind.singularDocMissing;
+      const missing = 'specs/jaspr/TECH_STACK.md:1: singular_doc_missing';
+
+      expect(spots(await runTwin(project), kind), [missing]);
+      expect(spots(await runTwin(project, codeTarget: 'jaspr'), kind), [
+        missing,
+      ]);
+      expect(
+        spots(await runTwin(project, codeTarget: 'flutter'), kind),
+        isEmpty,
+      );
+    });
+
+    test('each rule that reads one target code or records runs once per '
+        'target', () async {
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      const jasprRecord =
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+      String record(String target) =>
+          "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
+          "implements:\n  - 'email_login/check_password:app/lib/gone.dart:X'\n"
+          '---\n\n# $target record\n';
+      final project = await writeTwinProject(
+        extra: {
+          flutterRecord: record('F'),
+          jasprRecord: record('J'),
+          'flutter_ws/app/lib/auth.dart':
+              'class A {}\n// Implements `login/email_login/check_password`.\n',
+          'jaspr_ws/app/lib/auth.dart':
+              'class A {}\n// Implements `login/email_login/check_password`.\n',
+        },
+      );
+
+      final report = await runTwin(project);
+
+      expect(spots(report, FindingKind.implementsPathUnresolved), [
+        '$flutterRecord:5: implements_path_unresolved',
+        '$jasprRecord:5: implements_path_unresolved',
+      ]);
+      expect(spots(report, FindingKind.docCitedInCode), [
+        'flutter_ws/app/lib/auth.dart:2: doc_cited_in_code',
+        'jaspr_ws/app/lib/auth.dart:2: doc_cited_in_code',
+      ]);
     });
 
     test('CheckScope.targets holds every target, or the one named', () async {

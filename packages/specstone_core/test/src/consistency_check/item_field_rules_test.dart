@@ -192,6 +192,36 @@ void main() {
     );
   });
 
+  test('a layer of another doc type sets item_fields with no doc type id '
+      'named', () async {
+    _project = await writeCheckProject(
+      extra: {
+        '.specstone/templates/user_story.yaml': '''
+sections:
+  - id: rules
+    lint:
+      item_fields:
+        - field: Enforcer
+        - field: Consistency
+          values: [immediate, eventual]
+''',
+        ...doc(
+          loginStory,
+          '## Acceptance Criteria',
+          '## Rules\n\n- **BR-01** Refuse it.\n  - **Enforcer:** CheckRun\n\n'
+              '## Acceptance Criteria',
+        ),
+      },
+    );
+    final found = [
+      for (final f in (await checkOf(_project)).findings)
+        if (_fieldKinds.contains(f.kind)) f,
+    ];
+    expect(found.map((f) => (f.kind, f.path, f.toJson()['field'])), [
+      (FindingKind.itemFieldMissing, loginStory, 'Consistency'),
+    ]);
+  });
+
   group('the shipped domain invariants', () {
     const domainKinds = {
       FindingKind.itemFieldMissing,
@@ -246,6 +276,34 @@ void main() {
         await domainFindings('$_eventual\n$_policy\n$_immediate'),
         isEmpty,
       );
+    });
+
+    test('a project entry for Corrective policy with no when makes every '
+        'invariant need one', () async {
+      const layer = '''
+sections:
+  - id: invariants
+    lint:
+      item_fields:
+        add:
+          - field: Corrective policy
+''';
+      _project = await writeCheckProject(
+        extra: {
+          '.specstone/templates/domain.yaml': layer,
+          _domainPath:
+              '# Login domain\n\n## Entities\n- Account\n\n'
+              '## Invariants\n$_eventual\n$_policy\n$_immediate\n',
+        },
+      );
+      final found = [
+        for (final f in (await checkOf(_project)).findings)
+          if (domainKinds.contains(f.kind)) f,
+      ];
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.itemFieldMissing);
+      expect(found.single.toJson(), containsPair('field', 'Corrective policy'));
+      expect(found.single.line, domainLineOf('- **INV-2**'));
     });
 
     test('a leftover corrective policies section is undeclared and its '
@@ -344,6 +402,39 @@ sections:
       );
       expect(unmet.single.kind, FindingKind.itemFieldUnneeded);
     });
+
+    test('an item with neither Consistency nor the conditional field is '
+        'missing only Consistency', () async {
+      final result = await found('- **R1** Refuse it.');
+      expect(result.map((f) => (f.kind, f.toJson()['field'])), [
+        (FindingKind.itemFieldMissing, 'Consistency'),
+      ]);
+    });
+
+    test(
+      'an unmet item holding a field text outside values is unneeded',
+      () async {
+        const layer = '''
+sections:
+  - id: rationale
+    lint:
+      item_fields:
+        - field: Consistency
+        - field: Policy
+          values: [retry]
+          when: {field: Consistency, value: eventual}
+''';
+        final result = await found(
+          '- **R1** Refuse it.\n'
+          '  - **Consistency:** immediate\n'
+          '  - **Policy:** later',
+          layer: layer,
+        );
+        expect(result.map((f) => (f.kind, f.toJson()['field'])), [
+          (FindingKind.itemFieldUnneeded, 'Policy'),
+        ]);
+      },
+    );
 
     test('a Consistency in another letter case meets no condition', () async {
       final result = await found(

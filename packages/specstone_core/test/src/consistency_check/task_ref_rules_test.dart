@@ -540,6 +540,31 @@ void main() {
       expect(await _leftover(project), hasLength(1));
     });
 
+    test('is read from a record whose status field has another id, found by its record_status type alone', () async {
+      final project = await writeCheckProject(
+        unstamped: {'docs/$_domain'},
+        extra: {
+          'docs/$_domain': _domainDoc(tasks: ['INV-4:ENG-42']),
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    disabled: true\n'
+              '  - id: progress\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          record:
+              "---\nprogress:\n  - '$story:implemented'\n"
+              "  - '$frName:implemented'\n---\n\n# Login implementation\n",
+        },
+      );
+
+      final found = await _leftover(project);
+
+      expect(found, hasLength(1));
+      expect(found.single.toJson(), containsPair('task', 'ENG-42'));
+    });
+
     test('comes with the missing-item finding when the entry names an item the doc lacks', () async {
       final project = await projectWith(
         ['$story:implemented', '$frName:implemented'],

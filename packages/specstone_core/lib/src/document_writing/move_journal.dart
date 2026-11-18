@@ -1088,6 +1088,10 @@ List<JournalStep>? _parsedSteps(Directory projectRoot) {
 _TrustedJournal? _trustedSteps(JournalTarget target) {
   final recorded = _recorded(target.projectRoot, target._records);
   if (recorded == null) return null;
+  _requireFoldersInside(target, const [
+    MoveJournal.journalPath,
+    MoveJournal.cursorPath,
+  ]);
   final steps = _stepsIn(recorded.bytes);
   _requireInside(target, [
     for (final step in steps) ...step._paths,
@@ -1128,7 +1132,7 @@ void _requireInside(
 /// The refusal names the path, not a step: a link in `.specstone` leads the
 /// machinery out, and no journal need exist.
 void _requireFoldersInside(JournalTarget target, Iterable<String> paths) {
-  final bad = _firstOutside(target, paths);
+  final bad = _firstOutside(target, paths) ?? _firstLinkedOut(target, paths);
   if (bad == null) return;
   throw RenderFault(
     RenderFaultCode.outputNotWritable,
@@ -1136,6 +1140,29 @@ void _requireFoldersInside(JournalTarget target, Iterable<String> paths) {
     'way in ${MoveJournal.specstoneFolder}/ to go on',
     file: MoveJournal.journalPath,
   );
+}
+
+/// Returns the first of [paths] that is a link whose target lies outside the
+/// bounds or cannot be resolved, or null when none is.
+///
+/// [_firstOutside] leaves the last segment unfollowed, since a step moves a
+/// link as itself; a file the journal machinery writes is followed.
+String? _firstLinkedOut(JournalTarget target, Iterable<String> paths) {
+  for (final path in paths) {
+    final file = _absolute(target, path);
+    if (FileSystemEntity.typeSync(file, followLinks: false) !=
+        FileSystemEntityType.link) {
+      continue;
+    }
+    final String real;
+    try {
+      real = File(file).resolveSymbolicLinksSync();
+    } on FileSystemException {
+      return path;
+    }
+    if (!target._bounds.any((root) => _isInside(root, real))) return path;
+  }
+  return null;
 }
 
 /// Returns the first of [paths] outside the bounds, or null when all are in.

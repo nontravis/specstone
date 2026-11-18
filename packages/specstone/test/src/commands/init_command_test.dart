@@ -128,7 +128,7 @@ void main() {
   });
 
   test(
-    'init '
+    'init on a CLAUDE.md with an unclosed Specstone block '
     'refuses a malformed instruction file, exit 65, writing nothing',
     () async {
       final root = await writeTree({
@@ -209,6 +209,22 @@ void main() {
         .trim()
         .split('\n');
     expect(subjects, hasLength(3));
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('init --yes --plan with a hash the legacy plan no longer matches '
+      'exits 75 with the plan_mismatch message and writes nothing', () async {
+    final root = await gitFixture(acmeLegacy);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['init', '--yes', '--plan', '000000000000']), 75);
+
+    expect(out.toString(), isNot(contains('apply? [y/N] ')));
+    expect(
+      err.toString(),
+      'the plan is not the one the Owner saw in the dry run; run specstone '
+      'migrate --dry-run again, show it, and ask for a new ok\n',
+    );
+    expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
   }, skip: hasGit ? null : 'git is not available');
 
   test('init --yes --plan on an empty folder sets up the drafts as '
