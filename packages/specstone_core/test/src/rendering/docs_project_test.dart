@@ -50,7 +50,7 @@ Matcher _renderFault(RenderFaultCode code, String message) => isA<RenderFault>()
 
 void main() {
   group('DocsProject.open', () {
-    test('outside a project '
+    test('a folder with no config.yaml above it '
         'it refuses and never loads a pack', () async {
       final outside = await writeTree({'note.txt': 'x'});
 
@@ -158,6 +158,31 @@ void main() {
         ),
       );
     });
+
+    for (final (name, config, code) in [
+      (
+        'a pack no Specstone carries',
+        'packs:\n  prd-core: 1.1.0\n  no-such-pack: 1.0.0\n',
+        FaultCode.packNotFound,
+      ),
+      ('a config that is not YAML', 'packs: [prd-core\n', FaultCode.yamlSyntax),
+    ]) {
+      test(
+        '$name fails the open with its own fault code and exit 78',
+        () async {
+          final root = await fixtureProject({'.specstone/config.yaml': config});
+
+          expect(
+            () => _open(root),
+            throwsA(
+              isA<TemplateFault>()
+                  .having((fault) => fault.code, 'code', code)
+                  .having((fault) => fault.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        },
+      );
+    }
 
     test('a two-target '
         'config opens with two CodeTargets in config order', () async {

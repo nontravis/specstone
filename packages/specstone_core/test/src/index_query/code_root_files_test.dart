@@ -100,7 +100,7 @@ void main() {
   });
 
   test(
-    'a nested '
+    'with the . root form a nested '
     'code root of another target is left out, a folder of it and all below',
     () {
       [
