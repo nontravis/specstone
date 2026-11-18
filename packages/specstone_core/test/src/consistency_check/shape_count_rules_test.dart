@@ -247,6 +247,16 @@ void main() {
     );
     expect(under.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
     expect(under.single.toJson(), containsPair('waitsFor', 'owner'));
+
+    final prefix = await foundFor('''
+      item_count:
+        waits_for: owner
+        prefixes:
+          - line_prefix: "1. E01"
+            count: 2
+''', 2);
+    expect(prefix.map((f) => f.kind), [FindingKind.prefixCountMismatch]);
+    expect(prefix.single.toJson(), containsPair('waitsFor', 'agent'));
   });
 
   test('split why bullet gives item_count_out_of_range', () async {
