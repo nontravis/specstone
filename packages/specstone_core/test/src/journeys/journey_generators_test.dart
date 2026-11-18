@@ -392,12 +392,13 @@ void main() {
       expect(journeyGenerators().kinds, {'journey_flow', 'scenario_copy'});
     });
 
-    test('the kinds the template loader accepts are the journey kinds and '
-        'feature_catalog', () {
+    test('the kinds the template loader accepts are the journey kinds, '
+        'feature_catalog, and component_catalog', () {
       expect(shippedGeneratorKinds, {
         'journey_flow',
         'scenario_copy',
         'feature_catalog',
+        'component_catalog',
       });
     });
   });
