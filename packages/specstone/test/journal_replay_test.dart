@@ -29,38 +29,33 @@ void main() {
     binary = await buildSpecstone();
   });
 
-  test(
-    'a replay '
-    'names a file edited since the stopped run on stderr and leaves it',
-    () async {
-      const edited = 'old text\nthe user added a line\n';
-      final root = await writeCheckProject(extra: {'docs/notes.md': edited});
-      writeJournal(root, [
-        WriteStep(
-          'docs/notes.md',
-          'new text\n',
-          before: textHashOf('old text\n'),
-        ),
-      ]);
+  test('a replay names a file edited since the stopped run on stderr '
+      'and leaves it', () async {
+    const edited = 'old text\nthe user added a line\n';
+    final root = await writeCheckProject(extra: {'docs/notes.md': edited});
+    writeJournal(root, [
+      WriteStep(
+        'docs/notes.md',
+        'new text\n',
+        before: textHashOf('old text\n'),
+      ),
+    ]);
 
-      final result = await Process.run(
-        binary,
-        ['rename', 'feature:login', '--to', 'signin'],
-        workingDirectory: root.path,
-        environment: {'HOME': testHome().path, 'USERPROFILE': testHome().path},
-      );
+    final result = await Process.run(
+      binary,
+      ['rename', 'feature:login', '--to', 'signin'],
+      workingDirectory: root.path,
+      environment: {'HOME': testHome().path, 'USERPROFILE': testHome().path},
+    );
 
-      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
-      expect(
-        result.stderr,
-        contains(
-          'docs/notes.md changed since the stopped run; left as it is\n',
-        ),
-      );
-      expect(File('${root.path}/docs/notes.md').readAsStringSync(), edited);
-      expect(MoveJournal.pending(root), isFalse);
-    },
-  );
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    expect(
+      result.stderr,
+      contains('docs/notes.md changed since the stopped run; left as it is\n'),
+    );
+    expect(File('${root.path}/docs/notes.md').readAsStringSync(), edited);
+    expect(MoveJournal.pending(root), isFalse);
+  });
 
   test('the next '
       'write command finishes a stopped batch and keeps a doc edited after the '

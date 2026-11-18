@@ -1,7 +1,9 @@
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
@@ -27,5 +29,48 @@ void main() {
       SectionSpec('operations', 'Operations', required: true),
       SectionSpec('compatibility', 'Compatibility'),
     ]);
+  });
+  test('the operations description states one heading shape, with no FR '
+      'label', () {
+    final description = api.sections
+        .singleWhere((s) => s.id == 'operations')
+        .description;
+
+    expect(
+      description,
+      contains(
+        'one `###` per operation, headed `` `<operation>` `` alone '
+        'with no FR label',
+      ),
+    );
+  });
+
+  test('an API.md or an ERROR.md over 50000 characters gets chars_over_limit, '
+      'limit 50000', () async {
+    const draft = '---\ndraft: true\n---\n\n';
+    for (final (file, title) in [
+      ('API.md', '# Login API\n'),
+      ('ERROR.md', '# Login errors\n'),
+    ]) {
+      final docPath = 'docs/specs/f01_login/$file';
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            docPath:
+                '$draft$title'
+                '${'x' * (50001 - draft.length - title.length - 2)}',
+          },
+        ),
+      );
+
+      final json = report.findings
+          .singleWhere((f) => f.kind == FindingKind.charsOverLimit)
+          .toJson();
+      expect(
+        json,
+        allOf(containsPair('limit', 50000), containsPair('actual', 50001)),
+        reason: file,
+      );
+    }
   });
 }

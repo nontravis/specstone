@@ -138,6 +138,35 @@ void main() {
     expect(result.out.replaceFirst(heading, ''), changed);
   });
 
+  test('a stale section block prints its fault line and its current section under its naming line, exit 75, no doc written', () async {
+    final root = await writeWriteProject();
+    const section = 'user_story:login/sign_out#use_case';
+    final text = await getText(root, [section]);
+    final file = await batchFile(
+      edit(text, 'Sign out.', 'Sign out everywhere.'),
+    );
+    docFile(root, story2).writeAsStringSync(
+      readDoc(root, story2).replaceFirst('Sign out.', 'Sign out now.'),
+    );
+    final before = docBytes(root);
+
+    final result = await specstone(root, ['set', '--batch', file]);
+
+    expect(result.code, 75);
+    expect(docBytes(root), before);
+    expect(
+      result.err,
+      matches(
+        RegExp(
+          '^${RegExp.escape(story2)}: use_case: the section changed since base [0-9a-f]{12}\n\$',
+        ),
+      ),
+    );
+    final current = await getText(root, [section]);
+    expect(current, contains('Sign out now.'));
+    expect(result.out, current);
+  });
+
   test('two stale blocks print each current text under its naming line, in file order, on stdout only', () async {
     final root = await writeWriteProject();
     var text = await getText(root, [story2, fr11]);
@@ -303,6 +332,36 @@ void main() {
           reason: '$flag',
         );
         expect(docBytes(root), before);
+      }
+    });
+
+    test('each option beside --batch names the conflict on stderr, exit 64, also outside a project', () async {
+      final root = await writeWriteProject();
+      final outside = await Directory.systemTemp.createTemp('specstone_batch_');
+      addTearDown(() => outside.delete(recursive: true));
+      const message =
+          '--batch takes no doc address, --base, --field, --title, or --target';
+
+      for (final dir in [root, outside]) {
+        for (final beside in [
+          ['user_story:login/sign_out'],
+          ['--base', '7e11fc4a24d2'],
+          ['--field', 'size'],
+          ['--title'],
+          ['--target', 'flutter'],
+        ]) {
+          final result = await specstone(dir, [
+            'set',
+            '--batch',
+            'missing.md',
+            ...beside,
+          ]);
+
+          final reason = '${dir == root ? 'in' : 'outside'} a project: $beside';
+          expect(result.code, 64, reason: reason);
+          expect(result.out, isEmpty, reason: reason);
+          expect(result.err, contains(message), reason: reason);
+        }
       }
     });
 

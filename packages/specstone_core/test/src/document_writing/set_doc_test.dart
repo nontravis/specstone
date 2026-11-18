@@ -216,6 +216,23 @@ void main() {
     expect(viaBare, contains('draft: true'));
   });
 
+  test('set splits a section key off the first #, as get does, once the whole text names no doc', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/notes#draft.md': '# Draft\n'},
+    );
+    writeIn(root, (s) {
+      final request = SetRequest.parse(
+        'prds/notes#draft.md#scope',
+        base: 'abc',
+        index: s.index,
+      );
+
+      expect(request.address, 'prds/notes');
+      expect(request.target, isA<SectionTarget>());
+      expect((request.target as SectionTarget).key, 'draft.md#scope');
+    });
+  });
+
   test('set names one target and a base', () {
     expect(
       () => SetRequest.parse(null, base: 'abc'),

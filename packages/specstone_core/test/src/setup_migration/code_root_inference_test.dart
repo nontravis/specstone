@@ -284,6 +284,28 @@ void main() {
     expect(choice, (value: '..', found: 1, cited: 2));
   }, skip: _windowsSkip);
 
+  test('a candidate named with a trailing space or a trailing dot is not '
+      'ranked, so the winner is a value that can be written', () async {
+    for (final name in ['code ', 'code.']) {
+      final tree = await _tree({
+        _repositoryMark: '',
+        'proj/keep.txt': '',
+        'lib/b.dart': '',
+      });
+      File('${tree.path}/$name/lib/a.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('');
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        link: Directory('${tree.path}/$name'),
+        implementsEntries: ['lib/a.dart', 'lib/b.dart'],
+      );
+
+      expect(choice, (value: '..', found: 1, cited: 2), reason: '"$name"');
+    }
+  }, skip: _windowsSkip);
+
   test('entries every candidate resolves go to the '
       'deepest candidate', () async {
     final tree = await _tree({'proj/keep.txt': '', 'proj/code/keep.txt': ''});
@@ -579,6 +601,23 @@ void main() {
         expect(choice, (value: '.', found: 0, cited: 1));
       },
     );
+
+    test('g8-r9: a .git link whose target resolves marks a child '
+        'repository', () async {
+      final tree = await _tree({
+        'proj/keep.txt': '',
+        'proj/code/lib/a.dart': '',
+        'gitstore/HEAD': '',
+      });
+      if (!_linkOrSkip('${tree.path}/proj/code/.git', '../../gitstore')) return;
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        implementsEntries: ['lib/a.dart'],
+      );
+
+      expect(choice, (value: 'code', found: 1, cited: 1));
+    });
 
     test('g8-r9: a child folder symlinked from outside the root is ranked '
         'under its canonical path', () async {

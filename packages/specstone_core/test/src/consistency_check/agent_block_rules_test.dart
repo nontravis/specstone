@@ -5,14 +5,20 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
+import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/git_repo.dart';
+import '../../helpers/legacy_fixture.dart' show commitRepo;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart' show testHome;
 
 const _migrate = 'run `specstone migrate`';
 const _agentMd = '.specstone/AGENT.md';
@@ -159,6 +165,81 @@ void main() {
       isEmpty,
     );
   });
+
+  test(
+    'GEMINI.md and the Copilot file as the CLI writes them have no finding',
+    () async {
+      expect(
+        await _staleOf({
+          'GEMINI.md': 'Owner\n${_imports()}',
+          '.github/copilot-instructions.md': _inline(),
+          _agentMd: agentMdText,
+        }),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'an instruction file that is not UTF-8 gives check no finding',
+    () async {
+      final project = await writeCheckProject(extra: {_agentMd: agentMdText});
+      File('${project.path}/AGENTS.md')
+          .writeAsBytesSync([0x23, 0x20, 0xFF, 0xFE, 0x0A]);
+
+      final report = await checkOf(project);
+
+      expect([
+        for (final f in report.findings)
+          if (f.path == 'AGENTS.md') f.kind.wire,
+      ], isEmpty);
+    },
+  );
+
+  test(
+    'a hand-edited CLAUDE.md block is clean again after migrate runs',
+    () async {
+      final project = await writeCheckProject(
+        extra: {
+          ...skillFileTexts(),
+          _agentMd: agentMdText,
+          'CLAUDE.md':
+              'Owner\n${_imports().replaceFirst('@docs/prds/GOAL.md\n', '')}',
+        },
+      );
+      commitRepo(project);
+      final before = await checkOf(project);
+      expect(
+        [
+          for (final f in before.findings)
+            if (f.kind == FindingKind.agentBlockStale) f.path,
+        ],
+        ['CLAUDE.md'],
+      );
+      commitAll(project, 'checked');
+
+      var read = 0;
+      final status = await runMigrate(
+        MigrateRequest(
+          workingDirectory: project,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          dryRun: false,
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => read++ == 0 ? 'y' : null,
+          out: StringBuffer(),
+          warn: (_) {},
+        ),
+      );
+
+      expect(status, 0);
+      expect([
+        for (final f in (await checkOf(project)).findings)
+          if (f.kind == FindingKind.agentBlockStale) f.path,
+      ], isEmpty);
+    },
+    skip: hasGit ? null : 'git is not available',
+  );
 
   test('an older version in the BEGIN line is no finding', () async {
     expect(
@@ -365,6 +446,13 @@ void main() {
       );
     });
 
+    test('the finding at an unlisted top carries no name key', () async {
+      final found = await _staleBeside();
+
+      expect(found.single.name, isNull);
+      expect(found.single.toJson().containsKey('name'), isFalse);
+    });
+
     test('a top that code_root reaches is also unlisted', () async {
       final found = await _staleBeside(
         config: 'code_root: other\n',
@@ -541,6 +629,31 @@ void main() {
       );
     });
 
+    test(
+      'a skill file differing in line endings alone has no finding',
+      () async {
+        final text = skillFileTexts()[procedure]!;
+        expect(text, contains('\n'));
+
+        expect(
+          await staleSkillFiles({procedure: text.replaceAll('\n', '\r\n')}),
+          isEmpty,
+        );
+      },
+    );
+
+    test(
+      'an agent file differing in line endings alone has no finding',
+      () async {
+        final text = skillFileTexts()[planAgent]!;
+
+        expect(
+          await staleSkillFiles({planAgent: text.replaceAll('\n', '\r\n')}),
+          isEmpty,
+        );
+      },
+    );
+
     test('an entry not named for Specstone has no finding', () async {
       expect(
         await staleSkillFiles({'.claude/skills/own-skill/SKILL.md': 'own\n'}),
@@ -637,6 +750,21 @@ void main() {
 
           expect(found.single.message, _settingsStale);
         });
+
+        test(
+          'a session-start handler is one finding at the settings file, line 1',
+          () async {
+            final found = await check(
+              _settings(args: ['hook', 'session-start']),
+            );
+
+            expect(
+              [for (final f in found) '${f.path}:${f.line}'],
+              ['$prefix$settingsFilePath:1'],
+            );
+            expect(found.single.message, contains(_migrate));
+          },
+        );
 
         test('the Owner keys, groups, and handlers are never '
             'compared', () async {

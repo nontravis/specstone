@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
+import '../../../../specstone_core/test/helpers/posix_modes.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
@@ -431,6 +432,40 @@ void main() {
         expect(result.out, isEmpty);
         expect(result.err, isEmpty);
       },
+    );
+
+    test(
+      'with an index the hook cannot write it hands back the finding and '
+      'prints no not-stored warning, exit 0',
+      () async {
+        final root = await writeCheckProject(extra: _refusedArchitecture());
+        final made = await Process.run(bin, [
+          'structure',
+        ], workingDirectory: root.path);
+        expect(made.exitCode, 0, reason: '${made.stdout}\n${made.stderr}');
+        final index = File('${root.path}/.specstone/index.sqlite');
+        expect(index.existsSync(), isTrue);
+        Process.runSync('chmod', ['444', index.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', index.path]));
+
+        final check = await Process.run(bin, [
+          'check',
+        ], workingDirectory: root.path);
+        expect(check.stderr, contains('Mermaid parse results not stored'));
+
+        final result = await spawn(
+          root,
+          _request(abs(root, loginArchitecture)),
+        );
+
+        expect(result.status, 0, reason: '${result.out}\n${result.err}');
+        expect(result.out, contains('diagram_parse_failed'));
+        expect(result.out, isNot(contains('not stored')));
+        expect(result.err, isEmpty);
+      },
+      skip:
+          unreadablePathSkipReason() ??
+          (_nodeStarts() ? null : 'node is not on PATH'),
     );
 
     test('the built binary exits 64 on stdin that is no JSON', () async {

@@ -132,6 +132,90 @@ void main() {
     );
   });
 
+  test(
+    'every list marker with no ID opens an item with a missing ID',
+    () async {
+      final found = await _itemIdFindings(
+        _storyRules(
+          '- **BR-01** — a\n- BR-02 Rule text\n* **BR-03** — c\n+ BR-04 — d\n'
+          '1) BR-05 — e\n* star with no ID\n+ plus with no ID\n'
+          '1) paren with no ID\n- dash with no ID',
+        ),
+      );
+      expect(found.map((f) => f.toJson()['section']), everyElement('rules'));
+      expect(
+        found.map((f) => f.message),
+        everyElement('the item opens with no BR- ID'),
+      );
+      final lines = found.map((f) => f.line).toList();
+      expect(lines, hasLength(4));
+      expect(lines.toSet(), hasLength(4));
+    },
+  );
+
+  test('an item missing its ID under a ### heading names the prefix', () async {
+    final found = await _itemIdFindings(
+      doc(
+        projectDoc,
+        '### PV-01 — One sign-in',
+        '### PV-01 — One sign-in\n\n### Another sign-in',
+      ),
+    );
+    expect(found, hasLength(1));
+    expect(found.single.toJson(), containsPair('prefix', 'PV-'));
+    expect(found.single.toJson(), containsPair('section', 'vision'));
+  });
+
+  test('a list item with no ID under a ### heading is no item', () async {
+    final found = await _itemIdFindings(
+      doc(
+        projectDoc,
+        '> en: One sign-in for every app.',
+        '> en: One sign-in for every app.\n\n- a list item with no ID\n'
+            '* another with no ID\n1. a numbered one with no ID',
+      ),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a bullet nested under an N/A item is no item', () async {
+    final found = await _itemIdFindings({
+      ...doc(
+        gnfrDoc,
+        '## Security\n\nN/A — none applies.',
+        '## Security\n\n- N/A — no target applies\n'
+            '  - a nested bullet with no ID\n    - a deeper bullet with no ID',
+      ),
+      ..._storyRules(
+        '- N/A — no rule applies\n  - a nested bullet with no ID\n'
+        '  * a starred bullet with no ID',
+      ),
+    });
+    expect(found, isEmpty);
+  });
+
+  test(
+    'a lettered scenario heading opens no scenario for a trace to name',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            ..._scenarios('### Scenario 6a — [edge] Renew early\n\n- a'),
+            ...fr('  - S2\n', '  - S2\n  - S6a\n'),
+          },
+        ),
+      );
+      final unresolved = [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.scenarioTraceUnresolved)
+            f.toJson()['entry'],
+      ];
+      expect(unresolved, ['S6a']);
+      expect(spots(report, FindingKind.suspect), isEmpty);
+      expect(spots(report, FindingKind.unconfirmed), isEmpty);
+    },
+  );
+
   test('a domain invariant with a bold ID passes', () async {
     final found = await _itemIdFindings({
       'docs/specs/f01_login/DOMAIN.md':

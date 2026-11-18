@@ -429,6 +429,48 @@ void main() {
     expect(_spots(comment), isEmpty);
   });
 
+  test('a Symbol joined to a longer word by a digit or an underscore stays '
+      'unresolved', () async {
+    for (final text in [
+      'bool checkPassword2() => true;\n',
+      'bool _checkPassword() => true;\n',
+      'bool checkPassword_now() => true;\n',
+      'bool pre_checkPassword() => true;\n',
+      'bool 9checkPassword() => true;\n',
+    ]) {
+      final report = await _run(
+        await _project(
+          _record(code: [point]),
+          extra: {login: 'class SignInPage {}\n\n$text'},
+        ),
+      );
+      expect(_spots(report), [
+        '$_recordPath:${_codeLine(1, 0)}: implements_symbol_unresolved',
+      ], reason: text);
+    }
+  });
+
+  test(
+    'an FR that still writes implements raises no implements finding',
+    () async {
+      final report = await _run(
+        await _project(
+          _record(code: [point]),
+          extra: {
+            ...edit(loginFr, [
+              (
+                'verify_method: test\n',
+                'verify_method: test\nimplements:\n  - app/lib/gone.dart:X\n',
+              ),
+            ]),
+          },
+        ),
+      );
+
+      expect(_spots(report), isEmpty);
+    },
+  );
+
   test('an untyped doc, and a story or FR that still writes implements, get no '
       'pointer rule', () async {
     final report = await _run(

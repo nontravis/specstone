@@ -6,6 +6,7 @@ import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -23,11 +24,15 @@ final String? _linksUnavailable = Platform.isWindows
 
 /// Writes the docs of another folder, `victim/`, which holds no config, and a
 /// clone whose committed `docs` link names them.
-Future<({Directory base, Directory clone, Directory victim})> _clone() async {
+Future<({Directory base, Directory clone, Directory victim})> _clone([
+  Map<String, String> victimFiles = const {},
+]) async {
   final base = Directory(
     (await writeTree({
       'victim/docs/prds/keep.md': '# Keep\n',
       'clone/keep.txt': '',
+      for (final MapEntry(:key, :value) in victimFiles.entries)
+        'victim/$key': value,
     })).resolveSymbolicLinksSync(),
   );
   createRelativeLink('${base.path}/clone/docs', '../victim/docs');
@@ -172,6 +177,65 @@ void main() {
       );
     }, skip: _linksUnavailable);
 
+    test('a root that holds its config refuses config_exists before the trust '
+        'refusal', () async {
+      final (:base, :clone, :victim) = await _clone({
+        '.specstone/config.yaml': 'packs:\n  prd-core: 1.0.0\n',
+      });
+      final before = _bytesUnder(base);
+
+      await expectLater(
+        () => _init(clone),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.configExists,
+          ),
+        ),
+      );
+
+      expect(_bytesUnder(base), before);
+    }, skip: _linksUnavailable);
+
+    test('a root with a malformed agent block refuses the trust first, '
+        'with nothing written', () async {
+      final (:base, :clone, :victim) = await _clone({
+        'CLAUDE.md': '<!-- BEGIN specstone v1.0.0 -->\nno end\n',
+      });
+      final before = _bytesUnder(base);
+
+      await expectLater(
+        () => _init(clone),
+        _refuses(
+          '.specstone/config.yaml',
+          'the project folder ${victim.path} was reached through the docs '
+              'link in ${clone.path}',
+        ),
+      );
+
+      expect(_bytesUnder(base), before);
+    }, skip: _linksUnavailable);
+
+    test('a root with a malformed agent block refuses the agent block once '
+        'the Owner trusts the roots', () async {
+      final (:base, :clone, :victim) = await _clone({
+        'CLAUDE.md': '<!-- BEGIN specstone v1.0.0 -->\nno end\n',
+      });
+      _trust(clone);
+
+      await expectLater(
+        () => _init(clone),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.agentBlockMalformed,
+          ),
+        ),
+      );
+    }, skip: _linksUnavailable);
+
     test('in a plain folder needs no record', () async {
       final root = await writeTree({'keep.txt': 'x\n'});
 
@@ -292,6 +356,42 @@ void main() {
       expect(await _migrate(outer), 0);
 
       expect(File('${below.path}/.specstone/config.yaml').existsSync(), isTrue);
+    }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
+
+    test('a pack upgrade refuses 73 naming the journal, before any git check '
+        'or plan, and the tree keeps its bytes', () async {
+      final tree = await writeTree({
+        'ws/.specstone/config.yaml': 'packs:\n  prd-core: 1.0.0\n',
+        'ws/docs/prds/PROJECT.md': '# Project\n',
+        'ws/code/keep.txt': '',
+      });
+      final canonical = Directory(tree.resolveSymbolicLinksSync());
+      createRelativeLink('${canonical.path}/ws/code/docs', '../docs');
+      final ws = Directory('${canonical.path}/ws');
+      commitRepo(ws);
+      final code = Directory('${ws.path}/code');
+      final before = _bytesUnder(ws);
+      final out = StringBuffer();
+
+      await expectLater(
+        () => _migrate(code, out: out),
+        _refuses(
+          '.specstone/trash/journal.json',
+          'the project folder ${ws.path} was reached through the docs '
+              'link in ${code.path}',
+        ),
+      );
+      await expectLater(
+        () => _migrate(code, dryRun: true, out: out),
+        _refuses(
+          '.specstone/trash/journal.json',
+          'the project folder ${ws.path} was reached through the docs '
+              'link in ${code.path}',
+        ),
+      );
+
+      expect(out.toString(), isEmpty);
+      expect(_bytesUnder(ws), before);
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
 
     test('with no link needs no record', () async {

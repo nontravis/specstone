@@ -59,6 +59,18 @@ void main() {
       );
     });
 
+    test('a change to one of three frontmatter keys shows the whole block, '
+        'from the opening to the closing marker', () {
+      expect(
+        approvalDiff(
+          '---\nverify_method: test\nowner: Owner\nlevel: unit\n---\n\n# T\n',
+          '---\nverify_method: test\nowner: Agent\nlevel: unit\n---\n\n# T\n',
+        ),
+        '@@ -1,5 +1,5 @@\n ---\n verify_method: test\n-owner: Owner\n'
+        '+owner: Agent\n level: unit\n ---\n',
+      );
+    });
+
     test('context 0 gives zero-context hunks', () {
       expect(
         approvalDiff(_old, _new, context: 0),

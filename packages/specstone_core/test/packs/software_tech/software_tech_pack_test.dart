@@ -1,13 +1,18 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/pack_migration.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
@@ -25,6 +30,43 @@ void main() {
       expect(manifest.name, 'software-tech');
       expect(manifest.version.toString(), '1.13.0');
       expect(manifest.extendsPack, 'prd-core');
+    });
+
+    test('an upgrade to the shipped version carries the ten feature patterns '
+        'and runs no migration step for them', () {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+        file: 'packs/software-tech/pack.yaml',
+      );
+      final shipped = manifest.version;
+      final below = PackVersion.parse(
+        '${shipped.major}.${shipped.minor - 1}.0',
+        file: 'test',
+        key: 'software-tech',
+      );
+
+      final upgrades = selectUpgrades(
+        {'software-tech': below},
+        {'software-tech': manifest},
+      );
+
+      expect(upgrades.single.target, shipped);
+      expect(upgrades.single.steps, isEmpty);
+      expect(
+        shippedPackFiles.keys.where(
+          (k) => k.startsWith('software-tech/patterns/'),
+        ),
+        hasLength(10),
+      );
+      final patternMoves = [
+        for (final migration in manifest.migrations)
+          for (final step in migration.steps)
+            if (step is MoveFile &&
+                (step.from.contains('patterns/') ||
+                    step.to.contains('patterns/')))
+              step,
+      ];
+      expect(patternMoves, isEmpty);
     });
 
     test('a project pinning both packs resolves with no fault', () {
@@ -173,6 +215,42 @@ void main() {
           expect(section.bannedWords, isNull, reason: '$id.${section.id}');
         }
       }
+    });
+
+    test('a check run on spec tables of ordinary words raises no banned '
+        'word, and the guides ask for numbers instead', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            'docs/specs/f01_login/ARCHITECTURE.md':
+                '---\ndraft: true\n---\n\n# Login architecture\n\n'
+                '## Components\n| Component | Responsibility |\n|---|---|\n'
+                '| Gate | Flexible, easy, safe, and user-friendly sign-in |\n',
+          },
+        ),
+      );
+
+      expect(
+        report.findings.where((f) => f.kind == FindingKind.bannedWord),
+        isEmpty,
+      );
+      expect(
+        prdCoreDocType(
+          set,
+          'domain',
+        ).sections.singleWhere((s) => s.id == 'invariants').description,
+        contains('timeout 10 s'),
+      );
+      expect(
+        prdCoreDocType(
+          set,
+          'topic',
+        ).sections.singleWhere((s) => s.id == 'rules').description,
+        allOf(
+          contains('numbers and checkable conditions'),
+          contains('timeout 10 s'),
+        ),
+      );
     });
 
     test('no other doc type sets bundle, and no '
