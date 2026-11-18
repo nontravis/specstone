@@ -33,6 +33,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
@@ -142,17 +143,21 @@ List<MovedSpan> _landedSpans(
   final content = docStructureOf(lf, type);
   final sections = citedSectionsOf(content, type);
   final spans = <MovedSpan>[];
+  final extentsAt = <int, Map<String, LineRange>>{};
   for (final landing in landings) {
     final at = sections.indexWhere(
       (section) => section.key == landing.sectionKey,
     );
     if (at < 0) continue;
-    final extent = itemExtentOf(
+    final extents = extentsAt[at] ??= itemExtentsOf(
       sectionBodyLines(content.sections, content.lineFacts, at),
-      landing.isScenario ? scenarioKeyOfId(landing.newId) : landing.newId,
       prefixId: sections[at].prefixId,
       isAcceptanceCriteria: landing.isScenario,
     );
+    final extent =
+        extents[landing.isScenario
+            ? scenarioKeyOfId(landing.newId)
+            : landing.newId];
     if (extent != null) {
       spans.add(
         MovedSpan(first: extent.first, last: extent.last, landing: landing),

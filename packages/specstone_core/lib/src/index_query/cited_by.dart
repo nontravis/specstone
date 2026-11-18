@@ -112,6 +112,10 @@ String citedByLineOf(CitedBy by) =>
 /// Returns the items and `###` blocks of the section [at] of [doc], whose held
 /// sections [section] reads, that [cited] holds lines for and whose lines lie
 /// in [within] (the whole section when null), in the order their lines print.
+///
+/// [extents] is the extent of each item of the section as [itemExtentsOf]
+/// gives it; a caller that reads the section often passes the one it holds,
+/// and without it the section is read once, when it first needs an extent.
 List<CitedItem> citedItemsIn(
   CitedByIndex cited,
   IndexedDoc doc,
@@ -119,8 +123,9 @@ List<CitedItem> citedItemsIn(
   CitedSection section,
   int at, {
   LineRange? within,
+  Map<String, LineRange>? extents,
 }) {
-  final body = sectionBodyLines(content.sections, content.lineFacts, at);
+  var extentOf = extents;
   final found = <({String id, LineRange extent, List<CitedBy> by})>[];
   final ids = <String>{};
   for (final fact in content.itemFacts.sectionItems[at]) {
@@ -133,12 +138,12 @@ List<CitedItem> citedItemsIn(
             key: id,
           )];
     if (id == null || by == null || !ids.add(id)) continue;
-    final extent = itemExtentOf(
-      body,
-      id,
+    extentOf ??= itemExtentsOf(
+      sectionBodyLines(content.sections, content.lineFacts, at),
       prefixId: section.prefixId,
       isAcceptanceCriteria: section.isAcceptanceCriteria,
     );
+    final extent = extentOf[id];
     if (extent == null) continue;
     if (within != null &&
         (extent.first < within.first || within.last < extent.last)) {

@@ -230,6 +230,7 @@ final class _View {
   late final List<LinkText> links = _linkTextsOf(content.lineFacts);
 
   final _items = <int, List<SectionItem>>{};
+  final _extents = <int, Map<String, LineRange>>{};
   final _idExtents = <int, List<_IdExtent>>{};
 
   LineFacts get facts => content.lineFacts;
@@ -244,12 +245,7 @@ final class _View {
   AncestorPiece? itemPiece(int at, String id, PieceDirection direction) {
     final section = sectionAt(at);
     if (section == null) return null;
-    final extent = itemExtentOf(
-      _bodyOf(at),
-      id,
-      prefixId: section.prefixId,
-      isAcceptanceCriteria: section.isAcceptanceCriteria,
-    );
+    final extent = _extentsAt(at)[id];
     return extent == null
         ? null
         : _piece(section.key, direction, extent, itemId: id);
@@ -407,16 +403,25 @@ final class _View {
   List<SectionItem> _itemsAt(int at) =>
       _items[at] ??= sectionItemsAt(content, at, type);
 
-  List<_IdExtent> _idExtentsAt(int at) => _idExtents[at] ??= _idExtentsOf(at);
+  /// Returns the extent of each item of the section [at] by ID, the section
+  /// read once.
+  Map<String, LineRange> _extentsAt(int at) => _extents[at] ??= _extentsOf(at);
 
-  List<_IdExtent> _idExtentsOf(int at) {
+  Map<String, LineRange> _extentsOf(int at) {
     final section = sectionAt(at);
-    if (section == null) return const [];
-    final extents = itemExtentsOf(
+    if (section == null) return const {};
+    return itemExtentsOf(
       _bodyOf(at),
       prefixId: section.prefixId,
       isAcceptanceCriteria: section.isAcceptanceCriteria,
     );
+  }
+
+  List<_IdExtent> _idExtentsAt(int at) => _idExtents[at] ??= _idExtentsOf(at);
+
+  List<_IdExtent> _idExtentsOf(int at) {
+    final extents = _extentsAt(at);
+    if (extents.isEmpty) return const [];
     return [
       for (final fact in content.itemFacts.sectionItems[at])
         if (fact.id case final id?)

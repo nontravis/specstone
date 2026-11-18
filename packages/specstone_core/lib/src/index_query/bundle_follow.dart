@@ -443,19 +443,14 @@ final class _Walk {
       section,
       at,
       within: within,
+      extents: view.extentsAt(at),
     );
   }
 
   void _appendItem(_DocView view, int at, String sectionKey, String itemId) {
-    final section = view.citedSectionAt(at);
-    if (section == null) return;
+    if (view.citedSectionAt(at) == null) return;
     final body = view.bodyLinesOf(at);
-    final extent = itemExtentOf(
-      body,
-      itemId,
-      prefixId: section.prefixId,
-      isAcceptanceCriteria: section.isAcceptanceCriteria,
-    );
+    final extent = view.extentsAt(at)[itemId];
     if (extent == null) return;
     if (view.cutRowsAt(at) case final rows?) {
       return _appendCut(view, at, sectionKey, rows);
@@ -512,7 +507,7 @@ final class _Walk {
     if (view.cutRowsAt(at) case final rows?) {
       return _appendCut(view, at, section.key, rows);
     }
-    final itemId = view.headingItemId(at, body, headingLine);
+    final itemId = view.headingItemId(at, headingLine);
     _appendLines(
       view,
       body,
@@ -611,6 +606,11 @@ final class _DocView {
     content,
   );
 
+  /// What the walk derives from the doc's sections, once each, since it asks
+  /// again for every part it appends.
+  final _extents = <int, Map<String, LineRange>>{};
+  final _kept = <BundleMode, Set<IndexedSection>>{};
+
   LineFacts get facts => content.lineFacts;
 
   /// Returns the section at [at] as [classifyLink] reads it, or null when the
@@ -619,6 +619,21 @@ final class _DocView {
 
   List<BodyLine> bodyLinesOf(int at) =>
       sectionBodyLines(content.sections, facts, at);
+
+  /// Returns the extent of each item of the section at [at], by ID, as
+  /// [itemExtentsOf] reads the section; none when the doc holds no section
+  /// there.
+  Map<String, LineRange> extentsAt(int at) => _extents[at] ??= _extentsOf(at);
+
+  Map<String, LineRange> _extentsOf(int at) {
+    final section = citedSectionAt(at);
+    if (section == null) return const {};
+    return itemExtentsOf(
+      bodyLinesOf(at),
+      prefixId: section.prefixId,
+      isAcceptanceCriteria: section.isAcceptanceCriteria,
+    );
+  }
 
   /// Returns the file lines of the section at [at], its header line first.
   LineRange sectionRange(int at) {
@@ -641,14 +656,13 @@ final class _DocView {
 
   /// Whether a print in [mode] keeps the section at [at]; one that is N/A or
   /// still its template prints nowhere, as a part or whole.
-  bool keeps(int at, BundleMode mode) {
-    final section = content.sections[at];
-    return keptSectionsOf(
-      content,
-      type,
-      mode,
-    ).any((kept) => identical(kept, section));
-  }
+  bool keeps(int at, BundleMode mode) =>
+      _keptIn(mode).contains(content.sections[at]);
+
+  /// The kept sections of [mode] in print order, by identity.
+  Set<IndexedSection> _keptIn(BundleMode mode) =>
+      _kept[mode] ??= Set<IndexedSection>.identity()
+        ..addAll(keptSectionsOf(content, type, mode));
 
   /// Returns the ranges a whole print of the doc holds: its head, then each
   /// kept section in print order.
@@ -659,8 +673,7 @@ final class _DocView {
           ? _pastLastLine
           : facts.sectionLines.first - 1,
     ),
-    for (final section in keptSectionsOf(content, type, mode))
-      sectionRange(_indexOf(section)),
+    for (final section in _keptIn(mode)) sectionRange(_indexOf(section)),
   ];
 
   /// Returns the ranges of the summary sections a summary of the doc prints,
@@ -688,21 +701,13 @@ final class _DocView {
     );
   }
 
-  /// Returns the ID of the stored item of the section at [at], whose body is
-  /// [body], that starts at file line [headingLine], or null when none does.
-  String? headingItemId(int at, List<BodyLine> body, int headingLine) {
-    final section = citedSectionAt(at);
-    if (section == null) return null;
+  /// Returns the ID of the stored item of the section at [at] that starts at
+  /// file line [headingLine], or null when none does.
+  String? headingItemId(int at, int headingLine) {
+    final extents = extentsAt(at);
     for (final item in content.itemFacts.sectionItems[at]) {
       final id = item.id;
-      if (id == null) continue;
-      final extent = itemExtentOf(
-        body,
-        id,
-        prefixId: section.prefixId,
-        isAcceptanceCriteria: section.isAcceptanceCriteria,
-      );
-      if (extent?.first == headingLine) return id;
+      if (id != null && extents[id]?.first == headingLine) return id;
     }
     return null;
   }

@@ -8,10 +8,13 @@ import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/item_links.dart'
+    show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -691,6 +694,70 @@ void main() {
     expect(citedLinesAfter(inline, [item]), {
       3: ['  · cited by guide (topic) —: x'],
     });
+  });
+
+  group('citedItemsIn', () {
+    const inv15 = '[INV-15]($_specs/f02_signup/DOMAIN.md#invariants)';
+    const nesting = <String, String>{
+      'docs/specs/f02_signup/DOMAIN.md':
+          '# Sign-up domain\n\n## Invariants\n'
+          '- **INV-13** One.\n'
+          '  - **INV-14** Nested in one.\n'
+          '- **INV-15** Three.\n'
+          '- **INV-13** One again.\n',
+    };
+
+    /// The cited items of the domain's Invariants as `<ID>@<line printed after>`.
+    Future<List<String>> citedIn({
+      LineRange? within,
+      Map<String, LineRange>? extents,
+    }) async {
+      final index = await _index(
+        'Cites $_inv13, $_inv14, and $inv15.',
+        extra: nesting,
+      );
+      final doc = index.at('specs/f02_signup/DOMAIN.md')!;
+      final content = index.contentOf(doc);
+      final sections = citedSectionsOf(content, index.typeOf(doc));
+      final at = sections.indexWhere((s) => s.key == 'invariants');
+      return [
+        for (final item in citedItemsIn(
+          _citedBy(index),
+          doc,
+          content,
+          sections[at],
+          at,
+          within: within,
+          extents: extents,
+        ))
+          '${item.item}@${item.after}',
+      ];
+    }
+
+    test('a nested item prints before its outer item, a repeated ID spans its first item', () async {
+      expect(await citedIn(), ['INV-14@5', 'INV-13@5', 'INV-15@6']);
+    });
+
+    test(
+      'items whole inside the lines asked for are the only ones given',
+      () async {
+        expect(await citedIn(within: const LineRange(first: 6, last: 6)), [
+          'INV-15@6',
+        ]);
+      },
+    );
+
+    test(
+      'the extents a caller holds are the ones read, not the section again',
+      () async {
+        expect(
+          await citedIn(
+            extents: const {'INV-15': LineRange(first: 9, last: 9)},
+          ),
+          ['INV-15@9'],
+        );
+      },
+    );
   });
 
   group('printedBodyOf', () {

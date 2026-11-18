@@ -879,6 +879,26 @@ void main() {
       expect([for (final m in mentions) (m! as Map)['line']], [11]);
     });
 
+    test('a bare ID inside each of two items landing in one section is a mention at the line the item lands on', () async {
+      final root = await _project(
+        shop: [
+          '- **INV-1** Rule 1 holds, with INV-3.',
+          '- **INV-2** Rule 2 holds, with INV-3.',
+          _inv(3),
+        ],
+        cart: [for (var n = 1; n <= 12; n++) _inv(n)],
+      );
+      final json = move(root, ['domain:shop#INV-1', 'domain:shop#INV-2']).json;
+      final mentions = json['mentions']! as List<Object?>;
+      expect(
+        [
+          for (final m in mentions)
+            '${(m! as Map)['path']}:${(m as Map)['line']}',
+        ],
+        ['$cartDomain:22', '$cartDomain:23'],
+      );
+    });
+
     test('--json holds moved, renumbered, rewritten, and mentions', () async {
       final root = await _project(
         shop: [_inv(1), _inv(2), _inv(3)],
