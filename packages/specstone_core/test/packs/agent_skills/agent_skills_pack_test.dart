@@ -32,12 +32,14 @@ Future<List<String>> _skillFindings(
   String text, {
   FindingKind? kind,
   List<String> packs = const ['prd-core', 'software-tech', 'agent-skills'],
+  Map<String, String> extra = const {},
 }) async {
   final project = await writeCheckProject(
     extra: {
       '.specstone/config.yaml': shippedPinsConfig(packs),
       'docs/$_skillDoc': text,
       _skillFile: '# Review\n',
+      ...extra,
     },
   );
   return spots(await checkOf(project, docPath: _skillDoc), kind);
@@ -204,6 +206,30 @@ void main() {
     test('a skill doc with only Sources gives no finding, and a Sources link '
         'to a doc of another pack is accepted', () async {
       expect(await _skillFindings(_skillText()), isEmpty);
+    });
+
+    test('a Sources link to a design-system doc is accepted', () async {
+      expect(
+        await _skillFindings(
+          _skillText(
+            body:
+                '## Sources\n\n'
+                '- [Discovery](../design_system/DISCOVERY.md)\n',
+          ),
+          packs: const [
+            'prd-core',
+            'software-tech',
+            'software-design-system',
+            'agent-skills',
+          ],
+          extra: const {
+            'docs/specs/design_system/DISCOVERY.md':
+                '# Discovery\n\n## Finding a component\n\nLook in a group.\n\n'
+                '## Component catalog\n\nNone yet.\n',
+          },
+        ),
+        isEmpty,
+      );
     });
   });
 }

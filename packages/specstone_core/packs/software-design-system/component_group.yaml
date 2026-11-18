@@ -1,0 +1,13 @@
+id: component_group
+description: |-
+  A component group: what its components share and when a reader looks in it.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# <Group name>`, with no number.
+path: specs/design_system/components/{slug}/GROUP.md
+sections:
+  - id: purpose
+    header: Purpose
+    required: true
+    summary: true
+    description: |-
+      Write what the group's components share and when a reader looks in it.

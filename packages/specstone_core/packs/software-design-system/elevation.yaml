@@ -1,0 +1,12 @@
+id: elevation
+description: |-
+  The elevation doc: the elevation levels and their tokens.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# Elevation`, with no number.
+path: specs/design_system/foundations/ELEVATION.md
+sections:
+  - id: elevation_levels
+    header: Elevation levels
+    required: true
+    description: |-
+      Write one row per level: its name, its use, and the token that holds it.

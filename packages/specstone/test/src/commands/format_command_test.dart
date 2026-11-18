@@ -5,7 +5,10 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart'
+    show writeCheckProject;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/fixture_packs.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -528,6 +531,115 @@ sections:
       expect(await runner.run(['format', 'a', 'b']), 64);
       expect(out.toString(), isEmpty);
       expect(err.toString(), contains(_formatUsage));
+    });
+  });
+
+  group('the component catalog on the shipped software-design-system', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    const discovery = 'specs/design_system/DISCOVERY.md';
+    const discoveryFile = 'docs/$discovery';
+    const catalogHead =
+        '| Component | Group | Purpose | Lifecycle | Doc |\n'
+        '|---|---|---|---|---|';
+
+    String component(String purpose) =>
+        '---\nlifecycle: stable\nfeature: login\n---\n\n# Component\n\n'
+        '## Purpose\n\n$purpose\n';
+
+    String group(String name) => '# $name\n\n## Purpose\n\nGroups $name.\n';
+
+    String row(String group, String name, String purpose) =>
+        '| $group/$name | $group | $purpose | stable | '
+        '[specs/design_system/components/$group/$name.md]'
+        '(components/$group/$name.md) |';
+
+    Map<String, String> catalogFiles({String block = ''}) => {
+      '.specstone/config.yaml': shippedPinsConfig([
+        'prd-core',
+        'software-tech',
+        'software-design-system',
+      ]),
+      discoveryFile:
+          '# Discovery\n\n## Finding a component\n\nLook in a group.\n\n'
+          '## Component catalog\n\n$block',
+      'docs/specs/design_system/components/inputs/GROUP.md': group('Inputs'),
+      'docs/specs/design_system/components/inputs/text_field.md': component(
+        'Takes one line of text. Shows a label.',
+      ),
+      'docs/specs/design_system/components/buttons/GROUP.md': group('Buttons'),
+      'docs/specs/design_system/components/buttons/primary_button.md':
+          component('Starts an action.'),
+    };
+
+    Future<ProcessResult> run(Directory project, List<String> args) =>
+        Process.run(binary, args, workingDirectory: project.path);
+
+    String discoveryOf(Directory project) =>
+        File('${project.path}/$discoveryFile').readAsStringSync();
+
+    test('format lists each component with its group, purpose, lifecycle, '
+        'and doc path, in tree order', () async {
+      final project = await writeTree(catalogFiles());
+
+      final result = await run(project, ['format', discoveryFile]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      final text = discoveryOf(project);
+      final first = row('buttons', 'primary_button', 'Starts an action.');
+      final second = row('inputs', 'text_field', 'Takes one line of text.');
+      expect(text, contains('$catalogHead\n$first\n$second\n'));
+      expect(
+        text,
+        startsWith(
+          '# Discovery\n\n## Finding a component\n\nLook in a group.\n',
+        ),
+      );
+    });
+
+    test('a component written after the block leaves the doc as it is and '
+        'format --check lists it stale', () async {
+      final project = await writeTree(catalogFiles());
+      expect((await run(project, ['format', discoveryFile])).exitCode, 0);
+      final formatted = discoveryOf(project);
+      File(
+        '${project.path}/docs/specs/design_system/components/buttons/'
+        'ghost_button.md',
+      ).writeAsStringSync(component('Fades out.'));
+
+      expect(discoveryOf(project), formatted);
+      final check = await run(project, ['format', '--check']);
+
+      expect(check.exitCode, 1, reason: '${check.stdout}${check.stderr}');
+      expect(check.stdout, contains(discoveryFile));
+      expect(discoveryOf(project), formatted);
+      expect(discoveryOf(project), isNot(contains('ghost_button')));
+    });
+
+    test('format rewrites the block of an approved discovery doc and keeps '
+        'it approved', () async {
+      final project = await writeCheckProject(
+        extra: catalogFiles(
+          block:
+              '${generatedOpenMarker('component_catalog')}\nold\n'
+              '$generatedEndMarker\n',
+        ),
+      );
+      final approval = RegExp(
+        r'^approved: .*$',
+        multiLine: true,
+      ).firstMatch(discoveryOf(project))!.group(0)!;
+
+      final result = await run(project, ['format', discoveryFile]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      final text = discoveryOf(project);
+      expect(text, contains(approval));
+      expect(text, isNot(contains('draft: true')));
+      expect(text, contains('| buttons/primary_button |'));
+      expect(text, isNot(contains('\nold\n')));
     });
   });
 

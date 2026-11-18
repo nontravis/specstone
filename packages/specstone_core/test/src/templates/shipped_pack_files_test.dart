@@ -31,7 +31,12 @@ void main() {
     'shippedPackVersions reads the version each shipped pack.yaml carries',
     () {
       final versions = shippedPackVersions();
-      expect(versions.keys, ['agent-skills', 'prd-core', 'software-tech']);
+      expect(versions.keys, [
+        'agent-skills',
+        'prd-core',
+        'software-design-system',
+        'software-tech',
+      ]);
       for (final MapEntry(:key, :value) in versions.entries) {
         final manifest = PackManifest.parse(
           utf8.decode(shippedPackFiles['$key/pack.yaml']!),

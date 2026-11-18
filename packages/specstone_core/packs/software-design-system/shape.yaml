@@ -1,0 +1,12 @@
+id: shape
+description: |-
+  The shape doc: the corner and border shapes and their tokens.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# Shape`, with no number.
+path: specs/design_system/foundations/SHAPE.md
+sections:
+  - id: shapes
+    header: Shapes
+    required: true
+    description: |-
+      Write one row per corner or border shape: its name, its use, and the token that holds it.
