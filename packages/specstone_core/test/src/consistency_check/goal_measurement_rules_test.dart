@@ -329,6 +329,25 @@ void main() {
     expect(spots(report, FindingKind.measurementGoalUnresolved), hasLength(1));
   });
 
+  test('the unresolved finding beside a mismatched Metric sits on the title line of the measurement', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ..._goals(metric: '- **Metric:** 50%, see $_metricLink'),
+        'docs/$measurementDoc': _measurement('No link here.'),
+      },
+    );
+    final report = await checkOf(project);
+
+    final unresolved = _goalFindings(report)
+        .singleWhere((f) => f.kind == FindingKind.measurementGoalUnresolved);
+    expect(unresolved.path, measurementDoc);
+    expect(unresolved.line, _lineOf(project, measurementDoc, '# Fewer resets'));
+    final mismatch = _goalFindings(report)
+        .singleWhere((f) => f.kind == FindingKind.goalMetricMismatch);
+    expect(mismatch.path, goalDoc);
+    expect(mismatch.line, _lineOf(project, goalDoc, '- **Metric:**'));
+  });
+
   test('a Metric that links a measurement whose head links two goals including its own is no mismatch', () async {
     final project = await writeCheckProject(
       extra: {
@@ -373,6 +392,25 @@ void main() {
       expect(
         spots(report, FindingKind.goalMetricMismatch),
         isEmpty,
+        reason: metric,
+      );
+    }
+  });
+
+  test('an unlinked Metric of non-measurement docs or URLs names goal PG-01 in its finding', () async {
+    for (final metric in [
+      '- **Metric:** 50%, see [project](PROJECT.md)',
+      '- **Metric:** 50%, see [site](https://example.com/a)',
+      '- **Metric:** 50%, see <https://example.com/a>',
+    ]) {
+      final project = await writeCheckProject(extra: _goals(metric: metric));
+      final finding = _goalFindings(await checkOf(project)).single;
+
+      expect(finding.kind, FindingKind.goalMetricUnlinked, reason: metric);
+      expect(finding.toJson(), containsPair('goal', 'PG-01'), reason: metric);
+      expect(
+        finding.line,
+        _lineOf(project, goalDoc, '- **Metric:**'),
         reason: metric,
       );
     }
