@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:test/test.dart';
 
@@ -55,7 +56,7 @@ void main() {
       'code-point count 166', () {
     final text = '# Title\n\n## Statement\n\n${'x' * 165}\n';
     final counts = DocLines.of(text).sectionCounts.single;
-    expect(counts, (lines: 1, chars: 166));
+    expect(counts, const SectionCounts(lines: 1, chars: 166));
   });
 }
 

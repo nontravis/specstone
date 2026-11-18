@@ -8,7 +8,10 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart';
+import 'package:specstone_core/src/index_query/models/label_place.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
+import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -51,8 +54,8 @@ void main() {
           '```dart\n// FR-05\n```\n';
       final facts = _factsOf(labelled);
       expect(facts.numberLabels, [
-        (line: 6, written: 'F-01 US-02'),
-        (line: 6, written: 'FR-04'),
+        const LabelPlace(line: 6, written: 'F-01 US-02'),
+        const LabelPlace(line: 6, written: 'FR-04'),
       ]);
       expect(
         LineFacts.fromJson(
@@ -73,8 +76,8 @@ void main() {
           'And `TBR \u2014 x` then TBR \u2014 later.\n';
       final facts = _factsOf(marked);
       expect(facts.tbrMarkers, [
-        (line: 6, rest: 'pick a value.'),
-        (line: 10, rest: 'later.'),
+        const TbrMarkerPlace(line: 6, rest: 'pick a value.'),
+        const TbrMarkerPlace(line: 10, rest: 'later.'),
       ]);
       expect(
         LineFacts.fromJson(
@@ -134,7 +137,7 @@ void main() {
         'doc stores the markers of its LF text', () {
       const lf = '---\na: 1\n---\n# T\n\nTBR \u2014 gap\n';
       expect(_factsOf(lf.replaceAll('\n', '\r\n')).tbrMarkers, [
-        (line: 6, rest: 'gap'),
+        const TbrMarkerPlace(line: 6, rest: 'gap'),
       ]);
     });
 
@@ -209,7 +212,7 @@ void main() {
         expect(counts[i].chars, section.text.runes.length - headerSize);
       }
       expect(counts[0].lines, 4);
-      expect(counts[1], (lines: 1, chars: 7));
+      expect(counts[1], const SectionCounts(lines: 1, chars: 7));
     });
 
     test('a section count is the non-blank lines of its body, its header line '
@@ -623,7 +626,10 @@ void main() {
         countedText: 'one\ntwo\n\nthree\n',
         docPath: 'doc.md',
         doc: Doc.parse(disk),
-        sectionCounts: const [(lines: 3, chars: 9), (lines: 2, chars: 4)],
+        sectionCounts: const [
+          SectionCounts(lines: 3, chars: 9),
+          SectionCounts(lines: 2, chars: 4),
+        ],
         frontmatterErrorLine: null,
         bodyNumberLabels: const [],
         bodyTbrMarkers: const [],
@@ -634,7 +640,10 @@ void main() {
       expect(facts.sectionLines, [3, 7]);
       expect(facts.lineCount, 3);
       expect(facts.charCount, 15);
-      expect(facts.sectionCounts, [(lines: 3, chars: 9), (lines: 2, chars: 4)]);
+      expect(facts.sectionCounts, [
+        const SectionCounts(lines: 3, chars: 9),
+        const SectionCounts(lines: 2, chars: 4),
+      ]);
     });
   });
 }

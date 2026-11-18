@@ -11,6 +11,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -791,7 +792,10 @@ final class IndexStore {
         jsonDecode(doc['line_facts'] as String) as Map<String, Object?>,
         sectionCounts: [
           for (final row in rows)
-            (lines: row['line_count'] as int, chars: row['char_count'] as int),
+            SectionCounts(
+              lines: row['line_count'] as int,
+              chars: row['char_count'] as int,
+            ),
         ],
       ),
       readBannedMatches: () =>

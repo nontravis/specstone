@@ -17,8 +17,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show DocContent, IndexedSection, indexedSectionsOf;
 import 'package:specstone_core/src/index_query/item_words.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/index_query/section_counts.dart'
-    show SectionCounts;
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/visible_text.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show Formatted;
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
@@ -88,7 +87,7 @@ final class ItemFacts {
     return ItemFacts(
       lead: lead == null
           ? null
-          : (lines: lead[0]! as int, chars: lead[1]! as int),
+          : SectionCounts(lines: lead[0]! as int, chars: lead[1]! as int),
       leadItems: _itemsOfJson(map['lead_items']),
       sectionItems: [
         for (final items in map['sections']! as List<Object?>)
@@ -378,7 +377,7 @@ List<BodyLine> leadBodyLinesOf(
     chars += _codePointsOf(body[k].text);
   }
   return (
-    counts: (lines: last - first + 1, chars: chars),
+    counts: SectionCounts(lines: last - first + 1, chars: chars),
     items: _itemFactsIn(body, null, reads),
   );
 }

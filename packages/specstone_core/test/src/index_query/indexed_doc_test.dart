@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -512,7 +513,10 @@ void main() {
       expect(counts.lineCount, nonBlankLinesOf(laidOut));
       expect(counts.charCount, laidOut.length);
       expect(counts.sectionCounts, [
-        (lines: nonBlankLinesOf(problemBody), chars: problemBody.length),
+        SectionCounts(
+          lines: nonBlankLinesOf(problemBody),
+          chars: problemBody.length,
+        ),
       ]);
       expect(counts.sectionLines, [3]);
       final after = parse(featurePath, laidOut);
@@ -592,8 +596,8 @@ void main() {
       const goal = '\n| x | y |\n|---|---|';
       final flow = '\n$open\n$block\n$generatedEndMarker';
       expect(parsed.content.lineFacts.sectionCounts, [
-        (lines: nonBlankLinesOf(goal), chars: goal.length),
-        (lines: nonBlankLinesOf(flow), chars: flow.length),
+        SectionCounts(lines: nonBlankLinesOf(goal), chars: goal.length),
+        SectionCounts(lines: nonBlankLinesOf(flow), chars: flow.length),
       ]);
     });
   });
@@ -718,10 +722,13 @@ void main() {
       final facts = parseRecord('$head$notesBody$matrixBody$questionsBody')
           .content
           .lineFacts;
-      expect(facts.sectionCounts[1], (
-        lines: nonBlankLinesOf(section),
-        chars: section.trimRight().runes.length,
-      ));
+      expect(
+        facts.sectionCounts[1],
+        SectionCounts(
+          lines: nonBlankLinesOf(section),
+          chars: section.trimRight().runes.length,
+        ),
+      );
     });
 
     test(
@@ -774,7 +781,7 @@ void main() {
         'the item facts of the laid-out text', () {
       final facts = parse(frPath, drifted).content.itemFacts;
 
-      expect(facts.lead, (lines: 1, chars: 5));
+      expect(facts.lead, const SectionCounts(lines: 1, chars: 5));
       expect(plainItems(facts.leadItems), [(id: null, line: 3, chars: 5)]);
       expect(plainSections(facts), [
         [(id: 'E01', line: 11, chars: 35)],
@@ -787,7 +794,7 @@ void main() {
       final type = (matcher.match(frPath) as MatchedDocType).docType;
       final facts = docStructureOf(drifted, type).itemFacts;
 
-      expect(facts.lead, (lines: 1, chars: 5));
+      expect(facts.lead, const SectionCounts(lines: 1, chars: 5));
       expect(plainSections(facts), [
         [(id: 'E01', line: 6, chars: 35)],
         [(id: null, line: 9, chars: 26)],

@@ -16,9 +16,11 @@ import 'package:specstone_core/src/index_query/cite_candidates.dart'
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show MermaidBlock;
+import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
+import 'package:specstone_core/src/index_query/models/label_place.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
-import 'package:specstone_core/src/index_query/section_counts.dart'
-    show SectionCounts;
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
+import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:yaml/yaml.dart';
 
 const _tab = 0x09;
@@ -59,13 +61,6 @@ int _allLines(String text) {
   return text.endsWith('\n') ? breaks : breaks + 1;
 }
 
-/// The frontmatter YAML read once: the mapping it holds, or the line that
-/// makes it invalid.
-///
-/// Both are null for an empty or comment-only block. `errorLine` is the line
-/// the YAML parser names, or 1 when the block is no mapping.
-typedef FrontmatterYaml = ({YamlMap? map, int? errorLine});
-
 /// Returns [source], the frontmatter lines between the `---` delimiters, as
 /// a mapping or the line that makes it invalid.
 ///
@@ -73,13 +68,13 @@ typedef FrontmatterYaml = ({YamlMap? map, int? errorLine});
 FrontmatterYaml parseFrontmatterYaml(String source) {
   try {
     final node = loadYamlNode(source);
-    if (node is YamlMap) return (map: node, errorLine: null);
+    if (node is YamlMap) return FrontmatterYaml(map: node, errorLine: null);
     if (node is YamlScalar && node.value == null) {
-      return (map: null, errorLine: null);
+      return const FrontmatterYaml(map: null, errorLine: null);
     }
-    return (map: null, errorLine: 1);
+    return const FrontmatterYaml(map: null, errorLine: 1);
   } on YamlException catch (e) {
-    return (map: null, errorLine: e.span!.start.line + 2);
+    return FrontmatterYaml(map: null, errorLine: e.span!.start.line + 2);
   }
 }
 
@@ -171,11 +166,11 @@ final class LineFacts {
       nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
       numberLabels: [
         for (final NumberLabelLine(:line, :written) in bodyNumberLabels)
-          (line: bodyStart + line + 1, written: written),
+          LabelPlace(line: bodyStart + line + 1, written: written),
       ],
       tbrMarkers: [
         for (final TbrMarkerLine(:line, :rest) in bodyTbrMarkers)
-          (line: bodyStart + line + 1, rest: rest),
+          TbrMarkerPlace(line: bodyStart + line + 1, rest: rest),
       ],
       citeCandidates: citeCandidates,
       mermaidBlocks: mermaidBlocks,
@@ -239,12 +234,12 @@ final class LineFacts {
       numberLabels: [
         for (final label
             in (json['number_labels']! as List<Object?>).cast<List<Object?>>())
-          (line: label[0]! as int, written: label[1]! as String),
+          LabelPlace(line: label[0]! as int, written: label[1]! as String),
       ],
       tbrMarkers: [
         for (final marker
             in (json['tbr_markers']! as List<Object?>).cast<List<Object?>>())
-          (line: marker[0]! as int, rest: marker[1]! as String),
+          TbrMarkerPlace(line: marker[0]! as int, rest: marker[1]! as String),
       ],
       citeCandidates: _citeCandidatesOfJson(json['cite_candidates']!),
       mermaidBlocks: _mermaidBlocksOfJson(json['mermaid_blocks']!),
@@ -392,12 +387,6 @@ final class LineFacts {
     'yaml_error': frontmatterErrorLine,
   };
 }
-
-/// A number label at its file line, as it is written.
-typedef LabelPlace = ({int line, String written});
-
-/// A TBR marker at its file line, with the line's text after it.
-typedef TbrMarkerPlace = ({int line, String rest});
 
 /// Returns the mentions of [body], whose lines start at file line
 /// `bodyStart + 1`.
