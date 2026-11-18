@@ -52,7 +52,7 @@ final class _CreateFileHook extends IOOverrides {
 }
 
 void main() {
-  test('f02/us02/s1, f02/us02/fr01, f02/us02/fr01/e01, f02/us02/fr02, f02/us02/fr02/e01, dw-s03/inv6: a story with no text is the skeleton at the next number', () async {
+  test('a story with no text is the skeleton at the next number', () async {
     final root = await writeWriteProject();
     const path = 'prds/features/f01_login/us04_forgot_email/USER_STORY.md';
     final answer = writeIn(
@@ -85,53 +85,59 @@ void main() {
     );
   });
 
-  test('f02/us02/s6, f02/us02/fr01/e08: a slug a sibling carries is doc_exists naming it, and no file is created', () async {
-    final root = await writeWriteProject();
-    expect(
-      () => writeIn(
-        root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'user_story',
-          parent: 'login',
-          slug: 'email_login',
+  test(
+    'a slug a sibling carries is doc_exists naming it, and no file is created',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'email_login',
+          ),
         ),
-      ),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.docExists)
-            .having(
-              (f) => f.message,
-              'message',
-              'a user_story named login/email_login exists',
-            )
-            .having((f) => f.file, 'file', story1),
-      ),
-    );
-    expect(
-      Directory('${root.path}/docs/prds/features/f01_login/us04_email_login')
-          .existsSync(),
-      isFalse,
-    );
-  });
-
-  test('f02/us02/fr01/e10: a missing --parent is argument_missing with the sidecar message', () async {
-    final root = await writeWriteProject();
-    expect(
-      () => writeIn(
-        root,
-        (s) => answerNew(s, docTypeId: 'user_story', slug: 'x'),
-      ),
-      throwsA(
-        indexFault(
-          IndexFaultCode.argumentMissing,
-          'user_story needs --parent: a feature named by <doc type>:<name>, a bare name, or a path',
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having(
+                (f) => f.message,
+                'message',
+                'a user_story named login/email_login exists',
+              )
+              .having((f) => f.file, 'file', story1),
         ),
-      ),
-    );
-  });
+      );
+      expect(
+        Directory('${root.path}/docs/prds/features/f01_login/us04_email_login')
+            .existsSync(),
+        isFalse,
+      );
+    },
+  );
 
-  test('f02/us02/s2, f02/us02/fr02/e03, f02/us02/fr02/e04: given text keeps its blocks and is forced to draft: true', () async {
+  test(
+    'a missing --parent is argument_missing with the sidecar message',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'user_story', slug: 'x'),
+        ),
+        throwsA(
+          indexFault(
+            IndexFaultCode.argumentMissing,
+            'user_story needs --parent: a feature named by <doc type>:<name>, a bare name, or a path',
+          ),
+        ),
+      );
+    },
+  );
+
+  test('given text keeps its blocks and is forced to draft: true', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -163,7 +169,7 @@ void main() {
     );
   });
 
-  test('f02/us02/s3, f02/us02/fr01/e02: after a gap the new doc takes the highest number plus one', () async {
+  test('after a gap the new doc takes the highest number plus one', () async {
     final root = await writeWriteProject(
       extra: {
         'docs/prds/features/f01_login/us06_audit/USER_STORY.md': '# Audit\n',
@@ -180,7 +186,7 @@ void main() {
     );
   });
 
-  test('f02/us02/s4, f02/us02/fr01/e03: two new calls under one parent at once take two numbers', () async {
+  test('two new calls under one parent at once take two numbers', () async {
     final root = await writeWriteProject();
     final path = root.path;
     String create(String slug) => WriteSession.run(
@@ -207,76 +213,75 @@ void main() {
     );
   });
 
-  test('f02/us02/s5, f02/us02/fr01/e04, f02/us02/fr02/e07: a spec doc lands in the feature spec folder titled with its slug', () async {
-    final root = await writeWriteProject();
-    final answer = writeIn(
-      root,
-      (s) => answerNew(s, docTypeId: 'api', parent: 'login'),
-    );
-    expect(answer.json['path'], 'specs/f01_login/API.md');
-    expect(readDoc(root, 'specs/f01_login/API.md'), contains('\n\n# login\n'));
-  });
+  test(
+    'a spec doc lands in the feature spec folder titled with its slug',
+    () async {
+      final root = await writeWriteProject();
+      final answer = writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'api', parent: 'login'),
+      );
+      expect(answer.json['path'], 'specs/f01_login/API.md');
+      expect(
+        readDoc(root, 'specs/f01_login/API.md'),
+        contains('\n\n# login\n'),
+      );
+    },
+  );
 
-  test('f02/us02/fr01/e05: a feature takes the next feature number', () async {
+  test('a feature takes the next feature number', () async {
     final root = await writeWriteProject();
     writeIn(root, (s) => answerNew(s, docTypeId: 'feature', slug: 'billing'));
     expect(hasDoc(root, 'prds/features/f03_billing/FEATURE.md'), isTrue);
   });
 
-  test('f02/us02/fr01/e06: a doc type with no placeholder is created once, then doc_exists', () async {
+  test(
+    'a doc type with no placeholder is created once, then doc_exists',
+    () async {
+      final root = await writeWriteProject();
+      writeIn(root, (s) => answerNew(s, docTypeId: 'project'));
+      expect(readDoc(root, 'prds/PROJECT.md'), contains('\n\n# project\n'));
+      expect(
+        () => writeIn(root, (s) => answerNew(s, docTypeId: 'project')),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having((f) => f.file, 'file', 'prds/PROJECT.md'),
+        ),
+      );
+    },
+  );
+
+  test('another doc type in the same folder is no clash', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/personas/seller/PERSONA.md': '# Seller\n'},
+    );
+    writeIn(
+      root,
+      (s) => answerNew(s, docTypeId: 'anti_persona', slug: 'seller'),
+    );
+    expect(hasDoc(root, 'prds/personas/seller/ANTI_PERSONA.md'), isTrue);
+  });
+
+  test('a parent no doc carries is doc_not_found', () async {
     final root = await writeWriteProject();
-    writeIn(root, (s) => answerNew(s, docTypeId: 'project'));
-    expect(readDoc(root, 'prds/PROJECT.md'), contains('\n\n# project\n'));
     expect(
-      () => writeIn(root, (s) => answerNew(s, docTypeId: 'project')),
+      () => writeIn(
+        root,
+        (s) =>
+            answerNew(s, docTypeId: 'user_story', parent: 'nobody', slug: 'x'),
+      ),
       throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.docExists)
-            .having((f) => f.file, 'file', 'prds/PROJECT.md'),
+        isA<IndexFault>().having(
+          (f) => f.code,
+          'code',
+          IndexFaultCode.docNotFound,
+        ),
       ),
     );
   });
 
-  test(
-    'f02/us02/fr01/e07: another doc type in the same folder is no clash',
-    () async {
-      final root = await writeWriteProject(
-        extra: {'docs/prds/personas/seller/PERSONA.md': '# Seller\n'},
-      );
-      writeIn(
-        root,
-        (s) => answerNew(s, docTypeId: 'anti_persona', slug: 'seller'),
-      );
-      expect(hasDoc(root, 'prds/personas/seller/ANTI_PERSONA.md'), isTrue);
-    },
-  );
-
-  test(
-    'f02/us02/s7, f02/us02/fr01/e09: a parent no doc carries is doc_not_found',
-    () async {
-      final root = await writeWriteProject();
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerNew(
-            s,
-            docTypeId: 'user_story',
-            parent: 'nobody',
-            slug: 'x',
-          ),
-        ),
-        throwsA(
-          isA<IndexFault>().having(
-            (f) => f.code,
-            'code',
-            IndexFaultCode.docNotFound,
-          ),
-        ),
-      );
-    },
-  );
-
-  test('f02/us02/fr01/e09: a --parent that names no doc of the parent doc type is doc_not_found naming the value, and no file is created', () async {
+  test('a --parent that names no doc of the parent doc type is doc_not_found naming the value, and no file is created', () async {
     final root = await writeWriteProject();
     for (final parent in ['architecture:login', 'user_story:login']) {
       expect(
@@ -299,23 +304,26 @@ void main() {
     );
   });
 
-  test('f02/us02/fr01/e20: --parent feature:login and a path name the parent as a bare name does', () async {
-    final root = await writeWriteProject();
-    for (final (parent, slug) in [
-      ('feature:login', 'by_type'),
-      ('prds/features/f01_login/FEATURE.md', 'by_path'),
-      ('login', 'by_name'),
-    ]) {
-      final answer = writeIn(
-        root,
-        (s) =>
-            answerNew(s, docTypeId: 'user_story', parent: parent, slug: slug),
-      );
-      expect(answer.json['name'], 'login/$slug', reason: parent);
-    }
-  });
+  test(
+    '--parent feature:login and a path name the parent as a bare name does',
+    () async {
+      final root = await writeWriteProject();
+      for (final (parent, slug) in [
+        ('feature:login', 'by_type'),
+        ('prds/features/f01_login/FEATURE.md', 'by_path'),
+        ('login', 'by_name'),
+      ]) {
+        final answer = writeIn(
+          root,
+          (s) =>
+              answerNew(s, docTypeId: 'user_story', parent: parent, slug: slug),
+        );
+        expect(answer.json['name'], 'login/$slug', reason: parent);
+      }
+    },
+  );
 
-  test('f02/us02/fr01/e21: a --parent that names 2 or more docs of the parent doc type is argument_invalid listing each as <doc type>:<name>, and no file is created', () async {
+  test('a --parent that names 2 or more docs of the parent doc type is argument_invalid listing each as <doc type>:<name>, and no file is created', () async {
     final root = await writeWriteProject(
       extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login\n'},
     );
@@ -344,7 +352,7 @@ void main() {
     );
   });
 
-  test('f02/us02/fr01/e10: a missing --slug, a --parent or --slug the type takes no value for, or a bad slug is refused', () async {
+  test('a missing --slug, a --parent or --slug the type takes no value for, or a bad slug is refused', () async {
     final root = await writeWriteProject();
     void refuses(
       IndexFaultCode code,
@@ -388,25 +396,28 @@ void main() {
             ).json['path']!
             as String;
 
-    test('f02/us02/fr01/e14, sf-c11: a story under a sub-feature takes the next story number in its folder', () async {
-      final root = await writeNestedProject();
-      final answer = writeIn(
-        root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'user_story',
-          parent: 'shop/cart',
-          slug: 'wish',
-        ),
-      );
-      expect(
-        answer.json['path'],
-        'prds/features/f02_shop/f01_cart/us03_wish/USER_STORY.md',
-      );
-      expect(answer.json['name'], 'shop/cart/wish');
-    });
+    test(
+      'a story under a sub-feature takes the next story number in its folder',
+      () async {
+        final root = await writeNestedProject();
+        final answer = writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'shop/cart',
+            slug: 'wish',
+          ),
+        );
+        expect(
+          answer.json['path'],
+          'prds/features/f02_shop/f01_cart/us03_wish/USER_STORY.md',
+        );
+        expect(answer.json['name'], 'shop/cart/wish');
+      },
+    );
 
-    test('f02/us02/fr01/e15, sf-c11: a feature with --parent lands in that feature at the next feature number', () async {
+    test('a feature with --parent lands in that feature at the next feature number', () async {
       final root = await writeNestedProject();
       expect(
         pathOf(root, 'feature', 'shop', 'ship'),
@@ -414,84 +425,89 @@ void main() {
       );
     });
 
-    test('f02/us02/fr01/e16, sf-r10: a parent holding stories takes a sub-feature, numbered from 01', () async {
-      final root = await writeNestedProject();
-      expect(
-        pathOf(root, 'feature', 'shop/cart', 'gift'),
-        'prds/features/f02_shop/f01_cart/f01_gift/FEATURE.md',
-      );
-    });
-
-    test('f02/us02/fr01/e17, sf-c11: a domain under a sub-feature lands in the sub-feature spec folder', () async {
-      final root = await writeNestedProject(without: {'docs/$cartDomain'});
-      final answer = writeIn(
-        root,
-        (s) => answerNew(s, docTypeId: 'domain', parent: 'shop/cart'),
-      );
-      expect(answer.json['path'], cartDomain);
-    });
-
-    test('f02/us02/fr01/e18, sf-r5: a parent at the limit refuses a sub-feature and writes nothing', () async {
-      const deep = 'prds/features/f02_shop/f01_cart/f01_deep';
-      final root = await writeNestedProject(
-        extra: {
-          'docs/$deep/FEATURE.md': '# Deep\n',
-          'docs/$deep/f01_deeper/FEATURE.md': '# Deeper\n',
-        },
-      );
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerNew(
-            s,
-            docTypeId: 'feature',
-            parent: 'shop/cart/deep/deeper',
-            slug: 'x',
-          ),
-        ),
-        throwsA(
-          indexFault(
-            IndexFaultCode.argumentInvalid,
-            'shop/cart/deep/deeper (feature) sits 3 levels deep, the limit, '
-            'so it takes no sub-feature',
-          ),
-        ),
-      );
-      expect(
-        Directory('${root.path}/docs/$deep/f01_deeper/f01_x').existsSync(),
-        isFalse,
-      );
-    });
+    test(
+      'a parent holding stories takes a sub-feature, numbered from 01',
+      () async {
+        final root = await writeNestedProject();
+        expect(
+          pathOf(root, 'feature', 'shop/cart', 'gift'),
+          'prds/features/f02_shop/f01_cart/f01_gift/FEATURE.md',
+        );
+      },
+    );
 
     test(
-      'f02/us02/fr01/e19: a flat set keeps feature takes no --parent',
+      'a domain under a sub-feature lands in the sub-feature spec folder',
       () async {
-        final root = await writeWriteProject(
-          extra: {'.specstone/templates/feature.yaml': 'max_depth: 0\n'},
+        final root = await writeNestedProject(without: {'docs/$cartDomain'});
+        final answer = writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'domain', parent: 'shop/cart'),
+        );
+        expect(answer.json['path'], cartDomain);
+      },
+    );
+
+    test(
+      'a parent at the limit refuses a sub-feature and writes nothing',
+      () async {
+        const deep = 'prds/features/f02_shop/f01_cart/f01_deep';
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$deep/FEATURE.md': '# Deep\n',
+            'docs/$deep/f01_deeper/FEATURE.md': '# Deeper\n',
+          },
         );
         expect(
           () => writeIn(
             root,
-            (s) =>
-                answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
+            (s) => answerNew(
+              s,
+              docTypeId: 'feature',
+              parent: 'shop/cart/deep/deeper',
+              slug: 'x',
+            ),
           ),
           throwsA(
             indexFault(
               IndexFaultCode.argumentInvalid,
-              'feature takes no --parent',
+              'shop/cart/deep/deeper (feature) sits 3 levels deep, the limit, '
+              'so it takes no sub-feature',
             ),
           ),
         );
         expect(
-          Directory('${root.path}/docs/prds/features/f01_login/f01_x')
-              .existsSync(),
+          Directory('${root.path}/docs/$deep/f01_deeper/f01_x').existsSync(),
           isFalse,
         );
       },
     );
+
+    test('a flat set keeps feature takes no --parent', () async {
+      final root = await writeWriteProject(
+        extra: {'.specstone/templates/feature.yaml': 'max_depth: 0\n'},
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
+        ),
+        throwsA(
+          indexFault(
+            IndexFaultCode.argumentInvalid,
+            'feature takes no --parent',
+          ),
+        ),
+      );
+      expect(
+        Directory('${root.path}/docs/prds/features/f01_login/f01_x')
+            .existsSync(),
+        isFalse,
+      );
+    });
   });
 
-  test('f02/us02/fr01/e11: an unknown doc type is doc_type_unknown', () async {
+  test('an unknown doc type is doc_type_unknown', () async {
     final root = await writeWriteProject();
     expect(
       () => writeIn(root, (s) => answerNew(s, docTypeId: 'runbook')),
@@ -507,7 +523,7 @@ void main() {
     );
   });
 
-  test('f02/us02/fr01/e12: the 100th story takes three digits', () async {
+  test('the 100th story takes three digits', () async {
     final root = await writeWriteProject(
       extra: {
         'docs/prds/features/f01_login/us99_last/USER_STORY.md': '# Last\n',
@@ -524,7 +540,7 @@ void main() {
     );
   });
 
-  test('f02/us02/fr01/e13, nfr-di01: an unwritable feature folder is output_not_writable and leaves nothing behind', () async {
+  test('an unwritable feature folder is output_not_writable and leaves nothing behind', () async {
     final root = await writeWriteProject();
     final folder = Directory('${root.path}/docs/prds/features/f01_login');
     Process.runSync('chmod', ['555', folder.path]);
@@ -561,7 +577,7 @@ void main() {
     );
   }, skip: unreadablePathSkipReason() ?? false);
 
-  test('f02/us02/fr01/e13, nfr-di01: a write that fails after the claim removes the claimed file and the folders new made', () async {
+  test('a write that fails after the claim removes the claimed file and the folders new made', () async {
     final root = await writeWriteProject();
     final storyFolder = Directory(
       '${root.path}/docs/prds/features/f01_login/us04_x',
@@ -586,7 +602,7 @@ void main() {
     expect(storyFolder.existsSync(), isFalse);
   });
 
-  test('f02/us02/fr01/e03, PD18: a path taken between the sibling count and the claim moves the new doc to the next number', () async {
+  test('a path taken between the sibling count and the claim moves the new doc to the next number', () async {
     final root = await writeWriteProject();
     final taken = 'f01_login/us04_x/USER_STORY.md'.replaceAll(
       '/',
@@ -655,38 +671,41 @@ void main() {
     );
   });
 
-  test('f02/us02/fr02/e01, final Minor 5: stdin holding an approved key refuses before any path is claimed', () async {
-    final root = await writeWriteProject();
-    for (final value in ['true', 'false']) {
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerNew(
-            s,
-            docTypeId: 'user_story',
-            parent: 'login',
-            slug: 'sneaky',
-            text: '---\napproved: $value\n---\n\n# Mine\n',
+  test(
+    'stdin holding an approved key refuses before any path is claimed',
+    () async {
+      final root = await writeWriteProject();
+      for (final value in ['true', 'false']) {
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerNew(
+              s,
+              docTypeId: 'user_story',
+              parent: 'login',
+              slug: 'sneaky',
+              text: '---\napproved: $value\n---\n\n# Mine\n',
+            ),
           ),
-        ),
-        throwsA(
-          isA<WriteFault>()
-              .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
-              .having(
-                (f) => f.message,
-                'message',
-                'approved is written only by specstone approve and the hash stamps',
-              )
-              .having((f) => f.key, 'key', 'approved'),
-        ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'approved is written only by specstone approve and the hash stamps',
+                )
+                .having((f) => f.key, 'key', 'approved'),
+          ),
+        );
+      }
+      expect(
+        Directory('${root.path}/docs/prds/features/f01_login/us04_sneaky')
+            .existsSync(),
+        isFalse,
       );
-    }
-    expect(
-      Directory('${root.path}/docs/prds/features/f01_login/us04_sneaky')
-          .existsSync(),
-      isFalse,
-    );
-  });
+    },
+  );
 
   test('empty text gives the skeleton', () async {
     final root = await writeWriteProject();
@@ -700,28 +719,31 @@ void main() {
     );
   });
 
-  test('f02/us02/fr01: --json gives name, docType, path, and the bases get --json gives', () async {
-    final root = await writeWriteProject();
-    final answer = writeIn(
-      root,
-      (s) => answerNew(
-        s,
-        docTypeId: 'user_story',
-        parent: 'login',
-        slug: 'forgot_email',
-      ),
-    );
-    expect(answer.json['name'], 'login/forgot_email');
-    expect(answer.json['docType'], 'user_story');
-    expect(
-      answer.json['path'],
-      'prds/features/f01_login/us04_forgot_email/USER_STORY.md',
-    );
-    expect(
-      answer.json['bases'],
-      getDoc(root, 'user_story:login/forgot_email')['bases'],
-    );
-  });
+  test(
+    '--json gives name, docType, path, and the bases get --json gives',
+    () async {
+      final root = await writeWriteProject();
+      final answer = writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'forgot_email',
+        ),
+      );
+      expect(answer.json['name'], 'login/forgot_email');
+      expect(answer.json['docType'], 'user_story');
+      expect(
+        answer.json['path'],
+        'prds/features/f01_login/us04_forgot_email/USER_STORY.md',
+      );
+      expect(
+        answer.json['bases'],
+        getDoc(root, 'user_story:login/forgot_email')['bases'],
+      );
+    },
+  );
 
   test('skeletonOf writes draft true, each required field '
       'empty, the title, and each required section', () {
@@ -790,7 +812,7 @@ sections:
     );
   });
 
-  test('E08: keys reordered, text laid out, draft at its field slot', () async {
+  test('keys reordered, text laid out, draft at its field slot', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -823,7 +845,7 @@ sections:
     );
   });
 
-  test('E05: stdin that lacks a required section is written without it, an undeclared key kept after the declared ones', () async {
+  test('stdin that lacks a required section is written without it, an undeclared key kept after the declared ones', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -842,32 +864,29 @@ sections:
     );
   });
 
-  test(
-    'E08: stdin with text right under a heading is written laid out',
-    () async {
-      final root = await writeWriteProject();
-      final answer = writeIn(
-        root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'user_story',
-          parent: 'login',
-          slug: 'a',
-          text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n\n## Acceptance Criteria\n- **Given** x\n',
-        ),
-      );
-      const path = 'prds/features/f01_login/us04_a/USER_STORY.md';
-      expect(
-        readDoc(root, path),
-        '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
-        '## Use Case\n\nSign in.\n\n## Acceptance Criteria\n\n- **Given** x\n',
-      );
-      expect(answer.json['path'], path);
-    },
-  );
+  test('stdin with text right under a heading is written laid out', () async {
+    final root = await writeWriteProject();
+    final answer = writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n\n## Acceptance Criteria\n- **Given** x\n',
+      ),
+    );
+    const path = 'prds/features/f01_login/us04_a/USER_STORY.md';
+    expect(
+      readDoc(root, path),
+      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
+      '## Use Case\n\nSign in.\n\n## Acceptance Criteria\n\n- **Given** x\n',
+    );
+    expect(answer.json['path'], path);
+  });
 
   test(
-    'E08: stdin the format command refuses is written as given, draft aside',
+    'stdin the format command refuses is written as given, draft aside',
     () async {
       final root = await writeWriteProject();
       const given =
@@ -964,7 +983,7 @@ sections:
         if (entity is File) entity.path,
     ]..sort();
 
-    test('E24: --target jaspr places the doc in the jaspr spec folder under the shared feature', () async {
+    test('--target jaspr places the doc in the jaspr spec folder under the shared feature', () async {
       final root = await twinWithToast(
         without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
       );
@@ -987,7 +1006,7 @@ sections:
       );
     });
 
-    test('E25: a per-target doc type with two targets and no --target is argument_missing naming the targets, and creates nothing', () async {
+    test('a per-target doc type with two targets and no --target is argument_missing naming the targets, and creates nothing', () async {
       final root = await twinWithToast();
       final before = docFiles(root);
       expect(
@@ -1009,7 +1028,7 @@ sections:
       expect(docFiles(root), before);
     });
 
-    test('E25: a --target the project does not name is argument_invalid, and creates nothing', () async {
+    test('a --target the project does not name is argument_invalid, and creates nothing', () async {
       final root = await twinWithToast();
       final before = docFiles(root);
       expect(
@@ -1034,7 +1053,7 @@ sections:
 
     for (final codeTarget in <String?>[null, 'flutter']) {
       test(
-        'E26: one target, ${codeTarget == null ? 'unnamed on the command line' : 'named'}, places a per-target doc at its one-target path',
+        'one target, ${codeTarget == null ? 'unnamed on the command line' : 'named'}, places a per-target doc at its one-target path',
         () async {
           final root = await writeTwinProject(
             without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
@@ -1060,24 +1079,27 @@ sections:
       );
     }
 
-    test('E24: the same --parent places the flutter doc in the flutter spec folder', () async {
-      final root = await twinWithToast();
-      writeIn(
-        root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'architecture',
-          parent: 'feedback/toast',
-          codeTarget: 'flutter',
-        ),
-      );
-      expect(
-        hasDoc(root, 'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md'),
-        isTrue,
-      );
-    });
+    test(
+      'the same --parent places the flutter doc in the flutter spec folder',
+      () async {
+        final root = await twinWithToast();
+        writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'architecture',
+            parent: 'feedback/toast',
+            codeTarget: 'flutter',
+          ),
+        );
+        expect(
+          hasDoc(root, 'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md'),
+          isTrue,
+        );
+      },
+    );
 
-    test('E24: a twin already there is doc_exists naming the doc, not its target folder', () async {
+    test('a twin already there is doc_exists naming the doc, not its target folder', () async {
       final root = await writeTwinProject();
       expect(
         () => writeIn(

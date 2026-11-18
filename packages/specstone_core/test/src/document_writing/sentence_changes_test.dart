@@ -1,8 +1,6 @@
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:test/test.dart';
 
-const _name = 'document_writing/approve_drafts/show_changes_since_approval';
-
 String _doc(String body) => '---\nverify_method: test\n---\n\n# T\n\n$body';
 
 /// Returns the changes of [draft] against [approved], the way a run reads
@@ -21,7 +19,7 @@ SentenceChanges _changes({
 );
 
 void main() {
-  group('$_name E23', () {
+  group('a dropped, a moved, and an added sentence', () {
     test('a dropped, a moved, and an added sentence list the first and the '
         'third', () {
       final changes = _changes(
@@ -36,7 +34,7 @@ void main() {
     });
   });
 
-  group('$_name E24', () {
+  group('a dropped sentence', () {
     test('a sentence moved to an untyped doc is not dropped', () {
       final changes = _changes(
         approved: '## Statement\nStays. Goes to notes.\n',
@@ -111,7 +109,7 @@ void main() {
     });
   });
 
-  group('$_name E25', () {
+  group('a new sentence', () {
     test('a sentence moved between two drafts of the run is neither dropped '
         'nor new', () {
       const first = '## Statement\nStays. Moves.\n';
@@ -186,7 +184,7 @@ void main() {
     });
   });
 
-  group('$_name E26', () {
+  group('a draft with no change', () {
     test('a draft with no sentence dropped and none new lists none', () {
       final changes = _changes(
         approved: '## Statement\nSame.\n',
@@ -199,7 +197,7 @@ void main() {
     });
   });
 
-  group('$_name run lookup', () {
+  group('run lookup', () {
     test('a tree set that also holds the sentences of other drafts drops the '
         'same sentences as one for this draft alone', () {
       final approved = _doc('## Statement\nKept. Gone.\n');

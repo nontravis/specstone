@@ -10,8 +10,6 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
-const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
-
 const _feature = 'prds/features/f01_alpha/FEATURE.md';
 const _story = 'prds/features/f01_alpha/us01_beta/USER_STORY.md';
 const _gamma = 'prds/features/f01_alpha/us01_beta/fr01_gamma.md';
@@ -89,7 +87,7 @@ LabelTree _tree() => LabelTree.of(
 );
 
 void main() {
-  test('$_fr E26: a label among many features finds its one doc by lookup', () {
+  test('a label among many features finds its one doc by lookup', () {
     final docs = [
       for (var f = 1; f <= 300; f++) ...[
         LabelDoc(
@@ -119,7 +117,7 @@ void main() {
     expect(pass.left, ['$_topic:3 F-301 US-01']);
   });
 
-  group('$_fr E26 LabelTree.resolve', () {
+  group('LabelTree.resolve', () {
     test('a full label names the feature, story, or FR doc under it', () {
       final tree = _tree();
       NumberLabel one(String text) =>
@@ -208,7 +206,7 @@ void main() {
     );
   });
 
-  group('$_fr E26 LabelPass.apply', () {
+  group('LabelPass.apply', () {
     test('the doc name goes in a code span, a one-slug name typed', () {
       expect(
         _convert(_topic, 'See F-01 US-01 FR-01, F-01 US-01, and F-01.\n'),
@@ -390,7 +388,7 @@ void main() {
     });
   });
 
-  group('$_fr E27 labels the pass keeps', () {
+  group('labels the pass keeps', () {
     test('each kept case is listed after left with its line and label', () {
       final pass = _passOf(_api, 'x\nFR-01 and US-01 FR-01.\n\nF-09 y\n');
 
@@ -489,7 +487,7 @@ void main() {
     });
   });
 
-  group('$_fr E28 E29 api operation headings', () {
+  group('api operation headings', () {
     const trace =
         '# Alpha API\n\n## FR trace\n\n| FR | Operation |\n|----|-----------|\n'
         '| `beta/gamma` | `alpha run` |\n| `beta/delta` | `alpha run` |\n'
@@ -518,7 +516,7 @@ void main() {
       return pass(headings).apply(_api, text).split('\n')[14];
     }
 
-    test('E28 drops the dash and every label, a range and a list too', () {
+    test('drops the dash and every label, a range and a list too', () {
       expect(
         heading('### `alpha run` — US-01 FR-01 to FR-02; US-02 FR-01\n'),
         '### `alpha run`',
@@ -529,19 +527,19 @@ void main() {
       );
     });
 
-    test('E28 reads a trailing of-story as the story of the labels', () {
+    test('reads a trailing of-story as the story of the labels', () {
       expect(heading('### `alpha two` — FR-01 of US-02\n'), '### `alpha two`');
       expect(heading('### `alpha two` — FR-01 of US-01\n'), '### `alpha two`');
     });
 
-    test('E29 keeps a heading whose label names no FR of its rows', () {
+    test('keeps a heading whose label names no FR of its rows', () {
       expect(
         heading('### `alpha two` — US-01 FR-02\n'),
         '### `alpha two` — US-01 FR-02',
       );
     });
 
-    test('E29 keeps a heading whose label names two FRs of its rows', () {
+    test('keeps a heading whose label names two FRs of its rows', () {
       expect(heading('### `alpha run` — FR-01\n'), '### `alpha run` — FR-01');
     });
 
@@ -593,7 +591,7 @@ void main() {
       },
     );
 
-    test('E29 keeps a heading below converted ones as written, listed', () {
+    test('keeps a heading below converted ones as written, listed', () {
       const headings =
           '### `alpha run` — US-01 FR-01 to FR-02\n\n'
           '### `alpha run` — US-01 FR-01, FR-02\n\n'

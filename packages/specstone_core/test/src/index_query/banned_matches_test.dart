@@ -63,7 +63,7 @@ DocContent _parsed(String text, DocTypeMatch match) => parseIndexedDoc(
 
 void main() {
   // `docs/fast` names folders; the check, not the refresh, tests it (E07).
-  test('f04/us01/fr08, f04/nfr-p03: the refresh keeps each banned match with '
+  test('the refresh keeps each banned match with '
       'its section, line, entry, and text', () {
     expect(_parsed(_text, MatchedDocType(_type)).bannedMatches, [
       const BannedMatch(section: 0, line: 4, entry: 0, match: 'fast'),
@@ -181,11 +181,11 @@ void main() {
     });
   });
 
-  test('f04/us01/fr08, f04/nfr-p03: an untyped doc keeps no banned match', () {
+  test('an untyped doc keeps no banned match', () {
     expect(_parsed(_text, const NoDocType()).bannedMatches, isEmpty);
   });
 
-  test('f04/nfr-p03: the matches round-trip through their JSON', () {
+  test('the matches round-trip through their JSON', () {
     final matches = _parsed(_text, MatchedDocType(_type)).bannedMatches;
     expect(
       bannedMatchesFromJson(

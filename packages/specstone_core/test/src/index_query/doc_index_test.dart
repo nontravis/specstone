@@ -21,7 +21,8 @@ void main() {
     for (final d in docs) d.docPath,
   ];
 
-  test('f01/us04/fr01: an address with a #<section key> or an @<hash> is argument_invalid naming it', () async {
+  test('an address with a #<section key> or an @<hash> is argument_invalid '
+      'naming it', () async {
     for (final address in [
       'feature:login#problem',
       'login#problem',
@@ -38,48 +39,52 @@ void main() {
       );
     }
   });
-  test('f01/us04/fr01: resolve reads the path first, so a whole text naming a doc wins over its #, and a # or @ '
-      'suffix on text that names no doc is doc_not_found', () async {
-    final root = await writeLoginProject();
-    for (final name in ['c#_tips.md', 'a@7e11fc4a24d2.md']) {
-      File('${root.path}/docs/notes/$name')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('# Note\n');
-    }
-    final session = openSession(root);
-    addTearDown(session.close);
-    final hashed = session.index;
-    for (final address in [
-      'notes/c#_tips.md',
-      'docs/notes/c#_tips.md',
-      'notes/a@7e11fc4a24d2.md',
-    ]) {
-      expect(paths(hashed.resolve(address)), [
-        address.replaceFirst('docs/', ''),
-      ], reason: address);
-    }
-    for (final address in ['nosuch#problem', 'nosuch@7e11fc4a24d2']) {
-      expect(
-        () => hashed.resolve(address),
-        throwsA(
-          isA<IndexFault>().having(
-            (f) => f.code,
-            'code',
-            IndexFaultCode.docNotFound,
+  test(
+    'resolve reads the path first, so a whole text naming a doc wins over '
+    'its #, and a # or @ suffix on text that names no doc is doc_not_found',
+    () async {
+      final root = await writeLoginProject();
+      for (final name in ['c#_tips.md', 'a@7e11fc4a24d2.md']) {
+        File('${root.path}/docs/notes/$name')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('# Note\n');
+      }
+      final session = openSession(root);
+      addTearDown(session.close);
+      final hashed = session.index;
+      for (final address in [
+        'notes/c#_tips.md',
+        'docs/notes/c#_tips.md',
+        'notes/a@7e11fc4a24d2.md',
+      ]) {
+        expect(paths(hashed.resolve(address)), [
+          address.replaceFirst('docs/', ''),
+        ], reason: address);
+      }
+      for (final address in ['nosuch#problem', 'nosuch@7e11fc4a24d2']) {
+        expect(
+          () => hashed.resolve(address),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
           ),
-        ),
-        reason: address,
-      );
-    }
-  });
-  test('f01/us04/fr01: ofTypeNamed reads the docs of one type and Name from the index map, in tree order', () async {
+          reason: address,
+        );
+      }
+    },
+  );
+  test('ofTypeNamed reads the docs of one type and Name from the index map, in '
+      'tree order', () async {
     expect(paths(index.ofTypeNamed('feature', 'login')), [
       'prds/features/f01_login/FEATURE.md',
     ]);
     expect(index.ofTypeNamed('user_story', 'login'), isEmpty);
     expect(index.ofTypeNamed('nosuch', 'login'), isEmpty);
   });
-  test('f01/us04/fr01, f01/us04/fr01/e01, s03/inv6: a bare name gives every doc carrying it, in tree order', () async {
+  test('a bare name gives every doc carrying it, in tree order', () async {
     expect(paths(index.resolve('login')), [
       'prds/features/f01_login/FEATURE.md',
       'specs/f01_login/API.md',
@@ -88,62 +93,55 @@ void main() {
       'specs/f01_login/ERROR.md',
     ]);
   });
-  test(
-    'f01/us04/fr01/e02: a doc type prefix gives the one doc of that type',
-    () async {
-      expect(paths(index.resolve('architecture:login')), [
-        'specs/f01_login/ARCHITECTURE.md',
-      ]);
-    },
-  );
-  test(
-    'f01/us04/fr01/e03: a persona and an anti-persona share buyer',
-    () async {
-      expect(paths(index.resolve('buyer')), [
-        'prds/personas/buyer/ANTI_PERSONA.md',
-        'prds/personas/buyer/PERSONA.md',
-      ]);
-    },
-  );
-  test('f01/us04/fr01/e04: login never resolves to its stories; their own name does', () async {
+  test('a doc type prefix gives the one doc of that type', () async {
+    expect(paths(index.resolve('architecture:login')), [
+      'specs/f01_login/ARCHITECTURE.md',
+    ]);
+  });
+  test('a persona and an anti-persona share buyer', () async {
+    expect(paths(index.resolve('buyer')), [
+      'prds/personas/buyer/ANTI_PERSONA.md',
+      'prds/personas/buyer/PERSONA.md',
+    ]);
+  });
+  test('login never resolves to its stories; their own name does', () async {
     expect(paths(index.resolve('login/email_login')), [
       'prds/features/f01_login/us01_email_login/USER_STORY.md',
     ]);
   });
-  test('f01/us04/fr01/e05: an untyped DocPath resolves to its doc', () async {
+  test('an untyped DocPath resolves to its doc', () async {
     expect(paths(index.resolve('prds/d01_context.md')), [
       'prds/d01_context.md',
     ]);
   });
-  test('f01/us04/fr01/e05, s03/inv6: an untyped DocPath with a colon resolves to its doc when the text before it is no doc type', () async {
+  test('an untyped DocPath with a colon resolves to its doc when the text '
+      'before it is no doc type', () async {
     final colon = await indexWith({'docs/notes/10:00.md': '# Standup\n'});
     expect(paths(colon.resolve('notes/10:00.md')), ['notes/10:00.md']);
   }, skip: Platform.isWindows ? colonSkip : false);
-  test('f01/us04/fr01/e07: a colon argument whose prefix is no doc type and names no untyped doc is still doc_type_unknown', () async {
+  test('a colon argument whose prefix is no doc type and names no untyped doc '
+      'is still doc_type_unknown', () async {
     final colon = await indexWith({'docs/notes/10:00.md': '# Standup\n'});
     expect(
       () => colon.resolve('notes:11:00.md'),
       throwsA(isA<TemplateFault>()),
     );
   }, skip: Platform.isWindows ? colonSkip : false);
-  test(
-    'f01/us04/fr01/e06, s05: a name no doc carries is doc_not_found, exit 64',
-    () async {
-      expect(
-        () => index.resolve('nobody'),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
-              .having(
-                (f) => f.message,
-                'message',
-                'no doc carries the name nobody',
-              ),
-        ),
-      );
-    },
-  );
-  test('E18: a target whose text before its first colon is no slug is '
+  test('a name no doc carries is doc_not_found, exit 64', () async {
+    expect(
+      () => index.resolve('nobody'),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+            .having(
+              (f) => f.message,
+              'message',
+              'no doc carries the name nobody',
+            ),
+      ),
+    );
+  });
+  test('a target whose text before its first colon is no slug is '
       'doc_not_found, never doc_type_unknown', () async {
     for (final address in ['Grid:login', 'check architecture:login']) {
       expect(
@@ -161,7 +159,7 @@ void main() {
       );
     }
   });
-  test('f01/us04/fr01/e07: an unknown doc type prefix is doc_type_unknown, exit 64', () async {
+  test('an unknown doc type prefix is doc_type_unknown, exit 64', () async {
     expect(
       () => index.resolve('architectur:login'),
       throwsA(
@@ -175,26 +173,29 @@ void main() {
       ),
     );
   });
-  test('f01/us04/fr01/e08: feature:billing when only a spec doc carries billing is doc_not_found', () async {
-    final billing = await indexWith({
-      'docs/specs/f05_billing/ARCHITECTURE.md': '# Billing\n',
-    });
-    expect(
-      () => billing.resolve('feature:billing'),
-      throwsA(
-        isA<IndexFault>()
-            .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
-            .having(
-              (f) => f.message,
-              'message',
-              'no feature doc carries the name billing',
-            ),
-      ),
-    );
-    expect(paths(billing.resolve('architecture:billing')), [
-      'specs/f05_billing/ARCHITECTURE.md',
-    ]);
-  });
+  test(
+    'feature:billing when only a spec doc carries billing is doc_not_found',
+    () async {
+      final billing = await indexWith({
+        'docs/specs/f05_billing/ARCHITECTURE.md': '# Billing\n',
+      });
+      expect(
+        () => billing.resolve('feature:billing'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                'no feature doc carries the name billing',
+              ),
+        ),
+      );
+      expect(paths(billing.resolve('architecture:billing')), [
+        'specs/f05_billing/ARCHITECTURE.md',
+      ]);
+    },
+  );
   group('a path to a doc', () {
     const story = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     TypeMatcher<IndexFault> notFound(String message) => isA<IndexFault>()
@@ -216,17 +217,18 @@ void main() {
       return session.index;
     }
 
-    test("f01/us04/fr01/e09: a typed doc's DocPath resolves to that doc", () {
+    test("a typed doc's DocPath resolves to that doc", () {
       expect(paths(index.resolve(featureDoc)), [featureDoc]);
       expect(paths(index.resolve(story)), [story]);
     });
-    test('f01/us04/fr01/e10: docs/ and a DocPath resolves to that doc', () {
+    test('docs/ and a DocPath resolves to that doc', () {
       expect(paths(index.resolve('docs/$featureDoc')), [featureDoc]);
       expect(paths(index.resolve('docs/prds/d01_context.md')), [
         'prds/d01_context.md',
       ]);
     });
-    test('f01/us04/fr01/e11: a file path from the working directory resolves when the file lies inside the docs root', () async {
+    test('a file path from the working directory resolves when the file lies '
+        'inside the docs root', () async {
       final nested = await indexFrom('docs/prds/features/f01_login/');
       expect(paths(nested.resolve('FEATURE.md')), [featureDoc]);
       expect(paths(nested.resolve('us01_email_login/USER_STORY.md')), [story]);
@@ -239,7 +241,8 @@ void main() {
       final absolute = File.fromUri(root.uri.resolve(featureKey)).path;
       expect(paths(session.index.resolve(absolute)), [featureDoc]);
     });
-    test('f01/us04/fr01/e11: a path to a file outside the docs root, or to a folder, is doc_not_found', () async {
+    test('a path to a file outside the docs root, or to a folder, is '
+        'doc_not_found', () async {
       final nested = await indexFrom('docs/prds/', {'NOTES.md': '# Notes\n'});
       for (final outside in [
         '../../NOTES.md',
@@ -252,7 +255,8 @@ void main() {
         );
       }
     });
-    test('f01/us04/fr01/e12: <doc type>:<path> resolves to the doc at the path only when it has that doc type', () {
+    test('<doc type>:<path> resolves to the doc at the path only when it has '
+        'that doc type', () {
       expect(paths(index.resolve('feature:$featureDoc')), [featureDoc]);
       expect(paths(index.resolve('feature:docs/$featureDoc')), [featureDoc]);
       expect(
@@ -260,7 +264,8 @@ void main() {
         throwsA(notFound('no architecture doc carries the name $featureDoc')),
       );
     });
-    test('f01/us04/fr01/e13: a name wins over a path, and a DocPath over a path from the working directory', () async {
+    test('a name wins over a path, and a DocPath over a path from the working '
+        'directory', () async {
       final nested = await indexFrom('docs/prds/', {
         'docs/docs/README.md': '# Docs readme\n',
         'docs/prds/prds/PROJECT.md': '# Nested project\n',
@@ -306,24 +311,22 @@ void main() {
         ]),
       }),
     );
-    test('f01/us02/fr02, f01/us02/fr02/e01, s03/inv17: a feature with no story is planned', () {
+    test('a feature with no story is planned', () {
       expect(statusOf('f03_empty'), 'planned');
     });
-    test('f01/us02/fr02/e02: every story deprecated gives deprecated', () {
+    test('every story deprecated gives deprecated', () {
       expect(statusOf('f04_old'), 'deprecated');
     });
-    test(
-      'f01/us02/fr02/e03: implemented and deprecated stories give implemented',
-      () {
-        expect(statusOf('f05_mixed'), 'implemented');
-      },
-    );
-    test('f01/us02/fr02/e04, f01/us02/fr02/e05: one planned story gives planned, whatever the feature writes', () {
+    test('implemented and deprecated stories give implemented', () {
+      expect(statusOf('f05_mixed'), 'implemented');
+    });
+    test('one planned story gives planned, whatever the feature writes', () {
       expect(statusOf('f06_half'), 'planned');
       expect(statusOf('f02_signup'), 'implemented');
     });
   });
-  test('s03/inv10: with prd-core and software-tech, feature, user_story, fr, and nf are the chain types', () async {
+  test('with prd-core and software-tech, feature, user_story, fr, and nf are '
+      'the chain types', () async {
     expect(
       [
         for (final t in index.set.docTypes)
@@ -332,29 +335,32 @@ void main() {
       ['feature', 'fr', 'nf', 'user_story'],
     );
   });
-  test('s03/inv7, s03/inv11: children, subtree, and chain follow the parent doc in tree order', () async {
-    final feature = index.at('prds/features/f01_login/FEATURE.md')!;
-    expect(paths(index.childrenOf(feature)), [
-      'prds/features/f01_login/us01_email_login/USER_STORY.md',
-      'prds/features/f01_login/us02_reset_password/USER_STORY.md',
-      'specs/f01_login/API.md',
-      'specs/f01_login/ARCHITECTURE.md',
-      'specs/f01_login/DOMAIN.md',
-      'specs/f01_login/ERROR.md',
-    ]);
-    final fr = index.at(
-      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
-    )!;
-    expect(paths(index.chainOf(fr)), [
-      fr.docPath,
-      'prds/features/f01_login/us01_email_login/USER_STORY.md',
-      feature.docPath,
-    ]);
-    expect(index.subtreeOf(feature).length, 11);
-    expect(index.under('login').length, 11);
-  });
+  test(
+    'children, subtree, and chain follow the parent doc in tree order',
+    () async {
+      final feature = index.at('prds/features/f01_login/FEATURE.md')!;
+      expect(paths(index.childrenOf(feature)), [
+        'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        'prds/features/f01_login/us02_reset_password/USER_STORY.md',
+        'specs/f01_login/API.md',
+        'specs/f01_login/ARCHITECTURE.md',
+        'specs/f01_login/DOMAIN.md',
+        'specs/f01_login/ERROR.md',
+      ]);
+      final fr = index.at(
+        'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+      )!;
+      expect(paths(index.chainOf(fr)), [
+        fr.docPath,
+        'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        feature.docPath,
+      ]);
+      expect(index.subtreeOf(feature).length, 11);
+      expect(index.under('login').length, 11);
+    },
+  );
   group('nested feature status', () {
-    test('f01/us02/fr02/e06, sf-c3: shop is planned while pay/refund is, and implemented once all four stories are', () async {
+    test('shop is planned while pay/refund is, and implemented once all four stories are', () async {
       final half = await nestedIndexWith(nestedRecords());
       expect(half.statusOf(half.at(shopFeature)!), 'planned');
       expect(half.statusOf(half.at(cartFeature)!), 'implemented');
@@ -407,7 +413,7 @@ void main() {
     }
 
     test(
-      'E19: a typed name two targets twin resolves to both, in tree order',
+      'a typed name two targets twin resolves to both, in tree order',
       () async {
         final twins = await nameTargets();
         expect(paths(twins.resolve('architecture:feedback/toast')), [
@@ -416,7 +422,7 @@ void main() {
         ]);
       },
     );
-    test('E20: a name stays in its target, a bare name gives the feature and '
+    test('a name stays in its target, a bare name gives the feature and '
         "that target's spec docs", () async {
       final scoped = await nameTargets();
       expect(
@@ -442,22 +448,19 @@ void main() {
         jasprArch,
       ]);
     });
-    test(
-      'E21: a DocPath names its doc whatever target the flag names',
-      () async {
-        final cross = await nameTargets();
-        expect(
-          paths(
-            cross.resolve(
-              'specs/flutter/f02_feedback/f03_toast/DOMAIN.md',
-              codeTarget: 'jaspr',
-            ),
+    test('a DocPath names its doc whatever target the flag names', () async {
+      final cross = await nameTargets();
+      expect(
+        paths(
+          cross.resolve(
+            'specs/flutter/f02_feedback/f03_toast/DOMAIN.md',
+            codeTarget: 'jaspr',
           ),
-          ['specs/flutter/f02_feedback/f03_toast/DOMAIN.md'],
-        );
-      },
-    );
-    test('E22: a target targets: holds none of, or any target where it names '
+        ),
+        ['specs/flutter/f02_feedback/f03_toast/DOMAIN.md'],
+      );
+    });
+    test('a target targets: holds none of, or any target where it names '
         'none, is argument_invalid', () async {
       final named = await nameTargets();
       expect(
@@ -553,13 +556,15 @@ void main() {
       return session.index;
     }
 
-    test('f01/us02/fr02/e12: a merged set with no record doc type computes each status from the written status, with no target', () async {
+    test('a merged set with no record doc type computes each status from the '
+        'written status, with no target', () async {
       final plain = await targeted(noRecordType: true);
       expect(plain.set.recordDocType, isNull);
       expect(plain.statusOf(plain.at(shopPath)!), 'implemented');
       expect(plain.statusOf(plain.at(storyPath)!), 'implemented');
     });
-    test("f01/us02/fr02/e07: a target's record skips the feature and each of its stories there, while the other target computes from its own records", () async {
+    test("a target's record skips the feature and each of its stories there, "
+        'while the other target computes from its own records', () async {
       final skipped = await targeted(
         records: {
           '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
@@ -576,7 +581,8 @@ void main() {
       );
       expect(skipped.statusOf(shop, codeTarget: 'jaspr'), 'planned');
     });
-    test('f01/us02/fr02/e13: a skip on an ancestor record skips the nested feature itself, which holds no record of its own there', () async {
+    test('a skip on an ancestor record skips the nested feature itself, which '
+        'holds no record of its own there', () async {
       final skipped = await targeted(
         records: {
           '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
@@ -593,39 +599,40 @@ void main() {
         reason: 'a skip above a feature skips each of its stories too',
       );
     });
-    test('f01/us02/fr02/e08: every story skipped with no feature entry gives skipped there', () async {
-      final allSkipped = await targeted(
-        records: {
-          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
-            '  - greet:skipped\n  - cart:skipped\n'
-            '  - cart/add:skipped\n  - cart/add/check:skipped\n',
-          ),
-        },
-      );
-      expect(
-        allSkipped.statusOf(allSkipped.at(shopPath)!, codeTarget: 'flutter'),
-        'skipped',
-      );
-    });
     test(
-      'f01/us02/fr02/e09: one skipped story counts toward no other status',
+      'every story skipped with no feature entry gives skipped there',
       () async {
-        final oneSkipped = await targeted(
+        final allSkipped = await targeted(
           records: {
             '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
-              '  - greet:skipped\n',
+              '  - greet:skipped\n  - cart:skipped\n'
+              '  - cart/add:skipped\n  - cart/add/check:skipped\n',
             ),
-            '.specstone/records/flutter/f01_shop/f01_cart/IMPLEMENTATION.md':
-                record('  - add:implemented\n  - add/check:implemented\n'),
           },
         );
         expect(
-          oneSkipped.statusOf(oneSkipped.at(shopPath)!, codeTarget: 'flutter'),
-          'implemented',
+          allSkipped.statusOf(allSkipped.at(shopPath)!, codeTarget: 'flutter'),
+          'skipped',
         );
       },
     );
-    test('f01/us02/fr02/e10: no record for the feature and no skip above gives planned per story entry, planned everywhere with none', () async {
+    test('one skipped story counts toward no other status', () async {
+      final oneSkipped = await targeted(
+        records: {
+          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - greet:skipped\n',
+          ),
+          '.specstone/records/flutter/f01_shop/f01_cart/IMPLEMENTATION.md':
+              record('  - add:implemented\n  - add/check:implemented\n'),
+        },
+      );
+      expect(
+        oneSkipped.statusOf(oneSkipped.at(shopPath)!, codeTarget: 'flutter'),
+        'implemented',
+      );
+    });
+    test('no record for the feature and no skip above gives planned per story '
+        'entry, planned everywhere with none', () async {
       final bare = await targeted(
         records: {
           '.specstone/records/jaspr/f01_shop/IMPLEMENTATION.md': record(
@@ -647,36 +654,44 @@ void main() {
         'planned',
       );
     });
-    test('f01/us02/fr02/e11: one sub-feature skipped, the other implemented, gives implemented there', () async {
-      final nested = await targeted(
-        records: {
-          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
-            '  - cart:skipped\n  - greet:implemented\n',
-          ),
-        },
-      );
-      expect(
-        nested.statusOf(nested.at(cartPath)!, codeTarget: 'flutter'),
-        'skipped',
-      );
-      expect(
-        nested.statusOf(nested.at(shopPath)!, codeTarget: 'flutter'),
-        'implemented',
-      );
-    });
-    test("domain:index_query INV-29, consistency_check/find_prd_spec_disagreements/check_record_entries: an entry an ancestor record writes for a nested feature's story gives it no status and no entry, as check resolves it nowhere", () async {
-      final misplaced = await targeted(
-        records: {
-          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
-            '  - cart/add:implemented\n',
-          ),
-        },
-      );
-      final add = misplaced.at(storyPath)!;
-      expect(misplaced.statusOf(add, codeTarget: 'flutter'), 'planned');
-      expect(misplaced.recordEntryOf(add, codeTarget: 'flutter'), isNull);
-    });
-    test('f01/us02/fr02/e01: a feature with no story is planned outside every skip and skipped under one, with no story or no record of its own too', () async {
+    test(
+      'one sub-feature skipped, the other implemented, gives implemented there',
+      () async {
+        final nested = await targeted(
+          records: {
+            '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
+              '  - cart:skipped\n  - greet:implemented\n',
+            ),
+          },
+        );
+        expect(
+          nested.statusOf(nested.at(cartPath)!, codeTarget: 'flutter'),
+          'skipped',
+        );
+        expect(
+          nested.statusOf(nested.at(shopPath)!, codeTarget: 'flutter'),
+          'implemented',
+        );
+      },
+    );
+    test(
+      "an entry an ancestor record writes for a nested feature's story "
+      'gives it no status and no entry, as check resolves it nowhere',
+      () async {
+        final misplaced = await targeted(
+          records: {
+            '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
+              '  - cart/add:implemented\n',
+            ),
+          },
+        );
+        final add = misplaced.at(storyPath)!;
+        expect(misplaced.statusOf(add, codeTarget: 'flutter'), 'planned');
+        expect(misplaced.recordEntryOf(add, codeTarget: 'flutter'), isNull);
+      },
+    );
+    test('a feature with no story is planned outside every skip and skipped '
+        'under one, with no story or no record of its own too', () async {
       final empty = await targeted(
         extra: {'docs/prds/features/f02_none/FEATURE.md': feature('None')},
         records: {

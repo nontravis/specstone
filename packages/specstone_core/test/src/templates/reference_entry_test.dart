@@ -42,48 +42,42 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
 
 void main() {
   group('ReferenceEntry.parse', () {
-    test(
-      'f03/us03/fr03/e01, s03/inv6: an entry with no title is missing_key',
-      () {
-        expect(
-          () => parseRef('{url: https://x}'),
-          throwsA(_fault(FaultCode.missingKey, key: 'reference[0].title')),
-        );
-      },
-    );
+    test('an entry with no title is missing_key', () {
+      expect(
+        () => parseRef('{url: https://x}'),
+        throwsA(_fault(FaultCode.missingKey, key: 'reference[0].title')),
+      );
+    });
 
-    test('f03/us03/fr03/e02, s03/inv6: two links in one entry is reference_link_conflict', () {
+    test('two links in one entry is reference_link_conflict', () {
       expect(
         () => parseRef('{title: T, url: https://x, doc: prd/feature}'),
         throwsA(_fault(FaultCode.referenceLinkConflict, key: 'reference[0]')),
       );
     });
 
-    test('f03/us03/s8, f03/us03/fr03/e03, s03/inv6: a missing file is reference_file_missing', () {
+    test('a missing file is reference_file_missing', () {
       expect(
         () => parseRef('{title: T, file: refs/none.md}'),
         throwsA(_fault(FaultCode.referenceFileMissing, key: 'reference[0]')),
       );
     });
 
-    test(
-      'f03/us03/fr03/e04, s03/inv6: an absolute file is reference_file_outside',
-      () {
-        expect(
-          () => parseRef('{title: T, file: /etc/hosts}'),
-          throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-        );
-      },
-    );
+    test('an absolute file is reference_file_outside', () {
+      expect(
+        () => parseRef('{title: T, file: /etc/hosts}'),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
 
-    test('f03/us03/fr03/e04, s03/inv6: an escaping segment is reference_file_outside', () {
+    test('an escaping segment is reference_file_outside', () {
       expect(
         () => parseRef('{title: T, file: refs/../../x.md}'),
         throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
       );
     });
 
-    test('f03/us04/s7, f03/us03/fr03/e05, f03/us04/fr01/e11, s03/inv6: a doc in a personal layer '
+    test('a doc in a personal layer '
         'is reference_doc_outside_project', () {
       expect(
         () =>
@@ -94,7 +88,7 @@ void main() {
       );
     });
 
-    test('f03/us04/s7, f03/us03/fr03/e05, f03/us04/fr01/e11, s03/inv6: a doc in a shipped layer '
+    test('a doc in a shipped layer '
         'is reference_doc_outside_project', () {
       expect(
         () => parseRef('{title: T, doc: prd/feature}', kind: LayerKind.shipped),
@@ -104,14 +98,14 @@ void main() {
       );
     });
 
-    test('f03/us03/fr03/e06, s03/inv6: a url entry is accepted unchanged', () {
+    test('a url entry is accepted unchanged', () {
       final entry = parseRef('{title: T, url: https://example.com/a}');
       expect(entry.url, 'https://example.com/a');
       expect(entry.file, isNull);
       expect(entry.doc, isNull);
     });
 
-    test('f03/us03/fr03/e07, s03/inv6: a doc entry in the project layer is accepted', () {
+    test('a doc entry in the project layer is accepted', () {
       final entry = parseRef('{title: T, doc: prd/feature}');
       expect(entry.doc, 'prd/feature');
     });
@@ -131,13 +125,10 @@ void main() {
       );
     });
 
-    test(
-      'f03/us03/s3, f03/us03/fr03: a title-only entry carries only the title',
-      () {
-        final entry = parseRef('{title: Clean Architecture}');
-        expect(entry.toJson(), {'title': 'Clean Architecture'});
-      },
-    );
+    test('a title-only entry carries only the title', () {
+      final entry = parseRef('{title: Clean Architecture}');
+      expect(entry.toJson(), {'title': 'Clean Architecture'});
+    });
 
     test('a locator rides along in toJson', () {
       final entry = parseRef(
@@ -149,7 +140,7 @@ void main() {
       });
     });
 
-    test('f03/us03/fr03/e09, f03/us02/fr05/e03: an add entry is checked by its own '
+    test('an add entry is checked by its own '
         'key', () {
       expect(
         () => parseRef(

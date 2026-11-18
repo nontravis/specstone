@@ -92,7 +92,7 @@ void main() {
       expect(exists(project, output), isFalse);
     }
 
-    test('f05/us02/fr04/e01, f05/us02/s1: a folder builds to its mirrored '
+    test('a folder builds to its mirrored '
         'path with the docs in tree order', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -161,7 +161,7 @@ void main() {
       expect(exists(project, '.specstone/build/docs/docs.html'), isTrue);
     });
 
-    test('f05/us02/fr04/e04, s03/inv14: a rebuild overwrites its own file '
+    test('a rebuild overwrites its own file '
         'only, and x.md and x/ stay two files', () async {
       final project = await fixtureProject({
         ..._fixture,
@@ -278,7 +278,7 @@ void main() {
       expect(exists(project, '.specstone/build/$_featureDir.html'), isTrue);
     });
 
-    test('f05/us02/s7, f05/us02/fr01/e02: a target outside the docs root is '
+    test('a target outside the docs root is '
         '64 and writes nothing', () async {
       final project = await fixtureProject({
         ..._fixture,
@@ -297,7 +297,7 @@ void main() {
       );
     });
 
-    test('f05/us02/s7, f05/us02/fr01/e02: no target is 64 with the target '
+    test('no target is 64 with the target '
         'message', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -315,7 +315,7 @@ void main() {
       );
     });
 
-    test('f05/us02/s7, f05/us02/fr01/e02: no target under --json prints the '
+    test('no target under --json prints the '
         'envelope on stderr only', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -328,7 +328,7 @@ void main() {
       expect(error['code'], 'target_missing');
     });
 
-    test('f05/us02/s8, f05/us02/fr04/e06: an output whose parent is a file '
+    test('an output whose parent is a file '
         'is 73 and nothing is written', () async {
       final project = await fixtureProject({..._fixture, 'blocker': 'x'});
       final runner = await runnerIn(project);
@@ -397,7 +397,7 @@ void main() {
     });
 
     test('a pack version the config cannot satisfy is 78 '
-        'with an F-03 fault', () async {
+        'with a template fault', () async {
       final project = await fixtureProject({
         ..._fixture,
         '.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n',
@@ -529,7 +529,7 @@ void main() {
       },
     );
 
-    test('f05/us02/s9, f05/us02/fr05/e02, DP1: --paper letter --landscape '
+    test('--paper letter --landscape '
         '--margin 1in writes the page rule', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -548,7 +548,7 @@ void main() {
       );
     });
 
-    test('f05/us02/s10, f05/us02/fr05/e01, DP1: no page options write A4 '
+    test('no page options write A4 '
         'portrait with 20mm', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -560,7 +560,7 @@ void main() {
       );
     });
 
-    test('f05/us02/s11, f05/us02/fr05/e03, f05/us02/fr05/e07, DP1: --paper '
+    test('--paper '
         'b5 is 64 in text and json and writes nothing', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -587,7 +587,7 @@ void main() {
       });
     });
 
-    test('f05/us02/s11, f05/us02/s12, DP1: a bad paper reports before a bad '
+    test('a bad paper reports before a bad '
         'margin', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -610,7 +610,7 @@ void main() {
       expectNothingWritten(project, '.specstone/build/$_featureDir.html');
     });
 
-    test('f05/us02/fr04/e05, f05/us02/s11, DP5: a bad format reports before '
+    test('a bad format reports before '
         'a bad paper', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -623,7 +623,7 @@ void main() {
       expectNothingWritten(project, '.specstone/build/docs.html');
     });
 
-    test('f05/us02/s12, f05/us02/fr05/e04, DP1: a negative margin refuses by '
+    test('a negative margin refuses by '
         'the length rule in both spellings', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -643,7 +643,7 @@ void main() {
       }
     });
 
-    test('f05/us02/s12, f05/us02/fr05/e05, DP3: half the a4 short side '
+    test('half the a4 short side '
         'refuses in landscape too', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
@@ -661,7 +661,7 @@ void main() {
       expectNothingWritten(project, '.specstone/build/$_featureDir.html');
     });
 
-    test('f05/us02/fr05/e08, DP1: a bad option outside a project is '
+    test('a bad option outside a project is '
         'argument_invalid', () async {
       final bare = await writeTree({'docs/a.md': '# a\n'});
       final runner = await runnerIn(bare);
@@ -685,7 +685,7 @@ void main() {
     });
 
     for (final format in ['pdf', 'docx']) {
-      test('f05/us02/fr04/e05, DP5: --format $format is 64 argument_invalid '
+      test('--format $format is 64 argument_invalid '
           'in text and json, and writes nothing', () async {
         final project = await fixtureProject(_fixture);
         final runner = await runnerIn(project);

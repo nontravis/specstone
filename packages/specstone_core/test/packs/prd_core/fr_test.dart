@@ -40,7 +40,7 @@ void main() {
     ]);
   });
 
-  test('f03/us06/s4, f03/us06/fr03, f03/us06/fr03/e02: the 29 NASA words on '
+  test('the 29 NASA words on '
       'the Statement section only, and the NASA handbook', () {
     expectNasaLint(
       fr,
@@ -55,7 +55,7 @@ void main() {
     expectTemplatesFreeOfListedWords(fr);
   });
 
-  test('f03/us06/fr01, db-r1, db-r8: fr marks statement summary', () {
+  test('fr marks statement summary', () {
     expect(
       [
         for (final s in fr.sections)

@@ -11,7 +11,7 @@ void main() {
     topic = prdCoreDocType(await resolveSoftwareTech(), 'topic');
   });
 
-  test('f03/us07/fr01, f03/us07/fr01/e06: topic sits at specs/topics/{slug}.md '
+  test('topic sits at specs/topics/{slug}.md '
       'with no parent, a required prefix covers list, and eight sections', () {
     expect(topic.path, 'specs/topics/{slug}.md');
     expect(topic.parent, isNull);

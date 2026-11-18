@@ -416,7 +416,7 @@ void main() {
     expect(choice, (value: '.', found: 2, cited: 2));
   });
 
-  group('child folders that are their own repository (G8-R9)', () {
+  group('child folders that are their own repository', () {
     test('g8-r9: a child folder holding .git wins when more entries resolve '
         'from it', () async {
       final tree = await _tree({

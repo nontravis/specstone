@@ -27,7 +27,7 @@ PlanInputs _recorded(Directory root, List<String> paths) {
 }
 
 void main() {
-  test('f06 INV-4: the hash is the baseHashOf of the plan text followed by one '
+  test('the hash is the baseHashOf of the plan text followed by one '
       'line per recorded file', () async {
     final root = await writeTree({'b/two.md': 'two\n', 'a/one.md': 'one\n'});
     final inputs = _recorded(root, ['b/two.md', 'a/one.md']);
@@ -38,7 +38,7 @@ void main() {
     expect(planHashOf(_plan, inputs), baseHashOf('$_plan$lines'));
   });
 
-  test('f06 INV-4: one changed byte changes the hash', () async {
+  test('one changed byte changes the hash', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final inputs = _recorded(root, ['a.md']);
     final before = planHashOf(_plan, inputs);
@@ -49,13 +49,13 @@ void main() {
     expect(planHashOf('$_plan.', inputs), isNot(before));
   });
 
-  test('f06 INV-4: a plan that read no file hashes its text alone', () async {
+  test('a plan that read no file hashes its text alone', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
     expect(planHashOf(_plan, PlanInputs(root)), baseHashOf(_plan));
   });
 
-  test('f06 INV-4: a commit that touches no input leaves the hash', () async {
+  test('a commit that touches no input leaves the hash', () async {
     final root = await writeTree({'keep.txt': 'x\n', 'other.txt': 'y\n'});
     expect(git(root, ['init', '-q']).exitCode, 0);
     commitAll(root, 'first');
@@ -69,7 +69,7 @@ void main() {
     expect(planHashOf(_plan, _recorded(root, ['keep.txt'])), before);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06 INV-4: a read outside collect records nothing', () async {
+  test('a read outside collect records nothing', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final inputs = PlanInputs(root);
 
@@ -78,7 +78,7 @@ void main() {
     expect(inputs.lines, isEmpty);
   });
 
-  test('f06 INV-4: a path read twice keeps one line, its first hash', () async {
+  test('a path read twice keeps one line, its first hash', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final inputs = PlanInputs(root)
       ..collect(() {
@@ -90,7 +90,7 @@ void main() {
     expect(inputs.lines, 'a.md ${_hex('one\n')}\n');
   });
 
-  test('f06 INV-4: paths sort by code point, so a path past U+FFFF comes '
+  test('paths sort by code point, so a path past U+FFFF comes '
       'after U+FFFD', () async {
     final root = await writeTree({
       'a/\u{1F600}.md': 'astral\n',
@@ -106,7 +106,7 @@ void main() {
   });
 
   test(
-    r'f06 INV-4: a backslash in a name is no separator on POSIX, so a\b.md and '
+    r'a backslash in a name is no separator on POSIX, so a\b.md and '
     'a/b.md keep two lines',
     () async {
       final root = await writeTree({r'a\b.md': 'one\n', 'a/b.md': 'two\n'});
@@ -120,7 +120,7 @@ void main() {
     skip: Platform.isWindows ? 'a backslash separates paths on Windows' : null,
   );
 
-  test('f06 INV-4: a file outside the project root enters by its absolute '
+  test('a file outside the project root enters by its absolute '
       'path', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final home = await writeTree({'pack.yaml': 'name: x\n'});
@@ -133,7 +133,7 @@ void main() {
     );
   });
 
-  test('f06 INV-4: a read that fails keeps its path, relative as a successful '
+  test('a read that fails keeps its path, relative as a successful '
       'read is keyed, and the failure still throws', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final inputs = PlanInputs(root);
@@ -150,7 +150,7 @@ void main() {
     expect(inputs.lines, 'a.md ${_hex('one\n')}\n');
   });
 
-  test('f06 INV-4: the first failed read is the one kept', () async {
+  test('the first failed read is the one kept', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final inputs = PlanInputs(root)
       ..collect(() {
@@ -166,13 +166,13 @@ void main() {
     expect(inputs.firstUnreadable, 'first.md');
   });
 
-  test('f06 INV-4: no read failed, no path is kept', () async {
+  test('no read failed, no path is kept', () async {
     final root = await writeTree({'a.md': 'one\n'});
 
     expect(_recorded(root, ['a.md']).firstUnreadable, isNull);
   });
 
-  test('f06 INV-4: a failed read inside a plan that collects for itself is '
+  test('a failed read inside a plan that collects for itself is '
       'kept by the recorder around it too', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final outer = PlanInputs(root);
@@ -189,7 +189,7 @@ void main() {
     expect(outer.firstUnreadable, 'gone.md');
   });
 
-  test('f06 INV-4: a failed read outside collect records nothing', () async {
+  test('a failed read outside collect records nothing', () async {
     final root = await writeTree({'a.md': 'one\n'});
     final inputs = PlanInputs(root);
 
@@ -210,7 +210,7 @@ void main() {
       });
     }
 
-    test('f06 INV-4: equal lines differ nowhere', () async {
+    test('equal lines differ nowhere', () async {
       final root = await writeTree({'a.md': 'one\n'});
 
       expect(
@@ -221,7 +221,7 @@ void main() {
       );
     });
 
-    test('f06 INV-4: an edited file is named', () async {
+    test('an edited file is named', () async {
       final root = await writeTree({'a.md': 'one\n', 'b.md': 'two\n'});
       final before = await plan(root, ['a.md', 'b.md']);
 
@@ -233,7 +233,7 @@ void main() {
       );
     });
 
-    test('f06 INV-4: a file one plan read and the other did not is named, '
+    test('a file one plan read and the other did not is named, '
         'whichever side lacks it', () async {
       final root = await writeTree({'a.md': 'one\n', 'b.md': 'two\n'});
       final fewer = await plan(root, ['a.md']);
@@ -243,7 +243,7 @@ void main() {
       expect(more.firstDifferenceFrom(fewer), 'b.md');
     });
 
-    test('f06 INV-4: the first differing path in code point order is named, '
+    test('the first differing path in code point order is named, '
         'not the first found', () async {
       final root = await writeTree({
         'a.md': 'one\n',
@@ -261,7 +261,7 @@ void main() {
       );
     });
 
-    test('f06 INV-4: a commit that adds an unasked file differs nowhere, as '
+    test('a commit that adds an unasked file differs nowhere, as '
         'the plan never asked git about it', () async {
       final root = await writeTree({'keep.txt': 'x\n'});
       expect(git(root, ['init', '-q']).exitCode, 0);
@@ -279,7 +279,7 @@ void main() {
   });
 
   group('pathFromRoots', () {
-    test('f06 INV-4: on Windows a path that mixes `/` into a native root '
+    test('on Windows a path that mixes `/` into a native root '
         'still reads from that root', () {
       expect(
         pathFromRoots(r'C:\work\project/a/one.md', [
@@ -289,7 +289,7 @@ void main() {
       );
     });
 
-    test('f06 INV-4: on Windows a root without a trailing separator holds '
+    test('on Windows a root without a trailing separator holds '
         'its children, and a backslash in the key becomes `/`', () {
       expect(
         pathFromRoots(r'C:\work\project\a\one.md', [
@@ -299,7 +299,7 @@ void main() {
       );
     });
 
-    test('f06 INV-4: a path outside every root stays as given', () {
+    test('a path outside every root stays as given', () {
       expect(
         pathFromRoots(r'C:\home\.specstone/packs/acme/pack.yaml', [
           r'C:\work\project\',
@@ -308,7 +308,7 @@ void main() {
       );
     });
 
-    test('f06 INV-4: a sibling folder that shares a prefix is outside', () {
+    test('a sibling folder that shares a prefix is outside', () {
       expect(
         pathFromRoots('/work/project-two/a.md', [
           '/work/project',
@@ -317,7 +317,7 @@ void main() {
       );
     });
 
-    test('f06 INV-4: on POSIX a backslash is part of a file name', () {
+    test('on POSIX a backslash is part of a file name', () {
       expect(
         pathFromRoots(r'/work/project/a\b.md', [
           '/work/project',

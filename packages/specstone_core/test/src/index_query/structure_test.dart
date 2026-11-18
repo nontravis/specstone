@@ -51,7 +51,7 @@ void main() {
   setUpAll(() async => index = await indexWith(loginRecords));
   int tokensOf(String key) => tokenSizeOf(loginProject[key]!);
 
-  test('f01/us02/s1, f01/us02/fr01/e01: the whole tree, tops in tree order, children two spaces deeper', () async {
+  test('the whole tree, tops in tree order, children two spaces deeper', () async {
     final lines = answerStructure(index).text.split('\n');
     expect(lines.take(4), [
       'features (features) — Feature index · ${tokensOf('docs/prds/FEATURES.md')} tokens',
@@ -70,7 +70,7 @@ void main() {
       'login/email_login/lock_after_failures',
     ]);
   });
-  test('f01/us02/s4, f01/us02/fr01/e01, s03/inv8: untyped docs follow under their folder line', () async {
+  test('untyped docs follow under their folder line', () async {
     final text = answerStructure(index).text;
     expect(
       text,
@@ -80,7 +80,7 @@ void main() {
       ),
     );
   });
-  test('f01/us02/s2, f01/us02/fr01/e02: login prints the feature subtree once, spec docs inside it', () async {
+  test('login prints the feature subtree once, spec docs inside it', () async {
     final lines = answerStructure(
       index,
       target: 'login',
@@ -88,91 +88,82 @@ void main() {
     expect(lines, hasLength(11));
     expect(lines.first, startsWith('login (feature)'));
   });
-  test(
-    'f01/us02/s3, f01/us02/fr02: a feature line shows the computed status',
-    () async {
-      expect(
-        answerStructure(index, target: 'signup').text,
-        startsWith('signup (feature) — Sign up · implemented · '),
-      );
-    },
-  );
-  test('f01/us02/fr01/e03: a target no doc carries is doc_not_found', () async {
+  test('a feature line shows the computed status', () async {
+    expect(
+      answerStructure(index, target: 'signup').text,
+      startsWith('signup (feature) — Sign up · implemented · '),
+    );
+  });
+  test('a target no doc carries is doc_not_found', () async {
     expect(
       () => answerStructure(index, target: 'logn'),
       throwsA(isA<IndexFault>()),
     );
   });
-  test(
-    'f01/us02/fr01/e04: an unknown doc type prefix is doc_type_unknown',
-    () async {
-      expect(
-        () => answerStructure(index, target: 'featur:login'),
-        throwsA(isA<TemplateFault>()),
-      );
-    },
-  );
-  test('f01/us02/fr01/e05: an untyped DocPath target prints its one line', () async {
+  test('an unknown doc type prefix is doc_type_unknown', () async {
+    expect(
+      () => answerStructure(index, target: 'featur:login'),
+      throwsA(isA<TemplateFault>()),
+    );
+  });
+  test('an untyped DocPath target prints its one line', () async {
     expect(
       answerStructure(index, target: 'prds/d01_context.md').text,
       'prds/d01_context.md — D-01 — Project context · ${tokensOf('docs/prds/d01_context.md')} tokens\n',
     );
   });
-  test(
-    'f01/us02/fr01: --json nests children and lists untyped docs by folder',
-    () async {
-      final json = answerStructure(index, target: 'login/email_login').json;
-      final story = (json['docs']! as List).single as Map<String, Object?>;
-      expect(story.keys.toList(), [
-        'name',
-        'docType',
-        'path',
-        'title',
-        'status',
-        'draft',
-        'tokens',
-        'sections',
-        'children',
-      ]);
-      expect(
-        ((story['children']! as List).first as Map)['name'],
-        'login/email_login/validate_credentials',
-      );
-      expect(answerStructure(index).json['untyped'], [
-        {
-          'folder': './',
-          'docs': [
-            {
-              'name': 'README.md',
-              'path': 'README.md',
-              'title': 'Readme',
-              'draft': false,
-              'tokens': tokensOf('docs/README.md'),
-            },
-          ],
-        },
-        {
-          'folder': 'prds/',
-          'docs': [
-            {
-              'name': 'prds/d01_context.md',
-              'path': 'prds/d01_context.md',
-              'title': 'D-01 — Project context',
-              'draft': false,
-              'tokens': tokensOf('docs/prds/d01_context.md'),
-            },
-          ],
-        },
-      ]);
-    },
-  );
+  test('--json nests children and lists untyped docs by folder', () async {
+    final json = answerStructure(index, target: 'login/email_login').json;
+    final story = (json['docs']! as List).single as Map<String, Object?>;
+    expect(story.keys.toList(), [
+      'name',
+      'docType',
+      'path',
+      'title',
+      'status',
+      'draft',
+      'tokens',
+      'sections',
+      'children',
+    ]);
+    expect(
+      ((story['children']! as List).first as Map)['name'],
+      'login/email_login/validate_credentials',
+    );
+    expect(answerStructure(index).json['untyped'], [
+      {
+        'folder': './',
+        'docs': [
+          {
+            'name': 'README.md',
+            'path': 'README.md',
+            'title': 'Readme',
+            'draft': false,
+            'tokens': tokensOf('docs/README.md'),
+          },
+        ],
+      },
+      {
+        'folder': 'prds/',
+        'docs': [
+          {
+            'name': 'prds/d01_context.md',
+            'path': 'prds/d01_context.md',
+            'title': 'D-01 — Project context',
+            'draft': false,
+            'tokens': tokensOf('docs/prds/d01_context.md'),
+          },
+        ],
+      },
+    ]);
+  });
   test('plan ruling: resolve and childrenOf return lists that cannot be sorted in place', () async {
     final feature = index.resolve('login').first;
     int keep(IndexedDoc a, IndexedDoc b) => 0;
     expect(() => index.resolve('login').sort(keep), throwsUnsupportedError);
     expect(() => index.childrenOf(feature).sort(keep), throwsUnsupportedError);
   });
-  test('f01/us02/fr01/e08: structure shop prints shop, cart and its two stories, then pay and its two', () async {
+  test('structure shop prints shop, cart and its two stories, then pay and its two', () async {
     final nested = await nestedIndexWith();
     final lines = answerStructure(nested, target: 'shop').text.split('\n');
     expect(
@@ -199,7 +190,7 @@ void main() {
       () async => e09 = await indexWith({...loginRecords, _frKey: _e09Fr}),
     );
 
-    test('E09: a typed doc target prints each section and item with its characters', () async {
+    test('a typed doc target prints each section and item with its characters', () async {
       expect(
         answerStructure(e09, target: _frTarget).text,
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_e09Fr)} tokens\n'
@@ -212,7 +203,7 @@ void main() {
     });
 
     test(
-      'E09: --json gives the doc object sections with key, chars, and items',
+      '--json gives the doc object sections with key, chars, and items',
       () async {
         final json = answerStructure(e09, target: _frTarget).json;
         final doc = (json['docs']! as List).single as Map<String, Object?>;
@@ -278,7 +269,7 @@ void main() {
       },
     );
 
-    test('E11: a lead prints first as _lead with its items, as text', () async {
+    test('a lead prints first as _lead with its items, as text', () async {
       final index = await indexWith({...loginRecords, _frKey: _leadFr});
       expect(
         answerStructure(index, target: _frTarget).text,
@@ -294,7 +285,7 @@ void main() {
     });
 
     test(
-      'E11: a lead gives the first sections entry key _lead under --json',
+      'a lead gives the first sections entry key _lead under --json',
       () async {
         final index = await indexWith({...loginRecords, _frKey: _leadFr});
         final sections = _jsonSections(index, _frTarget);
@@ -314,7 +305,7 @@ void main() {
     );
 
     test(
-      'E12: a lead that holds no text prints no _lead line and no _lead entry',
+      'a lead that holds no text prints no _lead line and no _lead entry',
       () async {
         final text = answerStructure(e09, target: _frTarget).text;
 
@@ -326,7 +317,7 @@ void main() {
       },
     );
 
-    test('E12: a lead of blank lines only prints no _lead line', () async {
+    test('a lead of blank lines only prints no _lead line', () async {
       final blank = _e09Fr.replaceFirst(
         '# Validate credentials\n\n',
         '# Validate credentials\n\n   \n\n',
@@ -339,40 +330,37 @@ void main() {
       );
     });
 
-    test(
-      'E11: a doc with no title line takes its whole head as the lead',
-      () async {
-        final untitled = _leadFr.replaceFirst('# Validate credentials\n\n', '');
-        final index = await indexWith({...loginRecords, _frKey: untitled});
+    test('a doc with no title line takes its whole head as the lead', () async {
+      final untitled = _leadFr.replaceFirst('# Validate credentials\n\n', '');
+      final index = await indexWith({...loginRecords, _frKey: untitled});
 
-        expect(_jsonSections(index, _frTarget), [
-          {
-            'key': '_lead',
-            'chars': 681,
-            'items': [
-              {'line': 7, 'chars': 681},
-            ],
-          },
-          {
-            'key': 'statement',
-            'chars': 179,
-            'items': [
-              {'line': 11, 'chars': 165},
-            ],
-          },
-          {
-            'key': 'edge_cases',
-            'chars': 243,
-            'items': [
-              {'id': 'E01', 'line': 15, 'chars': 106},
-              {'id': 'E02', 'line': 16, 'chars': 121},
-            ],
-          },
-        ]);
-      },
-    );
+      expect(_jsonSections(index, _frTarget), [
+        {
+          'key': '_lead',
+          'chars': 681,
+          'items': [
+            {'line': 7, 'chars': 681},
+          ],
+        },
+        {
+          'key': 'statement',
+          'chars': 179,
+          'items': [
+            {'line': 11, 'chars': 165},
+          ],
+        },
+        {
+          'key': 'edge_cases',
+          'chars': 243,
+          'items': [
+            {'id': 'E01', 'line': 15, 'chars': 106},
+            {'id': 'E02', 'line': 16, 'chars': 121},
+          ],
+        },
+      ]);
+    });
 
-    test('E09: sections out of template order print in file order with the laid-out item lines', () async {
+    test('sections out of template order print in file order with the laid-out item lines', () async {
       final shuffled = _e09Fr.replaceFirst(
         RegExp(r'## Statement\n.*\n\n## Edge cases\n.*\n.*\n', dotAll: true),
         '## Edge cases\n${_padded('1. E01 — A wrong password → refused', 106)}\n'
@@ -400,7 +388,7 @@ void main() {
       ]);
     });
 
-    test('E09: a doc with a repeated header keeps each section its own items, counted on disk', () async {
+    test('a doc with a repeated header keeps each section its own items, counted on disk', () async {
       final repeated = _e09Fr.replaceFirst(
         '## Edge cases',
         '## Statement\nsecond\n\n## Edge cases',
@@ -433,7 +421,7 @@ void main() {
       ]);
     });
 
-    test('E09: a lettered item ID prints as a line, never as an ID', () async {
+    test('a lettered item ID prints as a line, never as an ID', () async {
       final lettered = _e09Fr.replaceFirst('2. E02 —', '2. E02a —');
       final index = await indexWith({...loginRecords, _frKey: lettered});
       final lines = answerStructure(index, target: _frTarget).text.split('\n');
@@ -443,32 +431,38 @@ void main() {
       expect(lines.where((l) => l.contains('E02a')), isEmpty);
     });
 
-    test('E10: a name that several docs carry prints the tree with no section line', () async {
-      final text = answerStructure(e09, target: 'login').text;
+    test(
+      'a name that several docs carry prints the tree with no section line',
+      () async {
+        final text = answerStructure(e09, target: 'login').text;
 
-      expect(text, isNot(contains(' chars')));
-      expect(answerStructure(e09).text, isNot(contains(' chars')));
-      expect(
-        answerStructure(e09, target: 'login').json.toString(),
-        isNot(contains('sections')),
-      );
-    });
+        expect(text, isNot(contains(' chars')));
+        expect(answerStructure(e09).text, isNot(contains(' chars')));
+        expect(
+          answerStructure(e09, target: 'login').json.toString(),
+          isNot(contains('sections')),
+        );
+      },
+    );
 
-    test('E10: feature:login prints the feature sections and items, then its subtree', () async {
-      final lines = answerStructure(
-        e09,
-        target: 'feature:login',
-      ).text.trim().split('\n');
+    test(
+      'feature:login prints the feature sections and items, then its subtree',
+      () async {
+        final lines = answerStructure(
+          e09,
+          target: 'feature:login',
+        ).text.trim().split('\n');
 
-      expect(lines.first, startsWith('login (feature)'));
-      expect(lines[1], matches(RegExp(r'^  problem · \d+ chars$')));
-      expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
-      expect(lines.where((l) => l.contains('(user_story)')), hasLength(2));
-      expect(
-        lines.where((l) => l.contains(' (') && l.contains(' tokens')),
-        hasLength(11),
-      );
-    });
+        expect(lines.first, startsWith('login (feature)'));
+        expect(lines[1], matches(RegExp(r'^  problem · \d+ chars$')));
+        expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
+        expect(lines.where((l) => l.contains('(user_story)')), hasLength(2));
+        expect(
+          lines.where((l) => l.contains(' (') && l.contains(' tokens')),
+          hasLength(11),
+        );
+      },
+    );
 
     test('Review Focus: each printed section count is the SectionCounts.chars check compares', () async {
       final doc = e09.resolve(_frTarget).single;
@@ -490,7 +484,7 @@ void main() {
     });
 
     test(
-      'E09: a scenario heading prints as Scenario <n> by its number value',
+      'a scenario heading prints as Scenario <n> by its number value',
       () async {
         final index = await indexWith({
           _storyKey:
@@ -508,7 +502,7 @@ void main() {
       },
     );
 
-    test('E09: counts and lines are those of the laid-out text', () async {
+    test('counts and lines are those of the laid-out text', () async {
       final drifted = _e09Fr.replaceFirst(
         '## Statement\n',
         '## Statement\n\n\n',
@@ -534,7 +528,7 @@ void main() {
       expect((statement.single as Map)['chars'], 165);
     });
 
-    test('domain:consistency_check INV-14: a doc the formatter refuses counts its text as on disk', () async {
+    test('a doc the formatter refuses counts its text as on disk', () async {
       final refused = _e09Fr.replaceFirst(
         '## Edge cases',
         '## Mystery\nx\n\n## Edge cases',
@@ -562,7 +556,7 @@ void main() {
       expect(disk[(first['line']! as int) - 1], startsWith('1. E01'));
     });
 
-    test('domain:consistency_check INV-14: a doc whose bytes are not UTF-8 counts its text as decoded, as check stores', () async {
+    test('a doc whose bytes are not UTF-8 counts its text as decoded, as check stores', () async {
       const before =
           '# Validate credentials\n\n## Statement\nThe system shall check ';
       const after =
@@ -596,44 +590,38 @@ void main() {
       expect((statement.single as Map)['line'], 4);
     });
 
-    test(
-      'E09: an item with an emoji counts one character per code point',
-      () async {
-        const item = '2. E02 — 😀 a wrong email → refused';
-        final index = await indexWith({
-          _frKey: _e09Fr.replaceFirst(RegExp(r'2\. E02.*\n'), '$item\n'),
-        });
-        final sections =
-            (answerStructure(index, target: _frTarget).json['docs']! as List)
-                    .cast<Map<String, Object?>>()
-                    .single['sections']!
-                as List;
-        final items = (sections.last as Map)['items']! as List;
+    test('an item with an emoji counts one character per code point', () async {
+      const item = '2. E02 — 😀 a wrong email → refused';
+      final index = await indexWith({
+        _frKey: _e09Fr.replaceFirst(RegExp(r'2\. E02.*\n'), '$item\n'),
+      });
+      final sections =
+          (answerStructure(index, target: _frTarget).json['docs']! as List)
+                  .cast<Map<String, Object?>>()
+                  .single['sections']!
+              as List;
+      final items = (sections.last as Map)['items']! as List;
 
-        expect((items.last as Map)['chars'], item.runes.length);
-        expect(item.runes.length, lessThan(item.length));
-      },
-    );
+      expect((items.last as Map)['chars'], item.runes.length);
+      expect(item.runes.length, lessThan(item.length));
+    });
 
-    test(
-      'E09: a scenario heading check does not read prints as a line',
-      () async {
-        final index = await indexWith({
-          _storyKey:
-              '---\nstatus: planned\n---\n\n# Agent signs in with email\n\n## Acceptance Criteria\n'
-              '### **Scenario 1** — [happy] Sign in\n- **Given** a user\n',
-        });
-        final lines = answerStructure(
-          index,
-          target: 'user_story:login/email_login',
-        ).text.split('\n');
+    test('a scenario heading check does not read prints as a line', () async {
+      final index = await indexWith({
+        _storyKey:
+            '---\nstatus: planned\n---\n\n# Agent signs in with email\n\n## Acceptance Criteria\n'
+            '### **Scenario 1** — [happy] Sign in\n- **Given** a user\n',
+      });
+      final lines = answerStructure(
+        index,
+        target: 'user_story:login/email_login',
+      ).text.split('\n');
 
-        expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
-      },
-    );
+      expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
+    });
   });
 
-  group('index_query/view_docs_tree/print_docs_tree, status per code target', () {
+  group('status per code target', () {
     const featureText =
         '---\nstatus: implemented\n---\n\n# Toast\n\n## Problem\nBurnt '
         'toast.\n';
@@ -693,7 +681,7 @@ void main() {
       return session.index;
     }
 
-    test('E15: each line holds each target status in targets order, a skipped story skipped', () async {
+    test('each line holds each target status in targets order, a skipped story skipped', () async {
       const flutter = '  - show:implemented\n  - swipe:implemented\n';
       const jaspr = '  - show:planned\n  - swipe:skipped:no jaspr\n';
       final index = await toastIndex(
@@ -718,7 +706,7 @@ void main() {
     });
 
     test(
-      'E15: --json holds statuses, target name to status, in targets order',
+      '--json holds statuses, target name to status, in targets order',
       () async {
         final index = await toastIndex(
           flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
@@ -752,7 +740,7 @@ void main() {
     );
 
     test(
-      'E16: --target jaspr prints jaspr statuses alone and no flutter spec doc',
+      '--target jaspr prints jaspr statuses alone and no flutter spec doc',
       () async {
         final index = await toastIndex(
           flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
@@ -778,7 +766,7 @@ void main() {
     );
 
     test(
-      'E17: one target, named or not, shows its one status with no name',
+      'one target, named or not, shows its one status with no name',
       () async {
         final single = await toastIndex(
           flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
@@ -800,7 +788,7 @@ void main() {
       },
     );
 
-    test('E17: a project that names one target reads its records with no flag, '
+    test('a project that names one target reads its records with no flag, '
         'one status with no name', () async {
       final session = openSession(
         await writeTree({
@@ -846,27 +834,24 @@ void main() {
       );
     });
 
-    test(
-      'resolve_doc_name E22: an unknown code target is argument_invalid with '
-      'no positional target too',
-      () async {
-        final index = await toastIndex();
-        expect(
-          () => answerStructure(index, codeTarget: 'web'),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  '--target web: the code targets are flutter, jaspr',
-                ),
-          ),
-        );
-      },
-    );
+    test('an unknown code target is argument_invalid with '
+        'no positional target too', () async {
+      final index = await toastIndex();
+      expect(
+        () => answerStructure(index, codeTarget: 'web'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '--target web: the code targets are flutter, jaspr',
+              ),
+        ),
+      );
+    });
 
-    test('api:index_query: a parentless doc of another target is left out with '
+    test('a parentless doc of another target is left out with '
         '--target', () async {
       final session = openSession(
         await writeTree({

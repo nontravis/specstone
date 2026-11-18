@@ -11,7 +11,7 @@ void main() {
     api = prdCoreDocType(await resolveSoftwareTech(), 'api');
   });
 
-  test('f03/us07/fr01, f03/us07/fr01/e06: api sits under '
+  test('api sits under '
       'specs/f{nn}_{slug}/ with parent feature, the confirmed field, and four '
       'sections', () {
     expect(api.path, 'specs/f{nn}_{slug}/API.md');

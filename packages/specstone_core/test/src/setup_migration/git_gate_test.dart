@@ -19,7 +19,7 @@ ProcessResult _gitMissing(
     throw const ProcessException('git', [], 'no git on an absolute PATH entry');
 
 void main() {
-  test('f06/us01/fr02/e03, f06/us01/s12: a folder outside git is '
+  test('a folder outside git is '
       'git_work_tree_required', () async {
     final outside = await Directory.systemTemp.createTemp('specstone_test_');
     addTearDown(() => outside.delete(recursive: true));
@@ -141,7 +141,7 @@ void main() {
     }, skip: hasGit ? null : 'git is not available');
   });
 
-  test('f06/us01/fr02/e04, f06/us01/s11: an uncommitted change is '
+  test('an uncommitted change is '
       'working_tree_dirty', () async {
     final root = await gitFixture(acmeLegacy);
 
@@ -164,7 +164,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e04, f06/us01/s11: an untracked file is '
+  test('an untracked file is '
       'working_tree_dirty', () async {
     final root = await gitFixture(acmeLegacy);
 

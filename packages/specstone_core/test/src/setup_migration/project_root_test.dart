@@ -55,7 +55,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr01/e02, f06/us01/s10: a docs link stands for the '
+    test('a docs link stands for the '
         'parent of its target', () async {
       final tree = await writeTree({
         'docsrepo/docs/prds/d01_context.md': '# D-01\n',
@@ -109,7 +109,7 @@ void main() {
       expect(_canonical(root), _canonical(tree));
     });
 
-    test('f06/us01/fr01/e07, final M8: a pending journal beside the linked '
+    test('a pending journal beside the linked '
         'docs marks the root from the code folder', () async {
       final tree = await writeTree({
         'acme-docs/${MoveJournal.journalPath}': _journal,

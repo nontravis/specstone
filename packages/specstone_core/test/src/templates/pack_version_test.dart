@@ -24,32 +24,23 @@ void main() {
       expect(version.toString(), '2.10.3');
     });
 
-    test(
-      'f03/us04/fr01/e06, s03/inv16: a leading zero is pack_version_invalid',
-      () {
-        expect(() => _parse('01.2.0'), throwsA(_invalid()));
-      },
-    );
+    test('a leading zero is pack_version_invalid', () {
+      expect(() => _parse('01.2.0'), throwsA(_invalid()));
+    });
 
-    test(
-      'f03/us04/fr01/e06, s03/inv16: two parts are pack_version_invalid',
-      () {
-        expect(() => _parse('1.2'), throwsA(_invalid()));
-      },
-    );
+    test('two parts are pack_version_invalid', () {
+      expect(() => _parse('1.2'), throwsA(_invalid()));
+    });
 
-    test(
-      'f03/us05/fr01/e06, s03/inv16: a pre-release tag is pack_version_invalid',
-      () {
-        expect(() => _parse('1.2.0-beta'), throwsA(_invalid()));
-      },
-    );
+    test('a pre-release tag is pack_version_invalid', () {
+      expect(() => _parse('1.2.0-beta'), throwsA(_invalid()));
+    });
 
     test('empty text is pack_version_invalid', () {
       expect(() => _parse(''), throwsA(_invalid()));
     });
 
-    test('f03/us05/fr01, s03/inv16: a number past the int range is '
+    test('a number past the int range is '
         'pack_version_invalid', () {
       expect(() => _parse('99999999999999999999.0.0'), throwsA(_invalid()));
       expect(() => _parse('1.99999999999999999999.0'), throwsA(_invalid()));
@@ -85,7 +76,7 @@ void main() {
   });
 
   group('PackVersion ordering', () {
-    test('s03/inv16: compares by semver precedence', () {
+    test('compares by semver precedence', () {
       final ordered = ['1.0.0', '1.0.1', '1.1.0', '2.0.0'].map(_parse).toList();
 
       for (var i = 0; i < ordered.length - 1; i++) {
@@ -94,7 +85,7 @@ void main() {
       }
     });
 
-    test('s03/inv16: compares numbers, not text', () {
+    test('compares numbers, not text', () {
       expect(_parse('1.10.0').compareTo(_parse('1.9.0')), greaterThan(0));
     });
 

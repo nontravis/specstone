@@ -14,7 +14,7 @@ import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
-  test('f01/us04/fr01/e14: rename takes a bare name one doc carries', () async {
+  test('rename takes a bare name one doc carries', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
       await runner.run([
@@ -137,7 +137,7 @@ void main() {
     );
   });
 
-  test('E07: rename writes a rewritten typed doc laid out', () async {
+  test('rename writes a rewritten typed doc laid out', () async {
     final root = await writeWriteProject(
       extra: {
         'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
@@ -216,27 +216,24 @@ void main() {
       without: {'docs/specs/f01_login/ARCHITECTURE.md'},
     );
 
-    test(
-      'E11: rename prints each record it rewrites, one per target',
-      () async {
-        final root = await twins();
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(
-          await runner.run([
-            'rename',
-            'user_story:login/reset_password',
-            '--to',
-            'recover',
-          ]),
-          0,
-          reason: err.toString(),
-        );
-        expect(out.toString(), contains('rewrote $flutterRecord\n'));
-        expect(out.toString(), contains('rewrote $jasprRecord\n'));
-        expect(readDoc(root, flutterRecord), contains("'recover:implemented'"));
-        expect(readDoc(root, jasprRecord), contains("'recover:planned'"));
-      },
-    );
+    test('rename prints each record it rewrites, one per target', () async {
+      final root = await twins();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(out.toString(), contains('rewrote $flutterRecord\n'));
+      expect(out.toString(), contains('rewrote $jasprRecord\n'));
+      expect(readDoc(root, flutterRecord), contains("'recover:implemented'"));
+      expect(readDoc(root, jasprRecord), contains("'recover:planned'"));
+    });
 
     group('matrix rows', () {
       const story = 'reset_password';
@@ -321,7 +318,7 @@ void main() {
     });
 
     test(
-      'E06: rename --target reads a per-target doc and names its feature',
+      'rename --target reads a per-target doc and names its feature',
       () async {
         final (:runner, :out, :err) = writeRunner(await twins());
         expect(
@@ -344,7 +341,7 @@ void main() {
       },
     );
 
-    test('E12: rename --target a project lacks exits 64', () async {
+    test('rename --target a project lacks exits 64', () async {
       final (:runner, :out, :err) = writeRunner(await twins());
       expect(
         await runner.run([

@@ -92,47 +92,36 @@ void main() {
       final pins = {
         'prd-core': PackVersion.parse('1.2.3', file: 'f', key: 'k'),
       };
-      const source = 'setup_migration/migrate_legacy_docs/write_project_files';
 
-      test('$source: no agent file roots write no key', () {
+      test('no agent file roots write no key', () {
         expect(configText(pins, agentFileRoots: const []), configText(pins));
       });
 
-      test(
-        '$source: the key follows packs and code_root, one entry a line',
-        () {
-          expect(
-            configText(
-              pins,
-              codeRoot: 'stratum_ui',
-              agentFileRoots: const ['../stratum_ui', '../other'],
-            ),
-            'packs:\n  prd-core: 1.2.3\n'
-            'code_root: stratum_ui\n'
-            'agent_file_roots:\n  - ../stratum_ui\n  - ../other\n',
-          );
-        },
-      );
+      test('the key follows packs and code_root, one entry a line', () {
+        expect(
+          configText(
+            pins,
+            codeRoot: 'stratum_ui',
+            agentFileRoots: const ['../stratum_ui', '../other'],
+          ),
+          'packs:\n  prd-core: 1.2.3\n'
+          'code_root: stratum_ui\n'
+          'agent_file_roots:\n  - ../stratum_ui\n  - ../other\n',
+        );
+      });
 
       for (final bad in ['', '/abs', 'C:/x', r'a\b']) {
-        test(
-          '$source: the entry "$bad" the reader refuses is an ArgumentError',
-          () {
-            expect(
-              () => configText(pins, agentFileRoots: [bad]),
-              throwsA(
-                isA<ArgumentError>().having(
-                  (e) => e.invalidValue,
-                  'value',
-                  bad,
-                ),
-              ),
-            );
-          },
-        );
+        test('the entry "$bad" the reader refuses is an ArgumentError', () {
+          expect(
+            () => configText(pins, agentFileRoots: [bad]),
+            throwsA(
+              isA<ArgumentError>().having((e) => e.invalidValue, 'value', bad),
+            ),
+          );
+        });
       }
 
-      test('$source: an entry YAML reads as another value is quoted', () {
+      test('an entry YAML reads as another value is quoted', () {
         expect(
           configText(pins, agentFileRoots: const ['2024']),
           endsWith("agent_file_roots:\n  - '2024'\n"),
@@ -143,7 +132,7 @@ void main() {
         ['../stratum_ui'],
         ['../a', 'b/c', '2024', 'x #y'],
       ]) {
-        test('$source: the config reader reads back $roots', () async {
+        test('the config reader reads back $roots', () async {
           final root = await writeTree({
             '.specstone/config.yaml': configText(pins, agentFileRoots: roots),
           });
@@ -196,13 +185,12 @@ void main() {
       final pins = {
         'prd-core': PackVersion.parse('1.2.3', file: 'f', key: 'k'),
       };
-      const source = 'setup_migration/migrate_legacy_docs/write_project_files';
       const targets = [
         CodeTarget('flutter', codeRoot: 'flutter_ws'),
         CodeTarget('jaspr', codeRoot: '../jaspr ws'),
       ];
 
-      test('$source E15: the map follows packs, one target a block, before '
+      test('the map follows packs, one target a block, before '
           'the agent file roots', () {
         expect(
           configText(
@@ -217,7 +205,7 @@ void main() {
         );
       });
 
-      test('$source E15: the config reader reads the map back', () async {
+      test('the config reader reads the map back', () async {
         final root = await writeTree({
           '.specstone/config.yaml': configText(pins, targets: targets),
         });
@@ -242,7 +230,7 @@ void main() {
           ),
         ),
       ]) {
-        test('$source E15: targets beside $label is an ArgumentError', () {
+        test('targets beside $label is an ArgumentError', () {
           expect(call, throwsArgumentError);
         });
       }
@@ -409,7 +397,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr05/e06, f06/us01/fr05/e07: singular doc types order '
+    test('singular doc types order '
         'goal after project', () {
       final set = TemplateResolver().resolveCarried(
         packNames: _packs,

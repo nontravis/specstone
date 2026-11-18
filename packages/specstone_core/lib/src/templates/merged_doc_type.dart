@@ -957,11 +957,11 @@ final class MergedDocType {
   ///
   /// The description and the doc-level banned words come first, then the
   /// `Fields:` block of the declared non-built-in [fields], then each
-  /// section's header, required or optional mark and description, own banned
-  /// words, and template, then the `Guide sources:` block of [reference]. A
-  /// banned word list drops the allowed words that apply there, as `check`
-  /// does; a description, word list, template, field set, or [reference] list
-  /// left empty adds no block.
+  /// section's header, required, optional, or condition line and description,
+  /// own banned words, and template, then the `Guide sources:` block of
+  /// [reference]. A banned word list drops the allowed words that apply there,
+  /// as `check` does; a description, word list, template, field set, or
+  /// [reference] list left empty adds no block.
   String renderGuide() {
     final docAllowed = lint.allowedWords ?? const <String>[];
     final sources = reference ?? const <ReferenceEntry>[];
@@ -972,7 +972,7 @@ final class MergedDocType {
       for (final section in sections) ...[
         '## ${section.header}',
         [
-          if (section.required) 'Required section.' else 'Optional section.',
+          _requirementLine(section),
           ?_trimmedOrNull(section.description),
         ].join('\n'),
         ?_bannedWordsLine(
@@ -986,6 +986,44 @@ final class MergedDocType {
         ['Guide sources:', ...sources.map(referenceSourceLine)].join('\n'),
     ];
     return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+  }
+
+  /// Returns the line under [section]'s header that says when the section is
+  /// required, optional, or left out.
+  ///
+  /// A `required_when` rule always makes the section required while it holds.
+  String _requirementLine(MergedSection section) {
+    final whenField = section.whenField;
+    final requiredWhen = section.requiredWhen;
+    if (whenField == null && requiredWhen == null) {
+      return section.required ? 'Required section.' : 'Optional section.';
+    }
+    final conditions = [
+      if (whenField != null)
+        '`${whenField.field}` is ${_valueList(whenField.values)}',
+      if (requiredWhen != null) _itemCondition(requiredWhen),
+    ];
+    final mark = requiredWhen != null || section.required
+        ? 'Required'
+        : 'Optional';
+    return '$mark when ${conditions.join(' and ')}; left out otherwise.';
+  }
+
+  String _itemCondition(RequiredWhenLint rule) {
+    final header = sections.firstWhere((s) => s.id == rule.section).header;
+    return 'a `$header` item holds `${rule.field}: ${rule.value}`';
+  }
+
+  /// Returns [values] as backticked words joined by `or`, with a comma before
+  /// the last of three or more.
+  static String _valueList(List<String> values) {
+    final quoted = [for (final value in values) '`$value`'];
+    return switch (quoted) {
+      [] => '',
+      [final only] => only,
+      [final first, final second] => '$first or $second',
+      [...final init, final last] => '${init.join(', ')}, or $last',
+    };
   }
 
   /// Returns the `Fields:` block of the non-built-in [fields], or null when

@@ -52,7 +52,7 @@ void main() {
       expect(config.file, _configPath);
     });
 
-    test('f03/us05/s5, f03/us05/fr01/e01, s03/inv7: packs without prd-core is '
+    test('packs without prd-core is '
         'prd_core_missing', () async {
       final root = await _withConfig('packs:\n  software-tech: 1.0.0\n');
 
@@ -108,29 +108,23 @@ void main() {
       expect(ProjectConfig.read(root).pins.keys, ['prd-core', 'tech-2']);
     });
 
-    test(
-      'f03/us05/fr01/e02, s03/inv10: a syntax error is yaml_syntax with line 1',
-      () async {
-        final root = await _withConfig('packs: [');
+    test('a syntax error is yaml_syntax with line 1', () async {
+      final root = await _withConfig('packs: [');
 
-        expect(
-          () => ProjectConfig.read(root),
-          throwsA(_fault(FaultCode.yamlSyntax, line: 1)),
-        );
-      },
-    );
+      expect(
+        () => ProjectConfig.read(root),
+        throwsA(_fault(FaultCode.yamlSyntax, line: 1)),
+      );
+    });
 
-    test(
-      'f03/us05/fr01/e03, s03/inv10: an unknown top-level key is unknown_key',
-      () async {
-        final root = await _withConfig('spec_packs: [x]\n');
+    test('an unknown top-level key is unknown_key', () async {
+      final root = await _withConfig('spec_packs: [x]\n');
 
-        expect(
-          () => ProjectConfig.read(root),
-          throwsA(_fault(FaultCode.unknownKey, key: 'spec_packs')),
-        );
-      },
-    );
+      expect(
+        () => ProjectConfig.read(root),
+        throwsA(_fault(FaultCode.unknownKey, key: 'spec_packs')),
+      );
+    });
 
     test('code_root defaults to .', () async {
       final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
@@ -205,13 +199,13 @@ void main() {
         expect(ProjectConfig.read(root).agentFileRoots, ['./a', './a', 'a/']);
       });
 
-      test('E16: no agent_file_roots key reads as an empty list', () async {
+      test('no agent_file_roots key reads as an empty list', () async {
         final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
 
         expect(ProjectConfig.read(root).agentFileRoots, isEmpty);
       });
 
-      test('E17: an entry outside the project root is accepted', () async {
+      test('an entry outside the project root is accepted', () async {
         final root = await _withConfig(
           'packs:\n  prd-core: 1.0.0\nagent_file_roots: [../stratum_ui]\n',
         );
@@ -230,7 +224,7 @@ void main() {
         ('an entry ending in a space', "agent_file_roots: ['vendor ']"),
         ('a non-string entry', 'agent_file_roots: [3]'),
       ]) {
-        test('E18-E21: $name is unknown_value', () async {
+        test('$name is unknown_value', () async {
           final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
 
           expect(
@@ -347,7 +341,7 @@ void main() {
     });
 
     group('targets', () {
-      test('E23: two '
+      test('two '
           'targets read in file order, each with its own code root', () async {
         final root = await _withConfig(
           'packs:\n  prd-core: 1.0.0\n'
@@ -363,8 +357,7 @@ void main() {
         ]);
       });
 
-      test('E24, s03/inv29: '
-          'targets beside code_root is unknown_value at code_root', () async {
+      test('targets beside code_root is unknown_value at code_root', () async {
         final root = await _withConfig(
           'packs:\n  prd-core: 1.0.0\ncode_root: lib\n'
           'targets:\n  flutter:\n    code_root: stratum_ui\n',
@@ -387,8 +380,7 @@ void main() {
         ('a list value', 'targets: [flutter]'),
         ('a scalar value', 'targets: flutter'),
       ]) {
-        test('E25, s03/inv29: '
-            'targets as $name is unknown_value at targets', () async {
+        test('targets as $name is unknown_value at targets', () async {
           final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
 
           expect(
@@ -415,8 +407,7 @@ void main() {
           '  jaspr-ui:\n    code_root: a\n',
         ),
       ]) {
-        test('E26, s03/inv29: '
-            '$name is unknown_key', () async {
+        test('$name is unknown_key', () async {
           final root = await _withConfig(
             'packs:\n  prd-core: 1.0.0\ntargets:\n$line',
           );
@@ -452,7 +443,7 @@ void main() {
       }
 
       test(
-        'Review Focus 1: a name differing from another only in letter case is '
+        'a name differing from another only in letter case is '
         'refused by the slug rule, so no two spec trees share a folder',
         () async {
           final root = await _withConfig(
@@ -512,7 +503,7 @@ void main() {
           '  flutter:\n    code_root: 3\n',
         ),
       ]) {
-        test('E27: $name', () async {
+        test(name, () async {
           final root = await _withConfig(
             'packs:\n  prd-core: 1.0.0\ntargets:\n$line',
           );
@@ -530,7 +521,7 @@ void main() {
       }
 
       test(
-        'E27: a target '
+        'a target '
         'with no code_root key reads the project root, as code_root does',
         () async {
           final root = await _withConfig(
@@ -543,8 +534,7 @@ void main() {
         },
       );
 
-      test('E28, s03/inv29: '
-          'two targets whose code roots name one folder are unknown_value '
+      test('two targets whose code roots name one folder are unknown_value '
           'naming both', () async {
         final root = await _withConfig(
           'packs:\n  prd-core: 1.0.0\n'
@@ -570,7 +560,7 @@ void main() {
         );
       });
 
-      test('E29: one entry '
+      test('one entry '
           'gives one named target and codeRoot reads its root', () async {
         final root = await _withConfig(
           'packs:\n  prd-core: 1.0.0\ntargets:\n  flutter:\n'
@@ -601,36 +591,28 @@ void main() {
       });
     });
 
-    test(
-      'f03/us05/fr01, s03/inv10: a config without packs is missing_key',
-      () async {
-        final root = await _withConfig('# empty\n');
+    test('a config without packs is missing_key', () async {
+      final root = await _withConfig('# empty\n');
 
-        expect(
-          () => ProjectConfig.read(root),
-          throwsA(_fault(FaultCode.missingKey, key: 'packs')),
-        );
-      },
-    );
+      expect(
+        () => ProjectConfig.read(root),
+        throwsA(_fault(FaultCode.missingKey, key: 'packs')),
+      );
+    });
 
     for (final (label, pin) in [
       ('an unquoted double', '1.2'),
       ('a quoted two-part version', "'1.2'"),
       ('a pre-release tag', '1.2.0-beta'),
     ]) {
-      test(
-        'f03/us05/fr01/e06, s03/inv16: $label pin is pack_version_invalid',
-        () async {
-          final root = await _withConfig('packs:\n  prd-core: $pin\n');
+      test('$label pin is pack_version_invalid', () async {
+        final root = await _withConfig('packs:\n  prd-core: $pin\n');
 
-          expect(
-            () => ProjectConfig.read(root),
-            throwsA(
-              _fault(FaultCode.packVersionInvalid, key: 'packs.prd-core'),
-            ),
-          );
-        },
-      );
+        expect(
+          () => ProjectConfig.read(root),
+          throwsA(_fault(FaultCode.packVersionInvalid, key: 'packs.prd-core')),
+        );
+      });
     }
 
     test('non-UTF-8 config bytes are yaml_syntax', () async {

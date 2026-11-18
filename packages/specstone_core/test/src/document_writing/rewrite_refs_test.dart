@@ -72,7 +72,7 @@ void main() {
     expect(relativeHref('a/b.md', 'a/b.md'), 'b.md');
   });
 
-  test('f02/us05/fr02, f02/us05/fr02/e01, dw-s03/inv10: a link to a moved doc follows it, its fragment kept', () {
+  test('a link to a moved doc follows it, its fragment kept', () {
     expect(
       rewriteDocLinks(
         'See [sign out](../us02_sign_out/USER_STORY.md#acceptance-criteria).\n',
@@ -364,7 +364,7 @@ void main() {
     });
   });
 
-  test('f02/us05/fr02, R74: a move replaces only the path a destination is written with and keeps its ? or # part as written', () {
+  test('a move replaces only the path a destination is written with and keeps its ? or # part as written', () {
     const moves = <PathMove>[
       PathMove(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md'),
     ];
@@ -379,7 +379,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, R74: a move to or from a path with a paren keeps a bare inline link one link to the same file, its fragment kept', () {
+  test('a move to or from a path with a paren keeps a bare inline link one link to the same file, its fragment kept', () {
     const into = <PathMove>[PathMove(from: 'specs/t.md', to: 'specs/x(y/t.md')];
     const back = <PathMove>[PathMove(from: 'specs/x(y/t.md', to: 'specs/t.md')];
     String? moved(String text, List<PathMove> moves) =>
@@ -406,7 +406,7 @@ void main() {
     expect(read(home), [('specs/t.md', 'z)')]);
   });
 
-  test('f02/us05/fr02, R74: a move to or from a path with a paren keeps the parens of an angle-bracketed definition as written', () {
+  test('a move to or from a path with a paren keeps the parens of an angle-bracketed definition as written', () {
     const into = <PathMove>[PathMove(from: 'specs/t.md', to: 'specs/x(y/t.md')];
     const back = <PathMove>[PathMove(from: 'specs/x(y/t.md', to: 'specs/t.md')];
     List<(String, String?)>? read(String? text) => linkPlacesOf(
@@ -427,7 +427,7 @@ void main() {
     expect(home, '[c][r]\n\n[r]: <t.md#z>\n');
   });
 
-  test('f02/us05/fr02, R74: a folder move to or from a name with parens keeps a bare definition a definition to the same file', () {
+  test('a folder move to or from a name with parens keeps a bare definition a definition to the same file', () {
     const doc = 'specs/f01_a/DOMAIN.md';
     List<String>? read(String? text) => linkPlacesOf(
       text!,
@@ -453,7 +453,7 @@ void main() {
     expect(read(back), ['specs/f02_b/img(1).png']);
   });
 
-  test('rewrite_links_to_moved_docs E15: a destination inside an unreferenced footnote stays as written on a move, and one inside a referenced footnote moves', () {
+  test('a destination inside an unreferenced footnote stays as written on a move, and one inside a referenced footnote moves', () {
     const moves = <PathMove>[
       PathMove(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md'),
     ];
@@ -474,7 +474,7 @@ void main() {
     expect(referenced, 'Text[^1].\n\n[^1]: Also [x](../m/t_doc.md).\n');
   });
 
-  test('f02/us05/fr02, R74: a destination inside an image description is no link, so a move leaves it and moves the definition written alike', () {
+  test('a destination inside an image description is no link, so a move leaves it and moves the definition written alike', () {
     const moves = <PathMove>[
       PathMove(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md'),
     ];
@@ -503,21 +503,18 @@ void main() {
     );
   });
 
-  test(
-    'f02/us05/fr02/e04, LP1: a move keeps a link whose escape is not UTF-8',
-    () {
-      expect(
-        rewriteDocLinks(
-          '# T\n\n[x](%DB.md) [s](../us02/USER_STORY.md)\n',
-          docPath: 'prds/f/us01/fr01.md',
-          moves: [const PathMove(from: 'prds/f/us02/', to: 'prds/f/us03/')],
-        ),
-        '# T\n\n[x](%DB.md) [s](../us03/USER_STORY.md)\n',
-      );
-    },
-  );
+  test('a move keeps a link whose escape is not UTF-8', () {
+    expect(
+      rewriteDocLinks(
+        '# T\n\n[x](%DB.md) [s](../us02/USER_STORY.md)\n',
+        docPath: 'prds/f/us01/fr01.md',
+        moves: [const PathMove(from: 'prds/f/us02/', to: 'prds/f/us03/')],
+      ),
+      '# T\n\n[x](%DB.md) [s](../us03/USER_STORY.md)\n',
+    );
+  });
 
-  test('f02/us05/fr02/e04, LP1: a move keeps the text of a link whose escape is not UTF-8, whichever side moves', () {
+  test('a move keeps the text of a link whose escape is not UTF-8, whichever side moves', () {
     expect(
       rewriteDocLinks(
         '# T\n\n[x](../other/%DB.md)\n',
@@ -541,7 +538,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e04, LP1: a move still re-encodes a valid escape', () {
+  test('a move still re-encodes a valid escape', () {
     expect(
       rewriteDocLinks(
         '# T\n\n[x](us01/caf%C3%A9.md)\n',
@@ -563,7 +560,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e09, M2: a link to a non-doc file of a moved folder follows the move, its image form too', () {
+  test('a link to a non-doc file of a moved folder follows the move, its image form too', () {
     expect(
       rewriteDocLinks(
         '![flow](us02_sign_out/flow.png)\n',
@@ -574,7 +571,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, M2: a link to a moved folder itself follows the move, with or without the slash', () {
+  test('a link to a moved folder itself follows the move, with or without the slash', () {
     expect(
       rewriteDocLinks(
         '[a](../us02_sign_out/) [b](../us02_sign_out) [c](../us02_sign_out/#top)\n',
@@ -585,7 +582,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, M2: a link to an unmoved file from an unmoved doc keeps every byte', () {
+  test('a link to an unmoved file from an unmoved doc keeps every byte', () {
     expect(
       rewriteDocLinks(
         '[a](./flow.png?raw=1) [b](../us01_email_login/a%20b.png#x) [c](../../../../../lib/a.dart)\n',
@@ -596,7 +593,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, M2: a moved doc keeps a link that leaves the docs root pointing at the same file', () {
+  test('a moved doc keeps a link that leaves the docs root pointing at the same file', () {
     expect(
       rewriteDocLinks(
         '[code](../../../../lib/a.dart)\n',
@@ -612,7 +609,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, M2: a link to an ancestor folder of its own doc keeps every byte when that folder is renamed', () {
+  test('a link to an ancestor folder of its own doc keeps every byte when that folder is renamed', () {
     expect(
       rewriteDocLinks(
         '[a](../) [b](..) [c](../#top)\n',
@@ -628,7 +625,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, M2: a link that leaves a moved ancestor and re-enters it by name follows the rename', () {
+  test('a link that leaves a moved ancestor and re-enters it by name follows the rename', () {
     expect(
       rewriteDocLinks(
         '[a](../../f01_x/) [b](../../f01_x/FEATURE.md#top) [c](../../f01_x)\n',
@@ -644,22 +641,25 @@ void main() {
     );
   });
 
-  test('PD13: a swap is rewritten in one pass, and a reference definition follows too', () {
-    const swap = <PathMove>[
-      PathMove(from: 'a/f01_x/', to: 'a/f02_x/'),
-      PathMove(from: 'a/f02_y/', to: 'a/f01_y/'),
-    ];
-    expect(
-      rewriteDocLinks(
-        '[x](a/f01_x/F.md) [y]\n\n[y]: a/f02_y/F.md\n',
-        docPath: 'I.md',
-        moves: swap,
-      ),
-      '[x](a/f02_x/F.md) [y]\n\n[y]: a/f01_y/F.md\n',
-    );
-  });
+  test(
+    'a swap is rewritten in one pass, and a reference definition follows too',
+    () {
+      const swap = <PathMove>[
+        PathMove(from: 'a/f01_x/', to: 'a/f02_x/'),
+        PathMove(from: 'a/f02_y/', to: 'a/f01_y/'),
+      ];
+      expect(
+        rewriteDocLinks(
+          '[x](a/f01_x/F.md) [y]\n\n[y]: a/f02_y/F.md\n',
+          docPath: 'I.md',
+          moves: swap,
+        ),
+        '[x](a/f02_x/F.md) [y]\n\n[y]: a/f01_y/F.md\n',
+      );
+    },
+  );
 
-  test('PD13, R73: a definition destination follows its moved target by the href markdown reads, an unbalanced paren included', () {
+  test('a definition destination follows its moved target by the href markdown reads, an unbalanced paren included', () {
     const moves = <PathMove>[PathMove(from: 'a/f01_x/', to: 'a/f02_x/')];
     expect(
       rewriteDocLinks(
@@ -671,25 +671,28 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, PD13: a link-shaped href in a fenced block or a code span keeps every byte', () {
-    const moves = <PathMove>[PathMove(from: 'a/f01_x/', to: 'a/f02_x/')];
-    expect(
-      rewriteDocLinks(
-        '[x](a/f01_x/F.md)\n\n```\n[x](a/f01_x/F.md)\n```\n\nUse `[x](a/f01_x/F.md)` here.\n',
-        docPath: 'I.md',
-        moves: moves,
-      ),
-      '[x](a/f02_x/F.md)\n\n```\n[x](a/f01_x/F.md)\n```\n\nUse `[x](a/f01_x/F.md)` here.\n',
-    );
-    expect(
-      rewriteDocLinks(
-        '```\n[x](a/f01_x/F.md)\n```\n',
-        docPath: 'I.md',
-        moves: moves,
-      ),
-      isNull,
-    );
-  });
+  test(
+    'a link-shaped href in a fenced block or a code span keeps every byte',
+    () {
+      const moves = <PathMove>[PathMove(from: 'a/f01_x/', to: 'a/f02_x/')];
+      expect(
+        rewriteDocLinks(
+          '[x](a/f01_x/F.md)\n\n```\n[x](a/f01_x/F.md)\n```\n\nUse `[x](a/f01_x/F.md)` here.\n',
+          docPath: 'I.md',
+          moves: moves,
+        ),
+        '[x](a/f02_x/F.md)\n\n```\n[x](a/f01_x/F.md)\n```\n\nUse `[x](a/f01_x/F.md)` here.\n',
+      );
+      expect(
+        rewriteDocLinks(
+          '```\n[x](a/f01_x/F.md)\n```\n',
+          docPath: 'I.md',
+          moves: moves,
+        ),
+        isNull,
+      );
+    },
+  );
 
   test('an angle-bracket href and an href with a query are rewritten, a folder sharing the prefix of a moved one is not', () {
     const moves = <PathMove>[PathMove(from: 'a/f01_x/', to: 'a/f02_x/')];
@@ -715,7 +718,7 @@ void main() {
     );
   });
 
-  test('f02/us06/fr02, f02/us06/fr02/e01, f02/us06/fr02/e03, f02/us06/fr02/e06: doc_ref values follow a rename, prose and other values stay', () {
+  test('doc_ref values follow a rename, prose and other values stay', () {
     const persona = MergedField(
       id: 'persona',
       type: FieldType.docRef,
@@ -789,7 +792,7 @@ void main() {
     );
   });
 
-  test('f02/us06/fr02, HD4: a quoted "reference": key follows the rename', () {
+  test('a quoted "reference": key follows the rename', () {
     const anyType = MergedField(id: 'reference', type: FieldType.docRef);
     expect(
       rewriteDocRefs(
@@ -813,38 +816,41 @@ void main() {
     );
   });
 
-  test('dw-s03/inv6, f02/us06/fr02: of two blocks with one name only the first counts, whatever the spelling', () {
-    const anyType = MergedField(id: 'reference', type: FieldType.docRef);
-    final renamed = RenamedNames({
-      const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
-    });
-    expect(
-      rewriteDocRefs(
-        '---\nreference: keep\n"reference": buyer\n---\n',
-        fields: [anyType],
-        renamed: renamed,
-      ),
-      isNull,
-    );
-    expect(
-      rewriteDocRefs(
-        '---\nreference: buyer\n"reference": buyer\n---\n',
-        fields: [anyType],
-        renamed: renamed,
-      ),
-      '---\nreference: shopper\n"reference": buyer\n---\n',
-    );
-    expect(
-      rewriteDocRefs(
-        '---\nreference: keep\nreference: buyer\n---\n',
-        fields: [anyType],
-        renamed: renamed,
-      ),
-      isNull,
-    );
-  });
+  test(
+    'of two blocks with one name only the first counts, whatever the spelling',
+    () {
+      const anyType = MergedField(id: 'reference', type: FieldType.docRef);
+      final renamed = RenamedNames({
+        const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+      });
+      expect(
+        rewriteDocRefs(
+          '---\nreference: keep\n"reference": buyer\n---\n',
+          fields: [anyType],
+          renamed: renamed,
+        ),
+        isNull,
+      );
+      expect(
+        rewriteDocRefs(
+          '---\nreference: buyer\n"reference": buyer\n---\n',
+          fields: [anyType],
+          renamed: renamed,
+        ),
+        '---\nreference: shopper\n"reference": buyer\n---\n',
+      );
+      expect(
+        rewriteDocRefs(
+          '---\nreference: keep\nreference: buyer\n---\n',
+          fields: [anyType],
+          renamed: renamed,
+        ),
+        isNull,
+      );
+    },
+  );
 
-  test('f02/us05/fr02, dw-s03/inv10, H14: a link-shaped frontmatter value keeps its text; the same link in the body follows', () {
+  test('a link-shaped frontmatter value keeps its text; the same link in the body follows', () {
     const link = '[sign out](../us02_sign_out/USER_STORY.md)';
     expect(
       rewriteDocLinks(
@@ -857,7 +863,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, dw-s03/inv10, H17: an href with a backslash escape follows the move', () {
+  test('an href with a backslash escape follows the move', () {
     expect(
       rewriteDocLinks(
         r'See [reset](../us03\_reset\_password/USER_STORY.md) and '
@@ -870,7 +876,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02, dw-s03/inv10, H17: an href with an entity spelling follows the move', () {
+  test('an href with an entity spelling follows the move', () {
     expect(
       rewriteDocLinks(
         'See [reset](../us03&#95;reset&#95;password/USER_STORY.md).\n',
@@ -881,7 +887,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e08, dw-s03/inv10, LP3: a doc the parser fails on keeps its links in a move', () {
+  test('a doc the parser fails on keeps its links in a move', () {
     expect(
       rewriteDocLinks(
         '# T\n\n[s](../us02/USER_STORY.md)\n\n[a]:<b\\',
@@ -892,25 +898,28 @@ void main() {
     );
   });
 
-  test('f02/us06/fr02, H15: a flow list followed by a comment holding brackets renames its item', () {
-    const reference = MergedField(
-      id: 'reference',
-      type: FieldType.docRef,
-      list: true,
-    );
-    expect(
-      rewriteDocRefs(
-        '---\nreference: [a, buyer] # see [x]\n---\n',
-        fields: [reference],
-        renamed: RenamedNames({
-          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
-        }),
-      ),
-      '---\nreference: [a, shopper] # see [x]\n---\n',
-    );
-  });
+  test(
+    'a flow list followed by a comment holding brackets renames its item',
+    () {
+      const reference = MergedField(
+        id: 'reference',
+        type: FieldType.docRef,
+        list: true,
+      );
+      expect(
+        rewriteDocRefs(
+          '---\nreference: [a, buyer] # see [x]\n---\n',
+          fields: [reference],
+          renamed: RenamedNames({
+            const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+          }),
+        ),
+        '---\nreference: [a, shopper] # see [x]\n---\n',
+      );
+    },
+  );
 
-  test('f02/us06/fr02, dw-s03/inv10, HD3: with no docTypes, a value two renamed docs take to different names keeps its text, and one they agree on follows', () {
+  test('with no docTypes, a value two renamed docs take to different names keeps its text, and one they agree on follows', () {
     const reference = MergedField(id: 'reference', type: FieldType.docRef);
     const text = '---\nreference: buyer\n---\n';
     expect(
@@ -937,31 +946,34 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e03, f02/us05/fr02/e06, f02/us05/fr02/e07, f02/us06/fr02/e04, f02/us06/fr02/e05: planRewrites reaches untyped referrers, never code, and keeps the marks', () async {
-    root = await writeWriteProject(
-      extra: {
-        'docs/prds/FEATURES.md': '---\napproved: true\n---\n\n# Feature index\n\n## Systems\n- [Login](features/f01_login/FEATURE.md)\n- [Signup](features/f02_signup/FEATURE.md)\n',
-      },
-    );
-    final steps = plan(featureSwap);
-    expect(
-      [for (final step in steps) step.path],
-      ['docs/prds/FEATURES.md', 'docs/prds/d01_context.md'],
-    );
-    expect(
-      steps.first.text,
-      '---\napproved: true\n---\n\n# Feature index\n\n## Systems\n\n- [Login](features/f02_login/FEATURE.md)\n- [Signup](features/f01_signup/FEATURE.md)\n',
-    );
-    expect(steps.last.text, contains('(features/f01_signup/FEATURE.md)'));
-    expect(
-      steps.every(
-        (step) => step.path.startsWith('docs/') && step.path.endsWith('.md'),
-      ),
-      isTrue,
-    );
-  });
+  test(
+    'planRewrites reaches untyped referrers, never code, and keeps the marks',
+    () async {
+      root = await writeWriteProject(
+        extra: {
+          'docs/prds/FEATURES.md': '---\napproved: true\n---\n\n# Feature index\n\n## Systems\n- [Login](features/f01_login/FEATURE.md)\n- [Signup](features/f02_signup/FEATURE.md)\n',
+        },
+      );
+      final steps = plan(featureSwap);
+      expect(
+        [for (final step in steps) step.path],
+        ['docs/prds/FEATURES.md', 'docs/prds/d01_context.md'],
+      );
+      expect(
+        steps.first.text,
+        '---\napproved: true\n---\n\n# Feature index\n\n## Systems\n\n- [Login](features/f02_login/FEATURE.md)\n- [Signup](features/f01_signup/FEATURE.md)\n',
+      );
+      expect(steps.last.text, contains('(features/f01_signup/FEATURE.md)'));
+      expect(
+        steps.every(
+          (step) => step.path.startsWith('docs/') && step.path.endsWith('.md'),
+        ),
+        isTrue,
+      );
+    },
+  );
 
-  test('E10, E07: a record edit is a rewrite of its doc, which joins the link rewrites of one step and makes a record with no link a candidate', () async {
+  test('a record edit is a rewrite of its doc, which joins the link rewrites of one step and makes a record with no link a candidate', () async {
     const linked = 'specs/f01_login/IMPLEMENTATION.md';
     const alone = 'specs/f02_signup/IMPLEMENTATION.md';
     root = await writeWriteProject(
@@ -994,22 +1006,25 @@ void main() {
     expect(steps.where((step) => step.path == 'docs/$linked'), hasLength(1));
   });
 
-  test('f02/us05/fr02/e09, M2: planRewrites reaches a doc that links only to a moved non-doc file', () async {
-    root = await writeWriteProject(
-      extra: {
-        'docs/prds/d02_notes.md':
-            '# Notes\n\n![flow](features/f01_login/us02_sign_out/flow.png)\n',
-      },
-    );
-    final step = plan(reorderMoves)
-        .singleWhere((step) => step.path == 'docs/prds/d02_notes.md');
-    expect(
-      step.text,
-      '# Notes\n\n![flow](features/f01_login/us03_sign_out/flow.png)\n',
-    );
-  });
+  test(
+    'planRewrites reaches a doc that links only to a moved non-doc file',
+    () async {
+      root = await writeWriteProject(
+        extra: {
+          'docs/prds/d02_notes.md':
+              '# Notes\n\n![flow](features/f01_login/us02_sign_out/flow.png)\n',
+        },
+      );
+      final step = plan(reorderMoves)
+          .singleWhere((step) => step.path == 'docs/prds/d02_notes.md');
+      expect(
+        step.text,
+        '# Notes\n\n![flow](features/f01_login/us03_sign_out/flow.png)\n',
+      );
+    },
+  );
 
-  test('f02/us05/fr02, M2: planRewrites reaches a doc whose only link is a folder link with no trailing slash', () async {
+  test('planRewrites reaches a doc whose only link is a folder link with no trailing slash', () async {
     root = await writeWriteProject(
       extra: {
         'docs/prds/d02_notes.md':
@@ -1038,7 +1053,7 @@ void main() {
     },
   );
 
-  test('f02/us05/fr02, U1: a leading BOM is kept and bytes that are not UTF-8 refuse', () async {
+  test('a leading BOM is kept and bytes that are not UTF-8 refuse', () async {
     final index = File('${root.path}/docs/prds/FEATURES.md')
       ..writeAsBytesSync([
         0xEF,
@@ -1133,7 +1148,7 @@ void main() {
     },
   );
 
-  test('f02/us05/fr02/e04, review 3: a leading ./ stays on a link', () {
+  test('a leading ./ stays on a link', () {
     expect(
       rewriteDocLinks(
         '[b](./b.md#x) [c](./c.md)\n',
@@ -1168,7 +1183,7 @@ void main() {
         steps.singleWhere((step) => step.path == 'docs/$docPath').text;
 
     test(
-      'E13: a typed doc whose link changes is written laid out, still draft',
+      'a typed doc whose link changes is written laid out, still draft',
       () async {
         final project = await writeWriteProject(extra: {'docs/$fr12': loose});
         final text = stepText(
@@ -1181,7 +1196,7 @@ void main() {
       },
     );
 
-    test('E13: an untyped doc keeps every byte the rewrite leaves', () async {
+    test('an untyped doc keeps every byte the rewrite leaves', () async {
       final project = await writeWriteProject(
         extra: {
           'docs/prds/d01_context.md': '# Context\n\n\n\n## Features\nSee [signup](features/f02_signup/FEATURE.md).\n\n\n',
@@ -1197,7 +1212,7 @@ void main() {
     });
 
     test(
-      'E13: a doc the formatter refuses keeps every byte the rewrite leaves',
+      'a doc the formatter refuses keeps every byte the rewrite leaves',
       () async {
         final refused = loose.replaceFirst('## Statement', '## Bogus');
         final project = await writeWriteProject(extra: {'docs/$fr12': refused});
@@ -1210,7 +1225,7 @@ void main() {
       },
     );
 
-    test('E13: a doc the rewrite does not change gets no step', () async {
+    test('a doc the rewrite does not change gets no step', () async {
       final project = await writeWriteProject(
         extra: {
           'docs/$fr11': '---\nstatus: implemented\n---\n\n# Validate\n\n\n\n## Statement\n\nText.\n',
@@ -1221,7 +1236,7 @@ void main() {
     });
 
     test(
-      'E11: the type of the path a moved doc lands on decides the layout',
+      'the type of the path a moved doc lands on decides the layout',
       () async {
         const to = 'prds/features/f01_login/us01_email_login/fr09_context.md';
         final project = await writeWriteProject(
@@ -1241,24 +1256,21 @@ void main() {
       },
     );
 
-    test(
-      'E13: a CRLF doc with a BOM is written laid out with both kept',
-      () async {
-        final project = await writeWriteProject(
-          extra: {'docs/$fr12': '\uFEFF${loose.replaceAll('\n', '\r\n')}'},
-        );
-        final text = stepText(
-          writeIn(project, (s) => planRewrites(s, reorderMoves)),
-          fr12,
-        );
-        expect(text, startsWith('\uFEFF---\r\n'));
-        expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
-        expect(text.replaceAll('\r\n', ''), isNot(contains('\n')));
-        expect(text, isNot(contains('\r\n\r\n\r\n')));
-      },
-    );
+    test('a CRLF doc with a BOM is written laid out with both kept', () async {
+      final project = await writeWriteProject(
+        extra: {'docs/$fr12': '\uFEFF${loose.replaceAll('\n', '\r\n')}'},
+      );
+      final text = stepText(
+        writeIn(project, (s) => planRewrites(s, reorderMoves)),
+        fr12,
+      );
+      expect(text, startsWith('\uFEFF---\r\n'));
+      expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
+      expect(text.replaceAll('\r\n', ''), isNot(contains('\n')));
+      expect(text, isNot(contains('\r\n\r\n\r\n')));
+    });
 
-    test('E07: a renamed doc_ref referrer with keys out of field order is written in order', () async {
+    test('a renamed doc_ref referrer with keys out of field order is written in order', () async {
       final project = await writeWriteProject(
         extra: {
           'docs/$story1': '---\npersona:\n  - buyer\nstatus: planned\ndraft: true\n---\n\n# Sign in with email\n',
@@ -1285,7 +1297,7 @@ void main() {
     });
 
     test(
-      'E14: a rewritten api doc with padded table cells is written compact',
+      'a rewritten api doc with padded table cells is written compact',
       () async {
         final nested = await writeNestedProject();
         final file = docFile(nested, shopApi);
@@ -1313,7 +1325,7 @@ void main() {
       const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
     });
 
-    test('E03: the Name changes, the type prefix and section key stay', () {
+    test('the Name changes, the type prefix and section key stay', () {
       expect(
         rewriteNameMentions(
           '`login/email_login`, `user_story:login/email_login#goal`, '
@@ -1383,7 +1395,7 @@ void main() {
       );
     });
 
-    test('E03: a typed mention of another type, a one-slug bare name, and plain text stay', () {
+    test('a typed mention of another type, a one-slug bare name, and plain text stay', () {
       expect(
         rewriteNameMentions(
           '`fr:login/email_login` `login` login/email_login `persona:login`\n',
@@ -1394,7 +1406,7 @@ void main() {
       );
     });
 
-    test('E03: a bare name two renamed docs call differently stays', () {
+    test('a bare name two renamed docs call differently stays', () {
       expect(
         rewriteNameMentions(
           '`shop/cart`\n',
@@ -1410,7 +1422,7 @@ void main() {
       );
     });
 
-    test('E04: a code file changes on its comment lines only', () {
+    test('a code file changes on its comment lines only', () {
       expect(
         rewriteNameMentions(
           '// `login/email_login`\nx = `login/email_login`;\n',
@@ -1425,19 +1437,16 @@ void main() {
       );
     });
 
-    test(
-      'E04: two mentions on one line both change, each at its own column',
-      () {
-        expect(
-          rewriteNameMentions(
-            '// `login/email_login` and `feature:login`\r\n',
-            '.dart',
-            renamed,
-          ),
-          '// `signin/email_login` and `feature:signin`\r\n',
-        );
-      },
-    );
+    test('two mentions on one line both change, each at its own column', () {
+      expect(
+        rewriteNameMentions(
+          '// `login/email_login` and `feature:login`\r\n',
+          '.dart',
+          renamed,
+        ),
+        '// `signin/email_login` and `feature:signin`\r\n',
+      );
+    });
 
     test('no rename changes nothing', () {
       expect(

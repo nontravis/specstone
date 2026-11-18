@@ -11,7 +11,7 @@ void main() {
     auth = prdCoreDocType(await resolveSoftwareTech(), 'auth');
   });
 
-  test('f03/us07/fr01, f03/us07/fr01/e06: auth sits under '
+  test('auth sits under '
       'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
       'fields, and eight sections', () {
     expect(auth.path, 'specs/f{nn}_{slug}/AUTH.md');

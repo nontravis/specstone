@@ -97,32 +97,35 @@ Future<Directory> writeTargetedTree() {
 }
 
 void main() {
-  test('f01/us02/s1, f01/us02/fr01: structure prints the tree on stdout and exits 0', () async {
+  test('structure prints the tree on stdout and exits 0', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['structure']), 0);
     expect(out.toString(), contains('login (feature) — Login · planned · '));
     expect(err.toString(), isEmpty);
   });
-  test('fr01/e16: structure --target jaspr prints jaspr alone, no flutter spec doc', () async {
-    final (:runner, :out, :err) = readRunner(await writeTargetedTree());
-    expect(
-      await runner.run(['structure', 'feedback/toast', '--target', 'jaspr']),
-      0,
-    );
-    final lines = out.toString().split('\n');
-    expect(lines.first, contains(' · planned · '));
-    expect(
-      lines.where((l) => l.contains('(user_story)')).last,
-      contains(' · skipped · '),
-    );
-    expect(
-      lines.where((l) => l.contains('flutter')),
-      isEmpty,
-      reason: 'no flutter status and no flutter spec doc',
-    );
-    expect(err.toString(), isEmpty);
-  });
-  test('f01/us02/fr01/e17: one named target reads its records with no --target '
+  test(
+    'structure --target jaspr prints jaspr alone, no flutter spec doc',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeTargetedTree());
+      expect(
+        await runner.run(['structure', 'feedback/toast', '--target', 'jaspr']),
+        0,
+      );
+      final lines = out.toString().split('\n');
+      expect(lines.first, contains(' · planned · '));
+      expect(
+        lines.where((l) => l.contains('(user_story)')).last,
+        contains(' · skipped · '),
+      );
+      expect(
+        lines.where((l) => l.contains('flutter')),
+        isEmpty,
+        reason: 'no flutter status and no flutter spec doc',
+      );
+      expect(err.toString(), isEmpty);
+    },
+  );
+  test('one named target reads its records with no --target '
       'through list', () async {
     final (:runner, :out, :err) = readRunner(
       await writeTree({
@@ -154,30 +157,36 @@ void main() {
     expect(out.toString(), startsWith('login/show (user_story)'));
     expect(err.toString(), isEmpty);
   });
-  test('f01/us02/fr01/e06: --json prints one object; a warning goes only to its warnings array', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(extra: legacyFr),
-    );
-    expect(await runner.run(['structure', '--json']), 0);
-    final json = jsonDecode(out.toString()) as Map<String, Object?>;
-    expect(json.keys.toList(), ['docs', 'untyped', 'warnings']);
-    expect(json['warnings'], [frWarning]);
-    expect(err.toString(), isEmpty);
-  });
-  test('f01/us02/fr01: in text mode the warning prints on stderr with the warning prefix', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(extra: legacyFr),
-    );
-    expect(await runner.run(['structure']), 0);
-    expect(err.toString(), '⚠️ WARNING: $frWarning\n');
-  });
-  test('f01/us02/s5, f01/us02/fr01/e03: a target no doc carries exits 64 and names it', () async {
+  test(
+    '--json prints one object; a warning goes only to its warnings array',
+    () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeReadProject(extra: legacyFr),
+      );
+      expect(await runner.run(['structure', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json.keys.toList(), ['docs', 'untyped', 'warnings']);
+      expect(json['warnings'], [frWarning]);
+      expect(err.toString(), isEmpty);
+    },
+  );
+  test(
+    'in text mode the warning prints on stderr with the warning prefix',
+    () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeReadProject(extra: legacyFr),
+      );
+      expect(await runner.run(['structure']), 0);
+      expect(err.toString(), '⚠️ WARNING: $frWarning\n');
+    },
+  );
+  test('a target no doc carries exits 64 and names it', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['structure', 'logn']), 64);
     expect(err.toString(), 'no doc carries the name logn\n');
     expect(out.toString(), isEmpty);
   });
-  test('f01/us02/s6, f01/us02/fr01/e07, f01/us01/s11, f01/us01/fr01/e01: outside a project exits 78', () async {
+  test('outside a project exits 78', () async {
     final (:runner, :out, :err) = readRunner(await writeTree({}));
     expect(await runner.run(['structure']), 78);
     expect(
@@ -185,7 +194,7 @@ void main() {
       'no Specstone project: no folder from the working directory upward holds .specstone/config.yaml\n',
     );
   });
-  test("f01/us02/fr01/e07, f01/us01/fr01/e02: a template fault exits 78 with F-03's code", () async {
+  test("a template fault exits 78 with the template fault's code", () async {
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(
         extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
@@ -195,16 +204,13 @@ void main() {
     expect(errorOf(err)['code'], 'pack_pin_newer');
     expect(out.toString(), isEmpty);
   });
+  test('a surplus positional prints usage and exits 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['structure', 'a', 'b']), 64);
+    expect(err.toString(), contains('Usage: specstone structure'));
+  });
   test(
-    'f01/us02/fr01: a surplus positional prints usage and exits 64',
-    () async {
-      final (:runner, :out, :err) = readRunner(await writeReadProject());
-      expect(await runner.run(['structure', 'a', 'b']), 64);
-      expect(err.toString(), contains('Usage: specstone structure'));
-    },
-  );
-  test(
-    'f01/us01/s12, f01/us01/fr02/e07, s05: a read-only .specstone/ exits 73 with the JSON envelope',
+    'a read-only .specstone/ exits 73 with the JSON envelope',
     skip: readOnlySkipReason(),
     () async {
       final project = await writeReadProject();
@@ -220,29 +226,32 @@ void main() {
       expect(out.toString(), isEmpty);
     },
   );
-  test('f01/us01/s13, f01/us01/fr05/e05, s05: a write lock held past the timeout exits 75 with the JSON envelope', () async {
-    final project = await writeReadProject();
-    expect(await readRunner(project).runner.run(['structure']), 0);
-    final holder = sqlite3.open('${project.path}/.specstone/index.sqlite')
-      ..execute('BEGIN IMMEDIATE');
-    addTearDown(
-      () => holder
-        ..execute('ROLLBACK')
-        ..close(),
-    );
-    File('${project.path}/docs/prds/features/f01_login/FEATURE.md')
-        .writeAsStringSync('# Login v2\n');
-    final (:runner, :out, :err) = readRunner(
-      project,
-      busyTimeout: const Duration(milliseconds: 200),
-    );
-    expect(await runner.run(['structure', '--json']), 75);
-    expect(errorOf(err), {
-      'code': 'index_busy',
-      'message': 'the index is busy; run the command again once the other call finishes',
-    });
-    expect(out.toString(), isEmpty);
-  });
+  test(
+    'a write lock held past the timeout exits 75 with the JSON envelope',
+    () async {
+      final project = await writeReadProject();
+      expect(await readRunner(project).runner.run(['structure']), 0);
+      final holder = sqlite3.open('${project.path}/.specstone/index.sqlite')
+        ..execute('BEGIN IMMEDIATE');
+      addTearDown(
+        () => holder
+          ..execute('ROLLBACK')
+          ..close(),
+      );
+      File('${project.path}/docs/prds/features/f01_login/FEATURE.md')
+          .writeAsStringSync('# Login v2\n');
+      final (:runner, :out, :err) = readRunner(
+        project,
+        busyTimeout: const Duration(milliseconds: 200),
+      );
+      expect(await runner.run(['structure', '--json']), 75);
+      expect(errorOf(err), {
+        'code': 'index_busy',
+        'message': 'the index is busy; run the command again once the other call finishes',
+      });
+      expect(out.toString(), isEmpty);
+    },
+  );
 
   group('built binary', () {
     late String binary;

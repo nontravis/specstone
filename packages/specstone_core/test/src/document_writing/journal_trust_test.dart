@@ -11,8 +11,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/write_fixture.dart';
 
-const _finish = 'document_writing/delete_doc_subtree/finish_interrupted_move';
-
 const _noRun =
     'no Specstone run on this machine wrote it; '
     'check .specstone/trash/ and delete it to go on';
@@ -59,7 +57,7 @@ void main() {
     ('inside the project', (Directory root) => Directory('${root.path}/h')),
     ('the project itself', (Directory root) => root),
   ]) {
-    test('$_finish E10: a home folder that is $name counts as none, so a '
+    test('a home folder that is $name counts as none, so a '
         'run that writes a journal is refused and writes nothing', () async {
       final root = await writeWriteProject();
       Directory('${root.path}/h').createSync();
@@ -84,7 +82,7 @@ void main() {
       expect(Directory('${root.path}/h/.specstone').existsSync(), isFalse);
     });
 
-    test('$_finish E10: the home check names a home folder that is $name '
+    test('the home check names a home folder that is $name '
         'before any prompt', () async {
       final root = await writeWriteProject();
       Directory('${root.path}/h').createSync();
@@ -96,7 +94,7 @@ void main() {
     });
   }
 
-  test('$_finish E10: a home folder behind a link into the project counts as '
+  test('a home folder behind a link into the project counts as '
       'none', () async {
     final root = await writeWriteProject();
     Directory('${root.path}/h').createSync();
@@ -110,7 +108,7 @@ void main() {
     );
   }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
 
-  test('$_finish E10: an absolute home folder outside the project, even one '
+  test('an absolute home folder outside the project, even one '
       'not created yet, is a home', () async {
     final root = await writeWriteProject();
     final home = Directory('${testHome().path}/not/yet');
@@ -118,7 +116,7 @@ void main() {
     MoveJournal.requireHomeFolder(home, root);
   });
 
-  test('$_finish E08: a journal recorded under a home folder inside the '
+  test('a journal recorded under a home folder inside the '
       'project is not trusted', () async {
     final root = await writeWriteProject();
     final home = Directory('${root.path}/h')..createSync();
@@ -149,7 +147,7 @@ void main() {
     expect(victim.readAsStringSync(), 'original');
   });
 
-  test('$_finish E08: a journal recorded under a relative home folder is not '
+  test('a journal recorded under a relative home folder is not '
       'trusted', () async {
     final root = await writeWriteProject();
     final victim = _victim();

@@ -197,7 +197,7 @@ void main() {
     expect(out.toString(), isEmpty);
   });
 
-  test('--json gives F-01\'s docs object', () async {
+  test('--json gives the docs object', () async {
     final (:runner, :out, :err) = readRunner(await suspectProject());
     expect(await runner.run(['list', 'fr', '--suspect', '--json']), 0);
     final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;

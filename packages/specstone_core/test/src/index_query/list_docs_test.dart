@@ -18,14 +18,17 @@ void main() {
     for (final d in a.json['docs']! as List) (d as Map)['name']! as String,
   ];
 
-  test('f01/us03/s1, f01/us03/fr01/e01: list feature gives every feature, one line each, in tree order', () async {
-    final answer = answerList(index, 'feature', const ListFilters());
-    expect(names(answer), ['login', 'signup']);
-    expect(
-      answer.text.split('\n').first,
-      docLine(index, index.at('prds/features/f01_login/FEATURE.md')!),
-    );
-  });
+  test(
+    'list feature gives every feature, one line each, in tree order',
+    () async {
+      final answer = answerList(index, 'feature', const ListFilters());
+      expect(names(answer), ['login', 'signup']);
+      expect(
+        answer.text.split('\n').first,
+        docLine(index, index.at('prds/features/f01_login/FEATURE.md')!),
+      );
+    },
+  );
   group('summary', () {
     const loginFeature = 'docs/prds/features/f01_login/FEATURE.md';
 
@@ -107,74 +110,68 @@ void main() {
       expect(docs.first.containsKey('summary'), isFalse);
     });
   });
-  test('f01/us03/s2, f01/us03/fr02/e01: --under a story keeps only its FRs; --under a feature its stories', () async {
-    expect(
-      names(
-        answerList(index, 'fr', const ListFilters(under: 'login/email_login')),
-      ),
-      [
-        'login/email_login/validate_credentials',
-        'login/email_login/lock_after_failures',
-      ],
-    );
-    expect(
-      names(answerList(index, 'user_story', const ListFilters(under: 'login'))),
-      ['login/email_login', 'login/reset_password'],
-    );
-  });
   test(
-    'f01/us03/s3, f01/us03/fr02/e02, s03/inv20: --cites reads frontmatter only',
+    '--under a story keeps only its FRs; --under a feature its stories',
     () async {
-      const reset =
-          'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md';
-      final cited = await indexWith({
-        reset: '${loginProject[reset]}\nIt serves PG-01.\n',
-      });
       expect(
         names(
-          answerList(cited, 'user_story', const ListFilters(cites: 'PG-01')),
+          answerList(
+            index,
+            'fr',
+            const ListFilters(under: 'login/email_login'),
+          ),
         ),
-        ['login/email_login'],
+        [
+          'login/email_login/validate_credentials',
+          'login/email_login/lock_after_failures',
+        ],
+      );
+      expect(
+        names(
+          answerList(index, 'user_story', const ListFilters(under: 'login')),
+        ),
+        ['login/email_login', 'login/reset_password'],
       );
     },
   );
-  test('f01/us03/fr02/e03: --cites a persona name', () async {
+  test('--cites reads frontmatter only', () async {
+    const reset =
+        'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md';
+    final cited = await indexWith({
+      reset: '${loginProject[reset]}\nIt serves PG-01.\n',
+    });
+    expect(
+      names(answerList(cited, 'user_story', const ListFilters(cites: 'PG-01'))),
+      ['login/email_login'],
+    );
+  });
+  test('--cites a persona name', () async {
     expect(
       names(answerList(index, 'user_story', const ListFilters(cites: 'buyer'))),
       ['login/email_login'],
     );
   });
-  test(
-    "f01/us03/s6, f01/us03/fr02/e04: --status uses a feature's computed status",
-    () async {
-      expect(
-        names(
-          answerList(
-            index,
-            'feature',
-            const ListFilters(status: 'implemented'),
-          ),
+  test("--status uses a feature's computed status", () async {
+    expect(
+      names(
+        answerList(index, 'feature', const ListFilters(status: 'implemented')),
+      ),
+      ['signup'],
+    );
+  });
+  test('--status and --draft together', () async {
+    expect(
+      names(
+        answerList(
+          index,
+          'user_story',
+          const ListFilters(status: 'planned', draft: true),
         ),
-        ['signup'],
-      );
-    },
-  );
-  test(
-    'f01/us03/s4, f01/us03/fr02/e05: --status and --draft together',
-    () async {
-      expect(
-        names(
-          answerList(
-            index,
-            'user_story',
-            const ListFilters(status: 'planned', draft: true),
-          ),
-        ),
-        ['login/email_login'],
-      );
-    },
-  );
-  test('f01/us03/s5, f01/us03/fr02/e06: --no-implements keeps FRs with no implements entry', () async {
+      ),
+      ['login/email_login'],
+    );
+  });
+  test('--no-implements keeps FRs with no implements entry', () async {
     expect(
       names(answerList(index, 'fr', const ListFilters(noImplements: true))),
       [
@@ -183,32 +180,29 @@ void main() {
       ],
     );
   });
-  test('f01/us03/fr02: --slug keeps docs whose aliases hold it', () async {
+  test('--slug keeps docs whose aliases hold it', () async {
     expect(
       names(answerList(index, 'feature', const ListFilters(slug: 'sign-in'))),
       ['login'],
     );
   });
-  test('f01/us03/s9, f01/us03/fr02/e07: --under a name no doc carries is doc_not_found', () async {
+  test('--under a name no doc carries is doc_not_found', () async {
     expect(
       () => answerList(index, 'fr', const ListFilters(under: 'logn')),
       throwsA(isA<IndexFault>()),
     );
   });
-  test(
-    'f01/us03/s7, f01/us03/fr01/e02: no match is an empty list and success',
-    () async {
-      final answer = answerList(
-        index,
-        'feature',
-        const ListFilters(status: 'deprecated'),
-      );
-      expect(answer.text, isEmpty);
-      expect(answer.json['docs'], isEmpty);
-      expect(answer.exitStatus, 0);
-    },
-  );
-  test('f01/us03/s8, f01/us03/fr01/e03: an unknown doc type is doc_type_unknown naming it', () async {
+  test('no match is an empty list and success', () async {
+    final answer = answerList(
+      index,
+      'feature',
+      const ListFilters(status: 'deprecated'),
+    );
+    expect(answer.text, isEmpty);
+    expect(answer.json['docs'], isEmpty);
+    expect(answer.exitStatus, 0);
+  });
+  test('an unknown doc type is doc_type_unknown naming it', () async {
     expect(
       () => answerList(index, 'featur', const ListFilters()),
       throwsA(
@@ -220,13 +214,14 @@ void main() {
       ),
     );
   });
-  test('f01/us03/fr01/e05, s03/inv8: untyped docs are never listed', () async {
+  test('untyped docs are never listed', () async {
     expect([
       for (final t in index.set.docTypes)
         ...names(answerList(index, t.id, const ListFilters())),
     ], isNot(contains('prds/d01_context.md')));
   });
-  test('f01/us03/fr02/e08: list user_story --under shop lists add_item, drop_item, card, refund in tree order', () async {
+  test('list user_story --under shop lists add_item, drop_item, card, refund '
+      'in tree order', () async {
     final nested = await nestedIndexWith();
     expect(
       names(answerList(nested, 'user_story', const ListFilters(under: 'shop'))),
@@ -302,7 +297,8 @@ void main() {
       return session.index;
     }
 
-    test('f01/us03/fr02/e09: list fr --no-implements --target jaspr keeps the FRs that name no code in jaspr', () async {
+    test('list fr --no-implements --target jaspr keeps the FRs that name no '
+        'code in jaspr', () async {
       final index = await twoTargets(
         flutterImplements:
             '  - show/open:lib/flutter_open.dart\n'
@@ -324,7 +320,8 @@ void main() {
       );
     });
 
-    test('f01/us03/fr02/e10: --status or --no-implements with two targets and no --target is argument_missing', () async {
+    test('--status or --no-implements with two targets and no --target is '
+        'argument_missing', () async {
       final index = await twoTargets();
       for (final filters in const [
         ListFilters(status: 'implemented'),
@@ -346,7 +343,8 @@ void main() {
       }
     });
 
-    test('f01/us03/fr02/e11: list user_story --status skipped --target jaspr keeps the stories jaspr skips', () async {
+    test('list user_story --status skipped --target jaspr keeps the stories '
+        'jaspr skips', () async {
       final index = await twoTargets(
         flutterImplements:
             '  - show:lib/flutter_show.dart\n  - hide:lib/flutter_hide.dart\n',
@@ -365,7 +363,8 @@ void main() {
       );
     });
 
-    test('f01/us03/fr02/e11: a feature-level skip covers each story under it, and the story list line shows the target status', () async {
+    test('a feature-level skip covers each story under it, and the story list '
+        'line shows the target status', () async {
       final index = await twoTargets(
         flutterImplements:
             '  - show:lib/flutter_show.dart\n  - hide:lib/flutter_hide.dart\n',
@@ -394,7 +393,7 @@ void main() {
       expect(json['status'], 'skipped');
     });
 
-    test('f01/us03/fr02/e12: one target judges its status and code with no --target', () async {
+    test('one target judges its status and code with no --target', () async {
       expect(
         names(
           answerList(index, 'user_story', const ListFilters(status: 'planned')),
@@ -410,7 +409,7 @@ void main() {
       );
     });
 
-    test('f01/us03/fr02/e12: one named target judges --no-implements with no --target', () async {
+    test('one named target judges --no-implements with no --target', () async {
       String record(String implements) => implements.isEmpty
           ? '# Record\n'
           : '---\nimplements:\n$implements---\n\n# Record\n';
@@ -461,7 +460,7 @@ void main() {
       );
     });
 
-    test('E22: a target targets: holds none of is argument_invalid', () async {
+    test('a target targets: holds none of is argument_invalid', () async {
       final targeted = await twoTargets();
       expect(
         () => answerList(targeted, 'fr', const ListFilters(codeTarget: 'web')),

@@ -22,7 +22,7 @@ BatchFault _refusal(void Function() run) {
 }
 
 void main() {
-  group('E17 read', () {
+  group('read', () {
     late Directory dir;
     setUp(() => dir = Directory.systemTemp.createTempSync('batch_file_'));
     tearDown(() => dir.deleteSync(recursive: true));
@@ -78,7 +78,7 @@ void main() {
     }, skip: Platform.isWindows ? 'no POSIX modes on Windows' : null);
   });
 
-  group('E17 split', () {
+  group('split', () {
     test('an empty file holds no block', () {
       final fault = _refusal(() => parseBatchFile(_batch, ''));
       expect(fault.exitStatus, 64);
@@ -220,7 +220,7 @@ void main() {
     });
   });
 
-  group('E10 fence', () {
+  group('fence', () {
     test('a fence that stays open to the end is left open by its block', () {
       final text =
           '${_head(_storyPath)}\n'
@@ -239,7 +239,7 @@ void main() {
     });
   });
 
-  group('E18 lines', () {
+  group('lines', () {
     test('text before the first naming line is refused by line number', () {
       final parsed = parseBatchFile(
         _batch,

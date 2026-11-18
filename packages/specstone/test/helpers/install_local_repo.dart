@@ -98,7 +98,8 @@ Future<InstallLocalRepo> createInstallLocalRepo() async {
 /// The `dart` and `git` stubs log each call to `dart.log` and `git.log`; the
 /// `dart` stub fails per `STUB_DART_PUB=fail` and `STUB_DART_BUILD=fail`, and
 /// waits for `<logs>/release` per `STUB_DART_BUILD=wait`; under
-/// `STUB_DART_IGNORE=signals` it ignores INT, TERM, and HUP.
+/// `STUB_DART_LOCK=1` its build step leaves a read-only `locked/` folder
+/// beside the build output, which a delete of the temp folder cannot remove.
 final class InstallLocalRepo {
   new _(this.sandbox, this.work);
 
@@ -217,7 +218,7 @@ final class InstallLocalRepo {
       ..stub('git', '''
 echo "\$*" >> "\$STUB_LOG_DIR/git.log"
 exec '$realGit' "\$@"''')
-      ..stub('dart', _dartStub.replaceAll('<real git>', realGit));
+      ..stub('dart', _dartStub);
   }
 }
 
@@ -233,7 +234,6 @@ final String _realGit = () {
 
 const _dartStub = r'''
 echo "$PWD|$*" >> "$STUB_LOG_DIR/dart.log"
-if [ "$STUB_DART_IGNORE" = signals ]; then trap '' INT TERM HUP; fi
 case "$1 $2" in
   'pub get')
     if [ "$STUB_DART_PUB" = fail ]; then
@@ -242,6 +242,17 @@ case "$1 $2" in
     fi
     ;;
   'build cli')
+    out=
+    while [ $# -gt 0 ]; do
+      if [ "$1" = -o ]; then out=$2; fi
+      shift
+    done
+    if [ "$STUB_DART_LOCK" = 1 ]; then
+      lock=$(dirname "$out")/locked
+      mkdir -p "$lock"
+      echo locked > "$lock/file"
+      chmod 555 "$lock"
+    fi
     if [ "$STUB_DART_BUILD" = fail ]; then
       echo 'stub: dart build cli failed' >&2
       exit 1
@@ -250,22 +261,14 @@ case "$1 $2" in
       touch "$STUB_LOG_DIR/building"
       while [ ! -e "$STUB_LOG_DIR/release" ]; do sleep 0.1; done
     fi
-    out=
-    while [ $# -gt 0 ]; do
-      if [ "$1" = -o ]; then out=$2; fi
-      shift
-    done
     root=$(cd ../.. && pwd)
     mkdir -p "$out/bundle/lib" "$out/bundle/bin"
     echo stub > "$out/bundle/lib/libsqlite3.so"
     version=$(sed -n "s/^const String specstoneVersion = '\(.*\)';\r\{0,1\}$/\1/p" \
       "$root/packages/specstone_core/lib/src/version.dart")
-    cp "$root/packages/specstone_core/lib/src/version.dart" \
-      "$STUB_LOG_DIR/version.dart"
-    commit=$('<real git>' -C "$root" rev-parse HEAD)
     marker=$(cat "$root/marker.txt")
-    printf '#!/bin/sh\n# %s %s\nif [ "$1" = --version ]; then echo %s; fi\n' \
-      "$commit" "$marker" "$version" > "$out/bundle/bin/specstone"
+    printf '#!/bin/sh\n# %s\nif [ "$1" = --version ]; then echo %s; fi\n' \
+      "$marker" "$version" > "$out/bundle/bin/specstone"
     chmod 755 "$out/bundle/bin/specstone"
     ;;
   *)

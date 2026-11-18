@@ -95,7 +95,7 @@ void main() {
   });
 
   test(
-    'E03, E04: a project '
+    'a project '
     'layer that still declares depends_on merges into the one shipped field',
     () async {
       final merged = prdCoreDocType(
@@ -106,7 +106,7 @@ void main() {
     },
   );
 
-  test('f03/us06/fr01, sf-r5: feature carries max_depth 3', () {
+  test('feature carries max_depth 3', () {
     expect(feature.maxDepth, 3);
   });
 
@@ -117,7 +117,7 @@ void main() {
     expect(session.index.at(cartFeature)!.name, 'shop/cart');
   });
 
-  test('sf-r5: writeNestedProject without its feature.yaml still names '
+  test('writeNestedProject without its feature.yaml still names '
       'shop/cart', () async {
     final session = openSession(
       await writeNestedProject(without: {'.specstone/templates/feature.yaml'}),

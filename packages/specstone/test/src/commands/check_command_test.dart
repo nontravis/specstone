@@ -71,7 +71,7 @@ void main() {
     binary = await buildSpecstone();
   });
 
-  test('f04/us01/s1, f04/us01/fr02/e01: a clean project prints 0 findings and exits 0', () async {
+  test('a clean project prints 0 findings and exits 0', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
     expect(await runner.run(['check']), 0);
     expect(out.toString(), '0 findings\n');
@@ -188,7 +188,7 @@ void main() {
     );
   });
 
-  test("f04/us01/s8, f04/us01/fr02: --json gives each finding's kind, file, name, line, and message, and the count", () async {
+  test("--json gives each finding's kind, file, name, line, and message, and the count", () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(extra: frWith('verify_method: maybe')),
     );
@@ -258,14 +258,14 @@ void main() {
     );
   });
 
-  test('f04/us01/s9, f04/us01/fr01/e05, f04/us01/fr02/e07: a name no doc carries refuses, exit 64, no finding', () async {
+  test('a name no doc carries refuses, exit 64, no finding', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
     expect(await runner.run(['check', 'login/emial_login']), 64);
     expect(err.toString(), 'no doc carries the name login/emial_login\n');
     expect(out.toString(), isEmpty);
   });
 
-  test('f04/us01/fr01/e06, f04/us01/fr01/e07: an unknown doc type exits 64; outside a project exits 78', () async {
+  test('an unknown doc type exits 64; outside a project exits 78', () async {
     final inside = readRunner(await writeCheckProject());
     expect(await inside.runner.run(['check', 'nope:login']), 64);
     final outside = readRunner(await writeTree({}));
@@ -296,7 +296,7 @@ void main() {
     },
   );
 
-  test('f04/us01/fr01/e08, f04/us01/fr01/e19: a pin fault exits 78 before any rule; an unknown option or two targets '
+  test('a pin fault exits 78 before any rule; an unknown option or two targets '
       'exit 64', () async {
     final pinned = readRunner(
       await writeCheckProject(
@@ -340,7 +340,7 @@ void main() {
     },
   );
 
-  test('S12: check names the drifted file and its fix, and format clears it', () async {
+  test('check names the drifted file and its fix, and format clears it', () async {
     final project = await writeCheckProject(
       extra: fr(
         'A wrong password must not sign in.\n',
@@ -386,7 +386,7 @@ void main() {
     );
   });
 
-  test('S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
+  test('check '
       'prints the anchor, self, and doc_ref findings with their keys', () async {
     final project = await writeCheckProject(
       extra: edit(loginFeature, [
@@ -438,7 +438,7 @@ void main() {
     );
   });
 
-  test('document_writing INV-16: set --field and format keep a repeated doc_ref value and one naming its own doc', () async {
+  test('set --field and format keep a repeated doc_ref value and one naming its own doc', () async {
     final project = await writeCheckProject();
     final bases = getDoc(project, 'feature:login')['bases']! as Map;
     final base = (bases['fields']! as Map)['depends_on']! as String;
@@ -467,13 +467,13 @@ void main() {
     expect(file.readAsStringSync(), contains(kept));
   });
 
-  group('consistency_check/find_template_breaks/check_target, --target', () {
+  group('--target', () {
     // The shared API doc stays out, so only the feature and the twins speak.
     Future<Directory> twinProject() =>
         writeTwinProject(without: {'docs/$loginApi'});
 
     test(
-      'E21: check --target jaspr keeps the shared docs and jaspr, --json too',
+      'check --target jaspr keeps the shared docs and jaspr, --json too',
       () async {
         final (:runner, :out, :err) = readRunner(await twinProject());
         expect(await runner.run(['check', '--target', 'jaspr', '--json']), 1);
@@ -488,20 +488,23 @@ void main() {
       },
     );
 
-    test('E22: a --target name targets: lacks is argument_invalid, exit 64, no finding', () async {
-      final (:runner, :out, :err) = readRunner(await twinProject());
-      expect(await runner.run(['check', '--target', 'web']), 64);
-      expect(
-        err.toString(),
-        '--target web: the code targets are flutter, jaspr\n',
-      );
-      expect(out.toString(), isEmpty);
-    });
+    test(
+      'a --target name targets: lacks is argument_invalid, exit 64, no finding',
+      () async {
+        final (:runner, :out, :err) = readRunner(await twinProject());
+        expect(await runner.run(['check', '--target', 'web']), 64);
+        expect(
+          err.toString(),
+          '--target web: the code targets are flutter, jaspr\n',
+        );
+        expect(out.toString(), isEmpty);
+      },
+    );
 
     const missing =
         '--target needs a code target name: the code targets are flutter, jaspr';
 
-    test('E22: --target with no value is argument_missing naming the targets, exit 64, no finding', () async {
+    test('--target with no value is argument_missing naming the targets, exit 64, no finding', () async {
       for (final args in [
         ['check', '--target'],
         ['check', '--target', '--json'],
@@ -521,7 +524,7 @@ void main() {
     });
 
     test(
-      'E22: another command with --target and no value answers the same',
+      'another command with --target and no value answers the same',
       () async {
         final (:runner, :out, :err) = readRunner(await twinProject());
         expect(await runner.run(['structure', '--target']), 64);
@@ -531,7 +534,7 @@ void main() {
     );
   });
 
-  group('consistency_check/find_prd_spec_disagreements, two targets', () {
+  group('two targets', () {
     const layer =
         'id: implementation\n'
         'description: One feature record per target.\n'
@@ -587,7 +590,7 @@ void main() {
 
     final flutterDone = record(['$item:implemented'], [code]);
 
-    test('user_story:consistency_check/find_prd_spec_disagreements S10: a story a target skips with a reason has no finding, and the tree shows it skipped', () async {
+    test('a story a target skips with a reason has no finding, and the tree shows it skipped', () async {
       final dir = await project(
         flutter: flutterDone,
         jaspr: record(['$story:skipped:no jaspr sign-in']),

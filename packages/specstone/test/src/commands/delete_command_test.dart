@@ -57,7 +57,7 @@ void main() {
   );
   const fr11Target = 'fr:login/email_login/validate_credentials';
 
-  test('ms-r11: --dry-run lists the files and the plan line, removes '
+  test('--dry-run lists the files and the plan line, removes '
       'nothing, and needs no terminal', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(root);
@@ -77,7 +77,7 @@ void main() {
     expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
   });
   test(
-    'ms-r11: --dry-run --json prints the files and the plan as one JSON object',
+    '--dry-run --json prints the files and the plan as one JSON object',
     () async {
       final root = await writeWriteProject();
       final (:runner, :out, :err) = writeRunner(root);
@@ -102,7 +102,7 @@ void main() {
       '--yes cannot go with --dry-run.',
     ),
   ]) {
-    test('ms-r11: delete ${args.join(' ')} is a usage error, exit 64, and '
+    test('delete ${args.join(' ')} is a usage error, exit 64, and '
         'removes nothing', () async {
       final root = await writeWriteProject();
       final (:runner, :out, :err) = writeRunner(root);
@@ -112,7 +112,7 @@ void main() {
       expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
     });
   }
-  test("ms-r11: --yes --plan with the dry run's hash deletes an approved "
+  test("--yes --plan with the dry run's hash deletes an approved "
       'unit with no terminal and no prompt', () async {
     final root = await writeWriteProject();
     final hash = await _dryRunPlanHash(root, fr11Target);
@@ -126,7 +126,7 @@ void main() {
     expect(File('${root.path}/docs/$fr11').existsSync(), isFalse);
   });
   test(
-    'ms-r11: --yes --plan --json prints the removed paths as one JSON object',
+    '--yes --plan --json prints the removed paths as one JSON object',
     () async {
       final root = await writeWriteProject();
       final hash = await _dryRunPlanHash(root, fr11Target);
@@ -146,31 +146,28 @@ void main() {
       expect((jsonDecode(out.toString()) as Map)['removed'], [fr11]);
     },
   );
-  test(
-    'ms-r11: --yes --plan with a stale hash exits 75 and removes nothing',
-    () async {
-      final root = await writeWriteProject();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'delete',
-          fr11Target,
-          '--yes',
-          '--plan',
-          '000000000000',
-        ]),
-        75,
-      );
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        'the delete list is not the one the Owner saw in the dry run; run '
-        'specstone delete --dry-run again, show it, and ask for a new ok\n',
-      );
-      expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
-    },
-  );
-  test('f02/us04/s3, f02/us04/fr02/e03: the Owner prompt goes to stdout, the removed paths after it', () async {
+  test('--yes --plan with a stale hash exits 75 and removes nothing', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'delete',
+        fr11Target,
+        '--yes',
+        '--plan',
+        '000000000000',
+      ]),
+      75,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      'the delete list is not the one the Owner saw in the dry run; run '
+      'specstone delete --dry-run again, show it, and ask for a new ok\n',
+    );
+    expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
+  });
+  test('the Owner prompt goes to stdout, the removed paths after it', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -187,7 +184,8 @@ void main() {
     expect(out.toString(), '$fr11\ndelete 1 files? [y/N] $fr11\n');
     expect(err.toString(), isEmpty);
   });
-  test('f02/us04/s3, PD9: under --json the Owner prompt goes to stderr and stdout holds one JSON object', () async {
+  test('under --json the Owner prompt goes to stderr and stdout holds one JSON '
+      'object', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -237,7 +235,7 @@ void main() {
     'docs/$errors': '# Errors\n\nSee [index](../INDEX.md).\n',
     'docs/$index': '# Index\n\nNothing links here but api_errors.md.\n',
   };
-  test('f02/us04/fr01/e10, f02/us04/fr04: two targets delete both, one removed path per line', () async {
+  test('two targets delete both, one removed path per line', () async {
     const one = 'specs/f01_login/one.md';
     const two = 'specs/f01_login/two.md';
     final root = await writeWriteProject(
@@ -253,31 +251,34 @@ void main() {
     expect(File('${root.path}/docs/$one').existsSync(), isFalse);
     expect(File('${root.path}/docs/$two').existsSync(), isFalse);
   });
-  test('f02/us04/s9, f02/us04/fr04/e04: a referrer outside the set exits 64 and is named after ; also', () async {
-    final root = await writeWriteProject(
-      extra: {
-        ...untyped,
-        'docs/$story1':
-            '${writeProject['docs/$story1']}\n'
-            'See [errors](../../../../specs/f01_login/api_errors.md).\n',
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(
-      root,
-      console: FakeConsole(
-        stdinIsTerminal: true,
-        stdoutIsTerminal: true,
-        answers: ['y'],
-      ),
-    );
-    expect(await runner.run(['delete', notes, errors]), 64);
-    expect(
-      err.toString(),
-      '$errors: docs outside the delete set link into it; also $story1\n',
-    );
-    expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
-    expect(File('${root.path}/docs/$errors').existsSync(), isTrue);
-  });
+  test(
+    'a referrer outside the set exits 64 and is named after ; also',
+    () async {
+      final root = await writeWriteProject(
+        extra: {
+          ...untyped,
+          'docs/$story1':
+              '${writeProject['docs/$story1']}\n'
+              'See [errors](../../../../specs/f01_login/api_errors.md).\n',
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['y'],
+        ),
+      );
+      expect(await runner.run(['delete', notes, errors]), 64);
+      expect(
+        err.toString(),
+        '$errors: docs outside the delete set link into it; also $story1\n',
+      );
+      expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
+      expect(File('${root.path}/docs/$errors').existsSync(), isTrue);
+    },
+  );
   const plan = 'superpowers/plans/plan.md';
   final withPlan = {
     ...untyped,

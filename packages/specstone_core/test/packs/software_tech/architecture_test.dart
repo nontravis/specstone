@@ -11,7 +11,7 @@ void main() {
     architecture = prdCoreDocType(await resolveSoftwareTech(), 'architecture');
   });
 
-  test('f03/us07/fr01, f03/us07/fr01/e05, f03/us07/fr01/e06: architecture sits '
+  test('architecture sits '
       'under specs/f{nn}_{slug}/ with parent feature, a required prefix covers '
       'list, and ten sections', () {
     expect(architecture.path, 'specs/f{nn}_{slug}/ARCHITECTURE.md');

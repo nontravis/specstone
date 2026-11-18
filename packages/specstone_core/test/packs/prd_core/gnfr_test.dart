@@ -58,7 +58,7 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr03, f03/us06/fr03/e02: the 29 NASA words on the Statement '
+  test('the 29 NASA words on the Statement '
       'lines of each category, and the NASA handbook', () {
     expectNasaLint(
       gnfr,
