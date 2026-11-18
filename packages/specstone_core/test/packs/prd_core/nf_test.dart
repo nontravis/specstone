@@ -44,7 +44,7 @@ void main() {
     ]);
   });
 
-  test('the 29 NASA words on '
+  test('nf lints the 29 NASA words on '
       'the Statement section only, and the NASA handbook', () {
     expectNasaLint(nf, sections: ['statement']);
   });

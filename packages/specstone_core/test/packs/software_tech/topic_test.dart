@@ -37,4 +37,15 @@ void main() {
       SectionSpec('open_questions', 'Open questions'),
     ]);
   });
+
+  test('the topic description says a rule set writes Rules, a component '
+      'writes Interface, and both writes both', () {
+    expect(
+      topic.description,
+      contains(
+        'A rule set writes Rules, a component writes Interface, and a topic '
+        'that is both writes both; no field names the kind.',
+      ),
+    );
+  });
 }

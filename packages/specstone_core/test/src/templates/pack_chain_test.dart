@@ -81,7 +81,7 @@ void main() {
       ]);
     });
 
-    test('an extends naming no loaded pack is '
+    test('a pack chain extends naming no loaded pack is '
         'extends_target_unknown', () async {
       final pack = await personal('nont-a', 'missing-pack');
       expect(
