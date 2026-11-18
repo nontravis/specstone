@@ -2149,6 +2149,7 @@ void _agentFilesTests() {
         ...skillFileTexts(),
         '.specstone/AGENT.md': agentMdText,
         'AGENTS.md': '# Owner rules\n\n$_staleBlock',
+        '.cursor/rules/own.mdc': 'own rule\n',
       });
 
       final plan = _planAt(project);
