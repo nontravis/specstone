@@ -1641,6 +1641,25 @@ void main() {
       expect(plan.isEmpty, isTrue);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
+    test('a file whose path the disk cannot resolve that the run would '
+        'leave unchanged is not named on stderr', () async {
+      final base = await _base({
+        ..._skillFiles('proj/'),
+        'proj/.specstone/keep': '',
+      });
+      final root = _at(base, 'proj/').uri;
+      Link(root.resolve('AGENTS.md').toFilePath()).createSync('loop');
+      Link(root.resolve('loop').toFilePath()).createSync('AGENTS.md');
+      Link(root.resolve(_agentMd).toFilePath()).createSync('agent-loop');
+      Link(root.resolve('.specstone/agent-loop').toFilePath())
+          .createSync('AGENT.md');
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.skipped, isEmpty);
+      expect(plan.isEmpty, isTrue);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
     test('a top in another repository, outside the project '
         'root, is named and left: no write, not listed', () async {
       final base = await _base({
