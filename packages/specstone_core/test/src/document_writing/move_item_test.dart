@@ -299,6 +299,39 @@ void main() {
       expect(fault.message, contains('specs/f02_shop/f03_pay/DOMAIN.md'));
     });
 
+    test('an --under that names 2 or more docs is argument_invalid with each candidate', () async {
+      final fault = await _refusal(
+        ['domain:shop#INV-3'],
+        under: 'domain:shop/pay',
+        extra: {
+          'docs/prds/features/f02_shop/f03_pay/FEATURE.md': '# Pay\n',
+          'docs/specs/f02_shop/f03_pay/DOMAIN.md': _domain([_inv(1)]),
+        },
+      );
+      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
+      expect(fault.exitStatus, 64);
+      expect(fault.message, contains(_payDomain));
+      expect(fault.message, contains('specs/f02_shop/f03_pay/DOMAIN.md'));
+    });
+
+    test('a source address written as a name suffix names its doc', () async {
+      final root = await _project(shop: [_inv(1)], pay: [_inv(1), _inv(6)]);
+      final landing = _plan(root, ['domain:pay#INV-6']).single;
+      expect(landing.from.doc.docPath, _payDomain);
+    });
+
+    test(
+      'one of several targets naming no doc refuses the whole call',
+      () async {
+        final fault = await _refusal([
+          'domain:shop#INV-3',
+          'domain:nothing#INV-1',
+        ]);
+        expect((fault as IndexFault).code, IndexFaultCode.docNotFound);
+        expect(fault.exitStatus, 64);
+      },
+    );
+
     test('a target doc type with no section of that key and prefix is argument_invalid', () async {
       final fault = await _refusal(['domain:shop#INV-3'], under: 'api:shop');
       expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
@@ -512,6 +545,32 @@ void main() {
       },
     );
 
+    test('an item beside an fr or an nf target takes the same refusal', () async {
+      for (final doc in [
+        'fr:shop/cart/add_item/check_stock',
+        'nf:shop/cart/add_item/stock_time',
+      ]) {
+        final fault = await refused(
+          ['domain:shop#INV-3', doc],
+          under: 'shop/cart',
+          extra: {
+            'docs/prds/features/f02_shop/f01_cart/us01_add_item/nf01_stock_time.md': '# Stock time\n\n## Statement\n\nThe system shall check stock within 1 s.\n',
+          },
+        );
+        expect(
+          (fault as IndexFault).code,
+          IndexFaultCode.argumentInvalid,
+          reason: doc,
+        );
+        expect(fault.exitStatus, 64, reason: doc);
+        expect(
+          fault.message,
+          'move takes item targets or doc targets, not both',
+          reason: doc,
+        );
+      }
+    });
+
     test('an item beside a spec doc is doc_type_not_movable, before the mixed test', () async {
       final fault = await refused([
         'domain:shop#INV-3',
@@ -675,6 +734,35 @@ void main() {
           contains('specs/app/f02_shop/DOMAIN.md'),
           contains('specs/server/f02_shop/DOMAIN.md'),
         ),
+      );
+    });
+
+    test('a refusal over --target writes no doc', () async {
+      final root = await twoTargets();
+      final before = _docs(root);
+      for (final codeTarget in [null, 'nothing']) {
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              const ['domain:shop#INV-3'],
+              under: 'domain:shop/cart',
+              codeTarget: codeTarget,
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64),
+          ),
+          reason: '$codeTarget',
+        );
+        expect(_docs(root), before, reason: '$codeTarget');
+      }
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
       );
     });
 
@@ -892,6 +980,66 @@ void main() {
         'rewritten': [shopDomain, cartDomain],
         'mentions': <Object?>[],
       });
+    });
+
+    test(
+      'the reply prints a rewrote line for each other doc whose bytes changed',
+      () async {
+        final root = await _project(
+          shop: [_inv(1), _inv(2), _inv(3)],
+          pay: [
+            _inv(1),
+            '- **INV-2** Pay follows [INV-3](../DOMAIN.md#invariants).',
+          ],
+        );
+        final answer = move(root, ['domain:shop#INV-3']);
+        expect(
+          answer.text,
+          'moved $shopDomain#INV-3 to $cartDomain#INV-3\n'
+          'rewrote $shopDomain\n'
+          'rewrote $cartDomain\n'
+          'rewrote $_payDomain\n',
+        );
+        expect(
+          readDoc(root, _payDomain),
+          contains('[INV-3](../f01_cart/DOMAIN.md#invariants)'),
+        );
+      },
+    );
+
+    test('a doc that links two moved items is rewritten once, both links in the one pass', () async {
+      final root = await _project(
+        shop: [for (var n = 1; n <= 7; n++) _inv(n)],
+        pay: [
+          _inv(1),
+          '- **INV-2** Pay follows [INV-3](../DOMAIN.md#invariants) and [INV-7](../DOMAIN.md#invariants).',
+        ],
+      );
+      final answer = move(root, ['domain:shop#INV-3', 'domain:shop#INV-7']);
+      expect(answer.json['rewritten'], [shopDomain, cartDomain, _payDomain]);
+      expect('rewrote $_payDomain\n'.allMatches(answer.text), hasLength(1));
+      expect(
+        readDoc(root, _payDomain),
+        contains(
+          '[INV-3](../f01_cart/DOMAIN.md#invariants) and '
+          '[INV-7](../f01_cart/DOMAIN.md#invariants)',
+        ),
+      );
+    });
+
+    test('a dry run lists an item named twice once', () async {
+      final root = await _project(shop: [_inv(1), _inv(2), _inv(3)]);
+      final answer = move(root, [
+        'domain:shop#INV-3',
+        '$shopDomain#INV-3',
+      ], dryRun: true);
+      expect(
+        answer.text,
+        'moves $shopDomain#INV-3 to $cartDomain#INV-3\n'
+        'rewrites $shopDomain\n'
+        'rewrites $cartDomain\n'
+        'dry run: nothing moved\n',
+      );
     });
 
     test('a dry run prints moves, renumbers, rewrites, and the closing line, and writes no file', () async {
@@ -1139,6 +1287,175 @@ void main() {
         ]);
         expect(bodyOf(root, shopDomain), '# Domain\n\n## Invariants\n$tail');
       });
+    });
+  });
+
+  group('a refusal reads the same with --dry-run and writes no doc', () {
+    String describe(Object fault) => switch (fault) {
+      IndexFault(:final code, :final message, :final exitStatus) =>
+        '${code.wire} $exitStatus: $message',
+      WriteFault(:final code, :final message, :final exitStatus) =>
+        '${code.wire} $exitStatus: $message',
+      _ => fail('not a refusal: $fault'),
+    };
+
+    /// Runs the move with and without --dry-run on one project and returns
+    /// the refusal, asserting both runs give it and no doc changed.
+    Future<String> refusal(
+      List<String> addresses, {
+      String? under = 'domain:shop/cart',
+      bool top = false,
+      String? codeTarget,
+      List<String> shop = const [],
+      List<String> cart = const [],
+      List<String> pay = const [],
+      Map<String, String> extra = const {},
+    }) async {
+      final root = await _project(
+        shop: shop.isEmpty ? [_inv(1), _inv(2), _inv(3)] : shop,
+        cart: cart.isEmpty ? [_inv(1)] : cart,
+        pay: pay,
+        extra: extra,
+      );
+      final before = _docs(root);
+      final described = <String>[];
+      for (final dryRun in [false, true]) {
+        try {
+          writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              addresses,
+              under: under,
+              top: top,
+              codeTarget: codeTarget,
+              dryRun: dryRun,
+            ),
+          );
+        } on Object catch (fault) {
+          described.add(describe(fault));
+          expect(_docs(root), before, reason: 'dryRun $dryRun writes no doc');
+          continue;
+        }
+        fail('no fault raised, dryRun $dryRun');
+      }
+      expect(described.last, described.first);
+      return described.first;
+    }
+
+    test('item targets with no --under, and --top in place of it, are refused alike', () async {
+      expect(
+        await refusal(['domain:shop#INV-3'], under: null),
+        'argument_missing 64: move needs --under <doc address> for item targets',
+      );
+      final top = await refusal(['domain:shop#INV-3'], under: null, top: true);
+      expect(top, startsWith('argument_invalid 64: '));
+    });
+
+    test('an Overrides line outside the target chain refuses the move alike', () async {
+      expect(
+        await refusal(
+          ['domain:shop#INV-3'],
+          pay: [
+            _inv(1),
+            '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
+          ],
+        ),
+        'argument_invalid 64: $_payDomain overrides $shopDomain#INV-3; $cartDomain sits outside its chain',
+      );
+      expect(
+        await refusal(
+          ['domain:shop#INV-3'],
+          cart: [
+            _inv(1),
+            '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
+          ],
+        ),
+        'argument_invalid 64: $cartDomain overrides $shopDomain#INV-3; $cartDomain sits outside its chain',
+      );
+    });
+
+    test('a moved item whose own Overrides line leaves the target chain refuses the move alike', () async {
+      expect(
+        await refusal(
+          ['domain:shop/cart/coupon#INV-5'],
+          cart: [_inv(1), _inv(2)],
+          extra: _couponWithOverride,
+          under: 'domain:shop/pay',
+        ),
+        'argument_invalid 64: $_couponDomain#INV-5 overrides $cartDomain#INV-2, outside the chain of $_payDomain',
+      );
+      expect(
+        await refusal(
+          ['domain:shop/cart/coupon#INV-5'],
+          cart: [_inv(1), _inv(2)],
+          extra: _couponWithOverride,
+        ),
+        'argument_invalid 64: $_couponDomain#INV-5 overrides $cartDomain#INV-2, outside the chain of $cartDomain',
+      );
+    });
+
+    test(
+      'an untyped file as the source or as --under is untyped_target alike',
+      () async {
+        final extra = {
+          'docs/$_notes': '# Notes\n\n## Invariants\n\n${_inv(3)}\n',
+        };
+        final source = await refusal(['$_notes#INV-3'], extra: extra);
+        expect(
+          source,
+          startsWith('untyped_target 64: $_notes has no doc type'),
+        );
+        final under = await refusal(
+          ['domain:shop#INV-3'],
+          extra: extra,
+          under: _notes,
+        );
+        expect(under, startsWith('untyped_target 64: $_notes has no doc type'));
+      },
+    );
+
+    test('a doc move of any kind given --target is refused alike', () async {
+      final extra = {
+        'docs/prds/features/f02_shop/f01_cart/us01_add_item/nf01_stock_time.md': '# Stock time\n\n## Statement\n\nThe system shall check stock within 1 s.\n',
+      };
+      for (final (target, under) in [
+        ('user_story:shop/cart/add_item', 'shop/pay'),
+        ('fr:shop/cart/add_item/check_stock', 'shop/pay/refund'),
+        ('nf:shop/cart/add_item/stock_time', 'shop/pay/refund'),
+        ('feature:shop/cart', 'shop'),
+      ]) {
+        expect(
+          await refusal(
+            [target],
+            under: under,
+            codeTarget: 'server',
+            extra: extra,
+          ),
+          'argument_invalid 64: move takes --target only with item targets',
+          reason: target,
+        );
+      }
+    });
+
+    test(
+      'a suffix that reads as an item ID the doc lacks is item_not_found alike',
+      () async {
+        expect(
+          await refusal(['domain:shop#phase2']),
+          'item_not_found 64: $shopDomain holds no phase2',
+        );
+      },
+    );
+
+    test('a suffix that reads as no item ID makes the whole text a doc target, refused alike', () async {
+      for (final target in ['domain:shop#invariants', 'domain:shop#a#INV-3']) {
+        expect(
+          await refusal([target]),
+          startsWith('argument_invalid 64: '),
+          reason: target,
+        );
+      }
     });
   });
 }
