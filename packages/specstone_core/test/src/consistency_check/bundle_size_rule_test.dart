@@ -368,9 +368,19 @@ void main() {
       final project = await _writeCitedInvariants(
         linked: _overBound ~/ 2,
         unlinked: 1000,
+        extra: {
+          for (final slug in ['edit_item', 'move_item'])
+            'docs/prds/features/f02_shop/f01_cart/us03_$slug/USER_STORY.md':
+                nestedFiles()['docs/$cartAdd']!,
+        },
       );
       final session = openSession(project);
       addTearDown(session.close);
+      final cartDoc = session.index.at(cartFeature)!;
+      expect(
+        session.index.childrenOf(cartDoc).where(session.index.isChainDoc),
+        hasLength(4),
+      );
 
       final found = _sizeFindings(session, cartFeature).single;
       final actual = _headerSizeOf(
@@ -431,6 +441,11 @@ void main() {
       expect(
         session.index.childrenOf(session.index.at(express)!),
         hasLength(1),
+      );
+      final fix = _sizeFix.split('## A bundle over its limit').last;
+      expect(
+        fix,
+        contains("No fix applies to a feature at its doc type's `max_depth`"),
       );
     });
 
