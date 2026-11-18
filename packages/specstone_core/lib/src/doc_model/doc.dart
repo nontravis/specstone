@@ -266,16 +266,28 @@ List<KeyBlock> _keyBlocks(List<String> lines) {
   ];
 }
 
+/// A body's head, title, and sections as [Doc.parse] splits them, and whether a
+/// fence stays open after it.
+final class _BodyScan {
+  const new({
+    required this.head,
+    required this.title,
+    required this.titleLineIndex,
+    required this.sections,
+    required this.sectionLineIndexes,
+    required this.unclosedFence,
+  });
+
+  final String head;
+  final String? title;
+  final int? titleLineIndex;
+  final List<Section> sections;
+  final List<int> sectionLineIndexes;
+  final bool unclosedFence;
+}
+
 /// Splits [lines] into head, title, and sections outside fenced code.
-({
-  String head,
-  String? title,
-  int? titleLineIndex,
-  List<Section> sections,
-  List<int> sectionLineIndexes,
-  bool unclosedFence,
-})
-_scan(List<String> lines) {
+_BodyScan _scan(List<String> lines) {
   final fence = _BlockTracker();
   final headLines = <String>[];
   final sections = <Section>[];
@@ -312,7 +324,7 @@ _scan(List<String> lines) {
     }
   }
   closeSection();
-  return (
+  return _BodyScan(
     head: _joinWithoutTrailingBlank(headLines),
     title: title,
     titleLineIndex: titleLineIndex,
@@ -620,19 +632,27 @@ final class _ListItem extends _Container {
   }
 }
 
+/// A container a line starts, and the column its content starts at.
+final class _ContainerStart {
+  const new({required this.container, required this.column});
+
+  final _Container container;
+  final int column;
+}
+
 /// Returns the container [text] starts at [column], with its content column,
 /// or null when none starts there.
 ///
 /// With [paragraphOpen], only a bullet or `1.` or `1)` with content starts a
 /// list item, so a paragraph line such as `2. x` stays in its paragraph.
-({_Container container, int column})? _containerStart(
+_ContainerStart? _containerStart(
   String text,
   int column, {
   required bool paragraphOpen,
 }) {
   final quoteColumn = _afterQuoteMarker(text, column);
   if (quoteColumn != null) {
-    return (container: const _Quote(), column: quoteColumn);
+    return _ContainerStart(container: const _Quote(), column: quoteColumn);
   }
   final itemColumn = _listItemColumn(
     text,
@@ -640,7 +660,7 @@ final class _ListItem extends _Container {
     paragraphOpen: paragraphOpen,
   );
   if (itemColumn == null) return null;
-  return (container: _ListItem(itemColumn), column: itemColumn);
+  return _ContainerStart(container: _ListItem(itemColumn), column: itemColumn);
 }
 
 /// Returns the column after the `>` marker, and one space after it, that
