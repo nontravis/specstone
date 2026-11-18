@@ -30,33 +30,36 @@ Iterable<Finding> checkDesignSources(
     if (field.type != FieldType.sourceRef) continue;
     for (final (:value, :line, text: _) in lines.entriesOf(field.id)) {
       if (value is! String || _webUrl.hasMatch(value)) continue;
-      final broken = _breakOf(context, value);
-      if (broken == null) continue;
-      yield context.finding(
-        doc,
-        broken.kind,
-        line: line,
-        message: '$value ${broken.reason}',
-        keys: {'entry': value},
-      );
+      yield* _entryFindings(context, doc, value, line);
     }
   }
 }
 
-/// Returns why the path [entry] is broken, null when it names something under
-/// the project root.
-({FindingKind kind, String reason})? _breakOf(
+/// Yields the finding of the path [entry] at [line], none when it names
+/// something under the project root.
+Iterable<Finding> _entryFindings(
   CheckContext context,
+  IndexedDoc doc,
   String entry,
-) {
+  int line,
+) sync* {
   if (_leavesProject(entry)) {
-    return (
-      kind: FindingKind.sourcePathOutsideProject,
-      reason: 'leaves the project root',
+    yield context.finding(
+      doc,
+      FindingKind.sourcePathOutsideProject,
+      line: line,
+      message: '$entry leaves the project root',
+      keys: {'entry': entry},
+    );
+  } else if (!namesFileOrFolderFrom(context.projectRoot, entry)) {
+    yield context.finding(
+      doc,
+      FindingKind.sourcePathMissing,
+      line: line,
+      message: '$entry names nothing on disk',
+      keys: {'entry': entry},
     );
   }
-  if (namesFileOrFolderFrom(context.projectRoot, entry)) return null;
-  return (kind: FindingKind.sourcePathMissing, reason: 'names nothing on disk');
 }
 
 /// Whether [entry] is rooted, or reaches above the project root after its
