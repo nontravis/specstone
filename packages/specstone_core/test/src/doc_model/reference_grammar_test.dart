@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/models/destination_parts.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:test/test.dart';
 
@@ -647,48 +649,102 @@ void main() {
 
     test('splits a written destination where its first ? or # is '
         'written', () {
-      expect(inline('a.md#x'), (pathEnd: 4, anchorStart: 5));
-      expect(inline('#x'), (pathEnd: 0, anchorStart: 1));
-      expect(inline(r'f01\_a/A.md#x#y'), (pathEnd: 11, anchorStart: 12));
-      expect(inline('a.md?q#x'), (pathEnd: 4, anchorStart: 7));
-      expect(inline(r'../t_doc.md#a\)b'), (pathEnd: 11, anchorStart: 12));
+      expect(
+        inline('a.md#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
+      expect(inline('#x'), const DestinationParts(pathEnd: 0, anchorStart: 1));
+      expect(
+        inline(r'f01\_a/A.md#x#y'),
+        const DestinationParts(pathEnd: 11, anchorStart: 12),
+      );
+      expect(
+        inline('a.md?q#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 7),
+      );
+      expect(
+        inline(r'../t_doc.md#a\)b'),
+        const DestinationParts(pathEnd: 11, anchorStart: 12),
+      );
     });
 
     test('a # or ? written as an escape or a character reference splits '
         'where its text starts and ends', () {
-      expect(inline(r'a.md\#x'), (pathEnd: 4, anchorStart: 6));
-      expect(inline('USER_STORY.md&#35;s'), (pathEnd: 13, anchorStart: 18));
-      expect(inline('a&#x23;x'), (pathEnd: 1, anchorStart: 7));
-      expect(inline('a&#X23;x'), (pathEnd: 1, anchorStart: 7));
-      expect(inline('a&num;x'), (pathEnd: 1, anchorStart: 6));
-      expect(inline('a&#63;q'), (pathEnd: 1, anchorStart: null));
-      expect(inline('a&quest;q#x'), (pathEnd: 1, anchorStart: 10));
-      expect(inline(r'a&\#35;x'), (pathEnd: 1, anchorStart: 7));
+      expect(
+        inline(r'a.md\#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 6),
+      );
+      expect(
+        inline('USER_STORY.md&#35;s'),
+        const DestinationParts(pathEnd: 13, anchorStart: 18),
+      );
+      expect(
+        inline('a&#x23;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
+      expect(
+        inline('a&#X23;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
+      expect(
+        inline('a&num;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 6),
+      );
+      expect(
+        inline('a&#63;q'),
+        const DestinationParts(pathEnd: 1, anchorStart: null),
+      );
+      expect(
+        inline('a&quest;q#x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 10),
+      );
+      expect(
+        inline(r'a&\#35;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
     });
 
     test('a character reference to another character, a percent escape, '
         'and an unknown name split nothing', () {
-      expect(inline('doc&#95;model.md#r'), (pathEnd: 16, anchorStart: 17));
-      expect(inline('a.md#&#115;cenario'), (pathEnd: 4, anchorStart: 5));
-      expect(inline('a%23b.md'), (pathEnd: 8, anchorStart: null));
-      expect(inline('a&NUM;b'), (pathEnd: 7, anchorStart: null));
-      expect(inline('a.md'), (pathEnd: 4, anchorStart: null));
-      expect(inline(''), (pathEnd: 0, anchorStart: null));
+      expect(
+        inline('doc&#95;model.md#r'),
+        const DestinationParts(pathEnd: 16, anchorStart: 17),
+      );
+      expect(
+        inline('a.md#&#115;cenario'),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
+      expect(
+        inline('a%23b.md'),
+        const DestinationParts(pathEnd: 8, anchorStart: null),
+      );
+      expect(
+        inline('a&NUM;b'),
+        const DestinationParts(pathEnd: 7, anchorStart: null),
+      );
+      expect(
+        inline('a.md'),
+        const DestinationParts(pathEnd: 4, anchorStart: null),
+      );
+      expect(inline(''), const DestinationParts(pathEnd: 0, anchorStart: null));
     });
 
     test('an inline destination drops the backslash before a backslash '
         'before the rest, as markdown reads it, and a definition does not', () {
       const written = r'a&\\#35;x';
 
-      expect(inline(written), (pathEnd: 1, anchorStart: 8));
-      expect(destinationPartsOf(written, DestinationKind.angleInline), (
-        pathEnd: 1,
-        anchorStart: 8,
-      ));
-      expect(destinationPartsOf(written, DestinationKind.definition), (
-        pathEnd: 4,
-        anchorStart: 5,
-      ));
+      expect(
+        inline(written),
+        const DestinationParts(pathEnd: 1, anchorStart: 8),
+      );
+      expect(
+        destinationPartsOf(written, DestinationKind.angleInline),
+        const DestinationParts(pathEnd: 1, anchorStart: 8),
+      );
+      expect(
+        destinationPartsOf(written, DestinationKind.definition),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
     });
   });
 

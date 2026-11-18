@@ -45,14 +45,22 @@ final class DocTypeMatcher {
           for (final path in docType.paths)
             if (docType.isPerTarget && twinNames.isNotEmpty)
               for (final target in twinNames)
-                (docType, PathPattern(path).forTarget(target), target)
+                _Candidate(
+                  docType: docType,
+                  pattern: PathPattern(path).forTarget(target),
+                  target: target,
+                )
             else
-              (docType, PathPattern(path), null),
+              _Candidate(
+                docType: docType,
+                pattern: PathPattern(path),
+                target: null,
+              ),
       ],
       _nesting = set.nestingType;
 
-  /// One (doc type, pattern, target) entry per path pattern, in set order.
-  final List<(MergedDocType, PathPattern, String?)> _candidates;
+  /// One candidate per path pattern, in set order.
+  final List<_Candidate> _candidates;
 
   /// The target names the per-target patterns expand into, as [twinNamesOf]
   /// gives them.
@@ -66,7 +74,7 @@ final class DocTypeMatcher {
   /// Returns the doc type whose pattern matches [docPath], or why none does.
   DocTypeMatch match(String docPath) {
     final matched = [
-      for (final (docType, pattern, target) in _candidates)
+      for (final _Candidate(:docType, :pattern, :target) in _candidates)
         if (pattern.matches(docPath)) (docType, target),
     ];
     return switch (matched) {
@@ -107,10 +115,24 @@ final class DocTypeMatcher {
 
   /// Returns the first number any doc type reads from [segments], or null.
   int? entryNumber(List<String> segments) {
-    for (final (_, pattern, _) in _candidates) {
+    for (final _Candidate(:pattern) in _candidates) {
       final number = pattern.numberAt(segments);
       if (number != null) return number;
     }
     return null;
   }
+}
+
+/// A doc type, one of its path patterns, and the code target the pattern is
+/// read in, if any.
+final class _Candidate {
+  const new({
+    required this.docType,
+    required this.pattern,
+    required this.target,
+  });
+
+  final MergedDocType docType;
+  final PathPattern pattern;
+  final String? target;
 }

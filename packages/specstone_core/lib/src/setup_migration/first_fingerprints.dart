@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/doc_model/confirmed_list.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 
 const _traceHeader = 'FR trace';
 const _cellsLabel = 'FR trace cells';
@@ -90,13 +91,13 @@ FirstFingerprints writeFirstFingerprints(
 
 /// Returns the body lines of section [index] of [doc], numbered by their
 /// 1-based line among the lines after the frontmatter.
-List<TraceBodyLine> _bodyLines(Doc doc, int index) {
+List<BodyLine> _bodyLines(Doc doc, int index) {
   final body = doc.sections[index].body.split('\n');
   final fenced = fencedLines(body);
   final first = doc.sectionLineIndexes[index] + 2;
   return [
     for (var k = 0; k < body.length; k++)
-      (text: body[k], line: first + k, fenced: fenced[k]),
+      BodyLine(text: body[k], line: first + k, fenced: fenced[k]),
   ];
 }
 

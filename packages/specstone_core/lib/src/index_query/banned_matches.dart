@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -152,7 +153,7 @@ List<SearchLine> searchLinesOf(
   int index,
 ) => [
   SearchLine(sections[index].headerLine, facts.sectionLines[index]),
-  for (final (:text, :line, :fenced) in sectionBodyLines(
+  for (final BodyLine(:text, :line, :fenced) in sectionBodyLines(
     sections,
     facts,
     index,
@@ -194,7 +195,7 @@ final class SearchLine {
 
   /// The text inside each code span, backticks dropped.
   late final List<String> code = [
-    for (final (:start, :end, :ticks) in _spans)
+    for (final CodeSpan(:start, :end, :ticks) in _spans)
       raw.substring(start + ticks, end - ticks),
   ];
 
@@ -204,7 +205,7 @@ final class SearchLine {
     if (_spans.isEmpty) return raw;
     final blanked = StringBuffer();
     var from = 0;
-    for (final (:start, :end, ticks: _) in _spans) {
+    for (final CodeSpan(:start, :end) in _spans) {
       blanked
         ..write(raw.substring(from, start))
         ..write(' ' * (end - start));

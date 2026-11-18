@@ -1,8 +1,5 @@
 import 'package:specstone_core/src/doc_model/inline_holders.dart';
-
-/// One code span of a line: the offsets of its first and one past its last
-/// backtick, and the length of the backtick run that opens and closes it.
-typedef CodeSpan = ({int start, int end, int ticks});
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 
 /// Returns each code span of [line], in order.
 ///
@@ -24,7 +21,7 @@ List<CodeSpan> codeSpansOf(String line) {
       open = line.indexOf('`', open + ticks);
       continue;
     }
-    spans.add((start: open, end: close + ticks, ticks: ticks));
+    spans.add(CodeSpan(start: open, end: close + ticks, ticks: ticks));
     open = line.indexOf('`', close + ticks);
   }
   return spans;

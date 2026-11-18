@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/models/own_match.dart';
+import 'package:specstone_core/src/doc_model/models/spec_child.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -137,7 +139,7 @@ final class DocPathShape {
 
   /// Returns the `{nn}` and `{slug}` values [name] holds when it fits the own
   /// segment, else null; a value the segment lacks is null.
-  ({int? number, String? slug})? matchOwn(String name) {
+  OwnMatch? matchOwn(String name) {
     final pattern = _patterns[ownIndex];
     final match = pattern.regex.firstMatch(name);
     if (match == null) return null;
@@ -145,7 +147,7 @@ final class DocPathShape {
       for (var i = 0; i < pattern.tokens.length; i++)
         pattern.tokens[i]: match.group(i + 1)!,
     };
-    return (
+    return OwnMatch(
       number: int.tryParse(values[_numberToken] ?? ''),
       slug: values['{slug}'],
     );
@@ -227,7 +229,7 @@ bool isSpecDocShape(DocPathShape shape) =>
 /// once per name of [targetNames], with the target folder in its place,
 /// and each carries its target; empty [targetNames] leaves it as the plain
 /// pattern gives it, with no target.
-Iterable<(MergedDocType, String, String?)> specChildrenOf(
+Iterable<SpecChild> specChildrenOf(
   MergedSet set,
   MergedDocType docType,
   DocPathShape shape,
@@ -243,10 +245,14 @@ Iterable<(MergedDocType, String, String?)> specChildrenOf(
     if (folder.isEmpty || folder.startsWith(own)) continue;
     if (child.isPerTarget && targetNames.isNotEmpty) {
       for (final name in targetNames) {
-        yield (child, PathPattern(folder).forTarget(name).source, name);
+        yield SpecChild(
+          docType: child,
+          folder: PathPattern(folder).forTarget(name).source,
+          target: name,
+        );
       }
     } else {
-      yield (child, folder, null);
+      yield SpecChild(docType: child, folder: folder, target: null);
     }
   }
 }
@@ -271,7 +277,7 @@ List<String> specFoldersOf(
   final shape = DocPathShape.of(docType, set, depth: depth);
   if (shape == null) return const [];
   return {
-    for (final (_, folder, _) in specChildrenOf(
+    for (final SpecChild(:folder) in specChildrenOf(
       set,
       docType,
       shape,

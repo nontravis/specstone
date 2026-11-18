@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -87,7 +88,7 @@ final class RenumberDoc {
   /// `check` fingerprints an NFR; empty without one.
   String statementOf(IdAt item) => nfrStatementOf([
     for (var line = item.line; line <= item.endLine; line++)
-      (
+      BodyLine(
         text: lines[line - 1],
         line: line,
         fenced: content.lineFacts.isFenced(line),

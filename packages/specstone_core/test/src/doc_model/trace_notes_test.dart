@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/models/trace_note.dart';
 import 'package:specstone_core/src/doc_model/trace_notes.dart';
 import 'package:test/test.dart';
 
@@ -12,7 +13,7 @@ void main() {
       isTableRow: false,
     );
     expect(read.notes, [
-      (
+      const TraceNote(
         text:
             '([INV-74](DOMAIN.md#invariants), [INV-75](DOMAIN.md#invariants))',
         closes: true,
@@ -27,7 +28,7 @@ void main() {
       _prefixes,
       isTableRow: false,
     );
-    expect(read.notes, [(text: '(RULE-10)', closes: false)]);
+    expect(read.notes, [const TraceNote(text: '(RULE-10)', closes: false)]);
     expect(read.counted, 'First clause (RULE-10) and more words.');
   });
 
@@ -37,7 +38,9 @@ void main() {
       _prefixes,
       isTableRow: false,
     );
-    expect(read.notes, [(text: '(RULE-1; RULE-2 and RULE-3)', closes: true)]);
+    expect(read.notes, [
+      const TraceNote(text: '(RULE-1; RULE-2 and RULE-3)', closes: true),
+    ]);
     expect(read.counted, 'A rule');
   });
 
@@ -65,8 +68,8 @@ void main() {
       isTableRow: false,
     );
     expect(read.notes, [
-      (text: '(RULE-1)', closes: false),
-      (text: 'INV-4 cites it', closes: true),
+      const TraceNote(text: '(RULE-1)', closes: false),
+      const TraceNote(text: 'INV-4 cites it', closes: true),
     ]);
     expect(read.counted, 'A rule (RULE-1).');
   });
@@ -94,7 +97,7 @@ void main() {
       _prefixes,
       isTableRow: true,
     );
-    expect(read.notes, [(text: '(RULE-5)', closes: true)]);
+    expect(read.notes, [const TraceNote(text: '(RULE-5)', closes: true)]);
     expect(read.counted, '| A rule | next cell |');
   });
 
@@ -138,7 +141,9 @@ void main() {
       _prefixes,
       isTableRow: true,
     );
-    expect(read.notes, [(text: 'INV-4 owns the recipe', closes: true)]);
+    expect(read.notes, [
+      const TraceNote(text: 'INV-4 owns the recipe', closes: true),
+    ]);
     expect(read.counted, '| A | | next |');
   });
 
@@ -148,7 +153,7 @@ void main() {
       _prefixes,
       isTableRow: true,
     );
-    expect(read.notes, [(text: 'INV-4 owns it', closes: false)]);
+    expect(read.notes, [const TraceNote(text: 'INV-4 owns it', closes: false)]);
     expect(read.counted, '| INV-4 owns it. More words | next |');
   });
 
@@ -158,7 +163,7 @@ void main() {
       _prefixes,
       isTableRow: true,
     );
-    expect(read.notes, [(text: '(RULE-1)', closes: true)]);
+    expect(read.notes, [const TraceNote(text: '(RULE-1)', closes: true)]);
     expect(read.counted, '| A | B |\n');
   });
 
@@ -232,23 +237,23 @@ void main() {
       _prefixes,
       isTableRow: false,
     );
-    expect(read.notes, [(text: 'INV-4 owns it', closes: true)]);
+    expect(read.notes, [const TraceNote(text: 'INV-4 owns it', closes: true)]);
   });
 
   test('row with no outer pipes closes each cell', () {
     final read = traceNotesOf('A (RULE-1) | B', _prefixes, isTableRow: true);
-    expect(read.notes, [(text: '(RULE-1)', closes: true)]);
+    expect(read.notes, [const TraceNote(text: '(RULE-1)', closes: true)]);
     expect(read.counted, 'A | B');
   });
 
   test('row with no outer pipes finds a clause in its last cell', () {
     final read = traceNotesOf('A | INV-4 owns x.', _prefixes, isTableRow: true);
-    expect(read.notes, [(text: 'INV-4 owns x', closes: true)]);
+    expect(read.notes, [const TraceNote(text: 'INV-4 owns x', closes: true)]);
   });
 
   test('paragraph holding a pipe stays one scope', () {
     final read = traceNotesOf('A (RULE-1) | B', _prefixes, isTableRow: false);
-    expect(read.notes, [(text: '(RULE-1)', closes: false)]);
+    expect(read.notes, [const TraceNote(text: '(RULE-1)', closes: false)]);
     expect(read.counted, 'A (RULE-1) | B');
   });
 
@@ -258,7 +263,7 @@ void main() {
       _prefixes,
       isTableRow: false,
     );
-    expect(read.notes, [(text: 'INV-4 owns it', closes: true)]);
+    expect(read.notes, [const TraceNote(text: 'INV-4 owns it', closes: true)]);
   });
 
   test('clause holding a lone > word is found', () {
@@ -267,6 +272,8 @@ void main() {
       _prefixes,
       isTableRow: false,
     );
-    expect(read.notes, [(text: 'INV-4 owns a > b here', closes: true)]);
+    expect(read.notes, [
+      const TraceNote(text: 'INV-4 owns a > b here', closes: true),
+    ]);
   });
 }

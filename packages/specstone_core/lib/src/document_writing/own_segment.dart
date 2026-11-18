@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/doc_model/models/spec_child.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -141,7 +142,7 @@ List<PathMove> specFolderMovesOf(
     DocPathShape shape,
     List<String> values,
   ) => {
-    for (final (child, folder, target) in specChildrenOf(
+    for (final SpecChild(docType: child, :folder, :target) in specChildrenOf(
       set,
       docType,
       shape,

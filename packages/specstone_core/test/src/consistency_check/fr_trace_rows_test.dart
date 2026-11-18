@@ -1,8 +1,9 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:test/test.dart';
 
-TraceBodyLine _line(String text, int line, {bool fenced = false}) =>
-    (text: text, line: line, fenced: fenced);
+BodyLine _line(String text, int line, {bool fenced = false}) =>
+    BodyLine(text: text, line: line, fenced: fenced);
 
 void main() {
   test('the reader keeps the rows check tracks', () {

@@ -1,6 +1,7 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/html_attributes.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/doc_model/models/atx_heading.dart';
 
 /// The anchors of one doc body.
 final class DocAnchors {
@@ -35,14 +36,14 @@ final class DocAnchors {
 
 /// Returns the anchors of [body], the nodes `parseMarkdown` gave.
 DocAnchors anchorsOf(List<Node> body) {
-  final headings = <({int level, String text})>[];
+  final headings = <AtxHeading>[];
   final htmlIds = <String>{};
   _collect(body, headings: headings, htmlIds: htmlIds);
   return DocAnchors(
     headingSlugs: _suffixed([
-      for (final (:text, level: _) in headings) headingSlugOf(text),
+      for (final AtxHeading(:text) in headings) headingSlugOf(text),
     ]),
-    headingLevels: [for (final (:level, text: _) in headings) level],
+    headingLevels: [for (final AtxHeading(:level) in headings) level],
     htmlIds: htmlIds,
   );
 }
@@ -115,7 +116,7 @@ String _freeSlug(
 // attributes, never as raw text, so they stay out.
 void _collect(
   List<Node> nodes, {
-  required List<({int level, String text})> headings,
+  required List<AtxHeading> headings,
   required Set<String> htmlIds,
 }) {
   for (final node in nodes) {
@@ -126,10 +127,12 @@ void _collect(
     }
     if (node.tag == 'code' || node.tag == 'pre') continue;
     if (_isHeading(node.tag)) {
-      headings.add((
-        level: node.tag.codeUnitAt(1) - 0x30,
-        text: _renderedText(node),
-      ));
+      headings.add(
+        AtxHeading(
+          level: node.tag.codeUnitAt(1) - 0x30,
+          text: _renderedText(node),
+        ),
+      );
     }
     final children = node.children;
     if (children != null) {

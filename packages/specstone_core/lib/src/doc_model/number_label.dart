@@ -1,8 +1,12 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
     show blockScan, fenceScan, mermaidInfoWord;
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show ItemId, itemIdRunAt;
+    show itemIdRunAt;
 
 /// How a number label names its doc.
 enum LabelShape {
@@ -126,8 +130,8 @@ List<NumberLabel> _labelsIn(
 
 /// Returns each label of [numberLabelsInMarkdown] over [lfText] with the
 /// 0-based line of [lfText] it starts on, as it is written.
-List<({int line, String written})> numberLabelLinesInMarkdown(String lfText) {
-  final labels = <({int line, String written})>[];
+List<NumberLabelLine> numberLabelLinesInMarkdown(String lfText) {
+  final labels = <NumberLabelLine>[];
   var line = 0;
   var from = 0;
   for (final label in numberLabelsInMarkdown(lfText, itemPrefixes: const {})) {
@@ -135,7 +139,7 @@ List<({int line, String written})> numberLabelLinesInMarkdown(String lfText) {
       if (lfText.codeUnitAt(i) == _lineFeed) line++;
     }
     from = label.start;
-    labels.add((line: line, written: label.written));
+    labels.add(NumberLabelLine(line: line, written: label.written));
   }
   return labels;
 }
@@ -235,7 +239,29 @@ const _storyRank = 1;
 const _frRank = 2;
 
 /// One part of a label: its rank (feature, story, FR), number, and end.
-typedef _Part = ({int rank, int number, String? slug, int end, String? prefix});
+final class _Part {
+  const new({
+    required this.rank,
+    required this.number,
+    required this.slug,
+    required this.end,
+    required this.prefix,
+  });
+
+  final int rank;
+  final int number;
+  final String? slug;
+  final int end;
+  final String? prefix;
+}
+
+/// The rank of a folder prefix, -1 for none, and its length.
+final class _FolderPrefix {
+  const new({required this.rank, required this.length});
+
+  final int rank;
+  final int length;
+}
 
 NumberLabel? _labelAt(String line, int at, bool legacyIds) =>
     _dashRunAt(line, at) ?? _folderRunAt(line, at, legacyIds);
@@ -284,7 +310,13 @@ _Part? _dashPartAt(String line, int at) {
     final end = _digitsEnd(line, digits);
     if (end == digits) return null;
     final number = _numberOf(line.substring(digits, end));
-    return (rank: rank, number: number, slug: null, end: end, prefix: null);
+    return _Part(
+      rank: rank,
+      number: number,
+      slug: null,
+      end: end,
+      prefix: null,
+    );
   }
   return null;
 }
@@ -335,7 +367,11 @@ bool _numberedFolderFollows(String line, int end) =>
 /// optional `_<slug>`, at [at]; with [legacyIds] a feature folder may open
 /// with any lowercase prefix.
 _Part? _folderAt(String line, int at, {required bool legacyIds}) {
-  final (rank, prefixLength) = _folderPrefixAt(line, at, legacyIds: legacyIds);
+  final _FolderPrefix(:rank, length: prefixLength) = _folderPrefixAt(
+    line,
+    at,
+    legacyIds: legacyIds,
+  );
   if (rank < 0) return null;
   final digits = at + prefixLength;
   final digitsEnd = _digitsEnd(line, digits);
@@ -344,7 +380,7 @@ _Part? _folderAt(String line, int at, {required bool legacyIds}) {
     return null;
   }
   final slugEnd = _slugEnd(line, digitsEnd);
-  return (
+  return _Part(
     rank: rank,
     number: _numberOf(line.substring(digits, digitsEnd)),
     slug: slugEnd == null ? null : line.substring(digitsEnd + 1, slugEnd),
@@ -356,23 +392,29 @@ _Part? _folderAt(String line, int at, {required bool legacyIds}) {
 }
 
 /// Returns the rank and length of the folder prefix at [at], or rank -1.
-(int, int) _folderPrefixAt(String line, int at, {required bool legacyIds}) {
+_FolderPrefix _folderPrefixAt(String line, int at, {required bool legacyIds}) {
   if (legacyIds) {
     var end = at;
     while (end < line.length && _isLower(line.codeUnitAt(end))) {
       end++;
     }
     final prefix = line.substring(at, end);
-    if (prefix.isEmpty) return (-1, 0);
+    if (prefix.isEmpty) return const _FolderPrefix(rank: -1, length: 0);
     return switch (prefix) {
-      'fr' => (_frRank, 2),
-      'us' => (_storyRank, 2),
-      _ => (_featureRank, prefix.length),
+      'fr' => const _FolderPrefix(rank: _frRank, length: 2),
+      'us' => const _FolderPrefix(rank: _storyRank, length: 2),
+      _ => _FolderPrefix(rank: _featureRank, length: prefix.length),
     };
   }
-  if (line.startsWith('fr', at)) return (_frRank, 2);
-  if (line.startsWith('us', at)) return (_storyRank, 2);
-  return line.startsWith('f', at) ? (_featureRank, 1) : (-1, 0);
+  if (line.startsWith('fr', at)) {
+    return const _FolderPrefix(rank: _frRank, length: 2);
+  }
+  if (line.startsWith('us', at)) {
+    return const _FolderPrefix(rank: _storyRank, length: 2);
+  }
+  return line.startsWith('f', at)
+      ? const _FolderPrefix(rank: _featureRank, length: 1)
+      : const _FolderPrefix(rank: -1, length: 0);
 }
 
 /// Returns the end of the `_<slug>` that starts at [at], or null without one.
@@ -476,17 +518,15 @@ List<NumberLabel> _labelsOutsideLinks(
   ];
 }
 
-typedef _Span = ({int start, int end});
-
 /// Returns the link destinations of [line]: each `](...)` target and the
 /// target of a reference definition.
-List<_Span> _destinationsIn(String line) {
-  final spans = <_Span>[?_definitionTarget(line)];
+List<TextRange> _destinationsIn(String line) {
+  final spans = <TextRange>[?_definitionTarget(line)];
   var open = line.indexOf('](');
   while (open >= 0) {
     final start = open + 2;
     final end = _inlineTargetEnd(line, start);
-    spans.add((start: start, end: end));
+    spans.add(TextRange(start: start, end: end));
     open = line.indexOf('](', end);
   }
   return spans;
@@ -509,7 +549,7 @@ int _inlineTargetEnd(String line, int start) {
 }
 
 /// Returns the target of a reference definition `[x]: target`, or null.
-_Span? _definitionTarget(String line) {
+TextRange? _definitionTarget(String line) {
   var at = 0;
   while (at < line.length && at < 3 && line.startsWith(' ', at)) {
     at++;
@@ -525,7 +565,7 @@ _Span? _definitionTarget(String line) {
   while (end < line.length && !_isBlank(line.codeUnitAt(end))) {
     end++;
   }
-  return (start: start, end: end);
+  return TextRange(start: start, end: end);
 }
 
 bool _isBlank(int unit) => unit == 0x20 || unit == 0x09;
