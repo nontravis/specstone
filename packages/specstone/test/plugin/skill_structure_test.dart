@@ -4,7 +4,9 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/src/setup_migration/agent_assets.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
+import '../helpers/package_root.dart';
 import '../helpers/plugin_content.dart';
 import '../helpers/temp_tree.dart';
 
@@ -727,6 +729,36 @@ void _referencesResolveTests() {
     );
   });
 
+  test(
+    'a span holding a slash, an underscore, a hash, or an angle bracket '
+    'never has the skill-name form, and a markdown-link cite passes',
+    () async {
+      final root = await writeTree({
+        'specstone-x/SKILL.md':
+            'Cite `shop/cart:add_item`, `a_b:c`, `a:b#c`, `a:<b>`, and '
+            '[domain:document_writing](../../specs/f02_document_writing/DOMAIN.md#invariants).',
+      });
+      expect(
+        otherPluginSkillNames(contentFilesOf(root), shippedDocTypes()),
+        isEmpty,
+      );
+    },
+  );
+
+  test('a file naming another plugin in prose, with no backticked span, '
+      'passes the content test', () async {
+    final root = await writeTree({
+      'specstone-x/SKILL.md':
+          "${_skillHead('specstone-x', 'Skill.')}Then follow superpowers' "
+          'writing-plans skill.\n',
+    });
+    final files = contentFilesOf(root);
+    expect(otherPluginSkillNames(files, shippedDocTypes()), isEmpty);
+    expect(unknownCliNames(files, SpecstoneCommandRunner()), isEmpty);
+    expect(hostTiedText(files), isEmpty);
+    expect(skillHeadProblems(files), isEmpty);
+  });
+
   test('a backticked specstone:<name> fails in a skill file and an agent '
       'file, and the hyphenated name passes', () async {
     final root = await writeTree({
@@ -787,6 +819,48 @@ void _cliCallsExistTests() {
       await _problemsOf({'specstone-x/SKILL.md': 'Run `specstone lint docs`.'}),
       ['specstone-x/SKILL.md: specstone has no command lint'],
     );
+  });
+
+  test('an agent file naming a flag the CLI lacks fails naming the file and '
+      'the flag', () async {
+    expect(
+      await _problemsOf({'specstone-a.md': 'Run `specstone check --fix`.'}),
+      ['specstone-a.md: specstone check has no --fix'],
+    );
+  });
+
+  test('the CLI package tests run on ubuntu, macos, and windows in CI, with '
+      'the plugin content test left in', () {
+    final workflow = loadYaml(
+      File.fromUri(packageRoot().uri.resolve('../../.github/workflows/ci.yaml'))
+          .readAsStringSync(),
+    ) as YamlMap;
+    final job = (workflow['jobs'] as YamlMap)['test'] as YamlMap;
+    final matrix = (job['strategy'] as YamlMap)['matrix'] as YamlMap;
+    expect(
+      matrix['os'],
+      unorderedEquals(['ubuntu-latest', 'macos-latest', 'windows-latest']),
+    );
+    expect(matrix['suite'], contains('cli'));
+    final cliRuns = [
+      for (final step in job['steps'] as YamlList)
+        if (step is YamlMap &&
+            step['working-directory'] == 'packages/specstone' &&
+            '${step['if']}'.contains("matrix.suite == 'cli'") &&
+            '${step['run']}'.startsWith('dart test'))
+          '${step['run']}',
+    ];
+    expect(cliRuns, isNotEmpty);
+    for (final run in cliRuns) {
+      expect(run, isNot(contains('plugin')), reason: run);
+    }
+    final covered = {
+      for (final step in job['steps'] as YamlList)
+        if (step is YamlMap && cliRuns.contains('${step['run']}'))
+          for (final os in ['ubuntu', 'macos', 'windows'])
+            if ('${step['if']}'.contains(os)) os,
+    };
+    expect(covered, {'ubuntu', 'macos', 'windows'});
   });
 
   test('a span with no specstone call, a skill name, a '
@@ -1008,6 +1082,130 @@ String _sourcePathOf(String renderPath) {
 // MARK: - runs on every host
 
 void _runsOnEveryHostTests() {
+  test('no skill and no agent share a name', () {
+    final skills = _skillFolders().map(_baseNameOf).toSet();
+    final agents = _agentFiles().map(_baseNameOf).toSet();
+    expect(skills, isNotEmpty);
+    expect(agents, isNotEmpty);
+    expect(skills.intersection(agents), isEmpty);
+  });
+
+  test('a hand-over to the next skill reads "follow the `specstone-<name>` '
+      'skill" and names a skill the plugin ships', () {
+    final shipped = _skillFolders().map(_baseNameOf).toSet();
+    final handOver = RegExp('follow the `(specstone-[a-z-]+)` skill');
+    final bannedHandOver = RegExp(
+      '(?:invoke|load) (?:it|the `specstone-[a-z-]+` skill) '
+      '(?:through|with|via)',
+    );
+    final named = <String>{};
+    for (final file in contentFiles()) {
+      final text = _oneLine(file.body);
+      for (final match in handOver.allMatches(text)) {
+        named.add(match.group(1)!);
+      }
+      expect(bannedHandOver.hasMatch(text), isFalse, reason: file.path);
+    }
+    expect(named, isNotEmpty);
+    expect(shipped, containsAll(named));
+  });
+
+  test('each render of the sdd-engineer holds one line telling it to follow '
+      'specstone-expert-sdd, and no preload', () {
+    final renders = contentFiles()
+        .where((file) => file.path.contains('specstone-sdd-engineer.'))
+        .toList();
+    expect(renders, hasLength(greaterThanOrEqualTo(5)));
+    for (final render in renders) {
+      expect(
+        'follow the `specstone-expert-sdd` skill'.allMatches(
+          _oneLine(render.body),
+        ),
+        hasLength(1),
+        reason: render.path,
+      );
+      expect(
+        render.frontmatter,
+        isNot(contains('\nskills:')),
+        reason: render.path,
+      );
+    }
+  });
+
+  test('a mention of the project instruction file names CLAUDE.md beside '
+      'AGENTS.md in every shipped file', () {
+    var mentions = 0;
+    for (final file in contentFiles()) {
+      final text = _oneLine(file.body);
+      for (final match in '`CLAUDE.md`'.allMatches(text)) {
+        mentions++;
+        expect(
+          text.substring(match.end),
+          startsWith(', `AGENTS.md`'),
+          reason: file.path,
+        );
+      }
+      expect(
+        text,
+        isNot(contains("the project's `CLAUDE.md`")),
+        reason: file.path,
+      );
+    }
+    expect(mentions, greaterThan(0));
+    expect(
+      _oneLine(_pluginText('specstone-brainstorming-sdd/SKILL.md')),
+      contains("the project's instruction file (`CLAUDE.md`, `AGENTS.md`)"),
+    );
+  });
+
+  test('the shipped files word a file action, a dispatch, and the next skill '
+      'by the forms table', () {
+    final sources = _oneLine(
+      [for (final file in contentFilesOf(agentAssetsRoot())) file.body]
+          .join(' '),
+    );
+    for (final form in [
+      "the host's file read",
+      "the host's file write",
+      'dispatch `specstone-sdd-engineer`',
+      'the host lists no such agent',
+      'no subagent',
+      'follow the `specstone-',
+    ]) {
+      expect(sources, contains(form));
+    }
+    final never = RegExp(
+      'the `?(?:Agent|Skill|Read|Write|Edit)`? tool|'
+      'through `Skill`|with `Skill`',
+    );
+    for (final file in contentFiles()) {
+      expect(never.hasMatch(_oneLine(file.body)), isFalse, reason: file.path);
+    }
+  });
+
+  test('a step that picks another plugin skill by its description names no '
+      'skill', () {
+    final skillNameSpan = RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)+$');
+    for (final (file, marker) in [
+      (
+        'specstone-brainstorming-sdd/SKILL.md',
+        'whose description, never its name,',
+      ),
+      ('specstone-plan-sdd/SKILL.md', 'Judge by that description alone'),
+    ]) {
+      final steps = [
+        for (final paragraph in _pluginText(file).split('\n\n'))
+          if (_oneLine(paragraph).contains(marker)) paragraph,
+      ];
+      expect(steps, hasLength(1), reason: file);
+      expect(
+        _inlineSpans(steps.single).where(skillNameSpan.hasMatch),
+        isEmpty,
+        reason: file,
+      );
+    }
+  });
+
   test('a CLAUDE_ variable in a body fails naming it', () {
     expect(
       hostTiedText([
