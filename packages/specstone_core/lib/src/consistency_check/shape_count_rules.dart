@@ -2,7 +2,8 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/models/readability_facts.dart';
+import 'package:specstone_core/src/index_query/models/sentence_fact.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// Returns the sentence, item-count, line-floor, and subsection-cap findings

@@ -12,6 +12,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
 import 'package:specstone_core/src/index_query/link_blocks.dart'
     show leafTextOf, linkLabel;
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/rule_item_words.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The section keys whose items `check --repeats` reads.
@@ -23,10 +24,6 @@ const ruleBearingSectionKeys = {
   'behavior',
   'business_rules',
 };
-
-/// One item of a rule-bearing section: its first file line, its item ID when
-/// it holds one, and its normalized words (see [normalizedWordsOf]).
-typedef RuleItemWords = ({int line, String? itemId, List<String> words});
 
 /// Returns the words of [item], an item of a rule-bearing section whose item
 /// IDs carry [prefix], or null when it is no item `check --repeats` reads: a
@@ -51,7 +48,7 @@ RuleItemWords? wordsOfItem(
   );
   if (words.isEmpty) return null;
   final id = prefix == null ? null : readItemId(item.head, prefix);
-  return (
+  return RuleItemWords(
     line: item.line,
     itemId: id is ItemId ? id.written : null,
     words: words,

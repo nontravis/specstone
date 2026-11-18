@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/models/item_fact.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
 const _indent = '  ';
