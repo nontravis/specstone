@@ -3,7 +3,8 @@ Run this until the Owner approves the drafts.
 ## 1. Route each Owner decision
 
 A decision adds or changes behavior when it brings a new state, input, output, edge case, error, or reader of a
-rule. Every other decision only words or records one.
+rule. Removing a decision changes behavior too: it takes an amend and its design check. Every other decision only
+words or records one.
 
 - **A refused design path**, an open question with no document written: append nothing; write the document at the
   Owner's new path in place of the refused one, by `design.md`.

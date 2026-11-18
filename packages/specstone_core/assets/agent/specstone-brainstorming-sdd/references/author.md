@@ -23,6 +23,9 @@ reason (Rationale, "since", "so") only in the design's words; list one it lacks 
 - **Section or field**: pipe it to `specstone set <type>:<name>#<key> --base <hash>` (a field: `--field <id>` for
   `#<key>`; a passage: `--replace` with `==> old <==`, the passage, `==> new <==`, its replacement), its hash in
   `bases` of `specstone get <type>:<name> --json`.
+- **A removed decision's stub row** (`take out the D<n> text: <sections>`): take that text out of each section it
+  names; delete no doc. Its coverage row is the section the text was taken out of, or `NOT LANDED` while the text
+  stays; a section that never held it reads as taken out.
 - **Several docs**: edit the blocks of `specstone get <names> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`, naming lines kept, one write per block; run
   `specstone set --batch "<file>"`. A ` · unchanged` block adds no draft.
@@ -52,8 +55,9 @@ doc; list any other under `Findings:`.
 
 Run a bare `specstone check` before your first write and again after your last. Before the second, walk each item
 you wrote against your saved guide's description lines (doc part, held sections, `Fields:`), not `Banned words:`
-lines, templates, or the `Required …` and `Optional …` lines; list a line you cannot meet under `Findings:`. No
-`Required section.` line or `check` finding licenses a Rationale reason the design lacks; list it under `Findings:`.
+lines, templates, or the `Required …`, `Optional …`, and `Limits:` lines (a field's `Limits:` line too); list a line
+you cannot meet under `Findings:`. No `Required …`, `Optional …`, or `Limits:` line or `check` finding licenses a
+Rationale reason the design lacks; list it under `Findings:`.
 Then run `specstone check <feature> --repeats` per feature of your drafts: a draft's new text repeating another doc's
 item links it instead. Save each `check` by `--out`, never a redirect.
 
