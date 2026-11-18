@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, resolveDocLink;
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
@@ -362,7 +363,7 @@ String? _citedBy(
     end,
     prefixes: prefixes,
   ).any((item) => item.at == column);
-  for (final (:start, :end, :ticks) in codeSpansOf(line)) {
+  for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line)) {
     if (end > column || !runHolds(end)) continue;
     final address = readDocAddress(line.substring(start + ticks, end - ticks));
     if (address.sectionKey != null || !address.isReferenceWithoutLookup) {

@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc_items.dart'
     show SectionItem, SectionItemKind;
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax;
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';

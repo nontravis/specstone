@@ -1,12 +1,12 @@
 import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show
-        CellRange,
         isThematicBreak,
         itemHeadingMarker,
         startsTable,
         tableCellRanges,
         tableHeadCells;
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 
 const _lineFeedChars = 1;
@@ -116,7 +116,7 @@ List<SectionItem> sectionItemsOf(List<BodyLine> body) {
   return items;
 }
 
-List<String> _cellTexts(String row, List<CellRange> ranges) => [
+List<String> _cellTexts(String row, List<TextRange> ranges) => [
   for (final cell in ranges) row.substring(cell.start, cell.end).trim(),
 ];
 

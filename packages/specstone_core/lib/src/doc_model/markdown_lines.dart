@@ -1,4 +1,5 @@
 import 'package:markdown/markdown.dart' show HeaderSyntax;
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 
 // The pattern is the one `markdown` matches its ATX headings by, so an upgrade
 // that changes it changes every reader with it.
@@ -98,10 +99,6 @@ int _skipDelimiterCell(String line, int from) {
 /// Whether [line] is a thematic break, such as `---`, `* * *`, or `___`.
 bool isThematicBreak(String line) => _thematicBreak.hasMatch(line);
 
-/// The range of one table cell in its row: `start` to `end`, the cell's text
-/// without the blanks after it.
-typedef CellRange = ({int start, int end});
-
 /// Returns the cells of [header] when it opens a table with [delimiter] below
 /// it, else null.
 ///
@@ -109,7 +106,7 @@ typedef CellRange = ({int start, int end});
 /// [header] has as many cells as [delimiter] has columns; the edge pipes of
 /// either are optional. Both are non-blank text with their block quote marks
 /// stripped.
-List<CellRange>? tableHeadCells(String header, String delimiter) {
+List<TextRange>? tableHeadCells(String header, String delimiter) {
   if (!isTableDelimiterRow(delimiter)) return null;
   final cells = tableCellRanges(header);
   return cells.length == tableColumnCount(delimiter) ? cells : null;
@@ -144,13 +141,17 @@ int tableColumnCount(String row) {
 
 /// Returns the ranges of the cells of the table [row], split at an unescaped
 /// pipe (`TableSyntax._parseRow`).
-List<CellRange> tableCellRanges(String row) {
-  final cells = <CellRange>[];
+///
+/// A range covers the cell's text without the blanks after it.
+List<TextRange> tableCellRanges(String row) {
+  final cells = <TextRange>[];
   void add(int start, int end) {
-    cells.add((
-      start: start,
-      end: start + row.substring(start, end).trimRight().length,
-    ));
+    cells.add(
+      TextRange(
+        start: start,
+        end: start + row.substring(start, end).trimRight().length,
+      ),
+    );
   }
 
   var index = _pastOpeningPipe(row);

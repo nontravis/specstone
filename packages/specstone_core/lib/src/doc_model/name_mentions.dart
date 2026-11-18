@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
     show Doc, fenceScan, mermaidInfoWord;
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
@@ -135,7 +136,7 @@ Iterable<NameMention> _spansOnLine(
   int number,
   bool Function(DocAddress address) accepts,
 ) sync* {
-  for (final (:start, :end, :ticks) in codeSpansOf(line)) {
+  for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line)) {
     final text = line.substring(start + ticks, end - ticks);
     final address = readDocAddress(text);
     if (!accepts(address)) continue;
@@ -228,7 +229,7 @@ List<NameMention> longerSpanMentionsInMarkdown(String lf) {
 }
 
 Iterable<NameMention> _longerSpansOnLine(String line, int number) sync* {
-  for (final (:start, :end, :ticks) in codeSpansOf(line)) {
+  for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line)) {
     final text = line.substring(start + ticks, end - ticks);
     if (readDocAddress(text).isReferenceWithoutLookup) continue;
     for (final address in referencesWithoutLookupIn(text)) {

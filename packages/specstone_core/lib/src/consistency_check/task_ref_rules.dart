@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/task_ref.dart';
@@ -146,7 +147,7 @@ String _headingNameOf(String text) {
   final name = text.trim();
   final spans = codeSpansOf(name);
   if (spans.length != 1) return name;
-  final (:start, :end, :ticks) = spans.single;
+  final CodeSpan(:start, :end, :ticks) = spans.single;
   if (start != 0 || end != name.length) return name;
   return name.substring(ticks, name.length - ticks);
 }

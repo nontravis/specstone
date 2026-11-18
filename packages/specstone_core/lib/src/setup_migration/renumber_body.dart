@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
@@ -283,7 +284,7 @@ final class RenumberBodyRewrite {
   List<_Citation> _spanCitations(String line) {
     final spans = codeSpansOf(line);
     final citations = <_Citation>[];
-    for (final (:start, :end, :ticks) in spans) {
+    for (final CodeSpan(:start, :end, :ticks) in spans) {
       final written = line.substring(start + ticks, end - ticks);
       final docPaths = _index.citedBySpan(written, _doc.docPath);
       if (docPaths == null) continue;

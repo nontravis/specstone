@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show fencedLines;
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 
 final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
 
@@ -49,7 +50,7 @@ List<({int start, int end})> _codeRanges(String text) {
     if (fenced[i]) {
       ranges.add((start: offset, end: offset + lines[i].length));
     } else {
-      for (final (:start, :end, ticks: _) in codeSpansOf(lines[i])) {
+      for (final CodeSpan(:start, :end) in codeSpansOf(lines[i])) {
         ranges.add((start: offset + start, end: offset + end));
       }
     }
