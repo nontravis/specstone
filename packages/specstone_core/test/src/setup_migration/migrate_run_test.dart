@@ -1027,8 +1027,7 @@ sections:
     }, skip: skipGit);
   });
 
-  test('commit 2 '
-      'holds the agent files, a CLAUDE.md block appended', () async {
+  test('commit 2 holds the agent files, a CLAUDE.md block appended', () async {
     final root = await _spacedFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
     final out = StringBuffer();
 
@@ -1592,52 +1591,59 @@ sections:
   group('resume and replay', () {
     final skipGit = hasGit ? null : 'git is not available';
 
-    test('a '
-        'stopped migrate whose journal writes the CLAUDE.md of the repository '
-        'top above the project refuses and leaves the file', () async {
-      final base = await gitFixture({
-        'CLAUDE.md': 'Owner\n',
-        'specs/.specstone/config.yaml': shippedPinsConfig(),
-        'specs/docs/prds/PROJECT.md': '# Project\n',
-      });
-      final project = Directory('${base.path}/specs');
-      final head = (git(base, ['rev-parse', 'HEAD']).stdout as String).trim();
-      writeJournal(
-        project,
-        [
-          WriteStep(
-            '../CLAUDE.md',
-            'Owner\nblock\n',
-            before: textHashOf('Owner\n'),
-          ),
-          CommitStep(message: 'agent files', paths: const [], base: head),
-        ],
-        agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
-      );
+    test(
+      'a stopped migrate whose journal writes the CLAUDE.md of the repository '
+      'top above the project refuses and leaves the file',
+      () async {
+        final base = await gitFixture({
+          'CLAUDE.md': 'Owner\n',
+          'specs/.specstone/config.yaml': shippedPinsConfig(),
+          'specs/docs/prds/PROJECT.md': '# Project\n',
+        });
+        final project = Directory('${base.path}/specs');
+        final head = (git(base, ['rev-parse', 'HEAD']).stdout as String).trim();
+        writeJournal(
+          project,
+          [
+            WriteStep(
+              '../CLAUDE.md',
+              'Owner\nblock\n',
+              before: textHashOf('Owner\n'),
+            ),
+            CommitStep(message: 'agent files', paths: const [], base: head),
+          ],
+          agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
+        );
 
-      await expectLater(
-        () => runMigrate(
-          MigrateRequest(
-            workingDirectory: project,
-            homeDirectory: testHome(),
-            templates: TemplateResolver(),
-            dryRun: false,
-            confirmation: OwnerConfirmation.prompt,
-            readLine: () => throw StateError('resume must not ask'),
-            out: StringBuffer(),
+        await expectLater(
+          () => runMigrate(
+            MigrateRequest(
+              workingDirectory: project,
+              homeDirectory: testHome(),
+              templates: TemplateResolver(),
+              dryRun: false,
+              confirmation: OwnerConfirmation.prompt,
+              readLine: () => throw StateError('resume must not ask'),
+              out: StringBuffer(),
+            ),
           ),
-        ),
-        throwsA(
-          isA<RenderFault>()
-              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-              .having((f) => f.exitStatus, 'exit', 73)
-              .having((f) => f.file, 'file', MoveJournal.journalPath),
-        ),
-      );
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.exitStatus, 'exit', 73)
+                .having((f) => f.file, 'file', MoveJournal.journalPath),
+          ),
+        );
 
-      expect(File('${base.path}/CLAUDE.md').readAsStringSync(), 'Owner\n');
-      expect(MoveJournal.pending(project), isTrue);
-    }, skip: skipGit);
+        expect(File('${base.path}/CLAUDE.md').readAsStringSync(), 'Owner\n');
+        expect(MoveJournal.pending(project), isTrue);
+      },
+      skip: skipGit,
+    );
 
     test('a '
         'stopped migrate replays the CLAUDE.md of the project it wrote, whose '
@@ -1729,8 +1735,7 @@ sections:
     }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
 
     test(
-      'a '
-      'migrate whose code root sits in a repository outside the project '
+      'a migrate whose code root sits in a repository outside the project '
       'plans and writes no agent file there, names it, and finishes',
       () async {
         final base = await _twoRepositories({
@@ -2003,8 +2008,7 @@ sections:
       );
     });
 
-    test('a run stopped '
-        'after commit 1 finishes with no second y', () async {
+    test('a run stopped after commit 1 finishes with no second y', () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
       expect(hasDoc(root, 'prds/d01_context.md'), isFalse);
@@ -2718,9 +2722,8 @@ sections:
       }
     }, skip: skipGit);
 
-    test('a resume dry run over '
-        'untrusted roots refuses output_not_writable before any git '
-        'call', () async {
+    test('a resume dry run over untrusted roots refuses output_not_writable '
+        'before any git call', () async {
       final tree = await writeTree(linkedAcme({'.gitignore': 'code/docs\n'}));
       if (!linkCodeDocs(tree)) return;
       final ws = Directory('${tree.path}/ws');
