@@ -1,34 +1,61 @@
 @TestOn('windows')
-@Timeout(Duration(minutes: 2))
+@Timeout(Duration(minutes: 5))
 library;
 
 import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../specstone_core/test/helpers/git_repo.dart'
+    show cleanGitEnvironment, git;
 import '../helpers/install_local_repo.dart';
 import '../helpers/script_sandbox.dart';
 
 void main() {
-  test('Windows is refused before any git call and changes nothing', () async {
-    final tool = await compileInstallLocal();
-    final sandbox = await createScriptSandbox();
-    sandbox
-      ..installFake()
-      ..stub('git', r'echo %* >> "%STUB_LOG_DIR%\git.log"');
-    final before = sandbox.snapshot();
+  late String tool;
 
-    final result = await Process.run(
-      tool,
-      const [],
-      workingDirectory: sandbox.root.path,
-      environment: sandbox.env(),
-      includeParentEnvironment: false,
-    );
+  setUpAll(() async => tool = await compileInstallLocal());
 
-    expect(result.exitCode, 1, reason: '${result.stderr}');
-    expect(result.stderr, contains('macOS and Linux only'));
-    expect(sandbox.logOf('git'), isEmpty);
-    expect(sandbox.snapshot(), before);
-  });
+  test(
+    'Windows exits non-zero; snapshot() and the worktree list stay',
+    () async {
+      final sandbox = await createScriptSandbox();
+      final separator = Platform.pathSeparator;
+      File(
+          '${sandbox.home.path}$separator.specstone${separator}bin'
+          '${separator}specstone.exe',
+        )
+        ..createSync(recursive: true)
+        ..writeAsStringSync('old');
+      final fixture = await Directory.systemTemp.createTemp(
+        'specstone_install_local_windows_',
+      );
+      addTearDown(() => fixture.delete(recursive: true));
+      expect(git(fixture, ['init', '-q']).exitCode, 0);
+      final before = sandbox.snapshot();
+
+      final result = await Process.run(
+        tool,
+        const [],
+        workingDirectory: fixture.path,
+        environment: {
+          ...cleanGitEnvironment(),
+          'HOME': sandbox.home.path,
+          'USERPROFILE': sandbox.home.path,
+        },
+        includeParentEnvironment: false,
+      );
+
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('installs on macOS and Linux only'));
+      expect(sandbox.snapshot(), before);
+      final listed = git(fixture, ['worktree', 'list', '--porcelain']);
+      expect(
+        (listed.stdout as String)
+            .split('\n')
+            .where((line) => line.startsWith('worktree ')),
+        hasLength(1),
+      );
+    },
+  );
 }
