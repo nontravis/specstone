@@ -449,7 +449,7 @@ void main() {
     }
   });
 
-  test('packs stay', () async {
+  test('packs stay when the build replaces lib and bin', () async {
     File('${installDir()}/packs/mine.md')
       ..createSync(recursive: true)
       ..writeAsStringSync('mine');
@@ -618,5 +618,264 @@ void main() {
     expect(repo.sandbox.snapshot(), before);
     expect(repo.worktrees(), hasLength(1));
     expect(repo.sandbox.logOf('dart'), isEmpty);
+  });
+
+  test('a failed move into place asks for a new install run', () async {
+    for (final aside in ['.lib.new', '.bin.new']) {
+      Directory(installDir()).deleteSync(recursive: true);
+      repo.sandbox.installFake();
+      failOn('mv', aside);
+
+      final result = await repo.run(tool);
+
+      expect(result.exitCode, isNot(0), reason: aside);
+      expect(
+        result.stderr,
+        contains('stub: mv failed; run install_local again'),
+        reason: aside,
+      );
+    }
+  });
+
+  test('a relative TMPDIR refusal names TMPDIR', () async {
+    final result = await repo.run(tool, env: {'TMPDIR': 'rel/tmp'});
+
+    expect(result.exitCode, 1);
+    expect(result.stderr, contains('TMPDIR'));
+  });
+
+  test('a refusal for no usable HOME says no home folder resolves', () async {
+    for (final env in [
+      {'HOME': ''},
+      {'HOME': 'rel/home'},
+    ]) {
+      final result = await repo.run(tool, env: env);
+
+      expect(result.exitCode, 1, reason: '$env');
+      expect(result.stderr, contains('no home folder'), reason: '$env');
+    }
+  });
+
+  test('a refusal before the temp folder runs no git call after it', () async {
+    final commit = repo.sha('develop');
+    const verify = 'rev-parse --verify --quiet develop^{commit}';
+    final shim = 'cat-file -e $commit:$shimPath';
+    final tags = 'tag --no-column --merged $commit';
+    final count =
+        'rev-list --first-parent --merges --count refs/tags/v0.9.0..$commit';
+    final short = 'rev-parse --short $commit';
+    git(repo.work, ['checkout', '-q', '-b', 'old']);
+    git(repo.work, ['rm', '-q', shimPath]);
+    commitAll(repo.work, 'before the shim');
+    git(repo.work, ['checkout', '-q', 'develop']);
+    final oldCommit = repo.sha('old');
+
+    for (final (label, args, env, calls) in [
+      (
+        'no such commit',
+        ['--branch', 'nope'],
+        <String, String>{},
+        ['rev-parse --verify --quiet nope^{commit}'],
+      ),
+      (
+        'no shim',
+        ['--branch', 'old'],
+        <String, String>{},
+        [
+          'rev-parse --verify --quiet old^{commit}',
+          'cat-file -e $oldCommit:$shimPath',
+        ],
+      ),
+      ('no home', <String>[], {'HOME': ''}, [verify, shim, tags, count]),
+      (
+        'relative TMPDIR',
+        <String>[],
+        {'TMPDIR': 'rel/tmp'},
+        [verify, shim, tags, count, short],
+      ),
+    ]) {
+      File('${repo.sandbox.logs.path}/git.log').writeAsStringSync('');
+
+      final result = await repo.run(tool, args: args, env: env);
+
+      expect(result.exitCode, 1, reason: label);
+      expect(repo.sandbox.logOf('git'), calls, reason: label);
+    }
+  });
+
+  test('a refusal for no merged tag runs no git call after it', () async {
+    final commit = repo.sha('develop');
+    git(repo.work, ['tag', '-d', 'v0.9.0']);
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, isNot(0));
+    expect(repo.sandbox.logOf('git'), [
+      'rev-parse --verify --quiet develop^{commit}',
+      'cat-file -e $commit:$shimPath',
+      'tag --no-column --merged $commit',
+      'rev-parse --short $commit',
+    ]);
+  });
+
+  test('a temp folder delete failure names the folder and the error', () async {
+    final result = await repo.run(tool, env: {'STUB_DART_LOCK': '1'});
+
+    final leftover = Directory('${repo.sandbox.root.path}/tmp')
+        .listSync()
+        .single;
+    addTearDown(() {
+      if (!leftover.existsSync()) return;
+      Process.runSync('chmod', ['755', '${leftover.path}/locked']);
+      Directory(leftover.path).deleteSync(recursive: true);
+    });
+    final folder = leftover.resolveSymbolicLinksSync();
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(
+      result.stderr,
+      matches(
+        RegExp(
+          '^install_local: could not remove ${RegExp.escape(folder)}: '
+          r'\S.*$',
+          multiLine: true,
+        ),
+      ),
+    );
+  });
+
+  test(
+    'a signal during the copy aside keeps the asides and the install',
+    () async {
+      repo.sandbox.stub('cp', r'''
+case "$*" in
+  *.bin.new/stn*)
+    touch "$STUB_LOG_DIR/copying"
+    while [ -d "$STUB_LOG_DIR" ] && [ ! -e "$STUB_LOG_DIR/release" ]
+    do sleep 0.1; done
+    exit 1 ;;
+esac
+exec /bin/cp "$@"''');
+      final release = File('${repo.sandbox.logs.path}/release');
+      final process = await repo.start(tool);
+      addTearDown(() {
+        if (!release.existsSync()) release.createSync();
+        process.kill(ProcessSignal.sigkill);
+      });
+      final output = process.stdout.drain<void>();
+      final errors = process.stderr.drain<void>();
+      await waitFor(File('${repo.sandbox.logs.path}/copying').existsSync);
+
+      process.kill(ProcessSignal.sigint);
+
+      final exitCode = await process.exitCode.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => fail('the tool did not exit within 30 s'),
+      );
+      await Future.wait([output, errors]);
+      expect(exitCode, isNot(0));
+      expect(
+        installEntries(),
+        unorderedEquals(['bin', 'lib', '.lib.new', '.bin.new']),
+      );
+      final installed = {
+        for (final MapEntry(:key, :value) in repo.sandbox.snapshot().entries)
+          if (key.startsWith('.specstone/lib/') ||
+              key.startsWith('.specstone/bin/'))
+            key: value,
+      };
+      expect(installed, before);
+    },
+  );
+
+  Future<void> expectSignalEndsBuildAtOnce(ProcessSignal signal) async {
+    final release = File('${repo.sandbox.logs.path}/release');
+    final process = await repo.start(tool, env: {'STUB_DART_BUILD': 'wait'});
+    addTearDown(() {
+      if (!release.existsSync()) release.createSync();
+      process.kill(ProcessSignal.sigkill);
+    });
+    final output = process.stdout.drain<void>();
+    final errors = process.stderr.drain<void>();
+    await waitFor(File('${repo.sandbox.logs.path}/building').existsSync);
+
+    process.kill(signal);
+
+    final exitCode = await process.exitCode.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => fail('the tool did not exit within 30 s'),
+    );
+    await Future.wait([output, errors]);
+    expect(exitCode, isNot(0), reason: '$signal');
+    expect(repo.sandbox.snapshot(), before, reason: '$signal');
+    expect(repo.tmpIsEmpty, isFalse, reason: '$signal');
+  }
+
+  test('SIGTERM ends the build at once and keeps the temp folder', () async {
+    await expectSignalEndsBuildAtOnce(ProcessSignal.sigterm);
+  });
+
+  test('SIGHUP ends the build at once and keeps the temp folder', () async {
+    await expectSignalEndsBuildAtOnce(ProcessSignal.sighup);
+  });
+
+  test('the shim check runs before the dev Version is computed', () async {
+    git(repo.work, ['checkout', '-q', '--orphan', 'bare']);
+    git(repo.work, ['rm', '-rfq', '.']);
+    File('${repo.work.path}/bare.txt').writeAsStringSync('bare\n');
+    commitAll(repo.work, 'a commit with no shim and no tag');
+    git(repo.work, ['checkout', '-q', 'develop']);
+
+    final result = await repo.run(tool, args: ['--branch', 'bare']);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains(shimPath));
+    expect(result.stderr, isNot(contains('v<Version>')));
+    expect(repo.sandbox.logOf('git'), isNot(anyElement(startsWith('tag'))));
+    expectNothingChanged();
+  });
+
+  test('a folder or a link at the shim path passes the shim check', () async {
+    git(repo.work, ['checkout', '-q', '-b', 'shim-folder']);
+    git(repo.work, ['rm', '-q', shimPath]);
+    File('${repo.work.path}/$shimPath/inner.txt')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('inner\n');
+    commitAll(repo.work, 'a folder at the shim path');
+    git(repo.work, ['checkout', '-q', '-b', 'shim-link', 'develop']);
+    git(repo.work, ['rm', '-q', shimPath]);
+    Link('${repo.work.path}/$shimPath').createSync('../../../marker.txt');
+    commitAll(repo.work, 'a link at the shim path');
+    git(repo.work, ['checkout', '-q', 'develop']);
+
+    for (final ref in ['shim-folder', 'shim-link']) {
+      final result = await repo.run(tool, args: ['--branch', ref]);
+
+      expect(result.stderr, isNot(contains('holds no $shimPath')), reason: ref);
+      expect(repo.sandbox.logOf('dart'), isNotEmpty, reason: ref);
+      if (ref == 'shim-folder') {
+        expect(result.exitCode, isNot(0), reason: ref);
+        expect(result.stderr, contains('${installDir()}/bin'), reason: ref);
+        expectBuildLeftNothing(reason: ref);
+      } else {
+        expect(result.exitCode, 0, reason: '$ref ${result.stderr}');
+      }
+    }
+  });
+
+  test('another stn on the PATH does not stop the local install', () async {
+    repo.sandbox.stub('stn', 'echo another');
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(result.stderr, isEmpty);
+    expect(
+      result.stdout,
+      installLine('0.10.0-dev.1', 'develop', repo.shortSha('develop')),
+    );
+    expect(
+      File('${installDir()}/bin/stn').readAsLinesSync()[1],
+      '# shim develop',
+    );
   });
 }
