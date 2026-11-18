@@ -1321,17 +1321,27 @@ WhenField? _parseWhenField(
     format: 'doc-type',
     prefix: keyPrefix,
   );
-  return (
-    field: requireValue<String>(map, 'field', file: file, prefix: keyPrefix),
-    values: List.unmodifiable(
-      stringsOf(
-        requireValue<YamlList>(map, 'values', file: file, prefix: keyPrefix),
-        'values',
-        file: file,
-        prefix: keyPrefix,
-      ),
-    ),
+  final field = requireValue<String>(
+    map,
+    'field',
+    file: file,
+    prefix: keyPrefix,
   );
+  final values = stringsOf(
+    requireValue<YamlList>(map, 'values', file: file, prefix: keyPrefix),
+    'values',
+    file: file,
+    prefix: keyPrefix,
+  );
+  if (values.isEmpty) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'when_field values holds no value',
+      file: file,
+      key: '${keyPrefix}values',
+    );
+  }
+  return (field: field, values: List.unmodifiable(values));
 }
 
 /// Reads `lint.required_field_groups` as a list of non-empty field id lists.
