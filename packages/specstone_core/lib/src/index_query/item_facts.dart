@@ -229,6 +229,23 @@ List<SectionItem> sectionItemsAt(
   return sectionItemsOf(withGeneratedFenced(body, isGenerated));
 }
 
+/// Returns the items of the lead of [content], a doc of [type], each at its
+/// file line, as the index reads items: a closed generated block holds none.
+///
+/// ItemFacts keep no item structure for the lead, only its counts and IDs.
+List<SectionItem> leadItemsAt(DocContent content, MergedDocType? type) {
+  final text = toLf(content.text);
+  final doc = Doc.parse(text);
+  final isGenerated = generatedLineTest(
+    doc,
+    text,
+    type?.listedGenerators.toSet() ?? const {},
+  );
+  return sectionItemsOf(
+    leadBodyLinesOf(doc, text, content.lineFacts, isGenerated),
+  );
+}
+
 /// The generated-line test of each doc [sectionItemsAt] read, so a doc is
 /// parsed once however many of its sections are read.
 final _generatedLines = Expando<bool Function(int line)>();

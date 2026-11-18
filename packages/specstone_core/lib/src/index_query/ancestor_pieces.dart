@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_items.dart'
-    show SectionItem, SectionItemKind, sectionItemsOf;
+    show SectionItem, SectionItemKind;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show startsTable;
 import 'package:specstone_core/src/index_query/bundle.dart';
@@ -8,11 +8,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
-    show
-        generatedLineTest,
-        leadBodyLinesOf,
-        sectionItemsAt,
-        withGeneratedFenced;
+    show generatedLineTest, leadBodyLinesOf, leadItemsAt, sectionItemsAt;
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
@@ -314,9 +310,7 @@ final class _View {
   /// The lines of the lead, the head after its title line.
   late final List<BodyLine> _leadBody = _leadBodyOf();
 
-  late final List<SectionItem> _leadItems = sectionItemsOf(
-    withGeneratedFenced(_leadBody, _isGenerated),
-  );
+  late final List<SectionItem> _leadItems = leadItemsAt(content, type);
 
   late final Doc _doc = Doc.parse(toLf(content.text));
 
