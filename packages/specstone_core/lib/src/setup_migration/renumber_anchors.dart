@@ -193,7 +193,7 @@ AnchorRewrite? withConcernsAnchorsMoved(
   if (section == null) return null;
   final lines = lf.split('\n');
   var citesOthers = false;
-  for (final (:text, :line, :fenced) in sectionBodyLines(
+  for (final BodyLine(:text, :line, :fenced) in sectionBodyLines(
     content.sections,
     content.lineFacts,
     section,

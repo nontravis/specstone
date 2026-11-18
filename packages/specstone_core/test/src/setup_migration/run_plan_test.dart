@@ -128,7 +128,7 @@ void main() {
     addTearDown(() => _root.deleteSync(recursive: true));
   });
 
-  test('f06/us02/fr02/e08, F6-D34: a move onto the source of a move not yet '
+  test('a move onto the source of a move not yet '
       'run parks in the stage until every move has run', () {
     expect(_moveLines(_planOf(_cycle)), [
       'move docs/$_runbook -> ${MoveJournal.stagePath}/0',
@@ -137,7 +137,7 @@ void main() {
     ]);
   });
 
-  test('f06/us02/fr02/e08, F6-D34: a three-doc cycle parks one doc', () {
+  test('a three-doc cycle parks one doc', () {
     final plan = _planOf(const [
       PathMove(from: 'c.md', to: 'a.md'),
       PathMove(from: 'b.md', to: 'c.md'),
@@ -189,7 +189,7 @@ void main() {
     );
   });
 
-  test('f06/us01/fr07, dw-s03/inv6: commit 1 carries each move once as a '
+  test('commit 1 carries each move once as a '
       'ProjectPath pair, the stage hops left out; commit 2 carries none', () {
     final commits = _planOf(_cycle)
         .journalSteps(base: 'abc', projectRoot: _root)
@@ -203,9 +203,8 @@ void main() {
     expect(commits.last.moves, isEmpty);
   });
 
-  group('setup_migration/migrate_legacy_docs/commit_and_resume, '
-      'agent files', () {
-    test('E02: one step per agent file follows every other write and create, '
+  group('agent files', () {
+    test('one step per agent file follows every other write and create, '
         'a new file created and an existing file written', () {
       final steps = _planWithAgents().journalSteps(
         base: 'abc',
@@ -227,7 +226,7 @@ void main() {
       expect(steps.last, isA<CommitStep>());
     });
 
-    test('E02: commit 2 carries the root agent files and no top file', () {
+    test('commit 2 carries the root agent files and no top file', () {
       final commit = _planWithAgents()
           .journalSteps(base: 'abc', projectRoot: _root)
           .whereType<CommitStep>()
@@ -245,7 +244,7 @@ void main() {
       expect(commit.paths.where((path) => path.startsWith('..')), isEmpty);
     });
 
-    test('INV-6: a journal written and read back replays the same steps', () {
+    test('a journal written and read back replays the same steps', () {
       final steps = _planWithAgents().journalSteps(
         base: 'abc',
         projectRoot: _root,
@@ -261,7 +260,7 @@ void main() {
       ]);
     });
 
-    test('E20: a top path applies through the target and a write skips a '
+    test('a top path applies through the target and a write skips a '
         'file that is missing', () {
       final temp = Directory.systemTemp.createTempSync('run_plan_test');
       addTearDown(() => temp.deleteSync(recursive: true));
@@ -301,7 +300,7 @@ void main() {
       expect(File('${project.path}/CLAUDE.md').existsSync(), isFalse);
     });
 
-    test('E08: the agent files line prints last under commit 2, creates when '
+    test('the agent files line prints last under commit 2, creates when '
         'the plan has no rewrite lines', () {
       expect(
         _planWithAgents().toText(),
@@ -314,7 +313,7 @@ void main() {
       );
     });
 
-    test('E08: a planner that sets rewrite lines places the line itself', () {
+    test('a planner that sets rewrite lines places the line itself', () {
       expect(
         _planWithAgents(rewriteLines: ['own', _agentPlan().line]).toText(),
         'migrate\n'
@@ -326,7 +325,7 @@ void main() {
       );
     });
 
-    test('E08: rewrite lines that leave out the agent files line keep it '
+    test('rewrite lines that leave out the agent files line keep it '
         'last under commit 2, creates', () {
       expect(
         _planWithAgents(rewriteLines: const ['own']).toText(),
@@ -339,7 +338,7 @@ void main() {
       );
     });
 
-    test('write_agent_files E22: a symbolic-link CLAUDE.md stays a link and '
+    test('a symbolic-link CLAUDE.md stays a link and '
         'its real file takes the write', () {
       final temp = Directory.systemTemp.createTempSync('run_plan_link');
       addTearDown(() => temp.deleteSync(recursive: true));
@@ -431,7 +430,7 @@ void main() {
         return Directory('${base.path}/project')..createSync();
       }
 
-      test('write_agent_files E15: a repository top nested in the project '
+      test('a repository top nested in the project '
           'joins no commit', () {
         final project = projectBeside({});
         final write = _agentWrite('lib/AGENTS.md', isNew: true, isAtTop: true);
@@ -441,7 +440,7 @@ void main() {
         expect(paths, [specstoneGitignorePath]);
       });
 
-      test('R49: a linked folder inside the project places the file by its '
+      test('a linked folder inside the project places the file by its '
           'real path', () {
         final project = projectBeside({});
         Directory('${project.path}/rules').createSync();
@@ -462,7 +461,7 @@ void main() {
         ]);
       }, skip: Platform.isWindows ? skipLinks : null);
 
-      test('R49: a new file below a linked folder is placed by the '
+      test('a new file below a linked folder is placed by the '
           'folder real path', () {
         final project = projectBeside({});
         Directory('${project.path}/rules').createSync();
@@ -672,7 +671,7 @@ void main() {
     });
   });
 
-  test('E11: the layout '
+  test('the layout '
       'line prints its doc count, and is null without one', () {
     expect(
       formatLayoutLine(['prds/PROJECT.md', 'prds/GNFR.md']),

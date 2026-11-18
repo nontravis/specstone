@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('parseMarkdown', () {
-    test('doc_model/s03/inv8, LP2: a body the parser throws on gives null, '
+    test('a body the parser throws on gives null, '
         'whatever it throws', () {
       final inputs = [
         r'[a]:<b\',
@@ -25,7 +25,7 @@ void main() {
       }
     });
 
-    test('doc_model/s03/inv8, LP2: a tree deeper than 1,000 levels gives '
+    test('a tree deeper than 1,000 levels gives '
         'null; one within the bound gives its nodes', () {
       final tooDeep = '${'*' * 2400}a${'*' * 2400}';
       final withinBound = '${'*' * 1900}a${'*' * 1900}';
@@ -47,15 +47,12 @@ void main() {
       );
     });
 
-    test(
-      'doc_model/s03/inv8, LP2: a body the parser reads gives its nodes',
-      () {
-        final nodes = parseMarkdown('[a](b.md)')!;
+    test('a body the parser reads gives its nodes', () {
+      final nodes = parseMarkdown('[a](b.md)')!;
 
-        expect(nodes, hasLength(1));
-        expect((nodes.single as Element).tag, 'p');
-      },
-    );
+      expect(nodes, hasLength(1));
+      expect((nodes.single as Element).tag, 'p');
+    });
   });
 
   group('parseMarkdownTreeByBlock', () {

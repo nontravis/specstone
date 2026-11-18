@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/models/destination_parts.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:test/test.dart';
 
@@ -76,7 +78,7 @@ void main() {
     );
 
     test('a Name may hold 2 or more slugs, and a one-slug Name marks a '
-        'reference only when typed (R62)', () {
+        'reference only when typed', () {
       expect(
         readDocAddress('feature:index_query').isReferenceWithoutLookup,
         isTrue,
@@ -153,7 +155,7 @@ void main() {
       expect(readItemId('RULE- x', 'RULE-'), isNull);
     });
 
-    test('RULE-12: a digit after the letter run reads as an UnreadableId '
+    test('a digit after the letter run reads as an UnreadableId '
         'spanning the whole letter and digit run', () {
       for (final (text, written) in const [
         ('RULE-7a1 x', 'RULE-7a1'),
@@ -293,7 +295,7 @@ void main() {
   });
 
   group('nextFreeIds', () {
-    test('RULE-12: digits past 64 bits read and count without a throw', () {
+    test('digits past 64 bits read and count without a throw', () {
       final ids = [
         readItemId('RULE-1234567890123456789012345', 'RULE-')!,
         readItemId('RULE-3a', 'RULE-')!,
@@ -306,7 +308,7 @@ void main() {
       });
     });
 
-    test('RULE-12 example: highest S7, then S6a and S6b give S8 and S9', () {
+    test('then S6a and S6b give S8 and S9', () {
       final ids = [
         readScenarioHeading('### Scenario 6')!,
         readScenarioHeading('### Scenario 7')!,
@@ -316,7 +318,7 @@ void main() {
       expect(nextFreeIds(ids), {2: 'Scenario 8', 3: 'Scenario 9'});
     });
 
-    test('check_item_ids E05: RULE-7a under highest RULE-30 gets RULE-31', () {
+    test('RULE-7a under highest RULE-30 gets RULE-31', () {
       final ids = [
         readItemId('**RULE-30** Rule text', 'RULE-')!,
         readItemId('**RULE-7a** Rule text', 'RULE-')!,
@@ -324,7 +326,7 @@ void main() {
       expect(nextFreeIds(ids), {1: 'RULE-31'});
     });
 
-    test('check_item_ids E06: Scenario 6a under highest Scenario 8 gets '
+    test('Scenario 6a under highest Scenario 8 gets '
         'Scenario 9', () {
       final ids = [
         readScenarioHeading('### Scenario 8')!,
@@ -615,7 +617,7 @@ void main() {
       expect(target.anchor, isNull);
     });
 
-    test('an empty fragment names the doc top (RULE-13)', () {
+    test('an empty fragment names the doc top', () {
       final target = readLinkTarget('#') as RelativeLink;
       expect(target.segments, const <String>[]);
       expect(target.anchor, '');
@@ -645,50 +647,104 @@ void main() {
     DestinationParts inline(String written) =>
         destinationPartsOf(written, DestinationKind.inline);
 
-    test('R74: splits a written destination where its first ? or # is '
+    test('splits a written destination where its first ? or # is '
         'written', () {
-      expect(inline('a.md#x'), (pathEnd: 4, anchorStart: 5));
-      expect(inline('#x'), (pathEnd: 0, anchorStart: 1));
-      expect(inline(r'f01\_a/A.md#x#y'), (pathEnd: 11, anchorStart: 12));
-      expect(inline('a.md?q#x'), (pathEnd: 4, anchorStart: 7));
-      expect(inline(r'../t_doc.md#a\)b'), (pathEnd: 11, anchorStart: 12));
+      expect(
+        inline('a.md#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
+      expect(inline('#x'), const DestinationParts(pathEnd: 0, anchorStart: 1));
+      expect(
+        inline(r'f01\_a/A.md#x#y'),
+        const DestinationParts(pathEnd: 11, anchorStart: 12),
+      );
+      expect(
+        inline('a.md?q#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 7),
+      );
+      expect(
+        inline(r'../t_doc.md#a\)b'),
+        const DestinationParts(pathEnd: 11, anchorStart: 12),
+      );
     });
 
-    test('R74: a # or ? written as an escape or a character reference splits '
+    test('a # or ? written as an escape or a character reference splits '
         'where its text starts and ends', () {
-      expect(inline(r'a.md\#x'), (pathEnd: 4, anchorStart: 6));
-      expect(inline('USER_STORY.md&#35;s'), (pathEnd: 13, anchorStart: 18));
-      expect(inline('a&#x23;x'), (pathEnd: 1, anchorStart: 7));
-      expect(inline('a&#X23;x'), (pathEnd: 1, anchorStart: 7));
-      expect(inline('a&num;x'), (pathEnd: 1, anchorStart: 6));
-      expect(inline('a&#63;q'), (pathEnd: 1, anchorStart: null));
-      expect(inline('a&quest;q#x'), (pathEnd: 1, anchorStart: 10));
-      expect(inline(r'a&\#35;x'), (pathEnd: 1, anchorStart: 7));
+      expect(
+        inline(r'a.md\#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 6),
+      );
+      expect(
+        inline('USER_STORY.md&#35;s'),
+        const DestinationParts(pathEnd: 13, anchorStart: 18),
+      );
+      expect(
+        inline('a&#x23;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
+      expect(
+        inline('a&#X23;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
+      expect(
+        inline('a&num;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 6),
+      );
+      expect(
+        inline('a&#63;q'),
+        const DestinationParts(pathEnd: 1, anchorStart: null),
+      );
+      expect(
+        inline('a&quest;q#x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 10),
+      );
+      expect(
+        inline(r'a&\#35;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
     });
 
-    test('R74: a character reference to another character, a percent escape, '
+    test('a character reference to another character, a percent escape, '
         'and an unknown name split nothing', () {
-      expect(inline('doc&#95;model.md#r'), (pathEnd: 16, anchorStart: 17));
-      expect(inline('a.md#&#115;cenario'), (pathEnd: 4, anchorStart: 5));
-      expect(inline('a%23b.md'), (pathEnd: 8, anchorStart: null));
-      expect(inline('a&NUM;b'), (pathEnd: 7, anchorStart: null));
-      expect(inline('a.md'), (pathEnd: 4, anchorStart: null));
-      expect(inline(''), (pathEnd: 0, anchorStart: null));
+      expect(
+        inline('doc&#95;model.md#r'),
+        const DestinationParts(pathEnd: 16, anchorStart: 17),
+      );
+      expect(
+        inline('a.md#&#115;cenario'),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
+      expect(
+        inline('a%23b.md'),
+        const DestinationParts(pathEnd: 8, anchorStart: null),
+      );
+      expect(
+        inline('a&NUM;b'),
+        const DestinationParts(pathEnd: 7, anchorStart: null),
+      );
+      expect(
+        inline('a.md'),
+        const DestinationParts(pathEnd: 4, anchorStart: null),
+      );
+      expect(inline(''), const DestinationParts(pathEnd: 0, anchorStart: null));
     });
 
-    test('R74: an inline destination drops the backslash before a backslash '
+    test('an inline destination drops the backslash before a backslash '
         'before the rest, as markdown reads it, and a definition does not', () {
       const written = r'a&\\#35;x';
 
-      expect(inline(written), (pathEnd: 1, anchorStart: 8));
-      expect(destinationPartsOf(written, DestinationKind.angleInline), (
-        pathEnd: 1,
-        anchorStart: 8,
-      ));
-      expect(destinationPartsOf(written, DestinationKind.definition), (
-        pathEnd: 4,
-        anchorStart: 5,
-      ));
+      expect(
+        inline(written),
+        const DestinationParts(pathEnd: 1, anchorStart: 8),
+      );
+      expect(
+        destinationPartsOf(written, DestinationKind.angleInline),
+        const DestinationParts(pathEnd: 1, anchorStart: 8),
+      );
+      expect(
+        destinationPartsOf(written, DestinationKind.definition),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
     });
   });
 

@@ -76,6 +76,8 @@ void main() {
       'doc_name_unresolved',
       'per_target_reference',
       'shared_doc_code_path',
+      'source_path_missing',
+      'source_path_outside_project',
       'number_label',
       'cite_unlinked',
       'reference_doc_unresolved',
@@ -234,7 +236,7 @@ void main() {
     expect(byRule.waitsFor, WaitsFor.owner);
   });
 
-  test('E08: an owner '
+  test('an owner '
       'finding ends its line with the tag; its JSON holds waitsFor after '
       'message and no tag in the message', () {
     const finding = Finding(
@@ -399,7 +401,7 @@ void main() {
     expect(finding.toJson()['waitsFor'], 'agent');
   });
 
-  test('E12: an owner '
+  test('an owner '
       'finding counts and exits 1 as any other', () {
     final report = CheckReport(
       findings: const [
@@ -423,7 +425,7 @@ void main() {
     expect(report.exitStatus, 0);
   });
 
-  test('f04/us01/fr02/e02, cc-s03/inv14: findings sort by path, line, kind, then message', () {
+  test('findings sort by path, line, kind, then message', () {
     Finding at(String path, int line, FindingKind kind, String message) =>
         Finding(
           kind: kind,
@@ -452,7 +454,7 @@ void main() {
     expect(report.exitStatus, 1);
   });
 
-  test('f04/us01/fr02/e03, f04/us01/fr02/e04: an untyped doc and a template file carry no name; warnings print '
+  test('an untyped doc and a template file carry no name; warnings print '
       'only when there are some', () {
     const finding = Finding(
       kind: FindingKind.untypedDoc,

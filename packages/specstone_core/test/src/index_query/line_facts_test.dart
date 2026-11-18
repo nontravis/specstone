@@ -123,7 +123,7 @@ void main() {
       expect(parsed.content.lineFacts.links, isEmpty);
     });
 
-    test('E08: a '
+    test('a '
         'marker in a frontmatter value is not stored', () {
       const doc = '---\nnote: TBR \u2014 in the frontmatter\n---\n# T\n';
       expect(_factsOf(doc).tbrMarkers, isEmpty);
@@ -137,7 +137,8 @@ void main() {
       ]);
     });
 
-    test('f04/nfr-p03: a doc with frontmatter, title, sections, and a fence hiding a ## has 1-based file lines', () {
+    test('a doc with frontmatter, title, sections, and a fence hiding a ## has '
+        '1-based file lines', () {
       final facts = _factsOf(text);
       expect(facts.sectionLines, [7, 13]);
       expect(facts.fenced, [(first: 9, last: 11)]);
@@ -146,7 +147,8 @@ void main() {
       expect(facts.frontmatterErrorLine, isNull);
     });
 
-    test("f04/nfr-p03, f04/us02/fr04, FM5: line facts hold each doc link's target, line, and destination as written", () {
+    test("line facts hold each doc link's target, line, and destination as "
+        'written', () {
       const linked =
           '---\na: 1\n---\n# T\n\nSee [s](us01_x/USER_STORY.md).\n\n'
           '[w](https://e.com) [t](#top)\n';
@@ -166,7 +168,7 @@ void main() {
       );
     });
 
-    test('f04/us02/fr04, PS-R3: line facts hold each file link apart from the doc links', () {
+    test('line facts hold each file link apart from the doc links', () {
       const linked =
           '---\na: 1\n---\n# T\n\nSee [s](us01_x/USER_STORY.md) ![f](flow.png).\n';
       const docPath = 'prds/f01_a/FEATURE.md';
@@ -184,15 +186,19 @@ void main() {
       ]);
     });
 
-    test('f04/nfr-p03: isFenced is true on a fence line and its content and false elsewhere', () {
-      final facts = _factsOf(text);
-      expect(
-        [for (var i = 0; i <= 15; i++) facts.isFenced(i)],
-        [for (var i = 0; i <= 15; i++) i >= 9 && i <= 11],
-      );
-    });
+    test(
+      'isFenced is true on a fence line and its content and false elsewhere',
+      () {
+        final facts = _factsOf(text);
+        expect(
+          [for (var i = 0; i <= 15; i++) facts.isFenced(i)],
+          [for (var i = 0; i <= 15; i++) i >= 9 && i <= 11],
+        );
+      },
+    );
 
-    test('f04/nfr-p03: a section count is what split and runes count on its text, a surrogate pair counting once', () {
+    test('a section count is what split and runes count on its text, a '
+        'surrogate pair counting once', () {
       final content = _contentOf(text);
       final counts = content.lineFacts.sectionCounts;
       expect(counts, hasLength(2));
@@ -215,7 +221,7 @@ void main() {
       },
     );
 
-    test('f04/nfr-p03: a CRLF file has the facts of its LF twin', () {
+    test('a CRLF file has the facts of its LF twin', () {
       final lf = _factsOf(text);
       final crlf = _factsOf(text.replaceAll('\n', '\r\n'));
       expect(crlf.toJson(), lf.toJson());
@@ -223,7 +229,8 @@ void main() {
       expect(crlf.charCount, text.runes.length);
     });
 
-    test('f04/nfr-p03: a doc without frontmatter has its sections from line 1, and an empty doc has no lines', () {
+    test('a doc without frontmatter has its sections from line 1, and an empty '
+        'doc has no lines', () {
       final bare = _factsOf('# T\n\n## S\nx\n');
       expect(bare.sectionLines, [3]);
       expect(bare.lineCount, 3);
@@ -233,7 +240,7 @@ void main() {
       expect(empty.charCount, 0);
     });
 
-    test('f04/nfr-p03: a final line without a line break counts as a line', () {
+    test('a final line without a line break counts as a line', () {
       expect(_factsOf('# T\n\n## S\nx').lineCount, 3);
       expect(_factsOf('# T\n\n## S\nx\n\n').lineCount, 3);
     });
@@ -264,13 +271,14 @@ void main() {
       expect(_factsOf('---\nstatus: planned\n# T\n\nx\n\n').lineCount, 4);
     });
 
-    test('f04/nfr-p03: an unclosed fence runs to the end of the file', () {
+    test('an unclosed fence runs to the end of the file', () {
       final facts = _factsOf('# T\n\n```\n## hidden\nmore\n');
       expect(facts.fenced, [(first: 3, last: 5)]);
       expect(facts.sectionLines, isEmpty);
     });
 
-    test('f04/nfr-p03: invalid frontmatter YAML stores the parser line, a non-mapping stores 1, valid or absent stores none', () {
+    test('invalid frontmatter YAML stores the parser line, a non-mapping '
+        'stores 1, valid or absent stores none', () {
       expect(
         _factsOf('---\ntitle: "open\n---\n\n# T\n').frontmatterErrorLine,
         3,
@@ -303,21 +311,20 @@ void main() {
           '---\r\na: 1\r\n---\r\n# T\r\n```\r\n## no\r\n```\r\n',
     };
     for (final MapEntry(key: name, value: raw) in texts.entries) {
-      test(
-        'f04/nfr-p03: $name: the line count is the non-blank body lines, the code points those of runes',
-        () {
-          final lf = raw.replaceAll('\r\n', '\n');
-          final facts = _factsOf(raw);
-          expect(
-            facts.lineCount,
-            nonBlankLinesOf(lfLinesOf(Doc.parse(lf).afterFrontmatter)),
-          );
-          expect(facts.charCount, lf.runes.length);
-        },
-      );
+      test('$name: the line count is the non-blank body lines, the code points '
+          'those of runes', () {
+        final lf = raw.replaceAll('\r\n', '\n');
+        final facts = _factsOf(raw);
+        expect(
+          facts.lineCount,
+          nonBlankLinesOf(lfLinesOf(Doc.parse(lf).afterFrontmatter)),
+        );
+        expect(facts.charCount, lf.runes.length);
+      });
     }
 
-    test('f04/nfr-p03, f04/us02/fr04, FM5: a link is placed from the line after the frontmatter, whatever ends the file', () {
+    test('a link is placed from the line after the frontmatter, whatever ends '
+        'the file', () {
       const docPath = 'prds/f01_a/FEATURE.md';
       const link = '[s](x.md)';
       final links = [
@@ -333,7 +340,8 @@ void main() {
       expect(_factsOf(link, docPath: docPath).links.single.line, 1);
     });
 
-    test('f04/nfr-p03: a fence indented up to three spaces counts, four spaces is code, and the last line may open one', () {
+    test('a fence indented up to three spaces counts, four spaces is code, and '
+        'the last line may open one', () {
       expect(_factsOf('# T\n   ```\n## no\n   ```\n').fenced, [
         (first: 2, last: 4),
       ]);
@@ -341,7 +349,7 @@ void main() {
       expect(_factsOf('# T\n```').fenced, [(first: 2, last: 2)]);
     });
 
-    test('f04/nfr-p03: a tilde fence and a CRLF fence hide their ## lines', () {
+    test('a tilde fence and a CRLF fence hide their ## lines', () {
       final tilde = _factsOf('# T\n~~~\n## no\n~~~\n## yes\n');
       expect(tilde.fenced, [(first: 2, last: 4)]);
       expect(tilde.sectionLines, [5]);
@@ -354,7 +362,8 @@ void main() {
   });
 
   group('LineFacts JSON', () {
-    test('f04/nfr-p03: the JSON round-trips every fact but the section counts, which the section rows keep', () {
+    test('the JSON round-trips every fact but the section counts, which the '
+        'section rows keep', () {
       final facts = _factsOf(text);
       final back = LineFacts.fromJson(
         jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
@@ -370,7 +379,7 @@ void main() {
       expect(back.isFenced(12), isFalse);
     });
 
-    test('f04/us02/fr04, PS-R3: the JSON round-trips the file links', () {
+    test('the JSON round-trips the file links', () {
       final facts = _factsOf('# T\n\n![f](flow%20a.png) [c](../x.dart)\n');
       expect(facts.fileLinks, hasLength(2));
       final back = LineFacts.fromJson(
@@ -380,7 +389,7 @@ void main() {
       expect(back.fileLinks, facts.fileLinks);
     });
 
-    test('f04/us02/fr04, PS-R3, P11: the JSON round-trips the self links and '
+    test('the JSON round-trips the self links and '
         'the anchor set', () {
       final facts = _factsOf(
         '# T\n\n[a](b.md#x) [s](#rules)\n'
@@ -414,17 +423,14 @@ void main() {
       }
     });
 
-    test(
-      's03/inv24, LP2, P11: a body the markdown parser fails on has no links '
-      'and an unknown anchor set, stored as null',
-      () {
-        final facts = _factsOf('# T\n\n[a](b.md)\n\n[a]:<b\\');
-        expect(facts.links, isEmpty);
-        expect(facts.fileLinks, isEmpty);
-        expect(facts.selfLinks, isEmpty);
-        expect(facts.anchors, isNull);
-      },
-    );
+    test('a body the markdown parser fails on has no links '
+        'and an unknown anchor set, stored as null', () {
+      final facts = _factsOf('# T\n\n[a](b.md)\n\n[a]:<b\\');
+      expect(facts.links, isEmpty);
+      expect(facts.fileLinks, isEmpty);
+      expect(facts.selfLinks, isEmpty);
+      expect(facts.anchors, isNull);
+    });
   });
 
   group('LineFacts cite candidates, link texts, headings', () {

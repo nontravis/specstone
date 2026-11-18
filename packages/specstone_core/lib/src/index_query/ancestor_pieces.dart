@@ -1,8 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
-import 'package:specstone_core/src/doc_model/doc_items.dart'
-    show SectionItem, SectionItemKind;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show startsTable;
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';

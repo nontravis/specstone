@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
@@ -372,7 +373,7 @@ void _rewriteFrRows(
   final fenced = fencedLines(bodyLines);
   final rows = readFrTraceRows([
     for (var i = 0; i < bodyLines.length; i++)
-      (text: bodyLines[i], line: i, fenced: fenced[i]),
+      BodyLine(text: bodyLines[i], line: i, fenced: fenced[i]),
   ]);
   for (final (:cell, :line) in rows) {
     final name = newCell(cell);

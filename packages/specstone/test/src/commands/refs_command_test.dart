@@ -25,7 +25,7 @@ void main() {
       'message': 'no architecture doc carries the name signup',
     });
   });
-  test('f01/us07/s6, f01/us07/fr01/e09: outside a project, or under a 9.9.9 pin, exits 78', () async {
+  test('outside a project, or under a 9.9.9 pin, exits 78', () async {
     expect(
       await readRunner(await writeTree({})).runner.run(['refs', 'login']),
       78,
@@ -87,7 +87,7 @@ void main() {
       },
     );
 
-    test('E22: refs --target web is argument_invalid, exit 64', () async {
+    test('refs --target web is argument_invalid, exit 64', () async {
       final (:runner, :out, :err) = readRunner(await twoTargets());
 
       expect(
@@ -101,7 +101,8 @@ void main() {
       );
     });
   });
-  test('f01/us04/fr01/e09: two names are a usage error whose usage line takes a name or a path, exit 64', () async {
+  test('two names are a usage error whose usage line takes a name or a path, '
+      'exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['refs', 'a', 'b']), 64);
     expect(out.toString(), isEmpty);

@@ -15,7 +15,7 @@ void main() {
 
   DocPathShape shape(String id) => DocPathShape.of(set.lookup(id)!, set)!;
 
-  test('dw-s03/inv8, F2-D36, F2-D37: the movable doc types come from the templates', () {
+  test('the movable doc types come from the templates', () {
     final shapes = {
       for (final t in set.docTypes) t.id: DocPathShape.of(t, set),
     };
@@ -46,7 +46,7 @@ void main() {
     );
   });
 
-  test('dw-s03/inv6: the own segment is a folder or the file', () {
+  test('the own segment is a folder or the file', () {
     expect(
       shape('feature').ownPathOf(loginFeature),
       'prds/features/f01_login/',
@@ -74,7 +74,7 @@ void main() {
     ]);
   });
 
-  test('dw-s03/inv6: the own segment index and the parent count', () {
+  test('the own segment index and the parent count', () {
     expect(
       [
         for (final id in ['feature', 'user_story', 'fr', 'architecture'])
@@ -86,7 +86,8 @@ void main() {
     expect(shape('feature').containerOf([]), 'prds/features/');
   });
 
-  test('dw-s03/inv6: valuesOf is null on a path the doc type does not match, and build is its inverse', () {
+  test('valuesOf is null on a path the doc type does not match, and build is '
+      'its inverse', () {
     expect(shape('feature').valuesOf(story1), isNull);
     expect(
       shape('user_story').valuesOf('prds/features/x/USER_STORY.md'),
@@ -99,23 +100,26 @@ void main() {
     expect(shape('project').valuesOf('prds/PROJECT.md'), <String>[]);
   });
 
-  test('dw-s03/inv6: ownValues fills the own segment placeholders in pattern order', () {
+  test('ownValues fills the own segment placeholders in pattern order', () {
     expect(shape('user_story').ownValues(number: '04', slug: 'a'), ['04', 'a']);
     expect(shape('persona').ownValues(slug: 'seller'), ['seller']);
     expect(shape('architecture').ownValues(), <String>[]);
   });
 
-  test('f03/unit-roots: unitRootsOf gives the own folder then the spec folders, or the one file', () {
-    expect(unitRootsOf(set, set.lookup('feature')!, loginFeature), [
-      'prds/features/f01_login/',
-      '.specstone/records/f01_login/',
-      'specs/f01_login/',
-    ]);
-    expect(unitRootsOf(set, set.lookup('architecture')!, loginArch), [
-      loginArch,
-    ]);
-    expect(unitRootsOf(set, set.lookup('feature')!, story1), isNull);
-  });
+  test(
+    'unitRootsOf gives the own folder then the spec folders, or the one file',
+    () {
+      expect(unitRootsOf(set, set.lookup('feature')!, loginFeature), [
+        'prds/features/f01_login/',
+        '.specstone/records/f01_login/',
+        'specs/f01_login/',
+      ]);
+      expect(unitRootsOf(set, set.lookup('architecture')!, loginArch), [
+        loginArch,
+      ]);
+      expect(unitRootsOf(set, set.lookup('feature')!, story1), isNull);
+    },
+  );
 
   group('sub-feature: shapes at depth', () {
     late MergedSet nested;
@@ -127,7 +131,7 @@ void main() {
     DocPathShape? ofDoc(String id, String docPath) =>
         DocPathShape.ofDoc(nested.lookup(id)!, nested, docPath);
 
-    test('doc_model/s03/inv10: ofDoc gives cart depth 1, ownIndex 3, parentCount 2', () {
+    test('ofDoc gives cart depth 1, ownIndex 3, parentCount 2', () {
       final cart = ofDoc('feature', cartFeature)!;
       expect(cart.depth, 1);
       expect(cart.ownIndex, 3);
@@ -136,20 +140,20 @@ void main() {
       expect(ofDoc('feature', cartAdd), isNull);
     });
 
-    test('doc_model/s03/inv10: a depth-1 domain is a spec doc shape', () {
+    test('a depth-1 domain is a spec doc shape', () {
       final domain = ofDoc('domain', cartDomain)!;
       expect(domain.depth, 1);
       expect(isSpecDocShape(domain), isTrue);
       expect(domain.parentCount, 4);
     });
 
-    test('doc_model/s03/inv10: of gives null past the last depth', () {
+    test('of gives null past the last depth', () {
       final feature = nested.lookup('feature')!;
       expect(DocPathShape.of(feature, nested, depth: 3), isNotNull);
       expect(DocPathShape.of(feature, nested, depth: 4), isNull);
     });
 
-    test('doc_model/s03/inv10: specFoldersOf cart at depth 1 is its own spec folder', () {
+    test('specFoldersOf cart at depth 1 is its own spec folder', () {
       expect(
         specFoldersOf(nested, nested.lookup('feature')!, [
           '02',
@@ -161,7 +165,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/inv10: unitRootsOf cart is its prd folder and its spec folder', () {
+    test('unitRootsOf cart is its prd folder and its spec folder', () {
       expect(unitRootsOf(nested, nested.lookup('feature')!, cartFeature), [
         'prds/features/f02_shop/f01_cart/',
         '.specstone/records/f02_shop/f01_cart/',

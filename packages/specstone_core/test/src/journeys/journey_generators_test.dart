@@ -337,8 +337,7 @@ void main() {
       expect(scenarioCopyOf('### Scenario 1 — x'), '');
     });
 
-    test('E01: '
-        'a table row right under the heading is copied in the layout', () {
+    test('a table row right under the heading is copied in the layout', () {
       expect(
         scenarioCopyOf(
           '### Scenario 1 — x\n| a   | b  |\n|-----|----|\n| 1 | 2 |',
@@ -347,13 +346,11 @@ void main() {
       );
     });
 
-    test('E02: '
-        'blank lines under the heading are left out', () {
+    test('blank lines under the heading are left out', () {
       expect(scenarioCopyOf('### Scenario 1 — x\n\n\n- a\n- b'), '- a\n- b');
     });
 
-    test('E03: '
-        'a padded table is copied in the format layout', () {
+    test('a padded table is copied in the format layout', () {
       const block =
           '### Scenario 1 — x\n\n'
           '| a   | b  |\n'
@@ -392,12 +389,13 @@ void main() {
       expect(journeyGenerators().kinds, {'journey_flow', 'scenario_copy'});
     });
 
-    test('the kinds the template loader accepts are the journey kinds and '
-        'feature_catalog', () {
+    test('the kinds the template loader accepts are the journey kinds, '
+        'feature_catalog, and component_catalog', () {
       expect(shippedGeneratorKinds, {
         'journey_flow',
         'scenario_copy',
         'feature_catalog',
+        'component_catalog',
       });
     });
   });

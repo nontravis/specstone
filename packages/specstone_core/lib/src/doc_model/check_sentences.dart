@@ -1,9 +1,8 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/inline_holders.dart';
+import 'package:specstone_core/src/doc_model/models/check_sentence.dart';
+import 'package:specstone_core/src/doc_model/models/text_block.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart';
-
-/// A sentence of the check's cut, and whether a `###` heading ends it.
-typedef CheckSentence = ({String text, bool isHeading});
 
 const _space = 0x20;
 const _openBracket = 0x5B;
@@ -51,7 +50,10 @@ List<CheckSentence> _cut(TextBlock block) {
   ];
   return [
     for (var i = 0; i < kept.length; i++)
-      (text: kept[i], isHeading: block.isHeading && i == kept.length - 1),
+      CheckSentence(
+        text: kept[i],
+        isHeading: block.isHeading && i == kept.length - 1,
+      ),
   ];
 }
 

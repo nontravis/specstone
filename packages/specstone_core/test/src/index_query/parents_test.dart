@@ -23,7 +23,7 @@ void main() {
       );
 
   group('resolveParents', () {
-    test('f01/us01/fr03/e01, s03/inv7: an FR has its story as parent, a story its feature', () {
+    test('an FR has its story as parent, a story its feature', () {
       final result = resolveParents([
         doc('prds/features/f01_login/FEATURE.md', 'feature', 'login'),
         doc(
@@ -45,7 +45,7 @@ void main() {
       });
       expect(result.warnings, isEmpty);
     });
-    test('f01/us01/fr03/e04, f01/us01/fr03/e11, s03/inv7: spec docs of f01_login and f02_login take the feature login', () {
+    test('spec docs of f01_login and f02_login take the feature login', () {
       final result = resolveParents([
         doc('prds/features/f01_login/FEATURE.md', 'feature', 'login'),
         doc('specs/f01_login/ARCHITECTURE.md', 'architecture', 'login'),
@@ -56,7 +56,7 @@ void main() {
         'specs/f02_login/API.md': 'prds/features/f01_login/FEATURE.md',
       });
     });
-    test('E22, s03/inv28: both '
+    test('both '
         'target twins take the shared feature as parent', () {
       final targeted = MergedSet(
         docTypes: const [
@@ -108,7 +108,7 @@ void main() {
       });
       expect(result.warnings, isEmpty);
     });
-    test('f01/us01/fr03/e10, s03/inv7: two candidate parents give no parent and a warning naming both', () {
+    test('two candidate parents give no parent and a warning naming both', () {
       const story = 'prds/features/f01_login/us02_email_login/USER_STORY.md';
       final result = resolveParents([
         doc('prds/features/f01_login/FEATURE.md', 'feature', 'login'),
@@ -122,7 +122,8 @@ void main() {
             'prds/features/f03_login/FEATURE.md; it has no parent doc',
       });
     });
-    test('f01/us01/fr02/e01, s03/inv7: the candidates are listed in DocPath order whatever the order of the docs', () {
+    test('the candidates are listed in DocPath order whatever the order of the '
+        'docs', () {
       const story = 'prds/features/f01_login/us02_email_login/USER_STORY.md';
       final result = resolveParents([
         doc('prds/features/f03_login/FEATURE.md', 'feature', 'login'),
@@ -135,7 +136,8 @@ void main() {
             'prds/features/f03_login/FEATURE.md; it has no parent doc',
       });
     });
-    test('s03/inv7: a slug-free parent type, a top-level type, and an untyped doc give no parent', () {
+    test('a slug-free parent type, a top-level type, and an untyped doc give '
+        'no parent', () {
       final custom = MergedSet(
         docTypes: const [
           MergedDocType(
@@ -188,7 +190,7 @@ void main() {
         doc(shopDomain, 'domain', 'shop'),
       ];
 
-      test('f01/us01/fr03/e16, s03/inv7, sf-c11: shop/cart takes shop, shop/cart/add_item takes shop/cart, and specs/f02_shop/f01_cart/DOMAIN.md takes shop/cart', () {
+      test('shop/cart takes shop, shop/cart/add_item takes shop/cart, and specs/f02_shop/f01_cart/DOMAIN.md takes shop/cart', () {
         final result = resolveParents(docs, nested);
         expect(result.parents[cartFeature], shopFeature);
         expect(result.parents[payFeature], shopFeature);
@@ -198,20 +200,20 @@ void main() {
         expect(result.parents[shopDomain], shopFeature);
         expect(result.warnings, isEmpty);
       });
-      test('f01/us01/fr03/e17: the top feature shop has no parent', () {
+      test('the top feature shop has no parent', () {
         expect(
           resolveParents(docs, nested).parents,
           isNot(contains(shopFeature)),
         );
         expect(parentTypeOf(docs.first, nested), isNull);
       });
-      test('sf-c11: parentTypeOf names the nesting type or the parent', () {
+      test('parentTypeOf names the nesting type or the parent', () {
         expect(parentTypeOf(docs[1], nested)?.id, 'feature');
         expect(parentTypeOf(docs[3], nested)?.id, 'feature');
         expect(parentTypeOf(docs[4], nested)?.id, 'user_story');
         expect(parentTypeOf(docs[5], nested)?.id, 'feature');
       });
-      test('sf-c11: a flat set never gives a feature a parent', () {
+      test('a flat set never gives a feature a parent', () {
         final flat = MergedSet(
           docTypes: const [
             MergedDocType(

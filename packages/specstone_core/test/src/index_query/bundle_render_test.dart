@@ -208,7 +208,7 @@ void main() {
       a.text.substring(0, a.text.indexOf('\n==> bundle: '));
   const story = 'docs/prds/features/f01_login/us01_email_login';
 
-  test('f01/us05/s1, f01/us05/fr02, s03/inv15: implement order and the closing doc list', () async {
+  test('implement order and the closing doc list', () async {
     final a = ctx('login/email_login', BundleMode.implement);
     expect(
       a.text,
@@ -224,23 +224,26 @@ void main() {
     expect(a.json.keys.toList(), ['target', 'for', 'tokens', 'docs']);
     expect(a.json['tokens'], tokenSizeOf(shown(a)));
   });
-  test('f01/us05/s2, s03/inv15: design walks each story with its FRs and nfs, spec docs last', () async {
-    final list = ctx(
-      'login/email_login',
-      BundleMode.design,
-    ).text.split('==> bundle: ').last.split('\n').skip(1);
-    expect(list.skip(3).take(9), [
-      '- login (feature)',
-      '- login/email_login (user_story)',
-      '- login/email_login/validate_credentials (fr)',
-      '- login/email_login/lock_after_failures (fr)',
-      '- login/email_login/login_latency (nf)',
-      '- login/reset_password (user_story) · summary',
-      '- login/reset_password/send_reset_link (fr) · summary',
-      '- login (api)',
-      '- login (architecture)',
-    ]);
-  });
+  test(
+    'design walks each story with its FRs and nfs, spec docs last',
+    () async {
+      final list = ctx(
+        'login/email_login',
+        BundleMode.design,
+      ).text.split('==> bundle: ').last.split('\n').skip(1);
+      expect(list.skip(3).take(9), [
+        '- login (feature)',
+        '- login/email_login (user_story)',
+        '- login/email_login/validate_credentials (fr)',
+        '- login/email_login/lock_after_failures (fr)',
+        '- login/email_login/login_latency (nf)',
+        '- login/reset_password (user_story) · summary',
+        '- login/reset_password/send_reset_link (fr) · summary',
+        '- login (api)',
+        '- login (architecture)',
+      ]);
+    },
+  );
   test("a sibling prints marked, title and summary sections only, and a design bundle's next-step line names --for design", () {
     final a = ctx('login/email_login', BundleMode.design);
     expect(
@@ -283,7 +286,7 @@ void main() {
       ],
     );
   });
-  test('f01/us05/fr02/e09: a summary section still holding its starter text leaves banner and title', () async {
+  test('a summary section still holding its starter text leaves banner and title', () async {
     final useCase = sectionOf(
       prdCoreDocType(await resolvePrdCore(), 'user_story'),
       'use_case',
@@ -300,7 +303,7 @@ void main() {
       ),
     );
   });
-  test('f01/us05/fr02/e10, db-c6: a doc type whose layer turns every summary section off prints banner and title', () async {
+  test('a doc type whose layer turns every summary section off prints banner and title', () async {
     final i = await indexWith({
       '.specstone/templates/fr.yaml':
           'sections: [{id: statement, summary: false}]\n',
@@ -313,12 +316,15 @@ void main() {
       ),
     );
   });
-  test('f01/us05/fr02/e11: a feature with one story prints no summary doc and no next-step line', () {
-    final a = ctx('signup/create_account', BundleMode.design);
-    expect(a.text, isNot(contains('· summary')));
-    expect(a.text, isNot(contains('Read a summary doc whole')));
-  });
-  test('f01/us05/fr03/e08, db-r1: over budget, a summary doc is listed marked at its printed size', () {
+  test(
+    'a feature with one story prints no summary doc and no next-step line',
+    () {
+      final a = ctx('signup/create_account', BundleMode.design);
+      expect(a.text, isNot(contains('· summary')));
+      expect(a.text, isNot(contains('Read a summary doc whole')));
+    },
+  );
+  test('over budget, a summary doc is listed marked at its printed size', () {
     final whole = ctx('login', BundleMode.design);
     final a = ctx('login/email_login', BundleMode.design, budget: 1);
     final printed =
@@ -347,7 +353,7 @@ void main() {
     expect(overBudgetDoc.keys.last, 'summary');
     expect(overBudgetDoc['summary'], true);
   });
-  test('s03/inv25, db-c9: a doc a bundle: join adds prints whole, once', () async {
+  test('a doc a bundle: join adds prints whole, once', () async {
     final i = await indexWith({
       '.specstone/templates/fr.yaml': 'bundle: [design]\n',
     });
@@ -364,27 +370,30 @@ void main() {
       ),
     );
   });
-  test('f01/us05/s3, f01/us05/fr02/e05: query prints query sections with no frontmatter, then the map', () async {
-    final i = await indexWith({
-      _projectFile: _projectWithoutGlossary,
-      _glossaryFile: _glossaryBody,
-    });
-    final a = ctxIn(i, 'login', BundleMode.query);
-    expect(
-      shown(a),
-      startsWith(
-        '==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms\n\n'
-        '- **Doc** — one markdown file under the docs root\n\n'
-        '==> project (project) · prds/PROJECT.md <==\n## Role\n'
-        '- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope\n- Billing — not planned\n\n'
-        '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n# Login\n\n## Problem\n'
-        'Users sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n\n'
-        '==> map: login (feature) <==\n- login (feature) · ',
-      ),
-    );
-    expect(a.text, contains('\n  - login/email_login (user_story) · '));
-    expect(a.text, contains('==> bundle: 3 docs, '));
-  });
+  test(
+    'query prints query sections with no frontmatter, then the map',
+    () async {
+      final i = await indexWith({
+        _projectFile: _projectWithoutGlossary,
+        _glossaryFile: _glossaryBody,
+      });
+      final a = ctxIn(i, 'login', BundleMode.query);
+      expect(
+        shown(a),
+        startsWith(
+          '==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms\n\n'
+          '- **Doc** — one markdown file under the docs root\n\n'
+          '==> project (project) · prds/PROJECT.md <==\n## Role\n'
+          '- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope\n- Billing — not planned\n\n'
+          '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n# Login\n\n## Problem\n'
+          'Users sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n\n'
+          '==> map: login (feature) <==\n- login (feature) · ',
+        ),
+      );
+      expect(a.text, contains('\n  - login/email_login (user_story) · '));
+      expect(a.text, contains('==> bundle: 3 docs, '));
+    },
+  );
   test(
     'a query on an FR prints its head and kept sections, with no frontmatter',
     () {
@@ -508,7 +517,7 @@ void main() {
         if (line.startsWith('- ')) line,
     ];
 
-    test('f01/us05/fr01/e29, f01/us05/fr02/e05: implement and design print it whole, first in tree order', () {
+    test('implement and design print it whole, first in tree order', () {
       for (final mode in [BundleMode.implement, BundleMode.design]) {
         final a = ctxIn(withGlossary, 'login/email_login', mode);
         expect(a.text, contains(whole), reason: mode.wire);
@@ -527,41 +536,47 @@ void main() {
         expect(listOf(a), contains('- glossary (glossary)'), reason: mode.wire);
       }
     });
-    test('f01/us05/fr01/e13, f01/us05/fr02/e08: --no-project prints none of it, and the list and size leave it out', () {
-      for (final mode in BundleMode.values) {
-        final a = ctxIn(
-          withGlossary,
-          'login/email_login',
-          mode,
-          noProject: true,
-        );
-        expect(
-          a.text,
-          isNot(contains('glossary (glossary)')),
-          reason: mode.wire,
-        );
-        expect(a.text, isNot(contains('- **Doc** —')), reason: mode.wire);
-        expect(a.json['tokens'], tokenSizeOf(shown(a)), reason: mode.wire);
-      }
-    });
-    test('f01/us05/fr01/e11, f01/us05/fr01/e13: its own target prints it once, whole, with or without --no-project', () {
-      for (final noProject in [false, true]) {
-        final a = ctxIn(
-          withGlossary,
-          'glossary',
-          BundleMode.implement,
-          noProject: noProject,
-        );
-        expect(a.text, contains(whole), reason: 'noProject $noProject');
-        expect(head.allMatches(a.text), hasLength(1));
-        expect(
-          listOf(a).where((line) => line == '- glossary (glossary)'),
-          hasLength(1),
-        );
-      }
-    });
+    test(
+      '--no-project prints none of it, and the list and size leave it out',
+      () {
+        for (final mode in BundleMode.values) {
+          final a = ctxIn(
+            withGlossary,
+            'login/email_login',
+            mode,
+            noProject: true,
+          );
+          expect(
+            a.text,
+            isNot(contains('glossary (glossary)')),
+            reason: mode.wire,
+          );
+          expect(a.text, isNot(contains('- **Doc** —')), reason: mode.wire);
+          expect(a.json['tokens'], tokenSizeOf(shown(a)), reason: mode.wire);
+        }
+      },
+    );
+    test(
+      'its own target prints it once, whole, with or without --no-project',
+      () {
+        for (final noProject in [false, true]) {
+          final a = ctxIn(
+            withGlossary,
+            'glossary',
+            BundleMode.implement,
+            noProject: noProject,
+          );
+          expect(a.text, contains(whole), reason: 'noProject $noProject');
+          expect(head.allMatches(a.text), hasLength(1));
+          expect(
+            listOf(a).where((line) => line == '- glossary (glossary)'),
+            hasLength(1),
+          );
+        }
+      },
+    );
   });
-  test('f01/us05/s4, f01/us05/fr02/e01, f01/us05/fr02/e03, f01/us05/fr02/e05, f01/us05/fr02/e07: scaffolding and N/A go, every other line stays', () async {
+  test('scaffolding and N/A go, every other line stays', () async {
     final text = ctx('login/email_login', BundleMode.implement).text;
     expect(text, isNot(contains('## Tier-2 decisions')));
     expect(text, isNot(contains('<!-- fill in later -->')));
@@ -585,55 +600,55 @@ void main() {
       return ctxIn(i, 'login/email_login', BundleMode.implement).text;
     }
 
-    test('E03: a comment inside an inline code span stays', () async {
+    test('a comment inside an inline code span stays', () async {
       const line =
           'A block opens with `<!-- BEGIN specstone v1 -->` and closes '
           'with `<!-- END specstone -->`.';
       expect(await featureWith(line), contains('## Problem\n$line'));
     });
 
-    test('E03: a comment inside a fenced code block stays', () async {
+    test('a comment inside a fenced code block stays', () async {
       const fenced =
           '```\n<!-- BEGIN specstone v1 -->\nbody\n<!-- END -->\n```';
       expect(await featureWith('Shown:\n$fenced'), contains(fenced));
     });
 
-    test('E03: a comment outside code drops beside a kept span', () async {
+    test('a comment outside code drops beside a kept span', () async {
       final text = await featureWith(
         'Keep `<!-- kept -->` and drop <!-- dropped --> here.',
       );
       expect(text, contains('Keep `<!-- kept -->` and drop  here.'));
     });
 
-    test('E03: a comment holding a lone backtick still drops', () async {
+    test('a comment holding a lone backtick still drops', () async {
       final text = await featureWith('a <!-- it`s --> b `c`');
 
       expect(text, contains('## Problem\na  b `c`'));
       expect(text, isNot(contains('it`s')));
     });
 
-    test('E03: a comment holding a backtick pair still drops', () async {
+    test('a comment holding a backtick pair still drops', () async {
       final text = await featureWith('<!-- a ` --> b ` c');
 
       expect(text, isNot(contains('-->')));
       expect(text, contains('## Problem\n b ` c'));
     });
 
-    test('E03: a comment holding a fenced block still drops', () async {
+    test('a comment holding a fenced block still drops', () async {
       final text = await featureWith('Before\n<!-- x\n```\ny\n```\n-->\nAfter');
 
       expect(text, contains('## Problem\nBefore\n\nAfter'));
       expect(text, isNot(contains('```')));
     });
 
-    test('E03: a comment block over several lines drops whole', () async {
+    test('a comment block over several lines drops whole', () async {
       final text = await featureWith('Before\n<!-- one\ntwo\nthree -->\nAfter');
       expect(text, contains('## Problem\nBefore\n\nAfter'));
       expect(text, isNot(contains('two')));
     });
 
     test(
-      'E03: a body of only a comment and starter text stays starter text',
+      'a body of only a comment and starter text stays starter text',
       () async {
         const template =
             'We believe <outcome> will be achieved if <persona> attains '
@@ -650,7 +665,7 @@ void main() {
       },
     );
   });
-  test('f01/us05/fr02/e02, f01/us05/fr02/e04: template text drops a section; a changed word or a later N/A keeps it', () async {
+  test('template text drops a section; a changed word or a later N/A keeps it', () async {
     const feature = 'docs/prds/features/f01_login/FEATURE.md';
     const template =
         'We believe <outcome> will be achieved if <persona> attains <benefit> with <feature>.';
@@ -679,43 +694,52 @@ void main() {
       contains('## Benefit hypothesis\nWe expect'),
     );
   });
-  test('f01/us05/fr02/e06, s03/inv15: sections print in template order and the file stays as it is', () async {
-    const domain = 'docs/specs/f01_login/DOMAIN.md';
-    const outOfOrder =
-        '# Login domain\n\n## Invariants\n- one\n\n## Entities\n- Account\n';
-    final project = await writeLoginProject(extra: {domain: outOfOrder});
-    final session = openSession(project);
-    addTearDown(session.close);
-    final text = ctxIn(
-      session.index,
-      'login/email_login',
-      BundleMode.implement,
-    ).text;
-    expect(
-      text.indexOf('## Entities'),
-      lessThan(text.indexOf('## Invariants')),
-    );
-    expect(File('${project.path}/$domain').readAsStringSync(), outOfOrder);
-  });
-  test('f01/us05/s8, f01/us05/fr02/e08: --no-project leaves joined docs out of the text, the list, and the size', () async {
-    final a = ctx('login/email_login', BundleMode.implement, noProject: true);
-    expect(a.text, isNot(contains('==> project (project)')));
-    expect(
-      a.text,
-      contains('==> bundle: 9 docs, ${tokenSizeOf(shown(a))} tokens <=='),
-    );
-  });
-  test('f01/us05/fr02: a feature target for implement prints its story names after the docs', () async {
-    final a = ctx('feature:login', BundleMode.implement);
-    expect(
-      shown(a),
-      contains(
-        '==> names: login (feature) <==\n- login/email_login (user_story) · ',
-      ),
-    );
-    expect((a.json['names']! as List).length, 2);
-  });
-  test('f01/us05/fr02, s03/inv9: each docs[].tokens is the size of its printed block, and the total is the size of all that prints', () async {
+  test(
+    'sections print in template order and the file stays as it is',
+    () async {
+      const domain = 'docs/specs/f01_login/DOMAIN.md';
+      const outOfOrder =
+          '# Login domain\n\n## Invariants\n- one\n\n## Entities\n- Account\n';
+      final project = await writeLoginProject(extra: {domain: outOfOrder});
+      final session = openSession(project);
+      addTearDown(session.close);
+      final text = ctxIn(
+        session.index,
+        'login/email_login',
+        BundleMode.implement,
+      ).text;
+      expect(
+        text.indexOf('## Entities'),
+        lessThan(text.indexOf('## Invariants')),
+      );
+      expect(File('${project.path}/$domain').readAsStringSync(), outOfOrder);
+    },
+  );
+  test(
+    '--no-project leaves joined docs out of the text, the list, and the size',
+    () async {
+      final a = ctx('login/email_login', BundleMode.implement, noProject: true);
+      expect(a.text, isNot(contains('==> project (project)')));
+      expect(
+        a.text,
+        contains('==> bundle: 9 docs, ${tokenSizeOf(shown(a))} tokens <=='),
+      );
+    },
+  );
+  test(
+    'a feature target for implement prints its story names after the docs',
+    () async {
+      final a = ctx('feature:login', BundleMode.implement);
+      expect(
+        shown(a),
+        contains(
+          '==> names: login (feature) <==\n- login/email_login (user_story) · ',
+        ),
+      );
+      expect((a.json['names']! as List).length, 2);
+    },
+  );
+  test('each docs[].tokens is the size of its printed block, and the total is the size of all that prints', () async {
     final a = ctx('login/email_login', BundleMode.implement);
     final parts = shown(a).split('\n\n==> ');
     final blocks = [parts.first, for (final part in parts.skip(1)) '==> $part'];
@@ -738,7 +762,7 @@ void main() {
     expect(a.json['tokens'], tokenSizeOf(shown(a)));
     expect(sum, lessThanOrEqualTo(a.json['tokens']! as int));
   });
-  test('review focus 5: a CRLF doc trims its N/A section as on LF', () async {
+  test('a CRLF doc trims its N/A section as on LF', () async {
     final crlf = await indexWith({
       '$story/fr03_crlf.md':
           '# C\r\n\r\n## Statement\r\nx\r\n\r\n## Rationale\r\nN/A\r\n',
@@ -1188,7 +1212,7 @@ void main() {
     });
   });
   group('budget', () {
-    test('f01/us05/s5, f01/us05/fr03, f01/us05/fr03/e01, f01/us05/fr03/e03: over budget prints sizes and the next step, no doc text, exit 1', () async {
+    test('over budget prints sizes and the next step, no doc text, exit 1', () async {
       final tokens =
           ctx('login/email_login', BundleMode.implement).json['tokens']! as int;
       final a = ctx(
@@ -1855,34 +1879,40 @@ void main() {
         frDoc: '# Validate credentials\n\n## Statement\nLock the account.\n',
       });
 
-      test('f01/us05/fr01/e28, f01/us05/fr02/e21: implement and design put it whole in the refs text, each list apart', () async {
-        final i = await glossaryIndex();
-        for (final mode in [BundleMode.implement, BundleMode.design]) {
-          final a = splitIn(i, frName, mode);
+      test(
+        'implement and design put it whole in the refs text, each list apart',
+        () async {
+          final i = await glossaryIndex();
+          for (final mode in [BundleMode.implement, BundleMode.design]) {
+            final a = splitIn(i, frName, mode);
 
-          expect(
-            head.allMatches(a.refs!.text),
-            hasLength(1),
-            reason: mode.wire,
-          );
-          expect(a.refs!.text, contains(whole), reason: mode.wire);
-          expect(a.text, isNot(contains(head)), reason: mode.wire);
-          expect(listOf(a.refs!.text), contains('- glossary (glossary)'));
-          expect(listOf(a.text), isNot(contains('- glossary (glossary)')));
-        }
-        expect(listOf(splitIn(i, frName, BundleMode.implement).refs!.text), [
-          '- glossary (glossary)',
-          '- gnfr (gnfr)',
-          '- project (project)',
-        ]);
-      });
-      test('f01/us05/fr01/e29, f01/us05/fr02/e05: a query bundle never splits, so its terms print in the one text', () async {
-        final a = splitIn(await glossaryIndex(), 'login', BundleMode.query);
+            expect(
+              head.allMatches(a.refs!.text),
+              hasLength(1),
+              reason: mode.wire,
+            );
+            expect(a.refs!.text, contains(whole), reason: mode.wire);
+            expect(a.text, isNot(contains(head)), reason: mode.wire);
+            expect(listOf(a.refs!.text), contains('- glossary (glossary)'));
+            expect(listOf(a.text), isNot(contains('- glossary (glossary)')));
+          }
+          expect(listOf(splitIn(i, frName, BundleMode.implement).refs!.text), [
+            '- glossary (glossary)',
+            '- gnfr (gnfr)',
+            '- project (project)',
+          ]);
+        },
+      );
+      test(
+        'a query bundle never splits, so its terms print in the one text',
+        () async {
+          final a = splitIn(await glossaryIndex(), 'login', BundleMode.query);
 
-        expect(a.refs, isNull);
-        expect(a.text, contains('$head\n## Terms\n\n- **Doc** — '));
-      });
-      test('f01/us05/fr01/e11, f01/us05/fr01/e13: its own target prints it in the read-first text, with or without --no-project', () async {
+          expect(a.refs, isNull);
+          expect(a.text, contains('$head\n## Terms\n\n- **Doc** — '));
+        },
+      );
+      test('its own target prints it in the read-first text, with or without --no-project', () async {
         final i = await glossaryIndex();
         for (final noProject in [false, true]) {
           final a = splitIn(

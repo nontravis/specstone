@@ -6,7 +6,7 @@ void main() {
   group('resolveDocLink', () {
     const from = 'prds/f/us/fr01.md';
 
-    test('plan decision 2: a relative .md link resolves against the linking '
+    test('a relative .md link resolves against the linking '
         "doc's folder", () {
       expect(
         (resolveDocLink('USER_STORY.md', from) as DocTarget).docPath,
@@ -19,7 +19,7 @@ void main() {
       expect((resolveDocLink('#goal', from) as DocTarget).docPath, from);
     });
 
-    test('plan decision 2: a web address is a WebTarget; a rooted path or one '
+    test('a web address is a WebTarget; a rooted path or one '
         'above the docs root is outside', () {
       expect(resolveDocLink('https://example.com', from), isA<WebTarget>());
       expect(
@@ -32,7 +32,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/inv7, LP1: an escape that is not UTF-8 reads as '
+    test('an escape that is not UTF-8 reads as '
         'U+FFFD', () {
       expect(
         (resolveDocLink('%DB.md', from) as DocTarget).docPath,
@@ -51,21 +51,18 @@ void main() {
       expect(percentDecoded('a%2Fb'), 'a/b');
     });
 
-    test('doc_model/s03/inv7, LP1: a character outside the BMP after an escape '
+    test('a character outside the BMP after an escape '
         'keeps its UTF-8 bytes', () {
       expect(percentDecoded('%41\u{1F600}'), 'A\u{1F600}');
       expect(percentDecoded('\u{1F600}%41\u{1F600}'), '\u{1F600}A\u{1F600}');
     });
 
-    test(
-      'doc_model/s03/inv7, LP1: a text with no escape decodes to itself',
-      () {
-        expect(percentDecoded('abc'), 'abc');
-        expect(percentDecoded('\u{1F600}.md'), '\u{1F600}.md');
-      },
-    );
+    test('a text with no escape decodes to itself', () {
+      expect(percentDecoded('abc'), 'abc');
+      expect(percentDecoded('\u{1F600}.md'), '\u{1F600}.md');
+    });
 
-    test('doc_model/s03/inv7, LP1: percentDecodesCleanly is false only when '
+    test('percentDecodesCleanly is false only when '
         'an escape needs U+FFFD', () {
       expect(percentDecodesCleanly('%DB.md'), isFalse);
       expect(percentDecodesCleanly('a%C3%28b'), isFalse);
@@ -75,7 +72,7 @@ void main() {
       expect(percentDecodesCleanly('\u{FFFD}.md'), isTrue);
     });
 
-    test('doc_model/s03/inv7, LP1: an encoded slash still names no doc', () {
+    test('an encoded slash still names no doc', () {
       expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
     });
 
@@ -116,7 +113,7 @@ void main() {
       expect(target.anchor, isNull);
     });
 
-    test('f04/us02/fr04/e10, M1: a path out of the docs root and back in '
+    test('a path out of the docs root and back in '
         'by name is the doc it names', () {
       final target = resolveDocLink('../../../docs/prds/x.md', 'prds/f/a.md');
       expect(target, isA<DocTarget>());
@@ -141,7 +138,7 @@ void main() {
       );
     });
 
-    test('f04/us02/fr04/e10, M1: a path out of the docs root and back in '
+    test('a path out of the docs root and back in '
         'by name is relative to the docs root', () {
       expect(
         relativeFilePathOf('../../../docs/prds/x.md', 'prds/f/a.md'),

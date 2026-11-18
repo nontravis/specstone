@@ -162,7 +162,7 @@ String _stepLine(String number, int scenario) =>
 
 void main() {
   group('answerJourneyPaths', () {
-    test('f10/us02/s1, f10/us02/fr01/e01: paths 5 and 3x print in that order '
+    test('paths 5 and 3x print in that order '
         "with each step's scenario lines", () async {
       final answer = await _paths(_mainAndBranch());
 
@@ -192,7 +192,7 @@ void main() {
       expect(answer.warnings, isEmpty);
     });
 
-    test('f10/us02/s2, f10/us02/fr01/e02: a pasted copy older than its story '
+    test('a pasted copy older than its story '
         "prints the story's lines", () async {
       final answer = await _paths([
         '### 1. Heading 1\nstep: $_story S1\n',
@@ -243,7 +243,7 @@ void main() {
       expect(answer.warnings, ['$_slug: step 2 names no scenario']);
     });
 
-    test('f10/us02/s4, f10/us02/fr01/e03: user_story:login/email_login is '
+    test('user_story:login/email_login is '
         'argument_invalid, exit 64', () async {
       await expectLater(
         _paths([_step('1', 1)], name: 'user_story:$_story'),
@@ -379,7 +379,7 @@ void main() {
     const frName = 'login/email_login/check_password';
     final single = _oneTarget([storyCode, frCode]);
 
-    test('f10/us03/s1, f10/us03/fr01/e01: a step naming S2 lists the '
+    test('a step naming S2 lists the '
         "story's entries and the FR traced from S2 only", () async {
       final answer = await _code([_step('1', 1), _step('2', 2)], extra: single);
 
@@ -395,7 +395,7 @@ void main() {
     });
 
     test(
-      'f10/us03/s2, f10/us03/fr01/e02: with no record doc type each step '
+      'with no record doc type each step '
       'prints its FRs and - none, whatever the docs hold in implements',
       () async {
         final answer = await _code(
@@ -487,7 +487,7 @@ void main() {
       );
     });
 
-    test('f10/us03/s3, f10/us03/fr01/e05: get feature:login --code is '
+    test('get feature:login --code is '
         'argument_invalid', () async {
       await expectLater(
         _code([_step('1', 1)], name: 'feature:login'),
@@ -498,7 +498,7 @@ void main() {
       );
     });
 
-    test('f10/us03/fr01/e06, f10/us03/fr01/e07: a step naming a missing '
+    test('a step naming a missing '
         'story, or S9 of a five-scenario story, prints its line with no '
         'entries and a warning', () async {
       final answer = await _code([

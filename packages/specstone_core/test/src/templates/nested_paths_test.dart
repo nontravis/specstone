@@ -44,7 +44,7 @@ final MergedDocType topic = docType('topic', 'specs/topics/{slug}.md');
 
 void main() {
   group('MergedSet nested paths', () {
-    test('tpl-s03/inv28, sf-r6: a feature at max_depth 2 nests its story, '
+    test('a feature at max_depth 2 nests its story, '
         'fr, and domain', () {
       final set = MergedSet(
         docTypes: [feature(maxDepth: 2), story, fr, domain, topic],
@@ -68,7 +68,7 @@ void main() {
       expect(set.nestingType!.id, 'feature');
     });
 
-    test("sf-r6: stratum_ui's group paths nest after f{nn}_{slug}", () {
+    test("stratum_ui's group paths nest after f{nn}_{slug}", () {
       final stratum = docType(
         'feature',
         'prds/features/{slug}/f{nn}_{slug}/FEATURE.md',
@@ -91,7 +91,7 @@ void main() {
       );
     });
 
-    test('tpl-s03/inv28: max_depth 0 keeps one pattern and still names the '
+    test('max_depth 0 keeps one pattern and still names the '
         'nesting type', () {
       final set = MergedSet(docTypes: [feature(maxDepth: 0), story]);
 
@@ -101,11 +101,11 @@ void main() {
       expect(set.nestingType!.id, 'feature');
     });
 
-    test('tpl-s03/inv28: no max_depth names no nesting type', () {
+    test('no max_depth names no nesting type', () {
       expect(MergedSet(docTypes: [feature(), story]).nestingType, isNull);
     });
 
-    test('tpl-s03/inv28: a child of feature at specs/notes/{slug}.md keeps '
+    test('a child of feature at specs/notes/{slug}.md keeps '
         'one pattern', () {
       final notes = docType(
         'notes',
@@ -137,7 +137,7 @@ void main() {
       expect(set.lookup('a')!.paths, ['x/{slug}/A.md']);
     });
 
-    test('sf-r6: a parentless doc type at specs/f{nn}_{slug}/NOTES.md keeps '
+    test('a parentless doc type at specs/f{nn}_{slug}/NOTES.md keeps '
         'one pattern', () {
       final notes = docType('notes', 'specs/f{nn}_{slug}/NOTES.md');
       final set = MergedSet(docTypes: [feature(maxDepth: 2), notes]);
@@ -145,7 +145,7 @@ void main() {
       expect(set.lookup('notes')!.paths, ['specs/f{nn}_{slug}/NOTES.md']);
     });
 
-    test('sf-r6: a child of feature at specs/g{nn}_{slug}/X.md keeps one '
+    test('a child of feature at specs/g{nn}_{slug}/X.md keeps one '
         'pattern', () {
       final x = docType('x', 'specs/g{nn}_{slug}/X.md', parent: 'feature');
       final set = MergedSet(docTypes: [feature(maxDepth: 2), x]);

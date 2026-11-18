@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('PathPattern.matches', () {
-    test('f05/us01/fr02/e04, doc_model/s03/inv1: a pattern is a full path '
+    test('a pattern is a full path '
         'from the docs root', () {
       expect(
         PathPattern('prds/features/f{nn}_{slug}/FEATURE.md')
@@ -17,7 +17,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/inv2: several placeholders, each matched on its '
+    test('several placeholders, each matched on its '
         'own', () {
       final pattern = PathPattern(
         'prds/features/f{nn}_{slug}/us{nn}_{slug}/functional_requirements/'
@@ -40,7 +40,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr02/e01, doc_model/s03/inv2: {nn} takes digits, {slug} '
+    test('{nn} takes digits, {slug} '
         'takes [a-z0-9_], and other characters are literal', () {
       final pattern = PathPattern('f{nn}_{slug}.md');
       final results = [
@@ -118,7 +118,7 @@ void main() {
   });
 
   group('PathPattern.slugValues', () {
-    test('f01/us01/fr03/e01, s03/inv5: every slug value in pattern order, '
+    test('every slug value in pattern order, '
         'nn values dropped', () {
       expect(
         PathPattern('prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md')
@@ -130,7 +130,7 @@ void main() {
       );
     });
 
-    test('f01/us01/fr03/e02: a pattern with no slug gives an empty list; no '
+    test('a pattern with no slug gives an empty list; no '
         'match gives null', () {
       expect(
         PathPattern('prds/PROJECT.md').slugValues('prds/PROJECT.md'),
@@ -143,7 +143,7 @@ void main() {
   group('PathPattern.forTarget', () {
     final pattern = PathPattern('specs/f{nn}_{slug}/ARCHITECTURE.md');
 
-    test('doc_model/s03/rule-20: inserts the target folder after the first '
+    test('inserts the target folder after the first '
         'segment and matches and fills with it', () {
       final targeted = pattern.forTarget('jaspr');
 
@@ -163,7 +163,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/rule-20: a two-segment pattern takes the target as a '
+    test('a two-segment pattern takes the target as a '
         'folder of its own', () {
       expect(
         PathPattern('specs/TECH_STACK.md').forTarget('jaspr').source,
@@ -171,7 +171,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/rule-20: a pattern with no folder inserts the target '
+    test('a pattern with no folder inserts the target '
         'folder beside it, so each target matches its own doc', () {
       final targeted = PathPattern('{slug}.md').forTarget('jaspr');
 
@@ -204,7 +204,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/rule-20: targetFolder is the first folder and the '
+    test('targetFolder is the first folder and the '
         'target, where forTarget puts it', () {
       expect(
         PathPattern('specs/f{nn}_{slug}/ARCHITECTURE.md').targetFolder('jaspr'),

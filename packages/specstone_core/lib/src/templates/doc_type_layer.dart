@@ -18,7 +18,8 @@ enum FieldType {
   docRef('doc_ref'),
   outputRef('output_ref'),
   recordStatus('record_status'),
-  taskRef('task_ref');
+  taskRef('task_ref'),
+  sourceRef('source_ref');
 
   new(this.wire);
 
@@ -35,7 +36,7 @@ enum FieldType {
     if (type != null) return type;
     throw TemplateFault(
       FaultCode.unknownValue,
-      'the key type must be one of the nine field types',
+      'the key type must be one of the ten field types',
       file: file,
       key: '${prefix}type',
     );
@@ -78,6 +79,37 @@ enum PointerKind {
   }) {
     if (value is String) return byWire(value, file: file, prefix: prefix);
     throw _unknownPointer(file: file, prefix: prefix);
+  }
+}
+
+/// The folder an `output_ref` field's pointers resolve against; [wire] is the
+/// format name.
+enum PointerRoot {
+  code('code'),
+  project('project');
+
+  new(this.wire);
+
+  /// The name the doc-type format uses for this root.
+  final String wire;
+
+  /// Returns the root a field wrote as [value].
+  ///
+  /// Throws `unknown_value` at [prefix]root when [value] is not a string
+  /// naming a root.
+  static PointerRoot read(
+    Object? value, {
+    required String file,
+    required String prefix,
+  }) {
+    final root = values.where((r) => r.wire == value).firstOrNull;
+    if (root != null) return root;
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key root must be code or project',
+      file: file,
+      key: '${prefix}root',
+    );
   }
 }
 
@@ -145,6 +177,8 @@ final class FieldEntry {
     this.enumValues,
     this.docTypes,
     this.pointer,
+    this.root,
+    this.export,
     this.description,
     this.lint,
     required this.disabled,
@@ -173,6 +207,15 @@ final class FieldEntry {
   /// Unchecked here: only an `output_ref` field must name a [PointerKind], and
   /// a layer that writes no type is checked once the merge knows the type.
   final Object? pointer;
+
+  /// The `root` value as written, or null when absent.
+  ///
+  /// Unchecked here like [pointer]: only an `output_ref` field reads it, and a
+  /// layer that writes no type is checked once the merge knows the type.
+  final Object? root;
+
+  /// Whether the field joins an export, when written.
+  final bool? export;
 
   /// What the field holds, when written.
   final String? description;
@@ -397,6 +440,7 @@ final class DocTypeLayer {
     required this.path,
     required this.maxDepth,
     required this.perTarget,
+    required this.export,
     required this.fields,
     required this.sections,
     required this.lint,
@@ -453,6 +497,7 @@ final class DocTypeLayer {
       path: optionalValue<String>(map, 'path', file: file),
       maxDepth: _parseMaxDepth(map, file: file),
       perTarget: optionalValue<bool>(map, 'per_target', file: file),
+      export: optionalValue<bool>(map, 'export', file: file),
       fields: _parseFields(map, file: file),
       sections: _parseSections(map, file: file),
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
@@ -502,6 +547,9 @@ final class DocTypeLayer {
 
   /// Whether the doc type reads its patterns once per target, when written.
   final bool? perTarget;
+
+  /// Whether the doc type joins an export, when written.
+  final bool? export;
 
   /// The fields this layer writes, in file order.
   final List<FieldEntry> fields;
@@ -701,6 +749,7 @@ const _topKeys = {
   'path',
   'max_depth',
   'per_target',
+  'export',
   'parent',
   'extends',
   'fields',
@@ -720,6 +769,8 @@ const _fieldKeys = {
   'enum',
   'doc_types',
   'pointer',
+  'root',
+  'export',
   'required',
   'description',
   'lint',
@@ -831,6 +882,10 @@ FieldEntry _parseField(
     }
     PointerKind.read(pointer, file: file, prefix: prefix);
   }
+  final root = entry['root'];
+  if (type == FieldType.outputRef && root != null) {
+    PointerRoot.read(root, file: file, prefix: prefix);
+  }
   final enumList = optionalValue<YamlList>(
     entry,
     'enum',
@@ -860,6 +915,8 @@ FieldEntry _parseField(
         ? null
         : stringsOf(docTypesList, 'doc_types', file: file, prefix: prefix),
     pointer: pointer,
+    root: root,
+    export: optionalValue<bool>(entry, 'export', file: file, prefix: prefix),
     description: optionalValue<String>(
       entry,
       'description',

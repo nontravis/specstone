@@ -28,9 +28,12 @@ final class MergedField {
     this.enumValues,
     this.docTypes,
     PointerKind? pointer,
+    PointerRoot? root,
+    this.export,
     this.description,
     this.lint,
-  }) : pointer = type == FieldType.outputRef ? pointer : null;
+  }) : pointer = type == FieldType.outputRef ? pointer : null,
+       root = type == FieldType.outputRef ? root : null;
 
   /// The field id.
   final String id;
@@ -53,6 +56,16 @@ final class MergedField {
   /// How an `output_ref` field's value matches a path; null for any other type.
   final PointerKind? pointer;
 
+  /// The folder an `output_ref` field's pointers resolve against; null when no
+  /// layer sets it, which reads as `code`, and for any other type.
+  final PointerRoot? root;
+
+  /// Whether the field joins an export; null when no layer sets it.
+  final bool? export;
+
+  /// Whether the field joins an export: [export], else `true`.
+  bool get exported => export ?? true;
+
   /// What the field holds.
   final String? description;
 
@@ -69,7 +82,8 @@ final class MergedField {
   ///
   /// A list the new type does not use is dropped unless the call writes it:
   /// [enumValues] belongs to `enum` only, [docTypes] to `doc_ref` only, and
-  /// [pointer] to `output_ref` only. [lint] replaces the whole caps value.
+  /// [pointer] and [root] to `output_ref` only. [lint] replaces the whole caps
+  /// value.
   MergedField copyWith({
     FieldType? type,
     bool? list,
@@ -77,6 +91,8 @@ final class MergedField {
     List<String>? enumValues,
     List<String>? docTypes,
     PointerKind? pointer,
+    PointerRoot? root,
+    bool? export,
     String? description,
     FieldCaps? lint,
   }) {
@@ -92,6 +108,8 @@ final class MergedField {
       docTypes:
           docTypes ?? (newType == FieldType.docRef ? this.docTypes : null),
       pointer: pointer ?? this.pointer,
+      root: root ?? this.root,
+      export: export ?? this.export,
       description: description ?? this.description,
       lint: lint ?? this.lint,
     );
@@ -99,7 +117,8 @@ final class MergedField {
 
   /// Returns the JSON object of this field with only the keys set.
   ///
-  /// `list` and `required` print only when true.
+  /// `list` and `required` print only when true; `root` and `export` print
+  /// only when a layer writes them.
   Map<String, Object> toJson() => {
     'id': id,
     'type': type.wire,
@@ -108,6 +127,8 @@ final class MergedField {
     'enum': ?enumValues,
     'docTypes': ?docTypes,
     'pointer': ?pointer?.wire,
+    'root': ?root?.wire,
+    'export': ?export,
     'description': ?description,
     'lint': ?lint?.toJson(),
   };
@@ -738,6 +759,7 @@ final class MergedDocType {
     this.path,
     this.maxDepth,
     this.isPerTarget = false,
+    this.export,
     this.nestedPaths,
     this.bundle,
     this.bundleRefs,
@@ -788,6 +810,12 @@ final class MergedDocType {
 
   /// Whether the doc type reads its patterns once per target.
   final bool isPerTarget;
+
+  /// Whether the doc type joins an export; null when no layer sets it.
+  final bool? export;
+
+  /// Whether the doc type joins an export: [export], else `true`.
+  bool get exported => export ?? true;
 
   /// Whether the doc type's own folder segment may repeat.
   bool get nests => (maxDepth ?? 0) > 0;
@@ -860,6 +888,7 @@ final class MergedDocType {
     String? path,
     int? maxDepth,
     bool? isPerTarget,
+    bool? export,
     List<String>? nestedPaths,
     List<String>? bundle,
     bool? bundleRefs,
@@ -882,6 +911,7 @@ final class MergedDocType {
     path: path ?? this.path,
     maxDepth: maxDepth ?? this.maxDepth,
     isPerTarget: isPerTarget ?? this.isPerTarget,
+    export: export ?? this.export,
     nestedPaths: nestedPaths,
     bundle: bundle ?? this.bundle,
     bundleRefs: bundleRefs ?? this.bundleRefs,
@@ -911,6 +941,7 @@ final class MergedDocType {
       'path': ?path,
       'maxDepth': ?maxDepth,
       if (isPerTarget) 'perTarget': true,
+      'export': ?export,
       'bundle': ?bundle,
       'bundleRefs': ?bundleRefs,
       'summaryFor': ?summaryFor,
@@ -926,11 +957,11 @@ final class MergedDocType {
   ///
   /// The description and the doc-level banned words come first, then the
   /// `Fields:` block of the declared non-built-in [fields], then each
-  /// section's header, required or optional mark and description, own banned
-  /// words, and template, then the `Guide sources:` block of [reference]. A
-  /// banned word list drops the allowed words that apply there, as `check`
-  /// does; a description, word list, template, field set, or [reference] list
-  /// left empty adds no block.
+  /// section's header, required, optional, or condition line and description,
+  /// own banned words, and template, then the `Guide sources:` block of
+  /// [reference]. A banned word list drops the allowed words that apply there,
+  /// as `check` does; a description, word list, template, field set, or
+  /// [reference] list left empty adds no block.
   String renderGuide() {
     final docAllowed = lint.allowedWords ?? const <String>[];
     final sources = reference ?? const <ReferenceEntry>[];
@@ -941,7 +972,7 @@ final class MergedDocType {
       for (final section in sections) ...[
         '## ${section.header}',
         [
-          if (section.required) 'Required section.' else 'Optional section.',
+          _requirementLine(section),
           ?_trimmedOrNull(section.description),
         ].join('\n'),
         ?_bannedWordsLine(
@@ -955,6 +986,44 @@ final class MergedDocType {
         ['Guide sources:', ...sources.map(referenceSourceLine)].join('\n'),
     ];
     return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+  }
+
+  /// Returns the line under [section]'s header that says when the section is
+  /// required, optional, or left out.
+  ///
+  /// A `required_when` rule always makes the section required while it holds.
+  String _requirementLine(MergedSection section) {
+    final whenField = section.whenField;
+    final requiredWhen = section.requiredWhen;
+    if (whenField == null && requiredWhen == null) {
+      return section.required ? 'Required section.' : 'Optional section.';
+    }
+    final conditions = [
+      if (whenField != null)
+        '`${whenField.field}` is ${_valueList(whenField.values)}',
+      if (requiredWhen != null) _itemCondition(requiredWhen),
+    ];
+    final mark = requiredWhen != null || section.required
+        ? 'Required'
+        : 'Optional';
+    return '$mark when ${conditions.join(' and ')}; left out otherwise.';
+  }
+
+  String _itemCondition(RequiredWhenLint rule) {
+    final header = sections.firstWhere((s) => s.id == rule.section).header;
+    return 'a `$header` item holds `${rule.field}: ${rule.value}`';
+  }
+
+  /// Returns [values] as backticked words joined by `or`, with a comma before
+  /// the last of three or more.
+  static String _valueList(List<String> values) {
+    final quoted = [for (final value in values) '`$value`'];
+    return switch (quoted) {
+      [] => '',
+      [final only] => only,
+      [final first, final second] => '$first or $second',
+      [...final init, final last] => '${init.join(', ')}, or $last',
+    };
   }
 
   /// Returns the `Fields:` block of the non-built-in [fields], or null when

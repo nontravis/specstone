@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show fenceScan;
+import 'package:specstone_core/src/doc_model/models/tbr_marker_line.dart';
 
 /// The one TBR marker: `TBR`, a space, an em dash (U+2014), then a space or
 /// the end of the line; a write strips a trailing space, so `TBR — ` is stored
@@ -14,11 +15,11 @@ const _space = 0x20;
 /// Fenced code and code spans hold no marker. A line with two markers gives
 /// two places. Spans are read per line, so a marker inside a span wrapped over
 /// two lines is still read, as for number labels.
-List<({int line, String rest})> tbrMarkerLinesIn(String lfBody) {
+List<TbrMarkerLine> tbrMarkerLinesIn(String lfBody) {
   if (!lfBody.contains(_marker)) return const [];
   final lines = lfBody.split('\n');
   final fenced = fenceScan(lines).fenced;
-  final markers = <({int line, String rest})>[];
+  final markers = <TbrMarkerLine>[];
   for (var i = 0; i < lines.length; i++) {
     if (fenced[i]) continue;
     markers.addAll(_markersOf(lines[i], i));
@@ -28,19 +29,21 @@ List<({int line, String rest})> tbrMarkerLinesIn(String lfBody) {
 
 /// Returns the markers of [line], read as body line [number], outside its code
 /// spans.
-List<({int line, String rest})> _markersOf(String line, int number) {
+List<TbrMarkerLine> _markersOf(String line, int number) {
   var at = _markerAt(line, 0);
   if (at < 0) return const [];
   final spans = codeSpansOf(line);
-  final markers = <({int line, String rest})>[];
+  final markers = <TbrMarkerLine>[];
   while (at >= 0) {
     final textStart = at + _marker.length;
     final next = _markerAt(line, textStart);
     if (!spans.any((s) => at >= s.start && at < s.end)) {
-      markers.add((
-        line: number,
-        rest: line.substring(textStart, next < 0 ? line.length : next).trim(),
-      ));
+      markers.add(
+        TbrMarkerLine(
+          line: number,
+          rest: line.substring(textStart, next < 0 ? line.length : next).trim(),
+        ),
+      );
     }
     at = next;
   }

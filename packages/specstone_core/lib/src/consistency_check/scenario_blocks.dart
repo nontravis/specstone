@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show headingItemTextOf, opensHeadingItem;
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -8,8 +9,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 export 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show acceptanceSectionId;
-export 'package:specstone_core/src/index_query/held_sections.dart'
-    show BodyLine;
 
 const _statementPrefix = '- **Statement:**';
 const _goalIdPrefix = 'PG-';

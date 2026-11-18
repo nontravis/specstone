@@ -15,6 +15,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 void main() {
@@ -49,7 +50,7 @@ void main() {
         noProject: noProject,
       );
 
-  test('f01/us05/s6, f01/us05/fr04/e01, s03/inv18: a file one FR names, in a covered folder', () async {
+  test('a file one FR names, in a covered folder', () async {
     expect(
       code(
         'app/lib/src/login/credential_validator.dart',
@@ -143,7 +144,7 @@ void main() {
       ]),
     );
   });
-  test('f01/us05/fr04/e02, f01/us05/fr04/e10, f01/us05/fr04/e17: a tests path '
+  test('a tests path '
       'matches as a pointer value, its name aside', () async {
     final project = await writeLoginProject(
       extra: {
@@ -219,7 +220,7 @@ void main() {
     expect(b.docPaths, {'$f/FEATURE.md', ...specs});
     expect(b.nameListTops, {'$f/FEATURE.md'});
   });
-  test('f01/us05/s7, f01/us05/fr04/e06: no match gives the joined docs and the warning', () async {
+  test('no match gives the joined docs and the warning', () async {
     final b = code('app/lib/main.dart', BundleMode.implement);
     expect(b.docPaths, isEmpty);
     expect(b.joinedPaths, hasLength(3));
@@ -308,7 +309,7 @@ void main() {
       ),
     );
   });
-  test('f01/us05/s12, f01/us05/fr04/e09: a path outside the code root is code_path_outside_project', () async {
+  test('a path outside the code root is code_path_outside_project', () async {
     expect(
       () => code('../', BundleMode.implement),
       throwsA(
@@ -326,7 +327,7 @@ void main() {
       ),
     );
   });
-  test('f01/us05/fr04/e10, s03/inv3: a .dbml path is matched by pointer values only, never read', () async {
+  test('a .dbml path is matched by pointer values only, never read', () async {
     expect(code('docs/specs/schema.dbml', BundleMode.implement).warnings, [
       'no doc covers or implements docs/specs/schema.dbml',
     ]);
@@ -360,7 +361,7 @@ void main() {
     },
   );
   test(
-    'review focus 4: a code path given through a symbolic link to the project resolves inside it',
+    'a code path given through a symbolic link to the project resolves inside it',
     skip: Platform.isWindows ? 'links need privileges on Windows' : null,
     () async {
       final linkParent = await writeTree({});
@@ -376,7 +377,7 @@ void main() {
     },
   );
 
-  group('f01/us05/fr04, two targets', () {
+  group('two targets', () {
     /// The two-target fixture of E13: the feature `feedback` and its story
     /// `show`, per-target architecture, record, and tech-stack docs, with the
     /// code roots `flutter_lib` and `jaspr_lib`.
@@ -527,7 +528,7 @@ void main() {
       expect(bundle.docPaths, isNot(contains('specs/topics/toast_rules.md')));
     });
 
-    test('f01/us05/fr04/e14, review focus 2: nested roots pick the longest that holds the path', () async {
+    test('nested roots pick the longest that holds the path', () async {
       final root = await writeTree({
         '.specstone/templates/implementation.yaml':
             'id: implementation\n'
@@ -598,5 +599,58 @@ void main() {
         ),
       );
     });
+  });
+  group('a skill doc whose covers entry reads from the project root', () {
+    Future<Bundle Function()> skillCall({String? codeRoot}) async {
+      final root = await writeLoginProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${skillPinsConfig()}${codeRoot == null ? '' : 'code_root: $codeRoot\n'}',
+          ...skillDocFile([skillFile]),
+          skillFile: skillText,
+          if (codeRoot != null) '$codeRoot/keep.txt': '',
+        },
+      );
+      final opened = openSession(root);
+      addTearDown(opened.close);
+      return () => pickCodeBundle(
+        opened.index,
+        resolveCodePath(
+          skillFile,
+          workingDirectory: root,
+          targets: opened.project.targets,
+          codeRootOf: opened.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
+    }
+
+    test(
+      'is never a spec match, so its file gets the no-doc warning',
+      () async {
+        final bundle = (await skillCall())();
+
+        expect(bundle.docPaths, isNot(contains(skillDoc)));
+        expect(bundle.warnings, ['no doc covers or implements $skillFile']);
+      },
+    );
+    test(
+      'leaves its file outside the code root, which refuses the path',
+      () async {
+        final pick = await skillCall(codeRoot: 'specstone');
+
+        expect(
+          pick,
+          throwsA(
+            isA<IndexFault>().having(
+              (x) => x.code,
+              'code',
+              IndexFaultCode.codePathOutsideProject,
+            ),
+          ),
+        );
+      },
+    );
   });
 }

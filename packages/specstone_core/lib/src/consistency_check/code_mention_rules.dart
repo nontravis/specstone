@@ -4,13 +4,16 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
+import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
-import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
+import 'package:specstone_core/src/rendering/skill_references.dart'
+    show skillDocTypeId, skillOutputFieldId, skillReferencesPrefixOf;
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show isSingularLayoutPath, singularLayoutPathsOf;
 import 'package:specstone_core/src/templates/code_target.dart';
@@ -24,8 +27,9 @@ const _byteOrderMark = '﻿';
 ///
 /// A code file is each file under the `code:` roots of a target's docs; a
 /// target with no `code:` entry lists its whole code root but the docs root,
-/// hidden folders, and nested checkouts. An agent file is never read, and a
-/// file with no comment mark or markdown extension is not read at all. A
+/// hidden folders, and nested checkouts. An agent file and a file under a
+/// `skill` doc's `<output>/references/` are never read, and a file with no
+/// comment mark or markdown extension is not read at all. A
 /// mention counts only when it resolves to a doc in the index, so a layout
 /// template, an item ID, or a number label never does; a one-slug span and
 /// the layout path of a singular doc type are no mention. A file that is not
@@ -73,6 +77,16 @@ Set<String> _codeEntriesOf(
         if (value is String) value,
 };
 
+/// Returns the `<output>/references/` folder of each `skill` doc, as the
+/// writer derives it.
+Set<String> _skillReferenceFoldersOf(CheckContext context) => {
+  for (final doc in context.index.docs)
+    if (context.typeOf(doc)?.id == skillDocTypeId)
+      for (final (:value, line: _, text: _)
+          in context.linesOf(doc).entriesOf(skillOutputFieldId))
+        if (value is String) ?skillReferencesPrefixOf(value),
+};
+
 /// Reads the mentions of docs in code files, against one index.
 final class _DocMentionReader {
   new(this._context)
@@ -81,6 +95,7 @@ final class _DocMentionReader {
         (segment) => segment.isNotEmpty,
       ),
       _names = {for (final doc in _context.index.docs) doc.name},
+      _referenceFolders = _skillReferenceFoldersOf(_context),
       _layoutPaths = singularLayoutPathsOf(
         _context.index.set,
         twinNames: _context.index.twinNames,
@@ -94,6 +109,7 @@ final class _DocMentionReader {
   final DocIndex _index;
   final String _docsFolder;
   final Set<String> _names;
+  final Set<String> _referenceFolders;
   final Set<String> _layoutPaths;
   final ProjectPathReader _paths;
 
@@ -101,7 +117,11 @@ final class _DocMentionReader {
     final extension = extensionOfCodePath(codePath);
     if (!readsNameMentions(extension)) return;
     final projectPath = _projectPathOf(target, codePath);
-    if (projectPath == null || isAgentFile(projectPath)) return;
+    if (projectPath == null ||
+        isAgentFile(projectPath) ||
+        _isReferenceFile(projectPath)) {
+      return;
+    }
     final text = _readText(target, codePath, projectPath);
     if (text == null) return;
     final lf = toLf(text);
@@ -109,6 +129,9 @@ final class _DocMentionReader {
       if (_isCited(mention)) yield _finding(projectPath, mention);
     }
   }
+
+  bool _isReferenceFile(String projectPath) =>
+      _referenceFolders.any(projectPath.startsWith);
 
   String? _projectPathOf(CodeTarget target, String codePath) {
     try {

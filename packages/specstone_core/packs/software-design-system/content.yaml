@@ -1,0 +1,12 @@
+id: content
+description: |-
+  The content doc: the rules for writing UI text.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# Content`, with no number.
+path: specs/design_system/CONTENT.md
+sections:
+  - id: writing_rules
+    header: Writing rules
+    required: true
+    description: |-
+      Write one rule per item for the text a component shows, such as its case, its length, and its tone.

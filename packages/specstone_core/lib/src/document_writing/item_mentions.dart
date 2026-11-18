@@ -4,12 +4,11 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, resolveDocLink;
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
+import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
+import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show
-        NameMention,
-        extensionOfCodePath,
-        nameMentionsInFile,
-        readsNameMentions;
+    show extensionOfCodePath, nameMentionsInFile, readsNameMentions;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/document_writing/body_scan.dart';
@@ -279,7 +278,10 @@ List<StaleMention> _bareMentions(
   final skippedHeads = <MovedSpan>{};
   final mentions = <StaleMention>[];
   final runPrefixes = itemIdPrefixesOf(index.set.docTypes);
-  for (final (:at, :id) in itemIdsInProse(prose, prefixes: moves.prefixes)) {
+  for (final ItemIdAt(:at, :id) in itemIdsInProse(
+    prose,
+    prefixes: moves.prefixes,
+  )) {
     final number = body.fileLineOf(at);
     final span = spans
         .where((span) => span.first <= number && number <= span.last)
@@ -361,7 +363,7 @@ String? _citedBy(
     end,
     prefixes: prefixes,
   ).any((item) => item.at == column);
-  for (final (:start, :end, :ticks) in codeSpansOf(line)) {
+  for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line)) {
     if (end > column || !runHolds(end)) continue;
     final address = readDocAddress(line.substring(start + ticks, end - ticks));
     if (address.sectionKey != null || !address.isReferenceWithoutLookup) {

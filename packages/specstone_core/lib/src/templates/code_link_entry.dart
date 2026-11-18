@@ -39,3 +39,17 @@ bool isCodeLinkField(MergedField field) =>
     field.type == FieldType.outputRef &&
     (field.pointer == PointerKind.itemExact ||
         field.pointer == PointerKind.prefix);
+
+/// Returns the `covers`-like fields of [type]: each `output_ref` field whose
+/// pointer is `prefix`, in field order; none for an untyped doc.
+///
+/// The one field selection the code rules and the migrate stamp read.
+List<MergedField> coversFieldsOf(MergedDocType? type) => [
+  for (final field in type?.fields ?? const <MergedField>[])
+    if (isCodeLinkField(field) && field.pointer == PointerKind.prefix) field,
+];
+
+/// Whether [field]'s entries resolve from the project root, which belongs to
+/// no code target, in place of a code root.
+bool readsFromProjectRoot(MergedField field) =>
+    field.root == PointerRoot.project;

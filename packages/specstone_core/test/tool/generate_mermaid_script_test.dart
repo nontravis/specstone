@@ -173,7 +173,7 @@ void main() {
       );
     });
 
-    test('NFR-Po01: git pins the script as binary and the constants as LF', () {
+    test('git pins the script as binary and the constants as LF', () {
       final root = packageRoot();
       final result = Process.runSync('git', [
         'check-attr',

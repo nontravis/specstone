@@ -24,7 +24,7 @@ MergedDocType _docType(String id, String path, {bool perTarget = false}) =>
 
 void main() {
   group('DocTypeMatcher.match', () {
-    test('f05/us01/fr02, doc_model/s03/inv3: a doc path with one matching '
+    test('a doc path with one matching '
         'doc type is that doc type', () async {
       final matcher = DocTypeMatcher(
         await fixtureDocTypes(),
@@ -37,7 +37,7 @@ void main() {
       expect((match as MatchedDocType).docType.id, 'feature');
     });
 
-    test('f05/us01/fr02/e02, doc_model/s03/inv3: a doc path no doc type '
+    test('a doc path no doc type '
         'matches is NoDocType', () async {
       final matcher = DocTypeMatcher(
         await fixtureDocTypes(),
@@ -50,7 +50,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr02/e03, doc_model/s03/inv3: a doc path two doc types '
+    test('a doc path two doc types '
         'match is ambiguous, ids in code point order', () async {
       final matcher = DocTypeMatcher(
         await fixtureDocTypes(extra: {'zeta.yaml': _zeta}),
@@ -91,7 +91,7 @@ void main() {
         MergedSet(docTypes: [for (final docType in docTypes) docType]);
 
     test(
-      'doc_model/s03/rule-20, template_packs/add_doc_type INV-30: with two '
+      'with two '
       'targets a per-target doc type matches one twin per target and names it',
       () {
         final matcher = DocTypeMatcher(
@@ -117,33 +117,30 @@ void main() {
       },
     );
 
-    test(
-      'doc_model/s03/rule-20: with two targets the one-target pattern matches '
-      'nothing, and an unlisted target folder matches nothing',
-      () {
-        final matcher = DocTypeMatcher(
-          setOf([
-            _docType(
-              'architecture',
-              'specs/f{nn}_{slug}/ARCHITECTURE.md',
-              perTarget: true,
-            ),
-          ]),
-          targetNames: const ['flutter', 'jaspr'],
-        );
+    test('with two targets the one-target pattern matches '
+        'nothing, and an unlisted target folder matches nothing', () {
+      final matcher = DocTypeMatcher(
+        setOf([
+          _docType(
+            'architecture',
+            'specs/f{nn}_{slug}/ARCHITECTURE.md',
+            perTarget: true,
+          ),
+        ]),
+        targetNames: const ['flutter', 'jaspr'],
+      );
 
-        expect(
-          matcher.match('specs/f01_login/ARCHITECTURE.md'),
-          isA<NoDocType>(),
-        );
-        expect(
-          matcher.match('specs/tauri/f01_login/ARCHITECTURE.md'),
-          isA<NoDocType>(),
-        );
-      },
-    );
+      expect(
+        matcher.match('specs/f01_login/ARCHITECTURE.md'),
+        isA<NoDocType>(),
+      );
+      expect(
+        matcher.match('specs/tauri/f01_login/ARCHITECTURE.md'),
+        isA<NoDocType>(),
+      );
+    });
 
-    test('doc_model/s03/rule-20: a shared doc type keeps its own pattern and '
+    test('a shared doc type keeps its own pattern and '
         'matches with no target', () {
       final matcher = DocTypeMatcher(
         setOf([
@@ -162,31 +159,28 @@ void main() {
       expect(shared.target, isNull);
     });
 
-    test(
-      'doc_model/s03/rule-20: with one target a per-target doc type keeps its '
-      'own pattern',
-      () {
-        final matcher = DocTypeMatcher(
-          setOf([
-            _docType(
-              'architecture',
-              'specs/f{nn}_{slug}/ARCHITECTURE.md',
-              perTarget: true,
-            ),
-          ]),
-          targetNames: const ['flutter'],
-        );
+    test('with one target a per-target doc type keeps its '
+        'own pattern', () {
+      final matcher = DocTypeMatcher(
+        setOf([
+          _docType(
+            'architecture',
+            'specs/f{nn}_{slug}/ARCHITECTURE.md',
+            perTarget: true,
+          ),
+        ]),
+        targetNames: const ['flutter'],
+      );
 
-        final match = matcher.match('specs/f01_login/ARCHITECTURE.md');
-        expect((match as MatchedDocType).docType.id, 'architecture');
-        expect(
-          matcher.match('specs/flutter/f01_login/ARCHITECTURE.md'),
-          isA<NoDocType>(),
-        );
-      },
-    );
+      final match = matcher.match('specs/f01_login/ARCHITECTURE.md');
+      expect((match as MatchedDocType).docType.id, 'architecture');
+      expect(
+        matcher.match('specs/flutter/f01_login/ARCHITECTURE.md'),
+        isA<NoDocType>(),
+      );
+    });
 
-    test('doc_model/s03/rule-20: a per-target doc type with no target names '
+    test('a per-target doc type with no target names '
         'keeps its own pattern', () {
       final matcher = DocTypeMatcher(
         setOf([
@@ -269,7 +263,7 @@ void main() {
       targetNames: const [],
     );
 
-    test('doc_model/s03/inv10: depth 3 matches feature and depth 4 matches '
+    test('depth 3 matches feature and depth 4 matches '
         'none', () {
       final matcher = matcherAt(3);
 
@@ -284,7 +278,7 @@ void main() {
       expect(matcher.depthPastLimit('prds/features/f01_a/FEATURE.md'), isNull);
     });
 
-    test('doc_model/s03/inv10: max_depth 0 reports depth 1 past the limit', () {
+    test('max_depth 0 reports depth 1 past the limit', () {
       expect(
         matcherAt(0).depthPastLimit('prds/features/f01_a/f01_b/FEATURE.md'),
         1,
@@ -303,7 +297,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/inv10: entryNumber reads the number of a nested '
+    test('entryNumber reads the number of a nested '
         'segment', () {
       expect(
         matcherAt(1).entryNumber(['prds', 'features', 'f01_a', 'f02_b']),
@@ -311,7 +305,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/rule-20: a shared nesting type keeps the plain depth '
+    test('a shared nesting type keeps the plain depth '
         'check beside per-target types', () {
       final matcher = DocTypeMatcher(
         MergedSet(
@@ -341,7 +335,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/rule-20: a per-target nesting type reads the depth '
+    test('a per-target nesting type reads the depth '
         'past its limit under a target folder', () {
       final matcher = DocTypeMatcher(
         MergedSet(

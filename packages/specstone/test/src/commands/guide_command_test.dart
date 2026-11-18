@@ -6,7 +6,10 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/prd_core.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../../specstone_core/test/helpers/software_design_system.dart';
+import '../../../../specstone_core/test/helpers/software_tech.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -125,7 +128,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us01/s8, f03/us01/fr01: --json lists id, pack, and description '
+    test('--json lists id, pack, and description '
         'of each doc type', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -156,7 +159,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us01/s4, f03/us01/fr03: a type with --json prints the merged '
+    test('a type with --json prints the merged '
         'schema with a two-space indent', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -215,6 +218,38 @@ void main() {
       expect(json['maxDepth'], 2);
     });
 
+    test('guide <type> --json prints export on the doc type and root and '
+        'export on a field when written, and omits each when not', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/feature.yaml':
+              'export: false\nfields:\n'
+              '  - {id: covers, type: output_ref, pointer: exact, '
+              'root: project, export: false}\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', 'feature', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['export'], isFalse);
+      final covers = (json['fields']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere((f) => f['id'] == 'covers');
+      expect(covers['root'], 'project');
+      expect(covers['export'], isFalse);
+
+      out.clear();
+      final plain = await runnerIn(await projectWith({}));
+      expect(await plain.run(['guide', 'feature', '--json']), 0);
+      final unset = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(unset.containsKey('export'), isFalse);
+      for (final field
+          in (unset['fields']! as List).cast<Map<String, Object?>>()) {
+        expect(field.containsKey('root'), isFalse);
+        expect(field.containsKey('export'), isFalse);
+      }
+    });
+
     test('guide <type> '
         '--json prints lint.maxItemChars as a project layer sets it, and no '
         'such key with no layer', () async {
@@ -238,7 +273,7 @@ void main() {
       );
     });
 
-    test('f03/us01/fr03, db-r7: guide <type> --json prints a section summary '
+    test('guide <type> --json prints a section summary '
         'set by a project layer', () async {
       final runner = await runnerIn(
         await projectWith({
@@ -254,7 +289,7 @@ void main() {
       expect(sections.first['summary'], isTrue);
     });
 
-    test('f03/us01/s6, f03/us01/fr02/e01: an unknown type prints usage and '
+    test('an unknown type prints usage and '
         'exits 64', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -283,7 +318,7 @@ void main() {
       );
     });
 
-    test('f03/us01/s7, f03/us01/fr01/e02: a broken project '
+    test('a broken project '
         'template prints file and line on stderr and exits 78', () async {
       final runner = await runnerIn(
         await projectWith({'.specstone/templates/feature.yaml': 'id: [\n'}),
@@ -390,8 +425,7 @@ void main() {
       <String>[],
       ['help', 'guide'],
     ]) {
-      test('f03/us05/s2, f03/us01/fr04/e04, f03/us05/fr01/e07, '
-          '`${args.join(' ')}` ignores a broken config', () async {
+      test('`${args.join(' ')}` ignores a broken config', () async {
         final project = await writeTree({_configPath: 'packs: [\n'});
         final runner = await runnerIn(project);
 
@@ -428,7 +462,7 @@ void main() {
       );
     });
 
-    test('E01: two '
+    test('two '
         'unknown ids among known ones refuse the whole call, name each, and '
         'print no guide', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -443,7 +477,7 @@ void main() {
       );
     });
 
-    test('E01: one '
+    test('one '
         'unknown id among known ones names it in the singular form and '
         'prints no guide', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -456,7 +490,7 @@ void main() {
       );
     });
 
-    test('E01: an '
+    test('an '
         'unknown id named twice is named once', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -468,7 +502,7 @@ void main() {
       );
     });
 
-    test('E07: a repeated '
+    test('a repeated '
         'id prints once at its first place under ==> lines', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -483,7 +517,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('E08: one id '
+    test('one id '
         'named twice prints its guide once, with no ==> line', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -531,7 +565,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('E01: an empty '
+    test('an empty '
         'id refuses the call with exit 64 and names ""', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -543,7 +577,7 @@ void main() {
       );
     });
 
-    test('E01: an empty '
+    test('an empty '
         'id beside a known one refuses the whole call', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -577,7 +611,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('E04: a broken '
+    test('a broken '
         'template file with an unknown id among the types exits 78 with the '
         'template fault and no output', () async {
       final runner = await runnerIn(
@@ -592,7 +626,7 @@ void main() {
       );
     });
 
-    test('E04: a broken '
+    test('a broken '
         'template file with an unknown id among the types exits 78 with one '
         'JSON envelope', () async {
       final runner = await runnerIn(
@@ -621,7 +655,7 @@ void main() {
       );
     });
 
-    test('E01: unknown '
+    test('unknown '
         'ids with --json print one envelope naming each, and stdout stays '
         'empty', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -642,7 +676,7 @@ void main() {
       );
     });
 
-    test('E01: one '
+    test('one '
         'unknown id among known ones with --json names it in the singular '
         'form', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -657,7 +691,7 @@ void main() {
     });
 
     test(
-      'E07: a '
+      'a '
       'repeated id with --json prints one array in order, the id once',
       () async {
         final runner = await runnerIn(await projectWith(_frLayer));
@@ -728,12 +762,15 @@ void main() {
           for (final section
               in (json['sections']! as List<Object?>)
                   .cast<Map<String, Object?>>()) {
-            final mark = section['required'] == true
-                ? 'Required section.'
-                : 'Optional section.';
+            final isConditional =
+                section['whenField'] != null || section['requiredWhen'] != null;
+            final isRequired =
+                section['required'] == true || section['requiredWhen'] != null;
+            final word = isRequired ? 'Required' : 'Optional';
+            final mark = isConditional ? '$word when ' : '$word section.\n';
             expect(
               text,
-              contains('## ${section['header']}\n\n$mark\n'),
+              contains('## ${section['header']}\n\n$mark'),
               reason: '$id.${section['id']}',
             );
           }
@@ -1327,6 +1364,46 @@ items:
     });
   });
 
+  group('specstone guide in the built CLI with a conditional section', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    test('anti_persona prints a condition line, not a required mark, under '
+        'each section its anti_type binds', () async {
+      final project = await writeTree({_configPath: shippedPinsConfig()});
+
+      final result = await Process.run(binary, [
+        'guide',
+        'anti_persona',
+      ], workingDirectory: project.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final sections = {
+        for (final block in (result.stdout as String).split('\n## ').skip(1))
+          block.split('\n').first: block,
+      };
+      const bound = [
+        'Motivations',
+        'Actions',
+        'Tools',
+        'Needs',
+        'Consequences',
+      ];
+      for (final header in bound) {
+        expect(
+          sections[header],
+          startsWith(
+            '$header\n\nRequired when `anti_type` is `misuser`; '
+            'left out otherwise.\n',
+          ),
+          reason: header,
+        );
+        expect(sections[header], isNot(contains('Required section.')));
+      }
+    });
+  });
+
   group('specstone guide with the shipped packs', () {
     late StringBuffer out;
     late StringBuffer err;
@@ -1391,13 +1468,203 @@ items:
 
         expect(await runner.run(['guide']), 0);
         final ids = const LineSplitter().convert(out.toString());
-        expect(ids, containsAll(['fr', 'architecture']));
+        expect(
+          ids,
+          [
+            ...prdCoreIds,
+            ...softwareTechIds,
+            ...softwareDesignSystemIds,
+            'skill',
+          ]..sort(),
+        );
         expect(err.toString(), isEmpty);
       },
       skip: _tempHasConfigAncestor()
           ? 'an ancestor of the system temp folder holds $_configPath'
           : false,
     );
+
+    test('a project listing the three packs lists the nineteen design-system '
+        'doc types beside the others', () async {
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
+
+      expect(await runner.run(['guide']), 0);
+      expect(
+        const LineSplitter().convert(out.toString()),
+        [...prdCoreIds, ...softwareTechIds, ...softwareDesignSystemIds]..sort(),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('a project without software-design-system refuses guide component '
+        'with the usage', () async {
+      final runner = await runnerFor();
+
+      expect(await runner.run(['guide', 'component']), 64);
+      expect(
+        err.toString(),
+        contains(
+          'Could not find a doc type named "component".\n\n$_guideUsage',
+        ),
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test('guide component --json prints the group parent and the lifecycle, '
+        'feature, and design_source fields with their export keys', () async {
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
+
+      final schema = await schemaOf(runner, 'component');
+      expect(schema['parent'], 'component_group');
+      final fields = {
+        for (final f
+            in (schema['fields']! as List<Object?>)
+                .cast<Map<String, Object?>>())
+          f['id']! as String: f,
+      };
+      expect(fields['lifecycle']!['enum'], ['beta', 'stable', 'deprecated']);
+      expect(fields['lifecycle']!.containsKey('export'), isFalse);
+      expect(fields['feature']!['export'], false);
+      expect(fields['design_source']!['export'], false);
+    });
+
+    test(
+      'guide contributing --json sets export false and guide tokens --json '
+      'holds the built-in fields, no perTarget, and one required section',
+      () async {
+        final runner = await runnerFor(packs: softwareDesignSystemConfig());
+
+        expect((await schemaOf(runner, 'contributing'))['export'], false);
+        final tokens = await schemaOf(runner, 'tokens');
+        expect(tokens.containsKey('perTarget'), isFalse);
+        expect(
+          (tokens['fields']! as List<Object?>).map(
+            (f) => (f! as Map<String, Object?>)['id'],
+          ),
+          builtInFields.map((f) => f.id),
+        );
+        expect(tokens['sections'], [containsPair('id', 'token_list')]);
+        expect(
+          ((tokens['sections']! as List<Object?>).single!
+              as Map<String, Object?>)['required'],
+          true,
+        );
+      },
+    );
+
+    test('guide guidelines, guide setup, and guide component print their '
+        'statements and rules', () async {
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
+
+      expect(await runner.run(['guide', 'guidelines']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'Shared code structure, such as a component base class, stays in '
+            'the `software-tech` spec docs.',
+          ),
+          contains(
+            'GUIDELINES holds each hard rule, such as "no raw colors", and '
+            "the project's own lint verifies the code against it.",
+          ),
+        ),
+      );
+      out.clear();
+      expect(await runner.run(['guide', 'setup']), 0);
+      expect(
+        out.toString(),
+        contains(
+          "The install contract is the source of the skill's install page.",
+        ),
+      );
+      out.clear();
+      expect(await runner.run(['guide', 'component']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains('The component doc holds no code'),
+          contains('Specstone never generates props from it.'),
+          contains(
+            'Examples state each scenario as prop values, never as code.',
+          ),
+          contains('## Keyboard\n\nOptional section.\n'),
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide --pattern on a project listing all four packs prints the ten '
+        'ids of software-tech', () async {
+      final tech = await runnerFor();
+      expect(await tech.run(['guide', '--pattern']), 0);
+      final techIds = const LineSplitter().convert(out.toString());
+      out.clear();
+
+      final all = await runnerFor(
+        packs: shippedPinsConfig([
+          ...softwareDesignSystemPacks,
+          'agent-skills',
+        ]),
+      );
+      expect(await all.run(['guide', '--pattern']), 0);
+
+      expect(techIds, hasLength(10));
+      expect(const LineSplitter().convert(out.toString()), techIds);
+      expect(err.toString(), isEmpty);
+    });
+
+    test('a project listing prd-core and agent-skills lists skill beside the '
+        'prd-core doc types and prints its guide with no spec pack', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'agent-skills']),
+      );
+
+      expect(await runner.run(['guide']), 0);
+      expect(
+        const LineSplitter().convert(out.toString()),
+        [...prdCoreIds, 'skill']..sort(),
+      );
+
+      out.clear();
+      expect(await runner.run(['guide', 'skill']), 0);
+      expect(out.toString(), contains('## Sources\n\nRequired section.\n'));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide skill --json prints its path, output, feature, and sources '
+        'section', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'agent-skills']),
+      );
+
+      final schema = await schemaOf(runner, 'skill');
+      expect(schema['path'], 'specs/skills/{slug}.md');
+      final fields = (schema['fields']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(fields.map((f) => f['id']), containsAll(['output', 'feature']));
+      final covers = fields.singleWhere((f) => f['id'] == 'covers');
+      expect(covers['root'], 'project');
+      final sections = (schema['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(sections.map((s) => s['id']), [
+        'purpose',
+        'when_to_use',
+        'sources',
+      ]);
+    });
+
+    test('a project listing prd-core alone refuses guide skill with the '
+        'usage', () async {
+      final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
+
+      expect(await runner.run(['guide', 'skill']), 64);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "skill".\n\n$_guideUsage'),
+      );
+      expect(out.toString(), isEmpty);
+    });
 
     test('with only prd-core a software-tech type is neither listed nor '
         'printed', () async {

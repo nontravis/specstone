@@ -428,7 +428,7 @@ Goal.
       expect(result.lf, contains('\n## Data integrity\n'));
     });
 
-    test("f06/us01/fr04/e09, f06/us01/s6: a feature doc's implements entries "
+    test("a feature doc's implements entries "
         'stay', () {
       const feature = '''
 ---
@@ -628,9 +628,6 @@ name: login
   });
 
   group('convertLegacyLabels', () {
-    const rewrite =
-        'setup_migration/migrate_legacy_docs/'
-        'rewrite_titles_keys_and_links';
     const base = 'prds/features/ai01_login';
     const frFolder = '$base/us01_email_login/functional_requirements';
     const newBase = 'prds/features/f01_login';
@@ -687,7 +684,7 @@ name: login
       String citedFrom = '$base/FEATURE.md',
     }) => convertLegacyLabels(tree, legacyPath: citedFrom, lf: lf);
 
-    test('$rewrite E18: a legacy ID the move list maps to one FR becomes its '
+    test('a legacy ID the move list maps to one FR becomes its '
         'name, one inside a code span stays as written', () {
       final result = convert(
         'Built by ai01/us02/fr09 and `ai01/us01/fr02`.\n'
@@ -702,7 +699,7 @@ name: login
       expect(result.kept, [const KeptLabel(line: 1, label: 'ai01/us02/fr09')]);
     });
 
-    test('$rewrite E18: a legacy ID whose folders map to no moved doc stays '
+    test('a legacy ID whose folders map to no moved doc stays '
         'as written and is listed', () {
       final result = convert('Nothing at ai09/us01/fr01 here.\n');
 
@@ -710,7 +707,7 @@ name: login
       expect(result.kept, [const KeptLabel(line: 1, label: 'ai09/us01/fr01')]);
     });
 
-    test('$rewrite E18: a legacy ID the move list maps to 2 FRs stays as '
+    test('a legacy ID the move list maps to 2 FRs stays as '
         'written and is listed', () {
       final result = convert('Both ai01/us01/fr01 here.\n');
 
@@ -718,7 +715,7 @@ name: login
       expect(result.kept, [const KeptLabel(line: 1, label: 'ai01/us01/fr01')]);
     });
 
-    test('$rewrite E18: a legacy ID finds only the folders of its own '
+    test('a legacy ID finds only the folders of its own '
         'prefix, though another feature holds that number', () {
       final result = convert('Is ai01/us01/fr05 there, or ui01/us01/fr05?\n');
 
@@ -726,21 +723,21 @@ name: login
       expect(result.kept, [const KeptLabel(line: 1, label: 'ai01/us01/fr05')]);
     });
 
-    test('$rewrite E18: a legacy ID names the whole folder ID, so ai01 and '
+    test('a legacy ID names the whole folder ID, so ai01 and '
         'ai01_02 side by side stay apart', () {
       final result = convert('Is ai01/us01/fr02 or ai01_02/us01/fr02?\n');
 
       expect(result.lf, 'Is `login/email_login/lock_account` or `chat/c/d`?\n');
     });
 
-    test('$rewrite E18: a legacy folder ID ends where the folder name does, '
+    test('a legacy folder ID ends where the folder name does, '
         'not inside a slug that opens with digits', () {
       final result = convert('See ai03/us01/fr01.\n');
 
       expect(result.lf, 'See `2fa_login/e/f`.\n');
     });
 
-    test('$rewrite E18: a legacy ID that goes on to another folder names no '
+    test('a legacy ID that goes on to another folder names no '
         'doc by its first folders', () {
       final result = convert('Not ai01/us01/nf01 or ai01/us01/fr02/e09.\n');
 
@@ -751,7 +748,7 @@ name: login
       expect(result.kept, [const KeptLabel(line: 1, label: 'ai01/us01')]);
     });
 
-    test('$rewrite E19: a full label names the story by its legacy folder '
+    test('a full label names the story by its legacy folder '
         'numbers; a feature alone names the typed feature', () {
       final result = convert('See F-01 US-01 and F-01 for the feature.\n');
 
@@ -762,7 +759,7 @@ name: login
       expect(result.kept, isEmpty);
     });
 
-    test("$rewrite E19: a partial label reads against the citing doc's own "
+    test("a partial label reads against the citing doc's own "
         'story before the move', () {
       final result = convert(
         'After FR-02 and US-01 FR-02, not FR-07.\n',
@@ -777,7 +774,7 @@ name: login
       expect(result.kept, [const KeptLabel(line: 1, label: 'FR-07')]);
     });
 
-    test('$rewrite E19: a partial label in a doc with no feature place '
+    test('a partial label in a doc with no feature place '
         'before the move stays as written, though the doc lands in one', () {
       final result = convert(
         'After FR-02.\n',
@@ -788,7 +785,7 @@ name: login
       expect(result.kept, [const KeptLabel(line: 1, label: 'FR-02')]);
     });
 
-    test('$rewrite E19: a label in a link destination or under the '
+    test('a label in a link destination or under the '
         'frontmatter is no label to convert', () {
       final result = convert('---\nname: FR-02\n---\n\n[x](FR-02.md)\n');
 
@@ -796,7 +793,7 @@ name: login
       expect(result.kept, isEmpty);
     });
 
-    test('$rewrite E19: a doc of a grouped feature has no place, so a '
+    test('a doc of a grouped feature has no place, so a '
         'partial label there stays', () {
       final result = convert(
         'After US-01.\n',
@@ -808,7 +805,7 @@ name: login
       expect(result.kept, [const KeptLabel(line: 1, label: 'US-01')]);
     });
 
-    test('$rewrite E19: a doc left in place under a feature folder reads '
+    test('a doc left in place under a feature folder reads '
         'against that place', () {
       final result = convert(
         'After US-01.\n',

@@ -1,6 +1,6 @@
-import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show fencedLines;
 import 'package:specstone_core/src/doc_model/doc_items.dart' show firstTableOf;
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/index_query/html_comments.dart';
 
 final _carriageReturn = RegExp(r'\r$');
@@ -34,7 +34,7 @@ List<BodyLine> _scannedLines(String body, List<String> lines) {
   ]);
   return [
     for (var at = 0; at < lines.length; at++)
-      (text: plain[at], line: at + 1, fenced: fenced[at]),
+      BodyLine(text: plain[at], line: at + 1, fenced: fenced[at]),
   ];
 }
 

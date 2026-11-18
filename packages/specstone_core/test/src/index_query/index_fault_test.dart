@@ -2,7 +2,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('s05: the eleven F-01 codes in catalog order, with their exits', () {
+  test('the eleven index fault codes in catalog order, with their exits', () {
     expect(
       [for (final c in IndexFaultCode.values) (c.wire, c.exitStatus)],
       [
@@ -21,7 +21,7 @@ void main() {
     );
   });
 
-  test('s05: an F-01 fault carries code and message only', () {
+  test('an index fault carries code and message only', () {
     final fault = IndexFault(
       IndexFaultCode.docNotFound,
       'no doc carries the name logn',
@@ -35,7 +35,7 @@ void main() {
     expect(fault.toText(), 'no doc carries the name logn');
   });
 
-  group('E17: IndexFaults', () {
+  group('IndexFaults', () {
     final faults = IndexFaults([
       IndexFault(IndexFaultCode.docNotFound, 'no doc carries the name logn'),
       IndexFault(

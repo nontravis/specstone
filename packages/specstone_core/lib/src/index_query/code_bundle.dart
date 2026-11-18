@@ -9,7 +9,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
-const _coversField = 'covers';
 const _implementsField = 'implements';
 
 /// A file or folder under a code root a `context --code` call names.
@@ -136,6 +135,9 @@ Iterable<IndexedDoc> _docsOf(DocIndex index, CodePath code) =>
 
 /// Returns the docs whose `covers:` entry is the longest prefix of [code].
 ///
+/// A field that reads from the project root joins no match, since its entries
+/// name no path under a code root.
+///
 /// With two or more targets only [code]'s target's docs compete, since a
 /// shared doc's code paths count for no target.
 List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
@@ -145,8 +147,7 @@ List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
     if (doc.docTypeId == null || index.hasTwins && doc.target == null) {
       continue;
     }
-    for (final entry in doc.valuesOf(_coversField)) {
-      final covered = _withoutTrailingSlash(CodeLinkEntry(entry).pointer);
+    for (final covered in _coveredPaths(index, doc)) {
       if (covered.isEmpty || !_isPrefixOf(covered, code.path)) continue;
       if (covered.length > longest) {
         longest = covered.length;
@@ -159,6 +160,17 @@ List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
     }
   }
   return matches;
+}
+
+/// Returns the code-root paths [doc]'s `covers` fields name, each without a
+/// trailing slash.
+Iterable<String> _coveredPaths(DocIndex index, IndexedDoc doc) sync* {
+  for (final field in coversFieldsOf(index.typeOf(doc))) {
+    if (readsFromProjectRoot(field)) continue;
+    for (final entry in doc.valuesOf(field.id)) {
+      yield _withoutTrailingSlash(CodeLinkEntry(entry).pointer);
+    }
+  }
 }
 
 List<IndexedDoc> _tracedDocs(DocIndex index, CodePath code) => [

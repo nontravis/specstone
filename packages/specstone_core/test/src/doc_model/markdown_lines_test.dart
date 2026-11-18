@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:markdown/markdown.dart' show ExtensionSet, markdownToHtml;
 import 'package:markdown/src/patterns.dart' show tablePattern;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart';
+import 'package:specstone_core/src/doc_model/models/atx_heading.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
@@ -60,25 +61,43 @@ Iterable<String> _wideRows() sync* {
 void main() {
   group('atxHeadingOf', () {
     test('reads the level and the text of a heading', () {
-      expect(atxHeadingOf('# Title'), (level: 1, text: 'Title'));
-      expect(atxHeadingOf('## Section'), (level: 2, text: 'Section'));
-      expect(atxHeadingOf('### Edge case. Two'), (
-        level: 3,
-        text: 'Edge case. Two',
-      ));
-      expect(atxHeadingOf('   ###### Deep'), (level: 6, text: 'Deep'));
+      expect(
+        atxHeadingOf('# Title'),
+        const AtxHeading(level: 1, text: 'Title'),
+      );
+      expect(
+        atxHeadingOf('## Section'),
+        const AtxHeading(level: 2, text: 'Section'),
+      );
+      expect(
+        atxHeadingOf('### Edge case. Two'),
+        const AtxHeading(level: 3, text: 'Edge case. Two'),
+      );
+      expect(
+        atxHeadingOf('   ###### Deep'),
+        const AtxHeading(level: 6, text: 'Deep'),
+      );
     });
 
     test('drops a closing run of # and trailing spaces', () {
-      expect(atxHeadingOf('#### Deeper ####'), (level: 4, text: 'Deeper'));
-      expect(atxHeadingOf('### Foo  '), (level: 3, text: 'Foo'));
-      expect(atxHeadingOf('### Foo#'), (level: 3, text: 'Foo#'));
+      expect(
+        atxHeadingOf('#### Deeper ####'),
+        const AtxHeading(level: 4, text: 'Deeper'),
+      );
+      expect(
+        atxHeadingOf('### Foo  '),
+        const AtxHeading(level: 3, text: 'Foo'),
+      );
+      expect(
+        atxHeadingOf('### Foo#'),
+        const AtxHeading(level: 3, text: 'Foo#'),
+      );
     });
 
     test('reads a heading with no text as empty text', () {
-      expect(atxHeadingOf('###'), (level: 3, text: ''));
-      expect(atxHeadingOf('### ###'), (level: 3, text: ''));
-      expect(atxHeadingOf('### ##'), (level: 3, text: ''));
+      expect(atxHeadingOf('###'), const AtxHeading(level: 3, text: ''));
+      expect(atxHeadingOf('### ###'), const AtxHeading(level: 3, text: ''));
+      expect(atxHeadingOf('### ##'), const AtxHeading(level: 3, text: ''));
     });
 
     test('reads no heading from a line that is none', () {

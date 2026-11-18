@@ -142,7 +142,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e12, f03/us02/fr04/e05: a parent naming no id is '
+    test('a parent naming no id is '
         'unknown_value', () {
       final layers = {
         'runbook': [layerOf('runbook', 'parent: nope\n')],
@@ -497,7 +497,7 @@ void main() {
       },
     );
 
-    test('E31, INV-31: two '
+    test('two '
         'doc types holding a record_status field are unknown_value naming '
         'each holder', () {
       const recordField =
@@ -541,7 +541,7 @@ void main() {
       );
     });
 
-    test('E33, INV-31: the '
+    test('the '
         'record doc type with a merged per_target that is not true is '
         'unknown_value', () {
       const noKey =
@@ -596,7 +596,7 @@ void main() {
       );
     });
 
-    test('E33, INV-31: the '
+    test('the '
         'record doc type with per_target: true passes, and one holder names '
         'the record doc type', () {
       const layer =
@@ -919,8 +919,7 @@ void main() {
   });
 
   group('checkMergedSet targets', () {
-    test('E30, '
-        'INV-29: a targets config in a merged set with no record doc type is '
+    test('a targets config in a merged set with no record doc type is '
         'unknown_value', () {
       expect(
         () => checkMergedSet(
@@ -940,7 +939,7 @@ void main() {
       );
     });
 
-    test('E30: one '
+    test('one '
         'target and no targets both need a record doc type; one unnamed '
         'target does not', () {
       const recordLayer =

@@ -50,18 +50,21 @@ void main() {
   }
 
   group('ReadSession', () {
-    test('f01/us01/fr01/e01: outside a project the session refuses with project_not_found, exit 78', () async {
-      final folder = await writeTree({});
-      expect(
-        () => openSession(folder),
-        throwsA(
-          isA<RenderFault>()
-              .having((f) => f.code, 'code', RenderFaultCode.projectNotFound)
-              .having((f) => f.exitStatus, 'exit', 78),
-        ),
-      );
-    });
-    test('f01/us01/fr01, f01/us01/fr01/e02: a template fault exits 78 and no index is written', () async {
+    test(
+      'outside a project the session refuses with project_not_found, exit 78',
+      () async {
+        final folder = await writeTree({});
+        expect(
+          () => openSession(folder),
+          throwsA(
+            isA<RenderFault>()
+                .having((f) => f.code, 'code', RenderFaultCode.projectNotFound)
+                .having((f) => f.exitStatus, 'exit', 78),
+          ),
+        );
+      },
+    );
+    test('a template fault exits 78 and no index is written', () async {
       final project = await writeLoginProject(
         extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
       );
@@ -71,43 +74,34 @@ void main() {
       );
       expect(inProject(project, indexFilePath).existsSync(), isFalse);
     });
-    test(
-      'f01/us01/fr01/e03, s03/inv1: no docs folder answers as an empty tree',
-      () async {
-        final session = openSession(
-          await writeTree({
-            '.specstone/config.yaml': loginProject['.specstone/config.yaml']!,
-          }),
-        );
-        addTearDown(session.close);
-        expect(session.docs, isEmpty);
-      },
-    );
-    test(
-      'f01/us01/fr01/e04: a working folder below the root finds the same roots',
-      () async {
-        final project = await writeLoginProject();
-        final session = openSession(Directory('${project.path}/docs/prds'));
-        addTearDown(session.close);
-        expect(
-          session.project.docsRoot.path,
-          Directory('${project.path}/docs').resolveSymbolicLinksSync(),
-        );
-        expect(session.docs, hasLength(25));
-      },
-    );
-    test(
-      'f01/us01/s1: an edited doc reads as edited on the next call',
-      () async {
-        final project = await writeLoginProject();
-        openSession(project).close();
-        inProject(project, featureKey).writeAsStringSync(loginV2);
-        final session = openSession(project);
-        addTearDown(session.close);
-        expect(titleOf(session, featureDoc), 'Login v2');
-      },
-    );
-    test('f01/us01/s1: a peer that rewrites the stamp between refresh and snapshot is refreshed over', () async {
+    test('no docs folder answers as an empty tree', () async {
+      final session = openSession(
+        await writeTree({
+          '.specstone/config.yaml': loginProject['.specstone/config.yaml']!,
+        }),
+      );
+      addTearDown(session.close);
+      expect(session.docs, isEmpty);
+    });
+    test('a working folder below the root finds the same roots', () async {
+      final project = await writeLoginProject();
+      final session = openSession(Directory('${project.path}/docs/prds'));
+      addTearDown(session.close);
+      expect(
+        session.project.docsRoot.path,
+        Directory('${project.path}/docs').resolveSymbolicLinksSync(),
+      );
+      expect(session.docs, hasLength(25));
+    });
+    test('an edited doc reads as edited on the next call', () async {
+      final project = await writeLoginProject();
+      openSession(project).close();
+      inProject(project, featureKey).writeAsStringSync(loginV2);
+      final session = openSession(project);
+      addTearDown(session.close);
+      expect(titleOf(session, featureDoc), 'Login v2');
+    });
+    test('a peer that rewrites the stamp between refresh and snapshot is refreshed over', () async {
       final root = await writeLoginProject();
       final project = DocsProject.open(
         templates: TemplateResolver(),
@@ -285,7 +279,7 @@ void main() {
       );
       expect(refreshes, 3);
     });
-    test('f01/us01/s1: a peer that keeps changing the stamp ends the read as index_busy after 3 refreshes', () async {
+    test('a peer that keeps changing the stamp ends the read as index_busy after 3 refreshes', () async {
       final root = await writeLoginProject();
       final project = DocsProject.open(
         templates: TemplateResolver(),
@@ -317,44 +311,39 @@ void main() {
       );
       expect(refreshes, 3);
     });
-    test(
-      'f01/us01/s1: a retried refresh reports its listing warning once',
-      () async {
-        final root = await writeLoginProject();
-        final project = DocsProject.open(
-          templates: TemplateResolver(),
-          workingDirectory: root,
-          homeDirectory: null,
-        );
-        final peer = IndexStore.open(project.projectRoot);
-        addTearDown(peer.close);
-        final unreadable = inProject(root, 'docs/README.md');
-        Process.runSync('chmod', ['000', unreadable.path]);
-        addTearDown(() => Process.runSync('chmod', ['644', unreadable.path]));
-        var refreshes = 0;
-        final session = ReadSession.readFrom(
-          project,
-          IndexStore.open(project.projectRoot),
-          workingDirectory: root,
-          afterRefresh: () {
-            if (refreshes++ > 0) return;
-            peer.write(
-              () => peer.reset(
-                const IndexStamp(binaryVersion: 'peer', docTypes: 'other'),
-              ),
-            );
-          },
-        );
-        addTearDown(session.close);
-        expect(refreshes, 2);
-        expect(
-          session.indexWarnings.where((w) => w.contains('cannot be read')),
-          ['README.md: cannot be read; skipped'],
-        );
-      },
-      skip: unreadablePathSkipReason(),
-    );
-    test('f01/us01/s2: the first call builds from every doc and writes only .specstone/.gitignore', () async {
+    test('a retried refresh reports its listing warning once', () async {
+      final root = await writeLoginProject();
+      final project = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+      final peer = IndexStore.open(project.projectRoot);
+      addTearDown(peer.close);
+      final unreadable = inProject(root, 'docs/README.md');
+      Process.runSync('chmod', ['000', unreadable.path]);
+      addTearDown(() => Process.runSync('chmod', ['644', unreadable.path]));
+      var refreshes = 0;
+      final session = ReadSession.readFrom(
+        project,
+        IndexStore.open(project.projectRoot),
+        workingDirectory: root,
+        afterRefresh: () {
+          if (refreshes++ > 0) return;
+          peer.write(
+            () => peer.reset(
+              const IndexStamp(binaryVersion: 'peer', docTypes: 'other'),
+            ),
+          );
+        },
+      );
+      addTearDown(session.close);
+      expect(refreshes, 2);
+      expect(session.indexWarnings.where((w) => w.contains('cannot be read')), [
+        'README.md: cannot be read; skipped',
+      ]);
+    }, skip: unreadablePathSkipReason());
+    test('the first call builds from every doc and writes only .specstone/.gitignore', () async {
       final project = await writeLoginProject();
       final session = openSession(project);
       addTearDown(session.close);
@@ -365,7 +354,7 @@ void main() {
       );
       expect(inProject(project, '.gitignore').existsSync(), isFalse);
     });
-    test('f01/us01/s3: added docs show and deleted docs do not', () async {
+    test('added docs show and deleted docs do not', () async {
       final project = await writeLoginProject();
       openSession(project).close();
       inProject(project, 'docs/prds/references/new_rule/REFERENCE.md')
@@ -378,84 +367,96 @@ void main() {
       expect(paths, contains('prds/references/new_rule/REFERENCE.md'));
       expect(paths, isNot(contains('README.md')));
     });
-    test('f01/us01/s4: changed templates are read as the current templates read them', () async {
-      final project = await writeLoginProject(
-        extra: {
-          featureKey: '${loginProject[featureKey]}\n## Open Notes\nLater.\n',
-        },
-      );
-      openSession(project).close();
-      inProject(project, '.specstone/templates/feature.yaml')
-        ..createSync(recursive: true)
-        ..writeAsStringSync(
-          'sections:\n  - id: open_notes\n    header: Open Notes\n    after: out_of_scope\n',
+    test(
+      'changed templates are read as the current templates read them',
+      () async {
+        final project = await writeLoginProject(
+          extra: {
+            featureKey: '${loginProject[featureKey]}\n## Open Notes\nLater.\n',
+          },
         );
-      final session = openSession(project);
-      addTearDown(session.close);
-      expect(
-        session.store.loadContent(featureDoc).sections.last.key,
-        'open_notes',
-      );
-    });
-    test('f01/us01/s5, f01/us01/fr05/e01: two sessions in two isolates after an edit both read the edit', () async {
-      final project = await writeLoginProject();
-      openSession(project).close();
-      inProject(project, featureKey).writeAsStringSync(loginV2);
-      final root = project.path;
-      String? titleIn() {
-        final session = openSession(Directory(root));
-        try {
-          return titleOf(session, featureDoc);
-        } finally {
-          session.close();
+        openSession(project).close();
+        inProject(project, '.specstone/templates/feature.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            'sections:\n  - id: open_notes\n    header: Open Notes\n    after: out_of_scope\n',
+          );
+        final session = openSession(project);
+        addTearDown(session.close);
+        expect(
+          session.store.loadContent(featureDoc).sections.last.key,
+          'open_notes',
+        );
+      },
+    );
+    test(
+      'two sessions in two isolates after an edit both read the edit',
+      () async {
+        final project = await writeLoginProject();
+        openSession(project).close();
+        inProject(project, featureKey).writeAsStringSync(loginV2);
+        final root = project.path;
+        String? titleIn() {
+          final session = openSession(Directory(root));
+          try {
+            return titleOf(session, featureDoc);
+          } finally {
+            session.close();
+          }
         }
-      }
 
-      expect(await Future.wait([Isolate.run(titleIn), Isolate.run(titleIn)]), [
-        'Login v2',
-        'Login v2',
-      ]);
-    });
-    test('f01/us01/fr05/e02: an open session keeps its snapshot while another call reindexes', () async {
+        expect(
+          await Future.wait([Isolate.run(titleIn), Isolate.run(titleIn)]),
+          ['Login v2', 'Login v2'],
+        );
+      },
+    );
+    test(
+      'an open session keeps its snapshot while another call reindexes',
+      () async {
+        final project = await writeLoginProject();
+        final before = openSession(project);
+        addTearDown(before.close);
+        inProject(project, featureKey).writeAsStringSync(loginV2);
+        final after = openSession(project);
+        addTearDown(after.close);
+        expect(
+          before.store.loadContent(featureDoc).text,
+          contains('# Login\n'),
+        );
+        expect(
+          after.store.loadContent(featureDoc).text,
+          contains('# Login v2\n'),
+        );
+      },
+    );
+    test('a deleted index rebuilds to the same answers', () async {
       final project = await writeLoginProject();
-      final before = openSession(project);
-      addTearDown(before.close);
-      inProject(project, featureKey).writeAsStringSync(loginV2);
-      final after = openSession(project);
-      addTearDown(after.close);
-      expect(before.store.loadContent(featureDoc).text, contains('# Login\n'));
-      expect(
-        after.store.loadContent(featureDoc).text,
-        contains('# Login v2\n'),
-      );
+      final intact = openSession(project);
+      final expected = answers(intact);
+      intact.close();
+      deleteIndex(project);
+      final rebuilt = openSession(project);
+      addTearDown(rebuilt.close);
+      expect(answers(rebuilt), expected);
+      expect(rebuilt.warnings, isNot(contains(damagedIndexWarning)));
     });
     test(
-      'f01/us01/s6, NFR-DI02: a deleted index rebuilds to the same answers',
+      'a damaged index rebuilds to the same answers, with the warning',
       () async {
         final project = await writeLoginProject();
         final intact = openSession(project);
         final expected = answers(intact);
         intact.close();
         deleteIndex(project);
+        inProject(project, indexFilePath).writeAsStringSync('not a database');
         final rebuilt = openSession(project);
         addTearDown(rebuilt.close);
         expect(answers(rebuilt), expected);
-        expect(rebuilt.warnings, isNot(contains(damagedIndexWarning)));
+        expect(rebuilt.warnings.first, damagedIndexWarning);
       },
     );
-    test('f01/us01/s6, f01/us01/fr05/e03: a damaged index rebuilds to the same answers, with the warning', () async {
-      final project = await writeLoginProject();
-      final intact = openSession(project);
-      final expected = answers(intact);
-      intact.close();
-      deleteIndex(project);
-      inProject(project, indexFilePath).writeAsStringSync('not a database');
-      final rebuilt = openSession(project);
-      addTearDown(rebuilt.close);
-      expect(answers(rebuilt), expected);
-      expect(rebuilt.warnings.first, damagedIndexWarning);
-    });
-    test('f01/us01/fr05/e03, s03/inv23: an index whose later pages are lost rebuilds to the same answers, with the warning', () async {
+    test('an index whose later pages are lost rebuilds to the same answers, with the warning', () async {
       final project = await writeLoginProject();
       final intact = openSession(project);
       final expected = answers(intact);
@@ -479,7 +480,7 @@ void main() {
       expect(rebuilt.docs, hasLength(expected.length));
       expect(rebuilt.warnings.first, damagedIndexWarning);
     });
-    test('f01/us01/s8: a doc two doc types describe reads with no doc type and a warning naming both', () async {
+    test('a doc two doc types describe reads with no doc type and a warning naming both', () async {
       final session = openSession(
         await writeLoginProject(
           extra: {
@@ -496,7 +497,7 @@ void main() {
         contains('$fr matches two doc types: fr, legacy_fr'),
       );
     });
-    test('f01/us01/s9: schema and API export files never appear', () async {
+    test('schema and API export files never appear', () async {
       final session = openSession(await writeLoginProject());
       addTearDown(session.close);
       expect([
@@ -504,7 +505,7 @@ void main() {
       ], isNot(anyElement(anyOf(endsWith('.dbml'), endsWith('.json')))));
     });
     test(
-      'f01/us01/s12, f01/us01/fr02/e07: a read-only index file refuses a needed reindex and keeps its bytes',
+      'a read-only index file refuses a needed reindex and keeps its bytes',
       skip: unreadablePathSkipReason(),
       () async {
         final project = await writeLoginProject();
@@ -525,37 +526,40 @@ void main() {
         expect(index.readAsBytesSync(), before);
       },
     );
-    test('f01/us01/s13, f01/us01/fr05/e05, s03/inv23: a lock held past the timeout is index_busy and changes nothing', () async {
-      final project = await writeLoginProject();
-      openSession(project).close();
-      final holder = sqlite3.open(inProject(project, indexFilePath).path)
-        ..execute('BEGIN IMMEDIATE');
-      inProject(project, featureKey).writeAsStringSync(loginV2);
-      expect(
-        () => openSession(
-          project,
-          busyTimeout: const Duration(milliseconds: 200),
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
-              .having((f) => f.exitStatus, 'exit', 75),
-        ),
-      );
-      final peek = IndexStore.open(project);
-      expect(
-        peek.hashes()[featureDoc],
-        contentHashOf(utf8.encode(loginProject[featureKey]!)),
-      );
-      peek.close();
-      holder
-        ..execute('ROLLBACK')
-        ..close();
-      final session = openSession(project);
-      addTearDown(session.close);
-      expect(titleOf(session, featureDoc), 'Login v2');
-    });
-    test('s03/inv1, review focus 3: a non-finite YAML number is indexed as its YAML text', () async {
+    test(
+      'a lock held past the timeout is index_busy and changes nothing',
+      () async {
+        final project = await writeLoginProject();
+        openSession(project).close();
+        final holder = sqlite3.open(inProject(project, indexFilePath).path)
+          ..execute('BEGIN IMMEDIATE');
+        inProject(project, featureKey).writeAsStringSync(loginV2);
+        expect(
+          () => openSession(
+            project,
+            busyTimeout: const Duration(milliseconds: 200),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
+                .having((f) => f.exitStatus, 'exit', 75),
+          ),
+        );
+        final peek = IndexStore.open(project);
+        expect(
+          peek.hashes()[featureDoc],
+          contentHashOf(utf8.encode(loginProject[featureKey]!)),
+        );
+        peek.close();
+        holder
+          ..execute('ROLLBACK')
+          ..close();
+        final session = openSession(project);
+        addTearDown(session.close);
+        expect(titleOf(session, featureDoc), 'Login v2');
+      },
+    );
+    test('a non-finite YAML number is indexed as its YAML text', () async {
       const key = 'docs/prds/features/f04_limits/FEATURE.md';
       final session = openSession(
         await writeLoginProject(
@@ -582,28 +586,31 @@ void main() {
         },
       );
     });
-    test('review focus 2, review focus 3: a non-UTF-8 doc and a bad frontmatter doc are indexed with warnings', () async {
-      final project = await writeLoginProject(
-        extra: {
-          'docs/prds/features/f03_broken/FEATURE.md':
-              '---\nvision: [PV-01\n---\n\n# Broken\n',
-        },
-      );
-      inProject(
-        project,
-        'docs/bad.md',
-      ).writeAsBytesSync([0x23, 0x20, 0xFF, 0x0A]);
-      final session = openSession(project);
-      addTearDown(session.close);
-      expect(session.docs, hasLength(27));
-      expect(
-        session.warnings,
-        containsAll([
-          'bad.md: not UTF-8 text; indexed with replacement characters',
-          'prds/features/f03_broken/FEATURE.md: frontmatter is not valid YAML; its values are not indexed',
-        ]),
-      );
-    });
+    test(
+      'a non-UTF-8 doc and a bad frontmatter doc are indexed with warnings',
+      () async {
+        final project = await writeLoginProject(
+          extra: {
+            'docs/prds/features/f03_broken/FEATURE.md':
+                '---\nvision: [PV-01\n---\n\n# Broken\n',
+          },
+        );
+        inProject(
+          project,
+          'docs/bad.md',
+        ).writeAsBytesSync([0x23, 0x20, 0xFF, 0x0A]);
+        final session = openSession(project);
+        addTearDown(session.close);
+        expect(session.docs, hasLength(27));
+        expect(
+          session.warnings,
+          containsAll([
+            'bad.md: not UTF-8 text; indexed with replacement characters',
+            'prds/features/f03_broken/FEATURE.md: frontmatter is not valid YAML; its values are not indexed',
+          ]),
+        );
+      },
+    );
   });
 
   group('ReadSession.run', () {
@@ -645,7 +652,7 @@ void main() {
       index.writeAsBytesSync(bytes);
     }
 
-    test('f01/us01/fr05/e03, s03/inv23: a page lost where only the answer reads rebuilds the index and answers as an intact index does, with the warning', () async {
+    test('a page lost where only the answer reads rebuilds the index and answers as an intact index does, with the warning', () async {
       final project = await writeLoginProject();
       final expected = runSession(project, answers);
       loseAnswerPages(project);
@@ -659,7 +666,7 @@ void main() {
       expect(sessions.last.warnings.first, damagedIndexWarning);
       expect(sessions, closed());
     });
-    test('f01/us01/fr05/e03: a second damage error while answering is index_not_writable, exit 73, and closes both sessions', () async {
+    test('a second damage error while answering is index_not_writable, exit 73, and closes both sessions', () async {
       final project = await writeLoginProject();
       final sessions = <ReadSession>[];
       expect(
@@ -677,7 +684,7 @@ void main() {
       expect(sessions.last.warnings.first, damagedIndexWarning);
       expect(sessions, closed());
     });
-    test('f01/us01/fr05/e05: another database error while answering is its own fault, with no rebuild', () async {
+    test('another database error while answering is its own fault, with no rebuild', () async {
       final project = await writeLoginProject();
       final sessions = <ReadSession>[];
       expect(
@@ -694,20 +701,23 @@ void main() {
       expect(sessions, hasLength(1));
       expect(sessions, closed());
     });
-    test('f01/us01/fr05: a fault from the answer passes unchanged and closes the session', () async {
-      final project = await writeLoginProject();
-      final fault = IndexFault(IndexFaultCode.sectionNotFound, 'no section');
-      final sessions = <ReadSession>[];
-      expect(
-        () => runSession<void>(project, (s) {
-          sessions.add(s);
-          throw fault;
-        }),
-        throwsA(same(fault)),
-      );
-      expect(sessions, hasLength(1));
-      expect(sessions, closed());
-    });
+    test(
+      'a fault from the answer passes unchanged and closes the session',
+      () async {
+        final project = await writeLoginProject();
+        final fault = IndexFault(IndexFaultCode.sectionNotFound, 'no section');
+        final sessions = <ReadSession>[];
+        expect(
+          () => runSession<void>(project, (s) {
+            sessions.add(s);
+            throw fault;
+          }),
+          throwsA(same(fault)),
+        );
+        expect(sessions, hasLength(1));
+        expect(sessions, closed());
+      },
+    );
   });
 
   group('ReadSession.runAsync', () {

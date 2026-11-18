@@ -9,23 +9,20 @@ import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
-  test(
-    'f01/us04/fr01/e14: reorder takes a bare name one doc carries',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-      expect(
-        await runner.run(['reorder', 'login/reset_password', '--to', '1']),
-        0,
-      );
-      expect(err.toString(), isEmpty);
-      expect(
-        out.toString(),
-        startsWith(
-          'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us01_reset_password/\n',
-        ),
-      );
-    },
-  );
+  test('reorder takes a bare name one doc carries', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(
+      await runner.run(['reorder', 'login/reset_password', '--to', '1']),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      startsWith(
+        'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us01_reset_password/\n',
+      ),
+    );
+  });
 
   test('reorder lists a doc changed by a path mention only', () async {
     final root = await writeWriteProject(
@@ -130,7 +127,7 @@ void main() {
       'reorder needs a place, such as specstone reorder user_story:login/reset_password --to 1\n',
     );
   });
-  test('E13: reorder writes a rewritten typed doc laid out', () async {
+  test('reorder writes a rewritten typed doc laid out', () async {
     final root = await writeWriteProject(
       extra: {
         'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
@@ -169,7 +166,7 @@ void main() {
       },
     );
 
-    test('E12: reorder --target takes a feature with its spec folder in every '
+    test('reorder --target takes a feature with its spec folder in every '
         'target', () async {
       final root = await twins();
       final (:runner, :out, :err) = writeRunner(root);

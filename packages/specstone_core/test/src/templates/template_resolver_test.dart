@@ -54,8 +54,7 @@ bool _tempHasConfigAncestor() {
 
 void main() {
   group('TemplateResolver.resolve', () {
-    test('f03/us05/s3, f03/us05/fr02/e01, f03/us01/fr01/e03: '
-        'an older shipped pin is pack_pin_older', () async {
+    test('an older shipped pin is pack_pin_older', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.0.0\n',
       });
@@ -84,58 +83,50 @@ void main() {
       );
     });
 
-    test(
-      'f03/us05/s1, f03/us05/fr02: equal pins resolve the listed packs',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n',
-        });
-        final home = await writeTree({});
-        final resolver = TemplateResolver(shippedFiles: shipped());
+    test('equal pins resolve the listed packs', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
 
-        final merged = resolver.resolve(
-          workingDirectory: project,
-          homeDirectory: home,
-        );
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
 
-        expect(merged.lookup('feature'), isNotNull);
-        expect(merged.lookup('architecture'), isNotNull);
-      },
-    );
+      expect(merged.lookup('feature'), isNotNull);
+      expect(merged.lookup('architecture'), isNotNull);
+    });
 
-    test(
-      'f03/us05/s4, f03/us05/fr02/e02: a newer pin is pack_pin_newer',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 2.0.0\n',
-        });
-        final home = await writeTree({});
-        final resolver = TemplateResolver(shippedFiles: shipped());
+    test('a newer pin is pack_pin_newer', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 2.0.0\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
 
-        expect(
-          () =>
-              resolver.resolve(workingDirectory: project, homeDirectory: home),
-          throwsA(
-            isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.packPinNewer)
-                .having((f) => f.file, 'file', _configPath)
-                .having((f) => f.key, 'key', 'packs.prd-core')
-                .having(
-                  (f) => f.message,
-                  'message',
-                  allOf(
-                    contains('2.0.0'),
-                    contains('1.1.0'),
-                    contains('Upgrade Specstone'),
-                  ),
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packPinNewer)
+              .having((f) => f.file, 'file', _configPath)
+              .having((f) => f.key, 'key', 'packs.prd-core')
+              .having(
+                (f) => f.message,
+                'message',
+                allOf(
+                  contains('2.0.0'),
+                  contains('1.1.0'),
+                  contains('Upgrade Specstone'),
                 ),
-          ),
-        );
-      },
-    );
+              ),
+        ),
+      );
+    });
 
-    test('f03/us05/fr01, f03/us05/fr01/e05, f03/us02/fr01/e07: '
-        'an unlisted shipped pack never loads', () async {
+    test('an unlisted shipped pack never loads', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
       });
@@ -152,7 +143,6 @@ void main() {
     });
 
     test(
-      'f03/us01/s5, f03/us01/fr01/e01, f03/us01/fr02/e03, f03/us05/fr02/e05, '
       'no project root loads every shipped pack',
       () async {
         final working = await writeTree({});
@@ -176,7 +166,7 @@ void main() {
           : false,
     );
 
-    test('f03/us04/s4, f03/us04/fr01/e01: a missing personal pack is pack_not_found', () async {
+    test('a missing personal pack is pack_not_found', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
       });
@@ -228,7 +218,6 @@ void main() {
     });
 
     test(
-      'f03/us04/s5, f03/us04/fr01/e02, f03/us05/fr02/e06: '
       'a differing personal version is personal_pack_version_differs',
       () async {
         final project = await writeTree({
@@ -288,8 +277,7 @@ void main() {
       );
     });
 
-    test('f03/us04/s2, f03/us04/fr01/e03, f03/us02/fr01/e06: '
-        'an unlisted personal pack never loads', () async {
+    test('an unlisted personal pack never loads', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
       });
@@ -435,7 +423,7 @@ reference:
       );
     });
 
-    test('s03/inv22: two faulty project templates fault the first by code '
+    test('two faulty project templates fault the first by code '
         'point', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -556,7 +544,7 @@ reference:
       );
     });
 
-    test('s03/inv22: a pin fault wins over a doc-type fault in the other '
+    test('a pin fault wins over a doc-type fault in the other '
         'pack whatever the YAML order', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  software-tech: 1.0.0\n  prd-core: 2.0.0\n',
@@ -600,7 +588,7 @@ reference:
       );
     });
 
-    test('f03/us04/s6, f03/us04/fr02/e01, f03/us02/fr01/e08: a personal pack '
+    test('a personal pack '
         'and a shipped pack with one doc type id, no extends, are '
         'doc_type_duplicate', () async {
       final project = await writeTree({
@@ -630,7 +618,7 @@ reference:
       );
     });
 
-    test('f03/us04/s1, f03/us04/fr02/e02, f03/us04/fr01, f03/us03/fr04: an '
+    test('an '
         'extending personal pack layers its same-id doc type over the shipped '
         'one', () async {
       final project = await writeTree({
@@ -673,7 +661,7 @@ sections:
       ]);
     });
 
-    test('f03/us04/fr02/e05, f03/us02/fr01/e09, f03/us04/fr01/e10: a chain '
+    test('a chain '
         'three packs deep layers top down', () async {
       final project = await writeTree({
         _configPath:
@@ -715,7 +703,7 @@ sections:
       ]);
     });
 
-    test('f03/us04/s3, f03/us04/fr01/e05: the project layer wins over the '
+    test('the project layer wins over the '
         'personal pack', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
@@ -841,7 +829,7 @@ sections:
       );
     });
 
-    test('f03/us04/fr02/e03, f03/us03/fr02/e01: a project template with a '
+    test('a project template with a '
         'pack-defined id is an override, not a duplicate', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -858,7 +846,7 @@ sections:
       expect(merged.lookup('feature')!.description, 'Project feature');
     });
 
-    test('f03/us04/s2, f03/us04/s6, f03/us04/fr02: resolve end to end '
+    test('resolve end to end '
         'layers chain, project, and duplicates', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
@@ -880,7 +868,7 @@ sections:
       expect(merged.lookup('architecture'), isNull);
     });
 
-    test('f03/us03/fr01/e22, f05/us03/fr01/e04: a generators kind no one '
+    test('a generators kind no one '
         'registers is unknown_value', () async {
       const template = '''
 id: note
@@ -1067,6 +1055,28 @@ path: prds/notes/{slug}/NOTE.md
       ]);
     });
 
+    test("an extends doc type keeps its target's export", () async {
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+      Future<bool?> extending(String extra) async {
+        final project = await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/note.yaml':
+              'id: note\ndescription: A note\npath: prds/notes/{slug}/NOTE.md\n'
+              'export: false\n',
+          '.specstone/templates/memo.yaml':
+              'id: memo\nextends: note\npath: memos/{slug}.md\n$extra',
+        });
+        return resolver
+            .resolve(workingDirectory: project, homeDirectory: home)
+            .lookup('memo')!
+            .export;
+      }
+
+      expect(await extending(''), isFalse);
+      expect(await extending('export: true\n'), isTrue);
+    });
+
     test("an extends doc type keeps its target's summary_for", () async {
       final home = await writeTree({});
       final project = await writeTree({
@@ -1139,7 +1149,7 @@ path: prds/notes/{slug}/NOTE.md
       expect(merged.lookup('epic')!.maxDepth, isNull);
     });
 
-    test('f03/us03/s1, f03/us03/fr02: a project template with a new id '
+    test('a project template with a new id '
         'adds a doc type', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1175,7 +1185,7 @@ sections:
     });
 
     test(
-      'f03/us03/s9, f03/us03/fr02/e04, f03/us03/fr01/e07: a new doc type '
+      'a new doc type '
       'without path, or without description and extends, is missing_key',
       () async {
         final project = await writeTree({
@@ -1225,9 +1235,9 @@ path: ops/runbooks/{slug}/RUNBOOK.md
       },
     );
 
-    test('f03/us03/fr01/e08, f03/us03/fr04/e05, f03/us03/fr02/e03: a new '
+    test('a new '
         'doc type with extends inherits every key of the target except id '
-        'and path (F3-D49)', () async {
+        'and path', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
         '.specstone/templates/project.yaml': '''
@@ -1272,8 +1282,7 @@ path: adr/{slug}.md
       expect(adr.pack, isNull);
     });
 
-    test('Input per_target, '
-        's03/inv12, tpl-s03/inv30: an extending doc type inherits the '
+    test('an extending doc type inherits the '
         'per_target of its target', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1429,7 +1438,7 @@ parent:
       expect(merged.lookup('runbook')!.parent, isNull);
     });
 
-    test('f03/us03/fr04/e05, s03/inv12: an extending doc type that writes no '
+    test('an extending doc type that writes no '
         'bundle inherits the bundle of its target', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1460,7 +1469,7 @@ path: adr/{slug}.md
       expect(merged.lookup('feature')!.bundle, ['implement', 'design']);
     });
 
-    test('f03/us03/fr04/e05, s03/inv12: a layer over an extending doc type '
+    test('a layer over an extending doc type '
         'removes one inherited bundle mode and keeps the other', () async {
       final home = await writeTree({
         '.specstone/packs/nont-x/pack.yaml':
@@ -1541,7 +1550,7 @@ reference:
       expect(feature.reference!.map((r) => r.title), ['A']);
     });
 
-    test('f03/us02/fr03/e06, f03/us02/fr05/e04: a plain list over an '
+    test('a plain list over an '
         'inherited list is list_override_needs_add_remove', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1648,7 +1657,7 @@ description: An architecture decision
       );
     });
 
-    test('f03/us03/s2, f03/us03/fr04: an extending doc type adds a section '
+    test('an extending doc type adds a section '
         'after the inherited ones', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1754,7 +1763,7 @@ sections:
       );
     });
 
-    test('f03/us03/fr04/e06, s03/inv4: a layer above the defining layer '
+    test('a layer above the defining layer '
         'writes extends is extends_in_override', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1789,7 +1798,7 @@ extends: feature
       );
     });
 
-    test('f03/us03/fr04/e06, s03/inv4: several layers above the defining '
+    test('several layers above the defining '
         'layer fault the first in load order', () async {
       final home = await writeTree({
         '.specstone/packs/nont-x/pack.yaml':
@@ -1820,7 +1829,7 @@ extends: feature
       );
     });
 
-    test('f03/us03/fr04/e06, s03/inv4: extends_in_override faults the first '
+    test('extends_in_override faults the first '
         'offender in load order across doc types', () async {
       final files = shipped()
         ..['prd-core/z.yaml'] = _bytes(
@@ -1851,7 +1860,7 @@ extends: feature
       );
     });
 
-    test('f03/us03/s6, f03/us03/fr04/e01: a doc type extending itself is '
+    test('a doc type extending itself is '
         'extends_cycle naming it once', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1876,7 +1885,7 @@ extends: feature
       );
     });
 
-    test('f03/us03/s7, f03/us03/fr04/e02: an extends naming no doc type is '
+    test('an extends naming no doc type is '
         'extends_target_unknown', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1899,7 +1908,7 @@ path: adr/{slug}.md
       );
     });
 
-    test('f03/us03/s6, f03/us03/fr04/e01: a doc-type extends loop is '
+    test('a doc-type extends loop is '
         'extends_cycle', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1928,7 +1937,7 @@ path: b/{slug}.md
       );
     });
 
-    test('f03/us03/s6, f03/us03/fr04/e01, s03/inv22: a doc-type extends loop '
+    test('a doc-type extends loop '
         'across layers names the upper layer file', () async {
       final files = shipped()
         ..['prd-core/feature.yaml'] = _bytes('''
@@ -1961,7 +1970,7 @@ path: epics/{slug}/EPIC.md
       );
     });
 
-    test('s03/inv5, s03/inv22: a shipped pack extending another shipped pack '
+    test('a shipped pack extending another shipped pack '
         'loads above it, so its override resolves', () async {
       final files = shipped()
         ..['prd-core/pack.yaml'] = _bytes(
@@ -2003,7 +2012,7 @@ path: ops/runbooks/{slug}/RUNBOOK.md
       expect(merged.lookup('runbook')!.parent, isNull);
     });
 
-    test('f03/us03/fr01/e11, f03/us03/fr02/e06: two doc types with one path '
+    test('two doc types with one path '
         'are doc_type_path_conflict', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -2039,7 +2048,7 @@ path: ops/{slug}/RUNBOOK.md
       );
     });
 
-    test('f03/us03/fr02/e06, s03/inv19: a project doc type sharing a shipped '
+    test('a project doc type sharing a shipped '
         'path faults on the project file', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -2066,7 +2075,7 @@ path: features/f{nn}_{slug}/FEATURE.md
       );
     });
 
-    test('f03/us03/fr02/e06, s03/inv22: a path conflict names the file that '
+    test('a path conflict names the file that '
         'loads later by path', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -2101,7 +2110,7 @@ path: ops/{slug}/RUN.md
       );
     });
 
-    test('f03/us03/fr01/e12, f03/us02/fr04/e05: a parent naming no id is '
+    test('a parent naming no id is '
         'unknown_value', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -2208,7 +2217,7 @@ parent: self
       );
     });
 
-    test('f03/us03/fr01/e13, s03/inv22: a parent loop across layers names the '
+    test('a parent loop across layers names the '
         'upper layer file', () async {
       final files = shipped()
         ..['prd-core/feature.yaml'] = _bytes('''
@@ -2345,12 +2354,12 @@ path: adr/{slug}.md
   });
 
   group('TemplateResolver.availableManifests and resolveCarried', () {
-    test('availableManifests gives the carried prd-core and '
-        'software-tech versions', () {
-      final manifests = TemplateResolver().availableManifests([
-        'prd-core',
-        'software-tech',
-      ], homeDirectory: null);
+    test('availableManifests gives the carried version of each shipped '
+        'pack', () {
+      final manifests = TemplateResolver().availableManifests(
+        shippedPackVersions().keys.toList(),
+        homeDirectory: null,
+      );
 
       expect({
         for (final e in manifests.entries) e.key: '${e.value.version}',

@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show isThematicBreak;
+import 'package:specstone_core/src/doc_model/models/block_scan.dart';
+import 'package:specstone_core/src/doc_model/models/fence_scan.dart';
 import 'package:yaml/yaml.dart';
 
 /// One frontmatter key kept as its original text, comments included.
@@ -264,16 +266,28 @@ List<KeyBlock> _keyBlocks(List<String> lines) {
   ];
 }
 
+/// A body's head, title, and sections as [Doc.parse] splits them, and whether a
+/// fence stays open after it.
+final class _BodyScan {
+  const new({
+    required this.head,
+    required this.title,
+    required this.titleLineIndex,
+    required this.sections,
+    required this.sectionLineIndexes,
+    required this.unclosedFence,
+  });
+
+  final String head;
+  final String? title;
+  final int? titleLineIndex;
+  final List<Section> sections;
+  final List<int> sectionLineIndexes;
+  final bool unclosedFence;
+}
+
 /// Splits [lines] into head, title, and sections outside fenced code.
-({
-  String head,
-  String? title,
-  int? titleLineIndex,
-  List<Section> sections,
-  List<int> sectionLineIndexes,
-  bool unclosedFence,
-})
-_scan(List<String> lines) {
+_BodyScan _scan(List<String> lines) {
   final fence = _BlockTracker();
   final headLines = <String>[];
   final sections = <Section>[];
@@ -310,7 +324,7 @@ _scan(List<String> lines) {
     }
   }
   closeSection();
-  return (
+  return _BodyScan(
     head: _joinWithoutTrailingBlank(headLines),
     title: title,
     titleLineIndex: titleLineIndex,
@@ -334,13 +348,7 @@ List<bool> fencedLines(List<String> lines) => blockScan(lines).fenced;
 
 /// Reads [lines] (each without its line end) the way [Doc.parse] does,
 /// starting outside any fence.
-///
-/// Per line, `fenced` is whether it is fenced code content or a fence
-/// delimiter, and `continuesParagraph` whether it is the next line of the
-/// paragraph above it (GFM). `openFence` is the delimiter line of a fence
-/// still open after the last line, or null when every fence closed.
-({List<bool> fenced, List<bool> continuesParagraph, String? openFence})
-blockScan(List<String> lines) {
+BlockScan blockScan(List<String> lines) {
   final tracker = _BlockTracker();
   final fenced = List.filled(lines.length, false);
   final continues = List.filled(lines.length, false);
@@ -348,7 +356,7 @@ blockScan(List<String> lines) {
     fenced[i] = tracker.consume(lines[i]);
     continues[i] = tracker.continuesParagraph;
   }
-  return (
+  return BlockScan(
     fenced: fenced,
     continuesParagraph: continues,
     openFence: tracker.openingLine,
@@ -360,19 +368,7 @@ const mermaidInfoWord = 'mermaid';
 
 /// Reads [lines] as [blockScan] does and reports, per line, the fence it
 /// opens or closes.
-///
-/// `opens` holds the info word of the fence a line opens (empty without one),
-/// null on any other line; `closes` is whether a line is a closing delimiter.
-/// A fence a container ends has no closing line. `contents` holds, per line,
-/// the text of a fence's content line past its containers' marks (tabs
-/// expanded), and an empty string on any other line.
-({
-  List<bool> fenced,
-  List<String?> opens,
-  List<bool> closes,
-  List<String> contents,
-})
-fenceScan(List<String> lines) {
+FenceScan fenceScan(List<String> lines) {
   final tracker = _BlockTracker();
   final fenced = List.filled(lines.length, false);
   final opens = List<String?>.filled(lines.length, null);
@@ -384,7 +380,12 @@ fenceScan(List<String> lines) {
     closes[i] = tracker.closedFence;
     contents[i] = tracker.fenceContent;
   }
-  return (fenced: fenced, opens: opens, closes: closes, contents: contents);
+  return FenceScan(
+    fenced: fenced,
+    opens: opens,
+    closes: closes,
+    contents: contents,
+  );
 }
 
 const _tab = 0x09;
@@ -631,19 +632,27 @@ final class _ListItem extends _Container {
   }
 }
 
+/// A container a line starts, and the column its content starts at.
+final class _ContainerStart {
+  const new({required this.container, required this.column});
+
+  final _Container container;
+  final int column;
+}
+
 /// Returns the container [text] starts at [column], with its content column,
 /// or null when none starts there.
 ///
 /// With [paragraphOpen], only a bullet or `1.` or `1)` with content starts a
 /// list item, so a paragraph line such as `2. x` stays in its paragraph.
-({_Container container, int column})? _containerStart(
+_ContainerStart? _containerStart(
   String text,
   int column, {
   required bool paragraphOpen,
 }) {
   final quoteColumn = _afterQuoteMarker(text, column);
   if (quoteColumn != null) {
-    return (container: const _Quote(), column: quoteColumn);
+    return _ContainerStart(container: const _Quote(), column: quoteColumn);
   }
   final itemColumn = _listItemColumn(
     text,
@@ -651,7 +660,7 @@ final class _ListItem extends _Container {
     paragraphOpen: paragraphOpen,
   );
   if (itemColumn == null) return null;
-  return (container: _ListItem(itemColumn), column: itemColumn);
+  return _ContainerStart(container: _ListItem(itemColumn), column: itemColumn);
 }
 
 /// Returns the column after the `>` marker, and one space after it, that

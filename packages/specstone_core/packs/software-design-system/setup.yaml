@@ -1,0 +1,13 @@
+id: setup
+description: |-
+  The setup doc: the install contract that the library's code meets.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# Setup`, with no number.
+  The install contract is the source of the skill's install page.
+path: specs/design_system/SETUP.md
+sections:
+  - id: install_contract
+    header: Install contract
+    required: true
+    description: |-
+      State what a consumer does to install the library and what the install gives, in steps a reader repeats.

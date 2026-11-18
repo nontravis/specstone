@@ -20,12 +20,7 @@ import 'package:markdown/markdown.dart'
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show maxMarkdownDepth;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show
-        CellRange,
-        isTableDelimiterRow,
-        tableCellRanges,
-        tableColumnCount,
-        tableHeadCells;
+    show isTableDelimiterRow, tableCellRanges, tableColumnCount, tableHeadCells;
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/case_folding.g.dart';
 import 'package:specstone_core/src/index_query/models/leaf_text.dart';
@@ -856,7 +851,7 @@ final class _BlockPass {
     return j;
   }
 
-  void _addCells(int line, List<CellRange> cells, int columns) {
+  void _addCells(int line, List<TextRange> cells, int columns) {
     for (var c = 0; c < cells.length && c < columns; c++) {
       _addLeaf(line, cells[c].start, cells[c].end);
     }

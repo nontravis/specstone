@@ -175,7 +175,7 @@ void main() {
     const statement =
         'Cites [the terms](../../../GLOSSARY.md#terms) and [the glossary](../../../GLOSSARY.md), also $_inv14.';
 
-    test('f01/us05/fr06/e04: a section or whole-doc link gets no line, read by the key', () async {
+    test('a section or whole-doc link gets no line, read by the key', () async {
       final cited = _citedBy(await _index(statement, extra: glossaryFile));
 
       expect(_ofSection(cited, glossary, 'terms'), isEmpty);
@@ -183,42 +183,42 @@ void main() {
       expect(cited.keys.where((k) => k.docPath == glossary), isEmpty);
       expect(_of(cited, _domain, 'INV-14'), hasLength(1));
     });
-    test('f01/us05/fr06/e04: the same links give a line once its doc type lists no bundle', () async {
-      final cited = _citedBy(
-        await _index(
-          statement,
-          extra: {
-            ...glossaryFile,
-            '.specstone/templates/glossary.yaml':
-                'bundle: {remove: [query, implement, design]}\n',
-          },
-        ),
-      );
-
-      expect(_ofSection(cited, glossary, 'terms'), hasLength(1));
-      expect(_ofDoc(cited, glossary), hasLength(1));
-    });
     test(
-      'f01/us05/fr06/e04: a design bundle prints no cited-by line after it',
+      'the same links give a line once its doc type lists no bundle',
       () async {
-        final i = await _index(statement, extra: glossaryFile);
-        final a = answerContext(
-          i,
-          pickBundle(i, _frName, BundleMode.design, noProject: false),
-          label: _frName,
-          byCode: false,
+        final cited = _citedBy(
+          await _index(
+            statement,
+            extra: {
+              ...glossaryFile,
+              '.specstone/templates/glossary.yaml':
+                  'bundle: {remove: [query, implement, design]}\n',
+            },
+          ),
         );
 
-        const head = '==> glossary (glossary) · prds/GLOSSARY.md <==\n';
-        final afterHead = a.text.split(head).last;
-        expect(a.text, contains(head));
-        expect(
-          afterHead.substring(0, afterHead.indexOf('==> ')),
-          isNot(contains('cited by')),
-        );
-        expect(a.text, contains('  · cited by $_frName (fr) —: $statement'));
+        expect(_ofSection(cited, glossary, 'terms'), hasLength(1));
+        expect(_ofDoc(cited, glossary), hasLength(1));
       },
     );
+    test('a design bundle prints no cited-by line after it', () async {
+      final i = await _index(statement, extra: glossaryFile);
+      final a = answerContext(
+        i,
+        pickBundle(i, _frName, BundleMode.design, noProject: false),
+        label: _frName,
+        byCode: false,
+      );
+
+      const head = '==> glossary (glossary) · prds/GLOSSARY.md <==\n';
+      final afterHead = a.text.split(head).last;
+      expect(a.text, contains(head));
+      expect(
+        afterHead.substring(0, afterHead.indexOf('==> ')),
+        isNot(contains('cited by')),
+      );
+      expect(a.text, contains('  · cited by $_frName (fr) —: $statement'));
+    });
   });
 
   test(

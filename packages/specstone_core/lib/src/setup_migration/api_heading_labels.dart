@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/setup_migration/models/story_fr.dart';
 
@@ -110,7 +111,7 @@ Map<String, _Frs> _frsByOperation(Doc doc, FrOfCell frOf) {
   final firstLine = doc.sectionLineIndexes[index] + 2;
   final lines = [
     for (var k = 0; k < body.length; k++)
-      (text: body[k], line: firstLine + k, fenced: fenced[k]),
+      BodyLine(text: body[k], line: firstLine + k, fenced: fenced[k]),
   ];
   final byLine = {for (final line in lines) line.line: line.text};
   final frs = <String, _Frs>{};

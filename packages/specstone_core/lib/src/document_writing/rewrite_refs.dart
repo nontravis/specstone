@@ -177,11 +177,11 @@ List<_TextEdit> _pathEdits(
         _TextEdit(
           start: start,
           end: end,
-          text: _withPath(
+          text: destinationWithPath(
             body.substring(start, end),
             kind,
             newPath,
-            isAngle: _isAngleBracketed(body, start, kind),
+            isAngle: isAngleBracketed(body, start, kind),
           ),
         ),
   ];
@@ -280,7 +280,7 @@ bool _isInlineOrFullReference(String body, LinkSource source, int textEnd) =>
 /// `(` before it opened. There the path's parens are written `%28` and `%29`,
 /// which decode the same, and each `)` of the kept part that a `(` of the old
 /// path opened takes a `\`, so the link and its href stay.
-String _withPath(
+String destinationWithPath(
   String written,
   DestinationKind kind,
   String path, {
@@ -299,7 +299,7 @@ String _withPath(
 /// Returns whether the [kind] destination of [body] that starts at [start]
 /// is inside angle brackets; a definition's range leaves them out, and a bare
 /// destination never follows a `<`.
-bool _isAngleBracketed(String body, int start, DestinationKind kind) =>
+bool isAngleBracketed(String body, int start, DestinationKind kind) =>
     switch (kind) {
       DestinationKind.angleInline => true,
       DestinationKind.inline => false,

@@ -1,0 +1,19 @@
+id: discovery
+description: |-
+  The discovery doc: how a reader finds a component, and the component catalog.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# Discovery`, with no number.
+  The component catalog is a generated block that `specstone format` fills; write the rest by hand.
+path: specs/design_system/DISCOVERY.md
+generators: [component_catalog]
+sections:
+  - id: finding_a_component
+    header: Finding a component
+    required: true
+    description: |-
+      Write how a reader picks a component: by its group, its purpose, and its lifecycle.
+  - id: component_catalog
+    header: Component catalog
+    required: true
+    description: |-
+      Holds the component catalog, a generated block that `specstone format` fills; never written by hand.

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/reference_links.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -11,6 +12,7 @@ import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/agent_skills.dart';
 import '../../helpers/fixture_doc_types.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
@@ -203,7 +205,7 @@ void main() {
     expect(_read(run, _feature), '# T\n');
   });
 
-  test('f05/us01/fr06/e01, f05/us01/fr07/e04, s03/inv7, s03/inv8: a CRLF '
+  test('a CRLF '
       'copy of a formatted doc is unchanged, not written, not listed by '
       'check', () async {
     final crlf = _featureFormatted.replaceAll('\n', '\r\n');
@@ -226,7 +228,7 @@ void main() {
   });
 
   test(
-    'f05/us01/fr06, f05/us01/fr06/e02, f05/us01/fr06/e04: check lists '
+    'check lists '
     'what would change and writes nothing; formatted docs list nothing',
     () async {
       final run = await _open({
@@ -254,7 +256,7 @@ void main() {
     },
   );
 
-  test('f05/us01/fr06/e03, f05/us01/fr02/e02: a doc no doc type matches is '
+  test('a doc no doc type matches is '
       'skipped with a warning; the others are still formatted', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -289,7 +291,7 @@ void main() {
     expect(report.warnings, isEmpty);
   });
 
-  test('f05/us01/fr02/e03, s03/inv6: a doc two doc types match is refused '
+  test('a doc two doc types match is refused '
       'with their ids and left alone', () async {
     final run = await _open(
       {_feature: _featureOutOfOrder},
@@ -309,7 +311,7 @@ void main() {
     expect(_read(run, _feature), _featureOutOfOrder);
   });
 
-  test('f05/us01/fr08/e02, s03/inv6: a refused doc does not stop the others '
+  test('a refused doc does not stop the others '
       'from being written; exit 1', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -408,7 +410,7 @@ void main() {
     expect(report.files.single.duplicateHeaders, ['## Summary']);
   });
 
-  test('f05/us01/fr08, f05/us01/fr08/e01: toJson holds every file in tree '
+  test('toJson holds every file in tree '
       'order and the plain warnings', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -469,7 +471,7 @@ void main() {
     expect(report.exitStatus, 0);
   });
 
-  test('f05/us01/fr07/e03, NFR-DI01: a run leaves no temp file under '
+  test('a run leaves no temp file under '
       'docs/', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
@@ -656,7 +658,7 @@ void main() {
   }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
   group('generated blocks', () {
-    test('f05/us03/s1, f05/us03/fr02/e01: format rewrites a stale block and '
+    test('format rewrites a stale block and '
         'keeps every other byte, draft and confirmed included', () async {
       const draft = '---\ndraft: true\n---\n';
       const confirmed = '---\ndraft: false\n---\n';
@@ -675,23 +677,20 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh(), front: confirmed));
     });
 
-    test(
-      'f05/us03/s2, f05/us03/fr02/e02: format inserts a missing block',
-      () async {
-        final run = await _openNotes({
-          _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
-        });
+    test('format inserts a missing block', () async {
+      final run = await _openNotes({
+        _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
+      });
 
-        _runNotes(run, _tocRun(_Calls()));
+      _runNotes(run, _tocRun(_Calls()));
 
-        expect(
-          _read(run, _noteA),
-          '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
-        );
-      },
-    );
+      expect(
+        _read(run, _noteA),
+        '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
+      );
+    });
 
-    test('f05/us03/s3, f05/us03/fr03/e01, f05/us03/fr03/e03: format --check '
+    test('format --check '
         'lists a doc with a stale block, writes nothing, exits 1', () async {
       final run = await _openNotes({_noteA: _noteDoc(_stale())});
 
@@ -728,7 +727,7 @@ void main() {
       expect(_read(run, _noteA), _noteDoc(_stale()));
     });
 
-    test('f05/us03/s4, f05/us03/fr02/e03: a hand edit inside a block is '
+    test('a hand edit inside a block is '
         'replaced', () async {
       final run = await _openNotes({
         _noteA: _noteDoc('$_toc\nhand edit\nmore\n$_end'),
@@ -739,7 +738,7 @@ void main() {
       expect(_read(run, _noteA), _noteDoc(_fresh()));
     });
 
-    test("f05/us03/s5, f05/us03/fr02/e08: an approved doc's block is "
+    test("an approved doc's block is "
         'rewritten and no draft: true is added', () async {
       final run = await _openNotes({
         _noteA: _noteDoc(_stale(), front: '---\ndraft: false\n---\n'),
@@ -753,7 +752,7 @@ void main() {
       expect(text, contains('toc R1'));
     });
 
-    test('f05/us03/s6, f05/us03/fr02/e07: a doc outside the Target is not '
+    test('a doc outside the Target is not '
         'written, and a check over the docs root lists it', () async {
       final run = await _openNotes({
         _noteA: _noteDoc(_stale()),
@@ -768,7 +767,7 @@ void main() {
       expect(report.toText(), '$_noteB\n');
     });
 
-    test('f05/us03/s7, f05/us03/fr02/e06: an open block refuses the file and '
+    test('an open block refuses the file and '
         'the other files still format', () async {
       final openDoc = '# A\n\n## Contents\n$_toc\nno end\n\n## Steps\nx\n';
       final run = await _openNotes({
@@ -928,7 +927,7 @@ void main() {
       expect(again.files.single.status, FileStatus.unchanged);
     });
 
-    test('E07: an approved doc '
+    test('an approved doc '
         'and a draft doc that need a change keep their key block and gain no '
         'draft: true', () async {
       const approved = '---\napproved: true\n---\n';
@@ -944,7 +943,7 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh(), front: draft));
     });
 
-    test('E07: a doc that holds an '
+    test('a doc that holds an '
         'approved hash keeps the key block byte for byte', () async {
       const hashed = '---\napproved: "0123456789ab"\n---\n';
       final run = await _openNotes({_noteA: _noteDoc(_stale(), front: hashed)});
@@ -954,8 +953,7 @@ void main() {
       expect(_read(run, _noteA), _noteDoc(_fresh(), front: hashed));
     });
 
-    test('Write each generated block '
-        'E08: an approved doc whose block changed is written with no '
+    test('an approved doc whose block changed is written with no '
         'draft: true', () async {
       const approved = '---\napproved: true\n---\n';
       final run = await _openNotes({
@@ -969,6 +967,402 @@ void main() {
       expect(text, contains('approved: true'));
       expect(text, isNot(contains('draft')));
       expect(text, contains('toc R1'));
+    });
+  });
+
+  group('skill reference files', () {
+    const skill = 'docs/specs/skills/review.md';
+    const button =
+        'docs/specs/design_system/components/buttons/primary_button.md';
+    const tokens = 'docs/specs/design_system/foundations/TOKENS.md';
+    const output = '.claude/skills/review';
+    const buttonReference =
+        '$output/references/specs/design_system/components/buttons/'
+        'primary_button.md';
+    const tokensReference =
+        '$output/references/specs/design_system/foundations/TOKENS.md';
+    const buttonPath = '../design_system/components/buttons/primary_button.md';
+    const buttonLink = '[Primary button]($buttonPath)';
+    const tokensLink = '[Tokens](../design_system/foundations/TOKENS.md)';
+    const missingLink = '[Old](../design_system/OLD.md)';
+    const tokensDoc = '# Tokens\n\n## Token list\n\n- color.primary\n';
+    const buttonBody = '# Primary button\n\n## Purpose\n\nStarts an action.\n';
+    const buttonFormatted =
+        '---\nlifecycle: stable\nfeature: login\n---\n\n$buttonBody';
+    // Format adds the blank line under the heading, which export keeps.
+    const buttonOutOfOrder =
+        '---\nfeature: login\nlifecycle: stable\n---\n\n'
+        '# Primary button\n\n## Purpose\nStarts an action.\n';
+    const buttonExported = '---\nlifecycle: stable\n---\n\n$buttonBody';
+
+    String skillOutOfOrder(List<String> sources) {
+      final text = skillDocText(sources: sources);
+      final sourcesAt = text.indexOf('## Sources');
+      return '${text.substring(0, text.indexOf('## Purpose'))}'
+          '${text.substring(sourcesAt)}\n'
+          '## Purpose\n\nReviews the UI.\n';
+    }
+
+    FormatReport format(
+      SkillProject project, {
+      bool check = false,
+      String? target,
+      bool withReferences = true,
+    }) => runFormat<void>(
+      project.project,
+      project.target(target),
+      check: check,
+      rewriteLinks: withReferences ? rewriteReferenceLinks : null,
+    );
+
+    test('format writes the reference files and lists them right after '
+        'the skill doc, in path order; a second run writes nothing', () async {
+      final project = await openSkillProject({
+        skill: skillOutOfOrder([tokensLink, buttonLink]),
+        button: buttonOutOfOrder,
+        tokens: tokensDoc,
+      });
+
+      final report = format(project);
+
+      expect(
+        report.toText(),
+        '$button: formatted\n$skill: formatted\n'
+        '$buttonReference: formatted\n$tokensReference: formatted\n',
+      );
+      expect(report.exitStatus, 0);
+      expect(
+        project.read(skill),
+        skillDocText(sources: [tokensLink, buttonLink]),
+      );
+      expect(project.read(buttonReference), buttonExported);
+      expect(project.read(tokensReference), tokensDoc);
+      expect(project.read(button), buttonFormatted);
+      expect(format(project).toText(), '');
+    });
+
+    test('a reference file takes the line endings of its source', () async {
+      final project = await openSkillProject({
+        skill: skillDocText(sources: [tokensLink]),
+        tokens: tokensDoc.replaceAll('\n', '\r\n'),
+      });
+
+      format(project);
+
+      expect(project.read(tokensReference), tokensDoc.replaceAll('\n', '\r\n'));
+      expect(format(project).toText(), '');
+    });
+
+    test('a refused skill doc prints its code and message, exits 1, and '
+        'writes none of its files while the other docs are written', () async {
+      final project = await openSkillProject({
+        skill: skillDocText(sources: [tokensLink, missingLink]),
+        button: buttonOutOfOrder,
+        tokens: tokensDoc,
+      });
+
+      final report = format(project);
+
+      expect(
+        report.toText(),
+        '$button: formatted\n'
+        '$skill: refused: skill_source_missing: the source names no doc: '
+        '../design_system/OLD.md\n',
+      );
+      expect(report.exitStatus, 1);
+      expect(project.read(button), buttonFormatted);
+      expect(project.file(output).existsSync(), isFalse);
+      expect(
+        report.toJson()['files'],
+        contains(
+          equals(<String, Object>{
+            'path': skill,
+            'status': 'refused',
+            'skillRefusal': 'skill_source_missing',
+          }),
+        ),
+      );
+    });
+
+    test('a refused skill doc whose own text would change is refused and '
+        'left byte for byte', () async {
+      final text = skillOutOfOrder([missingLink]);
+      final project = await openSkillProject({skill: text});
+
+      final report = format(project);
+
+      expect(report.files.single.status, FileStatus.refused);
+      expect(project.read(skill), text);
+    });
+
+    test('format leaves the skill file, a file beside it, and a reference '
+        'file no source maps to byte for byte', () async {
+      const kept = {
+        '$output/SKILL.md': '# Review\r\nHand-written.\n',
+        '$output/notes.txt': 'notes',
+        '$output/references/specs/old.md': '# Old\n',
+      };
+      final project = await openSkillProject({
+        skill: skillDocText(sources: [tokensLink]),
+        tokens: tokensDoc,
+        ...kept,
+      });
+
+      format(project);
+
+      for (final MapEntry(:key, :value) in kept.entries) {
+        expect(project.read(key), value, reason: key);
+      }
+      expect(project.read(tokensReference), tokensDoc);
+    });
+
+    test('a reference file the filesystem refuses throws output_not_writable '
+        'naming it', () async {
+      final project = await openSkillProject({
+        skill: skillDocText(sources: [tokensLink]),
+        tokens: tokensDoc,
+      });
+      final folder = Directory('${project.root.path}/$output/references')
+        ..createSync(recursive: true);
+      await Process.run('chmod', ['555', folder.path]);
+      addTearDown(() => Process.run('chmod', ['755', folder.path]));
+
+      expect(
+        () => format(project),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.file, 'file', tokensReference)
+              .having((f) => f.exitStatus, 'exitStatus', 73),
+        ),
+      );
+    }, skip: unreadablePathSkipReason());
+
+    test('--check writes no reference file', () async {
+      final project = await openSkillProject({
+        skill: skillDocText(sources: [tokensLink]),
+        tokens: tokensDoc,
+      });
+
+      format(project, check: true);
+
+      expect(project.file(output).existsSync(), isFalse);
+    });
+
+    group('--check', () {
+      const oldReference = '$output/references/specs/old.md';
+
+      Future<SkillProject> formatted(Map<String, String> more) async {
+        final project = await openSkillProject({
+          skill: skillDocText(sources: [tokensLink, buttonLink]),
+          button: buttonFormatted,
+          tokens: tokensDoc,
+          ...more,
+        });
+        format(project);
+        return project;
+      }
+
+      Map<String, String> snapshot(SkillProject project) => {
+        for (final entity in project.root.listSync(recursive: true))
+          if (entity is File) entity.path: entity.readAsStringSync(),
+      };
+
+      test('a changed Sources doc lists its reference file alone and exits '
+          '1', () async {
+        final project = await formatted({});
+        project.file(tokens).writeAsStringSync('$tokensDoc\n- color.accent\n');
+
+        final report = format(project, check: true);
+
+        expect(report.toText(), '$tokensReference\n');
+        expect(report.exitStatus, 1);
+      });
+
+      test(
+        'a run of format, then --check, lists nothing and exits 0',
+        () async {
+          final project = await formatted({});
+
+          final report = format(project, check: true);
+
+          expect(report.toText(), '');
+          expect(report.exitStatus, 0);
+        },
+      );
+
+      test('a reference file no Sources doc maps to is listed as leftover and '
+          'exits 1; format keeps it, so the check lists it again', () async {
+        final project = await formatted({oldReference: '# Old\n'});
+
+        final first = format(project, check: true);
+        format(project);
+        final second = format(project, check: true);
+
+        expect(first.toText(), '$oldReference: leftover\n');
+        expect(first.exitStatus, 1);
+        expect(second.toText(), '$oldReference: leftover\n');
+        expect(project.read(oldReference), '# Old\n');
+      });
+
+      test('a stale and a leftover file are listed in path order, after '
+          'their skill doc', () async {
+        final project = await formatted({
+          '$output/references/specs/design_system/foundations/AAA.md': '# A\n',
+        });
+        project.file(tokens).writeAsStringSync('$tokensDoc\n- color.accent\n');
+        project
+            .file(skill)
+            .writeAsStringSync(skillOutOfOrder([tokensLink, buttonLink]));
+
+        final report = format(project, check: true);
+
+        expect(
+          report.toText(),
+          '$skill\n'
+          '$output/references/specs/design_system/foundations/AAA.md: '
+          'leftover\n'
+          '$tokensReference\n',
+        );
+      });
+
+      test('a leftover file inside a folder under references is listed; a '
+          'link and a folder are not', () async {
+        final project = await formatted({
+          '$output/references/specs/deep/er/old.md': '# Old\n',
+        });
+        final target = project.file(tokens).path;
+        Link('${project.root.path}/$output/references/link.md')
+            .createSync(target);
+        Directory('${project.root.path}/$output/references/empty').createSync();
+
+        final report = format(project, check: true);
+
+        expect(
+          report.toText(),
+          '$output/references/specs/deep/er/old.md: leftover\n',
+        );
+      }, skip: Platform.isWindows ? 'links need privileges on Windows' : null);
+
+      test('a changed SKILL.md is not listed', () async {
+        final project = await formatted({'$output/SKILL.md': '# Review\n'});
+        project.file('$output/SKILL.md').writeAsStringSync('# Changed\n');
+
+        expect(format(project, check: true).toText(), '');
+      });
+
+      test('a refused skill doc lists as refused, with none of its files and '
+          'no leftover', () async {
+        final project = await openSkillProject({
+          skill: skillDocText(sources: [tokensLink, missingLink]),
+          tokens: tokensDoc,
+          oldReference: '# Old\n',
+        });
+
+        final report = format(project, check: true);
+
+        expect(
+          report.toText(),
+          '$skill: refused: skill_source_missing: the source names no doc: '
+          '../design_system/OLD.md\n',
+        );
+        expect(report.exitStatus, 1);
+      });
+
+      test('a drifted skill doc lists itself alone when its references are '
+          'current', () async {
+        final project = await formatted({});
+        project
+            .file(skill)
+            .writeAsStringSync(skillOutOfOrder([tokensLink, buttonLink]));
+
+        final report = format(project, check: true);
+
+        expect(report.toText(), '$skill\n');
+      });
+
+      test('--json gives each entry its path and status', () async {
+        final project = await formatted({oldReference: '# Old\n'});
+        project.file(tokens).writeAsStringSync('$tokensDoc\n- color.accent\n');
+
+        final report = format(project, check: true);
+
+        expect(
+          report.toJson()['files'],
+          containsAllInOrder([
+            {'path': skill, 'status': 'unchanged'},
+            {'path': tokensReference, 'status': 'formatted'},
+            {'path': oldReference, 'status': 'leftover'},
+          ]),
+        );
+      });
+
+      test('writes no file', () async {
+        final project = await formatted({oldReference: '# Old\n'});
+        project.file(tokens).writeAsStringSync('$tokensDoc\n- color.accent\n');
+        final before = snapshot(project);
+
+        format(project, check: true);
+
+        expect(snapshot(project), before);
+      });
+
+      test('a CRLF project after a format lists nothing and the written '
+          'reference is CRLF', () async {
+        String crlf(String text) => text.replaceAll('\n', '\r\n');
+        final project = await openSkillProject({
+          skill: crlf(skillDocText(sources: [tokensLink, buttonLink])),
+          button: crlf(buttonFormatted),
+          tokens: crlf(tokensDoc),
+        });
+        format(project);
+
+        final report = format(project, check: true);
+
+        expect(project.read(tokensReference), crlf(tokensDoc));
+        expect(report.toText(), '');
+        expect(report.exitStatus, 0);
+      });
+
+      test('a plain format lists no leftover and exits 0', () async {
+        final project = await formatted({oldReference: '# Old\n'});
+
+        final report = format(project);
+
+        expect(report.toText(), '');
+        expect(report.exitStatus, 0);
+      });
+
+      test('an unreadable references folder warns and lists no '
+          'partial list', () async {
+        final project = await formatted({
+          '$output/references/specs/a/old.md': '# Old\n',
+          '$output/references/specs/z/old.md': '# Old\n',
+        });
+        final folder = Directory(
+          '${project.root.path}/$output/references/specs/z',
+        );
+        await Process.run('chmod', ['000', folder.path]);
+        addTearDown(() => Process.run('chmod', ['755', folder.path]));
+
+        final report = format(project, check: true);
+
+        expect(report.toText(), '');
+        expect(report.exitStatus, 0);
+        expect(report.warnings, [
+          '$output/references/: cannot be read; skipped',
+        ]);
+      }, skip: unreadablePathSkipReason());
+    });
+
+    test('a run with no link rewriter writes no reference file', () async {
+      final project = await openSkillProject({
+        skill: skillDocText(sources: [tokensLink]),
+        tokens: tokensDoc,
+      });
+
+      expect(format(project, withReferences: false).toText(), '');
+      expect(project.file(output).existsSync(), isFalse);
     });
   });
 }

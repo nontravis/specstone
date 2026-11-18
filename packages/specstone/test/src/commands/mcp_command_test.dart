@@ -20,7 +20,7 @@ void main() {
       await _expectServesZeroTools(exe);
     }, timeout: const Timeout(Duration(seconds: 60)));
 
-    test('f03/us01/fr04/e04, f03/us05/fr01/e07, f03/us05/fr02/e03: mcp starts '
+    test('mcp starts '
         'and initializes inside a project with a broken config', () async {
       final project = await writeTree({'.specstone/config.yaml': 'packs: [\n'});
 

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart'
     show isAgentFile;

@@ -6,11 +6,13 @@ and a `planned` entry whose code lacks its planned behavior yet, take no removal
 ## 1. Candidates
 
 A candidate is the task id of each task ref in the docs the link's `context --code` bundle of step 3 holds: an entry of
-a field of type `task_ref`, written `<item>:<task>`, or `<task>` alone for a whole doc. Read no other doc.
+a field of type `task_ref`, written `<item>:<task>`, or `<task>` alone for a whole doc. For a `root: project` entry,
+they are those in the doc its finding names, read in step 3. Read no other doc.
 
 ## 2. Messages
 
-Read the messages of the commits that changed the link's code, from the project root, each path `<code root>/<path>`:
+Read the messages of the commits that changed the link's code, from the project root, each path `<code root>/<path>`,
+or a `root: project` entry's `<path>` as is, with no `<code root>/` prefix:
 
 ```
 git log --format=%B <base>..HEAD -- <code paths>

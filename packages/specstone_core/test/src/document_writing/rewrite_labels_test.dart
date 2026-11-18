@@ -104,7 +104,7 @@ Future<Directory> _groupedProject() {
 }
 
 void main() {
-  test('f02/us06/s7, f02/us06/fr03/e01, f04/us02/fr06/e07: rename of a story rewrites its journey step and entry', () async {
+  test('rename of a story rewrites its journey step and entry', () async {
     final root = await _project();
     final answer = _rename(
       root,
@@ -122,7 +122,7 @@ void main() {
     expect(await _unresolvedSteps(root), 1);
   });
 
-  test('E01: rename of shop/set_up_cart rewrites its step and its confirmed entry, and the check reports no suspect, unconfirmed, or stale finding', () async {
+  test('rename of shop/set_up_cart rewrites its step and its confirmed entry, and the check reports no suspect, unconfirmed, or stale finding', () async {
     String shop(String text) => text
         .replaceAll('email_login', 'set_up_cart')
         .replaceAll('login', 'shop');
@@ -160,7 +160,7 @@ void main() {
     expect(await _unresolvedSteps(root), 1);
   });
 
-  test('f02/us06/s8, f02/us06/fr03/e03, f04/us04/fr03/e08: rename of a story rewrites the api row and its entry', () async {
+  test('rename of a story rewrites the api row and its entry', () async {
     final root = await _project();
     _rename(root, 'user_story:login/email_login', 'password_login');
     final api = readDoc(root, loginApi);
@@ -386,7 +386,7 @@ void main() {
     },
   );
 
-  test('E15: rename of a story rewrites the traced_from entry and confirmed label of an fr', () async {
+  test('rename of a story rewrites the traced_from entry and confirmed label of an fr', () async {
     final root = await _frTraceProject();
     _rename(root, 'user_story:login/reset_password', 'recover_password');
     final fr = readDoc(root, loginFr);
@@ -401,7 +401,7 @@ void main() {
     'login/reset_password#S3 $_fp3',
     '"login/reset_password#S3 $_fp3"',
   ]) {
-    test('E15: a flow-list confirmed label $entry rewrites as a '
+    test('a flow-list confirmed label $entry rewrites as a '
         'block-list one does', () async {
       final root = await _frTraceProject();
       final file = File('${root.path}/docs/$loginFr');
@@ -421,18 +421,24 @@ void main() {
     });
   }
 
-  test('E15: a block-list traced_from rewrites and the other entries keep their text', () async {
-    final root = await _frTraceProject(
-      tracedFrom: 'traced_from:\n  - S1\n  - "login/reset_password#S3" # why\n',
-    );
-    _rename(root, 'user_story:login/reset_password', 'recover_password');
-    final fr = readDoc(root, loginFr);
-    expect(
-      fr,
-      contains('traced_from:\n  - S1\n  - "login/recover_password#S3" # why\n'),
-    );
-    expect(await _frKinds(root), isEmpty);
-  });
+  test(
+    'a block-list traced_from rewrites and the other entries keep their text',
+    () async {
+      final root = await _frTraceProject(
+        tracedFrom:
+            'traced_from:\n  - S1\n  - "login/reset_password#S3" # why\n',
+      );
+      _rename(root, 'user_story:login/reset_password', 'recover_password');
+      final fr = readDoc(root, loginFr);
+      expect(
+        fr,
+        contains(
+          'traced_from:\n  - S1\n  - "login/recover_password#S3" # why\n',
+        ),
+      );
+      expect(await _frKinds(root), isEmpty);
+    },
+  );
 
   for (final (shape, tracedFrom) in [
     (
@@ -448,7 +454,7 @@ void main() {
       'traced_from: [S1,\n  login/reset_password#S3]\n',
     ),
   ]) {
-    test('E15: traced_from with $shape rewrites with confirmed', () async {
+    test('traced_from with $shape rewrites with confirmed', () async {
       final root = await _frTraceProject(tracedFrom: tracedFrom);
       _rename(root, 'user_story:login/reset_password', 'recover_password');
       final fr = readDoc(root, loginFr);
@@ -460,7 +466,7 @@ void main() {
   }
 
   test(
-    'E15: an own-story label S<N> and an unrenamed story label keep their text',
+    'an own-story label S<N> and an unrenamed story label keep their text',
     () async {
       final root = await _frTraceProject();
       final before = readDoc(root, loginFr);
@@ -470,7 +476,7 @@ void main() {
     },
   );
 
-  test('E04: move of a story rewrites the traced_from entry and confirmed label of an fr', () async {
+  test('move of a story rewrites the traced_from entry and confirmed label of an fr', () async {
     final root = await _frTraceProject();
     writeIn(
       root,
@@ -579,23 +585,27 @@ void main() {
     });
   });
 
-  test('E05: an fr under the moved story keeps the entry naming a story that stays', () async {
-    final root = await _frTraceProject();
-    final before = readDoc(root, _resetFr);
-    writeIn(
-      root,
-      (s) =>
-          answerMove(s, ['user_story:login/reset_password'], under: 'account'),
-    );
-    final moved = _resetFr
-        .replaceFirst('f01_login', 'f02_account')
-        .replaceFirst('us02', 'us01');
-    expect(readDoc(root, moved), before);
-    expect(
-      await _frKinds(root, docPath: moved),
-      contains(FindingKind.scenarioTraceUnresolved),
-    );
-  });
+  test(
+    'an fr under the moved story keeps the entry naming a story that stays',
+    () async {
+      final root = await _frTraceProject();
+      final before = readDoc(root, _resetFr);
+      writeIn(
+        root,
+        (s) => answerMove(s, [
+          'user_story:login/reset_password',
+        ], under: 'account'),
+      );
+      final moved = _resetFr
+          .replaceFirst('f01_login', 'f02_account')
+          .replaceFirst('us02', 'us01');
+      expect(readDoc(root, moved), before);
+      expect(
+        await _frKinds(root, docPath: moved),
+        contains(FindingKind.scenarioTraceUnresolved),
+      );
+    },
+  );
   _movedFrTraceTests();
 }
 

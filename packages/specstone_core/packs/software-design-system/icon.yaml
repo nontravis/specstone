@@ -1,0 +1,22 @@
+id: icon
+description: |-
+  The icon doc: the icon set, its sizes, and its naming.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# Icons`, with no number.
+path: specs/design_system/ICON.md
+sections:
+  - id: icon_set
+    header: Icon set
+    required: true
+    description: |-
+      Name the icon set and how a component picks an icon from it.
+  - id: sizes
+    header: Sizes
+    required: true
+    description: |-
+      List each icon size with its value.
+  - id: naming
+    header: Naming
+    required: true
+    description: |-
+      State how an icon is named.

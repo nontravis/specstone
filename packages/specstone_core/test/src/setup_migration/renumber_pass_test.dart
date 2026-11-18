@@ -8,8 +8,6 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
-const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
-
 const _topicPath = 'specs/topics/doc_model.md';
 const _otherTopicPath = 'specs/topics/other_topic.md';
 const _domainPath = 'specs/f01_a/DOMAIN.md';
@@ -167,7 +165,7 @@ void main() {
     );
   });
 
-  test('$_fr E19: two lettered scenarios take the next free numbers in '
+  test('two lettered scenarios take the next free numbers in '
       'document order; another prefix counts only its own numbers', () {
     const story = '''
 # B
@@ -213,7 +211,7 @@ void main() {
     ]);
   });
 
-  test('$_fr E18: a digit after the letter run is unreadable, so the pass '
+  test('a digit after the letter run is unreadable, so the pass '
       'neither plans nor rewrites it, and a lettered token beside it still '
       'changes', () {
     final topic = _topic.replaceFirst(
@@ -241,7 +239,7 @@ void main() {
     expect(pass.apply(_storyPath, story), contains('### Scenario 6a2 — '));
   });
 
-  test('$_fr E18: the renumbered doc rewrites its own item and prose mention, '
+  test('the renumbered doc rewrites its own item and prose mention, '
       'and keeps its code span, fence, and frontmatter byte-equal', () {
     final applied = _applied({_topicPath: _topic})[_topicPath]!;
 
@@ -254,7 +252,7 @@ void main() {
     );
   });
 
-  test('$_fr E18: a line of another doc rewrites the token in the run of a '
+  test('a line of another doc rewrites the token in the run of a '
       'citation of the renumbered doc, outside code spans and fences; a '
       'lone-word span is no citation, and an ID after other text is in no '
       'run', () {
@@ -283,7 +281,7 @@ RULE-7a on a line that cites no doc
     expect(applied, contains(_fenced));
   });
 
-  test('$_fr E18: a spec doc whose link or code-span path resolves to the '
+  test('a spec doc whose link or code-span path resolves to the '
       'renumbered doc cites it', () {
     const domain = '''
 # A
@@ -313,7 +311,7 @@ RULE-7a on a line that cites no doc
     );
   });
 
-  test('$_fr E18: a link cites the doc its href names as markdown decodes '
+  test('a link cites the doc its href names as markdown decodes '
       'it, an escape or an entity in its destination included', () {
     const domain = r'''
 # A
@@ -341,7 +339,7 @@ RULE-7a on a line that cites no doc
     );
   });
 
-  test('$_fr E18, E50: the plan line counts the renumberings and the docs '
+  test('the plan line counts the renumberings and the docs '
       'the pass rewrites, and its paths list each renumbering in tree order, '
       'then each such doc', () {
     final pass = _planOf({
@@ -361,7 +359,7 @@ RULE-7a on a line that cites no doc
     ]);
   });
 
-  test('$_fr E18: a confirmed entry takes the new label and keeps its '
+  test('a confirmed entry takes the new label and keeps its '
       'fingerprint, matched or suspect', () {
     final matched = fingerprintOf(_lettered);
     final docs = {
@@ -391,7 +389,7 @@ RULE-7a on a line that cites no doc
     );
   });
 
-  test('$_fr E18: a journey step value and its confirmed label take the new '
+  test('a journey step value and its confirmed label take the new '
       'number; a step heading number 3x stays', () {
     final matched = fingerprintOf(_lettered);
     final journey =
@@ -424,7 +422,7 @@ step: a/b S1
     );
   });
 
-  test('$_fr E18: a lettered gnfr NFR ID renames the overrides value and the '
+  test('a lettered gnfr NFR ID renames the overrides value and the '
       'confirmed label, the statement fingerprint carried over', () {
     const statement = '- **Statement:** The tool shall answer in 1 s.';
     const gnfr =
@@ -463,7 +461,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18: a tree with no lettered ID plans nothing, and the pass '
+  test('a tree with no lettered ID plans nothing, and the pass '
       'over its own output renumbers nothing', () {
     final docs = {
       _topicPath: _topic,
@@ -482,14 +480,14 @@ confirmed:
     expect(_planOf({_otherTopicPath: _otherTopic}).planLine, isNull);
   });
 
-  test('$_fr E18: a doc the pass was not planned over comes back '
+  test('a doc the pass was not planned over comes back '
       'unchanged', () {
     final pass = _planOf({_topicPath: _topic});
 
     expect(pass.apply(_frPath, _frDoc('000000000000')), _frDoc('000000000000'));
   });
 
-  test('$_fr E19: two items lettered alike take two numbers, each at its own '
+  test('two items lettered alike take two numbers, each at its own '
       'start; a mention elsewhere takes the first', () {
     const topic = '''
 # Doc model
@@ -516,7 +514,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18: a quoted confirmed entry takes the new label in its '
+  test('a quoted confirmed entry takes the new label in its '
       'quotes and keeps its fingerprint', () {
     final fr =
         '---\ntraced_from: [S6a]\nconfirmed:\n'
@@ -531,7 +529,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18: a scenario whose prose the pass rewrites leaves its '
+  test('a scenario whose prose the pass rewrites leaves its '
       "entries' fingerprints to the stamp pass", () {
     const eight = '### Scenario 8 — [error] eight\n\n- **Given** g';
     const mentioning = '$eight, unlike Scenario 6a';
@@ -550,7 +548,7 @@ confirmed:
     expect(applied[_siblingFrPath], tracing('000000000000'));
   });
 
-  test('$_fr E18: a zero-padded story names a scenario by its value, so a '
+  test('a zero-padded story names a scenario by its value, so a '
       'padded entry keeps its label and fingerprint', () {
     const eight = '### Scenario 08 — [error] eight\n\n- **Given** g';
     const mentioning = '$eight, unlike Scenario 6a';
@@ -578,7 +576,7 @@ confirmed:
     expect(applied[paddedFrPath], tracing('S08', written));
   });
 
-  test('$_fr E18: an FR Statement the pass rewrites leaves the api FR '
+  test('an FR Statement the pass rewrites leaves the api FR '
       'trace entry as written', () {
     final fr = _frDoc('000000000000');
     String api(String fingerprint) =>
@@ -597,7 +595,7 @@ confirmed:
     expect(_statementOf(applied[_frPath]!), isNot(_statementOf(fr)));
   });
 
-  test('$_fr E18: a lettered project goal cited in an nf traced_from takes '
+  test('a lettered project goal cited in an nf traced_from takes '
       'the new number', () {
     const project = '''
 # P
@@ -616,7 +614,7 @@ confirmed:
     expect(pass.paths, contains(_nfPath));
   });
 
-  test('$_fr E20: goals renumber from the goal doc', () {
+  test('goals renumber from the goal doc', () {
     const goal = '''
 # Goals
 
@@ -642,7 +640,7 @@ confirmed:
     );
   });
 
-  test('$_fr E20: the goal doc wins a lettered goal ID the project doc also '
+  test('the goal doc wins a lettered goal ID the project doc also '
       'holds; an ID only the project doc holds still renumbers', () {
     const project = '''
 # P
@@ -689,7 +687,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18: a gnfr Statement the pass rewrites leaves the nf entry as '
+  test('a gnfr Statement the pass rewrites leaves the nf entry as '
       'written', () {
     const statement =
         '- **Statement:** The tool shall keep `topic:doc_model` RULE-7a.';
@@ -709,7 +707,7 @@ confirmed:
     expect(applied[_nfPath], nf(fingerprintOf(statement)));
   });
 
-  test('$_fr E18: applying the pass to a text other than the one it was '
+  test('applying the pass to a text other than the one it was '
       'planned over refuses', () {
     final pass = _planOf({_topicPath: _topic});
 
@@ -719,7 +717,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18 (W1): a feature and a story listing a lettered vision and '
+  test('a feature and a story listing a lettered vision and '
       'goal take their new numbers; a lettered token in another key stays', () {
     const project = '''
 # P
@@ -770,7 +768,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18 (W3): a link to a renumbered heading takes its new slug, '
+  test('a link to a renumbered heading takes its new slug, '
       'self links included, and its doc joins references', () {
     const anchor = 'scenario-6a--edge-lettered';
     const moved = 'scenario-9--edge-lettered';
@@ -801,7 +799,7 @@ confirmed:
     ]);
   });
 
-  test('$_fr E18 (W3): a link whose destination escapes or encodes a path '
+  test('a link whose destination escapes or encodes a path '
       'character takes the new slug of the heading its href names', () {
     const anchor = 'scenario-6a--edge-lettered';
     const moved = 'scenario-9--edge-lettered';
@@ -819,7 +817,7 @@ confirmed:
     expect(pass.apply(_domainPath, domain), domain.replaceAll(anchor, moved));
   });
 
-  test('$_fr E18 (W3, R74): a link whose # or anchor is a character reference '
+  test('a link whose # or anchor is a character reference '
       'takes the new slug its href names', () {
     const path = '../../prds/features/f01_a/us01_b/USER_STORY.md';
     const domain =
@@ -841,7 +839,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18 (LP2, R74): a doc markdown fails on keeps its link '
+  test('a doc markdown fails on keeps its link '
       'citations and link anchors, and the plan line names it as not fully '
       'rewritten', () {
     const unparsed = '\n[a]:<b\\';
@@ -875,7 +873,7 @@ confirmed:
     ]);
   });
 
-  test('$_fr E18 (LP2, R74): a doc markdown fails on whose links the pass '
+  test('a doc markdown fails on whose links the pass '
       'needs for no token and no moved heading stays off the plan line', () {
     final pass = _planOf({
       _topicPath: _topic,
@@ -886,7 +884,7 @@ confirmed:
     expect(pass.paths, ['$_topicPath RULE-7a -> RULE-31', _topicPath]);
   });
 
-  test('$_fr E18 (W3, R63): a Concerns see target, bare or in backticks, '
+  test('a Concerns see target, bare or in backticks, '
       'takes the new slug of a renumbered heading; a see of another file or '
       'of an unmoved heading stays', () {
     const anchor = 'scenario-6a--edge-lettered';
@@ -913,7 +911,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18 (W3, R63): a Concerns line whose text the token rewrite or '
+  test('a Concerns line whose text the token rewrite or '
       'the link anchor move already changed still moves its see anchor', () {
     const anchor = 'scenario-6a--edge-lettered';
     const moved = 'scenario-9--edge-lettered';
@@ -938,7 +936,7 @@ confirmed:
     );
   });
 
-  test('$_fr E18 (W3): an untyped doc takes only the moved anchors of its '
+  test('an untyped doc takes only the moved anchors of its '
       'links, and refuses a text other than the one planned', () {
     const notesPath = 'prds/notes.md';
     const notes =
@@ -956,7 +954,7 @@ confirmed:
     expect(() => pass.apply(notesPath, '$notes\nmore\n'), throwsArgumentError);
   });
 
-  test('$_fr E18 (W4): the token scan reads prose only: link text, labels, '
+  test('the token scan reads prose only: link text, labels, '
       'and their uses change; destinations, autolinks, raw html, indented '
       'code, and a code span over two lines stay', () {
     const purpose = '''
@@ -995,7 +993,7 @@ RULE-7a` here.
     );
   });
 
-  test('$_fr E18 (W6): a short scenario ref S6a in prose takes the new '
+  test('a short scenario ref S6a in prose takes the new '
       'number in the story and in a doc tracing it, by the citation rule', () {
     const story = '$_story\nAs S6a shows, Scenario 6a holds.\n';
     const tracing =
@@ -1013,7 +1011,7 @@ RULE-7a` here.
     expect(applied[_domainPath], notTracing);
   });
 
-  test('$_fr E18 (W10): an S<N> ref 1.1.0 read as the one lettered '
+  test('an S<N> ref 1.1.0 read as the one lettered '
       'scenario of number N takes its new number; two lettered N stay', () {
     String tracing(String fingerprint) =>
         '---\ntraced_from: [S6]\nconfirmed:\n  - S6 $fingerprint\n---\n# C\n';
@@ -1038,7 +1036,7 @@ RULE-7a` here.
     expect(two[_frPath], tracing('0' * 12));
   });
 
-  test('$_fr E24, E47: a short scenario ref beyond the run of a story cite '
+  test('a short scenario ref beyond the run of a story cite '
       'goes to the story the doc belongs to', () {
     const story =
         '# E\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] one\n\n'
@@ -1057,7 +1055,7 @@ RULE-7a` here.
     );
   });
 
-  test('$_fr E57: a short scenario ref in the run of a cite of a story the '
+  test('a short scenario ref in the run of a cite of a story the '
       'doc traces renumbers, one beyond the run does not', () {
     const fr =
         '---\ntraced_from:\n  - a/b#S1\n---\n# F\n\n## Statement\n\n'
@@ -1071,7 +1069,7 @@ RULE-7a` here.
     );
   });
 
-  test('$_fr E47: a token inside the text of a doc link in another doc '
+  test('a token inside the text of a doc link in another doc '
       'renumbers with the doc of that link', () {
     const domain =
         '# A\n\n## Invariants\n\n'
@@ -1085,7 +1083,7 @@ RULE-7a` here.
     );
   });
 
-  test('$_fr E47: a token at the start of the line after a citation of the '
+  test('a token at the start of the line after a citation of the '
       'renumbered doc, in the same paragraph, stays as written', () {
     const domain =
         '# A\n\n## Invariants\n\n`topic:doc_model`\nRULE-7a follows\n';
@@ -1095,7 +1093,7 @@ RULE-7a` here.
     expect(applied[_domainPath], domain);
   });
 
-  test('$_fr E47: a path span followed by a section header span holds the run '
+  test('a path span followed by a section header span holds the run '
       'after the header span', () {
     const domain =
         '# A\n\n## Invariants\n\n'

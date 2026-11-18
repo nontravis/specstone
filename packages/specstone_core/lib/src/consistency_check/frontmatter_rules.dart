@@ -109,7 +109,10 @@ bool _fits(MergedField field, Object value) {
 /// The one value rule: `check` reports a value it refuses, and `set` refuses
 /// to write one.
 bool fieldTakesItem(MergedField field, Object? item) => switch (field.type) {
-  FieldType.string || FieldType.docRef || FieldType.outputRef => item is String,
+  FieldType.string ||
+  FieldType.docRef ||
+  FieldType.outputRef ||
+  FieldType.sourceRef => item is String,
   FieldType.recordStatus =>
     item is String && recordStatusLineOf(item)?.status != null,
   FieldType.taskRef => item is String && TaskRef.parse(item) != null,
@@ -144,7 +147,10 @@ const String taskRefEntryShape =
 
 String _takes(MergedField field) {
   final one = switch (field.type) {
-    FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
+    FieldType.string ||
+    FieldType.docRef ||
+    FieldType.outputRef ||
+    FieldType.sourceRef => 'a string',
     FieldType.recordStatus => recordStatusLineShape,
     FieldType.taskRef => taskRefEntryShape,
     FieldType.integer => 'an integer',

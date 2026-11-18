@@ -93,6 +93,8 @@ enum FindingKind {
   docNameUnresolved('doc_name_unresolved'),
   perTargetReference('per_target_reference'),
   sharedDocCodePath('shared_doc_code_path'),
+  sourcePathMissing('source_path_missing'),
+  sourcePathOutsideProject('source_path_outside_project'),
   numberLabel('number_label'),
   citeUnlinked('cite_unlinked'),
   referenceDocUnresolved('reference_doc_unresolved'),

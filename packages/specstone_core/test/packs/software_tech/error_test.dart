@@ -11,7 +11,7 @@ void main() {
     error = prdCoreDocType(await resolveSoftwareTech(), 'error');
   });
 
-  test('f03/us07/fr01, f03/us07/fr01/e06: error sits under '
+  test('error sits under '
       'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
       'fields, and four sections', () {
     expect(error.path, 'specs/f{nn}_{slug}/ERROR.md');

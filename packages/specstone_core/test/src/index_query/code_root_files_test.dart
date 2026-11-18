@@ -5,9 +5,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/posix_modes.dart';
 
-const _lister =
-    'document_writing/rename_doc/rewrite_name_references code input:';
-
 void main() {
   late Directory root;
 
@@ -127,7 +124,7 @@ void main() {
     },
   );
 
-  group('$_lister bounds', () {
+  group('bounds', () {
     late Directory codeRoot;
 
     setUp(() {
@@ -160,7 +157,7 @@ void main() {
     }, skip: Platform.isWindows ? 'links need a privilege on Windows' : false);
   });
 
-  group('$_lister normal form', () {
+  group('normal form', () {
     test('a code or covers entry drops . and the final /, and applies ..', () {
       expect(normalCodeEntry('./lib/'), 'lib');
       expect(normalCodeEntry('lib/./src//'), 'lib/src');

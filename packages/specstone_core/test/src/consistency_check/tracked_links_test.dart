@@ -18,7 +18,7 @@ void main() {
   const fp = fingerprintOf;
   final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
 
-  test('f04/us04/s1, f04/us04/s5, f04/us04/fr01/e01, f04/us04/fr02/e03: approved docs whose entries match are clean', () async {
+  test('approved docs whose entries match are clean', () async {
     expect((await checkOf(await writeCheckProject())).findings, isEmpty);
   });
 
@@ -74,7 +74,7 @@ void main() {
     );
   });
 
-  test('f04/us04/s2, f04/us04/fr01/e02, f04/us01/fr02/e06: an edited scenario makes the FR suspect, naming both '
+  test('an edited scenario makes the FR suspect, naming both '
       'fingerprints and the block, at the one finding level', () async {
     final report = await checkOf(
       await writeCheckProject(extra: doc(loginStory, loginScenario2, edited)),
@@ -102,7 +102,7 @@ void main() {
     final block = printedBlockOf(edited);
 
     test(
-      'E02: a suspect finding prints the block, then the fingerprint, '
+      'a suspect finding prints the block, then the fingerprint, '
       'each indented 4 spaces, and its message holds no fingerprint',
       () async {
         final finding = (await checkOf(
@@ -136,7 +136,7 @@ void main() {
     );
 
     test(
-      'E12: no line before the last block line holds the current '
+      'no line before the last block line holds the current '
       'fingerprint, and under --json text comes before fingerprint',
       () async {
         final finding = (await checkOf(
@@ -208,7 +208,7 @@ void main() {
   });
 
   group('Report unconfirmed links', () {
-    test('E01: a link with no entry carries the block text before the '
+    test('a link with no entry carries the block text before the '
         'fingerprint and prints them indented', () async {
       final finding = (await checkOf(
         await writeCheckProject(
@@ -236,7 +236,7 @@ void main() {
       expect(finding.textLines.first, isNot(contains(fp(loginScenario2))));
     });
 
-    test('E04: a draft whose entry records an older fingerprint carries the '
+    test('a draft whose entry records an older fingerprint carries the '
         'block text before the fingerprint', () async {
       final finding = (await checkOf(
         await writeCheckProject(
@@ -281,22 +281,25 @@ void main() {
     });
   });
 
-  test('f04/us04/fr01/e03, f04/us04/fr01/e06: an edit to another scenario, a blank line, or CRLF changes nothing', () async {
-    final story = checkProjectFiles()['docs/$loginStory']!;
-    for (final text in [
-      story.replaceFirst('sees the home page', 'sees the start page'),
-      '$story\n\n',
-      story.replaceAll('\n', '\r\n'),
-    ]) {
-      final report = await checkOf(
-        await writeCheckProject(extra: {'docs/$loginStory': text}),
-      );
-      expect(
-        report.findings.where((f) => f.kind != FindingKind.formatDrift),
-        isEmpty,
-      );
-    }
-  });
+  test(
+    'an edit to another scenario, a blank line, or CRLF changes nothing',
+    () async {
+      final story = checkProjectFiles()['docs/$loginStory']!;
+      for (final text in [
+        story.replaceFirst('sees the home page', 'sees the start page'),
+        '$story\n\n',
+        story.replaceAll('\n', '\r\n'),
+      ]) {
+        final report = await checkOf(
+          await writeCheckProject(extra: {'docs/$loginStory': text}),
+        );
+        expect(
+          report.findings.where((f) => f.kind != FindingKind.formatDrift),
+          isEmpty,
+        );
+      }
+    },
+  );
 
   test(
     'an nf turns suspect on its NFR Statement line, not on its Rationale',
@@ -323,7 +326,7 @@ void main() {
     },
   );
 
-  test('f04/us04/s6, f04/us04/fr01/e05: an API spec turns suspect for the one row whose FR Statement changed', () async {
+  test('an API spec turns suspect for the one row whose FR Statement changed', () async {
     const lock =
         'prds/features/f01_login/us01_email_login/fr02_lock_account.md';
     const lockStatement =
@@ -366,7 +369,7 @@ void main() {
     );
   });
 
-  test('f04/us04/fr01/e07, f04/us04/fr01/e08: self-derived and a missing scenario track nothing', () async {
+  test('self-derived and a missing scenario track nothing', () async {
     for (final entry in ['self-derived', 'S9']) {
       final report = await checkOf(
         await writeCheckProject(extra: fr('  - S2\n', '  - $entry\n')),
@@ -376,7 +379,7 @@ void main() {
     }
   });
 
-  test('f04/us04/s3, f04/us04/fr02/e01: a tracked link with no entry is unconfirmed at its trace', () async {
+  test('a tracked link with no entry is unconfirmed at its trace', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: fr('confirmed:\n  - S2 ${fp(loginScenario2)}\n', ''),
@@ -392,7 +395,7 @@ void main() {
     expect(finding.toJson().containsKey('recorded'), isFalse);
   });
 
-  test('f04/us04/s4, f04/us04/fr02/e02, f04/us04/fr02/e05, f04/us04/fr02/e07, cc-s03/inv6: a matching entry in a '
+  test('a matching entry in a '
       "draft waits for the Owner's approve", () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -406,7 +409,7 @@ void main() {
   });
 
   test(
-    'E02: a draft '
+    'a draft '
     'whose entry matches the current fingerprint waits for the Owner',
     () async {
       final finding = (await checkOf(
@@ -421,7 +424,7 @@ void main() {
     },
   );
 
-  test('E05: in a '
+  test('in a '
       'draft with one entry at the current fingerprint, that link waits for the '
       'Owner and a link with no entry waits for the Agent', () async {
     final report = await checkOf(
@@ -446,7 +449,7 @@ void main() {
     );
   });
 
-  test('E04: a '
+  test('a '
       'draft whose entry records an older fingerprint waits for the Agent, and '
       'so does a link with no entry outside a draft', () async {
     final older = (await checkOf(
@@ -501,23 +504,26 @@ void main() {
     );
   });
 
-  test('cc-s03/inv6, review focus 2: a draft whose scenario is missing gets only the US-03 trace finding', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: edit(loginFr, [
-          ('traced_from:\n', 'draft: true\ntraced_from:\n'),
-          ('  - S2\n', '  - S9\n'),
-        ]),
-      ),
-    );
-    expect(spots(report, FindingKind.scenarioTraceUnresolved), [
-      '$loginFr:3: scenario_trace_unresolved',
-    ]);
-    expect(spots(report, FindingKind.unconfirmed), isEmpty);
-    expect(spots(report, FindingKind.suspect), isEmpty);
-  });
+  test(
+    'a draft whose scenario is missing gets only the trace finding',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: edit(loginFr, [
+            ('traced_from:\n', 'draft: true\ntraced_from:\n'),
+            ('  - S2\n', '  - S9\n'),
+          ]),
+        ),
+      );
+      expect(spots(report, FindingKind.scenarioTraceUnresolved), [
+        '$loginFr:3: scenario_trace_unresolved',
+      ]);
+      expect(spots(report, FindingKind.unconfirmed), isEmpty);
+      expect(spots(report, FindingKind.suspect), isEmpty);
+    },
+  );
 
-  test('cc-s03/inv4: an FR without a Statement section and an NFR without a Statement line fingerprint the empty text', () async {
+  test('an FR without a Statement section and an NFR without a Statement line fingerprint the empty text', () async {
     const empty = 'e3b0c44298fc';
     final nfr = await checkOf(
       await writeCheckProject(extra: doc(gnfrDoc, '$loginNfrStatement\n', '')),
@@ -538,31 +544,28 @@ void main() {
     );
   });
 
-  test(
-    'cc-s03/inv5: a repeated scenario number fingerprints its first block',
-    () async {
-      final second = loginScenario2.replaceFirst('Wrong password', 'Locked');
-      final story = checkProjectFiles()['docs/$loginStory']!;
-      final session = openSession(
-        await writeCheckProject(
-          extra: {
-            'docs/$loginStory': story.replaceFirst(
-              '$loginScenario2\n',
-              '$loginScenario2\n\n$second\n',
-            ),
-          },
-        ),
-      );
-      addTearDown(session.close);
-      final context = CheckContext(session);
-      final blocks = context.scenarioBlocksOf(session.index.at(loginStory)!);
-      expect(blocks['S2'], loginScenario2);
-      final links = trackedLinksOf(context, session.index.at(loginFr)!);
-      expect(links.single.fingerprint, fp(loginScenario2));
-    },
-  );
+  test('a repeated scenario number fingerprints its first block', () async {
+    final second = loginScenario2.replaceFirst('Wrong password', 'Locked');
+    final story = checkProjectFiles()['docs/$loginStory']!;
+    final session = openSession(
+      await writeCheckProject(
+        extra: {
+          'docs/$loginStory': story.replaceFirst(
+            '$loginScenario2\n',
+            '$loginScenario2\n\n$second\n',
+          ),
+        },
+      ),
+    );
+    addTearDown(session.close);
+    final context = CheckContext(session);
+    final blocks = context.scenarioBlocksOf(session.index.at(loginStory)!);
+    expect(blocks['S2'], loginScenario2);
+    final links = trackedLinksOf(context, session.index.at(loginFr)!);
+    expect(links.single.fingerprint, fp(loginScenario2));
+  });
 
-  test('cc-s03/inv6: hasSuspectLink is true for a changed link only', () async {
+  test('hasSuspectLink is true for a changed link only', () async {
     for (final (story, suspect) in [(loginScenario2, false), (edited, true)]) {
       final session = openSession(
         await writeCheckProject(extra: doc(loginStory, loginScenario2, story)),
@@ -573,7 +576,7 @@ void main() {
     }
   });
 
-  test('f04/us04/fr03/e01, f04/us04/fr03/e02, f04/us04/fr03/e03: the map form, uppercase hex, and ten characters are '
+  test('the map form, uppercase hex, and ten characters are '
       'malformed', () async {
     for (final bad in [
       'S2: 047e817f9707',
@@ -597,31 +600,34 @@ void main() {
     }
   });
 
-  test('f04/us04/s7, f04/us04/fr03/e04: an entry for a link the doc does not trace is stale, in a draft too', () async {
-    for (final draft in ['', 'draft: true\n']) {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: edit(loginFr, [
-            ('traced_from:\n', '${draft}traced_from:\n'),
-            (
-              '  - S2 ${fp(loginScenario2)}\n',
-              '  - S2 ${fp(loginScenario2)}\n  - S3 ${fp(loginScenario2)}\n',
-            ),
-          ]),
-        ),
-      );
-      const line = 8;
-      expect(spots(report, FindingKind.confirmedEntryStale), [
-        '$loginFr:$line: confirmed_entry_stale',
-      ]);
-      expect(
-        report.findings
-            .firstWhere((f) => f.kind == FindingKind.confirmedEntryStale)
-            .toJson()['link'],
-        'S3',
-      );
-    }
-  });
+  test(
+    'an entry for a link the doc does not trace is stale, in a draft too',
+    () async {
+      for (final draft in ['', 'draft: true\n']) {
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: edit(loginFr, [
+              ('traced_from:\n', '${draft}traced_from:\n'),
+              (
+                '  - S2 ${fp(loginScenario2)}\n',
+                '  - S2 ${fp(loginScenario2)}\n  - S3 ${fp(loginScenario2)}\n',
+              ),
+            ]),
+          ),
+        );
+        const line = 8;
+        expect(spots(report, FindingKind.confirmedEntryStale), [
+          '$loginFr:$line: confirmed_entry_stale',
+        ]);
+        expect(
+          report.findings
+              .firstWhere((f) => f.kind == FindingKind.confirmedEntryStale)
+              .toJson()['link'],
+          'S3',
+        );
+      }
+    },
+  );
 
   group('repeated confirmed entries', () {
     const secondFingerprint = '9a1c03be55d2';
@@ -814,7 +820,7 @@ void main() {
     expect(spots(report), ['$loginApi:5: confirmed_entry_stale']);
   });
 
-  test('f04/us04, cc-s03/inv2: a project layer that disables confirmed on fr runs no link state rule on an fr', () async {
+  test('a project layer that disables confirmed on fr runs no link state rule on an fr', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: {
@@ -827,20 +833,23 @@ void main() {
     expect(report.findings, isEmpty);
   });
 
-  test('f04/us04/fr01, cc-s03/inv2: a bare confirmed key counts as absent, not as a malformed entry', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: fr(
-          'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n',
-          'confirmed:\n',
+  test(
+    'a bare confirmed key counts as absent, not as a malformed entry',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: fr(
+            'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n',
+            'confirmed:\n',
+          ),
         ),
-      ),
-    );
-    expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
-    expect(spots(report), ['$loginFr:3: unconfirmed']);
-  });
+      );
+      expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
+      expect(spots(report), ['$loginFr:3: unconfirmed']);
+    },
+  );
 
-  test('f04/us04/fr01, cc-s03/inv6: a scenario with a fenced example heading keeps its whole block, and the example is no scenario', () async {
+  test('a scenario with a fenced example heading keeps its whole block, and the example is no scenario', () async {
     const example = '```\n### Scenario 3 — Example\n- **Given** a sketch\n```';
     final report = await checkOf(
       await writeCheckProject(
@@ -906,29 +915,32 @@ void main() {
       docPath: journeyPath,
     );
 
-    test('f04/us04/s9, f04/us04/fr01/e10: an edit of Scenario 1 makes the journey suspect for that step', () async {
-      final newScenario = loginScenario1.replaceFirst(
-        'signs in',
-        'signs in again',
-      );
-      final report = await check(
-        journey([stepOne], confirmed: ['$label1 ${fp(loginScenario1)}']),
-        extra: doc(loginStory, loginScenario1, newScenario),
-      );
-      final finding = report.findings.singleWhere(
-        (f) => f.kind == FindingKind.suspect,
-      );
-      expect(
-        finding.toJson(),
-        allOf(
-          containsPair('link', label1),
-          containsPair('upstream', loginStory),
-          containsPair('block', 'Scenario 1'),
-          containsPair('recorded', fp(loginScenario1)),
-          containsPair('fingerprint', fp(newScenario)),
-        ),
-      );
-    });
+    test(
+      'an edit of Scenario 1 makes the journey suspect for that step',
+      () async {
+        final newScenario = loginScenario1.replaceFirst(
+          'signs in',
+          'signs in again',
+        );
+        final report = await check(
+          journey([stepOne], confirmed: ['$label1 ${fp(loginScenario1)}']),
+          extra: doc(loginStory, loginScenario1, newScenario),
+        );
+        final finding = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.suspect,
+        );
+        expect(
+          finding.toJson(),
+          allOf(
+            containsPair('link', label1),
+            containsPair('upstream', loginStory),
+            containsPair('block', 'Scenario 1'),
+            containsPair('recorded', fp(loginScenario1)),
+            containsPair('fingerprint', fp(newScenario)),
+          ),
+        );
+      },
+    );
 
     test('a matching entry is clean; no entry is unconfirmed; a draft journey is unconfirmed', () async {
       final clean = await check(
@@ -1019,7 +1031,7 @@ void main() {
       },
     );
 
-    test('f04/us04/fr03/e09, f04/us02/fr06/e06: a step whose scenario was deleted keeps its link', () async {
+    test('a step whose scenario was deleted keeps its link', () async {
       final report = await check(
         journey(
           ['### 1. Open\n\nstep: login/email_login S9'],
@@ -1555,8 +1567,12 @@ void main() {
       String name = 'refuses an empty one',
     ]) => '- $item E01: `$name`${fingerprint == null ? '' : ' $fingerprint'}';
 
-    String record(List<String> rows, {String front = ''}) =>
-        '${recordText(front: front, statuses: const ['$item:implemented'])}'
+    String record(
+      List<String> rows, {
+      String front = '',
+      List<String> statuses = const ['$item:implemented'],
+    }) =>
+        '${recordText(front: front, statuses: statuses)}'
         '\n## Verification matrix\n\n${rows.join('\n')}\n';
 
     int rowLine(String record, int i) =>
@@ -1803,6 +1819,43 @@ void main() {
           '    fingerprint $current',
         ]);
       }
+    });
+
+    test('the rows of a skipped requirement take no state', () async {
+      final rows = [
+        testRow(null, 'refuses an unstamped one'),
+        testRow(older, 'refuses a stale one'),
+      ];
+      for (final statuses in [
+        const ['$item:skipped:no clock on CI'],
+        const [':skipped:no web view'],
+        const ['email_login:skipped:no web view'],
+      ]) {
+        final text = record(rows, statuses: statuses);
+
+        expect(await findingsOf(text), isEmpty, reason: '$statuses');
+      }
+    });
+
+    test('a stale row of a skipped requirement is no suspect link', () async {
+      Future<bool> isSuspectRecord(List<String> statuses) async {
+        final project = await writeCheckProject(
+          extra: {
+            loginRecord: record([testRow(older)], statuses: statuses),
+          },
+          unstamped: {loginRecord},
+        );
+        final session = openSession(project);
+        addTearDown(session.close);
+        return hasSuspectLink(
+          CheckContext(session),
+          session.index.at(loginRecord)!,
+        );
+      }
+
+      expect(await isSuspectRecord(const ['$item:implemented']), isTrue);
+      expect(await isSuspectRecord(const ['$item:skipped:no clock']), isFalse);
+      expect(await isSuspectRecord(const [':skipped:no web view']), isFalse);
     });
   });
 }

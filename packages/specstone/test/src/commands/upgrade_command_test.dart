@@ -13,11 +13,6 @@ import '../../helpers/temp_tree.dart';
 String _join(String first, [String? b, String? c, String? d]) =>
     [first, ?b, ?c, ?d].join('/');
 
-const _story = 'install_update/machine_install/upgrade_cli_and_plugin';
-const _keep = '$_story/keep_newer_prerelease';
-const _rerun = '$_story/rerun_install_script';
-const _refuse = '$_story/refuse_other_install';
-
 /// The installed binary the upgrade runs with `folder`: it logs a line of
 /// arguments, working folder, and own path to `FOLDER_LOG`, writes a line to
 /// each output, and exits `FOLDER_EXIT`. `FOLDER_BYTES` makes its stderr
@@ -102,7 +97,7 @@ void main() {
     return file;
   }
 
-  test('f09/us02/fr01/e02, f09/us02/s4: a binary outside ~/.specstone/bin '
+  test('a binary outside ~/.specstone/bin '
       'refuses install_not_managed, exit 78, before any request', () async {
     final root = await writeTree({});
     final tools = Directory(_join(root.path, 'opt', 'tools'));
@@ -119,39 +114,33 @@ void main() {
     expect(out.toString(), isEmpty);
   });
 
-  test(
-    'f09/us02/fr01/e01: the Dart VM of a checkout refuses, exit 78',
-    () async {
-      final root = await writeTree({});
-      final runner = runnerFor(Platform.resolvedExecutable, {
-        'HOME': _join(root.path, 'home'),
-      });
+  test('the Dart VM of a checkout refuses, exit 78', () async {
+    final root = await writeTree({});
+    final runner = runnerFor(Platform.resolvedExecutable, {
+      'HOME': _join(root.path, 'home'),
+    });
 
-      expect(await runner.run(['upgrade']), 78);
-      expect(
-        err.toString(),
-        contains(File(Platform.resolvedExecutable).parent.path),
-      );
-      expect(requests, 0);
-    },
-  );
+    expect(await runner.run(['upgrade']), 78);
+    expect(
+      err.toString(),
+      contains(File(Platform.resolvedExecutable).parent.path),
+    );
+    expect(requests, 0);
+  });
 
-  test(
-    'f09/us02/fr01/e03: no HOME and no USERPROFILE refuses, exit 78',
-    () async {
-      final root = await writeTree({});
-      final tools = Directory(_join(root.path, 'opt', 'tools'));
-      final exe = await makeExecutable(tools);
-      final runner = runnerFor(exe.path, {});
+  test('no HOME and no USERPROFILE refuses, exit 78', () async {
+    final root = await writeTree({});
+    final tools = Directory(_join(root.path, 'opt', 'tools'));
+    final exe = await makeExecutable(tools);
+    final runner = runnerFor(exe.path, {});
 
-      expect(await runner.run(['upgrade']), 78);
-      expect(err.toString(), contains(tools.path));
-      expect(err.toString(), contains('~/.specstone/bin'));
-      expect(requests, 0);
-    },
-  );
+    expect(await runner.run(['upgrade']), 78);
+    expect(err.toString(), contains(tools.path));
+    expect(err.toString(), contains('~/.specstone/bin'));
+    expect(requests, 0);
+  });
 
-  test('f09/us02/fr01/e04: an argument or an option is usage on err, '
+  test('an argument or an option is usage on err, '
       'exit 64', () async {
     final root = await writeTree({});
     final exe = await makeExecutable(Directory(_join(root.path, 'bin')));
@@ -165,7 +154,7 @@ void main() {
     expect(requests, 0);
   });
 
-  test('f09/us02/fr01: a binary in <home>/.specstone/bin passes the '
+  test('a binary in <home>/.specstone/bin passes the '
       'check', () async {
     final root = await writeTree({});
     final home = Directory(_join(root.path, 'home'));
@@ -178,7 +167,7 @@ void main() {
     expect(requests, 1);
   });
 
-  test('f09/us02/fr01: a home reached through a symlink passes', () async {
+  test('a home reached through a symlink passes', () async {
     final root = await writeTree({});
     final real = Directory(_join(root.path, 'real'));
     final exe = await makeExecutable(
@@ -191,7 +180,7 @@ void main() {
     expect(requests, 1);
   }, testOn: '!windows');
 
-  test('f09/us02/fr01: Windows compares folders without case', () async {
+  test('Windows compares folders without case', () async {
     final root = await writeTree({});
     final home = Directory(_join(root.path, 'Home'));
     final exe = await makeExecutable(
@@ -205,7 +194,7 @@ void main() {
     expect(requests, 1);
   }, testOn: 'windows');
 
-  test('$_refuse E02: a pre-release binary outside ~/.specstone/bin refuses '
+  test('a pre-release binary outside ~/.specstone/bin refuses '
       'install_not_managed, exit 78, before any request', () async {
     final root = await writeTree({});
     final tools = Directory(_join(root.path, 'opt', 'tools'));
@@ -220,7 +209,7 @@ void main() {
     expect(out.toString(), isEmpty);
   });
 
-  test('f09/us02/fr01: upgrade loads no templates', () async {
+  test('upgrade loads no templates', () async {
     final root = await writeTree({'.specstone/config.yaml': 'pins: [\n'});
     final tools = Directory(_join(root.path, 'opt', 'tools'));
     final exe = await makeExecutable(tools);
@@ -439,7 +428,7 @@ void main() {
     }, testOn: 'windows');
 
     test(
-      'f09/us02/fr02/e02, f09/us02/s5: no server refuses '
+      'no server refuses '
       'install_script_failed, exit 69, naming the URL; nothing ran',
       () async {
         await prepare();
@@ -453,7 +442,7 @@ void main() {
       },
     );
 
-    test('f09/us02/fr02: a non-2xx reply refuses, exit 69, naming the '
+    test('a non-2xx reply refuses, exit 69, naming the '
         'status', () async {
       await prepare();
       handle = (request) async {
@@ -469,7 +458,7 @@ void main() {
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
     });
 
-    test('f09/us02/fr02: a reply cut short runs nothing, exit 69', () async {
+    test('a reply cut short runs nothing, exit 69', () async {
       await prepare();
       handle = (request) async {
         final socket = await request.response.detachSocket(writeHeaders: false);
@@ -487,7 +476,7 @@ void main() {
       expect(folderRuns(), isEmpty);
     });
 
-    test('f09/us02/fr02/e03: a script exit 1 refuses, exit 69; no plugin '
+    test('a script exit 1 refuses, exit 69; no plugin '
         'step', () async {
       await prepare(scriptExit: 1);
 
@@ -503,7 +492,7 @@ void main() {
       expect(File(ran).existsSync(), isFalse);
     });
 
-    test('f09/us02/fr02/e04: a shell that cannot start refuses, exit 69, '
+    test('a shell that cannot start refuses, exit 69, '
         'the install unchanged', () async {
       // Windows mode on a POSIX host: `powershell` is not on the PATH.
       await prepare(asWindows: true);
@@ -533,8 +522,8 @@ void main() {
       ),
     );
 
-    test('f09/us02/fr02: a server that never answers refuses, exit 69, '
-        'naming the URL; nothing ran', () async {
+    test('a script server that never answers refuses, exit 69, naming the URL; '
+        'nothing ran', () async {
       await prepare();
       handle = (request) async {};
 
@@ -546,7 +535,7 @@ void main() {
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
     });
 
-    test('f09/us02/fr02: a body that stalls after one byte refuses, exit 69; '
+    test('a body that stalls after one byte refuses, exit 69; '
         'nothing ran', () async {
       await prepare();
       handle = (request) async {
@@ -563,26 +552,23 @@ void main() {
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
     });
 
-    test(
-      'f09/us02/fr02: an error reply that stalls refuses, exit 69',
-      () async {
-        await prepare();
-        handle = (request) async {
-          request.response.statusCode = HttpStatus.badGateway;
-          request.response.bufferOutput = false;
-          request.response.add([65]);
-          await request.response.flush();
-        };
+    test('an error reply that stalls refuses, exit 69', () async {
+      await prepare();
+      handle = (request) async {
+        request.response.statusCode = HttpStatus.badGateway;
+        request.response.bufferOutput = false;
+        request.response.add([65]);
+        await request.response.flush();
+      };
 
-        expect(await fast(() => runner.run(['upgrade'])), 69);
-        expect(
-          err.toString(),
-          'specstone upgrade could not fetch $scriptUrl: HTTP 502\n',
-        );
-      },
-    );
+      expect(await fast(() => runner.run(['upgrade'])), 69);
+      expect(
+        err.toString(),
+        'specstone upgrade could not fetch $scriptUrl: HTTP 502\n',
+      );
+    });
 
-    test('f09/us02/fr02: an error reply with a bad gzip body still names the '
+    test('an error reply with a bad gzip body still names the '
         'status, exit 69', () async {
       await prepare();
       handle = (request) async {
@@ -601,7 +587,7 @@ void main() {
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
     });
 
-    test('f09/us02/fr02: a temp folder that cannot be created refuses, '
+    test('a temp folder that cannot be created refuses, '
         'exit 69, before any request', () async {
       await prepare();
       final missing = Directory(_join(root.path, 'no', 'such', 'tmp'));
@@ -656,7 +642,7 @@ void main() {
       expect(paths, [releaseUrl.path, scriptUrl.path]);
     });
 
-    test('$_keep E03: a binary with no pre-release part sends no release '
+    test('a binary with no pre-release part sends no release '
         'request', () async {
       await prepare(runningVersion: _fullRelease);
       releaseReplies('{"tag_name": "v1.0.0"}');
@@ -758,7 +744,7 @@ void main() {
       ('an empty 2xx body', 200, '', 'the body is not JSON'),
     ];
     for (final (label, status, body, failure) in unreadable) {
-      test('$_keep E04: $label refuses install_script_failed, exit 69, '
+      test('$label refuses install_script_failed, exit 69, '
           'naming the URL; nothing ran', () async {
         await prepare(runningVersion: '1.2.0-beta.1');
         releaseReplies(body, status: status);
@@ -777,7 +763,7 @@ void main() {
       });
     }
 
-    test('$_keep E04: a 2xx body of invalid UTF-8 refuses, exit 69, naming '
+    test('a 2xx body of invalid UTF-8 refuses, exit 69, naming '
         'the URL; nothing ran', () async {
       await prepare(runningVersion: '1.2.0-beta.1');
       releaseSends([0x7b, 0xff, 0x7d]);
@@ -796,7 +782,7 @@ void main() {
       ('a 302 to an ftp URL', 302, 'ftp://x'),
       ('a 301 with a malformed Location', 301, 'http://['),
     ]) {
-      test('$_keep E04: $label is not followed; refuses, exit 69, nothing '
+      test('$label is not followed; refuses, exit 69, nothing '
           'fetched or run', () async {
         await prepare(runningVersion: '1.2.0-beta.1');
         releaseSends(const [], status: status, headers: {'location': location});
@@ -814,7 +800,7 @@ void main() {
       });
     }
 
-    test('$_rerun E02: a script URL that redirects is not followed; refuses, '
+    test('a script URL that redirects is not followed; refuses, '
         'exit 69, nothing ran', () async {
       await prepare();
       handle = (request) async {
@@ -833,7 +819,7 @@ void main() {
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
     });
 
-    test('$_keep E04: a 2xx gzip reply with garbage refuses, exit 69, naming '
+    test('a 2xx gzip reply with garbage refuses, exit 69, naming '
         'the URL; nothing ran', () async {
       await prepare(runningVersion: '1.2.0-beta.1');
       releaseSends(
@@ -853,7 +839,7 @@ void main() {
       expect(folderRuns(), isEmpty);
     });
 
-    test('$_rerun E02: a 2xx gzip script reply with garbage refuses, exit '
+    test('a 2xx gzip script reply with garbage refuses, exit '
         '69, nothing ran', () async {
       await prepare();
       handle = (request) async {
@@ -878,7 +864,7 @@ void main() {
       return [...json, ...List.filled(length - json.length, 0x20)];
     }
 
-    test('$_keep E04: a reply of 1 MiB plus one byte refuses, exit 69, '
+    test('a reply of 1 MiB plus one byte refuses, exit 69, '
         'naming the URL; nothing ran', () async {
       await prepare(runningVersion: '1.2.0-beta.1');
       releaseSends(paddedRelease(1024 * 1024 + 1));
@@ -893,7 +879,7 @@ void main() {
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
     });
 
-    test('$_keep S6: a reply of exactly 1 MiB is read', () async {
+    test('a reply of exactly 1 MiB is read', () async {
       await prepare(runningVersion: '1.2.0-beta.1');
       releaseSends(paddedRelease(1024 * 1024));
 
@@ -902,7 +888,7 @@ void main() {
       expect(paths, [releaseUrl.path]);
     });
 
-    test('$_keep E01: 1.10.0-beta.1 over 1.9.0 is kept, the fields compared '
+    test('1.10.0-beta.1 over 1.9.0 is kept, the fields compared '
         'as numbers', () async {
       await prepare(runningVersion: '1.10.0-beta.1');
       releaseReplies('{"tag_name": "v1.9.0"}');
@@ -917,20 +903,17 @@ void main() {
       expect(paths, [releaseUrl.path]);
     });
 
-    test(
-      '$_keep E02: 1.1.1-beta.1 is below 1.1.1, so the script runs',
-      () async {
-        await prepare(runningVersion: '1.1.1-beta.1');
-        releaseReplies('{"tag_name": "v1.1.1"}');
+    test('1.1.1-beta.1 is below 1.1.1, so the script runs', () async {
+      await prepare(runningVersion: '1.1.1-beta.1');
+      releaseReplies('{"tag_name": "v1.1.1"}');
 
-        expect(await runner.run(['upgrade']), 0);
-        expect(paths, [releaseUrl.path, scriptUrl.path]);
-        expect(folderRuns(), hasLength(1));
-      },
-    );
+      expect(await runner.run(['upgrade']), 0);
+      expect(paths, [releaseUrl.path, scriptUrl.path]);
+      expect(folderRuns(), hasLength(1));
+    });
 
-    test('$_keep E04: a server that never answers refuses, exit 69, naming '
-        'the URL; nothing ran', () async {
+    test('a release server that never answers refuses, exit 69, naming the '
+        'URL; nothing ran', () async {
       await prepare(runningVersion: '1.2.0-beta.1');
 
       expect(await fast(() => runner.run(['upgrade'])), 69);
@@ -943,7 +926,7 @@ void main() {
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
     });
 
-    test('$_keep E04: no server refuses, exit 69, naming the URL', () async {
+    test('no server refuses, exit 69, naming the URL', () async {
       await prepare(runningVersion: '1.2.0-beta.1');
       await server.close(force: true);
 
@@ -960,7 +943,7 @@ void main() {
 
     // The case-insensitive drop of `Specstone_Version` is checked only on a
     // Windows host, since only there does the script run through PowerShell.
-    test('$_rerun E08: the script runs without an exported '
+    test('the script runs without an exported '
         'SPECSTONE_VERSION', () async {
       await prepare(
         extraEnv: {
@@ -984,7 +967,7 @@ void main() {
       expect(File(seen).readAsStringSync().trim(), 'unset');
     });
 
-    test('$_rerun E08: a POSIX environment keeps the variable of another '
+    test('a POSIX environment keeps the variable of another '
         'case', () async {
       await prepare(
         extraEnv: {
@@ -1004,7 +987,7 @@ void main() {
       expect(File(seen).readAsStringSync().trim(), 'kept');
     }, testOn: '!windows');
 
-    test('f09/us02/fr02/e05, nfr-pr01: only upgrade_command.dart opens a '
+    test('only upgrade_command.dart opens a '
         'network client', () {
       final client = RegExp(
         r'\b(HttpClient|HttpServer|RawSocket|SecureSocket|WebSocket|Socket)'

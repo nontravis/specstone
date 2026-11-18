@@ -47,13 +47,14 @@ Directory? homeFrom(Map<String, String> env) {
   return null;
 }
 
-/// Returns the generators of the shipped doc types: the journey kinds and
-/// `feature_catalog`.
+/// Returns the generators of the shipped doc types: the journey kinds,
+/// `feature_catalog`, and `component_catalog`.
 GeneratorRegistry<DocIndex> _shippedGenerators() {
   final journeys = journeyGenerators();
   return GeneratorRegistry<DocIndex>({
     for (final kind in journeys.kinds) kind: journeys[kind]!,
     featureCatalogKind: featureCatalogBlocks,
+    componentCatalogKind: componentCatalogBlocks,
   });
 }
 

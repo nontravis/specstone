@@ -4,10 +4,10 @@ import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
     show scenarioBlocksOfContent;
 import 'package:specstone_core/src/doc_model/doc_anchors.dart'
     show anchorsOfBody;
-import 'package:specstone_core/src/doc_model/doc_items.dart'
-    show SectionItemKind;
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, projectFilePathOf, relativeFilePathOf, resolveDocLink;
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/body_scan.dart';
 import 'package:specstone_core/src/document_writing/item_landing.dart';

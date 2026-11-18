@@ -50,7 +50,7 @@ void main() {
   });
 
   group('approvalDiff', () {
-    test('f02/us03/fr02/e08, e10: unit context shows each changed unit whole and no other', () {
+    test('unit context shows each changed unit whole and no other', () {
       expect(
         approvalDiff(_old, _new),
         '@@ -1,3 +1,3 @@\n ---\n-verify_method: test\n'
@@ -67,7 +67,7 @@ void main() {
       );
     });
 
-    test('f02/us03/fr02/e14, dw-s03/inv11: context 0 names the lines that differ and carries no context', () {
+    test('context 0 names the lines that differ and carries no context', () {
       expect(
         approvalDiff('a\nb\nc\n', 'a\nB\nc\n', context: 0),
         '@@ -2 +2 @@\n-b\n+B\n',
@@ -83,7 +83,7 @@ void main() {
       expect(approvalDiff('a\n', 'a\n', context: 0), '');
     });
 
-    test('f02/us03/fr02/e14, dw-s03/inv11: context 0 joins separate changes and reads CRLF as LF', () {
+    test('context 0 joins separate changes and reads CRLF as LF', () {
       expect(
         approvalDiff('a\nb\nc\nd\ne\n', 'A\nb\nc\nd\nE\nF\n', context: 0),
         '@@ -1 +1 @@\n-a\n+A\n@@ -5 +5,2 @@\n-e\n+E\n+F\n',

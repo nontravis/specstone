@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('nameMentionsInMarkdown', () {
-    test('doc_model RULE-11: a code span of a name or a typed name is a '
+    test('a code span of a name or a typed name is a '
         'mention, its section key kept apart', () {
       final mentions = nameMentionsInMarkdown(
         'See `feature:login#goal` and `login/email_login`.\n',
@@ -19,11 +19,11 @@ void main() {
       expect(mentions.first.address.sectionKey, 'goal');
     });
 
-    test('doc_model RULE-11: a bare one-slug span is no mention', () {
+    test('a bare one-slug span is no mention', () {
       expect(nameMentionsInMarkdown('Say `login` or `user_id`.\n'), isEmpty);
     });
 
-    test('doc_model RULE-11: a span inside fenced code is no mention', () {
+    test('a span inside fenced code is no mention', () {
       expect(
         nameMentionsInMarkdown(
           'Run:\n\n```sh\necho `login/email_login`\n```\n\n'
@@ -33,7 +33,7 @@ void main() {
       );
     });
 
-    test('doc_model RULE-11: a span of prose text or a plain name is no '
+    test('a span of prose text or a plain name is no '
         'mention', () {
       expect(
         nameMentionsInMarkdown(
@@ -43,12 +43,12 @@ void main() {
       );
     });
 
-    test('doc_model RULE-11: each line is read alone, so a span split across '
+    test('each line is read alone, so a span split across '
         'two lines is no mention', () {
       expect(nameMentionsInMarkdown('`login/\nemail_login`\n'), isEmpty);
     });
 
-    test('doc_model RULE-11: a double-backtick span is read by its text, its '
+    test('a double-backtick span is read by its text, its '
         'column after the opening run', () {
       final mentions = nameMentionsInMarkdown('x ``login/email_login`` y\n');
       expect(
@@ -57,7 +57,7 @@ void main() {
       );
     });
 
-    test('doc_model RULE-11: a backslash-escaped backtick opens no span, so '
+    test('a backslash-escaped backtick opens no span, so '
         'no mention', () {
       expect(
         nameMentionsInMarkdown('Write \\`login/email_login\\` as is.\n'),
@@ -346,7 +346,7 @@ void main() {
   });
 
   group('isCommentLine', () {
-    test('doc_model RULE-11: // marks a comment in .dart, .js, and .ts', () {
+    test('// marks a comment in .dart, .js, and .ts', () {
       for (final extension in ['.dart', '.js', '.ts']) {
         expect(isCommentLine('// note', extension), isTrue, reason: extension);
         expect(isCommentLine('/// doc', extension), isTrue, reason: extension);
@@ -354,7 +354,7 @@ void main() {
       }
     });
 
-    test('doc_model RULE-11: # marks a comment in .sh, .ps1, .yaml, .yml, and '
+    test('# marks a comment in .sh, .ps1, .yaml, .yml, and '
         '.py', () {
       for (final extension in ['.sh', '.ps1', '.yaml', '.yml', '.py']) {
         expect(isCommentLine('# note', extension), isTrue, reason: extension);
@@ -362,17 +362,17 @@ void main() {
       }
     });
 
-    test('doc_model RULE-11: an indented mark is a comment line', () {
+    test('an indented mark is a comment line', () {
       expect(isCommentLine('    // note', '.dart'), isTrue);
       expect(isCommentLine('\t# note', '.sh'), isTrue);
     });
 
-    test('doc_model RULE-11: an end-of-line comment makes no comment line', () {
+    test('an end-of-line comment makes no comment line', () {
       expect(isCommentLine('final a = 1; // note', '.dart'), isFalse);
       expect(isCommentLine('run --all # note', '.sh'), isFalse);
     });
 
-    test('doc_model RULE-11: any other extension holds no comment line', () {
+    test('any other extension holds no comment line', () {
       for (final extension in ['.txt', '.json', '.c', '.md', '']) {
         expect(isCommentLine('// note', extension), isFalse);
         expect(isCommentLine('# note', extension), isFalse);
@@ -381,7 +381,7 @@ void main() {
   });
 
   group('nameMentionsInFile', () {
-    test('doc_model RULE-11: markdown is read after its frontmatter, outside '
+    test('markdown is read after its frontmatter, outside '
         'fenced code, at the lines of the file', () {
       final mentions = nameMentionsInFile(
         '---\ndescription: `login/email_login`\n---\n\n'
@@ -391,7 +391,7 @@ void main() {
       expect([for (final m in mentions) m.line], [5]);
     });
 
-    test('doc_model RULE-11: any other file is read by its comment lines', () {
+    test('any other file is read by its comment lines', () {
       final mentions = nameMentionsInFile(
         '# `login/email_login`\nrun `login/email_login`\n',
         '.sh',

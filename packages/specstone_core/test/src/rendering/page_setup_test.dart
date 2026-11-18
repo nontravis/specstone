@@ -9,7 +9,7 @@ Matcher _argumentInvalid(String message) => throwsA(
 );
 
 void main() {
-  test('f05/us02/fr05/e01, DP2: no options give A4 portrait with a 20mm '
+  test('no options give A4 portrait with a 20mm '
       'margin', () {
     const rule = '@page { size: A4 portrait; margin: 20mm; }\n';
 
@@ -33,7 +33,7 @@ void main() {
     );
   });
 
-  test('f05/us02/fr05/e03, DP1: an unknown paper is argument_invalid naming '
+  test('an unknown paper is argument_invalid naming '
       'the four', () {
     for (final value in ['b5', 'A4', '', 'a4 ']) {
       expect(
@@ -44,7 +44,7 @@ void main() {
     }
   });
 
-  test('f05/us02/fr05/e04, DP2: a margin outside the length rule is '
+  test('a margin outside the length rule is '
       'argument_invalid', () {
     for (final value in [
       '20',
@@ -69,7 +69,7 @@ void main() {
     }
   });
 
-  test('f05/us02/fr05/e06, DP2: zero, a leading dot, and leading zeros are '
+  test('zero, a leading dot, and leading zeros are '
       'taken as given', () {
     for (final value in ['0mm', '0in', '.5in', '1.5cm', '007mm']) {
       expect(
@@ -80,7 +80,7 @@ void main() {
     }
   });
 
-  test('f05/us02/fr05/e05, s03/inv25, DP3: half the short side or more '
+  test('half the short side or more '
       'refuses, compared exactly', () {
     const cases = <(String, bool, String, bool)>[
       ('a4', false, '104.99mm', false),

@@ -1,10 +1,10 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show opensHeadingItem;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show itemHeadingMarker;
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';

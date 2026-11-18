@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;

@@ -4,10 +4,13 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind, ItemId, itemIdRunAt, proseTrimmedPath;
+    show DestinationKind, itemIdRunAt, proseTrimmedPath;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
@@ -207,7 +210,7 @@ String? _nonEmpty(String? text) => text == null || text.isEmpty ? null : text;
 /// [column] when a mention that ends at [end] fills it to its closer, else
 /// null.
 int? _closedBy(List<CodeSpan> spans, int column, int end) {
-  for (final (:start, end: spanEnd, :ticks) in spans) {
+  for (final CodeSpan(:start, end: spanEnd, :ticks) in spans) {
     if (start < column && column < spanEnd && spanEnd - ticks == end) {
       return spanEnd;
     }
@@ -227,7 +230,7 @@ int? headerSpanEndAfter(String line, List<CodeSpan> spans, int end) =>
   while (at < line.length && line.codeUnitAt(at) == _space) {
     at++;
   }
-  for (final (:start, end: spanEnd, :ticks) in spans) {
+  for (final CodeSpan(:start, end: spanEnd, :ticks) in spans) {
     if (start != at) continue;
     final heading = atxHeadingOf(
       line.substring(start + ticks, spanEnd - ticks),

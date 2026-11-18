@@ -62,7 +62,7 @@ String _render(DraftView draft, {int? context, bool color = false}) =>
     );
 
 void main() {
-  group('E17', () {
+  group('a layout-only change', () {
     const body = '## Statement\n';
     String fr(String statement) =>
         '---\nverify_method: test\n---\n\n# FR-01 — T\n\n$body$statement';
@@ -338,7 +338,7 @@ void main() {
       expect(withoutApprovalMarks('# T\n'), '# T\n');
     });
 
-    test('f02/us03/fr02/e03, e04: no old copy shows the doc whole', () {
+    test('no old copy shows the doc whole', () {
       final lines = _neu.split('\n')..removeLast();
       final body = lines.map((l) => '+$l').join('\n');
 
@@ -474,7 +474,16 @@ void main() {
       expect(view, contains('|         | `## A \\| B` |\n'));
     });
 
-    test('f02/us03/fr02/e13, e15: a name or path holding backticks prints in '
+    test(r'a \| in a table cell stays one escape', () {
+      const oldText = '---\n"a\\\\|b": 1\n---\n# T\n\n## A\nA.\n';
+      const newText = '---\n"a\\\\|b": 2\n---\n# T\n\n## A\nB.\n';
+
+      final view = _render(_draft(text: newText, lookup: _copy(oldText)));
+
+      expect(view, contains(r'| changes | field `a\|b` |'));
+    });
+
+    test('a name or path holding backticks prints in '
         'a longer span', () {
       final view = _render(
         _draft(
@@ -555,7 +564,7 @@ void main() {
     });
   });
 
-  group('E23', () {
+  group('the dropped and new lists', () {
     test('the dropped and new rows follow the changes rows, and each list '
         'follows the diff', () {
       final view = _render(

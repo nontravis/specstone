@@ -64,7 +64,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr04/e04, s03/inv14: a file x.md and a folder x get two '
+    test('a file x.md and a folder x get two '
         'names', () async {
       final (project, root) = await _open({
         'docs/x.md': '# x\n',
@@ -110,7 +110,7 @@ void main() {
       expect(OutputFormat.html.name, 'html');
     });
 
-    test('f05/us02/fr04/e05, DP5: parse takes null and html, refuses the '
+    test('parse takes null and html, refuses the '
         'rest', () {
       expect(OutputFormat.parse(null), OutputFormat.html);
       expect(OutputFormat.parse('html'), OutputFormat.html);
@@ -141,7 +141,7 @@ void main() {
   });
 
   group('writeBuildOutput', () {
-    test('NFR-DI01: writes the bytes, creates missing parents, and leaves '
+    test('writes the bytes, creates missing parents, and leaves '
         'no temp file', () async {
       final root = await Directory.systemTemp.createTemp('specstone_out_');
       addTearDown(() => root.delete(recursive: true));

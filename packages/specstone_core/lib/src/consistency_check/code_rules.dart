@@ -15,7 +15,6 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-const _coversField = 'covers';
 const _codeField = 'code';
 const _separator = '/';
 
@@ -112,21 +111,22 @@ bool readsEntryCode(Directory codeRoot, RecordStatus status, String pointer) =>
     ImplementsEntry(pointer).namesFileFrom(codeRoot);
 
 /// Whether the check reads the code a `covers:` entry names, [pointer] being
-/// its path from [codeRoot] and [endsWait] whether its target holds the work
-/// that ends the wait ([ImplementedWork.endsWaitOf]).
+/// its path from [root], a code root or the project root, and [endsWait]
+/// whether its wait is over ([ImplementedWork.endsWaitOf]).
 bool readsCoversCode(
-  Directory codeRoot,
+  Directory root,
   String pointer, {
   required bool endsWait,
-}) => endsWait && namesFileOrFolderFrom(codeRoot, pointer);
+}) => endsWait && namesFileOrFolderFrom(root, pointer);
 
 /// Returns the `covers_path_missing` and `code_root_missing` findings of a
 /// typed [doc].
 ///
-/// Only a doc type that defines `covers` or `code` is read, and only once
-/// [work] says the doc's target holds the work that ends its wait. An entry
-/// names something when its path in [normalCodeEntry]'s form is a file or a
-/// folder of that target's code root.
+/// A `root: project` entry resolves from the project root in every run. Any
+/// other `covers` entry and each `code` root resolve from the code root of
+/// the doc's target, once [work] says it holds the work that ends their
+/// wait. An entry names something when its path in [normalCodeEntry]'s form
+/// is a file or a folder there.
 Iterable<Finding> checkCoversAndCodeRoots(
   CheckContext context,
   ImplementedWork work,
@@ -134,41 +134,67 @@ Iterable<Finding> checkCoversAndCodeRoots(
 ) sync* {
   final type = context.typeOf(doc);
   if (type == null) return;
-  if (doc.target == null && context.index.hasTwins) {
-    yield* _sharedDocPaths(context, doc, type);
-    return;
+  final isShared = doc.target == null && context.index.hasTwins;
+  if (isShared) yield* _sharedDocPaths(context, doc, type);
+  final target = isShared ? null : work.targetOf(doc);
+  final codeRoot = target != null && work.endsWaitOf(doc, target)
+      ? context.codeRootOf(target)
+      : null;
+  for (final field in coversFieldsOf(type)) {
+    final base = readsFromProjectRoot(field) ? context.projectRoot : codeRoot;
+    if (base == null) continue;
+    yield* _missingPaths(
+      context,
+      doc,
+      field.id,
+      base,
+      FindingKind.coversPathMissing,
+      pathOf: (value) => CodeLinkEntry(value).pointer,
+    );
   }
-  final target = work.targetOf(doc);
-  if (target == null || !work.endsWaitOf(doc, target)) return;
-  final codeRoot = context.codeRootOf(target);
-  for (final (field, kind) in [
-    (_coversField, FindingKind.coversPathMissing),
-    (_codeField, FindingKind.codeRootMissing),
-  ]) {
-    if (!context.typeHoldsField(type, field)) continue;
-    for (final (:value, :line, text: _)
-        in context.linesOf(doc).entriesOf(field)) {
-      if (value is! String) continue;
-      final entry = field == _coversField
-          ? CodeLinkEntry(value).pointer
-          : value;
-      if (namesFileOrFolderFrom(codeRoot, entry)) continue;
-      yield context.finding(
-        doc,
-        kind,
-        line: line,
-        message: '$entry names nothing on disk',
-        keys: {'entry': entry},
-      );
-    }
+  if (codeRoot == null || !context.typeHoldsField(type, _codeField)) return;
+  yield* _missingPaths(
+    context,
+    doc,
+    _codeField,
+    codeRoot,
+    FindingKind.codeRootMissing,
+    pathOf: (value) => value,
+  );
+}
+
+/// Yields a [kind] finding for each entry of [doc]'s [fieldId] whose path,
+/// as [pathOf] reads it, names nothing from [base].
+Iterable<Finding> _missingPaths(
+  CheckContext context,
+  IndexedDoc doc,
+  String fieldId,
+  Directory base,
+  FindingKind kind, {
+  required String Function(String value) pathOf,
+}) sync* {
+  for (final (:value, :line, text: _)
+      in context.linesOf(doc).entriesOf(fieldId)) {
+    if (value is! String) continue;
+    final entry = pathOf(value);
+    if (namesFileOrFolderFrom(base, entry)) continue;
+    yield context.finding(
+      doc,
+      kind,
+      line: line,
+      message: '$entry names nothing on disk',
+      keys: {'entry': entry},
+    );
   }
 }
 
 /// Yields the `shared_doc_code_path` finding of a doc that belongs to no
-/// target but carries `covers` or `code` in a project of several targets.
+/// target but carries code-root `covers` entries or `code` roots in a project
+/// of several targets.
 ///
 /// One finding per doc, at the line of the first such key; its paths count for
-/// no target.
+/// no target. A `root: project` field resolves from the project root, so its
+/// entries give none.
 Iterable<Finding> _sharedDocPaths(
   CheckContext context,
   IndexedDoc doc,
@@ -176,10 +202,12 @@ Iterable<Finding> _sharedDocPaths(
 ) sync* {
   final lines = context.linesOf(doc);
   final line = [
-    for (final field in [_coversField, _codeField])
-      if (context.typeHoldsField(type, field) &&
-          lines.entriesOf(field).isNotEmpty)
-        lines.keyLine(field),
+    for (final field in coversFieldsOf(type))
+      if (!readsFromProjectRoot(field) && lines.entriesOf(field.id).isNotEmpty)
+        lines.keyLine(field.id),
+    if (context.typeHoldsField(type, _codeField) &&
+        lines.entriesOf(_codeField).isNotEmpty)
+      lines.keyLine(_codeField),
   ].nonNulls.firstOrNull;
   if (line == null) return;
   yield context.finding(
@@ -243,14 +271,17 @@ Iterable<Finding> uncoveredCode(
   }
 }
 
-/// Returns every `covers` entry of the typed [docs] in [normalCodeEntry]'s
-/// form, the form the lister gives its paths in.
+/// Returns every code-root `covers` entry of the typed [docs] in
+/// [normalCodeEntry]'s form, the form the lister gives its paths in.
+///
+/// A `root: project` entry covers no target's code, so none is returned.
 List<String> _coversOf(CheckContext context, List<IndexedDoc> docs) => [
   for (final doc in docs)
-    if (context.typeHoldsField(context.typeOf(doc), _coversField))
-      for (final (:value, line: _, text: _)
-          in context.linesOf(doc).entriesOf(_coversField))
-        if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
+    for (final field in coversFieldsOf(context.typeOf(doc)))
+      if (!readsFromProjectRoot(field))
+        for (final (:value, line: _, text: _)
+            in context.linesOf(doc).entriesOf(field.id))
+          if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
 ];
 
 /// Whether an entry equals [path], names a folder that holds it, or names

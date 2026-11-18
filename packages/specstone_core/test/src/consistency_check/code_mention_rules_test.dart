@@ -9,11 +9,15 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
+import 'package:specstone_core/src/document_writing/reference_links.dart';
+import 'package:specstone_core/src/rendering/skill_references.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/agent_skills.dart' show skillDocText;
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/skill_doc_fixture.dart' show skillPinsConfig;
 import '../../helpers/target_fixture.dart';
 
 const _fr = 'login/email_login/check_password';
@@ -25,6 +29,21 @@ List<String> _cited(CheckReport report) => [
     if (f.kind == FindingKind.docCitedInCode)
       '${f.path}:${f.line} ${f.keys['mention']}',
 ];
+
+const _seededReference =
+    'skills/review/references/specs/design_system/TOKENS.md';
+
+/// The files of a skill doc with [output], its skill file and reference file
+/// each naming a doc, beside two skills' files that are not its references.
+Map<String, String> _skillFiles(String output) => {
+  '.specstone/config.yaml': skillPinsConfig(),
+  ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
+  'docs/specs/skills/review.md': skillDocText(output: output),
+  'skills/review/SKILL.md': 'Use `feature:login`.\n',
+  _seededReference: 'Use `feature:login`.\n',
+  'skills/review-x/references/NOTES.md': 'Use `feature:login`.\n',
+  'skills/other/references/NOTES.md': 'Use `feature:login`.\n',
+};
 
 /// A tech stack doc that lists no code root.
 Map<String, String> get _noCodeRoots => {
@@ -213,6 +232,74 @@ void main() {
         expect(_cited(report), isEmpty);
       },
     );
+
+    for (final output in [
+      'skills/review/',
+      './skills/review/',
+      'skills/../skills/review/',
+    ]) {
+      test('a skill reference file is not read, its skill file is, '
+          'with output $output', () async {
+        final report = await checkOf(
+          await writeCheckProject(extra: _skillFiles(output)),
+        );
+        expect(_cited(report), [
+          'skills/other/references/NOTES.md:1 feature:login',
+          'skills/review-x/references/NOTES.md:1 feature:login',
+          'skills/review/SKILL.md:1 feature:login',
+        ]);
+      });
+    }
+
+    test('a reference file the writer wrote gives no finding', () async {
+      final project = await writeCheckProject(
+        extra: {
+          ..._skillFiles('skills/review/')..remove(_seededReference),
+          'docs/$_featureDoc':
+              '---\nsummary: Lets an agent sign in.\nvision:\n  - PV-01\n'
+              'goals:\n  - PG-01\n---\n\n# Login\n\n'
+              '## Problem\n\nUsers forget passwords.\n\n'
+              '## Benefit hypothesis\n\nFewer resets.\n\n'
+              '## Success measures\n\nResets per week.\n\n'
+              '## Current alternatives\n\nEmail links.\n\n'
+              '## Feature flow\n\nSign in with `feature:login`.\n\n'
+              '## Out-of-scope\n\n- Social sign-in — not planned\n',
+          'docs/specs/skills/review.md': skillDocText(
+            output: 'skills/review/',
+            sources: ['[Login](../../prds/features/f01_login/FEATURE.md)'],
+          ),
+        },
+      );
+      final session = openSession(project);
+      final plan = SkillReferences.plan(
+        session.project,
+        session.project.resolveTarget(
+          null,
+          workingDirectory: project,
+          defaultsToDocsRoot: true,
+          includeRecordsRoot: true,
+        ),
+        rewriteLinks: rewriteReferenceLinks,
+      );
+      session.close();
+      final written = [
+        for (final skill in plan.skills.whereType<ExportedSkill>())
+          for (final file in skill.files) file,
+      ];
+      for (final file in written) {
+        file.file.parent.createSync(recursive: true);
+        file.file.writeAsBytesSync(file.bytes);
+      }
+
+      expect(
+        written.map((file) => file.text),
+        contains(contains('`feature:login`')),
+      );
+      expect(
+        _cited(await checkOf(project)),
+        isNot(contains(startsWith('skills/review/references/'))),
+      );
+    });
 
     test('an agent file under a code root is never read', () async {
       final report = await checkOf(

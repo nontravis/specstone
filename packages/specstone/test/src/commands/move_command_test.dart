@@ -16,7 +16,7 @@ void main() {
   const movedFolder = 'prds/features/f02_shop/f02_pay/us03_add_item';
   const addItem = 'user_story:shop/cart/add_item';
 
-  test('f01/us04/fr01/e14: move takes a bare name one doc carries', () async {
+  test('move takes a bare name one doc carries', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(
       await runner.run(['move', 'shop/cart/add_item', '--under', 'shop/pay']),
@@ -29,19 +29,16 @@ void main() {
     );
   });
 
-  test(
-    'f02/us07/s1, sf-r3: move prints the moved line and the rewrote lines',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-      expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 0);
-      expect(err.toString(), isEmpty);
-      expect(
-        out.toString(),
-        startsWith('moved $addItemFolder/ to $movedFolder/\n'),
-      );
-      expect(out.toString(), contains('rewrote $shopApi\n'));
-    },
-  );
+  test('move prints the moved line and the rewrote lines', () async {
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+    expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 0);
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      startsWith('moved $addItemFolder/ to $movedFolder/\n'),
+    );
+    expect(out.toString(), contains('rewrote $shopApi\n'));
+  });
 
   test('move --json prints moved and rewritten', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
@@ -167,7 +164,8 @@ void main() {
     },
   );
 
-  test('f02/us07/fr01/e12, P20: an --under with a #section suffix is argument_invalid, exit 64, and moves nothing', () async {
+  test('an --under with a #section suffix is argument_invalid, exit 64, and '
+      'moves nothing', () async {
     final root = await writeNestedProject();
     final (:runner, :out, :err) = writeRunner(root);
     expect(
@@ -194,33 +192,36 @@ void main() {
     expect(err.toString(), startsWith('move needs a target'));
   });
 
-  test('user_story:document_writing/move_story S5: one story that cannot move refuses the call, and nothing moves', () async {
-    const clash = 'prds/features/f02_shop/f02_pay/us03_drop_item';
-    final root = await writeNestedProject(
-      extra: {'docs/$clash/USER_STORY.md': '# Drop item\n'},
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'move',
-        addItem,
-        'user_story:shop/cart/drop_item',
-        '--under',
-        'shop/pay',
-      ]),
-      64,
-    );
-    expect(out.toString(), isEmpty);
-    expect(
-      err.toString(),
-      '$clash/USER_STORY.md: a user_story named shop/pay/drop_item exists\n',
-    );
-    expect(docFile(root, cartAdd).existsSync(), isTrue);
-    expect(docFile(root, cartDrop).existsSync(), isTrue);
-    expect(docFile(root, '$movedFolder/USER_STORY.md').existsSync(), isFalse);
-  });
+  test(
+    'one story that cannot move refuses the call, and nothing moves',
+    () async {
+      const clash = 'prds/features/f02_shop/f02_pay/us03_drop_item';
+      final root = await writeNestedProject(
+        extra: {'docs/$clash/USER_STORY.md': '# Drop item\n'},
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'move',
+          addItem,
+          'user_story:shop/cart/drop_item',
+          '--under',
+          'shop/pay',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        '$clash/USER_STORY.md: a user_story named shop/pay/drop_item exists\n',
+      );
+      expect(docFile(root, cartAdd).existsSync(), isTrue);
+      expect(docFile(root, cartDrop).existsSync(), isTrue);
+      expect(docFile(root, '$movedFolder/USER_STORY.md').existsSync(), isFalse);
+    },
+  );
 
-  test('E12: move --help names the several-story form', () async {
+  test('move --help names the several-story form', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(await runner.run(['move', '--help']), 0);
     expect(
@@ -232,23 +233,20 @@ void main() {
     );
   });
 
-  test(
-    'E09: no target outside a project is argument_missing, exit 64',
-    () async {
-      final outside = Directory.systemTemp.createTempSync('specstone_move_');
-      addTearDown(() => outside.deleteSync(recursive: true));
-      final (:runner, :out, :err) = writeRunner(outside);
-      expect(await runner.run(['move', '--under', 'shop/pay']), 64);
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        'move needs a target, such as specstone move '
-        'user_story:login/reset_password --under account\n',
-      );
-    },
-  );
+  test('no target outside a project is argument_missing, exit 64', () async {
+    final outside = Directory.systemTemp.createTempSync('specstone_move_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    final (:runner, :out, :err) = writeRunner(outside);
+    expect(await runner.run(['move', '--under', 'shop/pay']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      'move needs a target, such as specstone move '
+      'user_story:login/reset_password --under account\n',
+    );
+  });
 
-  test('E11: move writes a rewritten typed doc laid out', () async {
+  test('move writes a rewritten typed doc laid out', () async {
     final root = await writeNestedProject();
     final file = docFile(root, shopApi);
     file.writeAsStringSync('${file.readAsStringSync()}\n\n\n');
@@ -345,7 +343,7 @@ void main() {
       },
     );
 
-    test('E19, E20: move carries the entries of each target, rewriting the old '
+    test('move carries the entries of each target, rewriting the old '
         'records and listing the record it creates', () async {
       final root = await shopTwins();
       final (:runner, :out, :err) = writeRunner(root);

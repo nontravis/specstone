@@ -5,7 +5,14 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/agent_skills.dart'
+    show skillDocText, skillProjectPacks;
+import '../../../../specstone_core/test/helpers/check_fixture.dart'
+    show writeCheckProject;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../../specstone_core/test/helpers/software_design_system.dart'
+    show softwareDesignSystemConfig;
+import '../../helpers/built_cli.dart';
 import '../../helpers/fixture_packs.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -100,7 +107,7 @@ void main() {
       expect(read(project, record), '# Record\n\nbody\n');
     });
 
-    test('f05/us01/s2, f05/us01/fr01: with no target formats every doc under '
+    test('with no target formats every doc under '
         'the docs root', () async {
       final project = await fixtureProject({
         _feature: _featureOutOfOrder,
@@ -114,7 +121,7 @@ void main() {
       expect(read(project, _story), _storyFormatted);
     });
 
-    test('S10: a layout-only doc gets trimmed table '
+    test('a layout-only doc gets trimmed table '
         'cells, a two-space line break, no other trailing space, and a '
         'blank line under each heading', () async {
       const disk =
@@ -132,7 +139,7 @@ void main() {
       );
     });
 
-    test('S3: adds no section, '
+    test('adds no section, '
         'leaves draft as written, and check still lists the gap', () async {
       const disk = '---\ndraft: false\n---\n# F-05\n\n## Feature name\n\nx\n';
       final project = await fixtureProject({_feature: disk});
@@ -286,7 +293,7 @@ void main() {
       expect(read(project, _feature), _featureOutOfOrder);
     });
 
-    test('a template fault reaches format as its F-03 code, exit 78', () async {
+    test('a template fault reaches format as its code, exit 78', () async {
       final project = await writeTree({'.specstone/config.yaml': 'packs: [\n'});
       final runner = await runnerIn(project);
 
@@ -420,7 +427,7 @@ sections:
         );
       });
 
-      test('S1: a stale block gets '
+      test('a stale block gets '
           'the generator text now and every line outside it keeps its '
           'text', () async {
         const before = '# A\n\n## Contents\n\n';
@@ -457,7 +464,7 @@ sections:
       const damagedWarning =
           'the index was damaged and was rebuilt from the markdown files';
 
-      test('f01/us01/fr05/e03: format warns on stderr when the index was '
+      test('format warns on stderr when the index was '
           'rebuilt', () async {
         final project = await damagedNoteProject();
 
@@ -466,7 +473,7 @@ sections:
         expect(err.toString(), '⚠️ WARNING: $damagedWarning\n');
       });
 
-      test('f01/us01/fr05/e03: format --json lists the rebuilt-index warning '
+      test('format --json lists the rebuilt-index warning '
           'in warnings', () async {
         final project = await damagedNoteProject();
 
@@ -480,7 +487,7 @@ sections:
         expect(err.toString(), isEmpty);
       });
 
-      test('f01/us01/fr05/e03: format prints one warning for a non-UTF-8 doc, '
+      test('format prints one warning for a non-UTF-8 doc, '
           'its own, not the index session per-doc warning', () async {
         final project = await fixtureProject({
           notePath: '# A\n\n## Contents\nbody\n',
@@ -504,12 +511,13 @@ sections:
       expect(runner.generators.kinds, runner.templates.generatorKinds);
     });
 
-    test('the default runner registers journey_flow, scenario_copy, and '
-        'feature_catalog', () {
+    test('the default runner registers journey_flow, scenario_copy, '
+        'feature_catalog, and component_catalog', () {
       expect(SpecstoneCommandRunner().generators.kinds, {
         'journey_flow',
         'scenario_copy',
         'feature_catalog',
+        'component_catalog',
       });
     });
 
@@ -527,6 +535,111 @@ sections:
       expect(await runner.run(['format', 'a', 'b']), 64);
       expect(out.toString(), isEmpty);
       expect(err.toString(), contains(_formatUsage));
+    });
+  });
+
+  group('the component catalog on the shipped software-design-system', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    const discovery = 'specs/design_system/DISCOVERY.md';
+    const discoveryFile = 'docs/$discovery';
+    const catalogHead =
+        '| Component | Group | Purpose | Lifecycle | Doc |\n'
+        '|---|---|---|---|---|';
+
+    String component(String purpose) =>
+        '---\nlifecycle: stable\nfeature: login\n---\n\n# Component\n\n'
+        '## Purpose\n\n$purpose\n';
+
+    String group(String name) => '# $name\n\n## Purpose\n\nGroups $name.\n';
+
+    String row(String group, String name, String purpose) =>
+        '| $group/$name | $group | $purpose | stable | '
+        '[specs/design_system/components/$group/$name.md]'
+        '(components/$group/$name.md) |';
+
+    Map<String, String> catalogFiles({String block = ''}) => {
+      '.specstone/config.yaml': softwareDesignSystemConfig(),
+      discoveryFile:
+          '# Discovery\n\n## Finding a component\n\nLook in a group.\n\n'
+          '## Component catalog\n\n$block',
+      'docs/specs/design_system/components/inputs/GROUP.md': group('Inputs'),
+      'docs/specs/design_system/components/inputs/text_field.md': component(
+        'Takes one line of text. Shows a label.',
+      ),
+      'docs/specs/design_system/components/buttons/GROUP.md': group('Buttons'),
+      'docs/specs/design_system/components/buttons/primary_button.md':
+          component('Starts an action.'),
+    };
+
+    Future<ProcessResult> run(Directory project, List<String> args) =>
+        Process.run(binary, args, workingDirectory: project.path);
+
+    String discoveryOf(Directory project) =>
+        File('${project.path}/$discoveryFile').readAsStringSync();
+
+    test('format lists each component with its group, purpose, lifecycle, '
+        'and doc path, in tree order', () async {
+      final project = await writeTree(catalogFiles());
+
+      final result = await run(project, ['format', discoveryFile]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      final text = discoveryOf(project);
+      final first = row('buttons', 'primary_button', 'Starts an action.');
+      final second = row('inputs', 'text_field', 'Takes one line of text.');
+      expect(text, contains('$catalogHead\n$first\n$second\n'));
+      expect(
+        text,
+        startsWith(
+          '# Discovery\n\n## Finding a component\n\nLook in a group.\n',
+        ),
+      );
+    });
+
+    test('a component written after the block leaves the doc as it is and '
+        'format --check lists it stale', () async {
+      final project = await writeTree(catalogFiles());
+      expect((await run(project, ['format', discoveryFile])).exitCode, 0);
+      final formatted = discoveryOf(project);
+      File(
+        '${project.path}/docs/specs/design_system/components/buttons/'
+        'ghost_button.md',
+      ).writeAsStringSync(component('Fades out.'));
+
+      expect(discoveryOf(project), formatted);
+      final check = await run(project, ['format', '--check']);
+
+      expect(check.exitCode, 1, reason: '${check.stdout}${check.stderr}');
+      expect(check.stdout, contains(discoveryFile));
+      expect(discoveryOf(project), formatted);
+      expect(discoveryOf(project), isNot(contains('ghost_button')));
+    });
+
+    test('format rewrites the block of an approved discovery doc and keeps '
+        'it approved', () async {
+      final project = await writeCheckProject(
+        extra: catalogFiles(
+          block:
+              '${generatedOpenMarker('component_catalog')}\nold\n'
+              '$generatedEndMarker\n',
+        ),
+      );
+      final approval = RegExp(
+        r'^approved: .*$',
+        multiLine: true,
+      ).firstMatch(discoveryOf(project))!.group(0)!;
+
+      final result = await run(project, ['format', discoveryFile]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      final text = discoveryOf(project);
+      expect(text, contains(approval));
+      expect(text, isNot(contains('draft: true')));
+      expect(text, contains('| buttons/primary_button |'));
+      expect(text, isNot(contains('\nold\n')));
     });
   });
 
@@ -637,6 +750,121 @@ sections:
       expect(second, isNot(contains('edited by hand')));
       expect(second, contains(approvedStamp));
       expect(second, isNot(contains('draft: true')));
+    });
+  });
+
+  group('skill reference files on the shipped agent-skills', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    const skill = 'docs/specs/skills/review.md';
+    const button =
+        'docs/specs/design_system/components/buttons/primary_button.md';
+    const tokens = 'docs/specs/design_system/foundations/TOKENS.md';
+    const references = '.claude/skills/review/references/specs/design_system';
+    const buttonLink =
+        '[Primary button](../design_system/components/buttons/primary_button.md)';
+    const tokensLink = '[Tokens](../design_system/foundations/TOKENS.md)';
+    const buttonBody = '# Primary button\n\n## Purpose\n\nStarts an action.\n';
+
+    Map<String, String> files(List<String> sources) => {
+      '.specstone/config.yaml': shippedPinsConfig(skillProjectPacks),
+      skill: skillDocText(sources: sources),
+      button: '---\nfeature: login\nlifecycle: stable\n---\n\n$buttonBody',
+      tokens: '# Tokens\n\n## Token list\n\n- color.primary\n',
+    };
+
+    Future<ProcessResult> run(Directory project, List<String> args) =>
+        Process.run(binary, args, workingDirectory: project.path);
+
+    test('format on a skill doc writes its reference files, listed in path '
+        'order', () async {
+      final project = await writeTree(files([tokensLink, buttonLink]));
+
+      final result = await run(project, ['format', skill]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        result.stdout,
+        '$references/components/buttons/primary_button.md: formatted\n'
+        '$references/foundations/TOKENS.md: formatted\n',
+      );
+      expect(
+        File('${project.path}/$references/components/buttons/primary_button.md')
+            .readAsStringSync(),
+        '---\nlifecycle: stable\n---\n\n$buttonBody',
+      );
+    });
+
+    test('a refused skill doc prints its code and message, and --json '
+        'carries skillRefusal, exit 1, while the other docs are '
+        'written', () async {
+      final project = await writeTree(
+        files([tokensLink, '[Old](../design_system/OLD.md)']),
+      );
+
+      final text = await run(project, ['format']);
+      final json = await run(project, ['format', '--json']);
+
+      expect(text.exitCode, 1, reason: '${text.stderr}');
+      expect(
+        text.stdout,
+        '$button: formatted\n'
+        '$skill: refused: skill_source_missing: the source names no doc: '
+        '../design_system/OLD.md\n',
+      );
+      expect(json.exitCode, 1, reason: '${json.stderr}');
+      expect(
+        (jsonDecode(json.stdout as String) as Map<String, Object?>)['files'],
+        contains(
+          equals({
+            'path': skill,
+            'status': 'refused',
+            'skillRefusal': 'skill_source_missing',
+          }),
+        ),
+      );
+      expect(Directory('${project.path}/.claude').existsSync(), isFalse);
+    });
+
+    test('--check lists a stale and a leftover reference file, exit 1, and '
+        '--json gives each its status; format keeps the leftover', () async {
+      final project = await writeTree(files([tokensLink]));
+      await run(project, ['format']);
+      const old = '.claude/skills/review/references/specs/old.md';
+      File('${project.path}/$old')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('# Old\n');
+      File('${project.path}/$tokens')
+          .writeAsStringSync('# Tokens\n\n## Token list\n\n- color.accent\n');
+      final before = File('${project.path}/$references/foundations/TOKENS.md')
+          .readAsStringSync();
+
+      final text = await run(project, ['format', '--check']);
+      final json = await run(project, ['format', '--check', '--json']);
+
+      expect(text.exitCode, 1, reason: '${text.stderr}');
+      expect(
+        text.stdout,
+        '$references/foundations/TOKENS.md\n$old: leftover\n',
+      );
+      expect(
+        (jsonDecode(json.stdout as String) as Map<String, Object?>)['files'],
+        containsAllInOrder([
+          {'path': '$references/foundations/TOKENS.md', 'status': 'formatted'},
+          {'path': old, 'status': 'leftover'},
+        ]),
+      );
+      expect(
+        File('${project.path}/$references/foundations/TOKENS.md')
+            .readAsStringSync(),
+        before,
+      );
+      final plain = await run(project, ['format']);
+      expect(plain.exitCode, 0, reason: '${plain.stderr}');
+      expect(plain.stdout, '$references/foundations/TOKENS.md: formatted\n');
+      expect(File('${project.path}/$old').existsSync(), isTrue);
     });
   });
 }

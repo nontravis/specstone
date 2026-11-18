@@ -16,7 +16,7 @@ Map<String, String> _frWithKey(String line) => fr(
 );
 
 void main() {
-  test('f04/us01/fr03/e01, f04/us01/fr03: a missing required field is reported at line 1', () async {
+  test('a missing required field is reported at line 1', () async {
     final report = await checkOf(
       await writeCheckProject(extra: fr('verify_method: test\n', '')),
     );
@@ -28,7 +28,7 @@ void main() {
     expect(finding.toJson()['field'], 'verify_method');
   });
 
-  test('f04/us01/s3, f04/us01/fr03/e02: a value off its enum names the field, the line, and the four values', () async {
+  test('a value off its enum names the field, the line, and the four values', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: fr('verify_method: test', 'verify_method: maybe'),
@@ -66,7 +66,7 @@ void main() {
     expect(spots(report), ['$loginFr:8: field_undeclared']);
   });
 
-  test('f04/us01/fr03/e05, cc-s03/inv2, review focus 4: approved follows the merged set, with no F-04 change', () async {
+  test('approved follows the merged set, with no change', () async {
     final project = await writeCheckProject(
       extra: _frWithKey('approved: true'),
     );
@@ -114,7 +114,7 @@ void main() {
     expect(report.findings.single.toJson().containsKey('field'), isFalse);
   });
 
-  group('consistency_check/find_template_breaks/check_frontmatter_fields, records', () {
+  group('records', () {
     const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
     /// The record doc with [recordFrontmatter]; the shipped pack types it.
@@ -305,6 +305,49 @@ void main() {
     });
   });
 
+  group('a source_ref field and an export: false field', () {
+    const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+    Map<String, String> projectWith(String fields, String frontmatter) => {
+      '.specstone/templates/implementation.yaml': 'fields:\n$fields',
+      recordPath: '---\n$frontmatter---\n\n# Login record\n',
+    };
+
+    test('a source_ref takes a string and refuses a number', () async {
+      const fields = '  - id: origin\n    type: source_ref\n';
+      final fits = await checkOf(
+        await writeCheckProject(
+          unstamped: {recordPath},
+          extra: projectWith(fields, 'origin: docs/a.md\n'),
+        ),
+      );
+      expect(spots(fits, FindingKind.fieldValueMismatch), isEmpty);
+
+      final refused = await checkOf(
+        await writeCheckProject(
+          unstamped: {recordPath},
+          extra: projectWith(fields, 'origin: 42\n'),
+        ),
+      );
+      expect(spots(refused, FindingKind.fieldValueMismatch), [
+        '$recordPath:2: field_value_mismatch',
+      ]);
+    });
+
+    test('a field with export: false is still read by check', () async {
+      const fields = '  - id: size\n    type: integer\n    export: false\n';
+      final report = await checkOf(
+        await writeCheckProject(
+          unstamped: {recordPath},
+          extra: projectWith(fields, 'size: big\n'),
+        ),
+      );
+      expect(spots(report, FindingKind.fieldValueMismatch), [
+        '$recordPath:2: field_value_mismatch',
+      ]);
+    });
+  });
+
   group('a task_ref list field', () {
     const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
@@ -415,18 +458,21 @@ void main() {
     expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
   });
 
-  test('review focus 3: a requirement with no frontmatter misses each required field at line 1', () async {
-    final text = checkProjectFiles()['docs/$loginFr']!;
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {'docs/$loginFr': text.substring(text.indexOf('# Check'))},
-      ),
-    );
-    expect(spots(report, FindingKind.requiredFieldMissing), [
-      '$loginFr:1: required_field_missing',
-      '$loginFr:1: required_field_missing',
-    ]);
-  });
+  test(
+    'a requirement with no frontmatter misses each required field at line 1',
+    () async {
+      final text = checkProjectFiles()['docs/$loginFr']!;
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {'docs/$loginFr': text.substring(text.indexOf('# Check'))},
+        ),
+      );
+      expect(spots(report, FindingKind.requiredFieldMissing), [
+        '$loginFr:1: required_field_missing',
+        '$loginFr:1: required_field_missing',
+      ]);
+    },
+  );
 
   test(
     'an undeclared key with an empty value is still field_undeclared',
@@ -501,33 +547,30 @@ void main() {
     );
   });
 
-  test(
-    'e17: a feature system naming no Systems row is no field finding',
-    () async {
-      final feature = checkProjectFiles()['docs/$loginFeature']!;
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {
-            'docs/$loginFeature': feature.replaceFirst(
-              '---\nsummary:',
-              '---\nsystem: Watch app\nsummary:',
-            ),
-          },
-        ),
-      );
-      expect(
-        report.findings.where(
-          (f) =>
-              f.kind != FindingKind.formatDrift &&
-              f.kind != FindingKind.approvalStale,
-        ),
-        everyElement(
-          predicate<Finding>(
-            (f) => f.kind == FindingKind.systemUnresolved,
-            'a system_unresolved',
+  test('a feature system naming no Systems row is no field finding', () async {
+    final feature = checkProjectFiles()['docs/$loginFeature']!;
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/$loginFeature': feature.replaceFirst(
+            '---\nsummary:',
+            '---\nsystem: Watch app\nsummary:',
           ),
+        },
+      ),
+    );
+    expect(
+      report.findings.where(
+        (f) =>
+            f.kind != FindingKind.formatDrift &&
+            f.kind != FindingKind.approvalStale,
+      ),
+      everyElement(
+        predicate<Finding>(
+          (f) => f.kind == FindingKind.systemUnresolved,
+          'a system_unresolved',
         ),
-      );
-    },
-  );
+      ),
+    );
+  });
 }

@@ -25,7 +25,7 @@ final class PathPattern {
   /// first segment, or right after `.specstone/records/` for a records path:
   /// a pattern with no folder takes the target as its folder.
   PathPattern forTarget(String target) {
-    final (:head, :rest) = _splitAtFirstFolder();
+    final _FolderSplit(:head, :rest) = _splitAtFirstFolder();
     return PathPattern('$head$target/$rest');
   }
 
@@ -35,11 +35,14 @@ final class PathPattern {
 
   // The text up to and including the first `/`, or the records root, and the
   // rest.
-  ({String head, String rest}) _splitAtFirstFolder() {
+  _FolderSplit _splitAtFirstFolder() {
     final cut = isRecordsDocPath(source)
         ? recordsRootDocPath.length
         : source.indexOf('/') + 1;
-    return (head: source.substring(0, cut), rest: source.substring(cut));
+    return _FolderSplit(
+      head: source.substring(0, cut),
+      rest: source.substring(cut),
+    );
   }
 
   /// Returns whether the pattern matches all of [docPath].
@@ -134,4 +137,13 @@ final class PathPattern {
       ..write(r'$');
     return RegExp(buffer.toString());
   }
+}
+
+/// A pattern's text up to and including its first folder, or the records root,
+/// and the rest.
+final class _FolderSplit {
+  const new({required this.head, required this.rest});
+
+  final String head;
+  final String rest;
 }

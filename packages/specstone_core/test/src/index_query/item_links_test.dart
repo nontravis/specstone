@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -68,7 +68,7 @@ List<BodyLine> _body(String text) {
   var inFence = false;
   return [
     for (final (k, line) in text.split('\n').indexed)
-      (
+      BodyLine(
         text: line,
         line: 20 + k,
         fenced: () {

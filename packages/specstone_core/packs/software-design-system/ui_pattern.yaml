@@ -1,0 +1,23 @@
+id: ui_pattern
+description: |-
+  A UI pattern: one pattern composed of components.
+  These docs serve the team that builds the library, not the library's consumers.
+  Title it `# <Pattern name>`, with no number.
+path: specs/design_system/composition/patterns/{slug}.md
+sections:
+  - id: purpose
+    header: Purpose
+    required: true
+    summary: true
+    description: |-
+      Write what the pattern is for and when a reader uses it.
+  - id: components_used
+    header: Components used
+    required: true
+    description: |-
+      List each component the pattern uses, one markdown link each.
+  - id: composition
+    header: Composition
+    required: true
+    description: |-
+      Write how the components sit together: their order, their spacing, and what each does.

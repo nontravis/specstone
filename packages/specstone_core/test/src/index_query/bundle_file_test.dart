@@ -217,7 +217,7 @@ void main() {
   });
 
   group('bundleFileName, the Name rule', () {
-    test('e01: a target and its mode', () {
+    test('a target and its mode', () {
       expect(
         bundleFileName(
           target: 'index_query/get_task_bundle',
@@ -228,7 +228,7 @@ void main() {
         'index_query-get_task_bundle.design.txt',
       );
     });
-    test('e11: a --code path takes code- and each separator written -', () {
+    test('a --code path takes code- and each separator written -', () {
       expect(
         bundleFileName(
           codePath: 'app/lib/login.dart',
@@ -248,7 +248,7 @@ void main() {
         'code-app-lib-login.dart.query.txt',
       );
     });
-    test('e12: --target adds its name before .txt', () {
+    test('--target adds its name before .txt', () {
       expect(
         bundleFileName(
           target: 'feedback/toast/show_toast',
@@ -260,7 +260,7 @@ void main() {
         'feedback-toast-show_toast.implement.jaspr.txt',
       );
     });
-    test('e13: --summary and --no-project follow the mode', () {
+    test('--summary and --no-project follow the mode', () {
       expect(
         bundleFileName(
           target: 'login',
@@ -366,7 +366,7 @@ void main() {
   });
 
   group('bundleIndex', () {
-    test('s20: the header, then each doc and part as <name> (<doc type>) · <first>-<last>, marks after the range', () {
+    test('the header, then each doc and part as <name> (<doc type>) · <first>-<last>, marks after the range', () {
       final answer = ContextAnswer(
         text: 'a\nb\nc\n\nd\ne\n\nf\n\ng\n\nh\n\ni\n',
         json: const {},
@@ -459,7 +459,7 @@ void main() {
         '- prds/notes.txt · 14-14 · cited\n',
       );
     });
-    test('e10: a code target prints its line before the header, and --json holds codeTarget', () {
+    test('a code target prints its line before the header, and --json holds codeTarget', () {
       final base = _answerOf(1);
       final answer = ContextAnswer(
         text: base.text,
@@ -483,24 +483,24 @@ void main() {
       codeTarget: 'jaspr',
     );
 
-    test('e05: a code target line, the header, and 198 entries make 200 lines and keep their sections', () {
+    test('a code target line, the header, and 198 entries make 200 lines and keep their sections', () {
       final index = bundleIndex(withTarget(_answerOf(198)), '/p');
       expect(const LineSplitter().convert(index), hasLength(200));
       expect(index, contains('- d197 (fr) · 395-395 · statement0 395\n'));
     });
-    test('e05: a code target line, the header, and 199 entries pass 200 lines and drop the sections', () {
+    test('a code target line, the header, and 199 entries pass 200 lines and drop the sections', () {
       final index = bundleIndex(withTarget(_answerOf(199)), '/p');
       expect(const LineSplitter().convert(index), hasLength(201));
       expect(index, contains('- d198 (fr) · 397-397\n'));
       expect(index, isNot(contains('statement0')));
     });
 
-    test('e05: an index of 200 lines keeps its sections', () {
+    test('an index of 200 lines keeps its sections', () {
       final index = bundleIndex(_answerOf(199), '/p');
       expect(const LineSplitter().convert(index), hasLength(200));
       expect(index, contains('- d198 (fr) · 397-397 · statement0 397\n'));
     });
-    test('e05: an index past 200 lines lists every doc and no section', () {
+    test('an index past 200 lines lists every doc and no section', () {
       final index = bundleIndex(_answerOf(200), '/p');
       final lines = const LineSplitter().convert(index);
       expect(lines, hasLength(201));
@@ -508,7 +508,7 @@ void main() {
       expect(lines.last, '- d199 (fr) · 399-399');
       expect(index, isNot(contains('statement')));
     });
-    test('e05: an index past 8 KiB lists every doc and no section', () {
+    test('an index past 8 KiB lists every doc and no section', () {
       final answer = _answerOf(10, sections: 40, key: 'a_long_section_key_');
       final sectionsText = [
         for (final entry in answer.entries)
@@ -520,7 +520,7 @@ void main() {
       expect(index, isNot(contains('a_long_section_key_')));
       expect(index, endsWith('- d9 (fr) · 19-19\n'));
     });
-    test('e05: an index of exactly 8,192 bytes keeps its sections', () {
+    test('an index of exactly 8,192 bytes keeps its sections', () {
       const shown = '/p';
       const header = '==> bundle: 1 docs, 7 tokens, 2 lines · $shown <==\n';
       const fixed = '- d0 (fr) · 1-1 · ';

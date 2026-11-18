@@ -1,12 +1,14 @@
-import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
-import 'package:specstone_core/src/doc_model/doc_items.dart'
-    show SectionItem, SectionItemKind;
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax;
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show ItemId, itemIdsInProse, readItemId;
+    show itemIdsInProse, readItemId;
 import 'package:specstone_core/src/index_query/link_blocks.dart'
     show leafTextOf, linkLabel;
 import 'package:specstone_core/src/index_query/link_scan.dart';
@@ -88,7 +90,9 @@ List<BodyLine> withCommentsBlanked(List<BodyLine> lines) {
       if (stop >= 0) open = !open;
       at = end;
     }
-    blanked.add((text: text.toString(), line: line.line, fenced: false));
+    blanked.add(
+      BodyLine(text: text.toString(), line: line.line, fenced: false),
+    );
   }
   return blanked;
 }
@@ -177,7 +181,7 @@ String _linksAsText(String text, String definitions) {
 /// Returns [text] with each item ID of [prefixes] blanked to spaces.
 String _withoutItemIds(String text, Set<String> prefixes) {
   var out = text;
-  for (final (:at, :id) in itemIdsInProse(text, prefixes: prefixes)) {
+  for (final ItemIdAt(:at, :id) in itemIdsInProse(text, prefixes: prefixes)) {
     out = out.replaceRange(at, at + id.written.length, ' ' * id.written.length);
   }
   return out;

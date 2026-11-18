@@ -27,24 +27,25 @@ void main() {
     expect(shippedPackFiles.keys, contains('prd-core/pack.yaml'));
   });
 
-  test(
-    'f03/us06/fr01, f03/us07/fr01: shippedPackVersions reads the version each '
-    'shipped pack.yaml carries',
-    () {
-      final versions = shippedPackVersions();
-      expect(versions.keys, ['prd-core', 'software-tech']);
-      for (final MapEntry(:key, :value) in versions.entries) {
-        final manifest = PackManifest.parse(
-          utf8.decode(shippedPackFiles['$key/pack.yaml']!),
-          file: 'packs/$key/pack.yaml',
-        );
-        expect(value, manifest.version.toString());
-      }
-    },
-  );
+  test('shippedPackVersions reads the version each '
+      'shipped pack.yaml carries', () {
+    final versions = shippedPackVersions();
+    expect(versions.keys, [
+      'agent-skills',
+      'prd-core',
+      'software-design-system',
+      'software-tech',
+    ]);
+    for (final MapEntry(:key, :value) in versions.entries) {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['$key/pack.yaml']!),
+        file: 'packs/$key/pack.yaml',
+      );
+      expect(value, manifest.version.toString());
+    }
+  });
 
-  group('template_packs/write_spec_docs_from_software_tech/'
-      'ship_software_tech_pack', () {
+  group('the shipped software-tech pack', () {
     late MergedSet both;
     late MergedSet prdOnly;
     setUpAll(() async {
@@ -52,7 +53,7 @@ void main() {
       prdOnly = await resolvePrdCore();
     });
 
-    test('S1, E01: each doc type takes the path and the parent of the Output '
+    test('each doc type takes the path and the parent of the Output '
         'table', () {
       const outputTable = <String, (String, String?)>{
         'tech_stack': ('specs/TECH_STACK.md', null),
@@ -83,7 +84,7 @@ void main() {
       }
     });
 
-    test('S4, E08: the pack writes no layer over a prd-core doc type, so a '
+    test('the pack writes no layer over a prd-core doc type, so a '
         'story and an FR carry no code-pointer field', () {
       final files = shippedPackFiles.keys
           .where(
@@ -114,7 +115,7 @@ void main() {
       }
     });
 
-    test('E09, E01: every software-tech doc type is per target and no '
+    test('every software-tech doc type is per target and no '
         'prd-core one is, so each reads specs/<target>/ with two targets', () {
       for (final docType in both.docTypes) {
         expect(
@@ -137,7 +138,7 @@ void main() {
       );
     });
 
-    test('E02: a project that lists only prd-core gets no implementation '
+    test('a project that lists only prd-core gets no implementation '
         'doc type and no record doc type', () {
       expect(prdOnly.lookup('implementation'), isNull);
       expect(prdOnly.recordDocType, isNull);
@@ -150,7 +151,7 @@ void main() {
       }
     });
 
-    test('E07: the implementation record holds the status and the code '
+    test('the implementation record holds the status and the code '
         'lines, each optional, and the one optional matrix section', () {
       final record = both.recordDocType!;
       expect(record.id, 'implementation');
@@ -174,7 +175,7 @@ void main() {
       ]);
     });
 
-    test('E07: the other pointer fields keep their kind and requirement', () {
+    test('the other pointer fields keep their kind and requirement', () {
       expectOwnFields(prdCoreDocType(both, 'architecture'), const [
         FieldSpec(
           'covers',

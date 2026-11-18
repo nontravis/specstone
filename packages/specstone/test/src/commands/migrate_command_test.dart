@@ -356,19 +356,16 @@ void main() {
     expect(out.toString(), isEmpty);
   });
 
-  test(
-    'ms-r11: migrate --yes with --dry-run is a usage error, exit 64',
-    () async {
-      final root = await writeTree(acmeLegacy);
-      final before = _bytesUnder(root);
-      final (:runner, :out, :err) = writeRunner(root);
+  test('migrate --yes with --dry-run is a usage error, exit 64', () async {
+    final root = await writeTree(acmeLegacy);
+    final before = _bytesUnder(root);
+    final (:runner, :out, :err) = writeRunner(root);
 
-      expect(await runner.run(['migrate', '--yes', '--dry-run']), 64);
-      expect(out.toString(), isEmpty);
-      expect(err.toString(), startsWith('--yes cannot go with --dry-run.\n'));
-      expect(_bytesUnder(root), before);
-    },
-  );
+    expect(await runner.run(['migrate', '--yes', '--dry-run']), 64);
+    expect(out.toString(), isEmpty);
+    expect(err.toString(), startsWith('--yes cannot go with --dry-run.\n'));
+    expect(_bytesUnder(root), before);
+  });
 
   for (final (args, message) in [
     (
@@ -378,22 +375,19 @@ void main() {
     ),
     (['--plan', '1a2b3c4d5e6f'], '--plan goes only with --yes.'),
   ]) {
-    test(
-      'ms-r11: migrate ${args.join(' ')} is a usage error, exit 64',
-      () async {
-        final root = await writeTree(acmeLegacy);
-        final before = _bytesUnder(root);
-        final (:runner, :out, :err) = writeRunner(root);
+    test('migrate ${args.join(' ')} is a usage error, exit 64', () async {
+      final root = await writeTree(acmeLegacy);
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root);
 
-        expect(await runner.run(['migrate', ...args]), 64);
-        expect(out.toString(), isEmpty);
-        expect(err.toString(), startsWith('$message\n'));
-        expect(_bytesUnder(root), before);
-      },
-    );
+      expect(await runner.run(['migrate', ...args]), 64);
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), startsWith('$message\n'));
+      expect(_bytesUnder(root), before);
+    });
   }
 
-  test('ms-r11: migrate --yes --plan with a stale hash prints the plan, '
+  test('migrate --yes --plan with a stale hash prints the plan, '
       'exits 75, and writes nothing', () async {
     final root = await gitFixture(acmeLegacy);
     final head = git(root, ['rev-parse', 'HEAD']).stdout;
@@ -413,7 +407,7 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  test("ms-r11: migrate --yes --plan with the dry run's hash applies the plan "
+  test("migrate --yes --plan with the dry run's hash applies the plan "
       'with no terminal and no prompt', () async {
     final root = await gitFixture(acmeLegacy);
     final hash = await _dryRunPlanHash(root);
@@ -598,8 +592,7 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
-  test('E07: '
-      'migrate --yes --plan leaves the typed docs stamped and no stale '
+  test('migrate --yes --plan leaves the typed docs stamped and no stale '
       'approval for check', () async {
     final root = await gitFixture(acmeLegacy);
     final hash = await _dryRunPlanHash(root);
@@ -616,8 +609,7 @@ void main() {
     expect(checkOut.toString(), isNot(contains('approval_stale')));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('E17, '
-      'the first '
+  test('the first '
       'check after a legacy run reports no format_drift and no '
       'confirmed_entry_stale', () async {
     final root = await gitFixture(acmeLegacy);
@@ -644,7 +636,7 @@ void main() {
   }, skip: hasGit ? null : 'git is not available');
 
   test(
-    'f06/us01/s9, f06/us01/fr07/e09, f06/us01/fr07/e03: a refused commit '
+    'a refused commit '
     'exits 75, and '
     'the next migrate at a terminal resumes with no answer',
     () async {
@@ -694,7 +686,7 @@ void main() {
         : (hasGit ? null : 'git is not available'),
   );
 
-  test("f06/us01/s13, ms-r11: an Agent's shell without --yes gets the plan and "
+  test("an Agent's shell without --yes gets the plan and "
       'exit 77 naming both ways', () async {
     final root = await gitFixture(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(
@@ -787,7 +779,7 @@ void main() {
     );
 
     test(
-      'f06/us01/fr02/g8-r8: migrate --dry-run never starts a git found in its '
+      'migrate --dry-run never starts a git found in its '
       'own folder through a "." PATH entry',
       () async {
         final root = await gitFixture(acmeLegacy);
@@ -816,25 +808,21 @@ void main() {
 
     // CreateProcessW looks in the current folder before any PATH entry, so a
     // start of the bare name `git` would run this copy of the Specstone binary.
-    test(
-      'f06/us01/fr02/g8-r8: migrate --dry-run never starts a git.exe found in '
-      'its own folder',
-      () async {
-        final root = await gitFixture(acmeLegacy);
-        File(binary).copySync('${root.path}/git.exe');
-        File('${root.path}/.git/info/exclude')
-            .writeAsStringSync('/git.exe\n', mode: FileMode.append);
+    test('migrate --dry-run never starts a git.exe found in '
+        'its own folder', () async {
+      final root = await gitFixture(acmeLegacy);
+      File(binary).copySync('${root.path}/git.exe');
+      File('${root.path}/.git/info/exclude')
+          .writeAsStringSync('/git.exe\n', mode: FileMode.append);
 
-        final shown = await Process.run(binary, [
-          'migrate',
-          '--dry-run',
-        ], workingDirectory: root.path);
+      final shown = await Process.run(binary, [
+        'migrate',
+        '--dry-run',
+      ], workingDirectory: root.path);
 
-        expect(shown.exitCode, 0, reason: '${shown.stderr}');
-        expect(shown.stdout, startsWith('legacy migration: '));
-      },
-      skip: Platform.isWindows ? null : 'CreateProcessW searches the folder',
-    );
+      expect(shown.exitCode, 0, reason: '${shown.stderr}');
+      expect(shown.stdout, startsWith('legacy migration: '));
+    }, skip: Platform.isWindows ? null : 'CreateProcessW searches the folder');
 
     test(
       'migrate --dry-run refuses git_work_tree_required, exit 78, when git '

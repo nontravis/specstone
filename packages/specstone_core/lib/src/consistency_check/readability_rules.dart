@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/models/sentence_measure.dart';
 import 'package:specstone_core/src/doc_model/sentence_measure.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
@@ -234,7 +235,7 @@ _Sized _sizedOf(SentenceFact sentence, _LengthCaps caps) {
   );
   final size = sentence.countsChars
       ? weightedChars(
-          (
+          SentenceMeasure(
             language: sentence.language,
             countsChars: true,
             words: sentence.words,

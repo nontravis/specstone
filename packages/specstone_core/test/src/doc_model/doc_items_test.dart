@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
+import 'package:specstone_core/src/doc_model/models/doc_item.dart';
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
-import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:test/test.dart';
 
 const _firstLine = 20;
@@ -11,7 +13,7 @@ List<BodyLine> _body(String text) {
   var inFence = false;
   return [
     for (final (k, line) in text.split('\n').indexed)
-      (
+      BodyLine(
         text: line,
         line: _firstLine + k,
         fenced: () {
@@ -28,7 +30,7 @@ List<DocItem> _items(String text) => _itemsOf(_body(text));
 
 List<DocItem> _itemsOf(List<BodyLine> body) => [
   for (final item in sectionItemsOf(body))
-    (
+    DocItem(
       line: item.line,
       chars: item.text.length - scanText(item.text).pairs,
       text: item.head,
@@ -37,8 +39,8 @@ List<DocItem> _itemsOf(List<BodyLine> body) => [
 ];
 
 void main() {
-  group('doc_model/doc_items sectionItemsOf', () {
-    test('E09: a list item '
+  group('sectionItemsOf', () {
+    test('a list item '
         'counts without its nested items and a nested item alone', () {
       final items = _items(
         '- parent one\n'
@@ -48,21 +50,21 @@ void main() {
       );
 
       expect(items, [
-        (line: 20, chars: 25, text: 'parent one', heading: false),
-        (line: 22, chars: 9, text: 'child', heading: false),
-        (line: 23, chars: 8, text: 'second', heading: false),
+        const DocItem(line: 20, chars: 25, text: 'parent one', heading: false),
+        const DocItem(line: 22, chars: 9, text: 'child', heading: false),
+        const DocItem(line: 23, chars: 8, text: 'second', heading: false),
       ]);
     });
 
-    test('E09: an ordered item '
+    test('an ordered item '
         'reads its text after the marker', () {
       expect(_items('1. first\n2) second'), [
-        (line: 20, chars: 8, text: 'first', heading: false),
-        (line: 21, chars: 9, text: 'second', heading: false),
+        const DocItem(line: 20, chars: 8, text: 'first', heading: false),
+        const DocItem(line: 21, chars: 9, text: 'second', heading: false),
       ]);
     });
 
-    test('E09: a table row '
+    test('a table row '
         'below the delimiter row is an item, the header and delimiter '
         'rows are none', () {
       final items = _items(
@@ -75,13 +77,18 @@ void main() {
       );
 
       expect(items, [
-        (line: 22, chars: 9, text: '| a | b |', heading: false),
-        (line: 23, chars: 9, text: '| c | d |', heading: false),
-        (line: 25, chars: 15, text: 'after the table', heading: false),
+        const DocItem(line: 22, chars: 9, text: '| a | b |', heading: false),
+        const DocItem(line: 23, chars: 9, text: '| c | d |', heading: false),
+        const DocItem(
+          line: 25,
+          chars: 15,
+          text: 'after the table',
+          heading: false,
+        ),
       ]);
     });
 
-    test('E09: a paragraph is '
+    test('a paragraph is '
         'one item across its lines', () {
       final items = _items(
         'alpha beta\n'
@@ -91,12 +98,12 @@ void main() {
       );
 
       expect(items, [
-        (line: 20, chars: 16, text: 'alpha beta', heading: false),
-        (line: 23, chars: 5, text: 'delta', heading: false),
+        const DocItem(line: 20, chars: 16, text: 'alpha beta', heading: false),
+        const DocItem(line: 23, chars: 5, text: 'delta', heading: false),
       ]);
     });
 
-    test('E09: a ### heading '
+    test('a ### heading '
         'counts with the paragraph under it and never its bullets', () {
       final items = _items(
         '### Scenario 1\n'
@@ -110,23 +117,23 @@ void main() {
       );
 
       expect(items, [
-        (line: 20, chars: 39, text: 'Scenario 1', heading: true),
-        (line: 23, chars: 12, text: 'bullet one', heading: false),
-        (line: 25, chars: 14, text: 'Scenario 2', heading: true),
-        (line: 27, chars: 12, text: 'bullet two', heading: false),
+        const DocItem(line: 20, chars: 39, text: 'Scenario 1', heading: true),
+        const DocItem(line: 23, chars: 12, text: 'bullet one', heading: false),
+        const DocItem(line: 25, chars: 14, text: 'Scenario 2', heading: true),
+        const DocItem(line: 27, chars: 12, text: 'bullet two', heading: false),
       ]);
     });
 
     test('a bare ### line opens a heading item with empty text, a ###x line '
         'opens none', () {
       expect(_items('###\n\n- a\n\n###x'), [
-        (line: 20, chars: 3, text: '', heading: true),
-        (line: 22, chars: 3, text: 'a', heading: false),
-        (line: 24, chars: 4, text: '###x', heading: false),
+        const DocItem(line: 20, chars: 3, text: '', heading: true),
+        const DocItem(line: 22, chars: 3, text: 'a', heading: false),
+        const DocItem(line: 24, chars: 4, text: '###x', heading: false),
       ]);
     });
 
-    test('E09: a ### heading inside a blockquote '
+    test('a ### heading inside a blockquote '
         'counts with a deeper quoted paragraph right under it', () {
       final items = _items(
         '> ### Quoted\n'
@@ -136,12 +143,12 @@ void main() {
       );
 
       expect(items, [
-        (line: 20, chars: 25, text: 'Quoted', heading: true),
-        (line: 23, chars: 8, text: 'bullet', heading: false),
+        const DocItem(line: 20, chars: 25, text: 'Quoted', heading: true),
+        const DocItem(line: 23, chars: 8, text: 'bullet', heading: false),
       ]);
     });
 
-    test('E09: a ### heading '
+    test('a ### heading '
         'counts with the quoted paragraph right under it', () {
       final items = _items(
         '### PV-01\n'
@@ -151,12 +158,12 @@ void main() {
       );
 
       expect(items, [
-        (line: 20, chars: 26, text: 'PV-01', heading: true),
-        (line: 23, chars: 8, text: 'bullet', heading: false),
+        const DocItem(line: 20, chars: 26, text: 'PV-01', heading: true),
+        const DocItem(line: 23, chars: 8, text: 'bullet', heading: false),
       ]);
     });
 
-    test('E09: a blockquote '
+    test('a blockquote '
         'paragraph and list item are items as anywhere else', () {
       final items = _items(
         '> quoted paragraph\n'
@@ -165,12 +172,17 @@ void main() {
       );
 
       expect(items, [
-        (line: 20, chars: 18, text: 'quoted paragraph', heading: false),
-        (line: 22, chars: 15, text: 'quoted item', heading: false),
+        const DocItem(
+          line: 20,
+          chars: 18,
+          text: 'quoted paragraph',
+          heading: false,
+        ),
+        const DocItem(line: 22, chars: 15, text: 'quoted item', heading: false),
       ]);
     });
 
-    test('E09: a fenced code '
+    test('a fenced code '
         'block is no item', () {
       final items = _items(
         '- before\n'
@@ -181,12 +193,12 @@ void main() {
       );
 
       expect(items, [
-        (line: 20, chars: 8, text: 'before', heading: false),
-        (line: 24, chars: 7, text: 'after', heading: false),
+        const DocItem(line: 20, chars: 8, text: 'before', heading: false),
+        const DocItem(line: 24, chars: 7, text: 'after', heading: false),
       ]);
     });
 
-    test('E09: an item holding '
+    test('an item holding '
         'an emoji counts a surrogate pair once', () {
       final items = _items(
         '- \u{1F600} smile\n'
@@ -195,99 +207,101 @@ void main() {
 
       // "- 😀 smile" is 9 code points, "  😀😀" is 4, one line feed.
       expect(items, [
-        (line: 20, chars: 14, text: '\u{1F600} smile', heading: false),
+        const DocItem(
+          line: 20,
+          chars: 14,
+          text: '\u{1F600} smile',
+          heading: false,
+        ),
       ]);
     });
 
-    test('E09: a fence inside '
+    test('a fence inside '
         'a list item ends the item and the text after it is its own '
         'item', () {
       final items = _itemsOf([
-        (text: '- item', line: 20, fenced: false),
-        (text: '  ```', line: 21, fenced: true),
-        (text: '  - code', line: 22, fenced: true),
-        (text: '  ```', line: 23, fenced: true),
-        (text: '  more', line: 24, fenced: false),
+        const BodyLine(text: '- item', line: 20, fenced: false),
+        const BodyLine(text: '  ```', line: 21, fenced: true),
+        const BodyLine(text: '  - code', line: 22, fenced: true),
+        const BodyLine(text: '  ```', line: 23, fenced: true),
+        const BodyLine(text: '  more', line: 24, fenced: false),
       ]);
 
       expect(items, [
-        (line: 20, chars: 6, text: 'item', heading: false),
-        (line: 24, chars: 6, text: 'more', heading: false),
+        const DocItem(line: 20, chars: 6, text: 'item', heading: false),
+        const DocItem(line: 24, chars: 6, text: 'more', heading: false),
       ]);
     });
 
-    test('E09: a fence inside '
+    test('a fence inside '
         'a blockquote is no item', () {
       final items = _itemsOf([
-        (text: '> ```', line: 20, fenced: true),
-        (text: '> - code', line: 21, fenced: true),
-        (text: '> ```', line: 22, fenced: true),
+        const BodyLine(text: '> ```', line: 20, fenced: true),
+        const BodyLine(text: '> - code', line: 21, fenced: true),
+        const BodyLine(text: '> ```', line: 22, fenced: true),
       ]);
 
       expect(items, isEmpty);
     });
 
-    test('E09: rows with no '
+    test('rows with no '
         'delimiter row are one paragraph', () {
       expect(_items('| a | b |\n| c | d |'), [
-        (line: 20, chars: 19, text: '| a | b |', heading: false),
+        const DocItem(line: 20, chars: 19, text: '| a | b |', heading: false),
       ]);
     });
 
-    test('E09: a #### line '
+    test('a #### line '
         'reads as paragraph text', () {
       expect(_items('#### Deep\nparagraph'), [
-        (line: 20, chars: 19, text: '#### Deep', heading: false),
+        const DocItem(line: 20, chars: 19, text: '#### Deep', heading: false),
       ]);
     });
 
-    test('E09: an empty body '
+    test('an empty body '
         'holds no item', () {
       expect(_items(''), isEmpty);
     });
 
-    test('doc_model/doc_items E09: a thematic break is no item and ends the '
+    test('a thematic break is no item and ends the '
         'paragraph above it', () {
       expect(_items('first\n***\nsecond'), [
-        (line: 20, chars: 5, text: 'first', heading: false),
-        (line: 22, chars: 6, text: 'second', heading: false),
+        const DocItem(line: 20, chars: 5, text: 'first', heading: false),
+        const DocItem(line: 22, chars: 6, text: 'second', heading: false),
       ]);
       expect(_items('one\n\n---\n\ntwo'), [
-        (line: 20, chars: 3, text: 'one', heading: false),
-        (line: 24, chars: 3, text: 'two', heading: false),
+        const DocItem(line: 20, chars: 3, text: 'one', heading: false),
+        const DocItem(line: 24, chars: 3, text: 'two', heading: false),
       ]);
       expect(_items('* * *\n- - -\n> ---\n_ _ _'), isEmpty);
     });
 
-    test(
-      'doc_model/doc_items E09: a table starts by the column rule of markdown, '
-      'with or without a pipe in the header',
-      () {
-        expect(_items('abc\n|---|\nrow'), [
-          (line: 22, chars: 3, text: 'row', heading: false),
-        ]);
-        expect(_items('a | b | c\n--- | ---\nx | y | z'), [
-          (line: 20, chars: 29, text: 'a | b | c', heading: false),
-        ]);
-      },
-    );
-
-    test('doc_model/doc_items E09: a delimiter row that starts like a list '
-        'item still makes a table', () {
-      expect(_items('a | b\n- | -\nc | d'), [
-        (line: 22, chars: 5, text: 'c | d', heading: false),
+    test('a table starts by the column rule of markdown, '
+        'with or without a pipe in the header', () {
+      expect(_items('abc\n|---|\nrow'), [
+        const DocItem(line: 22, chars: 3, text: 'row', heading: false),
+      ]);
+      expect(_items('a | b | c\n--- | ---\nx | y | z'), [
+        const DocItem(line: 20, chars: 29, text: 'a | b | c', heading: false),
       ]);
     });
 
-    test('doc_model/doc_items E09: a header line that opens with a list '
+    test('a delimiter row that starts like a list '
+        'item still makes a table', () {
+      expect(_items('a | b\n- | -\nc | d'), [
+        const DocItem(line: 22, chars: 5, text: 'c | d', heading: false),
+      ]);
+    });
+
+    test('a header line that opens with a list '
         'marker still makes a table', () {
       for (final header in ['- a | b', '* a | b', '+ a | b', '1. a | b']) {
         expect(_items('$header\n--- | ---\nc | d'), [
-          (line: 22, chars: 5, text: 'c | d', heading: false),
+          const DocItem(line: 22, chars: 5, text: 'c | d', heading: false),
         ], reason: header);
       }
       expect(_items('- a\n--- | ---\nc | d'), [
-        (line: 20, chars: 19, text: 'a', heading: false),
+        const DocItem(line: 20, chars: 19, text: 'a', heading: false),
       ]);
     });
 
@@ -299,7 +313,9 @@ void main() {
       final quoted = _items('${marks}x');
       final fenced = _items('```\n$marks\n```');
 
-      expect(quoted, [(line: 20, chars: 200001, text: 'x', heading: false)]);
+      expect(quoted, [
+        const DocItem(line: 20, chars: 200001, text: 'x', heading: false),
+      ]);
       expect(fenced, isEmpty);
       // Copying the rest of the line per mark takes seconds at this size.
       expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
@@ -307,10 +323,10 @@ void main() {
 
     test('a > mark takes up to 3 spaces before it and one after it', () {
       expect(_items('   > > a\n\n    > b\n\n>c\n\n>  d'), [
-        (line: 20, chars: 8, text: 'a', heading: false),
-        (line: 22, chars: 7, text: '> b', heading: false),
-        (line: 24, chars: 2, text: 'c', heading: false),
-        (line: 26, chars: 4, text: 'd', heading: false),
+        const DocItem(line: 20, chars: 8, text: 'a', heading: false),
+        const DocItem(line: 22, chars: 7, text: '> b', heading: false),
+        const DocItem(line: 24, chars: 2, text: 'c', heading: false),
+        const DocItem(line: 26, chars: 4, text: 'd', heading: false),
       ]);
     });
   });

@@ -1,12 +1,14 @@
-import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show
-        CellRange,
         isThematicBreak,
         itemHeadingMarker,
         startsTable,
         tableCellRanges,
         tableHeadCells;
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
+import 'package:specstone_core/src/doc_model/models/doc_item.dart';
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 
 const _lineFeedChars = 1;
@@ -17,15 +19,6 @@ const _quoteMark = 0x3E;
 const _space = 0x20;
 const _maxMarkIndent = 3;
 final _listMarker = RegExp(r'^\s*(?:[-*+]|\d+[.)])(?:\s+|$)');
-
-/// One item of a section.
-///
-/// `line` is the first line of the item in the body lines given, the file
-/// line when they are the file's. `chars` counts the item's own lines in code
-/// points, a surrogate pair once, with the line feeds between them. `text` is
-/// the first line after any `>` mark, list marker, or `### `. `heading` is
-/// true for a `###` item.
-typedef DocItem = ({int line, int chars, String text, bool heading});
 
 /// Whether [line], unfenced, opens a heading item as [sectionItemsOf] reads
 /// it: after any `>` marks, a `### ` heading or a bare `###`.
@@ -39,31 +32,9 @@ bool opensHeadingItem(String line) => headingItemTextOf(line) != null;
 ///
 /// The one reader every caller names a heading item from.
 String? headingItemTextOf(String line) {
-  final read = _Line.of((text: line, line: 0, fenced: false));
+  final read = _Line.of(BodyLine(text: line, line: 0, fenced: false));
   return read.kind == _Kind.heading ? read.itemText : null;
 }
-
-/// What a [SectionItem] is.
-enum SectionItemKind { listItem, tableRow, paragraph, heading }
-
-/// One item of a section, with what a rule reads.
-///
-/// `line` is its first file line; `head` its first line after any `>` mark,
-/// list marker, or `### `; `firstLine` that line with its marker, after any
-/// `>` marks; `text` its own lines as written, nested items aside. `nested`
-/// is true for an item that opens indented. A table row carries its table's
-/// `header` cells and its own `cells`, both trimmed; every other kind carries
-/// null for both.
-typedef SectionItem = ({
-  int line,
-  SectionItemKind kind,
-  bool nested,
-  String head,
-  String firstLine,
-  String text,
-  List<String>? header,
-  List<String>? cells,
-});
 
 /// Returns the items of a section's [body] lines in order.
 ///
@@ -89,34 +60,36 @@ List<SectionItem> sectionItemsOf(List<BodyLine> body) {
       _ => SectionItemKind.paragraph,
     };
     final headerAt = span.headerAt;
-    items.add((
-      line: span.item.line,
-      kind: kind,
-      nested:
-          kind != SectionItemKind.tableRow &&
-          first.inner.startsWith(RegExp(r'\s')),
-      head: span.item.text,
-      firstLine: first.inner,
-      text: [for (var k = span.start; k <= span.end; k++) body[k].text]
-          .join('\n'),
-      header: headerAt == null
-          ? null
-          : headers.putIfAbsent(headerAt, () {
-              final head = lines[headerAt].inner;
-              return _cellTexts(
-                head,
-                tableHeadCells(head, lines[headerAt + 1].inner)!,
-              );
-            }),
-      cells: headerAt == null
-          ? null
-          : _cellTexts(first.inner, tableCellRanges(first.inner)),
-    ));
+    items.add(
+      SectionItem(
+        line: span.item.line,
+        kind: kind,
+        nested:
+            kind != SectionItemKind.tableRow &&
+            first.inner.startsWith(RegExp(r'\s')),
+        head: span.item.text,
+        firstLine: first.inner,
+        text: [for (var k = span.start; k <= span.end; k++) body[k].text]
+            .join('\n'),
+        header: headerAt == null
+            ? null
+            : headers.putIfAbsent(headerAt, () {
+                final head = lines[headerAt].inner;
+                return _cellTexts(
+                  head,
+                  tableHeadCells(head, lines[headerAt + 1].inner)!,
+                );
+              }),
+        cells: headerAt == null
+            ? null
+            : _cellTexts(first.inner, tableCellRanges(first.inner)),
+      ),
+    );
   }
   return items;
 }
 
-List<String> _cellTexts(String row, List<CellRange> ranges) => [
+List<String> _cellTexts(String row, List<TextRange> ranges) => [
   for (final cell in ranges) row.substring(cell.start, cell.end).trim(),
 ];
 
@@ -126,10 +99,22 @@ List<_Line> _linesOf(List<BodyLine> body) => [
 
 /// One item's place in the body lines: its first and last line index, and the
 /// index of its table's header line when it is a table row.
-typedef _Span = ({DocItem item, int start, int end, int? headerAt});
+final class _ItemSpan {
+  const new({
+    required this.item,
+    required this.start,
+    required this.end,
+    required this.headerAt,
+  });
 
-List<_Span> _spansOf(List<BodyLine> body, List<_Line> lines) {
-  final spans = <_Span>[];
+  final DocItem item;
+  final int start;
+  final int end;
+  final int? headerAt;
+}
+
+List<_ItemSpan> _spansOf(List<BodyLine> body, List<_Line> lines) {
+  final spans = <_ItemSpan>[];
   var i = 0;
   while (i < lines.length) {
     final line = lines[i];
@@ -143,12 +128,14 @@ List<_Span> _spansOf(List<BodyLine> body, List<_Line> lines) {
       final end = line.kind == _Kind.heading
           ? _headingEnd(lines, i)
           : _paragraphEnd(lines, i);
-      spans.add((
-        item: _itemOf(body, lines, i, end),
-        start: i,
-        end: end,
-        headerAt: null,
-      ));
+      spans.add(
+        _ItemSpan(
+          item: _itemOf(body, lines, i, end),
+          start: i,
+          end: end,
+          headerAt: null,
+        ),
+      );
       i = end + 1;
     }
   }
@@ -176,6 +163,14 @@ int? firstTableOf(List<BodyLine> body, int rows) {
 
 enum _Kind { blank, fence, rule, heading, list, text }
 
+/// The count of `>` marks at the start of a line, and the index after the last.
+final class _QuoteMarks {
+  const new({required this.quote, required this.end});
+
+  final int quote;
+  final int end;
+}
+
 /// One body line split into its blockquote depth and the text after it.
 final class _Line {
   const new(this.kind, this.quote, this.inner);
@@ -183,14 +178,14 @@ final class _Line {
   /// Reads [line]; a fenced line is code, so it holds no `>` mark.
   factory of(BodyLine line) {
     if (line.fenced) return _Line(_Kind.fence, 0, line.text);
-    final (:quote, :end) = _quoteMarksOf(line.text);
+    final _QuoteMarks(:quote, :end) = _quoteMarksOf(line.text);
     final inner = end == 0 ? line.text : line.text.substring(end);
     return _Line(_kindOf(inner), quote, inner);
   }
 
   /// Returns the count of `>` marks at the start of [text], each after up to
   /// 3 spaces and before one optional space, and the index after the last.
-  static ({int quote, int end}) _quoteMarksOf(String text) {
+  static _QuoteMarks _quoteMarksOf(String text) {
     var quote = 0;
     var end = 0;
     while (true) {
@@ -206,7 +201,7 @@ final class _Line {
       end = at;
       quote++;
     }
-    return (quote: quote, end: end);
+    return _QuoteMarks(quote: quote, end: end);
   }
 
   static _Kind _kindOf(String inner) {
@@ -259,7 +254,7 @@ bool _startsTable(List<_Line> lines, int i) {
 /// Adds one span per row below the delimiter row of the table at [i] to
 /// [spans] and returns the index of the line after the table.
 int _addTableRows(
-  List<_Span> spans,
+  List<_ItemSpan> spans,
   List<BodyLine> body,
   List<_Line> lines,
   int i,
@@ -268,12 +263,14 @@ int _addTableRows(
   while (next < lines.length &&
       lines[next].kind == _Kind.text &&
       lines[next].quote == lines[i].quote) {
-    spans.add((
-      item: _itemOf(body, lines, next, next),
-      start: next,
-      end: next,
-      headerAt: i,
-    ));
+    spans.add(
+      _ItemSpan(
+        item: _itemOf(body, lines, next, next),
+        start: next,
+        end: next,
+        headerAt: i,
+      ),
+    );
     next++;
   }
   return next;
@@ -315,7 +312,7 @@ DocItem _itemOf(List<BodyLine> body, List<_Line> lines, int start, int end) {
     chars += text.length - scanText(text).pairs;
     if (k > start) chars += _lineFeedChars;
   }
-  return (
+  return DocItem(
     line: body[start].line,
     chars: chars,
     text: lines[start].itemText,
