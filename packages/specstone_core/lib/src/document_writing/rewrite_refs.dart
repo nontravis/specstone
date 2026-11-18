@@ -389,8 +389,9 @@ String? rewriteDocRefs(
 /// Returns the sorted journal writes that keep every link, `doc_ref`, and
 /// doc-name mention true in docs.
 ///
-/// A doc whose hash matched its `approved:` value is re-stamped. Draft marks
-/// stay untouched. A code file or an agent file is never written: its
+/// A doc whose hash matched its `approved:` value is re-stamped, and its step
+/// saves the approved copy when it writes. Draft marks stay untouched.
+/// A code file or an agent file is never written: its
 /// mentions are listed by `staleMentions`.
 ///
 /// [docEdits] maps a DocPath to one edit of that doc, such as a record's
@@ -606,10 +607,12 @@ WriteStep? _stepFor(
     statusesOutside: statusesOutside,
   );
   // An edit that marked the doc draft, as an item move does, takes no stamp.
-  final stamped = wasApproved && !Doc.parse(laidOut).isDraft
+  final isRestamped = wasApproved && !Doc.parse(laidOut).isDraft;
+  final stamped = isRestamped
       ? withApprovalHash(laidOut, writtenType, statusesOutside: statusesOutside)
       : laidOut;
-  return session.docWriteStep(writtenPath, stamped, bytes);
+  final step = session.docWriteStep(writtenPath, stamped, bytes);
+  return isRestamped ? step.keepingApprovedCopy() : step;
 }
 
 /// Whether [lfText], the doc as the step reads it under the lock, is no draft

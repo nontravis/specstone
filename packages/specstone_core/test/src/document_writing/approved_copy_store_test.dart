@@ -7,6 +7,9 @@ import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/approved_copy_store.dart';
 import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
+import 'package:specstone_core/src/document_writing/move_doc.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
@@ -203,6 +206,148 @@ void main() {
         'a file, not a folder',
       );
     });
+  });
+
+  group('a WriteStep that keeps an approved copy', () {
+    final stamped = withApprovalHash(
+      '# Buyer\n\nBuys.\n',
+      null,
+      statusesOutside: true,
+    );
+    late Directory root;
+    late JournalTarget target;
+    late String before;
+
+    setUp(() async {
+      root = await writeWriteProject();
+      target = JournalTarget.of(openProject(root), homeDirectory: testHome());
+      before = textHashOf(readDoc(root, persona));
+    });
+
+    WriteStep step({bool keeps = true}) => WriteStep(
+      'docs/$persona',
+      stamped,
+      before: before,
+      keepsApprovedCopy: keeps,
+    );
+
+    test('saves the copy it writes, as LF text without a BOM', () {
+      final crlf = stamped.replaceAll('\n', '\r\n');
+
+      WriteStep(
+        'docs/$persona',
+        '﻿$crlf',
+        before: before,
+        keepsApprovedCopy: true,
+      ).apply(target);
+
+      expect(readDoc(root, persona), crlf);
+      expect(_copyFile(root, _markIn(stamped)).readAsStringSync(), stamped);
+    });
+
+    test('saves no copy unless it keeps one', () {
+      step(keeps: false).apply(target);
+
+      expect(readDoc(root, persona), stamped);
+      expect(Directory('${root.path}/$_storeFolder').existsSync(), isFalse);
+    });
+
+    test('saves no copy when the file changed since it was planned', () {
+      docFile(root, persona).writeAsStringSync('changed\n');
+
+      step().apply(target);
+
+      expect(readDoc(root, persona), 'changed\n');
+      expect(Directory('${root.path}/$_storeFolder').existsSync(), isFalse);
+    });
+
+    test('saves the copy on a replay of its journal', () {
+      writeJournal(root, [step()]);
+
+      MoveJournal.replay(target);
+
+      expect(readDoc(root, persona), stamped);
+      expect(_copyFile(root, _markIn(stamped)).readAsStringSync(), stamped);
+    });
+
+    test('writes its flag to the journal only when set, and an older journal reads it as unset', () {
+      expect((step().toJson()['write']! as Map)['keepsApprovedCopy'], isTrue);
+      expect(
+        (step(keeps: false).toJson()['write']! as Map).containsKey(
+          'keepsApprovedCopy',
+        ),
+        isFalse,
+      );
+
+      final replayed = JournalStep.fromJson(step().toJson());
+      final older = JournalStep.fromJson({
+        'write': {'path': 'docs/$persona', 'text': stamped, 'before': before},
+      });
+
+      expect((replayed as WriteStep).keepsApprovedCopy, isTrue);
+      expect((older as WriteStep).keepsApprovedCopy, isFalse);
+    });
+
+    test('is not saved when a journal without the flag replays', () {
+      writeJournal(root, [
+        JournalStep.fromJson({
+          'write': {'path': 'docs/$persona', 'text': stamped, 'before': before},
+        }),
+      ]);
+
+      MoveJournal.replay(target);
+
+      expect(readDoc(root, persona), stamped);
+      expect(Directory('${root.path}/$_storeFolder').existsSync(), isFalse);
+    });
+  });
+
+  group('a move that re-stamps an approved doc', () {
+    for (final (tag, move) in <(String, void Function(WriteSession))>[
+      ('a reorder', (s) => answerReorder(s, 'feature:signup', place: '1')),
+      ('a rename', (s) => answerRename(s, 'feature:signup', slug: 'join')),
+    ]) {
+      test('$tag saves its approved copy, which the next view compares against', () async {
+        final root = await writeWriteProject();
+
+        writeIn(root, move);
+
+        final file = docFile(root, featuresIndex);
+        expect(
+          _copyFile(root, _markOf(root, featuresIndex)).readAsStringSync(),
+          readDoc(root, featuresIndex),
+        );
+        file.writeAsStringSync(
+          '${readDoc(root, featuresIndex).replaceFirst('---\n', '---\ndraft: true\n')}\nAdded line.\n',
+        );
+        final drafts = writeIn(root, approveDryRun).json['drafts']! as List;
+        final view = drafts.cast<Map<String, Object?>>().singleWhere(
+          (draft) => draft['docPath'] == featuresIndex,
+        );
+        expect(view['lookup'], 'found');
+        expect(view['dropped'], isEmpty);
+        expect(view['new'], anyElement(contains('Added line')));
+      });
+    }
+
+    for (final (tag, move) in <(String, void Function(WriteSession))>[
+      (
+        'a dry-run reorder',
+        (s) => answerReorder(s, 'feature:signup', place: '1', dryRun: true),
+      ),
+      (
+        'a dry-run rename',
+        (s) => answerRename(s, 'feature:signup', slug: 'join', dryRun: true),
+      ),
+    ]) {
+      test('$tag saves no copy', () async {
+        final root = await writeWriteProject();
+
+        writeIn(root, move);
+
+        expect(Directory('${root.path}/$_storeFolder').existsSync(), isFalse);
+      });
+    }
   });
 
   group('the lookup', () {
