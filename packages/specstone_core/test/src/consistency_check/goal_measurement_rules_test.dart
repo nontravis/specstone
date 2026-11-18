@@ -397,7 +397,7 @@ void main() {
     }
   });
 
-  test('an unlinked Metric of non-measurement docs or URLs names goal PG-01 in its finding', () async {
+  test('an unlinked Metric of non-measurement docs or URLs names its goal in the finding', () async {
     for (final metric in [
       '- **Metric:** 50%, see [project](PROJECT.md)',
       '- **Metric:** 50%, see [site](https://example.com/a)',
