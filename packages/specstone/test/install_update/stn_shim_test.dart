@@ -127,8 +127,8 @@ void main() {
     expect(reached.exitCode, 0);
     expect(sb.logOf('linked'), ['ran']);
     expect(sb.logOf('specstone'), isEmpty);
-    expect(missing.exitCode, isNot(0));
-    expect(missing.stderr, isNotEmpty);
+    expect(missing.exitCode, 127);
+    expect(missing.stderr, contains('specstone'));
     expect(sb.logOf('linked'), ['ran']);
     expect(sb.logOf('specstone'), isEmpty);
   });
