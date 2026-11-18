@@ -1,12 +1,12 @@
 Step 1, the gate, ran before you were sent here.
-As `specstone-sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
+As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
 Findings under `prds/` or `measurements/` go to `specstone-bootstrap-prd`, except the PRD sections step 6 moves.
 Follow the `specstone-expert-sdd` skill for every write; before the first, run `specstone guide <type> …` once,
-naming every type you write; a type met later gets its own call before its first write.
+naming every type you write; a type met later gets a call before its first write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
-doc carries `--target <name>`, the finding DocPath's code target, else the first listed one.
+doc carries `--target <name>`, the finding DocPath's code target, else the first listed.
 
 ## 2. One finding at a time
 
@@ -30,8 +30,8 @@ the Owner only when no text bears on a whole section.
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
-| `words_over_limit`, `sentence_chars_over_limit`, `trace_note_not_last`, `sentences_over_limit` | `../../specstone-expert-sdd/references/readability-fix.md` |
-| any other of this skill | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
+| `words_over_limit`, `sentence_chars_over_limit`, `trace_note_not_last`, `sentences_over_limit`, `item_lines_over_limit` | `../../specstone-expert-sdd/references/readability-fix.md` |
+| any other of this skill | rewrite what it names per the loaded guide; one clearing with no write goes to step 6 |
 
 ## 3. Point and cover code
 
