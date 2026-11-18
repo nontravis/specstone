@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/build_output.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -622,6 +624,154 @@ void main() {
         File('${base.path}/ext/$story2').readAsStringSync(),
         contains('Changed'),
       );
+    }, skip: _linksUnavailable);
+  });
+
+  group('new and the index open at a path the gate refuses', () {
+    const folder = 'prds/features/f01_login/us04_forgot_email';
+    const storyPath = 'docs/$folder/USER_STORY.md';
+
+    Future<Directory> projectWithOpenIndex() async {
+      final root = await writeWriteProject();
+      writeIn(root, (session) => session.project);
+      return root;
+    }
+
+    ReadAnswer newStory(WriteSession session) => answerNew(
+      session,
+      docTypeId: 'user_story',
+      parent: 'login',
+      slug: 'forgot_email',
+    );
+
+    test(
+      'new refuses a doc folder linked below .git and creates nothing there',
+      () async {
+        final root = await projectWithOpenIndex();
+        Directory('${root.path}/.git/hooks').createSync(recursive: true);
+        Link('${root.path}/docs/$folder').createSync('${root.path}/.git/hooks');
+        final before = _snapshot(Directory('${root.path}/.git'));
+
+        expect(() => writeIn(root, newStory), _refuses(storyPath, _underGit));
+
+        expect(_snapshot(Directory('${root.path}/.git')), before);
+      },
+      skip: _linksUnavailable,
+    );
+
+    test(
+      'new refuses a .. after a missing name in its doc path',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            '.specstone/templates/persona.yaml':
+                'path: "prds/missing/../personas/{slug}/PERSONA.md"\n',
+          },
+        );
+        final before = treeBytes(root);
+
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerNew(s, docTypeId: 'persona', slug: 'x'),
+          ),
+          _refuses(
+            'docs/prds/missing/../personas/x/PERSONA.md',
+            'it cannot be resolved: a . or .. after a name that does not exist '
+                'cannot be resolved',
+          ),
+        );
+
+        expect(
+          treeBytes(root).keys.where((k) => !k.startsWith('.specstone/')),
+          before.keys.where((k) => !k.startsWith('.specstone/')),
+        );
+      },
+      skip: Platform.isWindows
+          ? 'Windows collapses a .. before the check'
+          : null,
+    );
+
+    test(
+      'new on an untrusted dangling docs link refuses, then once trusted',
+      () async {
+        final root = await writeWriteProject(
+          without: {
+            for (final key in writeProject.keys)
+              if (key.startsWith('docs/')) key,
+          },
+        );
+        final outside = await writeTree({'keep.txt': 'mine\n'});
+        Link('${root.path}/docs').createSync('${outside.path}/made/here');
+        final before = _snapshot(outside);
+        const personaPath = 'docs/prds/personas/x/PERSONA.md';
+        ReadAnswer newPersona(WriteSession s) =>
+            answerNew(s, docTypeId: 'persona', slug: 'x');
+
+        expect(
+          () => writeIn(root, newPersona),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.exitStatus, 'exit', 73)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  allOf(
+                    startsWith('cannot write $personaPath: the docs folder '),
+                    endsWith(
+                      'lies outside the project; run specstone trust at a '
+                      'terminal to allow it',
+                    ),
+                  ),
+                ),
+          ),
+        );
+        expect(_snapshot(outside), before);
+
+        RootTrust.locate(root, homeDirectory: testHome()).record();
+
+        expect(() => writeIn(root, newPersona), _refuses(personaPath, _leaves));
+        expect(_snapshot(outside), before);
+      },
+      skip: _linksUnavailable,
+    );
+
+    for (final side in ['-shm', '-journal']) {
+      test('a linked index$side file refuses the index open', () async {
+        final root = await writeWriteProject();
+        final outside = await writeTree({'victim.txt': 'mine\n'});
+        Link('${root.path}/.specstone/index.sqlite$side')
+            .createSync('${outside.path}/victim.txt');
+        final before = _snapshot(outside);
+
+        expect(
+          () => IndexStore.open(root),
+          _refuses('.specstone/index.sqlite$side', _leaves),
+        );
+
+        expect(_snapshot(outside), before);
+      }, skip: _linksUnavailable);
+    }
+
+    test('an index link to a file below .git refuses the index open', () async {
+      final root = await writeWriteProject();
+      File('${root.path}/.git/config')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('[core]\n');
+      Link('${root.path}/.specstone/index.sqlite')
+          .createSync('${root.path}/.git/config');
+
+      expect(
+        () => IndexStore.open(root),
+        _refuses('.specstone/index.sqlite', _underGit),
+      );
+
+      expect(File('${root.path}/.git/config').readAsStringSync(), '[core]\n');
     }, skip: _linksUnavailable);
   });
 }
