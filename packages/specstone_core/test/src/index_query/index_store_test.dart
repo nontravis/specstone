@@ -12,6 +12,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
@@ -87,6 +88,62 @@ void main() {
       watch.stop();
 
       expect(watch.elapsed, greaterThanOrEqualTo(timeout));
+    });
+    test('an index path the disk cannot resolve refuses the open with the '
+        'reason and writes nothing', () async {
+      for (final name in ['index.sqlite', 'index.sqlite-wal', '.gitignore']) {
+        final r = await root();
+        Link('${r.path}/.specstone/$name').createSync(name);
+        expect(
+          () => IndexStore.open(r),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.exitStatus, 'exit', 73)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  startsWith(
+                    'cannot write .specstone/$name: it cannot be resolved: ',
+                  ),
+                ),
+          ),
+          reason: name,
+        );
+        expect(
+          [
+            for (final entity in Directory('${r.path}/.specstone').listSync())
+              if (entity is File) entity.uri.pathSegments.last,
+          ],
+          ['config.yaml'],
+          reason: 'a refused open creates no file',
+        );
+      }
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+    test('a file SQLite makes beside the index and removes on close '
+        'counts as missing at every open', () async {
+      final r = await root();
+      final path = r.path;
+      IndexStore.open(r).close();
+      for (final suffix in ['-wal', '-shm', '-journal']) {
+        expect(file(r, '.specstone/index.sqlite$suffix').existsSync(), isFalse);
+      }
+      final opens = await Future.wait([
+        for (var n = 0; n < 2; n++)
+          Isolate.run(() {
+            var opened = 0;
+            for (var i = 0; i < 40; i++) {
+              IndexStore.open(Directory(path)).close();
+              opened++;
+            }
+            return opened;
+          }),
+      ]);
+      expect(opens, [40, 40]);
     });
     test('the root .gitignore is never written', () async {
       final r = await writeTree({
@@ -344,6 +401,62 @@ void main() {
         );
       },
     );
+    test('a reindex that dies part way rolls back, and the next refresh '
+        'reindexes the same files', () async {
+      final project = await writeLoginProject();
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final first = IndexStore.open(docs.projectRoot);
+      refreshIndex(first, docs);
+      final committed = first.hashes();
+      first.close();
+      final edited = loginProject[featureKey]!.replaceFirst(
+        '# Login\n',
+        '# Login v2\n',
+      );
+      file(project, featureKey).writeAsStringSync(edited);
+      sqlite3.open('${project.path}/$indexFilePath')
+        ..execute('BEGIN IMMEDIATE')
+        ..execute("DELETE FROM docs WHERE doc_path = '$featureDoc'")
+        ..close();
+
+      final store = IndexStore.open(docs.projectRoot);
+      addTearDown(store.close);
+      expect(store.hashes(), committed);
+      final result = refreshIndex(store, docs);
+      expect(result.reindexed, 1);
+      expect(store.hashes(), {
+        ...committed,
+        featureDoc: contentHashOf(utf8.encode(edited)),
+      });
+    });
+    test('the default busy timeout is 10 s', () async {
+      final r = await root();
+      IndexStore.open(r).close();
+      final holder = sqlite3.open(file(r, indexFilePath).path)
+        ..execute('BEGIN IMMEDIATE');
+      addTearDown(
+        () => holder
+          ..execute('ROLLBACK')
+          ..close(),
+      );
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      final watch = Stopwatch()..start();
+      expect(
+        () => store.write(() => store.putDoc(parsed('README.md', '# R\n'))),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
+              .having((f) => f.exitStatus, 'exit', 75),
+        ),
+      );
+      watch.stop();
+      expect(watch.elapsed.inMilliseconds, inInclusiveRange(10000, 14000));
+    }, timeout: const Timeout(Duration(seconds: 40)));
     test(
       'a read-only index file refuses the write and stays byte-identical',
       skip: unreadablePathSkipReason(),

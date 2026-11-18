@@ -465,6 +465,58 @@ void main() {
     );
   });
 
+  test('a faulty scenario call exits 64 and a dry run refuses alike, one of several targets naming no doc included', () async {
+    final root = await _project(extra: {'docs/prds/notes.md': '# Notes\n'});
+    final calls = <(List<String>, String?, bool)>[
+      (['$_addItem#S2', _payCardAddress], _dropItem, false),
+      (['$_addItem#S2'], null, true),
+      (['$_addItem#S2'], null, false),
+      (['prds/notes.md#S1'], _dropItem, false),
+      (['$_addItem#S2', 'user_story:shop/cart/nope#S1'], _dropItem, false),
+    ];
+    for (final (addresses, under, top) in calls) {
+      final apply = _refusal(root, addresses, under: under, top: top);
+      final dry = _refusal(
+        root,
+        addresses,
+        under: under,
+        top: top,
+        dryRun: true,
+      );
+      expect(apply, isA<IndexFault>(), reason: '$addresses');
+      expect((apply as IndexFault).exitStatus, 64, reason: '$addresses');
+      expect(
+        (dry as IndexFault).exitStatus,
+        64,
+        reason: 'dry run of $addresses',
+      );
+      expect(dry.code, apply.code, reason: '$addresses');
+      expect(dry.message, apply.message, reason: '$addresses');
+    }
+  });
+
+  test('a dry run gives the refusal the apply gives for each scenario move refusal', () async {
+    final root = await _project(
+      add: [
+        _scenario(1),
+        _scenario(2),
+        _scenario(3, title: ' (BR-02)'),
+      ],
+      addRules: [_rule(1), _rule(2)],
+    );
+    final calls = <(List<String>, String)>[
+      (['$_addItem#S9'], _dropItem),
+      (['$_addItem#S3'], _dropItem),
+      (['$_addItem#S2'], 'feature:shop/cart'),
+    ];
+    for (final (addresses, under) in calls) {
+      final apply = _refusal(root, addresses, under: under);
+      final dry = _refusal(root, addresses, under: under, dryRun: true);
+      expect(dry.runtimeType, apply.runtimeType, reason: '$addresses');
+      expect(dry.toString(), apply.toString(), reason: '$addresses');
+    }
+  });
+
   test(
     'two clashing scenarios take the next two free numbers in order',
     () async {
@@ -934,6 +986,37 @@ void main() {
           '[S3]($_toDropItem/USER_STORY.md#acceptance-criteria), '
           '[S3]($_toAddItem/USER_STORY.md#acceptance-criteria) give.\n',
         ),
+      );
+    });
+
+    test('a target story under another feature leaves each entry outside the feature of its requirement scenario_trace_unresolved', () async {
+      final root = await _citedProject();
+      _move(root, ['$_addItem#S2'], under: _payCardAddress);
+      Future<List<Object?>> unresolved(String docPath) async => [
+        for (final finding in (await checkOf(root, docPath: docPath)).findings)
+          if (finding.kind == FindingKind.scenarioTraceUnresolved)
+            finding.toJson()['entry'],
+      ];
+      expect(await unresolved(cartAddFr), ['shop/pay/card#S2']);
+      expect(await unresolved(_dropFr), ['shop/pay/card#S2']);
+      expect(await unresolved(_payFr), isNot(contains('shop/pay/card#S2')));
+    });
+
+    test('a link inside the moved scenario to a scenario that stays reaches the source story', () async {
+      const stays = '$_toAddItem/USER_STORY.md#scenario-1--edge-case-1';
+      final root = await _project(
+        add: [
+          _scenario(1),
+          _scenario(2).replaceFirst(
+            'sees case 2',
+            'sees case 2, as [Scenario 1]($stays) gives',
+          ),
+        ],
+      );
+      _move(root, ['$_addItem#S2']);
+      expect(
+        readDoc(root, cartDrop),
+        contains('sees case 2, as [Scenario 1]($stays) gives'),
       );
     });
 

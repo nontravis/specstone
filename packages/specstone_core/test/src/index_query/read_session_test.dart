@@ -11,6 +11,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -74,6 +75,27 @@ void main() {
       );
       expect(inProject(project, indexFilePath).existsSync(), isFalse);
     });
+    test('a template fault and a config fault each carry their own fault code, exit 78, and read no index', () async {
+      for (final (config, code) in [
+        ('packs:\n  prd-core: 9.9.9\n', FaultCode.packPinNewer),
+        ('packs: [prd-core\n', FaultCode.yamlSyntax),
+        ('colour: blue\n', FaultCode.unknownKey),
+      ]) {
+        final project = await writeLoginProject(
+          extra: {'.specstone/config.yaml': config},
+        );
+        expect(
+          () => openSession(project),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', code)
+                .having((f) => f.exitStatus, 'exit', 78),
+          ),
+          reason: config,
+        );
+        expect(inProject(project, indexFilePath).existsSync(), isFalse);
+      }
+    });
     test('no docs folder answers as an empty tree', () async {
       final session = openSession(
         await writeTree({
@@ -93,6 +115,26 @@ void main() {
       );
       expect(session.docs, hasLength(25));
     });
+    test('a working folder whose docs link stands for another project reaches that project, not the outer one', () async {
+      final outer = await writeTree({
+        for (final entry in loginProject.entries)
+          'example/${entry.key}': entry.value,
+        'stratum_ui/.specstone/config.yaml':
+            loginProject['.specstone/config.yaml']!,
+        'stratum_ui/example/.keep': '',
+      });
+      Link('${outer.path}/stratum_ui/example/docs')
+          .createSync('../../example/docs');
+      final session = openSession(
+        Directory('${outer.path}/stratum_ui/example'),
+      );
+      addTearDown(session.close);
+      expect(
+        session.project.projectRoot.path,
+        Directory('${outer.path}/example').resolveSymbolicLinksSync(),
+      );
+      expect(session.docs, hasLength(25));
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
     test('an edited doc reads as edited on the next call', () async {
       final project = await writeLoginProject();
       openSession(project).close();
@@ -411,6 +453,70 @@ void main() {
         );
       },
     );
+    test('two refreshes started after one edit and held by the write lock reindex the edit once between them', () async {
+      final project = await writeLoginProject();
+      openSession(project).close();
+      inProject(project, featureKey).writeAsStringSync(loginV2);
+      final root = project.path;
+      int reindexedIn() {
+        final docsProject = DocsProject.open(
+          templates: TemplateResolver(),
+          workingDirectory: Directory(root),
+          homeDirectory: null,
+        );
+        final store = IndexStore.open(docsProject.projectRoot);
+        try {
+          return refreshIndex(store, docsProject).reindexed;
+        } finally {
+          store.close();
+        }
+      }
+
+      final holder = sqlite3.open(inProject(project, indexFilePath).path)
+        ..execute('BEGIN IMMEDIATE');
+      final runs = [Isolate.run(reindexedIn), Isolate.run(reindexedIn)];
+      await Future<void>.delayed(const Duration(seconds: 1));
+      holder
+        ..execute('ROLLBACK')
+        ..close();
+      expect((await Future.wait(runs))..sort(), [0, 1]);
+      final session = openSession(project);
+      addTearDown(session.close);
+      expect(titleOf(session, featureDoc), 'Login v2');
+    });
+    test('a reader with files to reindex waits for the write lock while a reader with none reads the committed index', () async {
+      final project = await writeLoginProject();
+      final old = DateTime.now().subtract(const Duration(hours: 2));
+      for (final entity in project.listSync(recursive: true)) {
+        if (entity is File && entity.path.endsWith('.md')) {
+          entity.setLastModifiedSync(old);
+        }
+      }
+      openSession(project).close();
+      final root = project.path;
+      String titleIn() {
+        final session = openSession(Directory(root));
+        try {
+          return '${titleOf(session, featureDoc)} ${session.docs.length}';
+        } finally {
+          session.close();
+        }
+      }
+
+      final holder = sqlite3.open(inProject(project, indexFilePath).path)
+        ..execute('BEGIN IMMEDIATE')
+        ..execute("DELETE FROM docs WHERE doc_path = '$featureDoc'");
+      expect(await Isolate.run(titleIn), 'Login 25');
+      inProject(project, featureKey).writeAsStringSync(loginV2);
+      var done = false;
+      final waiting = Isolate.run(titleIn).whenComplete(() => done = true);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(done, isFalse);
+      holder
+        ..execute('ROLLBACK')
+        ..close();
+      expect(await waiting, 'Login v2 25');
+    });
     test(
       'an open session keeps its snapshot while another call reindexes',
       () async {
