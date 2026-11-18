@@ -6,7 +6,9 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/prd_core.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../../specstone_core/test/helpers/software_tech.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -1423,13 +1425,65 @@ items:
 
         expect(await runner.run(['guide']), 0);
         final ids = const LineSplitter().convert(out.toString());
-        expect(ids, containsAll(['fr', 'architecture']));
+        expect(ids, [...prdCoreIds, ...softwareTechIds, 'skill']..sort());
         expect(err.toString(), isEmpty);
       },
       skip: _tempHasConfigAncestor()
           ? 'an ancestor of the system temp folder holds $_configPath'
           : false,
     );
+
+    test('a project listing prd-core and agent-skills lists skill beside the '
+        'prd-core doc types and prints its guide with no spec pack', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'agent-skills']),
+      );
+
+      expect(await runner.run(['guide']), 0);
+      expect(
+        const LineSplitter().convert(out.toString()),
+        [...prdCoreIds, 'skill']..sort(),
+      );
+
+      out.clear();
+      expect(await runner.run(['guide', 'skill']), 0);
+      expect(out.toString(), contains('## Sources\n\nRequired section.\n'));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide skill --json prints its path, output, feature, and sources '
+        'section', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'agent-skills']),
+      );
+
+      final schema = await schemaOf(runner, 'skill');
+      expect(schema['path'], 'specs/skills/{slug}.md');
+      final fields = (schema['fields']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(fields.map((f) => f['id']), containsAll(['output', 'feature']));
+      final covers = fields.singleWhere((f) => f['id'] == 'covers');
+      expect(covers['root'], 'project');
+      final sections = (schema['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(sections.map((s) => s['id']), [
+        'purpose',
+        'when_to_use',
+        'sources',
+      ]);
+    });
+
+    test('a project listing prd-core alone refuses guide skill with the '
+        'usage', () async {
+      final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
+
+      expect(await runner.run(['guide', 'skill']), 64);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "skill".\n\n$_guideUsage'),
+      );
+      expect(out.toString(), isEmpty);
+    });
 
     test('with only prd-core a software-tech type is neither listed nor '
         'printed', () async {

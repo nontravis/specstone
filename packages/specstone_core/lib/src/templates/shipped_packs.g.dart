@@ -1,6 +1,45 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
 const Map<String, String> shippedPackFilesBase64 = {
+  'agent-skills/pack.yaml':
+      'bmFtZTogYWdlbnQtc2tpbGxzCnZlcnNpb246IDEuMC4wCmV4dGVuZHM6IHByZC1j'
+      'b3JlCg==',
+  'agent-skills/skill.yaml':
+      'aWQ6IHNraWxsCmRlc2NyaXB0aW9uOiB8LQogIEEgc2tpbGwgZG9jOiB0aGUgc3Bl'
+      'YyBvZiBvbmUgaGFuZC13cml0dGVuIHByb2plY3Qgc2tpbGwsIG5hbWluZyB0aGUg'
+      'ZG9jcyBpdHMgcmVmZXJlbmNlIGZpbGVzIGNvbWUgZnJvbS4KICBUaXRsZSBpdCBg'
+      'IyA8U2tpbGwgbmFtZT5gLCB0aGUgc2tpbGwncyBzbHVnLCB3aXRoIG5vIG51bWJl'
+      'ci4KICBUaGUgT3duZXIgd3JpdGVzIGBTS0lMTC5tZGAgYnkgaGFuZDsgdGhlIHNr'
+      'aWxsIGRvYyBzcGVjcyBpdCwgYW5kIGBmb3JtYXRgIHdyaXRlcyBpdHMgcmVmZXJl'
+      'bmNlcy4KICBUaGUgYGNvdmVyczpgIGZpZWxkIGhvbGRzIG9uZSBlbnRyeSwgYDxv'
+      'dXRwdXQ+L1NLSUxMLm1kYC4KICBUaGUgYGNvdmVyc2AgZW50cnkgaXMgcmVhZCBm'
+      'cm9tIHRoZSBwcm9qZWN0IHJvb3QsIG5ldmVyIGZyb20gYSBjb2RlIHJvb3QsIHNp'
+      'bmNlIGl0IGJlbG9uZ3MgdG8gbm8gY29kZSB0YXJnZXQuCiAgU3BlY3N0b25lIGlu'
+      'c3RhbGxzIGFuZCBkaXN0cmlidXRlcyBubyBwcm9qZWN0IHNraWxsLgpwYXRoOiBz'
+      'cGVjcy9za2lsbHMve3NsdWd9Lm1kCmZpZWxkczoKICAtIGlkOiBvdXRwdXQKICAg'
+      'IHR5cGU6IHN0cmluZwogICAgcmVxdWlyZWQ6IHRydWUKICAgIGRlc2NyaXB0aW9u'
+      'OiB8LQogICAgICBOYW1lcyB0aGUgc2tpbGwncyBmb2xkZXIgcmVsYXRpdmUgdG8g'
+      'dGhlIHByb2plY3Qgcm9vdCwgc3VjaCBhcyBgLmNsYXVkZS9za2lsbHMvcmV2aWV3'
+      'L2AuCiAgICAgIEdpdmUgZWFjaCBza2lsbCBpdHMgb3duIGZvbGRlci4KICAtIGlk'
+      'OiBmZWF0dXJlCiAgICB0eXBlOiBkb2NfcmVmCiAgICBkb2NfdHlwZXM6IFtmZWF0'
+      'dXJlXQogICAgZGVzY3JpcHRpb246IHwtCiAgICAgIE5hbWVzIHRoZSBmZWF0dXJl'
+      'IHRoZSBza2lsbCBzZXJ2ZXM7IGl0IG11c3QgcmVzb2x2ZSB0byBhIGZlYXR1cmUu'
+      'CiAgLSBpZDogY292ZXJzCiAgICB0eXBlOiBvdXRwdXRfcmVmCiAgICBsaXN0OiB0'
+      'cnVlCiAgICByZXF1aXJlZDogdHJ1ZQogICAgcG9pbnRlcjogcHJlZml4CiAgICBy'
+      'b290OiBwcm9qZWN0CiAgICBkZXNjcmlwdGlvbjogfC0KICAgICAgTGlzdHMgb25l'
+      'IGVudHJ5LCBgPG91dHB1dD4vU0tJTEwubWRgLCByZWxhdGl2ZSB0byB0aGUgcHJv'
+      'amVjdCByb290LgogICAgICBUaGUgZW50cnkgbWF5IGVuZCBpbiBvbmUgc3BhY2Ug'
+      'YW5kIGl0cyBjb2RlIGZpbmdlcnByaW50LCB3aGljaCBgY2hlY2tgIGNvbXBhcmVz'
+      'IHdpdGggdGhlIGZpbGUgaXQgbmFtZXMuCnNlY3Rpb25zOgogIC0gaWQ6IHB1cnBv'
+      'c2UKICAgIGhlYWRlcjogUHVycG9zZQogICAgc3VtbWFyeTogdHJ1ZQogICAgZGVz'
+      'Y3JpcHRpb246IHwtCiAgICAgIFdyaXRlIHdoYXQgdGhlIHNraWxsIGRvZXMgZm9y'
+      'IHRoZSBhZ2VudCB0aGF0IGxvYWRzIGl0LgogIC0gaWQ6IHdoZW5fdG9fdXNlCiAg'
+      'ICBoZWFkZXI6IFdoZW4gdG8gdXNlCiAgICBkZXNjcmlwdGlvbjogfC0KICAgICAg'
+      'TGlzdCB0aGUgdGFza3MgdGhhdCBsb2FkIHRoZSBza2lsbC4KICAtIGlkOiBzb3Vy'
+      'Y2VzCiAgICBoZWFkZXI6IFNvdXJjZXMKICAgIHJlcXVpcmVkOiB0cnVlCiAgICBk'
+      'ZXNjcmlwdGlvbjogfC0KICAgICAgV3JpdGUgb25lIG1hcmtkb3duIGxpbmsgcGVy'
+      'IGRvYyB0aGUgc2tpbGwncyByZWZlcmVuY2VzIGNvbWUgZnJvbTsgYSBkb2Mgb2Yg'
+      'YW55IHBhY2sgbWF5IGJlIGEgc291cmNlLgo=',
   'prd-core/anti_persona.yaml':
       'aWQ6IGFudGlfcGVyc29uYQpkZXNjcmlwdGlvbjogfC0KICBBbiBhbnRpLXBlcnNv'
       'bmE6IGEgZ3JvdXAgdGhlIHByb2R1Y3QgbXVzdCByZXNpc3Qgb3IgZG9lcyBub3Qg'

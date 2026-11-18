@@ -2367,9 +2367,10 @@ path: adr/{slug}.md
   });
 
   group('TemplateResolver.availableManifests and resolveCarried', () {
-    test('availableManifests gives the carried prd-core and '
-        'software-tech versions', () {
+    test('availableManifests gives the carried version of each shipped '
+        'pack', () {
       final manifests = TemplateResolver().availableManifests([
+        'agent-skills',
         'prd-core',
         'software-tech',
       ], homeDirectory: null);

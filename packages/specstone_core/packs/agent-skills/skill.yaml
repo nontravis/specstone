@@ -1,0 +1,45 @@
+id: skill
+description: |-
+  A skill doc: the spec of one hand-written project skill, naming the docs its reference files come from.
+  Title it `# <Skill name>`, the skill's slug, with no number.
+  The Owner writes `SKILL.md` by hand; the skill doc specs it, and `format` writes its references.
+  The `covers:` field holds one entry, `<output>/SKILL.md`.
+  The `covers` entry is read from the project root, never from a code root, since it belongs to no code target.
+  Specstone installs and distributes no project skill.
+path: specs/skills/{slug}.md
+fields:
+  - id: output
+    type: string
+    required: true
+    description: |-
+      Names the skill's folder relative to the project root, such as `.claude/skills/review/`.
+      Give each skill its own folder.
+  - id: feature
+    type: doc_ref
+    doc_types: [feature]
+    description: |-
+      Names the feature the skill serves; it must resolve to a feature.
+  - id: covers
+    type: output_ref
+    list: true
+    required: true
+    pointer: prefix
+    root: project
+    description: |-
+      Lists one entry, `<output>/SKILL.md`, relative to the project root.
+      The entry may end in one space and its code fingerprint, which `check` compares with the file it names.
+sections:
+  - id: purpose
+    header: Purpose
+    summary: true
+    description: |-
+      Write what the skill does for the agent that loads it.
+  - id: when_to_use
+    header: When to use
+    description: |-
+      List the tasks that load the skill.
+  - id: sources
+    header: Sources
+    required: true
+    description: |-
+      Write one markdown link per doc the skill's references come from; a doc of any pack may be a source.
