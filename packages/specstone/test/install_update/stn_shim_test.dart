@@ -127,7 +127,8 @@ void main() {
     expect(reached.exitCode, 0);
     expect(sb.logOf('linked'), ['ran']);
     expect(sb.logOf('specstone'), isEmpty);
-    expect(missing.exitCode, 127);
+    // dash exits 127 for a missing file, macOS sh 126.
+    expect(missing.exitCode, anyOf(126, 127));
     expect(missing.stderr, contains('specstone'));
     expect(sb.logOf('linked'), ['ran']);
     expect(sb.logOf('specstone'), isEmpty);
