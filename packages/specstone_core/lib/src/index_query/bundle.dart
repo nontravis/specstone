@@ -62,6 +62,14 @@ final class Bundle {
   /// The docs a design bundle prints in summary, by DocPath.
   final Set<String> summaryPaths = {};
 
+  /// The non-ChainType children of a chain doc above a design target, by
+  /// DocPath; filled by [addTarget] when asked to mark them.
+  final Set<String> ancestorSpecPaths = {};
+
+  /// The target story or FR's story subtree, or a top or nesting-type doc
+  /// target's whole subtree, by DocPath; filled with [ancestorSpecPaths].
+  final Set<String> targetSubtreePaths = {};
+
   /// The docs that join only through their doc type's `bundle:` list.
   final Set<String> joinedPaths = {};
 
@@ -97,6 +105,9 @@ final class Bundle {
           ? type.printsSummaryFor(null)
           : targetTypeIds.any(type.printsSummaryFor));
 
+  /// Whether the bundle holds an ancestor spec doc.
+  bool get hasAncestorSpecs => ancestorSpecPaths.isNotEmpty;
+
   /// Whether [doc] belongs to [codeTarget]: it is shared, or of that target.
   ///
   /// Public so the code-path bundle's spec-folder walk keeps to the picked
@@ -112,7 +123,10 @@ final class Bundle {
       index.typeOf(doc)?.bundleRefs == true;
 
   /// Adds [target] and its chain docs by [mode]'s rule.
-  void addTarget(DocIndex index, IndexedDoc target) {
+  ///
+  /// [marksSpecs] fills [ancestorSpecPaths] and [targetSubtreePaths] in a
+  /// `design` bundle; only a doc target asks for it.
+  void addTarget(DocIndex index, IndexedDoc target, {bool marksSpecs = false}) {
     final typeId = target.docTypeId;
     final parent = index.parentOf(target);
     final effective =
@@ -125,7 +139,7 @@ final class Bundle {
         _addAll(docPaths, index.chainOf(effective));
         mapTops.add(top.docPath);
       case BundleMode.design:
-        _addDesign(index, effective, top);
+        _addDesign(index, effective, top, marksSpecs: marksSpecs);
         _addAll(patternListerPaths, index.chainOf(effective));
       case BundleMode.implement:
         _addImplement(index, effective, top);
@@ -184,18 +198,28 @@ final class Bundle {
   ///
   /// The nearest nesting doc and its unit take the design rule; each chain doc
   /// above prints whole with a name list of its ChainType children.
-  void _addDesign(DocIndex index, IndexedDoc target, IndexedDoc top) {
+  void _addDesign(
+    DocIndex index,
+    IndexedDoc target,
+    IndexedDoc top, {
+    required bool marksSpecs,
+  }) {
     final designTop = _designTopOf(index, target, top);
     final chain = index.chainOf(target);
     final topAt = chain.indexOf(designTop);
-    _addDesignSubtree(index, designTop, topAt == 0 ? null : chain[topAt - 1]);
+    _addDesignSubtree(
+      index,
+      designTop,
+      topAt == 0 ? null : chain[topAt - 1],
+      marksSpecs: marksSpecs,
+    );
     for (final ancestor in chain.skip(topAt + 1)) {
       if (!keepsTarget(ancestor)) continue;
       docPaths.add(ancestor.docPath);
       for (final child in index.childrenOf(ancestor)) {
-        if (!index.isChainDoc(child)) {
-          _addAll(docPaths, index.subtreeOf(child));
-        }
+        if (index.isChainDoc(child)) continue;
+        _addAll(docPaths, index.subtreeOf(child));
+        if (marksSpecs) _addAll(ancestorSpecPaths, [child]);
       }
       nameListTops.add(ancestor.docPath);
     }
@@ -204,8 +228,12 @@ final class Bundle {
   void _addDesignSubtree(
     DocIndex index,
     IndexedDoc designTop,
-    IndexedDoc? unit,
-  ) {
+    IndexedDoc? unit, {
+    required bool marksSpecs,
+  }) {
+    if (marksSpecs) {
+      _addAll(targetSubtreePaths, index.subtreeOf(unit ?? designTop));
+    }
     if (unit == null && !summary) {
       _addAll(docPaths, index.subtreeOf(designTop));
       return;
@@ -214,6 +242,9 @@ final class Bundle {
     for (final child in index.childrenOf(designTop)) {
       if (!index.isChainDoc(child) || child.docPath == unit?.docPath) {
         _addAll(docPaths, index.subtreeOf(child));
+        if (marksSpecs && unit != null && !index.isChainDoc(child)) {
+          _addAll(ancestorSpecPaths, [child]);
+        }
       } else {
         _addAll(summaryPaths, index.subtreeOf(child));
       }
@@ -363,7 +394,7 @@ Bundle pickBundle(
   final bundle = Bundle(mode, summary: summary, codeTarget: codeTarget);
   for (final doc in picked) {
     bundle
-      ..addTarget(index, doc)
+      ..addTarget(index, doc, marksSpecs: true)
       ..nameTarget(doc);
     if (doc.docTypeId case final typeId?) bundle.targetTypeIds.add(typeId);
   }

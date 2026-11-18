@@ -7,11 +7,12 @@ nothing but the agent's `report:` file; never edit the design document. Ask the 
 1. **Inputs**: the design document's path, and `amend: <N>` when given. With no design document, make the
    missing-input stop: its `OPEN QUESTIONS:` line names the design document.
 2. **Design document**: read it whole; list each decision by its ID or label. With `amend: <N>`, keep only the
-   decisions whose heading lists `Amend <N>`: `amend: 4` keeps a decision headed `(Amend 2, Amend 4)`. When no heading
-   lists it, make the missing-input stop, its `OPEN QUESTIONS:` line naming `amend`. With no `amend`, keep every
-   decision.
+   decisions whose heading lists `Amend <N>`: `amend: 4` keeps a decision headed `(Amend 2, Amend 4)` and a stub
+   headed `(Amend 2, Amend 4, removed)`. Read the stub as an amended decision; another decision, ruling, or section
+   of the design still stating its removed rule is a gap of the stub's decision. When no heading lists it, make the
+   missing-input stop, its `OPEN QUESTIONS:` line naming `amend`. With no `amend`, keep every decision, a stub too.
 3. **Targets**: each doc that exists among the Docs to change rows; with `amend: <N>`, only the rows of the decisions
-   step 2 kept. A row for a doc still to be created is no target.
+   step 2 kept, a stub's rows included. A row for a doc still to be created is no target.
 4. **Bundles**: ground the features the targets fall under as step 1.3 of `audit.md` does, one
    `specstone context <feature> --for design --out` each. Run no `get`.
 

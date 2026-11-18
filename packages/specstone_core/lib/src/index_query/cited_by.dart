@@ -23,6 +23,27 @@ final class CitedByIndex extends MapView<CitedPlace, List<CitedBy>> {
 
   /// Whether the lines print right after their place.
   final bool inline;
+
+  /// Returns this index less each line whose citer's DocPath is in [from] on a
+  /// place of a doc whose DocPath is in [into]; a place left bare is dropped.
+  CitedByIndex withoutLinks({
+    required Set<String> from,
+    required Set<String> into,
+  }) {
+    final kept = <CitedPlace, List<CitedBy>>{};
+    for (final MapEntry(key: place, value: lines) in entries) {
+      if (!into.contains(place.docPath)) {
+        kept[place] = lines;
+        continue;
+      }
+      final rest = [
+        for (final by in lines)
+          if (!from.contains(by.docPath)) by,
+      ];
+      if (rest.isNotEmpty) kept[place] = rest;
+    }
+    return CitedByIndex(kept, inline: inline);
+  }
 }
 
 /// Returns who cites each place, from the links the index stores.
@@ -64,6 +85,7 @@ Map<CitedPlace, List<CitedBy>> _citedLinksIn(DocIndex index) {
       for (final place in _citesOn(index, reader, line, read)) {
         (cited[place] ??= []).add(
           CitedBy(
+            docPath: source.docPath,
             name: source.name,
             docType: reader.docTypeId,
             byItem: reader.itemHolding(line),
@@ -425,17 +447,15 @@ final class _Doc {
   List<_ItemExtent> _extentsOf(int at) {
     final section = sectionAt(at);
     if (section == null) return const [];
-    final body = sectionBodyLines(content.sections, facts, at);
+    final extents = itemExtentsOf(
+      sectionBodyLines(content.sections, facts, at),
+      prefixId: section.prefixId,
+      isAcceptanceCriteria: section.isAcceptanceCriteria,
+    );
     return [
       for (final fact in content.itemFacts.sectionItems[at])
         if (fact.id case final id?)
-          if (itemExtentOf(
-                body,
-                id,
-                prefixId: section.prefixId,
-                isAcceptanceCriteria: section.isAcceptanceCriteria,
-              )
-              case final extent?)
+          if (extents[id] case final extent?)
             _ItemExtent(id: id, extent: extent),
     ];
   }
@@ -449,33 +469,11 @@ final class _Doc {
 /// anchor, so each link is read once; a link with no text, whose own text
 /// reads as no item ID, is a section, block, or doc link.
 Map<int, List<LinkText>> _linksByLineOf(LineFacts facts) {
-  final stored = <(int, String, String?, String), List<LinkText>>{};
-  for (final text in facts.linkTexts) {
-    (stored[(text.line, text.target, text.anchor, text.shown)] ??= []).add(
-      text,
-    );
-  }
-  final taken = <(int, String, String?, String), int>{};
+  final places = facts.links;
+  final stored = storedLinkTextsOf(places, facts.linkTexts);
   final byLine = <int, List<LinkText>>{};
-  for (final place in facts.links) {
-    final key = (place.line, place.target, place.anchor, place.shown);
-    final nth = taken[key] ?? 0;
-    taken[key] = nth + 1;
-    final texts = stored[key];
-    (byLine[place.line] ??= []).add(
-      texts != null && nth < texts.length
-          ? texts[nth]
-          : (
-              line: place.line,
-              column: 0,
-              endLine: place.line,
-              endColumn: 0,
-              text: '',
-              target: place.target,
-              anchor: place.anchor,
-              shown: place.shown,
-            ),
-    );
+  for (final (i, place) in places.indexed) {
+    (byLine[place.line] ??= []).add(stored[i] ?? textFreeLinkOf(place));
   }
   return byLine;
 }
