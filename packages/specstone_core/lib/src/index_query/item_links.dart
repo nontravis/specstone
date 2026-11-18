@@ -299,6 +299,34 @@ BigInt? _numberOf(String id, String? prefix) {
   return null;
 }
 
+/// Returns the extent of each ID of [section] as [itemExtentOf] gives it,
+/// keyed by the ID: the section is read once, and the first item holding an
+/// ID spans it.
+Map<String, LineRange> itemExtentsOf(
+  List<BodyLine> section, {
+  required String? prefixId,
+  required bool isAcceptanceCriteria,
+}) {
+  final items = sectionItemsOf(section);
+  final extents = <String, LineRange>{};
+  final seen = <String>{};
+  for (final (i, item) in items.indexed) {
+    final isHeading = item.kind == SectionItemKind.heading;
+    final key = itemKeyOfHead(
+      item.head,
+      isHeading: isHeading,
+      prefixId: prefixId,
+      isAcceptanceCriteria: isAcceptanceCriteria,
+    );
+    if (key == null || !seen.add(key)) continue;
+    final extent = isHeading
+        ? headingBlockExtentOf(section, item.line)
+        : _listExtent(section, items, i);
+    if (extent != null) extents[key] = extent;
+  }
+  return extents;
+}
+
 /// The first and last body line of the block of the heading at file line
 /// [headingLine] of [section]: up to the next heading of its level or above,
 /// trailing blank lines off; null when that line is no

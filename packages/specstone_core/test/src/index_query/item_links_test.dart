@@ -444,6 +444,57 @@ void main() {
     });
   });
 
+  group('itemExtentsOf', () {
+    for (final (shape, text, prefix, ids) in [
+      (
+        'a repeated ID',
+        '- RULE-1 one\n  - a\n- RULE-2 two\n- RULE-1 again\n',
+        'RULE-',
+        ['RULE-1', 'RULE-2'],
+      ),
+      (
+        'nested ID items',
+        '- Group\n  - INV-1 a\n    - note\n  - INV-2 b\n- INV-3 c\n',
+        'INV-',
+        ['INV-1', 'INV-2', 'INV-3'],
+      ),
+      (
+        'an indented fence',
+        '- RULE-1 x\n\n  ```dart\n  code\n  ```\n\n- RULE-2 y\n',
+        'RULE-',
+        ['RULE-1', 'RULE-2'],
+      ),
+      (
+        'heading blocks',
+        '### NFR-P01 — Fast\n\n#### Notes\n\ntext\n\n### NFR-P02 — Cheap\n',
+        'NFR-P',
+        ['NFR-P01', 'NFR-P02'],
+      ),
+    ]) {
+      test('each ID spans what a lookup of that ID alone gives, '
+          'the first item holding an ID winning, with $shape', () {
+        final body = _body(text);
+        final extents = itemExtentsOf(
+          body,
+          prefixId: prefix,
+          isAcceptanceCriteria: false,
+        );
+        expect(extents.keys, unorderedEquals(ids));
+        for (final id in ids) {
+          expect(
+            extents[id],
+            itemExtentOf(
+              body,
+              id,
+              prefixId: prefix,
+              isAcceptanceCriteria: false,
+            ),
+          );
+        }
+      });
+    }
+  });
+
   group('headingBlockExtentOf', () {
     test('a ### heading with no ID spans its block up '
         'to the next heading of its level or above', () {

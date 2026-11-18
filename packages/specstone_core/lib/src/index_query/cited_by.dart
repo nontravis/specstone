@@ -447,17 +447,15 @@ final class _Doc {
   List<_ItemExtent> _extentsOf(int at) {
     final section = sectionAt(at);
     if (section == null) return const [];
-    final body = sectionBodyLines(content.sections, facts, at);
+    final extents = itemExtentsOf(
+      sectionBodyLines(content.sections, facts, at),
+      prefixId: section.prefixId,
+      isAcceptanceCriteria: section.isAcceptanceCriteria,
+    );
     return [
       for (final fact in content.itemFacts.sectionItems[at])
         if (fact.id case final id?)
-          if (itemExtentOf(
-                body,
-                id,
-                prefixId: section.prefixId,
-                isAcceptanceCriteria: section.isAcceptanceCriteria,
-              )
-              case final extent?)
+          if (extents[id] case final extent?)
             _ItemExtent(id: id, extent: extent),
     ];
   }

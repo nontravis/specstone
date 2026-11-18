@@ -399,18 +399,15 @@ final class _View {
   List<_IdExtent> _idExtentsOf(int at) {
     final section = sectionAt(at);
     if (section == null) return const [];
-    final body = _bodyOf(at);
+    final extents = itemExtentsOf(
+      _bodyOf(at),
+      prefixId: section.prefixId,
+      isAcceptanceCriteria: section.isAcceptanceCriteria,
+    );
     return [
       for (final fact in content.itemFacts.sectionItems[at])
         if (fact.id case final id?)
-          if (itemExtentOf(
-                body,
-                id,
-                prefixId: section.prefixId,
-                isAcceptanceCriteria: section.isAcceptanceCriteria,
-              )
-              case final extent?)
-            _IdExtent(id: id, extent: extent),
+          if (extents[id] case final extent?) _IdExtent(id: id, extent: extent),
     ];
   }
 
