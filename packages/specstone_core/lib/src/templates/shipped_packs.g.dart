@@ -219,17 +219,17 @@ const Map<String, String> shippedPackFilesBase64 = {
       'YXJuaW5nIGVkaXRzIHRoZSBkb2MgaXQgY29ycmVjdHMuCnBhdGg6IHNwZWNzL21h'
       'cmtldGluZy9NRVNTQUdJTkcubWQKc2VjdGlvbnM6CiAgLSBpZDogY29yZV9tZXNz'
       'YWdlCiAgICBoZWFkZXI6IENvcmUgbWVzc2FnZQogICAgZGVzY3JpcHRpb246IHwt'
-      'CiAgICAgIFdyaXRlIHRoZSBvbmUtc2VudGVuY2UgdmFsdWUgdGhlIHByb2R1Y3Qg'
-      'cHJvbWlzZXMuCiAgLSBpZDogcGlsbGFycwogICAgaGVhZGVyOiBQaWxsYXJzCiAg'
-      'ICBkZXNjcmlwdGlvbjogfC0KICAgICAgV3JpdGUgZWFjaCBwaWxsYXIgd2l0aCBp'
-      'dHMgcHJvb2YsIHN1Y2ggYXMgYSBudW1iZXIsIGEgbmFtZWQgY3VzdG9tZXIsIG9y'
-      'IGEgbWVjaGFuaXNtLgogIC0gaWQ6IHBlcl9hdWRpZW5jZQogICAgaGVhZGVyOiBQ'
-      'ZXIgYXVkaWVuY2UKICAgIGRlc2NyaXB0aW9uOiB8LQogICAgICBXcml0ZSBob3cg'
-      'dGhlIHdvcmRpbmcgc2hpZnRzIGZvciBlYWNoIGF1ZGllbmNlLCB3aXRoIHRoZSBj'
-      'b3JlIG1lc3NhZ2UgYW5kIHBpbGxhcnMgdW5jaGFuZ2VkLgpyZWZlcmVuY2U6CiAg'
-      'LSB0aXRsZTogQmFyZSBTdHJhdGVneSwgQjJCIG1lc3NhZ2luZyBob3VzZQogICAg'
-      'dXJsOiBodHRwczovL2JhcmVzdHJhdGVneS5jb20vYmxvZy9tZXNzYWdpbmctaG91'
-      'c2UtZnJhbWV3b3JrCg==',
+      'CiAgICAgIFdyaXRlIHRoZSBjb3JlIHZhbHVlIHRoZSBwcm9kdWN0IHByb21pc2Vz'
+      'LgogIC0gaWQ6IHBpbGxhcnMKICAgIGhlYWRlcjogUGlsbGFycwogICAgZGVzY3Jp'
+      'cHRpb246IHwtCiAgICAgIFdyaXRlIGVhY2ggcGlsbGFyIHdpdGggaXRzIHByb29m'
+      'LCBzdWNoIGFzIGEgbnVtYmVyLCBhIG5hbWVkIGN1c3RvbWVyLCBvciBhIG1lY2hh'
+      'bmlzbS4KICAtIGlkOiBwZXJfYXVkaWVuY2UKICAgIGhlYWRlcjogUGVyIGF1ZGll'
+      'bmNlCiAgICBkZXNjcmlwdGlvbjogfC0KICAgICAgV3JpdGUgaG93IHRoZSB3b3Jk'
+      'aW5nIHNoaWZ0cyBmb3IgZWFjaCBhdWRpZW5jZSwgd2l0aCB0aGUgY29yZSBtZXNz'
+      'YWdlIGFuZCBwaWxsYXJzIHVuY2hhbmdlZC4KcmVmZXJlbmNlOgogIC0gdGl0bGU6'
+      'IEJhcmUgU3RyYXRlZ3ksIEIyQiBtZXNzYWdpbmcgaG91c2UKICAgIHVybDogaHR0'
+      'cHM6Ly9iYXJlc3RyYXRlZ3kuY29tL2Jsb2cvbWVzc2FnaW5nLWhvdXNlLWZyYW1l'
+      'd29yawo=',
   'marketing/pack.yaml':
       'bmFtZTogbWFya2V0aW5nCnZlcnNpb246IDEuMC4wCmV4dGVuZHM6IHByZC1jb3Jl'
       'Cg==',

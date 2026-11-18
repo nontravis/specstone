@@ -10,7 +10,7 @@ sections:
   - id: core_message
     header: Core message
     description: |-
-      Write the one-sentence value the product promises.
+      Write the core value the product promises.
   - id: pillars
     header: Pillars
     description: |-

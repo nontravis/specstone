@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
@@ -16,7 +17,6 @@ import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 
-const _campaignDoc = 'specs/f01_login/CAMPAIGN.md';
 const _resultsDoc = 'specs/f01_login/results/RESULTS.md';
 const _positioningDoc = 'specs/marketing/POSITIONING.md';
 const _packs = ['prd-core', 'software-tech', 'marketing'];
@@ -110,10 +110,6 @@ Future<List<String>> _findings(
   );
   return spots(await checkOf(project, docPath: path), kind);
 }
-
-String _campaign({String? covers}) =>
-    '---\n${covers == null ? '' : 'covers:\n  - $covers\n'}---\n\n'
-    '# Launch\n\n## Plan\n\nLaunch in May.\n';
 
 void main() {
   late MergedSet set;
@@ -239,6 +235,18 @@ void main() {
       }
     });
 
+    test('no guide carries a shared readability line', () {
+      for (final id in marketingIds) {
+        final description = prdCoreDocType(set, id).description;
+        expect(
+          description,
+          isNot(contains(sentenceLengthGuideLine)),
+          reason: id,
+        );
+        expect(description, isNot(contains(citeNoteGuideLine)), reason: id);
+      }
+    });
+
     test('none sets per_target', () {
       for (final id in marketingIds) {
         expect(prdCoreDocType(set, id).isPerTarget, isFalse, reason: id);
@@ -315,13 +323,13 @@ void main() {
 
   group('check', () {
     test('a campaign with no covers gives no finding', () async {
-      expect(await _findings(_campaignDoc, _campaign()), isEmpty);
+      expect(await _findings(campaignDocPath, campaignDocText()), isEmpty);
     });
 
     test('a campaign outside a feature folder is untyped', () async {
       const loose = 'specs/CAMPAIGN.md';
       expect(
-        await _findings(loose, _campaign(), kind: FindingKind.untypedDoc),
+        await _findings(loose, campaignDocText(), kind: FindingKind.untypedDoc),
         ['$loose:1: untyped_doc'],
       );
     });
@@ -334,7 +342,7 @@ void main() {
           '# Launch results\n\n## Funnel\n\n[funnel](funnel.csv)\n\n'
           '## Channels\n\nEmail.\n\n## Spend\n\nNone.\n',
           kind: FindingKind.linkTargetMissing,
-          extra: {'docs/$_campaignDoc': _campaign()},
+          extra: {'docs/$campaignDocPath': campaignDocText()},
         ),
         [startsWith('$_resultsDoc:')],
       );
@@ -349,7 +357,7 @@ void main() {
             '# Launch results\n\n## Funnel\n\n[funnel](funnel.csv)\n\n'
             '## Channels\n\nEmail.\n\n## Spend\n\nNone.\n',
             extra: {
-              'docs/$_campaignDoc': _campaign(),
+              'docs/$campaignDocPath': campaignDocText(),
               'docs/specs/f01_login/results/funnel.csv': 'stage,count\n',
             },
           ),

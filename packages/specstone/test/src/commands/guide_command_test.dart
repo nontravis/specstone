@@ -1482,6 +1482,15 @@ items:
           ]..sort(),
         );
         expect(err.toString(), isEmpty);
+
+        out.clear();
+        expect(await runner.run(['guide', 'voice']), 0);
+        final headers = RegExp(
+          r'^## .+$',
+          multiLine: true,
+        ).allMatches(out.toString()).map((m) => m[0]).toList();
+        expect(headers.last, '## Writing habits');
+        expect(err.toString(), isEmpty);
       },
       skip: _tempHasConfigAncestor()
           ? 'an ancestor of the system temp folder holds $_configPath'

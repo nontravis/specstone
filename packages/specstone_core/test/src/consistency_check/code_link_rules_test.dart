@@ -14,6 +14,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/marketing.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_doc_fixture.dart';
@@ -94,7 +95,6 @@ Future<Directory> _skillProject(List<String> covers) => writeCheckProject(
 Map<String, String> _covering(String covers) =>
     doc(loginArchitecture, '  - app/lib/\n', covers);
 
-const _campaignDoc = 'specs/f01_login/CAMPAIGN.md';
 const _post = 'posts/launch.md';
 const _postText = 'Launch day.\nSee the site.\n';
 
@@ -106,9 +106,7 @@ Future<Directory> _campaignProject(
 }) => writeCheckProject(
   extra: {
     '.specstone/config.yaml': shippedPinsConfig(['prd-core', 'marketing']),
-    'docs/$_campaignDoc':
-        '---\ncovers:\n${[for (final c in covers) '  - $c\n'].join()}---\n\n'
-        '# Launch\n\n## Plan\n\nLaunch the product.\n',
+    'docs/$campaignDocPath': campaignDocText(covers),
     _post: _postText,
   },
   without: {_recordPath},
@@ -737,7 +735,7 @@ void main() {
       final report = await _run(await _campaignProject(['$_post $_stale']));
       final [finding] = _suspects(report);
 
-      expect(finding.path, _campaignDoc);
+      expect(finding.path, campaignDocPath);
       expect(finding.keys, {
         'entry': _post,
         'path': _post,
@@ -751,12 +749,12 @@ void main() {
       final report = await _run(
         await _campaignProject(
           [_post],
-          unfingerprinted: {'docs/$_campaignDoc'},
+          unfingerprinted: {'docs/$campaignDocPath'},
         ),
       );
       final [finding] = _unconfirmed(report);
 
-      expect(finding.path, _campaignDoc);
+      expect(finding.path, campaignDocPath);
       expect(finding.keys, {
         'entry': _post,
         'path': _post,

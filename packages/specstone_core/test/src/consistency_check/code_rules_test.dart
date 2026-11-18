@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/marketing.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_doc_fixture.dart';
@@ -68,8 +69,6 @@ Future<Directory> _twin({
   },
 );
 
-const _campaignDoc = 'specs/f01_login/CAMPAIGN.md';
-
 /// The `config.yaml` text pinning `prd-core`, `marketing`, and [more], then
 /// [rest].
 String _marketingConfig(List<String> more, String rest) =>
@@ -87,9 +86,7 @@ Future<Directory> _campaignProject(
 }) => writeCheckProject(
   extra: {
     '.specstone/config.yaml': _marketingConfig(more, rest),
-    'docs/$_campaignDoc':
-        '---\ncovers:\n${[for (final c in covers) '  - $c\n'].join()}---\n\n'
-        '# Launch\n\n## Plan\n\nLaunch the product.\n',
+    'docs/$campaignDocPath': campaignDocText(covers),
     ...content,
   },
   without: {loginRecord},
@@ -711,10 +708,10 @@ void main() {
         "entry's line, in a project with no record", () async {
       final project = await _campaignProject([gone]);
 
-      final line = lineOfFirst(project, _campaignDoc, gone);
+      final line = lineOfFirst(project, campaignDocPath, gone);
 
       expect(spots(await _run(project), FindingKind.coversPathMissing), [
-        '$_campaignDoc:$line: covers_path_missing',
+        '$campaignDocPath:$line: covers_path_missing',
       ]);
     });
 
@@ -754,7 +751,7 @@ void main() {
       );
 
       expect(_of(report, FindingKind.coversPathMissing), [
-        '$_campaignDoc: $gone',
+        '$campaignDocPath: $gone',
       ]);
     });
   });

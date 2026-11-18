@@ -34,3 +34,14 @@ Future<MergedSet> resolveMarketing([
     homeDirectory: home,
   );
 }
+
+/// The path under `docs/` of the `campaign` doc the check tests write.
+const campaignDocPath = 'specs/f01_login/CAMPAIGN.md';
+
+/// Returns a `campaign` doc covering [covers]; no `covers` field when empty.
+String campaignDocText([List<String> covers = const []]) {
+  final coversField = covers.isEmpty
+      ? ''
+      : 'covers:\n${[for (final c in covers) '  - $c\n'].join()}';
+  return '---\n$coversField---\n\n# Launch\n\n## Plan\n\nLaunch the product.\n';
+}

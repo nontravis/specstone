@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -18,10 +19,10 @@ import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 
 const _voiceDoc = 'specs/marketing/VOICE.md';
-const _readabilityMarkers = [
-  'Each sentence holds 25 words or fewer',
+const List<String> _readabilityMarkers = [
+  sentenceLengthGuideLine,
   'Keep one rule in each item',
-  "Put a cite or an ownership note at the item's end.",
+  citeNoteGuideLine,
   'State the condition first',
 ];
 const _allSixPacks = [
