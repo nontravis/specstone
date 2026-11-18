@@ -133,6 +133,57 @@ void main() {
     expect(_patterns(found), ['error_case']);
   });
 
+  test('a missing error scenario names the acceptance_criteria section, and '
+      'an Error cases N/A line passes', () async {
+    Future<List<Finding>> missing(String scenario2) async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: doc(loginStory, loginScenario2, scenario2),
+        ),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.patternMissing) f,
+      ];
+    }
+
+    final happyOnly = await missing('### Scenario 2 — [edge] Empty password');
+    expect(happyOnly, hasLength(1));
+    expect(
+      happyOnly.single.toJson(),
+      allOf(
+        containsPair('section', 'acceptance_criteria'),
+        containsPair('pattern', 'error_case'),
+      ),
+    );
+    expect(await missing('Error cases: N/A'), isEmpty);
+  });
+
+  test(
+    'a story with neither vision nor goals is field_group_missing',
+    () async {
+      final found = await _found(
+        doc(loginStory, '---\ngoals:\n  - PG-01\n---\n\n', ''),
+        FindingKind.fieldGroupMissing,
+      );
+      expect(found, hasLength(1));
+      expect(found.single.path, loginStory);
+    },
+  );
+
+  test('the reference doc type holds no banned_patterns entry of any '
+      'id', () async {
+    final reference = prdCoreDocType(await resolvePrdCore(), 'reference');
+    expect(reference.lint.bannedPatterns ?? const <PatternEntry>[], isEmpty);
+    for (final section in reference.sections) {
+      expect(
+        section.bannedPatterns ?? const <PatternEntry>[],
+        isEmpty,
+        reason: section.id,
+      );
+    }
+  });
+
   test('a feature with neither vision nor goals is '
       'field_group_missing', () async {
     final found = await _found(

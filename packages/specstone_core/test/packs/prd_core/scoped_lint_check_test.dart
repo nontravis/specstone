@@ -4,6 +4,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 
 const _antiPersona = 'prds/personas/buyer/ANTI_PERSONA.md';
+const _featuresDoc = 'prds/FEATURES.md';
 
 Future<List<Finding>> _found(
   Map<String, String> edits,
@@ -108,6 +109,91 @@ void main() {
       FindingKind.patternBanned,
     );
     expect(found, isEmpty);
+  });
+
+  test(
+    'a project doc-level banned word gives a finding in any section',
+    () async {
+      final found = await _found({
+        '.specstone/templates/fr.yaml': 'lint:\n  banned_words: [simply]\n',
+        ...edit(loginFr, [
+          (
+            'A wrong password must not sign in.',
+            'A wrong password simply must not sign in.',
+          ),
+          (
+            'Test: a wrong password is refused.',
+            'Test: simply a wrong password is refused.',
+          ),
+        ]),
+      }, FindingKind.bannedWord);
+
+      expect(
+        [for (final f in found) (f.toJson()['word'], f.toJson()['section'])],
+        [('simply', 'rationale'), ('simply', 'verification')],
+      );
+    },
+  );
+
+  group('the shapes a count or a title decides', () {
+    test('a persona titled with a digit is title_numbered', () async {
+      Future<List<Finding>> numbered(String title) => _found({
+        'docs/prds/personas/buyer/PERSONA.md':
+            '---\nrole: Parent\npriority: primary\nbasis: proto\n---\n\n'
+            '# $title\n\n## Snapshot\n\nA parent.\nOf two kids.\n',
+      }, FindingKind.titleNumbered);
+
+      final found = await numbered('Parents of 2 kids');
+
+      expect(found, hasLength(1));
+      expect(found.single.path, 'prds/personas/buyer/PERSONA.md');
+      expect(await numbered('Parents of kids'), isEmpty);
+    });
+
+    test('a scenario of two When steps is prefix_count_mismatch', () async {
+      final found = await _found(
+        doc(
+          loginStory,
+          '- **When** the Agent signs in\n',
+          '- **When** the Agent signs in\n- **When** the Agent signs in again\n',
+        ),
+        FindingKind.prefixCountMismatch,
+      );
+
+      expect(found, hasLength(1));
+      expect(found.single.path, loginStory);
+    });
+  });
+
+  test('a feature with no summary and a features doc with no Features section '
+      'give the two findings', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(loginFeature, 'summary: Lets an agent sign in.\n', ''),
+          ...doc(_featuresDoc, '## Features\n\nOne feature.\n\n', ''),
+        },
+      ),
+    );
+
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.requiredFieldMissing &&
+              f.path == loginFeature)
+            f.toJson()['field'],
+      ],
+      ['summary'],
+    );
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.requiredSectionMissing &&
+              f.path == _featuresDoc)
+            f.toJson()['section'],
+      ],
+      ['features'],
+    );
   });
 
   group('the anti_persona sections scoped to a misuser', () {
