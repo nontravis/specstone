@@ -206,12 +206,19 @@ String _trimPipes(String row) {
 /// A line read past its containers: its `text`, the count of block quote
 /// marks it opened with, whether a list marker opened it, and the line as
 /// `written`, past the block quote marks only.
-typedef _Stripped = ({
-  String text,
-  int quotes,
-  bool isListItem,
-  String written,
-});
+final class _Stripped {
+  const new({
+    required this.text,
+    required this.quotes,
+    required this.isListItem,
+    required this.written,
+  });
+
+  final String text;
+  final int quotes;
+  final bool isListItem;
+  final String written;
+}
 
 /// Returns [line] past the block quote marks it opens with, and past its list
 /// marker unless it continues a paragraph, or null for a thematic break.
@@ -228,7 +235,7 @@ _Stripped? _withoutContainers(String line, bool continuesParagraph) {
         : null;
     final prefix = quote ?? marker;
     if (prefix == null) {
-      return (
+      return _Stripped(
         text: text,
         quotes: quotes,
         isListItem: isListItem,

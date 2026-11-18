@@ -105,7 +105,10 @@ List<_Diagram> _mermaidLines(
     if (!fenced[i]) inMermaid = false;
     final inBlock = inMermaid && opened == null && !closes[i];
     if (inBlock && head != _BlockHead.done) {
-      (head, kind) = _afterHeadLine(head, contents[i].trim());
+      _HeadStep(head: head, kind: kind) = _afterHeadLine(
+        head,
+        contents[i].trim(),
+      );
     }
     kinds.add(inBlock ? kind : _Diagram.none);
   }
@@ -115,15 +118,31 @@ List<_Diagram> _mermaidLines(
 /// Where a `mermaid` block stands before its first diagram line.
 enum _BlockHead { start, frontmatter, done }
 
-(_BlockHead, _Diagram) _afterHeadLine(_BlockHead head, String line) {
+/// Where a `mermaid` block stands after one of its head lines, and the diagram
+/// kind read so far.
+final class _HeadStep {
+  const new({required this.head, required this.kind});
+
+  final _BlockHead head;
+  final _Diagram kind;
+}
+
+_HeadStep _afterHeadLine(_BlockHead head, String line) {
   if (head == _BlockHead.frontmatter) {
-    return (line == '---' ? _BlockHead.start : head, _Diagram.flow);
+    return _HeadStep(
+      head: line == '---' ? _BlockHead.start : head,
+      kind: _Diagram.flow,
+    );
   }
-  if (line.isEmpty || line.startsWith('%%')) return (head, _Diagram.flow);
-  if (line == '---') return (_BlockHead.frontmatter, _Diagram.flow);
-  return (
-    _BlockHead.done,
-    line.startsWith(_sequenceHead) ? _Diagram.sequence : _Diagram.flow,
+  if (line.isEmpty || line.startsWith('%%')) {
+    return _HeadStep(head: head, kind: _Diagram.flow);
+  }
+  if (line == '---') {
+    return const _HeadStep(head: _BlockHead.frontmatter, kind: _Diagram.flow);
+  }
+  return _HeadStep(
+    head: _BlockHead.done,
+    kind: line.startsWith(_sequenceHead) ? _Diagram.sequence : _Diagram.flow,
   );
 }
 
