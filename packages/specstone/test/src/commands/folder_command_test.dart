@@ -261,8 +261,11 @@ void main() {
         '.specstone/bundles/old.txt',
         const Duration(days: 2),
       );
-      final fresh = File('${root.path}/.specstone/reports/fresh.txt')
-        ..createSync(recursive: true);
+      final fresh = aged(
+        root,
+        '.specstone/reports/fresh.txt',
+        const Duration(minutes: 1),
+      );
 
       final result = await run(root.path);
 
@@ -272,6 +275,63 @@ void main() {
       expect(report.existsSync(), isFalse);
       expect(bundle.existsSync(), isFalse);
       expect(fresh.existsSync(), isTrue);
+    });
+
+    test('a refused run, a positional argument or a reports/ that cannot be '
+        'made, keeps every aged file', () async {
+      final refusedArgument = await writeTree(_project());
+      final report = aged(
+        refusedArgument,
+        '.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+      final bundle = aged(
+        refusedArgument,
+        '.specstone/bundles/old.txt',
+        const Duration(days: 2),
+      );
+      final blocked = await writeTree({
+        ..._project(),
+        '.specstone/reports': 'a file where the folder goes',
+      });
+      final blockedBundle = aged(
+        blocked,
+        '.specstone/bundles/old.txt',
+        const Duration(days: 2),
+      );
+
+      final argument = await run(refusedArgument.path, ['login']);
+      final unwritable = await run(blocked.path);
+
+      expect(argument.exitCode, 64);
+      expect(unwritable.exitCode, 73);
+      expect(report.existsSync(), isTrue);
+      expect(bundle.existsSync(), isTrue);
+      expect(blockedBundle.existsSync(), isTrue);
+    });
+
+    test('--json stdout of a run that prunes equals that of a run with '
+        'nothing to prune', () async {
+      final pruning = await writeTree(_project());
+      final report = aged(
+        pruning,
+        '.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+      final idle = await writeTree(_project());
+
+      final pruned = await run(pruning.path, ['--json']);
+      final unpruned = await run(idle.path, ['--json']);
+
+      expect(report.existsSync(), isFalse);
+      expect(pruned.exitCode, 0, reason: '${pruned.stderr}');
+      expect(jsonDecode(pruned.stdout as String), {
+        'folder': _folderOf(pruning),
+      });
+      expect(
+        (pruned.stdout as String).replaceAll(_folderOf(pruning), ''),
+        (unpruned.stdout as String).replaceAll(_folderOf(idle), ''),
+      );
     });
 
     test('a report modified 10 days ago and read 2 days ago stays', () async {
