@@ -1077,6 +1077,26 @@ void main() {
         ),
         reason: 'the unlinked invariant and row print too',
       );
+      final firstLines = index.split('/p.refs <==\n').first.split('\n');
+      expect(
+        firstLines.where(
+          RegExp(r'^- login \(domain\) · \d+-\d+ · cited invariants \[INV-1\]')
+              .hasMatch,
+        ),
+        hasLength(1),
+      );
+      expect(
+        firstLines.where(
+          RegExp(r'^- login \(api\) · \d+-\d+ · cites fr_trace').hasMatch,
+        ),
+        hasLength(1),
+      );
+      final json = bundleIndexJson(answer, '/p', refsPath: '/p.refs');
+      final api = (json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere((d) => d['name'] == 'login' && d['docType'] == 'api');
+      expect(api, containsPair('cited', false));
+      expect(api, containsPair('cites', true));
       for (final type in ['domain', 'api']) {
         final lines = refsLines.where((l) => l.startsWith('- login ($type)'));
         expect(lines, hasLength(1), reason: type);
