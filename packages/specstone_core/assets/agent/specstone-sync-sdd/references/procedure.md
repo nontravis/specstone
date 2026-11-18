@@ -1,7 +1,7 @@
 **Code target** (two or more `targets:`): a changed path's target is the `code target:` line, or the `codeTarget` key
 under `--json`, of its `context --code --out` call, covered or not, and a deleted path's is the finding DocPath's; each
 `get`, `set`, and `new` of a per-target doc carries `--target <name>`, or addresses the doc by its DocPath. Compare
-and fix only that target's record and `covers:` entries.
+and fix only that target's record and `covers:` entries, and each `root: project` entry (step 3), of no target.
 
 ## 2. Take the work list
 
@@ -12,19 +12,19 @@ out, each keeping its state.
 
 ## 3. Find the covering docs
 
-A finding's `path` is relative to its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`;
+A finding's `path` is from its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`;
 default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
 
 For each listed code path but a `tests_unresolved` line's or a matrix row's (steps 4.4, 4.5), run
 `specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
 `--target`; read parts of its read-first and refs files per `specstone-read-sdd`. A `root: project` entry (its field's
-`root` in `specstone guide <type> --json`, once per type) takes none: its path is from the project root, and its
-covering doc is the doc its finding names: `specstone context <doc> --for implement --out`.
+`root` in `specstone guide <type> --json`, once per type) takes none: its path is from the project root, its
+covering doc the doc its finding names: `specstone context <doc> --for implement --out`.
 
-- **Warning `no doc covers or implements <path>`:** The new side of a rename pair goes to step 4.3. Else read the
+- **Warning `no doc covers or implements <path>`:** A rename pair's new side goes to step 4.3. Else read the
   file and write nothing for it; report it under `Uncovered:`: its path, what it does that no spec states, and
   whether that needs a new story or FR.
-- **64, `code_path_not_found`:** the file moved or is gone; step 4.3 fixes the entries `specstone check` lists.
+- **64, `code_path_not_found`:** the file moved or is gone; step 4.3 fixes the entries naming it.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 4. Compare, then write
@@ -36,20 +36,20 @@ covering doc is the doc its finding names: `specstone context <doc> --for implem
    commit, or on a `code_unconfirmed` folder, every file under the prefix.
 2. Write by outcome through step 4.3's `set --field`, which keeps the draft flag. A pending draft among the covering
    docs holds every write of a match and of a `planned` entry's fingerprint: list a match as a waiting pointer,
-   written whole once it is approved (fingerprint, and on a `planned` entry `implemented`). Else a named feature's
+   written whole once approved (fingerprint, and on a `planned` entry `implemented`). Else a named feature's
    `clean` link takes no fingerprint, only a `planned` entry's `implemented`:
    - **Match:** the finding's `fingerprint` ending the link's entry, any pointer fix, and for a `planned` entry
      `implemented` in its `statuses`; never `skipped` or `deprecated`. Then `task-refs.md` removes closed tasks' refs.
-   - **A `planned` entry's code lacking its planned behavior yet** is no mismatch, no question: the fingerprint alone;
-     the entry stays `planned`.
+   - **A `planned` entry's code lacking its planned behavior yet** is no mismatch, no question: the fingerprint
+     alone, still `planned`.
    - **Mismatch**, code behavior the approved text contradicts: nothing for the link; report each point under
      `Mismatches:`: doc and section, what the spec states, what the code does. A fix-the-spec pick sent to you: write
-     each stale section as a spec draft (step 5); the fingerprint waits for its approval.
-3. Fix each record code-path or `covers:` finding a covering doc holds: pipe the corrected list to
+     each stale section as a spec draft (step 5); the fingerprint awaits its approval.
+3. Fix each record code-path or `covers:` finding of a covering doc: pipe the corrected list to
    `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (hash:
    `bases.fields.<field>` of `get --json`; or `--field covers` on the spec doc), then rerun `specstone check` until
    those docs hold none:
-   - moved file: point each record entry naming it at the new side of its rename pair, relative to that target's
+   - moved file: point each record entry naming it at its rename pair's new side, relative to that target's
      code root; stories and FRs name no code and stay; find the pair with
      `git log -1 -M --diff-filter=R --name-status --format= -- <old path>`, or `git diff -M --name-status HEAD` while
      uncommitted; write no fingerprint;

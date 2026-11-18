@@ -11,7 +11,8 @@ they are those in the doc its finding names, read in step 3. Read no other doc.
 
 ## 2. Messages
 
-Read the messages of the commits that changed the link's code, from the project root, each path `<code root>/<path>`:
+Read the messages of the commits that changed the link's code, from the project root, each path `<code root>/<path>`,
+or a `root: project` entry's `<path>` as is, with no `<code root>/` prefix:
 
 ```
 git log --format=%B <base>..HEAD -- <code paths>
