@@ -1708,6 +1708,11 @@ lint: {title_no_number: true}
       );
       expect(invariants(upper).maxItemLines, 3);
       expect(invariants(base()).maxItemLines, isNull);
+      final sparse = project(
+        lowerLimit,
+        'sections: [{id: invariants, lint: {min_lines: 1}}]',
+      );
+      expect(invariants(sparse).maxItemLines, 6);
     });
 
     test('an upper max_sentences list replaces the lower list whole', () {

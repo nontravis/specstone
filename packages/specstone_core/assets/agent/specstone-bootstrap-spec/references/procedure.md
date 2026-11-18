@@ -3,7 +3,7 @@ As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your
 
 Findings under `prds/` or `measurements/` go to `specstone-bootstrap-prd`, except the PRD sections step 6 moves.
 Follow the `specstone-expert-sdd` skill for every write; before the first, run `specstone guide <type> …` once,
-naming every type you write; a type met later gets a call before its first write.
+naming every type you write; a type met later gets its call before its first write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
 doc carries `--target <name>`, the finding DocPath's code target, else the first listed.

@@ -941,7 +941,8 @@ sections:
       );
     });
 
-    test('the doc-level line is placed as E29 places it', () {
+    test('the doc-level line follows the fields block and precedes the '
+        'sections', () {
       final withFields = _merge(
         'description: A.\npath: a.md\n'
         'lint: {max_lines: 300, banned_words: [fast]}\n'

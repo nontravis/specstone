@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -14,7 +15,7 @@ import '../../helpers/prd_core.dart';
 const _readabilityLines = <String>[
   _citeLine,
   _oneRuleLine,
-  _citeNoteLine,
+  citeNoteGuideLine,
   _exampleLine,
   _conditionLine,
 ];
@@ -27,8 +28,6 @@ const _oneRuleLine =
     'Keep one rule in each item, and put several conditions in a nested list. '
     'A one-sentence paragraph with no ID moves its detail to the section of '
     'the same doc that owns it, never into a sub-list.';
-
-const _citeNoteLine = "Put a cite or an ownership note at the item's end.";
 
 const _exampleLine =
     'Give a non-obvious rule one example inside its item, as a `such as` '

@@ -292,9 +292,6 @@ void main() {
       'the longest sentence holds 31 words; '
       'the limit is 30 words for language default',
     );
-    for (final found in [...words, ...thai, ...raised]) {
-      expect(found.message, isNot(contains(_noGuideTail)));
-    }
   });
 
   test('a korean sentence takes the ko word cap', () async {

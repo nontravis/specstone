@@ -218,8 +218,8 @@ void main() {
       (1, 'subsection', '1 subsection'),
     ];
     for (final (n, unit, worded) in cases) {
-      test('a number takes commas above 999 and one of a unit is worded as '
-          'E35 gives: $worded', () {
+      test('a number takes commas above 999 and one of a unit is singular: '
+          '$worded', () {
         expect(countWord(n, unit), worded);
       });
     }

@@ -995,7 +995,7 @@ final class MergedDocType {
       if (sources.isNotEmpty)
         ['Guide sources:', ...sources.map(referenceSourceLine)].join('\n'),
     ];
-    return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+    return '${blocks.join('\n\n')}\n';
   }
 
   /// Returns the line under [section]'s header that says when the section is

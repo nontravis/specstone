@@ -1,9 +1,9 @@
-Step 1, the gate, already ran.
+Step 1, the gate, ran.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
 Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming canonicalization
 sections go to `specstone-bootstrap-spec`. Follow the `specstone-expert-sdd` skill for every write; before the first,
-run `specstone guide <type> …` once, naming every type you write; a type met later gets a call before its first write.
+run `specstone guide <type> …` once, naming every type you write; a type met later gets its call before its first write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
 doc carries `--target <name>`, the finding DocPath's code target, else the first listed.
@@ -75,7 +75,7 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 `specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (the project, features, and
 gnfr docs): read each with `specstone get` and fill it with the Owner. Set a goal, glossary, or features doc's title to
 its guide's with `--title` when it differs. In the features doc, `set` an empty `## Features` header on the base `get` prints
-for it, run `specstone format`.
+for it, run `specstone format` on it.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding. Name
