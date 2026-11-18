@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/resolved_parents.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
@@ -12,10 +13,7 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
 /// candidate parents has no parent and gets a warning by its docPath instead.
 /// A parent type whose path has no `{slug}` never takes a child, because its
 /// name is its doc type id.
-({Map<String, String> parents, Map<String, String> warnings}) resolveParents(
-  Iterable<IndexedDoc> docs,
-  MergedSet set,
-) {
+ResolvedParents resolveParents(Iterable<IndexedDoc> docs, MergedSet set) {
   final docPathsByName = <(String, String), List<String>>{};
   for (final doc in docs) {
     if (doc.docTypeId case final typeId?) {
@@ -46,7 +44,7 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
           'parent docs: ${listed.join(', ')}; it has no parent doc';
     }
   }
-  return (parents: parents, warnings: warnings);
+  return ResolvedParents(parents: parents, warnings: warnings);
 }
 
 /// Returns the doc type of [doc]'s parent doc, or null when it takes none.
