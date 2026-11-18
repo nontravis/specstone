@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -373,6 +374,116 @@ void main() {
             );
           },
         );
+      }
+    });
+
+    group('cleanup', () {
+      Future<Directory> withCleanup(String lines) =>
+          _withConfig('packs:\n  prd-core: 1.0.0\n$lines');
+
+      for (final (name, lines) in [
+        ('an absent map', ''),
+        ('a bare key', 'cleanup:\n'),
+        ('a null inner key', 'cleanup:\n  bundles_max_mb:\n'),
+      ]) {
+        test('$name reads the defaults', () async {
+          final root = await withCleanup(lines);
+
+          final cleanup = ProjectConfig.read(root).cleanup;
+
+          expect(cleanup.bundlesMaxAge, CleanupBounds.defaults.bundlesMaxAge);
+          expect(
+            cleanup.bundlesMaxBytes,
+            CleanupBounds.defaults.bundlesMaxBytes,
+          );
+          expect(cleanup.reportsMaxAge, CleanupBounds.defaults.reportsMaxAge);
+        });
+      }
+
+      test('the defaults are 24 hours, 256 MB, and 7 days', () {
+        expect(CleanupBounds.defaults.bundlesMaxAge, const Duration(hours: 24));
+        expect(CleanupBounds.defaults.bundlesMaxBytes, 256 * 1000 * 1000);
+        expect(CleanupBounds.defaults.reportsMaxAge, const Duration(days: 7));
+      });
+
+      test('three set values read back as given', () async {
+        final root = await withCleanup(
+          'cleanup: {bundles_max_age_hours: 48, bundles_max_mb: 512, '
+          'reports_max_age_days: 30}\n',
+        );
+
+        final cleanup = ProjectConfig.read(root).cleanup;
+
+        expect(cleanup.bundlesMaxAge, const Duration(hours: 48));
+        expect(cleanup.bundlesMaxBytes, 512 * 1000 * 1000);
+        expect(cleanup.reportsMaxAge, const Duration(days: 30));
+      });
+
+      test(
+        'a count past the microsecond range clamps and stays positive',
+        () async {
+          final root = await withCleanup(
+            'cleanup: {bundles_max_age_hours: 9000000000000, '
+            'bundles_max_mb: 9000000000000000, '
+            'reports_max_age_days: 9000000000000}\n',
+          );
+
+          final cleanup = ProjectConfig.read(root).cleanup;
+
+          expect(cleanup.bundlesMaxAge, greaterThan(const Duration(days: 365)));
+          expect(cleanup.bundlesMaxBytes, greaterThan(256 * 1000 * 1000));
+          expect(cleanup.reportsMaxAge, greaterThan(const Duration(days: 365)));
+        },
+      );
+
+      for (final (name, line) in [
+        ('a scalar', 'cleanup: 7'),
+        ('a list', 'cleanup: [7]'),
+      ]) {
+        test('$name is unknown_value for cleanup', () async {
+          final root = await withCleanup('$line\n');
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'cleanup',
+              ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        });
+      }
+
+      test('an extra inner key is unknown_key at cleanup.<key>', () async {
+        final root = await withCleanup('cleanup:\n  tmp_days: 3\n');
+
+        expect(
+          () => ProjectConfig.read(root),
+          throwsA(_fault(FaultCode.unknownKey, key: 'cleanup.tmp_days')),
+        );
+      });
+
+      for (final key in [
+        'bundles_max_age_hours',
+        'bundles_max_mb',
+        'reports_max_age_days',
+      ]) {
+        for (final value in ['0', '-1', "'7'", '1.5', '[7]', 'true']) {
+          test('$key: $value is unknown_value at cleanup.$key', () async {
+            final root = await withCleanup('cleanup:\n  $key: $value\n');
+
+            expect(
+              () => ProjectConfig.read(root),
+              throwsA(
+                _fault(
+                  FaultCode.unknownValue,
+                  key: 'cleanup.$key',
+                ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+              ),
+            );
+          });
+        }
       }
     });
 
@@ -850,6 +961,67 @@ void main() {
       final root = await writeTree({'$_configPath/inner': 'x'});
 
       expect(readAgentFilesVersion(root), isA<AgentFilesStampUnreadable>());
+    });
+  });
+
+  group('readCleanupBounds', () {
+    test('a bad key reads its default and a good key its value', () async {
+      final root = await _withConfig(
+        'packs:\n  prd-core: 1.0.0\n'
+        'cleanup:\n  bundles_max_age_hours: 0\n  bundles_max_mb: 512\n',
+      );
+
+      final cleanup = readCleanupBounds(root);
+
+      expect(cleanup.bundlesMaxAge, CleanupBounds.defaults.bundlesMaxAge);
+      expect(cleanup.bundlesMaxBytes, 512 * 1000 * 1000);
+      expect(cleanup.reportsMaxAge, CleanupBounds.defaults.reportsMaxAge);
+    });
+
+    test('reads a value beside a broken pack and an unknown key', () async {
+      final root = await _withConfig(
+        'bogus: 1\nagent_file_roots: 3\n'
+        'cleanup:\n  tmp_days: 3\n  reports_max_age_days: 30\n',
+      );
+
+      expect(readCleanupBounds(root).reportsMaxAge, const Duration(days: 30));
+    });
+
+    for (final (name, text) in [
+      ('a scalar cleanup', 'cleanup: 7\n'),
+      ('a YAML syntax error', 'cleanup: [1\n'),
+      ('a document that is no map', '- cleanup\n'),
+      ('a duplicate key', 'cleanup: {bundles_max_mb: 1}\ncleanup: {}\n'),
+    ]) {
+      test('$name reads the defaults and never throws', () async {
+        final root = await _withConfig(text);
+
+        final cleanup = readCleanupBounds(root);
+
+        expect(cleanup.bundlesMaxAge, CleanupBounds.defaults.bundlesMaxAge);
+        expect(cleanup.bundlesMaxBytes, CleanupBounds.defaults.bundlesMaxBytes);
+        expect(cleanup.reportsMaxAge, CleanupBounds.defaults.reportsMaxAge);
+      });
+    }
+
+    test('a file that is not UTF-8 reads the defaults', () async {
+      final root = await writeTree({_configPath: ''});
+      File.fromUri(root.uri.resolve(_configPath))
+          .writeAsBytesSync([0xff, 0xfe, 0x41]);
+
+      expect(
+        readCleanupBounds(root).bundlesMaxBytes,
+        CleanupBounds.defaults.bundlesMaxBytes,
+      );
+    });
+
+    test('a missing config file reads the defaults', () async {
+      final root = await writeTree({'other.txt': 'x'});
+
+      expect(
+        readCleanupBounds(root).bundlesMaxAge,
+        CleanupBounds.defaults.bundlesMaxAge,
+      );
     });
   });
 
