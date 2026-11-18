@@ -868,6 +868,12 @@ void main() {
         '~/.specstone/packs/nont-a/pack.yaml',
       ]);
       expect(errorOf().containsKey('key'), isFalse);
+
+      err.clear();
+      final unknown = await runnerIn(await projectWith({}));
+      expect(await unknown.run(['guide', 'feature', 'featur', '--json']), 64);
+      expect(out.toString(), isEmpty);
+      expect(errorOf().keys, ['code', 'message']);
     });
 
     test(
