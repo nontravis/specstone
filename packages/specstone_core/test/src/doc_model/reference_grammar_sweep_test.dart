@@ -41,7 +41,7 @@ final _allowed = <_Allowed>[
     'Quote line language marker such as `> en:`, no reference.',
   ),
   _core(
-    'consistency_check/item_field_rules.dart',
+    'consistency_check/section_fields.dart',
     r"""RegExp(r'^\*\*(.+?)\:\*\*\s*(.*)$'""",
     'Matches a `- **<field>:** <text>` label, no reference.',
   ),
