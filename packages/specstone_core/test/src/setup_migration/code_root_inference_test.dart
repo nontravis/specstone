@@ -306,6 +306,29 @@ void main() {
     }
   }, skip: _windowsSkip);
 
+  test('a link folder on another drive is not ranked, so the winner is a '
+      'value that can be written', () async {
+    final tree = await _tree({'proj/keep.txt': ''});
+    final otherDrive = _folderOnAnotherDrive(tree);
+    if (otherDrive == null) {
+      markTestSkipped('no writable second drive on this machine');
+      return;
+    }
+    for (final name in ['a', 'b']) {
+      File('${otherDrive.path}/lib/$name.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('');
+    }
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      link: otherDrive,
+      implementsEntries: ['lib/a.dart', 'lib/b.dart'],
+    );
+
+    expect(choice, (value: '.', found: 0, cited: 2));
+  }, testOn: 'windows');
+
   test('entries every candidate resolves go to the '
       'deepest candidate', () async {
     final tree = await _tree({'proj/keep.txt': '', 'proj/code/keep.txt': ''});
@@ -676,6 +699,23 @@ void main() {
 final Object _windowsSkip = Platform.isWindows
     ? r'POSIX path rules: \ is a name character and / roots a path'
     : false;
+
+/// Returns a new temp folder on a Windows drive other than the one of [tree],
+/// or null when no other drive takes a folder.
+Directory? _folderOnAnotherDrive(Directory tree) {
+  final treeDrive = tree.path.substring(0, 1).toUpperCase();
+  for (final letter in 'CDEFGHIJKLMNOPQRSTUVWXYZ'.split('')) {
+    if (letter == treeDrive || !Directory('$letter:\\').existsSync()) continue;
+    try {
+      final folder = Directory('$letter:\\').createTempSync('specstone_drive_');
+      addTearDown(() => folder.deleteSync(recursive: true));
+      return folder;
+    } on FileSystemException {
+      continue;
+    }
+  }
+  return null;
+}
 
 /// Links [linkPath] to [target]; marks the test skipped and returns false
 /// where links need privileges.
