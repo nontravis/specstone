@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show edgeCasesSectionKey;
 import 'package:specstone_core/src/document_writing/models/new_record.dart';
 import 'package:specstone_core/src/document_writing/models/record_plan.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
@@ -21,8 +23,6 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-
-const _edgeCasesKey = 'edge_cases';
 
 /// Where a story or FR entry goes: the feature whose record takes it, and its
 /// name relative to that feature.
@@ -167,7 +167,7 @@ Map<String, Map<String, _RowMove>> _rowMovesOf(
 ) {
   final moves = <String, Map<String, _RowMove>>{};
   for (final landing in landings) {
-    if (landing.sectionKey != _edgeCasesKey ||
+    if (landing.sectionKey != edgeCasesSectionKey ||
         landing.from.doc.docTypeId != frType) {
       continue;
     }

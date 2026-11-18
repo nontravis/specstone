@@ -8,6 +8,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
         OverrideLabel,
         ScenarioLabel,
         ScenarioRef,
+        edgeCasesSectionKey,
         linkIdentityOf,
         readLinkLabel;
 import 'package:specstone_core/src/document_writing/item_moves.dart';
@@ -27,7 +28,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 const _entryKeys = ['confirmed', 'overrides'];
-const _edgeCasesSection = 'edge_cases';
 
 /// Where each block a restructure call moves sits after the call.
 final class BlockMoves {
@@ -78,7 +78,7 @@ final class BlockMoves {
     return switch (block.kind) {
       TrackedBlockKind.scenario => landing.isScenario ? landing : null,
       TrackedBlockKind.edgeCase =>
-        landing.sectionKey == _edgeCasesSection ? landing : null,
+        landing.sectionKey == edgeCasesSectionKey ? landing : null,
       TrackedBlockKind.item =>
         landing.sectionKey == block.section ? landing : null,
       TrackedBlockKind.frStatement || TrackedBlockKind.nfrStatement => null,

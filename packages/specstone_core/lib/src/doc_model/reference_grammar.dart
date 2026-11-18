@@ -143,6 +143,9 @@ const scenarioIdPrefix = 'Scenario ';
 /// Id of the story section that holds the scenarios.
 const acceptanceSectionId = 'acceptance_criteria';
 
+/// Key of the requirement section that holds the edge cases.
+const edgeCasesSectionKey = 'edge_cases';
+
 /// Reads the ID of [prefix] at the start of [text], after one optional `**`;
 /// null when [text] does not open with [prefix] and an ASCII digit.
 IdRead? readItemId(String text, String prefix) =>
