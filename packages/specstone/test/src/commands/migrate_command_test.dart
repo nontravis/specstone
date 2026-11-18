@@ -47,6 +47,86 @@ void main() {
     expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
   }, skip: hasGit ? null : 'git is not available');
 
+  test('migrate --dry-run at an interactive terminal exits 0, asks nothing, '
+      'and writes nothing', () async {
+    final root = await gitFixture(acmeLegacy);
+    final before = _bytesUnder(root);
+    final head = git(root, ['rev-parse', 'HEAD']).stdout;
+    var asked = 0;
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['y'],
+        onReadLine: (_) => asked++,
+      ),
+    );
+
+    expect(await runner.run(['migrate', '--dry-run']), 0);
+
+    expect(asked, 0);
+    expect(out.toString(), isNot(contains('apply? [y/N] ')));
+    expect(out.toString(), endsWith('dry run: nothing written\n'));
+    expect(_bytesUnder(root), before);
+    expect(git(root, ['rev-parse', 'HEAD']).stdout, head);
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test(
+    'a legacy doc that cannot be read is output_not_writable, '
+    'exit 73, naming the file, with nothing written',
+    () async {
+      final root = await gitFixture({
+        ...acmeLegacy,
+        'docs/prds/locked.md': '# Locked\n',
+      });
+      final locked = File('${root.path}/docs/prds/locked.md');
+      final before = _bytesUnder(root);
+      expect(Process.runSync('chmod', ['000', locked.path]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', locked.path]));
+      final (:runner, :out, :err) = writeRunner(root);
+
+      final status = await runner.run(['migrate', '--dry-run']);
+
+      Process.runSync('chmod', ['644', locked.path]);
+      expect(status, 73);
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('locked.md'));
+      expect(_bytesUnder(root), before);
+
+      final hidden = File('${root.path}/docs/prds/hidden.md')
+        ..writeAsStringSync('# Hidden\n');
+      File('${root.path}/.git/info/exclude')
+          .writeAsStringSync('/docs/prds/hidden.md\n', mode: FileMode.append);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+      final head = git(root, ['rev-parse', 'HEAD']).stdout;
+      final beforeApply = _bytesUnder(root);
+      expect(Process.runSync('chmod', ['000', hidden.path]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', hidden.path]));
+      final applying = writeRunner(
+        root,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['y'],
+        ),
+      );
+
+      final applied = await applying.runner.run(['migrate']);
+
+      Process.runSync('chmod', ['644', hidden.path]);
+      expect(applied, 73, reason: applying.err.toString());
+      expect(applying.err.toString(), contains('hidden.md'));
+      expect(_bytesUnder(root), beforeApply);
+      expect(git(root, ['rev-parse', 'HEAD']).stdout, head);
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+    },
+    skip: Platform.isWindows
+        ? 'the file is made unreadable by chmod'
+        : (hasGit ? null : 'git is not available'),
+  );
+
   test('a docs-root file named with # is read as a file name, not a URI '
       'fragment', () async {
     final root = await gitFixture({
@@ -72,6 +152,27 @@ void main() {
     expect(err.toString(), startsWith('no Specstone project'));
   });
 
+  test('a run with no project, with and without --dry-run, leaves the folder '
+      'tree byte for byte', () async {
+    for (final flags in [
+      ['migrate'],
+      ['migrate', '--dry-run'],
+    ]) {
+      final root = await writeTree({
+        'notes.txt': 'x\n',
+        'docs/readme.md': '# Readme\n',
+      });
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(flags), 78, reason: flags.join(' '));
+
+      expect(err.toString(), startsWith('no Specstone project'));
+      expect(_bytesUnder(root), before, reason: flags.join(' '));
+      expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
+    }
+  });
+
   test('a newer pin refuses before the run, exit 78, in '
       '--dry-run', () async {
     final root = await writeTree({
@@ -82,6 +183,28 @@ void main() {
     expect(await runner.run(['migrate', '--dry-run']), 78);
     expect(out.toString(), isEmpty);
     expect(err.toString(), contains('prd-core'));
+  });
+
+  test('a newer pin beside an older one leaves the tree byte for byte, with '
+      'and without --dry-run', () async {
+    for (final flags in [
+      ['migrate'],
+      ['migrate', '--dry-run'],
+    ]) {
+      final root = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 99.0.0\n  software-tech: 0.0.1\n',
+        'docs/notes.md': '# Notes\n',
+      });
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(flags), 78, reason: flags.join(' '));
+
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('prd-core'));
+      expect(_bytesUnder(root), before, reason: flags.join(' '));
+    }
   });
 
   group('an agent_files_version above the running Version', () {
@@ -313,6 +436,48 @@ void main() {
       });
     }
 
+    test('no other command reads the old plugin settings, even with the '
+        'plugin on', () async {
+      final home = testHome();
+      File('${home.path}/.claude/settings.json')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(on);
+      final config = await writeTree({'settings.json': on});
+      for (final args in [
+        ['check'],
+        ['upgrade'],
+        ['structure'],
+      ]) {
+        final root = await configured({
+          '.claude/settings.json': on,
+          '.claude/settings.local.json': on,
+        });
+        for (final environment in [
+          <String, String>{},
+          {'CLAUDE_CONFIG_DIR': config.path},
+        ]) {
+          final (:runner, :out, :err) = writeRunner(
+            root,
+            environment: environment,
+          );
+
+          await runner.run(args);
+
+          final reason = '${args.join(' ')} $environment';
+          expect(
+            err.toString(),
+            isNot(contains('plugin for Claude Code')),
+            reason: reason,
+          );
+          expect(
+            err.toString(),
+            isNot(contains('specstone@specstone')),
+            reason: reason,
+          );
+        }
+      }
+    });
+
     test('it keeps a nonzero exit status of the run', () async {
       final root = await writeTree({
         ...acmeLegacy,
@@ -423,6 +588,27 @@ void main() {
       'rewrite titles, keys, and links; add project configuration',
       'move legacy docs to their new paths',
     ]);
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('migrate --yes --plan at an interactive terminal applies the plan and '
+      'shows no prompt', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = await _dryRunPlanHash(root);
+    var asked = 0;
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        onReadLine: (_) => asked++,
+      ),
+    );
+
+    expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
+
+    expect(asked, 0);
+    expect(out.toString(), isNot(contains('apply? [y/N] ')));
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
@@ -609,8 +795,7 @@ void main() {
     expect(checkOut.toString(), isNot(contains('approval_stale')));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('the first '
-      'check after a legacy run reports no format_drift and no '
+  test('the first check after a legacy run reports no format_drift and no '
       'confirmed_entry_stale', () async {
     final root = await gitFixture(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(
@@ -702,6 +887,35 @@ void main() {
       "the Owner's ok in the chat\n",
     );
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('a terminal on only stdin or only stdout still refuses '
+      'owner_terminal_required, exit 77', () async {
+    for (final (name, console) in [
+      (
+        'only stdin',
+        FakeConsole(stdinIsTerminal: true, stdoutIsTerminal: false),
+      ),
+      (
+        'only stdout',
+        FakeConsole(stdinIsTerminal: false, stdoutIsTerminal: true),
+      ),
+    ]) {
+      final root = await gitFixture(acmeLegacy);
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root, console: console);
+
+      expect(await runner.run(['migrate']), 77, reason: name);
+
+      expect(out.toString(), startsWith('legacy migration: '));
+      expect(out.toString(), isNot(contains('apply? [y/N] ')));
+      expect(
+        err.toString(),
+        'migrate applies only at an interactive terminal, or with --yes after '
+        "the Owner's ok in the chat\n",
+      );
+      expect(_bytesUnder(root), before);
+    }
   }, skip: hasGit ? null : 'git is not available');
 
   group('under an exported git repository variable', () {
@@ -856,6 +1070,45 @@ void main() {
         expect(shown.exitCode, 78, reason: '${shown.stderr}');
         expect(shown.stdout, isEmpty);
         expect(shown.stderr, contains('not in a git work tree'));
+      },
+      skip: Platform.isWindows ? 'the stub git is a POSIX shell script' : null,
+    );
+
+    test(
+      'a failed git list query ends the refusal with the reason git cannot '
+      'start',
+      () async {
+        final root = await gitFixture(acmeLegacy);
+        final realGit = (Process.runSync('which', ['git']).stdout as String)
+            .trim();
+        final stub = await writeTree({
+          'git': [
+            '#!/bin/sh',
+            r'case "$*" in',
+            "  *--local-env-vars*) echo 'fatal: boom' >&2; exit 128 ;;",
+            'esac',
+            'exec "$realGit" "\$@"',
+            '',
+          ].join('\n'),
+        });
+        expect(
+          Process.runSync('chmod', ['755', '${stub.path}/git']).exitCode,
+          0,
+        );
+
+        final shown = await Process.run(
+          binary,
+          ['migrate'],
+          workingDirectory: root.path,
+          environment: {'PATH': '${stub.path}:${Platform.environment['PATH']}'},
+        );
+
+        expect(shown.exitCode, 78, reason: '${shown.stderr}');
+        expect(shown.stdout, isEmpty);
+        expect(
+          (shown.stderr as String).trimRight(),
+          endsWith('; git cannot start: fatal: boom'),
+        );
       },
       skip: Platform.isWindows ? 'the stub git is a POSIX shell script' : null,
     );

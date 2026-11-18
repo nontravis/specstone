@@ -194,6 +194,27 @@ void main() {
     });
   });
 
+  group('locateMigrateRoot past a docs link to a parent with no marker', () {
+    test('a bare folder whose docs link leads to a parent with no marker '
+        'takes the ancestor project', () async {
+      final tree = await writeTree({
+        'ws/.specstone/config.yaml': 'packs:\n',
+        'ws/code/lib/keep.txt': '',
+        'ws/plain/docs/keep.txt': '',
+      });
+      try {
+        createRelativeLink('${tree.path}/ws/code/docs', '../plain/docs');
+      } on FileSystemException {
+        markTestSkipped('symbolic links need privileges on this machine');
+        return;
+      }
+
+      final root = locateMigrateRoot(Directory('${tree.path}/ws/code')).root;
+
+      expect(_canonical(root), _canonical(Directory('${tree.path}/ws')));
+    });
+  });
+
   group('locateMigrateRoot returns the link folder', () {
     Future<Directory?> linkedTree() async {
       final tree = await writeTree({

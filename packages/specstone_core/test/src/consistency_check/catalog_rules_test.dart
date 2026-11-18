@@ -206,6 +206,21 @@ void main() {
     ]);
   });
 
+  test('a skipped FR naming a code its own catalog lacks is no uncataloged'
+      ' finding', () async {
+    final report = await _check({
+      'docs/$_errorDoc': _error('Login errors', ['bad_password']),
+      'docs/$loginFr': _frCase('a missing doc → `doc_not_found` is refused'),
+      ..._shop(['doc_not_found']),
+      loginRecord:
+          "---\nstatuses:\n  - 'email_login:implemented'\n"
+          "  - 'email_login/check_password:skipped:no web view'\n---\n\n"
+          '# Login implementation\n',
+    });
+
+    expect(_found(report).where((f) => f.contains('uncataloged')), isEmpty);
+  });
+
   test(
     'an FR whose feature chain holds no error doc gives no catalog finding',
     () async {
@@ -217,6 +232,22 @@ void main() {
       expect(_found(report).where((f) => f.contains('uncataloged')), isEmpty);
     },
   );
+
+  test('a components code span naming a code another catalog holds is no'
+      ' uncataloged finding', () async {
+    final report = await _check({
+      'docs/$_errorDoc': _error('Login errors', ['bad_password']),
+      'docs/$loginFr': _frCase('an empty password → `bad_password` is refused'),
+      'docs/$loginArchitecture':
+          '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n\n'
+          '## Components\n\n'
+          '| Component | Responsibility |\n|---|---|\n'
+          '| Sign-in | Raises `doc_not_found` for a wrong password |\n',
+      ..._shop(['doc_not_found']),
+    });
+
+    expect(_found(report).where((f) => f.contains('uncataloged')), isEmpty);
+  });
 
   test('a code span in a section whose doc type sets no names_codes names no '
       'code', () async {
@@ -248,6 +279,28 @@ void main() {
       expect(_found(report), isEmpty);
     },
   );
+
+  test('a catalog of a doc type under another id is checked as the shipped'
+      ' one is', () async {
+    final report = await _check({
+      '.specstone/templates/fault_list.yaml':
+          'id: fault_list\n'
+          'description: Faults.\npath: specs/f{nn}_{slug}/FAULTS.md\n'
+          'parent: feature\n'
+          'sections:\n  - id: faults\n    header: Faults\n'
+          '    lint:\n      catalog:\n        column: Code\n',
+      'docs/specs/f01_login/FAULTS.md':
+          '---\n---\n# Login faults\n\n## Faults\n\n'
+          '| Code | Note |\n|---|---|\n'
+          '| `bad_password` | first |\n| `bad_password` | second |\n',
+    });
+
+    expect(
+      _found(report).singleWhere((f) => f.contains('duplicate')),
+      '10 error_code_duplicate bad_password is written into the catalog more '
+      'than once',
+    );
+  });
 
   test('a story scenario naming a code is read like an FR edge case', () async {
     final report = await _check({

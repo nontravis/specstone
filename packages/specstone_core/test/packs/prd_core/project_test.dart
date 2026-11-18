@@ -38,4 +38,17 @@ void main() {
       ['roles', 'out_of_scope'],
     );
   });
+
+  test('the vision template labels each entry line in English', () {
+    final template = sectionOf(project, 'vision').template!;
+
+    expect(
+      template,
+      allOf(
+        contains('- **Why:** '),
+        contains('- **Problem:** '),
+        contains('- **Audience:** '),
+      ),
+    );
+  });
 }

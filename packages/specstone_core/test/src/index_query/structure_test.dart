@@ -642,9 +642,11 @@ void main() {
     Future<DocIndex> toastIndex({
       String flutterStatuses = '',
       String jasprStatuses = '',
+      Map<String, String> extra = const {},
     }) async {
       final session = openSession(
         await writeTree({
+          ...extra,
           '.specstone/templates/architecture.yaml':
               'id: architecture\nper_target: true\n',
           '.specstone/templates/implementation.yaml':
@@ -702,6 +704,28 @@ void main() {
         '${tokenSizeOf(archText)} tokens\n'
         '  feedback/toast (architecture) — Toast architecture · '
         '${tokenSizeOf(archText)} tokens\n',
+      );
+    });
+
+    test('an fr line holds each target status in targets order', () async {
+      const frText =
+          '---\nstatus: implemented\n---\n\n# Render it\n\n## Statement\n'
+          'Shall.\n';
+      final index = await toastIndex(
+        flutterStatuses: '  - show:implemented\n  - show/render:implemented\n',
+        jasprStatuses: '  - show:planned\n  - show/render:skipped:no jaspr\n',
+        extra: {
+          'docs/prds/features/f02_feedback/f03_toast/us01_show/fr01_render.md':
+              frText,
+        },
+      );
+
+      expect(
+        answerStructure(index, target: 'feedback/toast').text.split('\n'),
+        contains(
+          '    feedback/toast/show/render (fr) — Render it · flutter: '
+          'implemented, jaspr: skipped · ${tokenSizeOf(frText)} tokens',
+        ),
       );
     });
 

@@ -385,7 +385,7 @@ Future<Directory> _createTemp() async {
   final system = Directory.systemTemp;
   if (!system.isAbsolute) {
     throw _Refusal(
-      'the temp folder ${system.path} is not an absolute path; $_unchanged',
+      'TMPDIR (${system.path}) is not an absolute path; $_unchanged',
     );
   }
   try {

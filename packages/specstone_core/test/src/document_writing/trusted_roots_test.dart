@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
+import 'package:specstone_core/src/document_writing/batch_file.dart'
+    show parseBatchFile;
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/home_record.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
@@ -10,14 +12,22 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
+import 'package:specstone_core/src/document_writing/set_batch.dart';
+import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/build_output.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
+import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -65,6 +75,44 @@ _linkedClone() async {
     victim: Directory('${base.path}/victim'),
   );
 }
+
+const _signOutUseCase = 'user_story:login/sign_out#use_case';
+
+/// Runs `set` of the sign-out use case in [clone] with the base `get` prints,
+/// as an Agent that read it.
+ReadAnswer _setSignOutUseCase(Directory clone) {
+  final base = getDoc(clone, _signOutUseCase)['base']! as String;
+  return writeIn(
+    clone,
+    (s) => answerSet(
+      s,
+      SetRequest.parse(_signOutUseCase, base: base),
+      'Signed out of every device.\n',
+    ),
+  );
+}
+
+/// Runs `set --batch` over the sign-out story as `get` prints it, with its use
+/// case changed.
+ReadAnswer _batchSignOut(Directory clone) {
+  final session = openSession(clone);
+  final String block;
+  try {
+    block = answerGet(session.index, [story2]).text;
+  } finally {
+    session.close();
+  }
+  final changed = block.replaceFirst('Sign out.', 'Signed out by the batch.');
+  expect(changed, isNot(block), reason: 'the batch changes the doc');
+  return writeIn(
+    clone,
+    (s) => answerSetBatch(s, parseBatchFile('batch.md', changed)),
+  );
+}
+
+/// The `new persona` write of [clone], whose folder its docs link leads to.
+ReadAnswer _newTeamPersona(Directory clone) =>
+    writeIn(clone, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
 
 /// Records the trust of the project [folder] holds, as the Owner's `trust`
 /// does, under [testHome].
@@ -217,6 +265,99 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
+  group('a set on roots the Owner has not recorded', () {
+    test('of a section refuses with exit 73 and the docs path, and the folder '
+        'the docs link names keeps its bytes', () async {
+      final (:clone, :ext, base: _) = await _fallThroughClone();
+      final before = treeBytes(ext);
+
+      expect(
+        () => _setSignOutUseCase(clone),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.file, 'file', 'docs/$story2')
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write docs/$story2: the docs folder '
+                    '${ext.resolveSymbolicLinksSync()} lies outside the '
+                    'project; run specstone trust at a terminal to allow it',
+              ),
+        ),
+      );
+
+      expect(treeBytes(ext), before);
+    }, skip: _linksUnavailable);
+
+    test('of a section in a project reached through a docs link refuses with '
+        'the project-folder message and writes nothing', () async {
+      final (:clone, :victim, base: _) = await _linkedClone();
+      final before = treeBytes(Directory('${victim.path}/docs'));
+
+      expect(
+        () => _setSignOutUseCase(clone),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write docs/$story2: the project folder '
+                    '${victim.resolveSymbolicLinksSync()} was reached through '
+                    'the docs link in ${clone.resolveSymbolicLinksSync()}; run '
+                    'specstone trust at a terminal to allow it',
+              ),
+        ),
+      );
+
+      expect(treeBytes(Directory('${victim.path}/docs')), before);
+    }, skip: _linksUnavailable);
+
+    test('a new and a set --batch refuse on both layouts, and the new makes '
+        'no folder first', () async {
+      final fall = await _fallThroughClone();
+      final linked = await _linkedClone();
+      final fallBefore = treeBytes(fall.ext);
+      final linkedBefore = treeBytes(Directory('${linked.victim.path}/docs'));
+
+      expect(
+        () => _newTeamPersona(fall.clone),
+        _refusesOutside('docs/rules/team.md'),
+      );
+      expect(Directory('${fall.ext.path}/rules').existsSync(), isFalse);
+      expect(
+        () => _newTeamPersona(linked.clone),
+        _refusesOutside('docs/prds/personas/team/PERSONA.md'),
+      );
+      expect(
+        Directory('${linked.victim.path}/docs/prds/personas/team').existsSync(),
+        isFalse,
+      );
+      expect(
+        () => _batchSignOut(fall.clone),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73),
+        ),
+      );
+      expect(
+        () => _batchSignOut(linked.clone),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73),
+        ),
+      );
+
+      expect(treeBytes(fall.ext), fallBefore);
+      expect(treeBytes(Directory('${linked.victim.path}/docs')), linkedBefore);
+    }, skip: _linksUnavailable);
+  });
+
   group('after the Owner records the roots', () {
     test('new and set write into the folder the docs link names', () async {
       final (:clone, :ext, base: _) = await _fallThroughClone();
@@ -253,6 +394,55 @@ void main() {
       },
       skip: _linksUnavailable,
     );
+
+    test('a set of a section writes through a docs link that is itself a link '
+        'and leaves the link in place', () async {
+      final (:clone, :ext, base: _) = await _fallThroughClone();
+      _trust(clone);
+
+      _setSignOutUseCase(clone);
+
+      final written = File('${ext.path}/$story2').readAsStringSync();
+      expect(written, contains('Signed out of every device.'));
+      expect(written, contains('## Acceptance Criteria'));
+      expect(FileSystemEntity.isLinkSync('${clone.path}/docs'), isTrue);
+    }, skip: _linksUnavailable);
+
+    test('the record lifts the refusal of a set, a new, and a set --batch on '
+        'both layouts', () async {
+      final fall = await _fallThroughClone();
+      final linked = await _linkedClone();
+      for (final clone in [fall.clone, linked.clone]) {
+        expect(() => _setSignOutUseCase(clone), throwsA(isA<RenderFault>()));
+        expect(() => _newTeamPersona(clone), throwsA(isA<RenderFault>()));
+        expect(() => _batchSignOut(clone), throwsA(isA<RenderFault>()));
+        _trust(clone);
+      }
+
+      for (final (clone, docs) in [
+        (fall.clone, fall.ext),
+        (linked.clone, Directory('${linked.victim.path}/docs')),
+      ]) {
+        _batchSignOut(clone);
+        expect(
+          File('${docs.path}/$story2').readAsStringSync(),
+          contains('Signed out by the batch.'),
+        );
+        _setSignOutUseCase(clone);
+        expect(
+          File('${docs.path}/$story2').readAsStringSync(),
+          contains('Signed out of every device.'),
+        );
+        _newTeamPersona(clone);
+      }
+
+      expect(File('${fall.ext.path}/rules/team.md').existsSync(), isTrue);
+      expect(
+        File('${linked.victim.path}/docs/prds/personas/team/PERSONA.md')
+            .existsSync(),
+        isTrue,
+      );
+    }, skip: _linksUnavailable);
 
     test('a rename, which moves through the journal, writes too', () async {
       final (:clone, :ext, base: _) = await _fallThroughClone();
@@ -430,6 +620,82 @@ void main() {
       );
 
       expect(treeBytes(other), before);
+    }, skip: _linksUnavailable);
+
+    test('a record that is no JSON object of two strings counts as none, and '
+        'a new trust writes it anew', () async {
+      final (:clone, :ext, base: _) = await _fallThroughClone();
+      final before = treeBytes(ext);
+      final key = digestOf(
+        utf8.encode(
+          RootTrust.locate(clone, homeDirectory: testHome()).folder.path,
+        ),
+      );
+      final recordFile = File('${testHome().path}/.specstone/trusted/$key');
+      final root = clone.resolveSymbolicLinksSync();
+
+      for (final content in [
+        'not json at all',
+        '[]',
+        '"a string"',
+        '{"projectRoot": 1, "docsRoot": 2}',
+        '{"projectRoot": "$root", "docsRoot": null}',
+      ]) {
+        recordFile
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(content);
+
+        expect(
+          RootTrust.locate(clone, homeDirectory: testHome()).isTrusted,
+          isFalse,
+          reason: content,
+        );
+        expect(
+          () => writeIn(
+            clone,
+            (s) => answerNew(s, docTypeId: 'persona', slug: 'team'),
+          ),
+          _refusesOutside('docs/rules/team.md'),
+          reason: content,
+        );
+        expect(treeBytes(ext), before, reason: content);
+
+        _trust(clone);
+
+        final trust = RootTrust.locate(clone, homeDirectory: testHome());
+        expect(trust.isTrusted, isTrue, reason: content);
+        expect(jsonDecode(recordFile.readAsStringSync()), {
+          'projectRoot': trust.projectRoot.path,
+          'docsRoot': trust.docsRoot.path,
+        });
+      }
+    }, skip: _linksUnavailable);
+
+    test('a fresh clone at the trusted path, with the same resolved roots, is '
+        'trusted with no new record', () async {
+      final (:clone, :ext, base: _) = await _fallThroughClone();
+      _trust(clone);
+      final record = treeBytes(Directory('${testHome().path}/.specstone'));
+      clone.deleteSync(recursive: true);
+      for (final MapEntry(:key, :value) in writeProject.entries) {
+        if (key.startsWith('docs/')) continue;
+        File('${clone.path}/$key')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(value);
+      }
+      File('${clone.path}/.specstone/templates/persona.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(_cloneTemplate);
+      createRelativeLink('${clone.path}/docs', '../../ext');
+
+      expect(
+        RootTrust.locate(clone, homeDirectory: testHome()).isTrusted,
+        isTrue,
+      );
+      writeIn(clone, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
+
+      expect(File('${ext.path}/rules/team.md').existsSync(), isTrue);
+      expect(treeBytes(Directory('${testHome().path}/.specstone')), record);
     }, skip: _linksUnavailable);
 
     test('is ignored when it holds only one of the roots', () async {
@@ -619,6 +885,63 @@ void main() {
         isFalse,
       );
     }, skip: _linksUnavailable);
+  });
+
+  group('format and the default build output on roots the Owner has not '
+      'recorded', () {
+    const unformatted =
+        '---\nvision:\n  - PV-01\n---\n\n# Login\n\n'
+        '## Problem\nUsers sign in.\n';
+
+    test(
+      'refuse with output_not_writable and exit 73, and write no record',
+      () async {
+        final fall = await _fallThroughClone();
+        final linked = await _linkedClone();
+        final layouts = [
+          (fall.clone, fall.ext),
+          (linked.clone, Directory('${linked.victim.path}/docs')),
+        ];
+
+        for (final (clone, docs) in layouts) {
+          File('${docs.path}/$loginFeature').writeAsStringSync(unformatted);
+          final before = treeBytes(docs);
+          final project = DocsProject.open(
+            templates: TemplateResolver(),
+            workingDirectory: clone,
+            homeDirectory: testHome(),
+          );
+          final target = project.resolveTarget(
+            null,
+            workingDirectory: clone,
+            defaultsToDocsRoot: true,
+          );
+          final output = defaultOutputFile(project, target, OutputFormat.html);
+
+          expect(
+            () => runFormat<void>(project, target, check: false),
+            _refusesOutside('docs/$loginFeature'),
+          );
+          expect(
+            () => writeBuildOutput(
+              output,
+              const [1],
+              displayPath: '.specstone/build/docs.html',
+              within: project,
+            ),
+            _refusesOutside('.specstone/build/docs.html'),
+          );
+
+          expect(treeBytes(docs), before);
+          expect(output.existsSync(), isFalse);
+        }
+        expect(
+          Directory('${testHome().path}/.specstone/trusted').existsSync(),
+          isFalse,
+        );
+      },
+      skip: _linksUnavailable,
+    );
   });
 
   group('approve in a layout the Owner has not recorded', () {

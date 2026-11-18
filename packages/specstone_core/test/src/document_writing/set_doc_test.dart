@@ -13,6 +13,8 @@ import 'package:specstone_core/src/document_writing/approval.dart'
 import 'package:specstone_core/src/document_writing/batch_file.dart'
     show parseBatchFile;
 import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
+import 'package:specstone_core/src/document_writing/new_doc.dart'
+    show answerNew;
 import 'package:specstone_core/src/document_writing/set_batch.dart'
     show answerSetBatch;
 import 'package:specstone_core/src/document_writing/set_doc.dart';
@@ -168,6 +170,50 @@ void main() {
       );
       expect(split.address, 'prds/notes');
     });
+  });
+
+  test('a path holding # with --title is the whole address and refuses untyped_target', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/notes#draft.md': '# Draft\n'},
+    );
+    writeIn(root, (s) {
+      final whole = SetRequest.parse(
+        'prds/notes#draft.md',
+        title: true,
+        base: 'abc',
+        index: s.index,
+      );
+      expect(whole.address, 'prds/notes#draft.md');
+      expect(whole.target, isA<TitleTarget>());
+      expect(
+        () => answerSet(s, whole, 'Retitled\n'),
+        throwsIndexFault(IndexFaultCode.untypedTarget),
+      );
+    });
+    expect(readDoc(root, 'prds/notes#draft.md'), '# Draft\n');
+  });
+
+  test('a bare gnfr name with #_lead writes the one gnfr doc as the typed name does', () async {
+    const gnfr = 'prds/GNFR.md';
+    const doc =
+        '# Global non-functional requirements\n\nOld intro.\n\n## Performance\n\nN/A — no budget yet.\n';
+    final bare = await writeWriteProject(extra: {'docs/$gnfr': doc});
+    final typed = await writeWriteProject(extra: {'docs/$gnfr': doc});
+    String write(Directory root, String address) {
+      final base = sectionBase(root, address);
+      writeIn(root, (s) => answerSet(s, req(address, base), 'New intro.\n'));
+      return readDoc(root, gnfr);
+    }
+
+    final viaBare = write(bare, 'gnfr#_lead');
+    expect(viaBare, write(typed, 'gnfr:gnfr#_lead'));
+    expect(
+      viaBare,
+      contains(
+        '# Global non-functional requirements\n\nNew intro.\n\n## Performance',
+      ),
+    );
+    expect(viaBare, contains('draft: true'));
   });
 
   test('set names one target and a base', () {
@@ -555,6 +601,149 @@ void main() {
         ),
       );
     });
+  });
+
+  test('a non-template section removed after the read exits 64 naming the doc and the key', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1': '${writeProject['docs/$story1']!}\n## Notes\nfirst\n',
+      },
+    );
+    const target = 'user_story:login/email_login#notes';
+    final base = sectionBase(root, target);
+    docFile(root, story1).writeAsStringSync(
+      readDoc(root, story1).replaceFirst('\n## Notes\nfirst\n', ''),
+    );
+    final before = readDoc(root, story1);
+    expect(
+      () => writeIn(root, (s) => answerSet(s, req(target, base), 'x\n')),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+            .having((f) => f.exitStatus, 'exitStatus', 64)
+            .having(
+              (f) => f.message,
+              'message',
+              startsWith(
+                'user_story:login/email_login holds no section with the key notes',
+              ),
+            ),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test('a hand edit while another call holds the write lock takes no lock, and the next set re-reads it', () async {
+    final root = await writeWriteProject();
+    const target = 'user_story:login/sign_out#use_case';
+    final base = sectionBase(root, target);
+    final other = sqlite3.open('${root.path}/.specstone/index.sqlite')
+      ..execute('BEGIN IMMEDIATE');
+    addTearDown(other.close);
+    docFile(root, story2).writeAsStringSync(
+      readDoc(root, story2).replaceFirst('Sign out.', 'Signed out by hand.'),
+    );
+    other.execute('ROLLBACK');
+    final handEdited = readDoc(root, story2);
+    expect(handEdited, contains('Signed out by hand.'));
+    expect(handEdited, isNot(contains('draft:')));
+
+    expect(
+      () => writeIn(root, (s) => answerSet(s, req(target, base), 'Out.\n')),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+            .having(
+              (f) => f.current?.text,
+              'current.text',
+              contains('Signed out by hand.'),
+            ),
+      ),
+    );
+    expect(readDoc(root, story2), handEdited);
+  });
+
+  test('empty stdin on a required section the doc lacks is required_target naming it', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
+          '## Use Case\n\nSign in with an email.\n\n',
+          '',
+        ),
+      },
+    );
+    final before = readDoc(root, story1);
+    expect(before, isNot(contains('## Use Case')));
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req('user_story:login/email_login#use_case', emptyBaseHash),
+          '',
+        ),
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.requiredTarget)
+            .having(
+              (f) => f.message,
+              'message',
+              'user_story requires the section use_case',
+            )
+            .having((f) => (f.file, f.key), 'location', (story1, 'use_case')),
+      ),
+    );
+    expect(readDoc(root, story1), before);
+  });
+
+  test('a write to any other part adds no missing section, and only a set on its key with the empty base adds it', () async {
+    final root = await writeWriteProject();
+    const address = 'user_story:login/email_login';
+    const missing = '## Open questions';
+    expect(readDoc(root, story1), isNot(contains(missing)));
+
+    String base(String id) => sectionBase(root, '$address#$id');
+    final titleBase =
+        (getDoc(root, address)['bases']! as Map)['title']! as String;
+    writeIn(
+      root,
+      (s) => answerSet(s, req('$address#use_case', base('use_case')), 'A.\n'),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(s, req('$address#_lead', base('_lead')), 'Lead.\n'),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(address, 'vision', fieldBase(root, address, 'vision')),
+        '- PV-02\n',
+      ),
+    );
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        SetRequest.parse(address, title: true, base: titleBase),
+        'Sign in\n',
+      ),
+    );
+    final laidOut = readDoc(root, story1);
+    expect(laidOut, contains('Lead.'));
+    expect(laidOut, contains('# Sign in\n'));
+    expect(laidOut, isNot(contains(missing)));
+
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req('$address#open_questions', emptyBaseHash),
+        'Which provider?\n',
+      ),
+    );
+    expect(readDoc(root, story1), endsWith('$missing\n\nWhich provider?\n'));
   });
 
   test(
@@ -1201,7 +1390,7 @@ void main() {
     );
     expect(readDoc(root, fr11), before);
   });
-  test('draft and approved are field_not_writable', () async {
+  test('a set of draft or approved is field_not_writable', () async {
     final root = await writeWriteProject();
     expect(
       () => writeIn(
@@ -1626,7 +1815,7 @@ void main() {
     expect(answer.json['base'], emptyBaseHash);
     expect(answer.json['draft'], isTrue);
   });
-  test("empty stdin removes a feature's written status", () async {
+  test("an empty stdin clears a feature's written status", () async {
     final root = await writeWriteProject(
       extra: {
         'docs/$loginFeature': '---\nstatus: implemented\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\nUsers sign in with an email and a password.\n',
@@ -2321,7 +2510,150 @@ void main() {
       );
     });
 
-    test('a CRLF doc keeps CRLF', () async {
+    const signOutLead = 'user_story:login/sign_out#_lead';
+
+    test('a lead write marks a non-draft doc draft', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story2);
+      expect(before, isNot(contains('draft: true')));
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(signOutLead, getDoc(root, signOutLead)['base']! as String),
+          'Signing out ends the session.\n',
+        ),
+      );
+      expect(
+        readDoc(root, story2),
+        before
+            .replaceFirst('status: planned\n', 'status: planned\ndraft: true\n')
+            .replaceFirst(
+              '# Sign out\n',
+              '# Sign out\n\nSigning out ends the session.\n',
+            ),
+      );
+      expect(answer.json['draft'], isTrue);
+    });
+
+    test(
+      'a doc with no title line has its whole head replaced as the lead',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            'docs/$persona':
+                '---\ndraft: true\n---\n\nFirst head line.\n\nSecond head line.\n\n'
+                '## Profile\nBuys things.\n',
+          },
+        );
+        const target = 'persona:buyer#_lead';
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, getDoc(root, target)['base']! as String),
+            '\nNew head.\n',
+          ),
+        );
+        expect(
+          readDoc(root, persona),
+          '---\ndraft: true\n---\n\nNew head.\n\n## Profile\nBuys things.\n',
+        );
+      },
+    );
+
+    test('a title-shaped line in the lead is refused naming the line with exit status 64', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) =>
+              answerSet(s, req(target, leadBase(root)), 'Intro.\n# Retitled\n'),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                'the lead holds the line "# Retitled"; send the lead only',
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('empty stdin on the lead of a non-draft doc marks it draft', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story2);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(signOutLead, getDoc(root, signOutLead)['base']! as String),
+          '',
+        ),
+      );
+      expect(
+        readDoc(root, story2),
+        before.replaceFirst(
+          'status: planned\n',
+          'status: planned\ndraft: true\n',
+        ),
+      );
+      expect(answer.json['draft'], isTrue);
+      expect(answer.json['base'], emptyBaseHash);
+    });
+
+    test(
+      'a stale lead refusal exits 75 and leaves the doc untouched',
+      () async {
+        final root = await project();
+        final before = readDoc(root, story1);
+        expect(
+          () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+                .having((f) => f.exitStatus, 'exitStatus', 75),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
+
+    test(
+      'a lead that leaves a fence open exits 64 naming the fence line',
+      () async {
+        final root = await project();
+        final before = readDoc(root, story1);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              req(target, leadBase(root)),
+              'Run:\n\n~~~sh\nmake\n',
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'the lead leaves the fence "~~~sh" open; close it',
+                ),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
+
+    test('a lead write keeps CRLF in a CRLF doc', () async {
       final root = await project();
       docFile(
         root,
@@ -2339,6 +2671,34 @@ void main() {
         readDoc(root, story1).replaceAll('\r\n', ''),
         isNot(contains('\n')),
       );
+    });
+
+    test('a column-0 naming line in a lead is refused opening with the lead holds and the doc stays', () async {
+      final root = await project();
+      final before = readDoc(root, story1);
+      const naming =
+          '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, leadBase(root)),
+            'Intro.\n\n$naming\nMore.\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('the lead holds the naming line "$naming"'),
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
     });
   });
 
@@ -2660,6 +3020,159 @@ void main() {
         );
       },
     );
+
+    String outOfOrder(String mark) =>
+        '---\noverrides:\n  - x\n$mark\n---\n\n# Signup architecture\n\n'
+        '## Deployment\n\nNone yet.\n\n## Components\n\n'
+        '| Component | Responsibility |\n|---|---|\n'
+        '| Signup form | Collects the email |\n';
+
+    String inOrder(String mark, {String lead = ''}) =>
+        '---\n$mark\noverrides:\n  - x\n---\n\n# Signup architecture\n\n$lead'
+        '## Components\n\n| Component | Responsibility |\n|---|---|\n'
+        '| Signup form | Collects the email |\n\n## Deployment\n\nNone yet.\n';
+
+    String titleBase(Directory root) =>
+        (getDoc(root, arch)['bases']! as Map)['title']! as String;
+
+    Future<List<String>> undeclaredHeaders(Directory root) async {
+      final session = openSession(root);
+      try {
+        final report = await runCheck(session);
+        return [
+          for (final spot in spots(report, FindingKind.sectionUndeclared))
+            if (spot.startsWith('$signupArch:')) spot,
+        ];
+      } finally {
+        session.close();
+      }
+    }
+
+    test('a field write lays out a doc with keys and sections out of template order', () async {
+      final root = await archProject(outOfOrder('approved: true'));
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+          '- app/lib/\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        inOrder('approved: true\ncovers:\n  - app/lib/'),
+      );
+    });
+
+    test('a title write lays out a doc with keys and sections out of template order', () async {
+      final root = await archProject(outOfOrder('draft: true'));
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(arch, title: true, base: titleBase(root)),
+          'Signup architecture\n',
+        ),
+      );
+      expect(readDoc(root, signupArch), inOrder('draft: true'));
+    });
+
+    test('a section write lays out a doc with keys and sections out of template order', () async {
+      final root = await archProject(outOfOrder('draft: true'));
+      const target = '$arch#deployment';
+      writeIn(
+        root,
+        (s) =>
+            answerSet(s, req(target, sectionBase(root, target)), 'None yet.\n'),
+      );
+      expect(readDoc(root, signupArch), inOrder('draft: true'));
+    });
+
+    test('a lead write lays out a doc with keys and sections out of template order', () async {
+      final root = await archProject(outOfOrder('draft: true'));
+      const target = '$arch#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'Lead.\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        inOrder('draft: true', lead: 'Lead.\n\n'),
+      );
+    });
+
+    test('a field write on a doc format refuses stays approved and check reports the unknown header', () async {
+      final root = await archProject(
+        refused.replaceFirst('draft: true', 'approved: true'),
+      );
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
+          '- app/lib/\n',
+        ),
+      );
+      expect(readDoc(root, signupArch), isNot(contains('draft:')));
+      expect(
+        readDoc(root, signupArch),
+        startsWith('---\napproved: true\ncovers:'),
+      );
+      expect(await undeclaredHeaders(root), [
+        '$signupArch:9: section_undeclared',
+      ]);
+    });
+
+    test('check still reports the unknown header after a title write on a doc format refuses', () async {
+      final root = await archProject(refused);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(arch, title: true, base: titleBase(root)),
+          'Renamed\n',
+        ),
+      );
+      expect(await undeclaredHeaders(root), [
+        '$signupArch:7: section_undeclared',
+      ]);
+    });
+
+    test('check still reports the unknown header after a section write on a doc format refuses', () async {
+      final root = await archProject(refused);
+      const target = '$arch#components';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          '| A | B |\n|---|---|\n| 3 | 4 |\n',
+        ),
+      );
+      expect(await undeclaredHeaders(root), [
+        '$signupArch:7: section_undeclared',
+      ]);
+    });
+
+    test('check still reports the unknown header after a lead write on a doc format refuses', () async {
+      final root = await archProject(refused);
+      const target = '$arch#_lead';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, getDoc(root, target)['base']! as String),
+          'Lead.\n',
+        ),
+      );
+      expect(await undeclaredHeaders(root), [
+        '$signupArch:8: section_undeclared',
+      ]);
+    });
   });
   group('splicePart checks and splices one part', () {
     const address = 'user_story:login/email_login';
@@ -3562,6 +4075,47 @@ void main() {
       expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
     });
 
+    test('an implements entry with a fingerprint leaves a record approved or draft as it was', () async {
+      final root = await twinWithRecords();
+      docFile(
+        root,
+        flutterRecord,
+      ).writeAsStringSync(record.replaceFirst('---\n', '---\ndraft: true\n'));
+      const entry =
+          'email_login/check_password:app/lib/login.dart:SignInPage 5d1e0c4b7a92';
+      final approvedBefore = RegExp('approved: "[0-9a-f]{12}"')
+          .firstMatch(readDoc(root, jasprRecord))![0]!;
+
+      final answers = {
+        for (final path in [flutterRecord, jasprRecord])
+          path: writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              SetRequest.parse(
+                path,
+                field: 'implements',
+                base: fieldBase(root, path, 'implements'),
+              ),
+              '- $entry\n',
+            ),
+          ),
+      };
+
+      expect(readDoc(root, flutterRecord), contains('draft: true\n'));
+      expect(readDoc(root, flutterRecord), contains('  - $entry\n'));
+      expect(answers[flutterRecord]!.json['draft'], isTrue);
+      expect(
+        readDoc(root, jasprRecord),
+        allOf(
+          contains('  - $entry\n'),
+          contains(approvedBefore),
+          isNot(contains('draft')),
+        ),
+      );
+      expect(answers[jasprRecord]!.json['draft'], isFalse);
+    });
+
     test(
       'below the statuses pin, a statuses write on a target record drafts it',
       () async {
@@ -4026,7 +4580,7 @@ void main() {
       );
     });
 
-    test('removes the old passage for an empty new passage', () async {
+    test('an empty new passage deletes the old passage', () async {
       final root = await writeWriteProject();
       final before = readDoc(root, story1);
       replace(root, useCase, '==> old <==\n an email\n==> new <==\n');
@@ -4156,6 +4710,586 @@ void main() {
       );
       expect(readDoc(root, story1), before);
     });
+
+    test('refuses stdin with no new marker or a second marker with exit status 64 and leaves the doc', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      for (final bad in [
+        '==> old <==\nSign in\n',
+        '==> old <==\nSign in\n==> new <==\nx\n==> new <==\ny\n',
+      ]) {
+        expect(
+          () => replace(root, useCase, bad),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64),
+          ),
+          reason: bad,
+        );
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('refuses a new passage that makes a header line naming the line with exit status 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => replace(
+          root,
+          useCase,
+          stdin('Sign in with an email.', 'Sign in.\n\n## Other'),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                'the body holds the header line "## Other"; send the body only',
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('a section key the template does not define is section_not_found with exit status 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            replaceReq('user_story:login/email_login#no_such', emptyBaseHash),
+            stdin('a', 'b'),
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+              .having((f) => f.exitStatus, 'exitStatus', 64),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+  });
+
+  group('set refuses and lays out edge cases of one section or field', () {
+    const useCase = 'user_story:login/email_login#use_case';
+    const naming =
+        '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
+    const paddedArch =
+        '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n'
+        '| Component   | Responsibility |\n|-------------|----------------|\n'
+        '| Signup form | Collects the email |\n\n## Deployment\nNone yet.\n';
+
+    final linksUnavailable = Platform.isWindows
+        ? 'a link needs a privilege on Windows'
+        : null;
+
+    /// Replaces the file of [docPath] by a link to a copy of it outside the
+    /// project, as a file swapped after the index read it is; returns the copy.
+    File leaveProject(Directory root, String docPath) {
+      final outside = Directory.systemTemp.createTempSync('set_outside_');
+      addTearDown(() => outside.deleteSync(recursive: true));
+      final copy = File('${outside.path}/doc.md')
+        ..writeAsStringSync(readDoc(root, docPath));
+      final file = docFile(root, docPath)..deleteSync();
+      Link(file.path).createSync(copy.path);
+      return copy;
+    }
+
+    Matcher refusesAsLeavingTheProject(String docPath) => throwsA(
+      isA<RenderFault>()
+          .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+          .having((f) => f.exitStatus, 'exitStatus', 73)
+          .having(
+            (f) => f.message,
+            'message',
+            'cannot write docs/$docPath: it leads outside the project',
+          ),
+    );
+
+    test(
+      'a field added to a doc holding an undeclared key lands before that key',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            'docs/$story1':
+                '---\nstatus: planned\ndraft: true\nsize: 1\npersona:\n  - buyer\nvision:\n  - PV-01\n---\n\n'
+                '# Sign in with email\n\n## Use Case\n\nSign in with an email.\n\n'
+                '## Acceptance Criteria\n\n- **Given** a registered email\n',
+          },
+        );
+        const target = 'user_story:login/email_login';
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            fieldReq(target, 'goals', emptyBaseHash),
+            '- PG-01\n',
+          ),
+        );
+        expect(
+          readDoc(root, story1),
+          startsWith(
+            '---\nstatus: planned\ndraft: true\nvision:\n  - PV-01\ngoals:\n  - PG-01\npersona:\n  - buyer\nsize: 1\n---\n',
+          ),
+        );
+      },
+    );
+
+    test('a task_ref entry shaped :ENG-42 or INV-4: is field_value_invalid with exit status 64, and a tasks write on an approved spec doc keeps it approved', () async {
+      final root = await writeWriteProject();
+      const target = 'architecture:login';
+      final before = readDoc(root, loginArch);
+      for (final value in ['- ":ENG-42"\n', '- "INV-4:"\n']) {
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              fieldReq(target, 'tasks', fieldBase(root, target, 'tasks')),
+              value,
+            ),
+          ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.fieldValueInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64),
+          ),
+          reason: value,
+        );
+      }
+      expect(readDoc(root, loginArch), before);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'tasks', fieldBase(root, target, 'tasks')),
+          '- INV-4:ENG-42\n',
+        ),
+      );
+      expect(readDoc(root, loginArch), contains('tasks:\n  - INV-4:ENG-42\n'));
+      expect(readDoc(root, loginArch), isNot(contains('draft:')));
+      expect(readDoc(root, loginArch), contains('approved: "'));
+      expect(answer.json['draft'], isFalse);
+    });
+
+    test('a list write into an absent block writes plain entries and single-quotes S1: x and true', () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'goals', emptyBaseHash),
+          '- PG-01\n- "S1: x"\n- "true"\n',
+        ),
+      );
+      expect(
+        readDoc(root, story1),
+        contains("goals:\n  - PG-01\n  - 'S1: x'\n  - 'true'\n"),
+      );
+    });
+
+    test('a list write into a present empty block writes plain entries and single-quotes S1: x and true', () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
+            'persona:\n  - buyer\n',
+            'persona:\n  - buyer\ngoals:\n',
+          ),
+        },
+      );
+      const target = 'user_story:login/email_login';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'goals', fieldBase(root, target, 'goals')),
+          '- PG-01\n- "S1: x"\n- "true"\n',
+        ),
+      );
+      expect(
+        readDoc(root, story1),
+        contains("goals:\n  - PG-01\n  - 'S1: x'\n  - 'true'\n"),
+      );
+    });
+
+    test('a section the key of which the doc lacks and the template does not define is section_not_found with exit status 64 naming doc and key', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req('user_story:login/email_login#no_such', emptyBaseHash),
+            'x\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                'user_story:login/email_login holds no section with the key no_such, and its template defines none',
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('a write that lays out the whole doc leaves the older base of another section valid', () async {
+      final root = await writeWriteProject(
+        extra: {'docs/$signupArch': paddedArch},
+      );
+      const components = 'architecture:signup#components';
+      const deployment = 'architecture:signup#deployment';
+      final olderBase = sectionBase(root, components);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(deployment, sectionBase(root, deployment)),
+          'Nothing yet.\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        contains('| Component | Responsibility |\n|---|---|\n'),
+      );
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(components, olderBase),
+          '| A | B |\n|---|---|\n| 1 | 2 |\n',
+        ),
+      );
+      expect(
+        readDoc(root, signupArch),
+        allOf(
+          contains('## Components\n\n| A | B |\n|---|---|\n| 1 | 2 |\n'),
+          contains('## Deployment\n\nNothing yet.\n'),
+        ),
+      );
+    });
+
+    test('empty stdin on an absent optional section writes a non-draft doc marked draft', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story2);
+      expect(before, isNot(contains('draft: true')));
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req('user_story:login/sign_out#rules', emptyBaseHash),
+          '',
+        ),
+      );
+      expect(
+        readDoc(root, story2),
+        before.replaceFirst(
+          'status: planned\n',
+          'status: planned\ndraft: true\n',
+        ),
+      );
+      expect(answer.json['draft'], isTrue);
+      expect(answer.json['base'], emptyBaseHash);
+    });
+
+    test('empty stdin on a required template section the doc lacks is required_target with exit status 64', () async {
+      final original = writeProject['docs/$story1']!;
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$story1':
+              '${original.substring(0, original.indexOf('## Acceptance Criteria')).trimRight()}\n',
+        },
+      );
+      final before = readDoc(root, story1);
+      expect(before, isNot(contains('Acceptance Criteria')));
+      for (final text in ['', '\n']) {
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              req(
+                'user_story:login/email_login#acceptance_criteria',
+                emptyBaseHash,
+              ),
+              text,
+            ),
+          ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.requiredTarget)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'user_story requires the section acceptance_criteria',
+                ),
+          ),
+        );
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('a section set on a doc with no frontmatter adds frontmatter holding draft: true and one blank line', () async {
+      final root = await writeWriteProject(
+        extra: {'docs/$persona': '# Buyer\n\n## Snapshot\nBuys things.\n'},
+      );
+      const target = 'persona:buyer#snapshot';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          'Buys many things.\n',
+        ),
+      );
+      expect(
+        readDoc(root, persona),
+        '---\ndraft: true\n---\n\n# Buyer\n\n## Snapshot\n\nBuys many things.\n',
+      );
+    });
+
+    test(
+      'a read-only doc is refused with exit status 73 and keeps its bytes',
+      () async {
+        final root = await writeWriteProject();
+        final before = readDoc(root, story1);
+        final file = docFile(root, story1);
+        Process.runSync('chmod', ['444', file.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+        expect(
+          () => writeIn(
+            root,
+            (s) =>
+                answerSet(s, req(useCase, sectionBase(root, useCase)), 'x\n'),
+          ),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.exitStatus, 'exitStatus', 73),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      },
+      skip: unreadablePathSkipReason() ?? false,
+    );
+
+    test('a hand edit to a non-draft doc is never marked draft, and only the next set marks it', () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/sign_out#use_case';
+      docFile(root, story2).writeAsStringSync(
+        readDoc(root, story2).replaceFirst('Sign out.', 'Signed out by hand.'),
+      );
+      expect(readDoc(root, story2), isNot(contains('draft:')));
+      writeIn(
+        root,
+        (s) => answerSet(s, req(target, sectionBase(root, target)), 'Out.\n'),
+      );
+      expect(readDoc(root, story2), contains('draft: true\n'));
+    });
+
+    test('leading blank lines before the template header line of a section the doc lacks are dropped with it', () async {
+      final root = await writeWriteProject();
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req('user_story:login/email_login#open_questions', emptyBaseHash),
+          '\n\n## Open questions\n\nNone yet.\n',
+        ),
+      );
+      final text = readDoc(root, story1);
+      expect(text, endsWith('## Open questions\n\nNone yet.\n'));
+      expect('## Open questions'.allMatches(text), hasLength(1));
+    });
+
+    test('a body that leaves a fence open exits 64 naming the fence line and the file stays', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(useCase, sectionBase(root, useCase)),
+            'See:\n\n~~~sh\nmake\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                'the body leaves the fence "~~~sh" open; close it',
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('a ## line in a body exits 64 and a four-space-indented ## line is accepted', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(useCase, sectionBase(root, useCase)),
+            'Sign in.\n\n## Other\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                'the body holds the header line "## Other"; send the body only',
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(useCase, sectionBase(root, useCase)),
+          'Sign in.\n\n    ## Other\n',
+        ),
+      );
+      expect(readDoc(root, story1), contains('Sign in.\n\n    ## Other\n'));
+    });
+
+    test('a column-0 naming line is refused with its exact message and exit status 64', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(useCase, sectionBase(root, useCase)),
+            'Sign in.\n\n$naming  \n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                'the body holds the naming line "$naming"; indent it or put it in a fenced code block',
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('a naming line is refused in a lead and in a new doc text, each message opening with its own subject', () async {
+      final root = await writeWriteProject();
+      const lead = 'user_story:login/email_login#_lead';
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(lead, getDoc(root, lead)['base']! as String),
+            'Intro.\n$naming\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('the lead holds the naming line "$naming"'),
+              ),
+        ),
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'quoted',
+            text: '# Mine\n\n$naming\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('the text holds the naming line "$naming"'),
+              ),
+        ),
+      );
+    });
+
+    test('a doc file leading outside the project is output_not_writable with exit status 73 and stays untouched', () async {
+      final root = await writeWriteProject();
+      final base = sectionBase(root, useCase);
+      late final File copy;
+      expect(
+        () => writeIn(root, (s) {
+          copy = leaveProject(root, story1);
+          return answerSet(s, req(useCase, base), 'x\n');
+        }),
+        refusesAsLeavingTheProject(story1),
+      );
+      expect(copy.readAsStringSync(), writeProject['docs/$story1']);
+      expect(FileSystemEntity.isLinkSync(docFile(root, story1).path), isTrue);
+    }, skip: linksUnavailable);
+
+    test('a field, title, or lead set on a doc file leading outside the project is refused alike', () async {
+      const address = 'user_story:login/email_login';
+      final titleBase =
+          (getDoc(await writeWriteProject(), address)['bases']!
+                  as Map)['title']!
+              as String;
+      for (final (request, text) in [
+        (fieldReq(address, 'goals', emptyBaseHash), '- PG-01\n'),
+        (SetRequest.parse(address, title: true, base: titleBase), 'Renamed\n'),
+        (req('$address#_lead', baseHashOf('')), 'Lead.\n'),
+      ]) {
+        final root = await writeWriteProject();
+        late final File copy;
+        expect(
+          () => writeIn(root, (s) {
+            copy = leaveProject(root, story1);
+            return answerSet(s, request, text);
+          }),
+          refusesAsLeavingTheProject(story1),
+          reason: '${request.target}',
+        );
+        expect(copy.readAsStringSync(), writeProject['docs/$story1']);
+      }
+    }, skip: linksUnavailable);
   });
 
   group('a record matrix section write', () {
@@ -4301,5 +5435,36 @@ void main() {
         );
       },
     );
+
+    test('check reports no approval_stale after a matrix write on an approved record', () async {
+      final root = await writeMatrixRecordProject(isDraft: false);
+      Future<List<String>> staleRecords() async {
+        final session = openSession(root);
+        try {
+          return spots(await runCheck(session), FindingKind.approvalStale);
+        } finally {
+          session.close();
+        }
+      }
+
+      expect(await staleRecords(), isEmpty);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(matrix, sectionBase(root, matrix)),
+          '$matrixRow- email_login/check_password E02: `an empty password`\n',
+        ),
+      );
+      expect(readDoc(root, loginRecord), contains('an empty password'));
+      expect(await staleRecords(), isEmpty);
+      docFile(root, loginRecord).writeAsStringSync(
+        readDoc(
+          root,
+          loginRecord,
+        ).replaceFirst('See the rows.', 'See the table.'),
+      );
+      expect(await staleRecords(), isNotEmpty);
+    });
   });
 }
