@@ -696,6 +696,38 @@ void main() {
     });
   });
 
+  test('the stored lines equal a fresh scan of the docs, place by place and line by line, whatever the link names', () async {
+    const toDomain = '$_specs/f02_signup/DOMAIN.md';
+    const toFr =
+        '../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    final index = await _index(
+      'Lock by $_inv13 and $_inv14, see [the domain]($toDomain) and '
+      '[the invariants]($toDomain#invariants), per [a note]($_specs/topics/blocks.md#a-note) '
+      'and [the title]($_specs/topics/blocks.md#blocks).',
+      extra: {
+        'docs/specs/topics/blocks.md':
+            '# Blocks\n\n## Examples\n### A note\nShort.\n',
+        'docs/specs/topics/guide.md':
+            '# Guide\n\n## Purpose\nSee [RULE-2](ranges.md#rules) to [RULE-4](ranges.md#rules), '
+            '[the edge cases]($toFr#edge-cases), and [the rule]($toFr).\n',
+      },
+    );
+
+    final stored = citedByIndex(index);
+    final fresh = scanCitedBy(
+      index.docs,
+      set: index.set,
+      contentOf: index.contentOf,
+    );
+
+    expect({
+      for (final place in fresh.keys) place.kind,
+    }, CitedKind.values.toSet());
+    expect(fresh.length, greaterThan(8));
+    expect(Map.of(stored), fresh);
+    expect(stored.keys.toList(), fresh.keys.toList());
+  });
+
   group('citedItemsIn', () {
     const inv15 = '[INV-15]($_specs/f02_signup/DOMAIN.md#invariants)';
     const nesting = <String, String>{

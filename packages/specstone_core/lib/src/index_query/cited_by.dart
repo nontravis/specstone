@@ -19,6 +19,7 @@ import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show nameWithType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 
 /// The lines that cite each [CitedPlace].
 ///
@@ -52,7 +53,19 @@ final class CitedByIndex extends MapView<CitedPlace, List<CitedBy>> {
   }
 }
 
-/// Returns who cites each place, from the links the index stores.
+/// Returns who cites each place, from the lines the index stores.
+///
+/// The lines are those [scanCitedBy] gives for the docs the index held when it
+/// last wrote a doc. See [CitedByIndex.inline] for [inline].
+CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) =>
+    CitedByIndex(_citedLinksOf[index] ??= index.citedLines(), inline: inline);
+
+/// The cited-by lines of each index, read on first use: an index is one read
+/// snapshot, so `check`'s many bundles of one run share one read.
+final _citedLinksOf = Expando<Map<CitedPlace, List<CitedBy>>>();
+
+/// Returns who cites each place, read from the links of [docs], the docs in
+/// tree order, whose content [contentOf] gives and whose doc types [set] holds.
 ///
 /// One line per link from a typed doc other than the cited doc's own, an item
 /// range giving one to each item it spans, in tree order of the citing docs
@@ -61,34 +74,31 @@ final class CitedByIndex extends MapView<CitedPlace, List<CitedBy>> {
 /// [classifyLink] reads each link, so it cites a place here exactly when
 /// `check` and the follow read it so: an item, a `###` block, a section, or
 /// the whole doc, which an anchor no section or block places also names. A
-/// link whose anchor matches nothing cites none. See [CitedByIndex.inline]
-/// for [inline].
-CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) =>
-    CitedByIndex(_citedLinksOf[index] ??= _citedLinksIn(index), inline: inline);
-
-/// The cited-by lines of each index, built on first use: an index is one read
-/// snapshot, so `check`'s many bundles of one run share one scan of its links.
-final _citedLinksOf = Expando<Map<CitedPlace, List<CitedBy>>>();
-
-Map<CitedPlace, List<CitedBy>> _citedLinksIn(DocIndex index) {
-  final docs = <String, _Doc>{};
-  _Doc? read(IndexedDoc doc) {
+/// link whose anchor matches nothing cites none.
+Map<CitedPlace, List<CitedBy>> scanCitedBy(
+  List<IndexedDoc> docs, {
+  required MergedSet set,
+  required DocContent Function(IndexedDoc doc) contentOf,
+}) {
+  final byPath = {for (final doc in docs) doc.docPath: doc};
+  final read = <String, _Doc>{};
+  _Doc? readerOf(IndexedDoc doc) {
     final typeId = doc.docTypeId;
     if (typeId == null) return null;
-    return docs[doc.docPath] ??= _Doc(
+    return read[doc.docPath] ??= _Doc(
       doc,
       typeId,
-      index.contentOf(doc),
-      index.typeOf(doc),
+      contentOf(doc),
+      set.lookup(typeId),
     );
   }
 
   final cited = <CitedPlace, List<CitedBy>>{};
-  for (final source in index.docs) {
-    final reader = read(source);
+  for (final source in docs) {
+    final reader = readerOf(source);
     if (reader == null) continue;
     for (final line in reader.linkLines) {
-      for (final place in _citesOn(index, reader, line, read)) {
+      for (final place in _citesOn(byPath, reader, line, readerOf)) {
         (cited[place] ??= []).add(
           CitedBy(
             docPath: source.docPath,
@@ -323,14 +333,14 @@ List<Map<String, Object?>> citedByJson(List<CitedItem> items) => [
 /// A range's last link adds nothing of its own, since the range names its
 /// item; every other link adds its own, even when two name one place.
 List<CitedPlace> _citesOn(
-  DocIndex index,
+  Map<String, IndexedDoc> byPath,
   _Doc reader,
   int line,
   _Doc? Function(IndexedDoc doc) read,
 ) {
   final classified = <({LinkText link, LinkCite cite, _Doc target, int? at})>[];
   for (final link in reader.linksOn(line)) {
-    final doc = index.at(link.target);
+    final doc = byPath[link.target];
     final target = doc == null ? null : read(doc);
     if (target == null) continue;
     final anchor = link.anchor;

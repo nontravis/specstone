@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/index_query/cited_by.dart' show scanCitedBy;
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
@@ -101,13 +102,23 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
         store.setStatKey(docPath, file.stat);
       }
     }
-    // With no doc put or deleted, the parents and the order still hold.
+    // With no doc put or deleted, the parents, the order, and the cited-by
+    // lines still hold. A cite's place depends on the target doc's items and
+    // sections and on the source's name and type, so a change can move the
+    // lines of other docs: the table is written whole, never by doc.
     if (reindexed > 0) {
       final tree = resolveParents(store.loadDocs(), project.set);
       store.setTree(
         parents: tree.parents,
         parentWarnings: tree.warnings,
         order: files.keys.toList(),
+      );
+      store.putCitedBy(
+        scanCitedBy(
+          store.loadDocs(),
+          set: project.set,
+          contentOf: (doc) => store.loadContent(doc.docPath),
+        ),
       );
     }
     store.setCheckedAt(listing.checkedAt);

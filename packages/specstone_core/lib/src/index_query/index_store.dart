@@ -10,6 +10,8 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/models/cited_by.dart';
+import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/models/indexed_item_words.dart';
 import 'package:specstone_core/src/index_query/models/indexed_link.dart';
@@ -83,7 +85,9 @@ const _notWritableMessage =
 /// rebuilt. Layout 29 holds both, so an index of layout 27 or 28, which lacks
 /// one or the other, is rebuilt. Layout 30 counts a section's body alone, so an
 /// index of layout 29, whose counts include the header line, is rebuilt.
-const indexLayoutVersion = 30;
+/// Layout 31 adds the `cited_by` table, so an index of layout 30, which holds
+/// none, is rebuilt.
+const indexLayoutVersion = 31;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -146,6 +150,17 @@ CREATE TABLE item_words (
   words TEXT NOT NULL,
   PRIMARY KEY (doc_path, position)
 );
+CREATE TABLE cited_by (
+  seq INTEGER PRIMARY KEY,
+  place_doc TEXT NOT NULL,
+  place_kind TEXT NOT NULL,
+  place_key TEXT,
+  by_doc TEXT NOT NULL,
+  by_name TEXT NOT NULL,
+  by_type TEXT NOT NULL,
+  by_item TEXT,
+  line TEXT NOT NULL
+);
 CREATE TABLE diagram_parses (
   block_hash TEXT NOT NULL,
   parser_hash TEXT NOT NULL,
@@ -170,6 +185,7 @@ const _tables = [
   'sections',
   'links',
   'item_words',
+  'cited_by',
   'diagram_parses',
   'doc_search',
 ];
@@ -670,6 +686,62 @@ final class IndexStore {
       firstRowid,
       firstRowid + _searchRowsPerDoc - 1,
     ]);
+  }
+
+  /// Replaces the whole `cited_by` table with [cited], each place in the order
+  /// the map holds it and each place's lines in their order.
+  ///
+  /// Call it inside [write].
+  void putCitedBy(Map<CitedPlace, List<CitedBy>> cited) {
+    _db.execute('DELETE FROM cited_by');
+    final insert = _db.prepare(
+      'INSERT INTO cited_by (place_doc, place_kind, place_key, by_doc, '
+      'by_name, by_type, by_item, line) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    );
+    try {
+      for (final MapEntry(key: place, value: lines) in cited.entries) {
+        for (final by in lines) {
+          insert.execute([
+            place.docPath,
+            place.kind.name,
+            place.key,
+            by.docPath,
+            by.name,
+            by.docType,
+            by.byItem,
+            by.line,
+          ]);
+        }
+      }
+    } finally {
+      insert.close();
+    }
+  }
+
+  /// Returns the cited-by lines [putCitedBy] stored, by the place each cites,
+  /// places and lines in the order they were stored.
+  Map<CitedPlace, List<CitedBy>> loadCitedBy() {
+    final cited = <CitedPlace, List<CitedBy>>{};
+    for (final row in _db.select(
+      'SELECT place_doc, place_kind, place_key, by_doc, by_name, by_type, '
+      'by_item, line FROM cited_by ORDER BY seq',
+    )) {
+      final place = CitedPlace(
+        docPath: row['place_doc'] as String,
+        kind: CitedKind.values.byName(row['place_kind'] as String),
+        key: row['place_key'] as String?,
+      );
+      (cited[place] ??= []).add(
+        CitedBy(
+          docPath: row['by_doc'] as String,
+          name: row['by_name'] as String,
+          docType: row['by_type'] as String,
+          byItem: row['by_item'] as String?,
+          line: row['line'] as String,
+        ),
+      );
+    }
+    return cited;
   }
 
   /// Removes every row of the doc at [docPath]; an unknown path is a no-op.
