@@ -1,8 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_run.dart'
+    show runCheck;
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
     show fileCodeFingerprint, legacyFileCodeFingerprint;
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -12,18 +16,24 @@ import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
-    show CommitStep, CreateStep, MoveStep;
+    show CommitStep, CreateStep, MoveStep, WriteStep;
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart'
+    show OwnerConfirmation;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show StaleMention;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show frontmatterValuesOf;
+import 'package:specstone_core/src/index_query/read_session.dart'
+    show ReadSession;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
-    show agentMdText, importBlock;
+    show agentCursorPath, agentMdText, importBlock;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show agentFilesSince;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/migrate_run.dart'
+    show MigrateRequest, runMigrate;
 import 'package:specstone_core/src/setup_migration/record_placement.dart'
     show typeBeforeMoves;
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
@@ -41,13 +51,15 @@ import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show withApprovalHashes;
-import '../../helpers/git_repo.dart' show commitAll, git;
+import '../../helpers/git_repo.dart' show commitAll, git, hasGit;
+import '../../helpers/legacy_fixture.dart' show commitRepo;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart'
     show oneTargetConfig, recordLayer, recordText, twinConfig;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart' show testHome;
 
 /// The approval hash by the rule of the pins an upgrade here starts from,
 /// which the stamp pass hashes by: every record fixture pins the shipped
@@ -1202,9 +1214,8 @@ sections:
     ]);
   });
 
-  test('a doc a '
-      'step renames and a doc no step touches are each laid out once, a '
-      'laid-out doc is not rewritten, a refused doc is left', () async {
+  test('a doc a step renames and a doc no step touches are each laid out once, '
+      'a laid-out doc is not rewritten, a refused doc is left', () async {
     final plan = _plan(
       await _fixture(
         docs: const {
@@ -1247,9 +1258,8 @@ sections:
     );
   });
 
-  test('an older '
-      'pin with no selected step lays out an off-layout doc beside the new '
-      'pin', () async {
+  test('an older pin with no selected step lays out an off-layout doc '
+      'beside the new pin', () async {
     final plan = _plan(
       await _fixture(
         packYaml: 'name: acme\nversion: 1.2.0\nextends: software-tech\n',
@@ -1270,6 +1280,67 @@ sections:
     );
     expect(plan.lists.formatLayout, ['prds/features/f01_a/FEATURE.md']);
     expect(plan.commit2Message, 'upgrade pack pins');
+  });
+
+  test('a rename_field step leaves a doc whose key is already absent as it '
+      'is', () async {
+    final plan = _plan(
+      await _fixture(
+        acmePin: '1.1.0',
+        overrides: const {},
+        docs: const {
+          'prds/runbooks/deploy/RUNBOOK.md':
+              '---\nteam: ops\n---\n# Deploy\n\n## Procedure\n\nRun it.\n',
+        },
+      ),
+    );
+
+    expect(plan.rewrites.map((rewrite) => rewrite.path), [
+      '.specstone/config.yaml',
+    ]);
+    expect(
+      plan.toText(),
+      contains('from 1.1.0: rename_field runbook owner -> on_call: 0 docs\n'),
+    );
+  });
+
+  test('a run with no step and an older pin puts the laid-out doc, the stale '
+      'agent file, and the new pin in commit 2', () async {
+    final fixture = await _fixture(
+      packYaml: 'name: acme\nversion: 1.2.0\nextends: software-tech\n',
+      docs: const {
+        'prds/features/f01_a/FEATURE.md':
+            '## Benefit hypothesis\n\ng\n\n\n## Problem\n\nn\n',
+      },
+      overrides: {
+        '.specstone/AGENT.md': agentMdText,
+        'CLAUDE.md': '# Owner rules\n\n$_staleBlock',
+      },
+    );
+
+    final plan = _plan(fixture);
+
+    expect(
+      plan.toText(),
+      'pack upgrade: acme 1.0.0 -> 1.2.0\n'
+      'commit 2, rewrites:\n'
+      '  format layout: 1 docs\n'
+      '  agent files: 1 files\n'
+      '  .specstone/config.yaml: acme 1.2.0\n',
+    );
+    expect(plan.moves, isEmpty);
+    final commit2 = plan
+        .journalSteps(base: 'x', projectRoot: _canonical(fixture.project))
+        .whereType<CommitStep>()
+        .single;
+    expect(
+      commit2.paths,
+      containsAll([
+        'docs/prds/features/f01_a/FEATURE.md',
+        '.specstone/config.yaml',
+        'CLAUDE.md',
+      ]),
+    );
   });
 }
 
@@ -1532,6 +1603,58 @@ void _agentFilesTests() {
               )
               .having((f) => f.file, 'file', settingsFilePath),
         ),
+      );
+    });
+
+    test('a settings file that does not parse refuses agent_block_malformed '
+        'naming it', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+        settingsFilePath: '{',
+      });
+
+      expect(
+        () => _planAt(project),
+        throwsA(
+          isA<MigrateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                MigrateFaultCode.agentBlockMalformed,
+              )
+              .having((f) => f.file, 'file', settingsFilePath),
+        ),
+      );
+    });
+
+    test('an agent_file_roots entry outside the project root is never '
+        'written, whatever the pins', () async {
+      final outer = _canonical(
+        await writeTree({
+          'proj/.specstone/config.yaml':
+              '${_belowSince}agent_file_roots:\n  - ../other\n',
+          'other/.git/HEAD': 'ref: refs/heads/main\n',
+        }),
+      );
+      final project = Directory('${outer.path}/proj');
+
+      final plan = _planAt(project);
+
+      expect(plan.agentFiles!.topWrites, isEmpty);
+      expect(plan.agentFiles!.addedRoots, isEmpty);
+      expect(
+        plan.lists.agentFiles,
+        isNot(contains(anyOf(startsWith('..'), contains('other')))),
+      );
+      final steps = plan.journalSteps(base: 'x', projectRoot: project);
+      expect(
+        steps.whereType<CreateStep>().map((step) => step.path),
+        isNot(contains(contains('other'))),
+      );
+      expect(
+        _rewriteAt(plan, '.specstone/config.yaml').text,
+        contains('agent_file_roots:\n  - ../other\n'),
       );
     });
 
@@ -1890,6 +2013,223 @@ void _agentFilesTests() {
         _stampRewrites(plan).single,
         endsWith('agent_files_version: 1.0.0\n'),
       );
+    });
+
+    test('an AGENT.md of other bytes is rewritten in place, and a changed '
+        'stale block body moves the plan hash', () async {
+      final project = _canonical(
+        await writeTree({
+          '.specstone/config.yaml': shippedPinsConfig(),
+          ...skillFileTexts(),
+          '.specstone/AGENT.md': '${agentMdText}other bytes\n',
+          'CLAUDE.md': '# Owner rules\n\n$_staleBlock',
+        }),
+      );
+
+      final before = _planAt(project);
+      File('${project.path}/CLAUDE.md').writeAsStringSync(
+        '# Owner rules\n\n$_begin\nolder rules\n<!-- END specstone -->\n',
+      );
+      final after = _planAt(project);
+
+      final agentMd = before.agentFiles!.rootWrites.first;
+      expect(agentMd.path, '.specstone/AGENT.md');
+      expect(agentMd.text, agentMdText);
+      expect(agentMd.isNew, isFalse);
+      expect(before.lists.agentFiles, ['.specstone/AGENT.md', 'CLAUDE.md']);
+      expect(before.toText(), contains('  agent files: 2 files\n'));
+      expect(after.toText(), before.toText());
+      expect(_hashOf(after), isNot(_hashOf(before)));
+    });
+
+    test('a stale block at a listed top is rewritten in that work tree, '
+        'outside both commits', () async {
+      final project = _canonical(
+        await writeTree({
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
+              '  - code\n',
+          ...skillFileTexts(),
+          ...skillFileTexts('code/'),
+          'code/.git/HEAD': 'ref: refs/heads/main\n',
+          'code/AGENTS.md': '# Top rules\n\n$_staleBlock',
+        }),
+      );
+
+      final plan = _planAt(project);
+
+      final agents = plan.agentFiles!;
+      expect(agents.rootWrites, isEmpty);
+      expect(agents.topWrites.map((write) => write.path), ['code/AGENTS.md']);
+      expect(agents.topWrites.single.isAtTop, isTrue);
+      expect(
+        agents.topWrites.single.text,
+        startsWith('# Top rules\n\n$_begin'),
+      );
+      final steps = plan.journalSteps(base: 'x', projectRoot: project);
+      expect(
+        steps.whereType<CommitStep>().last.paths,
+        isNot(contains('code/AGENTS.md')),
+      );
+      expect(
+        steps.whereType<WriteStep>().map((step) => step.path),
+        contains(endsWith('code/AGENTS.md')),
+      );
+    });
+
+    test('a block whose BEGIN line names an older version is not rewritten '
+        'by an upgrade plan', () async {
+      final olderBlock = _importBlock.replaceFirst(
+        _begin,
+        '<!-- BEGIN specstone v0.0.1 -->',
+      );
+      final project = await writeTree({
+        '.specstone/config.yaml': _betweenSinces,
+        '.specstone/AGENT.md': agentMdText,
+        'CLAUDE.md': '# Owner rules\n\n$olderBlock',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.agentFiles!.rootWrites.map((write) => write.path), [
+        ...skillPaths(),
+      ]);
+      expect(plan.lists.agentFiles, isNot(contains('CLAUDE.md')));
+    });
+
+    test('a prd-core pin below 1.7.0 alone writes every agent file once, '
+        'as the one-time upgrade', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.6.0\n'
+            '  software-tech: ${shippedPackVersions()['software-tech']}\n',
+        'CLAUDE.md': '# Owner rules\n',
+      });
+
+      final plan = _planAt(project);
+
+      final paths = ['.specstone/AGENT.md', 'CLAUDE.md', ...skillPaths()];
+      expect(plan.agentFiles!.rootWrites.map((write) => write.path), paths);
+      expect(plan.lists.agentFiles, paths);
+      expect(plan.toText(), contains('prd-core 1.6.0 -> '));
+      expect('  agent files:'.allMatches(plan.toText()), hasLength(1));
+      expect(
+        plan.toText(),
+        contains('  agent files: ${2 + skillFileCount} files\n'),
+      );
+    });
+
+    test('the one-time write at a listed top lands in that work tree, '
+        'outside both commits', () async {
+      final project = _canonical(
+        await writeTree({
+          '.specstone/config.yaml':
+              '${_belowSince}code_root: code\nagent_file_roots:\n  - code\n',
+          'code/.git/HEAD': 'ref: refs/heads/main\n',
+        }),
+      );
+
+      final plan = _planAt(project);
+
+      final topPaths = plan.agentFiles!.topWrites.map((write) => write.path);
+      expect(topPaths, skillPaths('code/'));
+      final steps = plan.journalSteps(base: 'x', projectRoot: project);
+      final commit2 = steps.whereType<CommitStep>().last;
+      expect(commit2.paths.where((path) => path.startsWith('code/')), isEmpty);
+      expect(
+        steps.whereType<CreateStep>().map((step) => step.path),
+        containsAll([for (final path in topPaths) endsWith(path)]),
+      );
+    });
+
+    test('a later upgrade leaves a deleted rules file deleted while it '
+        'rewrites a stale block beside it', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+        '.specstone/AGENT.md': agentMdText,
+        'AGENTS.md': '# Owner rules\n\n$_staleBlock',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.agentFiles!.rootWrites.map((write) => write.path), [
+        'AGENTS.md',
+      ]);
+      expect(plan.lists.agentFiles, isNot(contains(agentCursorPath)));
+    });
+
+    test('an import block with a missing AGENT.md and an older pin has '
+        'commit 2 write it', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': _betweenSinces,
+        'CLAUDE.md': _importingClaude,
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.agentFiles!.rootWrites.map((write) => write.path), [
+        '.specstone/AGENT.md',
+        ...skillPaths(),
+      ]);
+      final commit2 = plan
+          .journalSteps(base: 'x', projectRoot: _canonical(project))
+          .whereType<CommitStep>()
+          .last;
+      expect(commit2.paths, contains('.specstone/AGENT.md'));
+      expect(commit2.paths, isNot(contains('CLAUDE.md')));
+    });
+
+    test('an unlisted top alone with every pin equal gives the agent-only '
+        'plan', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+        ...skillFileTexts(),
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(
+        plan.toText(),
+        'pack upgrade: pins unchanged, agent files only\n'
+        'commit 2, rewrites:\n'
+        '  agent files: ${1 + skillFileCount} files\n',
+      );
+      expect(plan.agentFiles!.rootWrites, isEmpty);
+      expect(plan.agentFiles!.addedRoots, ['code']);
+      expect(plan.moves, isEmpty);
+    });
+
+    test('a root with an AGENT.md of other bytes, an import block of a '
+        'missing AGENT.md, or an unlisted top plans the agent files '
+        'step alone', () async {
+      final roots = {
+        'other bytes': {'.specstone/AGENT.md': '${agentMdText}other bytes\n'},
+        'missing AGENT.md': {'CLAUDE.md': _importingClaude},
+        'unlisted top': {'code/.git/HEAD': 'ref: refs/heads/main\n'},
+      };
+      for (final MapEntry(:key, :value) in roots.entries) {
+        final project = await writeTree({
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}'
+              '${key == 'unlisted top' ? 'code_root: code\n' : ''}',
+          ...skillFileTexts(),
+          ...value,
+        });
+
+        final plan = _planAt(project);
+
+        final count = key == 'unlisted top' ? 1 + skillFileCount : 1;
+        expect(
+          plan.toText(),
+          'pack upgrade: pins unchanged, agent files only\n'
+          'commit 2, rewrites:\n'
+          '  agent files: $count files\n',
+          reason: key,
+        );
+        expect(plan.moves, isEmpty, reason: key);
+      }
     });
 
     test('a malformed block refuses before the plan returns', () async {
@@ -3082,6 +3422,32 @@ void _moveToRecordTests() {
         );
       });
 
+      test('a software-tech pin above the move_to_record entry selects no '
+          'step, and the docs keep status and implements', () async {
+        final project = await writeTree({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.5.0\n',
+          for (final MapEntry(:key, :value) in _loginDocs.entries)
+            'docs/$key': value,
+        });
+
+        final plan = _planAt(project);
+
+        final text = plan.toText();
+        expect(text, isNot(contains('move_to_record')));
+        expect(
+          plan.creates.map((create) => create.path),
+          isNot(contains(_shippedRecordPath)),
+        );
+        expect([
+          for (final rewrite in plan.rewrites)
+            if (rewrite.path == 'docs/$_loginStoryPath' ||
+                rewrite.path == 'docs/$_loginFrPath')
+              rewrite.text,
+        ], everyElement(allOf(contains('status:'), contains('implements:'))));
+      });
+
       test('no override is written, since no project layer sets an '
           'architecture path for the record to follow', () async {
         final plan = _planAt(await shippedProject());
@@ -3692,6 +4058,49 @@ void _treeMoveTests() {
       ]);
     });
 
+    test('a spec file no per-target doc type matches stays through the run, '
+        'and check lists it', () async {
+      final root = _canonical(
+        await writeTree({
+          '.specstone/config.yaml': twinConfig(),
+          'docs/specs/INDEX.md': _draftDoc('Index'),
+          'docs/specs/f02_feedback/DOMAIN.md': _draftDoc('Feedback'),
+        }),
+      );
+      commitRepo(root);
+      var asked = 0;
+
+      final status = await runMigrate(
+        MigrateRequest(
+          workingDirectory: root,
+          homeDirectory: testHome(),
+          templates: TemplateResolver(),
+          dryRun: false,
+          confirmation: OwnerConfirmation.prompt,
+          readLine: () => asked++ == 0 ? 'y' : null,
+          out: StringBuffer(),
+        ),
+      );
+
+      expect(status, 0);
+      expect(File('${root.path}/docs/specs/INDEX.md').existsSync(), isTrue);
+      expect(
+        File('${root.path}/docs/specs/flutter/f02_feedback/DOMAIN.md')
+            .existsSync(),
+        isTrue,
+      );
+      final untyped = await ReadSession.runAsync(
+        (session) async => [
+          for (final finding in (await runCheck(session)).findings)
+            if (finding.kind == FindingKind.untypedDoc) finding.path,
+        ],
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: testHome(),
+      );
+      expect(untyped, contains('specs/INDEX.md'));
+    }, skip: hasGit ? null : 'git is not available');
+
     test('one target, named or not, moves no doc', () async {
       final docs = {'specs/f02_feedback/DOMAIN.md': _draftDoc('Feedback')};
       final named = await _treeProject(
@@ -4030,6 +4439,66 @@ void _testNameTests() {
         'email_login/validate_credentials:planned',
       ]);
       expect(values['tests'], ['email_login:test/auth_test.dart']);
+    });
+
+    test('a record the move step creates stays a draft after the pass adds '
+        'its tests line', () async {
+      final project = await _testNameProject(
+        pins:
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.4.0\n',
+        docs: {..._loginDocs, _loginStoryPath: _implementedStory},
+        files: {_testFile: _testSource('login/email_login: signs in')},
+      );
+
+      final plan = _planTestNames(project);
+
+      final record = plan.creates.singleWhere(
+        (create) => create.path == _testRecordPath,
+      );
+      expect(record.note, ' (draft)');
+      final values = _valuesOf(record.text);
+      expect(values['draft'], isTrue);
+      expect(values['statuses'], isNotEmpty);
+      expect(values['tests'], ['email_login:test/auth_test.dart']);
+      expect(
+        plan.toText(),
+        contains('commit 2, creates:\n  $_testRecordPath (draft)\n'),
+      );
+    });
+
+    test('a file that gains a test name changes the plan text while the '
+        'plan hash stays off it', () async {
+      final project = await _testNameProject(
+        files: {
+          _testFile: _testSource('f01/us01/fr01 rejects'),
+          'app/test/other_test.dart': _testSource('rejects'),
+        },
+      );
+
+      final before = _planTestNames(project);
+      File('${project.path}/app/test/other_test.dart')
+          .writeAsStringSync(_testSource('f01/us01/fr01 also rejects'));
+      final after = _planTestNames(project);
+
+      expect(before.toText(), isNot(after.toText()));
+      expect(
+        before.toText(),
+        contains(
+          '  tests: 1 lines in 1 records; names: 1 rewritten in 1 files; '
+          'left: 0\n',
+        ),
+      );
+      expect(
+        after.toText(),
+        contains(
+          '  tests: 2 lines in 1 records; names: 2 rewritten in 2 files; '
+          'left: 0\n',
+        ),
+      );
+      expect(before.toText(), isNot(contains(_hashOf(before))));
+      expect(after.toText(), isNot(contains(_hashOf(after))));
+      expect(_hashOf(after), isNot(_hashOf(before)));
     });
 
     test('a run that finds no test name prints no tests line and '
