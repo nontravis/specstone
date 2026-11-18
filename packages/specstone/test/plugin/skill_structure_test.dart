@@ -1082,6 +1082,19 @@ String _sourcePathOf(String renderPath) {
 // MARK: - runs on every host
 
 void _runsOnEveryHostTests() {
+  test('no skill file names a hook or the settings file that holds one', () {
+    final problems = [
+      for (final file in contentFilesOf(agentAssetsRoot()))
+        if (file.isSkillFile &&
+            RegExp(
+              r'hook|settings\.json|PostToolUse',
+              caseSensitive: false,
+            ).hasMatch(file.body))
+          file.path,
+    ];
+    expect(problems, isEmpty);
+  });
+
   test('no skill and no agent share a name', () {
     final skills = _skillFolders().map(_baseNameOf).toSet();
     final agents = _agentFiles().map(_baseNameOf).toSet();

@@ -1682,7 +1682,7 @@ void main() {
       ]);
     });
 
-    test('a feature under cart citing PG-02 is widened with id PG-02 on its '
+    test("a feature under cart citing a second goal is widened with that goal's id on its "
         'goals line', () async {
       const deepFeature = 'prds/features/f02_shop/f01_cart/f01_deep/FEATURE.md';
       final report = await checkOf(
