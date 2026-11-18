@@ -49,8 +49,9 @@ final class CheckContext {
   final ReadSession _session;
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
-  final Map<(CodeTarget, String), List<int>?> _codeBytes = {};
-  final Map<(CodeTarget, String), CodeRead> _unreadable = {};
+  // A null target keys a read from the project root.
+  final Map<(CodeTarget?, String), List<int>?> _codeBytes = {};
+  final Map<(CodeTarget?, String), CodeRead> _unreadable = {};
   final Set<String> _codeWarnings = {};
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
@@ -126,8 +127,18 @@ final class CheckContext {
     CodeTarget target,
     String path, {
     required CodeRead reason,
-  }) {
-    final bytes = readCodeBytes(target, path);
+  }) => _bytesOf(target, path, reason);
+
+  /// Returns the bytes of the file at [path] from the project root, read once
+  /// per run, and states the warning of a file that cannot be read.
+  ///
+  /// The read of a `root: project` code link, which belongs to no target:
+  /// keyed apart from every target's reads, its warning naming [path] alone.
+  List<int>? projectFileBytesOf(String path, {required CodeRead reason}) =>
+      _bytesOf(null, path, reason);
+
+  List<int>? _bytesOf(CodeTarget? target, String path, CodeRead reason) {
+    final bytes = _readBytes(target, path);
     if (bytes == null) {
       final key = (target, normalCodeEntry(path));
       if (_unreadable[key] != CodeRead.symbols) _unreadable[key] = reason;
@@ -140,12 +151,18 @@ final class CheckContext {
   ///
   /// [path] is relative to [target]'s code root; `./a.dart` and `a.dart` are
   /// one file.
-  List<int>? readCodeBytes(CodeTarget target, String path) {
+  List<int>? readCodeBytes(CodeTarget target, String path) =>
+      _readBytes(target, path);
+
+  /// Reads [path] from [target]'s code root, or from the project root when
+  /// [target] is null, once per run.
+  List<int>? _readBytes(CodeTarget? target, String path) {
     final key = (target, normalCodeEntry(path));
     if (_codeBytes.containsKey(key)) return _codeBytes[key];
+    final root = target == null ? projectRoot : codeRootOf(target);
     List<int>? bytes;
     try {
-      bytes = File('${codeRootOf(target).path}/${key.$2}').readAsBytesSync();
+      bytes = File('${root.path}/${key.$2}').readAsBytesSync();
     } on FileSystemException {
       bytes = null;
     }
@@ -484,8 +501,10 @@ final class CheckContext {
     ..._codeWarnings,
   ];
 
-  String _unreadableWarning(CodeTarget target, String path, CodeRead reason) {
-    final prefix = targets.length > 1 ? '${target.name}: ' : '';
+  String _unreadableWarning(CodeTarget? target, String path, CodeRead reason) {
+    final prefix = target != null && targets.length > 1
+        ? '${target.name}: '
+        : '';
     return '$prefix$path: cannot read the file; ${reason.unchecked}';
   }
 }

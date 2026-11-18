@@ -15,6 +15,8 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -73,6 +75,19 @@ Future<Directory> _project(
   without: without,
   unstamped: {_recordPath},
   unfingerprinted: {_recordPath, ...unfingerprinted},
+);
+
+/// The check fixture with its code under `code/` and no record, plus the
+/// skill doc covering [covers] as written and its skill file.
+Future<Directory> _skillProject(List<String> covers) => writeCheckProject(
+  extra: {
+    '.specstone/config.yaml': '${skillPinsConfig()}code_root: code\n',
+    'code/$_login': _loginText,
+    ...skillDocFile(covers),
+    skillFile: skillText,
+  },
+  without: {_login, _recordPath},
+  unfingerprinted: {'docs/$skillDoc'},
 );
 
 /// Returns the architecture doc of the fixture covering [covers].
@@ -689,6 +704,82 @@ void main() {
           'app/lib/locked/x.dart: $_unreadableLinks',
           'app/lib/locked/x.dart: cannot read the file; doc names in it are not checked',
         ]);
+      },
+    );
+  });
+
+  group('a root: project covers entry', () {
+    final skillFingerprint = _fingerprintOf(skillText, skillFile);
+
+    test('whose skill file changed after its fingerprint gives code_suspect '
+        'with its path from the project root, in a project with no '
+        'record', () async {
+      final report = await _run(await _skillProject(['$skillFile $_stale']));
+      final [finding] = _suspects(report);
+
+      expect(finding.path, skillDoc);
+      expect(finding.keys, {
+        'entry': skillFile,
+        'path': skillFile,
+        'recorded': _stale,
+        'fingerprint': skillFingerprint,
+      });
+    });
+
+    test('that records no fingerprint gives code_unconfirmed in a project '
+        'with no record', () async {
+      final report = await _run(await _skillProject([skillFile]));
+      final [finding] = _unconfirmed(report);
+
+      expect(finding.path, skillDoc);
+      expect(finding.keys, {
+        'entry': skillFile,
+        'path': skillFile,
+        'fingerprint': skillFingerprint,
+      });
+    });
+
+    test('of a project doc type naming a folder hashes each file by its path '
+        'from the project root', () async {
+      const tool = 'tools/run.sh';
+      const toolText = 'echo run\n';
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+          'code/$_login': _loginText,
+          '.specstone/templates/toolset.yaml':
+              'id: toolset\ndescription: Tools.\npath: ops/{slug}.md\n'
+              'fields:\n  - id: covers\n    type: output_ref\n'
+              '    list: true\n    pointer: prefix\n    root: project\n',
+          'docs/ops/build.md':
+              '---\ncovers:\n  - tools/ $_stale\n---\n\n# Build\n',
+          tool: toolText,
+        },
+        without: {_login},
+      );
+
+      final [finding] = _suspects(await _run(project));
+
+      expect(
+        (finding.path, finding.keys['entry'], finding.keys['fingerprint']),
+        ('ops/build.md', 'tools/', _folderFingerprintOf({tool: toolText})),
+      );
+    });
+
+    test(
+      'whose file cannot be read takes no state and states the warning '
+      'with its path from the project root',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final project = await _skillProject(['$skillFile $_stale']);
+        final path = '${project.path}/$skillFile';
+        Process.runSync('chmod', ['000', path]);
+        addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+        final report = await _run(project);
+
+        expect(_suspects(report), isEmpty);
+        expect(report.warnings, contains('$skillFile: $_unreadableLinks'));
       },
     );
   });
