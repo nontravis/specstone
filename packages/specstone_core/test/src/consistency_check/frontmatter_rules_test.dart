@@ -567,38 +567,6 @@ void main() {
         expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
       },
     );
-
-    test(
-      'on a doc with invalid frontmatter gives no field rule finding',
-      () async {
-        final report = await checkOf(
-          await writeCheckProject(
-            extra: {
-              layer: groups,
-              'docs/$loginFeature': feature.replaceFirst(
-                'vision:',
-                'vision: "x',
-              ),
-            },
-          ),
-        );
-        const fieldRules = {
-          FindingKind.requiredFieldMissing,
-          FindingKind.fieldGroupMissing,
-          FindingKind.fieldValueMismatch,
-          FindingKind.fieldUndeclared,
-          FindingKind.featureStatusWritten,
-          FindingKind.requirementStatusWritten,
-        };
-        expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
-        expect(
-          report.findings.where(
-            (f) => f.path == loginFeature && fieldRules.contains(f.kind),
-          ),
-          isEmpty,
-        );
-      },
-    );
   });
 
   test('a feature system naming no Systems row is no field finding', () async {
@@ -757,4 +725,24 @@ void main() {
       expect(spots(report, kind), isEmpty, reason: kind.wire);
     }
   });
+
+  test(
+    'on a doc with invalid frontmatter gives no field rule finding',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/fr.yaml':
+                'lint:\n  required_field_groups:\n'
+                '    - [traced_from, verify_method]\n',
+            ...fr('verify_method: test\n', 'verify_method: "test\n'),
+          },
+        ),
+      );
+
+      expect(report.findings.map((f) => f.kind), [
+        FindingKind.frontmatterInvalid,
+      ]);
+    },
+  );
 }
