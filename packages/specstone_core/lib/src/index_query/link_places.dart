@@ -40,9 +40,8 @@ List<LinkText?> storedLinkTextsOf(
   return [for (final place in places) texts.nextFor(place)];
 }
 
-/// The stored link texts by the place each is the text of, handing the nth
-/// text of a place out once.
-class _StoredTexts {
+/// The stored link texts of a doc by place, each handed out once, in order.
+final class _StoredTexts {
   new(List<LinkText> stored) {
     for (final text in stored) {
       final place = LinkPlace(
@@ -110,8 +109,8 @@ LinkPlaces? linkPlacesOf(
   final agree = readersAgree(sources, hrefs);
   final located = agree
       ? [
-          for (final (:index, :href, :target, kind: _, :anchor) in placed)
-            (
+          for (final _PlacedHref(:index, :href, :target, :anchor) in placed)
+            _Located(
               place: LinkPlace(
                 target: target,
                 line: sources[index].line,
@@ -123,7 +122,7 @@ LinkPlaces? linkPlacesOf(
         ]
       : _placedByUse(placed, sources);
   List<LinkPlace> placesOf(_LinkKind kind) => [
-    for (final (i, (:place, source: _)) in located.indexed)
+    for (final (i, _Located(:place)) in located.indexed)
       if (placed[i].kind == kind) place,
   ];
   return LinkPlaces(
@@ -131,7 +130,7 @@ LinkPlaces? linkPlacesOf(
     fileLinks: placesOf(_LinkKind.file),
     selfLinks: placesOf(_LinkKind.self),
     texts: [
-      for (final (i, (:place, :source)) in located.indexed)
+      for (final (i, _Located(:place, :source)) in located.indexed)
         if (placed[i].kind == _LinkKind.doc || placed[i].kind == _LinkKind.self)
           if (source != null) ?_linkTextOf(lfBody, source, place),
     ],
@@ -141,7 +140,12 @@ LinkPlaces? linkPlacesOf(
 
 /// A place together with the source it was read from, null when the scan
 /// found none for it.
-typedef _Located = ({LinkPlace place, LinkSource? source});
+final class _Located {
+  const new({required this.place, required this.source});
+
+  final LinkPlace place;
+  final LinkSource? source;
+}
 
 /// Returns the places of [placed], each href taking its nth use among the
 /// destinations of [sources], or line 1 when it has no nth use.
@@ -151,9 +155,8 @@ List<_Located> _placedByUse(
 ) {
   final uses = _usesByHref([for (final p in placed) p.href], sources);
   return [
-    for (final (i, (:href, :target, :anchor, index: _, kind: _))
-        in placed.indexed)
-      (
+    for (final (i, _PlacedHref(:href, :target, :anchor)) in placed.indexed)
+      _Located(
         place: LinkPlace(
           target: target,
           line: uses[i]?.line ?? 1,
@@ -364,13 +367,21 @@ enum _LinkKind { doc, file, self }
 
 /// A placed href together with its index among the hrefs, the path it
 /// resolved to, its class, and its decoded anchor.
-typedef _PlacedHref = ({
-  int index,
-  String href,
-  String target,
-  _LinkKind kind,
-  String? anchor,
-});
+final class _PlacedHref {
+  const new({
+    required this.index,
+    required this.href,
+    required this.target,
+    required this.kind,
+    required this.anchor,
+  });
+
+  final int index;
+  final String href;
+  final String target;
+  final _LinkKind kind;
+  final String? anchor;
+}
 
 /// Returns the hrefs [linkPlacesOf] places, each with its index in [hrefs],
 /// the path it resolved to, and its class.
@@ -391,24 +402,28 @@ List<_PlacedHref> _placedHrefs(String docPath, List<String?> hrefs) {
     final target = resolveDocLink(href, docPath);
     if (target is DocTarget && target.docPath.endsWith('.md')) {
       final kind = target.docPath == docPath ? _LinkKind.self : _LinkKind.doc;
-      placed.add((
-        index: index,
-        href: href,
-        target: target.docPath,
-        kind: kind,
-        anchor: target.anchor,
-      ));
+      placed.add(
+        _PlacedHref(
+          index: index,
+          href: href,
+          target: target.docPath,
+          kind: kind,
+          anchor: target.anchor,
+        ),
+      );
       continue;
     }
     final filePath = relativeFilePathOf(href, docPath);
     if (filePath == null) continue;
-    placed.add((
-      index: index,
-      href: href,
-      target: filePath,
-      kind: _LinkKind.file,
-      anchor: null,
-    ));
+    placed.add(
+      _PlacedHref(
+        index: index,
+        href: href,
+        target: filePath,
+        kind: _LinkKind.file,
+        anchor: null,
+      ),
+    );
   }
   return placed;
 }

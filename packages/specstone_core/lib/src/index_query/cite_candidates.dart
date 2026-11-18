@@ -81,46 +81,60 @@ List<CiteForm> citeFormsOf(
     final spans = codeSpansOf(line);
     final extent = _extentOf(mention, line, spans);
     if (_isInSpan(spans, mention, extent.end)) continue;
-    kept.add((
-      mention: mention,
-      offset: offset,
-      line: line,
-      spans: spans,
-      extent: extent,
-    ));
+    kept.add(
+      _Kept(
+        mention: mention,
+        offset: offset,
+        line: line,
+        spans: spans,
+        extent: extent,
+      ),
+    );
   }
   return [for (final it in kept) _formOf(it, idPrefixes: idPrefixes)];
 }
 
 /// A mention that is a candidate, with the line and code spans it sits on, and
 /// its body offset.
-typedef _Kept = ({
-  NameMention mention,
-  int offset,
-  String line,
-  List<CodeSpan> spans,
-  ({String? key, int end}) extent,
-});
+final class _Kept {
+  const new({
+    required this.mention,
+    required this.offset,
+    required this.line,
+    required this.spans,
+    required this.extent,
+  });
+
+  final NameMention mention;
+  final int offset;
+  final String line;
+  final List<CodeSpan> spans;
+  final _Extent extent;
+}
+
+/// The `#key` a doc part names, null for none, and the column after the part.
+final class _Extent {
+  const new({required this.key, required this.end});
+
+  final String? key;
+  final int end;
+}
 
 /// Returns the `#key` and the end column of [mention]'s doc part on [line],
 /// its closing backticks and a header span right after a path included.
-({String? key, int end}) _extentOf(
-  NameMention mention,
-  String line,
-  List<CodeSpan> spans,
-) {
+_Extent _extentOf(NameMention mention, String line, List<CodeSpan> spans) {
   var end = mention.column + mention.text.length;
   var key = _nonEmpty(mention.address.sectionKey);
   if (key == null) {
     final keyed = _keyAfter(line, end);
-    if (keyed != null) (key, end) = keyed;
+    if (keyed != null) _Extent(key: key, end: end) = keyed;
   }
   end = _closedBy(spans, mention.column, end) ?? end;
   if (key == null && mention.text.endsWith(markdownExtension)) {
     final header = _headerSpanAfter(line, spans, end);
-    if (header != null) (key, end) = header;
+    if (header != null) _Extent(key: key, end: end) = header;
   }
-  return (key: key, end: end);
+  return _Extent(key: key, end: end);
 }
 
 /// Whether [mention], whose doc part ends at [end], sits inside a code span it
@@ -134,7 +148,7 @@ bool _fills(CodeSpan holder, int column, int end) =>
     holder.start + holder.ticks == column && holder.end <= end;
 
 CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
-  final (:mention, :line, :spans, extent: (:key, :end), offset: _) = kept;
+  final _Kept(:mention, :line, :spans, extent: _Extent(:key, :end)) = kept;
   final run = itemIdRunAt(line, end, prefixes: idPrefixes);
   final items = [
     for (final item in run)
@@ -170,14 +184,14 @@ String? _nonEmpty(String? text) => text == null || text.isEmpty ? null : text;
 
 /// Returns the `#key` of a path written at [end] of [line] and the offset
 /// after it, or null when none follows.
-(String, int)? _keyAfter(String line, int end) {
+_Extent? _keyAfter(String line, int end) {
   if (end >= line.length || line.codeUnitAt(end) != _hash) return null;
   var stop = end + 1;
   while (stop < line.length && !endsDocPath(line.codeUnitAt(stop))) {
     stop++;
   }
   final key = proseTrimmedPath(line.substring(end + 1, stop));
-  return key.isEmpty ? null : (key, end + 1 + key.length);
+  return key.isEmpty ? null : _Extent(key: key, end: end + 1 + key.length);
 }
 
 /// Returns the offset after the closing backticks of the code span that holds
@@ -195,11 +209,11 @@ int? _closedBy(List<CodeSpan> spans, int column, int end) {
 /// Returns the offset after the section header span right after the path that
 /// ends at [end] of [line], or null when none follows.
 int? headerSpanEndAfter(String line, List<CodeSpan> spans, int end) =>
-    _headerSpanAfter(line, spans, end)?.$2;
+    _headerSpanAfter(line, spans, end)?.end;
 
 /// Returns the section key of the header the code span right after [end]
 /// holds, such as `## Error envelope`, and the offset after that span.
-(String, int)? _headerSpanAfter(String line, List<CodeSpan> spans, int end) {
+_Extent? _headerSpanAfter(String line, List<CodeSpan> spans, int end) {
   var at = end;
   while (at < line.length && line.codeUnitAt(at) == _space) {
     at++;
@@ -210,7 +224,7 @@ int? headerSpanEndAfter(String line, List<CodeSpan> spans, int end) =>
       line.substring(start + ticks, spanEnd - ticks),
     );
     final key = heading == null ? '' : sectionKeyOf(heading.text);
-    return key.isEmpty ? null : (key, spanEnd);
+    return key.isEmpty ? null : _Extent(key: key, end: spanEnd);
   }
   return null;
 }
