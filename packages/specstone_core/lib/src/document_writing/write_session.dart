@@ -25,6 +25,16 @@ import 'package:specstone_core/src/templates/project_config.dart'
     show projectConfigPath;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
+/// How many times [WriteSession.run] runs a command whose read snapshot a peer
+/// commit keeps making stale before it gives up.
+const _runAttempts = 3;
+
+/// Thrown by [WriteSession.locked] for a snapshot a peer commit made stale;
+/// [WriteSession.run] catches it and runs the command again.
+final class _StaleSnapshot implements Exception {
+  const new();
+}
+
 /// One write command's view of a project: a replayed journal, a resolved
 /// index, and the write lock on demand.
 ///
@@ -46,6 +56,13 @@ final class WriteSession {
   /// [homeDirectory] is where user-level doc types are read from; null reads
   /// none. A fault from the project, the templates, the replay, or [body]
   /// propagates unchanged.
+  ///
+  /// When a peer commits to the index between the session's read snapshot and
+  /// the first [locked] call, [body] runs again on a fresh session, up to
+  /// [_runAttempts] runs in all; the stale run writes nothing. So [body] must
+  /// write no file and print nothing before its first [locked] call, except a
+  /// prompt the Owner answers again.
+  /// Throws [IndexFault] `index_busy` when every run was stale.
   static T run<T>(
     T Function(WriteSession session) body, {
     required TemplateResolver templates,
@@ -53,23 +70,29 @@ final class WriteSession {
     required Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
   }) {
-    _refuseMigratePending(workingDirectory, homeDirectory: homeDirectory);
-    final session = WriteSession._(
-      _openReplayed(
-        templates: templates,
-        workingDirectory: workingDirectory,
-        homeDirectory: homeDirectory,
-        busyTimeout: busyTimeout,
-      ),
-      templates,
-      workingDirectory,
-      homeDirectory,
-      busyTimeout,
-    );
-    try {
-      return body(session);
-    } finally {
-      session._close();
+    for (var attempt = 1; ; attempt++) {
+      _refuseMigratePending(workingDirectory, homeDirectory: homeDirectory);
+      final session = WriteSession._(
+        _openReplayed(
+          templates: templates,
+          workingDirectory: workingDirectory,
+          homeDirectory: homeDirectory,
+          busyTimeout: busyTimeout,
+        ),
+        templates,
+        workingDirectory,
+        homeDirectory,
+        busyTimeout,
+      );
+      try {
+        return body(session);
+      } on _StaleSnapshot {
+        if (attempt == _runAttempts) {
+          throw IndexFault(IndexFaultCode.indexBusy, indexBusyMessage);
+        }
+      } finally {
+        session._close();
+      }
     }
   }
 
@@ -212,17 +235,24 @@ final class WriteSession {
 
   /// Runs [act] inside the index write lock and returns its result.
   ///
-  /// The first call ends the read snapshot. A fault from [act] rolls back and
-  /// propagates.
+  /// The first call ends the read snapshot and, when a peer committed since it
+  /// began, rolls back without running [act] and has [run] start the command
+  /// again. A fault from [act] rolls back and propagates.
   /// Throws [IndexFault] `index_busy` when another call holds the lock past
   /// the busy timeout.
   T locked<T>(T Function() act) {
-    if (_snapshotOpen) {
+    final endsSnapshot = _snapshotOpen;
+    if (endsSnapshot) {
       _read.store.endSnapshot();
       _snapshotOpen = false;
     }
     late T result;
-    _read.store.write(() => result = act());
+    _read.store.write(() {
+      if (endsSnapshot && _read.store.snapshotIsStale) {
+        throw const _StaleSnapshot();
+      }
+      result = act();
+    });
     return result;
   }
 
