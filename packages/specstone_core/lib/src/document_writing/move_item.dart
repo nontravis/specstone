@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/scenario_items.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';

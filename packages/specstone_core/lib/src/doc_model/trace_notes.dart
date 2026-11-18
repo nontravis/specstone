@@ -3,6 +3,7 @@ import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/inline_holders.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show tableCellRanges;
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart'
     show collapseWhitespace;

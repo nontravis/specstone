@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
     show Doc, fenceScan, mermaidInfoWord;
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 
 /// A doc-name mention: a code span whose whole text, less an optional

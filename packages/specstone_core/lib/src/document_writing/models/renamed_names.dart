@@ -1,5 +1,4 @@
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DocAddress;
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 
 /// The new Name of each doc a change renames, by its doc type id and old Name.

@@ -1,61 +1,11 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show headingItemTextOf;
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
-
-/// A doc reference split into its parts; DocIndex
-/// resolves it.
-final class DocAddress {
-  const new({this.typeId, required this.body, this.sectionKey});
-
-  /// The text before the first `:`, when that text is one slug
-  /// (`[a-z][a-z0-9_]*`) and the `:` sits before any `#`.
-  final String? typeId;
-
-  /// The Name or path after any `<doc type>:`, before any `#`, as written.
-  final String body;
-
-  /// The text after the first `#`; null when the text holds no `#`.
-  final String? sectionKey;
-
-  /// Whether [body] is a Name: one or more slugs (`[a-z0-9_]+`) joined by
-  /// `/`.
-  bool get isName => _slugCount(body) >= 1;
-
-  /// Whether the form alone marks a reference: a Name of 2 or more
-  /// slugs, bare or after `<doc type>:`, or a one-slug Name after
-  /// `<doc type>:`.
-  bool get isReferenceWithoutLookup =>
-      typeId != null ? isName : _slugCount(body) >= 2;
-
-  /// The text as written, less any `#<section key>`.
-  String get docPart => typeId == null ? body : '$typeId:$body';
-}
-
-/// The number of `/`-joined slugs in [text]; 0 when any segment is not a
-/// non-empty run of `[a-z0-9_]`.
-int _slugCount(String text) {
-  var count = 0;
-  var segmentLength = 0;
-  for (var i = 0; i <= text.length; i++) {
-    if (i < text.length && _isSlugChar(text.codeUnitAt(i))) {
-      segmentLength++;
-      continue;
-    }
-    if (i < text.length && text.codeUnitAt(i) != 0x2F) return 0;
-    if (segmentLength == 0) return 0;
-    count++;
-    segmentLength = 0;
-  }
-  return count;
-}
 
 /// The one-code-point letter test: a letter ends no ID.
 final _letters = RegExp(r'\p{L}', unicode: true);
-
-bool _isSlugChar(int code) =>
-    (code >= 0x61 && code <= 0x7A) || // a-z
-    (code >= 0x30 && code <= 0x39) || // 0-9
-    code == 0x5F; // _
 
 bool _isDigit(int code) => code >= 0x30 && code <= 0x39;
 
@@ -183,54 +133,6 @@ final _closingMark = RegExp(r'[.,;:]$');
 /// [path] is the text of a [DocAddress] before any `#`.
 String proseTrimmedPath(String path) =>
     path.replaceFirst(_closingMark, '').replaceFirst(_lineSuffix, '');
-
-/// An item ID or a scenario number where its item opens.
-sealed class IdRead {
-  const new({required this.prefix, required this.digits});
-
-  final String prefix;
-  final String digits;
-
-  /// Prefix plus digits, plus any letter.
-  String get written;
-}
-
-/// Prefix and digits that end at a character that is no letter and no digit.
-final class ItemId extends IdRead {
-  const new({required super.prefix, required super.digits});
-
-  BigInt get number => BigInt.parse(digits);
-
-  @override
-  String get written => '$prefix$digits';
-}
-
-/// Digits a letter follows (`RULE-7a`, `Scenario 6a`): no ID, its own or the
-/// digits'.
-final class LetteredId extends IdRead {
-  const new({
-    required super.prefix,
-    required super.digits,
-    required this.letters,
-  });
-
-  final String letters;
-
-  @override
-  String get written => '$prefix$digits$letters';
-}
-
-/// Digits, a letter run, then a digit (`RULE-7a1`, `Scenario 6a2`): a form
-/// the grammar cannot read, neither an ID nor a lettered one.
-final class UnreadableId extends IdRead {
-  const new({required super.prefix, required super.digits, required this.rest});
-
-  /// The letter and digit run after [digits], as written.
-  final String rest;
-
-  @override
-  String get written => '$prefix$digits$rest';
-}
 
 /// The prefix a `### Scenario <N>` heading's number carries in IDs:
 /// `Scenario `.
@@ -822,7 +724,7 @@ LinkLabel? readLinkLabel(String text) {
   final scenario = readScenarioRef(text);
   if (scenario != null) return ScenarioLabel(scenario);
   if (_isNfrId(text)) return NfrLabel(text);
-  if (_slugCount(text) >= 2) return FrRefLabel(text);
+  if (DocAddress(body: text).isReferenceWithoutLookup) return FrRefLabel(text);
   return null;
 }
 
