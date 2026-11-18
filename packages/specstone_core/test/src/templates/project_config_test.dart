@@ -85,7 +85,7 @@ void main() {
         'packs.My_Pack',
       ),
     ]) {
-      test('$name is unknown_key', () async {
+      test('$name as a packs key is unknown_key', () async {
         final root = await _withConfig('packs:\n  $text\n');
 
         expect(
@@ -126,6 +126,20 @@ void main() {
       );
     });
 
+    test('an unknown top-level key exits 78', () async {
+      final root = await _withConfig('spec_packs: [x]\n');
+
+      expect(
+        () => ProjectConfig.read(root),
+        throwsA(
+          _fault(
+            FaultCode.unknownKey,
+            key: 'spec_packs',
+          ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+        ),
+      );
+    });
+
     test('code_root defaults to .', () async {
       final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
 
@@ -142,6 +156,28 @@ void main() {
       expect(ProjectConfig.read(written).hasCodeRoot, isTrue);
       expect(ProjectConfig.read(written).codeRoot, '.');
       expect(ProjectConfig.read(absent).hasCodeRoot, isFalse);
+    });
+
+    test('a code_root key with no value reads as the project root', () async {
+      final root = await _withConfig('packs:\n  prd-core: 1.0.0\ncode_root:\n');
+
+      expect(ProjectConfig.read(root).codeRoot, '.');
+    });
+
+    test('code_root: 3 is unknown_value', () async {
+      final root = await _withConfig(
+        'packs:\n  prd-core: 1.0.0\ncode_root: 3\n',
+      );
+
+      expect(
+        () => ProjectConfig.read(root),
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'code_root',
+          ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+        ),
+      );
     });
 
     for (final value in ['stratum_ui', '../stratum_ui/example']) {
@@ -224,7 +260,7 @@ void main() {
         ('an entry ending in a space', "agent_file_roots: ['vendor ']"),
         ('a non-string entry', 'agent_file_roots: [3]'),
       ]) {
-        test('$name is unknown_value', () async {
+        test('$name is unknown_value for agent_file_roots', () async {
           final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
 
           expect(
@@ -241,7 +277,7 @@ void main() {
     });
 
     group('agent_files_version', () {
-      test('no key reads as no stamp', () async {
+      test('no agent_files_version key reads as no stamp', () async {
         final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
 
         expect(ProjectConfig.read(root).agentFilesVersion, isNull);
@@ -276,7 +312,7 @@ void main() {
         ('a list', 'agent_files_version: [1.3.0]'),
         ('text', 'agent_files_version: latest'),
       ]) {
-        test('$name is unknown_value', () async {
+        test('$name is unknown_value for agent_files_version', () async {
           final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
 
           expect(
@@ -374,6 +410,27 @@ void main() {
         );
       });
 
+      test(
+        'targets beside code_root names the target-owned code_root',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\ncode_root: lib\n'
+            'targets:\n  flutter:\n    code_root: stratum_ui\n',
+          );
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(FaultCode.unknownValue, key: 'code_root').having(
+                (f) => f.message,
+                'message',
+                contains('each target holds its own code_root'),
+              ),
+            ),
+          );
+        },
+      );
+
       for (final (name, line) in [
         ('an empty map', 'targets: {}'),
         ('a null value', 'targets:'),
@@ -407,7 +464,7 @@ void main() {
           '  jaspr-ui:\n    code_root: a\n',
         ),
       ]) {
-        test('$name is unknown_key', () async {
+        test('$name as a target name is unknown_key', () async {
           final root = await _withConfig(
             'packs:\n  prd-core: 1.0.0\ntargets:\n$line',
           );
@@ -502,8 +559,32 @@ void main() {
           'targets.flutter.code_root',
           '  flutter:\n    code_root: 3\n',
         ),
+        (
+          'a drive-letter code_root',
+          FaultCode.unknownValue,
+          'targets.flutter.code_root',
+          '  flutter:\n    code_root: C:/code\n',
+        ),
+        (
+          'a code_root with a trailing dot',
+          FaultCode.unknownValue,
+          'targets.flutter.code_root',
+          "  flutter:\n    code_root: 'src.'\n",
+        ),
+        (
+          'a code_root with a trailing space',
+          FaultCode.unknownValue,
+          'targets.flutter.code_root',
+          "  flutter:\n    code_root: 'src '\n",
+        ),
+        (
+          'a list code_root',
+          FaultCode.unknownValue,
+          'targets.flutter.code_root',
+          '  flutter:\n    code_root: [a]\n',
+        ),
       ]) {
-        test(name, () async {
+        test('$name is refused at its own target key', () async {
           final root = await _withConfig(
             'packs:\n  prd-core: 1.0.0\ntargets:\n$line',
           );
@@ -520,19 +601,15 @@ void main() {
         });
       }
 
-      test(
-        'a target '
-        'with no code_root key reads the project root, as code_root does',
-        () async {
-          final root = await _withConfig(
-            'packs:\n  prd-core: 1.0.0\ntargets:\n  flutter: {}\n',
-          );
+      test('a target with no code_root key reads the project root', () async {
+        final root = await _withConfig(
+          'packs:\n  prd-core: 1.0.0\ntargets:\n  flutter: {}\n',
+        );
 
-          expect(ProjectConfig.read(root).targets, [
-            const CodeTarget('flutter', codeRoot: '.'),
-          ]);
-        },
-      );
+        expect(ProjectConfig.read(root).targets, [
+          const CodeTarget('flutter', codeRoot: '.'),
+        ]);
+      });
 
       test('two targets whose code roots name one folder are unknown_value '
           'naming both', () async {
@@ -560,21 +637,41 @@ void main() {
         );
       });
 
-      test('one entry '
-          'gives one named target and codeRoot reads its root', () async {
+      test('two targets on one code folder name the config file', () async {
         final root = await _withConfig(
-          'packs:\n  prd-core: 1.0.0\ntargets:\n  flutter:\n'
-          '    code_root: stratum_ui\n',
+          'packs:\n  prd-core: 1.0.0\n'
+          'targets:\n  flutter:\n    code_root: .\n'
+          '  jaspr:\n    code_root: ./\n',
         );
 
-        final config = ProjectConfig.read(root);
-
-        expect(config.targets, [
-          const CodeTarget('flutter', codeRoot: 'stratum_ui'),
-        ]);
-        expect(config.codeRoot, 'stratum_ui');
-        expect(config.hasCodeRoot, isFalse);
+        expect(
+          () => ProjectConfig.read(root),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'targets',
+            ).having((f) => f.file, 'file', '.specstone/config.yaml'),
+          ),
+        );
       });
+
+      test(
+        'one entry gives one named target and codeRoot reads its root',
+        () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\ntargets:\n  flutter:\n'
+            '    code_root: stratum_ui\n',
+          );
+
+          final config = ProjectConfig.read(root);
+
+          expect(config.targets, [
+            const CodeTarget('flutter', codeRoot: 'stratum_ui'),
+          ]);
+          expect(config.codeRoot, 'stratum_ui');
+          expect(config.hasCodeRoot, isFalse);
+        },
+      );
 
       test('no targets key '
           'gives one unnamed target at code_root', () async {
@@ -611,6 +708,26 @@ void main() {
         expect(
           () => ProjectConfig.read(root),
           throwsA(_fault(FaultCode.packVersionInvalid, key: 'packs.prd-core')),
+        );
+      });
+    }
+
+    for (final (label, pin) in [
+      ('an unquoted double', '1.2'),
+      ('a quoted two-part version', "'1.2'"),
+      ('a pre-release tag', '1.2.0-beta'),
+    ]) {
+      test('$label pin exits 78', () async {
+        final root = await _withConfig('packs:\n  prd-core: $pin\n');
+
+        expect(
+          () => ProjectConfig.read(root),
+          throwsA(
+            _fault(
+              FaultCode.packVersionInvalid,
+              key: 'packs.prd-core',
+            ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+          ),
         );
       });
     }
@@ -852,6 +969,20 @@ void main() {
       final found = findProjectRoot(at(tree, 'ws/code'));
 
       expect(_canonical(found!), _canonical(at(tree, 'ws/code')));
+    });
+
+    test('a docs link to a folder with no config, in a folder with none, '
+        'walks on to the parent', () async {
+      final tree = await writeTree({
+        'ws/$_configPath': 'packs: {}\n',
+        'ws/code/lib/keep.txt': '',
+        'plain/docs/keep.txt': '',
+      });
+      if (!link(tree, '', '../../plain/docs')) return;
+
+      final found = findProjectRoot(at(tree, 'ws/code'));
+
+      expect(_canonical(found!), _canonical(at(tree, 'ws')));
     });
 
     test('a folder with its own config whose docs link leaves every project '
