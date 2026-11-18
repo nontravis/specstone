@@ -401,7 +401,7 @@ void main() {
   );
 
   test(
-    'a section under its min_lines floor reports section, limit, and actual',
+    'a section with an empty body under its min_lines floor reports actual 0',
     () async {
       final edits = fr('A wrong password must not sign in.', '');
       final found = await _found(
@@ -417,19 +417,69 @@ void main() {
         allOf(
           containsPair('section', 'rationale'),
           containsPair('limit', 2),
-          containsPair('actual', 1),
+          containsPair('actual', 0),
         ),
       );
     },
   );
 
-  test('a section at its min_lines floor has no finding', () async {
+  test('one body line under a min_lines floor of 2 reports actual 1, the '
+      'header line counting none', () async {
     final found = await _found(
       _frLayer,
       _sectionLint('rationale', '      min_lines: 2\n'),
     );
-    expect(found, isEmpty);
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.linesUnderLimit);
+    expect(found.single.line, lineOfFirst(_project, loginFr, '## Rationale'));
+    expect(
+      found.single.toJson(),
+      allOf(
+        containsPair('section', 'rationale'),
+        containsPair('limit', 2),
+        containsPair('actual', 1),
+      ),
+    );
   });
+
+  test('a persona snapshot of one body line under min_lines 2 reports actual '
+      '1, the header line counting none', () async {
+    final project = await writeCheckProject(
+      extra: {
+        'docs/prds/personas/buyer/PERSONA.md':
+            '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n'
+            '# Buyer\n\n## Snapshot\nA buyer line.\n',
+      },
+    );
+    final found = [
+      for (final f in (await checkOf(project)).findings)
+        if (f.kind == FindingKind.linesUnderLimit) f,
+    ];
+    expect(found, hasLength(1));
+    expect(
+      found.single.toJson(),
+      allOf(
+        containsPair('section', 'snapshot'),
+        containsPair('limit', 2),
+        containsPair('actual', 1),
+      ),
+    );
+  });
+
+  test(
+    'a section of 2 body lines at its min_lines floor has no finding',
+    () async {
+      final found = await _found(
+        _frLayer,
+        _sectionLint('rationale', '      min_lines: 2\n'),
+        edits: fr(
+          'A wrong password must not sign in.',
+          'A wrong password must not sign in.\n\nIt stays refused.',
+        ),
+      );
+      expect(found, isEmpty);
+    },
+  );
 
   test(
     'a doc type that sets none of the three keys runs no shape rule',
