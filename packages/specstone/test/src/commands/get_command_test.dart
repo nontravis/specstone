@@ -454,7 +454,11 @@ void main() {
         expect(story.out.toString(), isEmpty);
         final error = (jsonDecode(story.err.toString()) as Map)['error'] as Map;
         expect(error['code'], 'argument_invalid');
-        expect(error['message'], contains('login/email_login'));
+        expect(
+          error['message'],
+          'user_story:login/email_login is not a journey; '
+          '--paths reads journeys only',
+        );
         final shared = readRunner(
           await writeReadProject(
             extra: {
@@ -466,8 +470,10 @@ void main() {
         );
         expect(await shared.runner.run(['get', 'sign_in', '--paths']), 64);
         expect(shared.out.toString(), isEmpty);
-        expect(shared.err.toString(), contains('sign_in'));
-        expect(shared.err.toString(), contains('is not a journey'));
+        expect(
+          shared.err.toString(),
+          'persona:sign_in is not a journey; --paths reads journeys only\n',
+        );
       },
     );
     test(
