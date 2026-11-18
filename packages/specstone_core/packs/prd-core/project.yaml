@@ -6,7 +6,6 @@ description: |-
   PROJECT holds no measured number; a vision's evidence goes to the Baseline of the measurement of a goal that serves it.
   State the present truth; history lives in git.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
   Put a cite or an ownership note at the item's end.
   Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
@@ -30,27 +29,29 @@ sections:
     header: Project name
     required: true
     description: |-
-      Give the human-readable name, then the snake_case code name, one line each.
+      Give the human-readable name, then the snake_case code name.
       The Code line stays here, since no folder carries the project's code.
     template: |-
       - **Human:** <Human-readable project name>
       - **Code:** `<snake_case_code_name>`
+    lint:
+      max_item_lines: 1
   - id: vision
     header: Project vision
     prefix_id: PV-
     required: true
     description: |-
       Put one `> <lang>: <sentence>` line per language right under each PV heading.
-      Use an ISO 639-1 code, give at least one language, and keep each sentence to 15 words or fewer.
-      Then write Why, Problem, and Audience, one sentence each, with Problem in general words.
+      Use an ISO 639-1 code and give at least one language.
+      Then write Why, Problem, and Audience, with Problem in general words.
       Add one more PV entry for each extra angle, such as a business vision beside a product vision.
       Write at least one entry before the first feature.
     template: |-
       ### PV-01 — <short name>
-      > en: <one sentence of 15 words or fewer>
-      - **Why:** <one sentence>
-      - **Problem:** <one sentence>
-      - **Audience:** <one sentence>
+      > en: <vision sentence>
+      - **Why:** <why>
+      - **Problem:** <problem>
+      - **Audience:** <audience>
     lint:
       max_sentences:
         - count: 1
@@ -72,7 +73,7 @@ sections:
       banned_patterns:
         - id: quote_words
           pattern: '^> \S+: +(?:\S+ +){15}\S+'
-          message: 'quote over 15 words; guide line: keep each sentence to 15 words or fewer'
+          message: 'quote over 15 words'
           in: all
         - id: quote_language
           pattern: '^> (?![a-z]{2}:)[^\s:]*:'
@@ -82,11 +83,13 @@ sections:
     header: Role
     required: true
     description: |-
-      List every actor, human or not, by a short name with a one-line definition.
+      List every actor, human or not, by a short name with a definition.
       A story's "As a" line names one of these roles.
     template: |-
-      - `<RoleName>` — <one-line definition>
+      - `<RoleName>` — <definition>
     query: true
+    lint:
+      max_item_lines: 1
   - id: out_of_scope
     header: Out-of-scope
     required: true

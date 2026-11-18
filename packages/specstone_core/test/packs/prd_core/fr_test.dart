@@ -54,6 +54,10 @@ void main() {
     expectTemplatesFreeOfListedWords(fr);
   });
 
+  test('the description states no number a lint key holds', () {
+    expect(fr.description, isNot(contains('Statement as one sentence')));
+  });
+
   test('fr marks statement summary', () {
     expect(
       [
@@ -71,8 +75,8 @@ void main() {
     expect(
       description,
       contains(
-        'Write the Statement as one sentence with one "shall", stated '
-        'positively, with a quantified value kept in it, such as `within 2 s`.',
+        'Write the Statement with one "shall", stated positively, with a '
+        'quantified value kept in it, such as `within 2 s`.',
       ),
     );
     expect(

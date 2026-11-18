@@ -285,8 +285,8 @@ void main() {
       expect(
         out.toString(),
         contains(
-          'commit an approval before you edit the doc again; '
-          'the view compares against committed copies only\n',
+          'no copy of this approval is saved here or in a commit; '
+          'commit approvals before editing again\n',
         ),
       );
 
@@ -302,7 +302,10 @@ void main() {
         out.toString(),
         contains('| old     | none: no commit holds an approved copy |\n'),
       );
-      expect(out.toString(), isNot(contains('commit an approval')));
+      expect(
+        out.toString(),
+        isNot(contains('commit approvals before editing')),
+      );
     },
   );
   test('dry run with --yes is a usage error', () async {
@@ -644,6 +647,59 @@ void main() {
       ),
     );
     expect(out.toString(), isNot(contains('- Ends the session.')));
+  });
+  test('--dry-run compares an approval left uncommitted, not the last committed one', () async {
+    String story(String mark, String useCase) =>
+        '---\nstatus: planned\n$mark---\n\n# Sign out\n\n## Use Case\n\n'
+        '$useCase\n\n## Acceptance Criteria\n\n- **Given** a signed-in user\n';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story2': story(
+          'approved: true\n',
+          'Sign out. Ends the session.',
+        ),
+      },
+    );
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+    commitAll(root, 'approved');
+    final file = File('${root.path}/docs/$story2')
+      ..writeAsStringSync(
+        story('draft: true\n', 'Sign out. Ends the session. Keeps the cart.'),
+      );
+    final approve = writeRunner(root);
+    expect(
+      await approve.runner.run([
+        'approve',
+        '--yes',
+        _seen(root, 'user_story:login/sign_out'),
+      ]),
+      0,
+      reason: approve.err.toString(),
+    );
+    file.writeAsStringSync(
+      file
+          .readAsStringSync()
+          .replaceFirst(
+            '\n---\n\n# Sign out',
+            '\ndraft: true\n---\n\n# Sign out',
+          )
+          .replaceFirst('Keeps the cart.', 'Keeps the cart. Warns the user.'),
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run(['approve', '--dry-run', 'user_story:login/sign_out']),
+      0,
+    );
+
+    expect(
+      out.toString(),
+      contains('| old     | approved copy not yet committed |\n'),
+    );
+    expect(out.toString(), contains('| dropped | 0 sentences dropped |\n'));
+    expect(out.toString(), contains('| new     | 1 sentence new |\n'));
+    expect(out.toString(), endsWith('\nNew sentences:\n- Warns the user.\n'));
   });
   test('--dry-run lists removed items held only in frontmatter or inside a longer sentence', () async {
     String story(String mark, String useCase) =>

@@ -31,4 +31,15 @@ void main() {
       SectionSpec('audit', 'Audit', required: true),
     ]);
   });
+
+  test('the description states no number a lint key holds', () {
+    expect(
+      sectionOf(auth, 'enforcement').description,
+      isNot(contains('one line')),
+    );
+  });
+
+  test('enforcement carries its line cap', () {
+    expect(sectionOf(auth, 'enforcement').maxLines, 1);
+  });
 }

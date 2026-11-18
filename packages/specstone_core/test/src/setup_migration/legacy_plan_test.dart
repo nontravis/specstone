@@ -600,7 +600,10 @@ name: Login API
       (c) => c.path == '.specstone/.gitignore',
     );
 
-    expect(ignore.text, 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n');
+    expect(
+      ignore.text,
+      'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
+    );
   });
 
   test('the journal commits the moves, then the rewrites and '

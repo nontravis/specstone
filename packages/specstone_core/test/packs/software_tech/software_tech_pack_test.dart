@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -17,6 +18,66 @@ import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+
+/// The cite line and the four readability lines every description keeps.
+const _readabilityLines = <String>[
+  _citeLine,
+  _oneRuleLine,
+  citeNoteGuideLine,
+  _exampleLine,
+  _conditionLine,
+];
+
+const _citeLine =
+    'Cite a rule another doc owns by a link to the item that holds it, never '
+    'restate it.';
+
+const _oneRuleLine =
+    'Keep one rule in each item, and put several conditions in a nested list. '
+    'A one-sentence paragraph with no ID moves its detail to the section of '
+    'the same doc that owns it, never into a sub-list.';
+
+const _exampleLine =
+    'Give a non-obvious rule one example inside its item, as a `such as` '
+    'clause or one "For example," sentence, within the sentence\'s cap.';
+
+const _conditionLine =
+    'State the condition first, then the rule, one clause chain per sentence; '
+    'split a sentence whose clauses nest.';
+
+/// The file rule each doc type keeps on a line of its own, in place of a line
+/// target.
+const _fileRuleLines = <String, String>{
+  'api': 'Keep one file per feature spec folder.',
+  'architecture': 'Keep one file per feature spec folder.',
+  'auth': 'Keep one file per feature spec folder.',
+  'domain': 'Keep one file per feature spec folder.',
+  'error': 'Keep one file per feature spec folder.',
+  'integration': 'Keep one file per feature spec folder.',
+  'project_api': 'Keep one file per spec folder.',
+  'project_architecture': 'Keep one file per spec folder.',
+  'project_auth': 'Keep one file per spec folder.',
+  'project_domain': 'Keep one file per spec folder.',
+  'project_error': 'Keep one file per spec folder.',
+  'project_integration': 'Keep one file per spec folder.',
+  'tech_stack':
+      'Keep one fact per table cell and write rows that a reader can check.',
+  'topic': 'Keep one topic per file, named for the topic.',
+};
+
+/// The item shape line of each doc type whose sentence cap sits in lint.
+const _itemShapeLines = <String, String>{
+  'architecture': 'Write one rule per ID: one Components row per component.',
+  'domain': 'Write one rule per ID: one bullet per invariant.',
+  'error': 'Write one rule per ID: one catalog row per code.',
+  'project_api': 'Write one rule per ID: one bullet per convention.',
+  'project_architecture':
+      'Write one rule per ID: one Components row per component.',
+  'project_domain': 'Write one rule per ID: one bullet per invariant.',
+  'project_error': 'Write one rule per ID: one catalog row per code.',
+  'tech_stack': 'Write one rule per ID: one Stack row per slot.',
+  'topic': 'Write one rule per ID: one bullet per rule.',
+};
 
 void main() {
   group('software-tech manifest', () {
@@ -204,6 +265,53 @@ void main() {
         ).fields.where((f) => f.type == FieldType.taskRef),
         isEmpty,
       );
+    });
+
+    test('no description states a line target or a sentence length', () {
+      final target = RegExp(
+        r'Aim for (?:about|under)|\d[\d,]*-(?:line|character) cap|Each sentence holds',
+      );
+      for (final id in softwareTechIds) {
+        expect(
+          prdCoreDocType(set, id).description,
+          isNot(contains(target)),
+          reason: id,
+        );
+      }
+    });
+
+    test('a description keeps its file rule on a line of its own', () {
+      for (final MapEntry(:key, :value) in _fileRuleLines.entries) {
+        expect(
+          prdCoreDocType(set, key).description?.split('\n'),
+          contains(value),
+          reason: key,
+        );
+      }
+    });
+
+    test('a description states its item shape with no sentence count', () {
+      for (final MapEntry(:key, :value) in _itemShapeLines.entries) {
+        final lines = prdCoreDocType(set, key).description?.split('\n') ?? [];
+        expect(lines, contains(value), reason: key);
+        expect(
+          lines.where((l) => l.endsWith('each rule one sentence.')),
+          isEmpty,
+          reason: key,
+        );
+      }
+    });
+
+    test('the description holds the shared readability lines', () {
+      for (final id in softwareTechIds) {
+        for (final line in _readabilityLines) {
+          expect(
+            prdCoreDocType(set, id).description,
+            contains(line),
+            reason: id,
+          );
+        }
+      }
     });
 
     test('no spec doc type carries a word '

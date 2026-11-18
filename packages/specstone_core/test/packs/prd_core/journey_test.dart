@@ -36,6 +36,14 @@ void main() {
     );
   });
 
+  test('the description states no number a lint key holds', () {
+    expect(sectionOf(journey, 'goal').description, isNot(contains('One line')));
+  });
+
+  test('goal carries its line cap', () {
+    expect(sectionOf(journey, 'goal').maxLines, 1);
+  });
+
   test('a journey titled in words keeps its slug as its Name, and get reads '
       'it by that Name', () async {
     final index = await indexWith({

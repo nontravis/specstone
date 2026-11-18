@@ -1055,6 +1055,28 @@ lint:
       }
     });
 
+    test('a section max_item_lines loads as an integer', () {
+      expect(lintOf('{max_item_lines: 4}').maxItemLines, 4);
+      expect(lintOf('{max_chars: 3}').maxItemLines, isNull);
+    });
+
+    test('a max_item_lines below one or not a number is refused', () {
+      for (final value in ['0', '-1', 'one']) {
+        expectSectionFault(
+          '{max_item_lines: $value}',
+          FaultCode.unknownValue,
+          'max_item_lines',
+        );
+      }
+    });
+
+    test('max_item_lines in a doc-level lint is an unknown key', () {
+      expect(
+        () => _parse('lint: {max_item_lines: 4}'),
+        throwsA(_fault(FaultCode.unknownKey, key: 'lint.max_item_lines')),
+      );
+    });
+
     test('a required_patterns entry reads per_subsection, off when absent', () {
       final write = lintOf(
         '{required_patterns: [ '
@@ -1442,6 +1464,22 @@ lint:
         'when_field.values',
       );
       expectFault('[kind]', FaultCode.unknownValue, 'when_field');
+    });
+
+    test('a when_field with an empty values list is refused', () {
+      expect(
+        () => sectionOf('{field: kind, values: []}'),
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'sections.goal.when_field.values',
+          ).having(
+            (f) => f.message,
+            'message',
+            'when_field values holds no value',
+          ),
+        ),
+      );
     });
   });
 

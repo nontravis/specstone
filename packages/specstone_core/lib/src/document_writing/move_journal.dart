@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/document_writing/approved_copy_store.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/journal_records.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
@@ -15,6 +16,7 @@ import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show byteOrderMark;
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
 /// What a [JournalStep] acts on: the roots, the home folder that keeps the
@@ -150,7 +152,12 @@ sealed class JournalStep {
             {'path': final String path, 'text': final String text},
           ):
             return switch (value['before']) {
-              final String before => WriteStep(path, text, before: before),
+              final String before => WriteStep(
+                path,
+                text,
+                before: before,
+                keepsApprovedCopy: value['keepsApprovedCopy'] == true,
+              ),
               _ => WriteStep.unguarded(path, text),
             };
           case (
@@ -383,11 +390,18 @@ final class PruneStep extends JournalStep {
 /// is [before], the text it had when the run was planned, and that is not
 /// read-only; any other file is left as it is and named in a warning.
 final class WriteStep extends JournalStep {
-  const new(this.path, this.text, {required String this.before});
+  const new(
+    this.path,
+    this.text, {
+    required String this.before,
+    this.keepsApprovedCopy = false,
+  });
 
   /// A step from a journal an older release wrote, which recorded no hash and
   /// so writes over whatever the file holds.
-  const new unguarded(this.path, this.text) : before = null;
+  const new unguarded(this.path, this.text)
+    : before = null,
+      keepsApprovedCopy = false;
 
   /// The file to write.
   final String path;
@@ -399,9 +413,30 @@ final class WriteStep extends JournalStep {
   /// step.
   final String? before;
 
+  /// Whether [text] is an approved doc whose copy the step saves in an
+  /// [ApprovedCopyStore] once it has written the file or finds it written.
+  final bool keepsApprovedCopy;
+
+  /// Returns this step with [keepsApprovedCopy] set; an unguarded step, as an
+  /// older journal holds, stays as it is.
+  WriteStep keepingApprovedCopy() => switch (before) {
+    final String guard => WriteStep(
+      path,
+      text,
+      before: guard,
+      keepsApprovedCopy: true,
+    ),
+    null => this,
+  };
+
   @override
   Map<String, Object> toJson() => {
-    'write': {'path': path, 'text': text, 'before': ?before},
+    'write': {
+      'path': path,
+      'text': text,
+      'before': ?before,
+      if (keepsApprovedCopy) 'keepsApprovedCopy': true,
+    },
   };
 
   @override
@@ -419,8 +454,12 @@ final class WriteStep extends JournalStep {
   @override
   void apply(JournalTarget target) {
     try {
-      if (isDone(target)) return;
       final file = File(_absolute(target, path));
+      if (isDone(target)) {
+        // A stopped run wrote the file but may not have saved its copy.
+        if (keepsApprovedCopy && file.existsSync()) _keepApprovedCopy(target);
+        return;
+      }
       if (before case final expected?
           when textHashOf(_textOf(file)) != expected) {
         target.warn('$path changed since the stopped run; left as it is');
@@ -432,12 +471,16 @@ final class WriteStep extends JournalStep {
         return;
       }
       writeFileAtomic(file, utf8.encode(text));
+      if (keepsApprovedCopy) _keepApprovedCopy(target);
     } on FileSystemException catch (error) {
       throw _notWritable('write', path, error);
     } on FormatException catch (error) {
       throw _notWritable('write', path, error);
     }
   }
+
+  void _keepApprovedCopy(JournalTarget target) =>
+      ApprovedCopyStore(target.projectRoot).save(toLf(_withoutBom(text)));
 
   static String _textOf(File file) => _withoutBom(file.readAsStringSync());
 

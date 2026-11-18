@@ -46,6 +46,7 @@ enum FindingKind {
   prefixCountMismatch('prefix_count_mismatch'),
   linesUnderLimit('lines_under_limit'),
   subsectionsOverLimit('subsections_over_limit'),
+  itemLinesOverLimit('item_lines_over_limit'),
   wordsOverLimit('words_over_limit'),
   sentenceCharsOverLimit('sentence_chars_over_limit'),
   traceNoteNotLast('trace_note_not_last'),

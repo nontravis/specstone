@@ -38,6 +38,20 @@ void main() {
     ]);
   });
 
+  test('the description states no number a lint key holds', () {
+    final purpose = sectionOf(topic, 'purpose');
+    expect(purpose.description, isNot(contains('one paragraph')));
+    expect(
+      sectionOf(topic, 'rules').description,
+      isNot(contains('one sentence')),
+    );
+  });
+
+  test('purpose carries its item cap', () {
+    final items = sectionOf(topic, 'purpose').itemCount!;
+    expect((items.min, items.max), (null, 1));
+  });
+
   test('the topic description says a rule set writes Rules, a component '
       'writes Interface, and both writes both', () {
     expect(

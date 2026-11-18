@@ -49,4 +49,20 @@ void main() {
       SectionSpec('how_we_talk', 'How we talk to'),
     ]);
   });
+
+  test('the description states no number a lint key holds', () {
+    final snapshot = sectionOf(persona, 'snapshot');
+    expect(snapshot.description, isNot(contains('2 to 4')));
+    expect(snapshot.template, isNot(contains('2 to 4')));
+    expect(sectionOf(persona, 'jobs').description, isNot(contains('3 to 4')));
+    expect(
+      sectionOf(persona, 'alternatives').description,
+      isNot(contains('at least one')),
+    );
+  });
+
+  test('alternatives carries its item floor', () {
+    final items = sectionOf(persona, 'alternatives').itemCount!;
+    expect((items.min, items.max), (1, null));
+  });
 }

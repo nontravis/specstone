@@ -238,11 +238,6 @@ void main() {
     test('no guide carries a shared readability line', () {
       for (final id in marketingIds) {
         final description = prdCoreDocType(set, id).description;
-        expect(
-          description,
-          isNot(contains(sentenceLengthGuideLine)),
-          reason: id,
-        );
         expect(description, isNot(contains(citeNoteGuideLine)), reason: id);
       }
     });

@@ -2,17 +2,16 @@ id: architecture
 description: |-
   The architecture of one feature: which components exist, who calls whom, and where each runs.
   Title it `# <Feature name> architecture`, such as `# Rendering architecture`, with no number.
-  Aim for under 150 lines; keep one file per feature spec folder.
+  Keep one file per feature spec folder.
   Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   The target's record holds each story's and FR's status and code paths; `covers` names the target's own code only.
   Write no code samples; this doc describes structure, and the implementation belongs in code.
-  Write one rule per ID: one Components row per component, each rule one sentence.
+  Write one rule per ID: one Components row per component.
   A DOMAIN cites its own ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#components)`.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
   This includes a rule of a project spec doc or of an ancestor feature's spec doc.
   This doc holds one feature's spec; a rule every feature uses goes to the project's ARCHITECTURE doc.
   Write an `Overrides:` line right after an item that departs from a rule above, or right under the table when that item is a table row, its how-clause naming the row, as `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>`, and record its `overrides` entry.
-  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
   Put a cite or an ownership note at the item's end.
   Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
@@ -61,7 +60,7 @@ sections:
     required: true
     description: |-
       Write one table with the columns Component, Responsibility, Tech, Owns, and an optional Code path.
-      Write one row per component, its Responsibility one sentence: every diagram box is a row, and every row a box.
+      Write one row per component: every diagram box is a row, and every row a box.
       Write no line but a table line; put the detail of a component in Component details.
       Name the technology in Tech, so the Agent picks a library without opening the tech stack doc.
       Fill Code path with the folder or file of the component, so the Agent finds which component owns a file.
@@ -77,7 +76,7 @@ sections:
   - id: component_details
     header: Component details
     description: |-
-      Write this section only when a component needs more than its row's one sentence.
+      Write this section only when a component needs more than its row holds.
       Write one `### <Component>` subsection per such component, headed with the row's Component cell.
   - id: interaction
     header: Interaction
@@ -108,10 +107,11 @@ sections:
     header: Concerns
     required: true
     description: |-
-      Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability.
+      Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each.
       End each line with `see <section or sibling doc>` or `N/A — <reason>`.
       Skip no concern, so a reviewer sees that the decision was made.
     lint:
+      max_item_lines: 1
       banned_patterns:
         - id: concern_ending
           pattern: '^(?!## |.*(?:\bsee\b[^—]*|N/A — .+)$)\s*\S'
@@ -120,31 +120,33 @@ sections:
       required_patterns:
         - id: concern_integration
           pattern: '^(?:[-*] )?\*{0,2}Integration\b'
-          message: 'no Integration concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+          message: 'no Integration concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
         - id: concern_errors
           pattern: '^(?:[-*] )?\*{0,2}Errors\b'
-          message: 'no Errors concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+          message: 'no Errors concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
         - id: concern_auth
           pattern: '^(?:[-*] )?\*{0,2}Auth\b'
-          message: 'no Auth concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+          message: 'no Auth concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
         - id: concern_lifecycle
           pattern: '^(?:[-*] )?\*{0,2}Lifecycle\b'
-          message: 'no Lifecycle concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+          message: 'no Lifecycle concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
         - id: concern_events
           pattern: '^(?:[-*] )?\*{0,2}Events\b'
-          message: 'no Events concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+          message: 'no Events concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
         - id: concern_rollout
           pattern: '^(?:[-*] )?\*{0,2}Rollout\b'
-          message: 'no Rollout concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+          message: 'no Rollout concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
         - id: concern_observability
           pattern: '^(?:[-*] )?\*{0,2}Observability\b'
-          message: 'no Observability concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+          message: 'no Observability concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
   - id: design_references
     header: Design references
     description: |-
-      List one line per design or ADR whose decisions this doc still states, with no count cap.
+      List each design or ADR whose decisions this doc still states.
       Drop a link once no section relies on it.
       This section is the only home for rationale.
+    lint:
+      max_item_lines: 1
   - id: open_questions
     header: Open questions
     description: |-
