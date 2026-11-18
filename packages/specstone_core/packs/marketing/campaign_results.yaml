@@ -25,5 +25,5 @@ sections:
     description: |-
       Write what the campaign cost, by channel.
 reference:
-  - title: marketingskills, product-marketing
-    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md
+  - title: Anthropic marketing plugin, campaign-plan
+    url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md

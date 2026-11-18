@@ -1713,6 +1713,46 @@ items:
       );
     });
 
+    test('guide campaign --json prints the feature parent, the plan section, '
+        'and covers with pointer prefix and root project', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      final schema = await schemaOf(runner, 'campaign');
+      expect(schema['parent'], 'feature');
+      expect(schema.containsKey('perTarget'), isFalse);
+      final sections = (schema['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(sections.map((s) => s['id']), ['plan']);
+      final covers = (schema['fields']! as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .singleWhere((f) => f['id'] == 'covers');
+      expect(covers['pointer'], 'prefix');
+      expect(covers['root'], 'project');
+    });
+
+    test('guide campaign prints both guide statements and no code_root '
+        'line', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      expect(await runner.run(['guide', 'campaign']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'The docs hold the stable facts and the campaign plan; the '
+            "project's own skills write the content outside the docs.",
+          ),
+          contains('A learning edits the doc it corrects.'),
+          isNot(contains('code_root')),
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
     test('with only prd-core a software-tech type is neither listed nor '
         'printed', () async {
       final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));

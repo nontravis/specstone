@@ -29,101 +29,70 @@ const _measurementsStatement =
     "A campaign's results never go under `measurements/`, which keeps the "
     "project goals' measurements alone.";
 
-/// Each doc type with its path, parent, and sections: id, header, required.
-const _docTypes =
-    <String, (String, String?, List<(String, String, {bool required})>)>{
-      'positioning': (
-        'specs/marketing/POSITIONING.md',
-        null,
-        [
-          (
-            'competitive_alternatives',
-            'Competitive alternatives',
-            required: false,
-          ),
-          ('unique_attributes', 'Unique attributes', required: false),
-          ('value', 'Value', required: false),
-          ('best_fit_customers', 'Best fit customers', required: false),
-          ('market_category', 'Market category', required: false),
-        ],
-      ),
-      'messaging': (
-        'specs/marketing/MESSAGING.md',
-        null,
-        [
-          ('core_message', 'Core message', required: false),
-          ('pillars', 'Pillars', required: false),
-          ('per_audience', 'Per audience', required: false),
-        ],
-      ),
-      'voice': (
-        'specs/marketing/VOICE.md',
-        null,
-        [
-          ('tone', 'Tone', required: false),
-          ('words', 'Words', required: false),
-        ],
-      ),
-      'audience': (
-        'specs/marketing/AUDIENCE.md',
-        null,
-        [('segments', 'Segments', required: false)],
-      ),
-      'lifecycle': (
-        'specs/marketing/LIFECYCLE.md',
-        null,
-        [
-          ('stages', 'Stages', required: false),
-          ('triggers', 'Triggers', required: false),
-        ],
-      ),
-      'content_pillars': (
-        'specs/marketing/CONTENT_PILLARS.md',
-        null,
-        [('themes', 'Themes', required: false)],
-      ),
-      'loyalty': (
-        'specs/marketing/LOYALTY.md',
-        null,
-        [
-          ('retention', 'Retention', required: false),
-          ('rewards', 'Rewards', required: false),
-        ],
-      ),
-      'channel': (
-        'specs/marketing/channels/{slug}.md',
-        null,
-        [
-          ('audience', 'Audience', required: false),
-          ('format', 'Format', required: false),
-          ('cadence', 'Cadence', required: false),
-          ('measures', 'Measures', required: false),
-        ],
-      ),
-      'competitor': (
-        'specs/marketing/competitors/{slug}.md',
-        null,
-        [
-          ('offer', 'Offer', required: false),
-          ('position', 'Position', required: false),
-          ('gaps', 'Gaps', required: false),
-        ],
-      ),
-      'campaign': (
-        'specs/f{nn}_{slug}/CAMPAIGN.md',
-        'feature',
-        [('plan', 'Plan', required: false)],
-      ),
-      'campaign_results': (
-        'specs/f{nn}_{slug}/results/RESULTS.md',
-        'campaign',
-        [
-          ('funnel', 'Funnel', required: true),
-          ('channels', 'Channels', required: true),
-          ('spend', 'Spend', required: true),
-        ],
-      ),
-    };
+/// One expected marketing doc type: its path, parent, and sections.
+final class _DocTypeSpec {
+  const new(this.path, this.parent, this.sections);
+
+  final String path;
+  final String? parent;
+  final List<SectionSpec> sections;
+}
+
+const _docTypes = <String, _DocTypeSpec>{
+  'positioning': _DocTypeSpec('specs/marketing/POSITIONING.md', null, [
+    SectionSpec('competitive_alternatives', 'Competitive alternatives'),
+    SectionSpec('unique_attributes', 'Unique attributes'),
+    SectionSpec('value', 'Value'),
+    SectionSpec('best_fit_customers', 'Best fit customers'),
+    SectionSpec('market_category', 'Market category'),
+  ]),
+  'messaging': _DocTypeSpec('specs/marketing/MESSAGING.md', null, [
+    SectionSpec('core_message', 'Core message'),
+    SectionSpec('pillars', 'Pillars'),
+    SectionSpec('per_audience', 'Per audience'),
+  ]),
+  'voice': _DocTypeSpec('specs/marketing/VOICE.md', null, [
+    SectionSpec('tone', 'Tone'),
+    SectionSpec('words', 'Words'),
+  ]),
+  'audience': _DocTypeSpec('specs/marketing/AUDIENCE.md', null, [
+    SectionSpec('segments', 'Segments'),
+  ]),
+  'lifecycle': _DocTypeSpec('specs/marketing/LIFECYCLE.md', null, [
+    SectionSpec('stages', 'Stages'),
+    SectionSpec('triggers', 'Triggers'),
+  ]),
+  'content_pillars': _DocTypeSpec('specs/marketing/CONTENT_PILLARS.md', null, [
+    SectionSpec('themes', 'Themes'),
+  ]),
+  'loyalty': _DocTypeSpec('specs/marketing/LOYALTY.md', null, [
+    SectionSpec('retention', 'Retention'),
+    SectionSpec('rewards', 'Rewards'),
+  ]),
+  'channel': _DocTypeSpec('specs/marketing/channels/{slug}.md', null, [
+    SectionSpec('audience', 'Audience'),
+    SectionSpec('format', 'Format'),
+    SectionSpec('cadence', 'Cadence'),
+    SectionSpec('measures', 'Measures'),
+  ]),
+  'competitor': _DocTypeSpec('specs/marketing/competitors/{slug}.md', null, [
+    SectionSpec('offer', 'Offer'),
+    SectionSpec('position', 'Position'),
+    SectionSpec('gaps', 'Gaps'),
+  ]),
+  'campaign': _DocTypeSpec('specs/f{nn}_{slug}/CAMPAIGN.md', 'feature', [
+    SectionSpec('plan', 'Plan'),
+  ]),
+  'campaign_results': _DocTypeSpec(
+    'specs/f{nn}_{slug}/results/RESULTS.md',
+    'campaign',
+    [
+      SectionSpec('funnel', 'Funnel', required: true),
+      SectionSpec('channels', 'Channels', required: true),
+      SectionSpec('spend', 'Spend', required: true),
+    ],
+  ),
+};
 
 /// Checks [text] at [path] in a project that lists the marketing packs.
 Future<List<String>> _findings(
@@ -256,22 +225,17 @@ void main() {
   group('doc types', () {
     test('each loads at its path with its parent', () {
       expect([..._docTypes.keys]..sort(), marketingIds);
-      for (final MapEntry(key: id, value: (path, parent, _))
-          in _docTypes.entries) {
+      for (final MapEntry(key: id, value: spec) in _docTypes.entries) {
         final docType = prdCoreDocType(set, id);
-        expect(docType.path, path, reason: id);
-        expect(docType.parent, parent, reason: id);
+        expect(docType.path, spec.path, reason: id);
+        expect(docType.parent, spec.parent, reason: id);
       }
     });
 
     test('each holds the sections of its row, in order, with the required '
         'flags', () {
-      for (final MapEntry(key: id, value: (_, _, sections))
-          in _docTypes.entries) {
-        expectSections(prdCoreDocType(set, id), [
-          for (final (sectionId, header, :required) in sections)
-            SectionSpec(sectionId, header, required: required),
-        ]);
+      for (final MapEntry(key: id, value: spec) in _docTypes.entries) {
+        expectSections(prdCoreDocType(set, id), spec.sections);
       }
     });
 
