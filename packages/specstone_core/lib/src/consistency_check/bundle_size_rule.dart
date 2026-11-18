@@ -7,9 +7,9 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 /// The most est. tokens a design read-first file may hold.
 ///
-/// Est. tokens are characters / 4. One Read counted a 64,100 est. token file at
-/// 63,968 tokens, so 24,000 stays about 4% under the 25,000-token cap of a
-/// Read.
+/// Est. tokens are characters / 4. One Read counted a file of about 64,100 est.
+/// tokens at 63,968 tokens, so 24,000 stays about 4% under the 25,000-token cap
+/// of a Read.
 const bundleTokenLimit = 24000;
 
 /// Returns `bundle_over_limit` for the nesting-type doc [feature] when its
@@ -17,8 +17,9 @@ const bundleTokenLimit = 24000;
 /// [bundleTokenLimit] est. tokens; no finding for any other doc.
 ///
 /// A file is sized as `context --out` writes it, from the Index alone: the
-/// feature's with its children in summary, a story's whole. The finding names
-/// the largest file.
+/// feature's with its children in summary, a story's whole; each file also
+/// holds the ancestor spec pieces its docs link. The finding names the largest
+/// file.
 Iterable<Finding> checkBundleSize(
   CheckContext context,
   IndexedDoc feature,

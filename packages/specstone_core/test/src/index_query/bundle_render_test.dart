@@ -2418,6 +2418,31 @@ void main() {
         expect([entry.sectionKey, entry.itemId], ['invariants', 'INV-2']);
       });
 
+      test('an inbound lead paragraph piece names the doc and lists cites with no section key', () async {
+        final a = await splitNested({
+          'docs/$shopDomain': domainOf([
+            'This doc backs [the fr]($toFr).',
+            '',
+            '## Invariants',
+            '- **INV-1** First.',
+          ]),
+        });
+
+        expect(
+          a.text,
+          contains(
+            '==> shop (domain) · $shopDomain · cites <==\n'
+            'This doc backs [the fr]($toFr).\n',
+          ),
+        );
+        expect(listOf(a.text), contains('- shop (domain) · cites'));
+        expect(a.text, isNot(contains('INV-1')));
+        final entry = a.entries.singleWhere(
+          (e) => e.kind == BundleEntryKind.cites,
+        );
+        expect((entry.sectionKey, entry.itemId), (null, null));
+      });
+
       test('range and section pieces print as outbound pieces', () async {
         final a = await splitNested({
           'docs/$cartAddFr': fr(

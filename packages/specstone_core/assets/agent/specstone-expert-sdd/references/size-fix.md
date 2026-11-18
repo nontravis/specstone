@@ -74,8 +74,8 @@ the split does, and run none before the Owner's ok. The finding waits for the Ow
   spec item that one sub-feature alone uses. With no such item, no fix applies.
 - `doc` is a feature whose children are stories: the sub-feature split above, then the same moves for each spec item
   one sub-feature alone uses.
-- No fix applies to a feature at its doc type's `max_depth`, since no sub-feature nests below it, nor to a feature of
-  fewer than 4 stories, since no grouping gives it 2 sub-features of 2 stories each.
+- No fix applies to a feature at its doc type's `max_depth`, since no sub-feature nests below it, nor to a feature
+  whose children are fewer than 4 stories, since no grouping gives it 2 sub-features of 2 stories each.
 
 Where no fix applies, say why in your report and leave the finding as it is: it waits for the Owner.
 
