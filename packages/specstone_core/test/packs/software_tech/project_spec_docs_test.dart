@@ -201,6 +201,52 @@ void main() {
     expect(limits!.single.count, 1);
   });
 
+  test('a project spec doc type inherits the size keys of its base type', () {
+    for (final (id, section) in [
+      ('project_architecture', 'concerns'),
+      ('project_architecture', 'design_references'),
+    ]) {
+      expect(
+        sectionOf(prdCoreDocType(set, id), section).maxItemLines,
+        1,
+        reason: '$id.$section',
+      );
+    }
+    expect(
+      sectionOf(prdCoreDocType(set, 'project_auth'), 'enforcement').maxLines,
+      1,
+    );
+    final catalog = sectionOf(
+      prdCoreDocType(set, 'project_error'),
+      'error_catalog',
+    ).maxSentences!;
+    expect(
+      [for (final c in catalog) (c.count, c.column)],
+      [(1, 'Triggered by'), (1, 'Client guidance')],
+    );
+  });
+
+  test('the convention and invariant forms state no sentence count', () {
+    final convention = sectionOf(
+      prdCoreDocType(set, 'project_api'),
+      'conventions',
+    );
+    expect(convention.description, isNot(contains('<one sentence>')));
+    expect(
+      convention.description,
+      contains('Write each as `- **API-C<N>** <rule>`'),
+    );
+    final invariants = sectionOf(
+      prdCoreDocType(set, 'project_domain'),
+      'invariants',
+    );
+    expect(invariants.description, isNot(contains('<one sentence>')));
+    expect(
+      invariants.description,
+      contains('Write each invariant as `- **INV-<N>** <rule>`'),
+    );
+  });
+
   test('project_domain invariants take the corrective policy of domain', () {
     final domain = prdCoreDocType(set, 'domain');
     final projectDomain = prdCoreDocType(set, 'project_domain');

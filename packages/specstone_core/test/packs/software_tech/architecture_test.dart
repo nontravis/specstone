@@ -40,4 +40,47 @@ void main() {
       SectionSpec('open_questions', 'Open questions'),
     ]);
   });
+
+  test('the section descriptions state no number a lint key holds', () {
+    for (final id in ['components', 'component_details']) {
+      expect(
+        sectionOf(architecture, id).description,
+        isNot(contains('one sentence')),
+        reason: id,
+      );
+    }
+    expect(
+      sectionOf(architecture, 'design_references').description,
+      isNot(contains('no count cap')),
+    );
+  });
+
+  test('concerns and design_references describe their items without a line '
+      'count', () {
+    List<String> linesOf(String id) =>
+        sectionOf(architecture, id).description?.split('\n') ?? const [];
+    expect(
+      linesOf('concerns'),
+      contains(
+        'Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and '
+        'Observability, one item each.',
+      ),
+    );
+    expect(
+      linesOf('design_references'),
+      contains(
+        'List each design or ADR whose decisions this doc still states.',
+      ),
+    );
+  });
+
+  test('each concern message quotes its guide line as written', () {
+    final concerns = sectionOf(architecture, 'concerns');
+    final entries = concerns.requiredPatterns!;
+    expect(entries, hasLength(7));
+    for (final entry in entries) {
+      final quoted = entry.message.split('guide line: ').last;
+      expect(concerns.description, contains('$quoted.'), reason: entry.id);
+    }
+  });
 }

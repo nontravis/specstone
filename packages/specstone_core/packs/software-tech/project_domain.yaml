@@ -3,14 +3,13 @@ extends: domain
 description: |-
   The project's domain model: the concepts every feature uses, how they are shaped, and the invariants that hold.
   Title it `# <Project name> domain`, such as `# Specstone domain`, with no number.
-  Aim for about 150 to 200 lines; keep one file per spec folder.
+  Keep one file per spec folder.
   Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   Hold only rules every feature uses; write any other rule in a per-feature spec doc, or in a `topic` when two or more features share it.
-  Write one rule per ID: one bullet per invariant, each rule one sentence.
+  Write one rule per ID: one bullet per invariant.
   The project's DOMAIN cites the project's ARCHITECTURE by a section link, such as `[architecture](ARCHITECTURE.md#components)`.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
   This includes a rule of a project spec doc or of an ancestor feature's spec doc.
-  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
   Put a cite or an ownership note at the item's end.
   Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
@@ -29,7 +28,7 @@ sections:
       Make each value object immutable.
   - id: invariants
     description: |-
-      Write each invariant as `- **INV-<N>** <one sentence>`, never a numbered item; IDs are append-only, never reused.
+      Write each invariant as `- **INV-<N>** <rule>`, never a numbered item; IDs are append-only, never reused.
       Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
       Under an eventual invariant, nest `- **Corrective policy:** <how the system restores the rule>` too.
       Keep a bound (`timeout 10 s`) in the invariant it bounds; mechanics to ARCHITECTURE, unhandled cases to `known_limits`.

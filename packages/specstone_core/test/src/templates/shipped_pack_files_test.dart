@@ -332,6 +332,11 @@ void main() {
       expect(sentences('architecture', 'components'), [(1, 'Responsibility')]);
       expect(sentences('domain', 'invariants'), [(1, null)]);
       expect(sentences('topic', 'rules'), [(1, null)]);
+      expect(sentences('error', 'error_catalog'), [
+        (1, 'Triggered by'),
+        (1, 'Client guidance'),
+      ]);
+      expect(sentences('tech_stack', 'stack'), [(1, 'Why')]);
       final fields = section('domain', 'invariants').itemFields!;
       expect(
         [for (final f in fields) f.field],
@@ -352,6 +357,18 @@ void main() {
       expect(section('error', 'error_catalog').catalog!.column, 'Code');
     });
 
+    test('the item line, line, and item count keys sit on their sections', () {
+      for (final (docType, id) in [
+        ('architecture', 'concerns'),
+        ('architecture', 'design_references'),
+      ]) {
+        expect(section(docType, id).maxItemLines, 1, reason: '$docType.$id');
+      }
+      expect(section('auth', 'enforcement').maxLines, 1);
+      final purpose = section('topic', 'purpose').itemCount!;
+      expect((purpose.min, purpose.max), (null, 1));
+    });
+
     test('no other spec section sets a guide-rule key', () {
       final found = <String>{
         for (final (docType, s) in specSections())
@@ -363,17 +380,26 @@ void main() {
               s.maxLines != null ||
               s.minLines != null ||
               s.itemCount != null ||
+              s.maxItemLines != null ||
               s.namesCodes != null)
             '${docType.id}.${s.id}',
       };
       expect(found, {
         'architecture.component_diagram',
         'architecture.components',
+        'architecture.concerns',
+        'architecture.design_references',
+        'auth.enforcement',
         'domain.invariants',
         'topic.rules',
+        'topic.purpose',
+        'tech_stack.stack',
         'error.error_catalog',
         'project_architecture.component_diagram',
         'project_architecture.components',
+        'project_architecture.concerns',
+        'project_architecture.design_references',
+        'project_auth.enforcement',
         'project_domain.invariants',
         'project_error.error_catalog',
         'project_api.conventions',

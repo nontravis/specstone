@@ -49,6 +49,15 @@ void main() {
     expect(policy.values, isNull);
   });
 
+  test('the invariant form states no sentence count', () {
+    final invariants = sectionOf(domain, 'invariants');
+    expect(invariants.description, isNot(contains('<one sentence>')));
+    expect(
+      invariants.description,
+      contains('Write each invariant as `- **INV-<N>** <rule>`'),
+    );
+  });
+
   test('domain holds no corrective policies section', () {
     expect(
       domain.sections.map((s) => s.id),
