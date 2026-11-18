@@ -456,6 +456,19 @@ void main() {
       expect(plan.left, contains('specs/architecture/caching.schema.json'));
     });
 
+    test('a topic file of specs/architecture/ moves to specs/topics/ '
+        'though a Spec map row names that folder for a feature', () {
+      final tree = _specTree({'architecture': '`f01_alpha`'}, ['caching.md']);
+
+      final plan = _plan(tree);
+
+      expect(
+        _movedTo(plan, 'specs/architecture/caching.md'),
+        'specs/topics/caching.md',
+      );
+      expect(plan.kindOf['specs/topics/caching.md'], LegacyKind.topic);
+    });
+
     test('files no rule places stay', () {
       final plan = _plan(specEdgeLegacy);
 
@@ -1171,7 +1184,7 @@ void main() {
     });
 
     group('case-blind', () {
-      test('a move onto ARCHITECTURE.md beside a staying '
+      test('planning a move onto ARCHITECTURE.md beside a staying '
           'architecture.md refuses and says it stays', () {
         final lines = _refusal(
           _specTree(
