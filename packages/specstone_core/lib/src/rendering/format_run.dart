@@ -9,6 +9,7 @@ import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/rendering/skill_references.dart';
 
 /// What a format run did with one doc.
 enum FileStatus {
@@ -37,6 +38,8 @@ final class FileResult {
     this.openBlock,
     this.openBlockKind,
     this.changesStructure = false,
+    this.skillRefusal,
+    this.skillRefusalMessage,
   });
 
   /// The doc's path, relative to the project root.
@@ -66,9 +69,16 @@ final class FileResult {
   /// Whether laying the doc out would change its frontmatter or its sections.
   final bool changesStructure;
 
+  /// Why the run refuses the skill doc's reference files, which leaves the
+  /// skill doc unwritten too.
+  final SkillRefusalCode? skillRefusal;
+
+  /// The message naming the case of [skillRefusal].
+  final String? skillRefusalMessage;
+
   /// Returns the wire form; a list prints only when it is not empty,
   /// `unclosedFence` and `changesStructure` only when true, and `openBlock`
-  /// only when set.
+  /// and `skillRefusal` only when set.
   Map<String, Object> toJson() => {
     'path': path,
     'status': status.name,
@@ -78,6 +88,7 @@ final class FileResult {
     if (unclosedFence) 'unclosedFence': true,
     'openBlock': ?openBlock,
     if (changesStructure) 'changesStructure': true,
+    'skillRefusal': ?skillRefusal?.wire,
   };
 
   String get _reasons => [
@@ -87,6 +98,7 @@ final class FileResult {
     if (unclosedFence) 'unclosed code fence',
     if (openBlockKind != null) 'open generated block $openBlockKind',
     if (changesStructure) 'layout would change the doc structure',
+    if (skillRefusal case final code?) '${code.wire}: $skillRefusalMessage',
   ].join('; ');
 }
 
@@ -158,14 +170,20 @@ final class GeneratorRun<R> {
 /// [generators], a doc whose type lists generators also gets its generated
 /// blocks written; the resolver opens before the first write.
 ///
-/// Throws a [RenderFault] `output_not_writable` naming the doc when a write
-/// fails; docs written before it stay written. A fault from
-/// [GeneratorRun.open] propagates and no doc is written.
+/// With [rewriteLinks], each `skill` doc under [target] gets its reference
+/// files (see [SkillReferences.plan]). A refused skill doc is left unwritten.
+/// After the docs, each reference file that differs from the file on disk is
+/// written, unless [check], and listed right after its skill doc.
+///
+/// Throws a [RenderFault] `output_not_writable` naming the doc or reference
+/// file when a write fails; files written before it stay written. A fault
+/// from [GeneratorRun.open] propagates and no doc is written.
 FormatReport runFormat<R>(
   DocsProject project,
   Target target, {
   required bool check,
   GeneratorRun<R>? generators,
+  LinkRewriter? rewriteLinks,
 }) {
   final targets = [target, if (target.isDocsRoot) ?project.recordsTarget];
   final reads = [
@@ -173,22 +191,99 @@ FormatReport runFormat<R>(
       for (final entry in collectDocEntries(target, project.matcher))
         readDoc(project, entry),
   ];
+  SkillReferences? planSkills() => rewriteLinks == null
+      ? null
+      : SkillReferences.plan(project, target, rewriteLinks: rewriteLinks);
+  final skills = planSkills();
   final run = generators;
   final needsResolver = reads.whereType<ReadableDoc>().any(
     (read) => read.docType.listedGenerators.isNotEmpty,
   );
   final opened = run != null && needsResolver ? run.open() : null;
   try {
-    return _formatReads(
+    final report = _formatReads(
       project,
       reads,
       check: check,
       blocks: run == null || opened == null
           ? null
           : (run: run, resolver: opened.resolver),
+      skills: skills,
     );
+    if (skills == null || !skills.skills.any((s) => s is ExportedSkill)) {
+      return report;
+    }
+    // A Sources doc this run wrote is read again, as it now is on disk.
+    final wroteDocs =
+        !check && report.files.any((f) => f.status == FileStatus.formatted);
+    return _withReferences(project, report, wroteDocs ? planSkills()! : skills);
   } finally {
     opened?.close();
+  }
+}
+
+/// Returns [report] with a result for each reference file of [skills] that
+/// differs from its file on disk, right after its skill doc's result; each
+/// is written unless the run only checks.
+FormatReport _withReferences(
+  DocsProject project,
+  FormatReport report,
+  SkillReferences skills,
+) {
+  final check = report.check;
+  final files = [
+    for (final result in report.files) ...[
+      result,
+      if (result.skillRefusal == null)
+        if (skills.of(result.path) case ExportedSkill(files: final references))
+          for (final reference in references)
+            if (_differsOnDisk(reference))
+              _referenceResult(project, reference, check: check),
+    ],
+  ];
+  return FormatReport(check: check, files: files, warnings: report.warnings);
+}
+
+bool _differsOnDisk(ReferenceFile reference) {
+  try {
+    final text = utf8.decode(reference.file.readAsBytesSync());
+    return toLf(text) != reference.text;
+  } on FileSystemException {
+    return true;
+  } on FormatException {
+    return true;
+  }
+}
+
+FileResult _referenceResult(
+  DocsProject project,
+  ReferenceFile reference, {
+  required bool check,
+}) {
+  if (!check) _writeReference(project, reference);
+  return FileResult(path: reference.path, status: FileStatus.formatted);
+}
+
+void _writeReference(DocsProject project, ReferenceFile reference) {
+  final file = reference.file;
+  project.requireWritablePath(file.path);
+  if (isReadOnly(file)) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'the reference file is read-only',
+      file: reference.path,
+    );
+  }
+  try {
+    file.parent.createSync(recursive: true);
+    writeFileAtomic(file, reference.bytes);
+  } on FileSystemException catch (error) {
+    final reason = error.osError?.message ?? error.message;
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write the reference file: $reason',
+      file: reference.path,
+    );
   }
 }
 
@@ -197,6 +292,7 @@ FormatReport _formatReads<R>(
   List<DocRead> reads, {
   required bool check,
   required ({GeneratorRun<R> run, R resolver})? blocks,
+  required SkillReferences? skills,
 }) {
   final files = <FileResult>[];
   final warnings = <String>[];
@@ -223,17 +319,30 @@ FormatReport _formatReads<R>(
           ),
         );
       case final ReadableDoc read:
-        files.add(_formatReadable(project, read, check: check, blocks: blocks));
+        files.add(
+          _formatReadable(
+            project,
+            read,
+            check: check,
+            blocks: blocks,
+            refusal: switch (skills?.of(read.path)) {
+              final RefusedSkill refused => refused,
+              _ => null,
+            },
+          ),
+        );
     }
   }
   return FormatReport(check: check, files: files, warnings: warnings);
 }
 
+/// Formats [read]; a skill doc with a [refusal] is refused and never written.
 FileResult _formatReadable<R>(
   DocsProject project,
   ReadableDoc read, {
   required bool check,
   required ({GeneratorRun<R> run, R resolver})? blocks,
+  required RefusedSkill? refusal,
 }) {
   switch (formatDoc(read.doc, read.docType)) {
     case Refused(
@@ -253,6 +362,15 @@ FileResult _formatReadable<R>(
         openBlock: openBlock,
         openBlockKind: openBlockKind,
         changesStructure: changesStructure,
+        skillRefusal: refusal?.code,
+        skillRefusalMessage: refusal?.message,
+      );
+    case Formatted() when refusal != null:
+      return FileResult(
+        path: read.path,
+        status: FileStatus.refused,
+        skillRefusal: refusal.code,
+        skillRefusalMessage: refusal.message,
       );
     case Formatted(:final text):
       var finalText = text;

@@ -5,6 +5,8 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/agent_skills.dart'
+    show skillDocText, skillProjectPacks;
 import '../../../../specstone_core/test/helpers/check_fixture.dart'
     show writeCheckProject;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
@@ -750,6 +752,82 @@ sections:
       expect(second, isNot(contains('edited by hand')));
       expect(second, contains(approvedStamp));
       expect(second, isNot(contains('draft: true')));
+    });
+  });
+
+  group('skill reference files on the shipped agent-skills', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    const skill = 'docs/specs/skills/review.md';
+    const button =
+        'docs/specs/design_system/components/buttons/primary_button.md';
+    const tokens = 'docs/specs/design_system/foundations/TOKENS.md';
+    const references = '.claude/skills/review/references/specs/design_system';
+    const buttonLink =
+        '[Primary button](../design_system/components/buttons/primary_button.md)';
+    const tokensLink = '[Tokens](../design_system/foundations/TOKENS.md)';
+    const buttonBody = '# Primary button\n\n## Purpose\n\nStarts an action.\n';
+
+    Map<String, String> files(List<String> sources) => {
+      '.specstone/config.yaml': shippedPinsConfig(skillProjectPacks),
+      skill: skillDocText(sources: sources),
+      button: '---\nfeature: login\nlifecycle: stable\n---\n\n$buttonBody',
+      tokens: '# Tokens\n\n## Token list\n\n- color.primary\n',
+    };
+
+    Future<ProcessResult> run(Directory project, List<String> args) =>
+        Process.run(binary, args, workingDirectory: project.path);
+
+    test('format on a skill doc writes its reference files, listed in path '
+        'order', () async {
+      final project = await writeTree(files([tokensLink, buttonLink]));
+
+      final result = await run(project, ['format', skill]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        result.stdout,
+        '$references/components/buttons/primary_button.md: formatted\n'
+        '$references/foundations/TOKENS.md: formatted\n',
+      );
+      expect(
+        File('${project.path}/$references/components/buttons/primary_button.md')
+            .readAsStringSync(),
+        '---\nlifecycle: stable\n---\n\n$buttonBody',
+      );
+    });
+
+    test('a refused skill doc prints its code and message, and --json '
+        'carries skillRefusal, exit 1, while the other docs are '
+        'written', () async {
+      final project = await writeTree(
+        files([tokensLink, '[Old](../design_system/OLD.md)']),
+      );
+
+      final text = await run(project, ['format']);
+      final json = await run(project, ['format', '--json']);
+
+      expect(text.exitCode, 1, reason: '${text.stderr}');
+      expect(
+        text.stdout,
+        '$button: formatted\n'
+        '$skill: refused: skill_source_missing: the source names no doc: '
+        '../design_system/OLD.md\n',
+      );
+      expect(json.exitCode, 1, reason: '${json.stderr}');
+      expect(
+        (jsonDecode(json.stdout as String) as Map<String, Object?>)['files'],
+        contains(
+          equals({
+            'path': skill,
+            'status': 'refused',
+            'skillRefusal': 'skill_source_missing',
+          }),
+        ),
+      );
+      expect(Directory('${project.path}/.claude').existsSync(), isFalse);
     });
   });
 }
