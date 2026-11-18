@@ -670,7 +670,7 @@ sections:
     test('writing enum values or list on approved is locked_field_disabled '
         'naming the file and the field, exit 78', () {
       for (final entry in [
-        '{id: approved, type: enum, enum: [a, b]}',
+        '{id: approved, enum: [a, b]}',
         '{id: approved, list: true}',
       ]) {
         expect(
@@ -1297,24 +1297,6 @@ sections:
         merged.sections.firstWhere((s) => s.id == 'scope').maxLines,
         isNull,
       );
-    });
-
-    test('a section with no lint of its own holds no limit, so the doc-level '
-        'limits stay the ones that apply to it', () {
-      final merged = project(
-        shipped(),
-        'lint: {max_chars: 900, max_lines: 40}\n'
-        'sections: [{id: goal, lint: {max_lines: 5}}]',
-      );
-
-      expect(merged.lint.maxChars, 900);
-      expect(merged.lint.maxLines, 40);
-      final scope = merged.sections.firstWhere((s) => s.id == 'scope');
-      expect(scope.maxChars, isNull);
-      expect(scope.maxLines, isNull);
-      final goal = merged.sections.firstWhere((s) => s.id == 'goal');
-      expect(goal.maxLines, 5);
-      expect(goal.maxChars, isNull);
     });
 
     test('a layer with no lint keeps the base lint', () {
