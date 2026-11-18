@@ -1464,6 +1464,22 @@ lint:
       );
       expectFault('[kind]', FaultCode.unknownValue, 'when_field');
     });
+
+    test('a when_field with an empty values list is refused', () {
+      expect(
+        () => sectionOf('{field: kind, values: []}'),
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'sections.goal.when_field.values',
+          ).having(
+            (f) => f.message,
+            'message',
+            'when_field values holds no value',
+          ),
+        ),
+      );
+    });
   });
 
   group('isDocTypeFileName', () {
