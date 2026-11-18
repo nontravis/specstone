@@ -524,38 +524,74 @@ void main() {
 
           expect(r.exitCode, isNot(78), reason: '${r.stdout}${r.stderr}');
           expect(r.stderr, isNot(contains(refused)));
-          expect(r.stderr, contains('could not fetch'));
+          expect(
+            r.stderr,
+            matches(
+              RegExp(
+                'specstone upgrade could not '
+                '(fetch|read the latest release)',
+              ),
+            ),
+          );
         },
       );
     }
   });
 
   group('Ctrl+C during a run:', () {
-    test('stn.exe takes the event, the target gets it, and no batch '
-        'prompt shows', () async {
+    // A target that traps Ctrl+C and Ctrl+Break, logs `got`, and exits 42; it
+    // exits 7 when 30 s pass with no event.
+    const trapSource = r"""
+import 'dart:io';
+
+Future<void> main() async {
+  final logs = Platform.environment['STUB_LOG_DIR']!;
+  ProcessSignal.sigint.watch().listen((_) {
+    File('$logs\\ctrl.log').writeAsStringSync('got\n');
+    exit(42);
+  });
+  File('$logs\\specstone.pid').writeAsStringSync('$pid');
+  await Future<void>.delayed(const Duration(seconds: 30));
+  exit(7);
+}
+""";
+
+    Future<void> installTrap(ShimSandbox sb) async {
+      final scratch = await Directory.systemTemp.createTemp('specstone_trap_');
+      addTearDown(() => scratch.delete(recursive: true));
+      final source = File('${scratch.path}\\trap.dart')
+        ..writeAsStringSync(trapSource);
+      final compiled = '${scratch.path}\\trap.exe';
+      final result = await Process.run(Platform.resolvedExecutable, [
+        'compile',
+        'exe',
+        source.path,
+        '-o',
+        compiled,
+      ]);
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+      File(compiled).copySync('${sb.bin.path}\\specstone.exe');
+    }
+
+    test('stn.exe outlives the event, the target gets it, and stn.exe exits '
+        "with the target's status", () async {
       final sb = await createShimSandbox();
+      await installTrap(sb);
       final pidFile = '${sb.logs.path}\\specstone.pid';
-      final grandchildFile = File('${sb.logs.path}\\grandchild.pid');
-      addTearDown(() {
-        final pid = grandchildFile.existsSync()
-            ? int.tryParse(grandchildFile.readAsStringSync().trim())
-            : null;
-        if (pid != null) Process.killPid(pid);
-      });
       const native =
           '[DllImport("kernel32.dll")] public static extern bool '
           'GenerateConsoleCtrlEvent(uint e, uint g); '
           '[DllImport("kernel32.dll")] public static extern bool '
           'SetConsoleCtrlHandler(IntPtr h, bool a);';
-
       final start =
           "\$p = Start-Process -FilePath '${sb.bin.path}\\stn.exe' "
           '-ArgumentList check -NoNewWindow -PassThru';
       final poll =
           "for (\$i = 0; \$i -lt 150 -and -not (Test-Path '$pidFile'); "
           r'$i++) { Start-Sleep -Milliseconds 100 }';
+
       // PowerShell starts stn.exe in its own console, waits for the target to
-      // hold, ignores the event itself, and sends Ctrl+C to the console.
+      // be ready, ignores the event itself, and sends Ctrl+C to the console.
       final r = await sb.typeStn(
         [
           "Add-Type -Namespace W -Name K -MemberDefinition '$native'",
@@ -570,15 +606,13 @@ void main() {
         ],
         shell: StnShell.powershell,
         path: '${sb.bin.path};$system32',
-        extra: {holdVariable: '1'},
         timeout: const Duration(minutes: 2),
       );
 
-      expect(
-        nonBlank(r.stdout),
-        containsAll(['exited=True', 'code=-1073741510']),
-      );
-      expect('${r.stdout}${r.stderr}', isNot(contains('Terminate batch job')));
+      // A stn.exe that died of the event would exit -1073741510; 42 is the
+      // target's own answer, which stn.exe can only relay by living on.
+      expect(nonBlank(r.stdout), containsAll(['exited=True', 'code=42']));
+      expect(File('${sb.logs.path}\\ctrl.log').readAsStringSync(), 'got\n');
     });
   });
 
