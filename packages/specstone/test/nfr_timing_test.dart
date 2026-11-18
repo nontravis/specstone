@@ -240,6 +240,13 @@ void main() {
     expect(first.exitCode, 0, reason: '${first.stderr}');
     expect(first.stdout.toString(), contains('  · cited by '));
     expect(
+      '  · cited by feature_1/story_1/req_2 (fr) '.allMatches(
+        first.stdout.toString(),
+      ),
+      hasLength(denseCiteCount),
+      reason: 'the bundle appends every item its own docs cite densely',
+    );
+    expect(
       bestOf(timingRuns, () => timed(call), label: 'design context calls'),
       lessThanOrEqualTo(const Duration(milliseconds: 500)),
     );
