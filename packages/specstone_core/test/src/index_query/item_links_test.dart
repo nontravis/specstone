@@ -92,12 +92,11 @@ String? _extent(
   String? prefix,
   bool isAcceptanceCriteria = false,
 }) {
-  final extent = itemExtentOf(
+  final extent = itemExtentsOf(
     _body(text),
-    itemId,
     prefixId: prefix ?? itemId.replaceFirst(RegExp(r'\d+$'), ''),
     isAcceptanceCriteria: isAcceptanceCriteria,
-  );
+  )[itemId];
   return extent == null ? null : '${extent.first}-${extent.last}';
 }
 
@@ -340,7 +339,7 @@ void main() {
     });
   });
 
-  group('itemExtentOf', () {
+  group('itemExtentsOf', () {
     test('an item spans its nested items', () {
       expect(
         _extent(
@@ -450,9 +449,19 @@ void main() {
         'no extent', () {
       expect(_extent('- plain text\n', 'RULE-1'), isNull);
     });
+
+    test('a repeated ID spans its first item', () {
+      expect(
+        _extent(
+          '- RULE-1 one\n  - a\n- RULE-2 two\n- RULE-1 again\n',
+          'RULE-1',
+        ),
+        '20-21',
+      );
+    });
   });
 
-  group('itemExtentsOf', () {
+  group('itemExtentsOf keys', () {
     for (final (shape, text, prefix, ids) in [
       (
         'a repeated ID',
@@ -479,26 +488,13 @@ void main() {
         ['NFR-P01', 'NFR-P02'],
       ),
     ]) {
-      test('each ID spans what a lookup of that ID alone gives, '
-          'the first item holding an ID winning, with $shape', () {
-        final body = _body(text);
+      test('only an ID an item holds has an extent, with $shape', () {
         final extents = itemExtentsOf(
-          body,
+          _body(text),
           prefixId: prefix,
           isAcceptanceCriteria: false,
         );
         expect(extents.keys, unorderedEquals(ids));
-        for (final id in ids) {
-          expect(
-            extents[id],
-            itemExtentOf(
-              body,
-              id,
-              prefixId: prefix,
-              isAcceptanceCriteria: false,
-            ),
-          );
-        }
       });
     }
   });

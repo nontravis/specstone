@@ -5,6 +5,8 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/cited_by.dart';
+import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/models/indexed_item_words.dart';
 import 'package:specstone_core/src/index_query/models/indexed_link.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
@@ -337,6 +339,10 @@ final class DocIndex {
 
   /// Returns the text and structure of [doc].
   DocContent contentOf(IndexedDoc doc) => _store.loadContent(doc.docPath);
+
+  /// Returns the cited-by lines the index stored when it last wrote a doc, by
+  /// the place each cites.
+  Map<CitedPlace, List<CitedBy>> citedLines() => _store.loadCitedBy();
 
   /// Returns the normalized words of every item of a rule-bearing section,
   /// by docPath and then item order.

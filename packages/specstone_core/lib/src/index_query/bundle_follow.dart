@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show linkSourcesOf;
+import 'package:specstone_core/src/index_query/models/cited_candidate.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_section.dart';
 import 'package:specstone_core/src/index_query/models/classified_link.dart';
@@ -436,26 +437,17 @@ final class _Walk {
     final cited = citedBy;
     final section = view.citedSectionAt(at);
     if (cited == null || section == null) return const [];
-    return citedItemsIn(
-      cited,
-      view.doc,
-      view.content,
+    return citedItemsWithin(
+      view.citedCandidatesAt(at, cited, section),
       section,
-      at,
       within: within,
     );
   }
 
   void _appendItem(_DocView view, int at, String sectionKey, String itemId) {
-    final section = view.citedSectionAt(at);
-    if (section == null) return;
+    if (view.citedSectionAt(at) == null) return;
     final body = view.bodyLinesOf(at);
-    final extent = itemExtentOf(
-      body,
-      itemId,
-      prefixId: section.prefixId,
-      isAcceptanceCriteria: section.isAcceptanceCriteria,
-    );
+    final extent = view.extentsAt(at)[itemId];
     if (extent == null) return;
     if (view.cutRowsAt(at) case final rows?) {
       return _appendCut(view, at, sectionKey, rows);
@@ -512,7 +504,7 @@ final class _Walk {
     if (view.cutRowsAt(at) case final rows?) {
       return _appendCut(view, at, section.key, rows);
     }
-    final itemId = view.headingItemId(at, body, headingLine);
+    final itemId = view.headingItemId(at, headingLine);
     _appendLines(
       view,
       body,
@@ -547,10 +539,13 @@ final class _Walk {
     String? heading,
   }) {
     if (!view.keeps(at, bundle.mode) || _prints(view, extent)) return;
-    final lines = [
-      for (final line in body)
-        if (extent.first <= line.line && line.line <= extent.last) line.text,
-    ];
+    // The body lines are consecutive, so the extent is a slice of them.
+    final offset = body.first.line;
+    final from = extent.first > offset ? extent.first - offset : 0;
+    final past = extent.last - offset + 1 < body.length
+        ? extent.last - offset + 1
+        : body.length;
+    final lines = [for (var k = from; k < past; k++) body[k].text];
     final cited = _citedIn(view, at, within: extent);
     _add(
       AppendedPart(
@@ -611,6 +606,13 @@ final class _DocView {
     content,
   );
 
+  /// What the walk derives from the doc's sections, once each, since it asks
+  /// again for every part it appends.
+  final _bodies = <int, List<BodyLine>>{};
+  final _extents = <int, Map<String, LineRange>>{};
+  final _candidates = <int, List<CitedCandidate>>{};
+  final _kept = <BundleMode, Set<IndexedSection>>{};
+
   LineFacts get facts => content.lineFacts;
 
   /// Returns the section at [at] as [classifyLink] reads it, or null when the
@@ -618,7 +620,40 @@ final class _DocView {
   CitedSection? citedSectionAt(int at) => at < held.length ? held[at] : null;
 
   List<BodyLine> bodyLinesOf(int at) =>
-      sectionBodyLines(content.sections, facts, at);
+      _bodies[at] ??= sectionBodyLines(content.sections, facts, at);
+
+  /// Returns the items and `###` blocks of the section at [at], whose held
+  /// section is [section], that [cited] holds lines for.
+  ///
+  /// A view lives in one walk, which holds one cited-by index, so [cited] is
+  /// the same on every call.
+  List<CitedCandidate> citedCandidatesAt(
+    int at,
+    CitedByIndex cited,
+    CitedSection section,
+  ) => _candidates[at] ??= citedCandidatesIn(
+    cited,
+    doc,
+    content,
+    section,
+    at,
+    extents: extentsAt(at),
+  );
+
+  /// Returns the extent of each item of the section at [at], by ID, as
+  /// [itemExtentsOf] reads the section; none when the doc holds no section
+  /// there.
+  Map<String, LineRange> extentsAt(int at) => _extents[at] ??= _extentsOf(at);
+
+  Map<String, LineRange> _extentsOf(int at) {
+    final section = citedSectionAt(at);
+    if (section == null) return const {};
+    return itemExtentsOf(
+      bodyLinesOf(at),
+      prefixId: section.prefixId,
+      isAcceptanceCriteria: section.isAcceptanceCriteria,
+    );
+  }
 
   /// Returns the file lines of the section at [at], its header line first.
   LineRange sectionRange(int at) {
@@ -641,14 +676,13 @@ final class _DocView {
 
   /// Whether a print in [mode] keeps the section at [at]; one that is N/A or
   /// still its template prints nowhere, as a part or whole.
-  bool keeps(int at, BundleMode mode) {
-    final section = content.sections[at];
-    return keptSectionsOf(
-      content,
-      type,
-      mode,
-    ).any((kept) => identical(kept, section));
-  }
+  bool keeps(int at, BundleMode mode) =>
+      _keptIn(mode).contains(content.sections[at]);
+
+  /// The kept sections of [mode] in print order, by identity.
+  Set<IndexedSection> _keptIn(BundleMode mode) =>
+      _kept[mode] ??= Set<IndexedSection>.identity()
+        ..addAll(keptSectionsOf(content, type, mode));
 
   /// Returns the ranges a whole print of the doc holds: its head, then each
   /// kept section in print order.
@@ -659,8 +693,7 @@ final class _DocView {
           ? _pastLastLine
           : facts.sectionLines.first - 1,
     ),
-    for (final section in keptSectionsOf(content, type, mode))
-      sectionRange(_indexOf(section)),
+    for (final section in _keptIn(mode)) sectionRange(_indexOf(section)),
   ];
 
   /// Returns the ranges of the summary sections a summary of the doc prints,
@@ -688,21 +721,13 @@ final class _DocView {
     );
   }
 
-  /// Returns the ID of the stored item of the section at [at], whose body is
-  /// [body], that starts at file line [headingLine], or null when none does.
-  String? headingItemId(int at, List<BodyLine> body, int headingLine) {
-    final section = citedSectionAt(at);
-    if (section == null) return null;
+  /// Returns the ID of the stored item of the section at [at] that starts at
+  /// file line [headingLine], or null when none does.
+  String? headingItemId(int at, int headingLine) {
+    final extents = extentsAt(at);
     for (final item in content.itemFacts.sectionItems[at]) {
       final id = item.id;
-      if (id == null) continue;
-      final extent = itemExtentOf(
-        body,
-        id,
-        prefixId: section.prefixId,
-        isAcceptanceCriteria: section.isAcceptanceCriteria,
-      );
-      if (extent?.first == headingLine) return id;
+      if (id != null && extents[id]?.first == headingLine) return id;
     }
     return null;
   }

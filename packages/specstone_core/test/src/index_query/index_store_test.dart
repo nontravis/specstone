@@ -9,6 +9,8 @@ import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/cited_by.dart';
+import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
@@ -1306,6 +1308,59 @@ void main() {
     addTearDown(raw.close);
     raw.execute('UPDATE meta SET layout = 20');
     expect(store.readStamp(), isNull);
+  });
+
+  group('IndexStore cited-by lines', () {
+    const first = CitedPlace(
+      docPath: 'a.md',
+      kind: CitedKind.item,
+      key: 'INV-1',
+    );
+    const second = CitedPlace(docPath: 'b.md', kind: CitedKind.doc, key: null);
+    const onSecond = [
+      CitedBy(
+        docPath: 'c.md',
+        name: 'c',
+        docType: 'fr',
+        byItem: null,
+        line: 'See [b](b.md).',
+      ),
+    ];
+    const onFirst = [
+      CitedBy(
+        docPath: 'c.md',
+        name: 'c',
+        docType: 'fr',
+        byItem: 'E01',
+        line: 'Holds [INV-1](a.md#invariants).',
+      ),
+      CitedBy(
+        docPath: 'd.md',
+        name: 'd',
+        docType: 'topic',
+        byItem: null,
+        line: 'Also [INV-1](a.md#invariants).',
+      ),
+    ];
+    final lines = {second: onSecond, first: onFirst};
+
+    test('the lines read back as stored, in order, with a null key and '
+        'a null item kept', () async {
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      store.write(() => store.putCitedBy(lines));
+      final read = store.loadCitedBy();
+      expect(read, lines);
+      expect(read.keys.toList(), [second, first]);
+    });
+
+    test('a second put replaces every line of the first', () async {
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      store.write(() => store.putCitedBy(lines));
+      store.write(() => store.putCitedBy({first: lines[first]!.sublist(1)}));
+      expect(store.loadCitedBy(), {first: lines[first]!.sublist(1)});
+    });
   });
 
   group('IndexStore diagram parses', () {

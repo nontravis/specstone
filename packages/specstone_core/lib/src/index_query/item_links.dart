@@ -205,39 +205,13 @@ BigInt? _numberOf(String id, String? prefix) {
   return read is ItemId && read.written == id ? read.number : null;
 }
 
-/// The first and last body line of the item [itemId] of [section], spanning
-/// its nested items, their fenced code, and a heading's block;
-/// null when no item of the section holds that ID.
+/// Returns the first and last body line of each item ID of [section], spanning
+/// the item's nested items, their fenced code, and a heading's block; an ID
+/// no item of the section holds is absent.
 ///
-/// [prefixId] and [isAcceptanceCriteria] are the section's; the ID is read
-/// as the index reads it (`itemKeyOfHead`), so this and `check` agree on
-/// which items exist.
-LineRange? itemExtentOf(
-  List<BodyLine> section,
-  String itemId, {
-  required String? prefixId,
-  required bool isAcceptanceCriteria,
-}) {
-  final items = sectionItemsOf(section);
-  for (var i = 0; i < items.length; i++) {
-    final item = items[i];
-    final key = itemKeyOfHead(
-      item.head,
-      isHeading: item.kind == SectionItemKind.heading,
-      prefixId: prefixId,
-      isAcceptanceCriteria: isAcceptanceCriteria,
-    );
-    if (key != itemId) continue;
-    return item.kind == SectionItemKind.heading
-        ? headingBlockExtentOf(section, item.line)
-        : _listExtent(section, items, i);
-  }
-  return null;
-}
-
-/// Returns the extent of each ID of [section] as [itemExtentOf] gives it,
-/// keyed by the ID: the section is read once, and the first item holding an
-/// ID spans it.
+/// [prefixId] and [isAcceptanceCriteria] are the section's; an ID is read as
+/// the index reads it (`itemKeyOfHead`), so this and `check` agree on which
+/// items exist. The first item holding an ID spans it.
 Map<String, LineRange> itemExtentsOf(
   List<BodyLine> section, {
   required String? prefixId,
