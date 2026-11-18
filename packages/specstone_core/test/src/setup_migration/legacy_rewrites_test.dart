@@ -79,7 +79,7 @@ None.
 
     test('a title whose label is a doc name loses the label', () {
       const fr = '''
-# setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes — Check pack pins
+# shop/cart/add_item — Check pack pins
 
 ## Statement
 

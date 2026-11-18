@@ -1,6 +1,12 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+
+import '../../helpers/temp_tree.dart';
 
 const _file = 'packs/x/pack.yaml';
 
@@ -15,10 +21,22 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key, int? line}) =>
 
 const _personalFile = '~/.specstone/packs/x/pack.yaml';
 
-/// Returns the fault a personal pack's `pack.yaml` of [text] raises.
-TemplateFault _faultOf(String text) {
+/// Returns the fault a template load raises for a listed personal pack `x`
+/// whose home `pack.yaml` holds [text].
+Future<TemplateFault> _faultOf(String text) async {
+  final project = await writeTree({
+    '.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n  x: 1.0.0\n',
+  });
+  final home = await writeTree({'.specstone/packs/x/pack.yaml': text});
+  final resolver = TemplateResolver(
+    shippedFiles: {
+      'prd-core/pack.yaml': Uint8List.fromList(
+        utf8.encode('name: prd-core\nversion: 1.1.0\n'),
+      ),
+    },
+  );
   try {
-    PackManifest.parse(text, file: _personalFile);
+    resolver.resolve(workingDirectory: project, homeDirectory: home);
   } on TemplateFault catch (fault) {
     return fault;
   }
@@ -106,12 +124,12 @@ void main() {
     });
 
     test('a personal pack.yaml with no name or no version refuses with '
-        'status 78', () {
+        'status 78', () async {
       for (final (text, key) in [
         ('version: 1.0.0\n', 'name'),
         ('name: x\n', 'version'),
       ]) {
-        final fault = _faultOf(text);
+        final fault = await _faultOf(text);
         expect(fault.code, FaultCode.missingKey, reason: text);
         expect(fault.key, key, reason: text);
         expect(fault.file, _personalFile, reason: text);
@@ -120,9 +138,9 @@ void main() {
     });
 
     test('a personal pack.yaml version with a pre-release or build suffix '
-        'refuses with status 78', () {
+        'refuses with status 78', () async {
       for (final version in ['1.0.0-beta.1', '1.0.0+build5']) {
-        final fault = _faultOf('name: x\nversion: $version\n');
+        final fault = await _faultOf('name: x\nversion: $version\n');
         expect(fault.code, FaultCode.packVersionInvalid, reason: version);
         expect(fault.key, 'version', reason: version);
         expect(fault.file, _personalFile, reason: version);
@@ -131,13 +149,13 @@ void main() {
     });
 
     test('a personal pack.yaml that is no YAML or holds an unknown key '
-        'refuses with status 78', () {
-      final syntax = _faultOf('name: [\n');
+        'refuses with status 78', () async {
+      final syntax = await _faultOf('name: [\n');
       expect(syntax.code, FaultCode.yamlSyntax);
       expect(syntax.line, isNotNull);
       expect(syntax.exitStatus, 78);
 
-      final unknown = _faultOf('name: x\nversion: 1.0.0\nowner: me\n');
+      final unknown = await _faultOf('name: x\nversion: 1.0.0\nowner: me\n');
       expect(unknown.code, FaultCode.unknownKey);
       expect(unknown.key, 'owner');
       expect(unknown.file, _personalFile);
