@@ -21,7 +21,6 @@ void main() {
     final text = out.readAsStringSync();
     for (final name in [
       'args',
-      'dart_mcp',
       'markdown',
       'crypto',
       'yaml',

@@ -15,7 +15,6 @@ import 'package:specstone/src/commands/guide_command.dart';
 import 'package:specstone/src/commands/hook_command.dart';
 import 'package:specstone/src/commands/init_command.dart';
 import 'package:specstone/src/commands/list_command.dart';
-import 'package:specstone/src/commands/mcp_command.dart';
 import 'package:specstone/src/commands/migrate_command.dart';
 import 'package:specstone/src/commands/move_command.dart';
 import 'package:specstone/src/commands/new_command.dart';
@@ -138,7 +137,6 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(SearchCommand());
     addCommand(RefsCommand());
     addCommand(ContextCommand());
-    addCommand(McpCommand());
     addCommand(FolderCommand());
     addCommand(CheckCommand());
     addCommand(SetCommand());
@@ -321,7 +319,6 @@ const Set<String> _noStaleLineCommands = {
   'migrate',
   'init',
   'hook',
-  'mcp',
   'help',
   'upgrade',
 };

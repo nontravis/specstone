@@ -17,9 +17,9 @@ const String _ciVariable = 'CI';
 /// How long a check keeps the next one away.
 const Duration _checkInterval = Duration(hours: 24);
 
-/// The commands that never check: `upgrade` reads the release itself, and the
-/// other two speak to a program.
-const Set<String> _noCheckCommands = {'upgrade', 'mcp', 'hook post-edit'};
+/// The commands that never check: `upgrade` reads the release itself, and
+/// `hook post-edit` speaks to a program.
+const Set<String> _noCheckCommands = {'upgrade', 'hook post-edit'};
 
 /// The file in the install folder that marks a local build.
 const String _localBuildFile = 'build.txt';

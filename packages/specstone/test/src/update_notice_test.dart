@@ -226,7 +226,6 @@ void main() {
 
       for (final command in [
         ['upgrade'],
-        ['mcp'],
         ['hook', 'post-edit'],
       ]) {
         test(command.join(' '), () async {
