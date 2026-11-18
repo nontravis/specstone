@@ -32,6 +32,8 @@ void main() {
     final versions = shippedPackVersions();
     expect(versions.keys, [
       'agent-skills',
+      'marketing',
+      'personal-branding',
       'prd-core',
       'software-design-system',
       'software-tech',

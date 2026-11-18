@@ -1,0 +1,23 @@
+id: competitor
+description: |-
+  A competitor: one competitor's offer, position, and gaps.
+  Title it `# <Competitor name>`, with no number.
+  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
+  A learning edits the doc it corrects.
+path: specs/marketing/competitors/{slug}.md
+sections:
+  - id: offer
+    header: Offer
+    description: |-
+      Write what the competitor sells and at what price.
+  - id: position
+    header: Position
+    description: |-
+      Write how the competitor positions itself and to whom.
+  - id: gaps
+    header: Gaps
+    description: |-
+      List where the competitor falls short for the project's best-fit customers.
+reference:
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md
