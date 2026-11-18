@@ -606,6 +606,62 @@ void main() {
     ]);
   });
 
+  test('a covers entry of a type built on architecture waits on any feature entry, which the architecture doc itself does not', () async {
+    const built = 'specs/f01_login/EDGE_ARCHITECTURE.md';
+    const layer =
+        'id: implementation\n'
+        'description: One feature record per target.\n'
+        'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'parent: feature\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: statuses\n'
+        '    type: record_status\n'
+        '    list: true\n';
+    const loginRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const shopRecord = '.specstone/records/f02_shop/IMPLEMENTATION.md';
+    String record(String status) =>
+        "---\nstatuses:\n  - 'email_login:$status'\n---\n\n# Record\n";
+    final shared = {
+      '.specstone/templates/implementation.yaml': layer,
+      loginRecord: record('planned'),
+      shopRecord: record('implemented'),
+      'docs/prds/features/f02_shop/FEATURE.md':
+          checkProjectFiles()['docs/$loginFeature']!,
+      'docs/prds/features/f02_shop/us01_email_login/USER_STORY.md':
+          checkProjectFiles()['docs/$loginStory']!,
+    };
+
+    final edge = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...shared,
+          '.specstone/templates/edge_architecture.yaml':
+              'id: edge_architecture\nextends: architecture\n'
+              'path: specs/f{nn}_{slug}/EDGE_ARCHITECTURE.md\n',
+          'docs/$built':
+              '---\ncovers:\n  - app/lib/gone/\n---\n\n# Edge architecture\n',
+        },
+        without: {'docs/$loginArchitecture'},
+        unstamped: {loginRecord, shopRecord, 'docs/$built'},
+      ),
+    );
+    expect(spots(edge, FindingKind.coversPathMissing), [
+      '$built:3: covers_path_missing',
+    ]);
+
+    final exact = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...shared,
+          ...doc(loginArchitecture, 'app/lib/', 'app/lib/gone/'),
+        },
+        unstamped: {loginRecord, shopRecord},
+      ),
+    );
+    expect(spots(exact, FindingKind.coversPathMissing), isEmpty);
+  });
+
   group('see targets in the other root', () {
     const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
     const toRecord = '../../../$record';

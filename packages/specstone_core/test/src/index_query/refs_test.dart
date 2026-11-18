@@ -1097,6 +1097,7 @@ void main() {
 
     test('a vision or goal ID cited in a doc is no reference and no mention of the doc that states it', () async {
       final cited = await indexWith({
+        'docs/prds/PROJECT.md': '# Project context\n\n## Project vision\n\n### PV-01 — One system\n',
         'docs/prds/GOAL.md':
             '# Project goals\n\n## Mid-term goals\n\n### PG-01 — Cost\n\n'
             '- **Serves:** PV-01\n',
@@ -1108,6 +1109,13 @@ void main() {
         '==> goal (goal) · prds/GOAL.md <==\n'
         'Outbound\n- none\nInbound\n- none\nMentions\n- none\n'
         'Untyped mentions\n- none\n',
+      );
+      expect(
+        answerRefs(cited, 'prds/PROJECT.md').text,
+        endsWith(
+          'Outbound\n- none\nInbound\n- none\nMentions\n- none\n'
+          'Untyped mentions\n- none\n',
+        ),
       );
     });
 
@@ -1164,7 +1172,8 @@ void main() {
         specsIndex: '# Spec map\n\nThe old index.\n',
         buyer:
             '# Buyer\n\n## Snapshot\n```text\nspecs/INDEX.md\n```\n'
-            'Open [the map](../../../specs/INDEX.md); specs/INDEX.md has it.\n',
+            'Open [the map](../../../specs/INDEX.md); specs/INDEX.md has it.\n'
+            'Also [the copy](specs/INDEX.md), a destination that reaches no doc.\n',
       });
       expect(
         answerRefs(mentions, 'specs/INDEX.md').text,
