@@ -23,6 +23,27 @@ final class CitedByIndex extends MapView<CitedPlace, List<CitedBy>> {
 
   /// Whether the lines print right after their place.
   final bool inline;
+
+  /// Returns this index less each line whose citer's DocPath is in [from] on a
+  /// place of a doc whose DocPath is in [into]; a place left bare is dropped.
+  CitedByIndex withoutLinks({
+    required Set<String> from,
+    required Set<String> into,
+  }) {
+    final kept = <CitedPlace, List<CitedBy>>{};
+    for (final MapEntry(key: place, value: lines) in entries) {
+      if (!into.contains(place.docPath)) {
+        kept[place] = lines;
+        continue;
+      }
+      final rest = [
+        for (final by in lines)
+          if (!from.contains(by.docPath)) by,
+      ];
+      if (rest.isNotEmpty) kept[place] = rest;
+    }
+    return CitedByIndex(kept, inline: inline);
+  }
 }
 
 /// Returns who cites each place, from the links the index stores.
@@ -64,6 +85,7 @@ Map<CitedPlace, List<CitedBy>> _citedLinksIn(DocIndex index) {
       for (final place in _citesOn(index, reader, line, read)) {
         (cited[place] ??= []).add(
           CitedBy(
+            docPath: source.docPath,
             name: source.name,
             docType: reader.docTypeId,
             byItem: reader.itemHolding(line),

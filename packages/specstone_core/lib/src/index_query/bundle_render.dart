@@ -163,8 +163,9 @@ String codeTargetLine(String? name) =>
 /// [ContextAnswer.refs] the refs part, each with its own entries, closing
 /// line, and list. A `design` bundle's cited-by lines then print as parts of
 /// the refs text, never after their item, and each ancestor spec doc prints
-/// whole in the refs text, with its pieces in the read-first text at its place.
-/// [split] changes no other output.
+/// whole in the refs text, with its pieces in the read-first text at its place,
+/// and no cited-by line for a link from the target subtree into one. [split]
+/// changes no other output.
 ContextAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
@@ -178,8 +179,9 @@ ContextAnswer answerContext(
   final summaryOnly = bundle.summaryOnly;
   bool inSummary(IndexedDoc doc) => summaryOnly.contains(doc.docPath);
   final wholePaths = _wholePathsOf(ordered, summaryOnly);
+  final ancestors = _ancestorSpecsOf(index, bundle, splits: splits);
   final citedBy = bundle.mode == BundleMode.design
-      ? citedByIndex(index, inline: !splits)
+      ? _citedByOf(index, bundle, ancestors, splits: splits)
       : null;
   final docPrints = [
     for (final doc in ordered)
@@ -209,7 +211,7 @@ ContextAnswer answerContext(
       patternParts,
       patternBlocks,
       slots,
-      _ancestorSpecsOf(index, bundle, splits: splits),
+      ancestors,
       splits: splits,
       readFirstOnly: false,
       printOf: (doc) => docPrints[doc],
@@ -408,6 +410,23 @@ _AncestorSpecs _ancestorSpecsOf(
   return _AncestorSpecs(
     paths: bundle.ancestorSpecPaths.difference(bundle.targetSubtreePaths),
     piecesByDoc: piecesByDoc,
+  );
+}
+
+/// Returns who cites each place of a design [bundle], the links from its
+/// target subtree into [ancestors] left out when [splits], since the
+/// read-first text prints those links' pieces.
+CitedByIndex _citedByOf(
+  DocIndex index,
+  Bundle bundle,
+  _AncestorSpecs ancestors, {
+  required bool splits,
+}) {
+  final cited = citedByIndex(index, inline: !splits);
+  if (ancestors.paths.isEmpty) return cited;
+  return cited.withoutLinks(
+    from: bundle.targetSubtreePaths,
+    into: ancestors.paths,
   );
 }
 

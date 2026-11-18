@@ -2116,7 +2116,6 @@ void main() {
           BundleEntryKind.citedBy,
           BundleEntryKind.doc,
           BundleEntryKind.doc,
-          BundleEntryKind.citedBy,
           BundleEntryKind.cited,
           BundleEntryKind.citedBy,
         ],
@@ -2154,7 +2153,6 @@ void main() {
         '- shop/cart/add_item/check_stock (fr) · cited by [E01]',
         '- shop/cart/drop_item (user_story) · summary',
         '- shop (domain)',
-        '- shop (domain) · cited by [INV-1]',
         '- pay (domain) · cited invariants [INV-7]',
         '- pay (domain) · cited by [INV-7]',
       ]);
@@ -2685,6 +2683,91 @@ void main() {
         expect(a.refs!.text, isNot(contains(whole)));
         expect(a.text, isNot(contains('· cites <==')));
         expect(a.text, isNot(contains('#invariants · item INV-1')));
+      });
+
+      group('cited-by lines of an ancestor spec doc', () {
+        const toStory = '$toDomain#invariants';
+        final domain = domainOf([
+          '## Invariants',
+          '- **INV-1** An order holds a line.',
+          '- **INV-2** An order has an owner.',
+        ]);
+        final payStory = lines([
+          '# Agent pays by card',
+          '',
+          '## Use Case',
+          'Pays, by [INV-1]($toStory).',
+        ]);
+
+        test('a split design bundle prints no cited-by line for a target subtree link into an ancestor spec doc', () async {
+          final a = await splitNested({
+            'docs/$cartAddFr': fr(
+              'Holds [INV-1]($toStory), see [the invariants]($toStory) '
+              'and [the domain]($toDomain).',
+            ),
+            'docs/$shopDomain': domain,
+          });
+
+          expect(a.refs!.text, isNot(contains('cited by')));
+          expect(a.text, isNot(contains('cited by')));
+          expect(
+            listOf(a.refs!.text),
+            isNot(contains('- shop (domain) · cited by [INV-1]')),
+          );
+          expect([
+            for (final e in a.refs!.entries) e.kind,
+          ], isNot(contains(BundleEntryKind.citedBy)));
+        });
+
+        test('the refs cited-by part of a piece keeps only other citers', () async {
+          final a = await splitNested({
+            'docs/$cartAddFr': fr('Holds [INV-1]($toStory).'),
+            'docs/$payCard': payStory,
+            'docs/$shopDomain': domain,
+          });
+
+          expect(
+            a.refs!.text,
+            contains(
+              '==> shop (domain) · $shopDomain#invariants · item INV-1 · cited by <==\n'
+              '  · cited by shop/pay/card (user_story) —: Pays, by [INV-1]($toStory).\n',
+            ),
+          );
+          expect(
+            a.refs!.text,
+            isNot(contains('cited by shop/cart/add_item/check_stock')),
+          );
+          expect(
+            a.text,
+            contains(
+              '==> shop (domain) · $shopDomain#invariants · item INV-1 · cited <==',
+            ),
+          );
+          expect(a.text, isNot(contains('cited by')));
+        });
+
+        test('an unsplit design bundle keeps every cited-by line', () async {
+          final i = await nestedIndex({
+            'docs/$cartAddFr': fr('Holds [INV-1]($toStory).'),
+            'docs/$payCard': payStory,
+            'docs/$shopDomain': domain,
+          });
+          final a = answerContext(
+            i,
+            pickBundle(i, target, BundleMode.design, noProject: false),
+            label: target,
+            byCode: false,
+          );
+
+          expect(
+            a.text,
+            contains(
+              '- **INV-1** An order holds a line.\n'
+              '  · cited by shop/cart/add_item/check_stock (fr) —: Holds [INV-1]($toStory).\n'
+              '  · cited by shop/pay/card (user_story) —: Pays, by [INV-1]($toStory).\n',
+            ),
+          );
+        });
       });
     });
   });

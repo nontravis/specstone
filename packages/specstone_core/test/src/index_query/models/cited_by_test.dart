@@ -1,13 +1,24 @@
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:test/test.dart';
 
-CitedBy citedBy(String name, String docType, String? byItem, String line) =>
-    CitedBy(name: name, docType: docType, byItem: byItem, line: line);
+CitedBy citedBy(
+  String name,
+  String docType,
+  String? byItem,
+  String line, {
+  String docPath = 'a.md',
+}) => CitedBy(
+  docPath: docPath,
+  name: name,
+  docType: docType,
+  byItem: byItem,
+  line: line,
+);
 
 void main() {
   group('CitedBy', () {
     test(
-      'equals another CitedBy with the same name, doc type, item, and line',
+      'equals another CitedBy with the same doc path, name, type, item, line',
       () {
         expect(citedBy('a', 'fr', 'E01', 'x'), citedBy('a', 'fr', 'E01', 'x'));
         expect(
@@ -27,8 +38,16 @@ void main() {
           isNot(citedBy('a', 'fr', 'E01', 'y')),
         );
         expect(
+          citedBy('a', 'fr', 'E01', 'x'),
+          isNot(citedBy('a', 'fr', 'E01', 'x', docPath: 'b.md')),
+        );
+        expect(
           citedBy('a', 'fr', 'E01', 'x').hashCode,
           citedBy('a', 'fr', 'E01', 'x').hashCode,
+        );
+        expect(
+          citedBy('a', 'fr', 'E01', 'x').hashCode,
+          isNot(citedBy('a', 'fr', 'E01', 'x', docPath: 'b.md').hashCode),
         );
       },
     );

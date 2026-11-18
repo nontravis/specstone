@@ -21,6 +21,8 @@ const _fr =
 const _specs = '../../../../specs';
 const _domain = 'specs/f02_signup/DOMAIN.md';
 const _frName = 'login/email_login/validate_credentials';
+const _frPath =
+    'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
 
 const _inv13 = '[INV-13]($_specs/f02_signup/DOMAIN.md#invariants)';
 const _inv14 = '[INV-14]($_specs/f02_signup/DOMAIN.md#invariants)';
@@ -68,7 +70,13 @@ void main() {
       const line = '1. E01 — A wrong password → refused, by $_inv14.';
       final cited = _citedBy(await _index('Check it.', edge: line));
       expect(_of(cited, _domain, 'INV-14'), [
-        const CitedBy(name: _frName, docType: 'fr', byItem: 'E01', line: line),
+        const CitedBy(
+          docPath: _frPath,
+          name: _frName,
+          docType: 'fr',
+          byItem: 'E01',
+          line: line,
+        ),
       ]);
     },
   );
@@ -77,8 +85,48 @@ void main() {
     const line = 'The system shall lock, by $_inv13.';
     final cited = _citedBy(await _index(line));
     expect(_of(cited, _domain, 'INV-13'), [
-      const CitedBy(name: _frName, docType: 'fr', byItem: null, line: line),
+      const CitedBy(
+        docPath: _frPath,
+        name: _frName,
+        docType: 'fr',
+        byItem: null,
+        line: line,
+      ),
     ]);
+  });
+
+  test('a filtered index drops links from the given docs into the given docs alone', () async {
+    const guideLine = 'Also [INV-14](../f02_signup/DOMAIN.md#invariants).';
+    final index = await _index(
+      'Cites $_inv13, $_inv14, and [RULE-2]($_specs/topics/ranges.md#rules).',
+      extra: {
+        'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$guideLine\n',
+      },
+    );
+    final cited = _citedBy(index);
+    final guide = index.at('specs/topics/guide.md')!;
+
+    final filtered = cited.withoutLinks(from: {_frPath}, into: {_domain});
+
+    expect(_of(filtered, _domain, 'INV-14'), [
+      CitedBy(
+        docPath: guide.docPath,
+        name: guide.name,
+        docType: 'topic',
+        byItem: null,
+        line: guideLine,
+      ),
+    ]);
+    expect(
+      filtered.containsKey(
+        const CitedPlace(docPath: _domain, kind: CitedKind.item, key: 'INV-13'),
+      ),
+      isFalse,
+    );
+    expect(_of(filtered, 'specs/topics/ranges.md', 'RULE-2'), hasLength(1));
+    expect(_of(cited, _domain, 'INV-13'), hasLength(1));
+    expect(_of(cited, _domain, 'INV-14'), hasLength(2));
+    expect(filtered.inline, cited.inline);
   });
 
   test('a range gives one line under each item it spans', () async {
@@ -91,7 +139,13 @@ void main() {
     final guide = index.at('specs/topics/guide.md')!;
     for (final id in ['RULE-2', 'RULE-3', 'RULE-4']) {
       expect(_of(cited, 'specs/topics/ranges.md', id), [
-        CitedBy(name: guide.name, docType: 'topic', byItem: null, line: line),
+        CitedBy(
+          docPath: guide.docPath,
+          name: guide.name,
+          docType: 'topic',
+          byItem: null,
+          line: line,
+        ),
       ], reason: id);
     }
     expect(_of(cited, 'specs/topics/ranges.md', 'RULE-1'), isEmpty);
@@ -250,14 +304,30 @@ void main() {
       item: 'INV-14',
       sectionKey: 'invariants',
       after: 7,
-      by: [CitedBy(name: 'a', docType: 'fr', byItem: null, line: 'outer')],
+      by: [
+        CitedBy(
+          docPath: 'a.md',
+          name: 'a',
+          docType: 'fr',
+          byItem: null,
+          line: 'outer',
+        ),
+      ],
     );
     const inner = CitedItem(
       kind: CitedKind.item,
       item: 'INV-15',
       sectionKey: 'invariants',
       after: 7,
-      by: [CitedBy(name: 'b', docType: 'fr', byItem: 'E01', line: 'inner')],
+      by: [
+        CitedBy(
+          docPath: 'b.md',
+          name: 'b',
+          docType: 'fr',
+          byItem: 'E01',
+          line: 'inner',
+        ),
+      ],
     );
     expect(citedLinesAfter(null, [inner, outer]), {
       7: ['  · cited by b (fr) E01: inner', '  · cited by a (fr) —: outer'],
@@ -458,7 +528,13 @@ void main() {
 
     test('json entries carry kind and section', () {
       const by = <CitedBy>[
-        CitedBy(name: 'guide', docType: 'topic', byItem: null, line: 'x'),
+        CitedBy(
+          docPath: 'specs/topics/guide.md',
+          name: 'guide',
+          docType: 'topic',
+          byItem: null,
+          line: 'x',
+        ),
       ];
       const own = {
         'name': 'guide',
@@ -599,7 +675,13 @@ void main() {
       sectionKey: 'edge_cases',
       after: 3,
       by: <CitedBy>[
-        CitedBy(name: 'guide', docType: 'topic', byItem: null, line: 'x'),
+        CitedBy(
+          docPath: 'specs/topics/guide.md',
+          name: 'guide',
+          docType: 'topic',
+          byItem: null,
+          line: 'x',
+        ),
       ],
     );
     final inline = CitedByIndex(const {}, inline: true);
