@@ -59,12 +59,21 @@ typedef ItemFact = ({
   ReadabilityFacts readability,
 });
 
+/// The readability facts of one prose field value, read as one item.
+final class FieldFact {
+  const new({required this.readability});
+
+  /// The sentences of the value, as one item holds them.
+  final ReadabilityFacts readability;
+}
+
 /// The items of one doc, the lead's included, as the index stores them.
 final class ItemFacts {
   const new({
     required this.lead,
     required this.leadItems,
     required this.sectionItems,
+    required this.fieldItems,
   });
 
   /// Reads the facts [toJson] wrote.
@@ -80,6 +89,13 @@ final class ItemFacts {
         for (final items in map['sections']! as List<Object?>)
           _itemsOfJson(items),
       ],
+      fieldItems: {
+        for (final MapEntry(:key, :value)
+            in (map['fields']! as Map<String, Object?>).entries)
+          key: FieldFact(
+            readability: _readabilityOfJson(value! as List<Object?>),
+          ),
+      },
     );
   }
 
@@ -93,8 +109,14 @@ final class ItemFacts {
   /// the same order.
   final List<List<ItemFact>> sectionItems;
 
+  /// The facts of each prose field whose value is a string, by field id.
+  ///
+  /// A field with no string value holds none, and no item count covers one.
+  final Map<String, FieldFact> fieldItems;
+
   /// Returns the facts as JSON values, each item one
-  /// `[id, line, visibleChars, cells, notes]` array.
+  /// `[id, line, visibleChars, cells, notes]` array and each field one
+  /// `[cells, notes]` array.
   Object toJson() => {
     'lead': switch (lead) {
       final counts? => [counts.lines, counts.chars],
@@ -102,6 +124,13 @@ final class ItemFacts {
     },
     'lead_items': _itemsToJson(leadItems),
     'sections': [for (final items in sectionItems) _itemsToJson(items)],
+    'fields': {
+      for (final MapEntry(:key, :value) in fieldItems.entries)
+        key: [
+          _cellsToJson(value.readability.cells),
+          _notesToJson(value.readability.notes),
+        ],
+    },
   };
 }
 
@@ -111,7 +140,8 @@ final class ItemFacts {
 /// [laid] is not null, else [lfText]; each section of [doc] takes the items of
 /// its twin there, which [Formatted.twinOf] names. A doc of a [type] holds the
 /// readability facts of its items, read against [idPrefixes], the item ID
-/// prefixes of the merged doc type set.
+/// prefixes of the merged doc type set, and of each prose field whose value in
+/// [frontmatter] is a string.
 ItemFacts itemFactsOf({
   required Doc doc,
   required String lfText,
@@ -119,6 +149,7 @@ ItemFacts itemFactsOf({
   required Formatted? laid,
   required MergedDocType? type,
   Set<String> idPrefixes = const {},
+  Map<String, Object?> frontmatter = const {},
 }) {
   final counted = laid?.doc ?? doc;
   final countedText = laid?.text ?? lfText;
@@ -161,8 +192,23 @@ ItemFacts itemFactsOf({
           reads,
         ),
     ],
+    fieldItems: _fieldFactsOf(type, frontmatter),
   );
 }
+
+/// Returns the facts of each prose field of [type] whose value in
+/// [frontmatter] is a string; any other value is left out.
+Map<String, FieldFact> _fieldFactsOf(
+  MergedDocType? type,
+  Map<String, Object?> frontmatter,
+) => {
+  for (final field in type?.fields ?? const <MergedField>[])
+    if (field.isProse)
+      if (frontmatter[field.id] case final String value)
+        field.id: FieldFact(
+          readability: (cells: [_sentencesIn(value)], notes: const []),
+        ),
+};
 
 /// Returns the items of the held section [at] of [content], a doc of [type],
 /// each at its file line, with the structure a move cuts and lands by.
@@ -525,24 +571,21 @@ List<List<Object?>> _itemsToJson(List<ItemFact> items) => [
       item.id,
       item.line,
       item.visibleChars,
-      [
-        for (final cell in item.readability.cells)
-          [
-            for (final s in cell)
-              [
-                s.language,
-                s.countsChars,
-                s.words,
-                s.chars,
-                s.runs,
-                s.isHeading,
-              ],
-          ],
-      ],
-      [
-        for (final note in item.readability.notes) [note.text, note.closes],
-      ],
+      _cellsToJson(item.readability.cells),
+      _notesToJson(item.readability.notes),
     ],
+];
+
+List<Object?> _cellsToJson(List<List<SentenceFact>> cells) => [
+  for (final cell in cells)
+    [
+      for (final s in cell)
+        [s.language, s.countsChars, s.words, s.chars, s.runs, s.isHeading],
+    ],
+];
+
+List<Object?> _notesToJson(List<TraceNote> notes) => [
+  for (final note in notes) [note.text, note.closes],
 ];
 
 List<ItemFact> _itemsOfJson(Object? json) => [
@@ -551,25 +594,28 @@ List<ItemFact> _itemsOfJson(Object? json) => [
       id: item[0] as String?,
       line: item[1]! as int,
       visibleChars: item[2]! as int,
-      readability: (
-        cells: [
-          for (final cell in (item[3]! as List<Object?>).cast<List<Object?>>())
-            [
-              for (final s in cell.cast<List<Object?>>())
-                (
-                  language: s[0]! as String,
-                  countsChars: s[1]! as bool,
-                  words: s[2]! as int,
-                  chars: s[3]! as int,
-                  runs: s[4]! as int,
-                  isHeading: s[5]! as bool,
-                ),
-            ],
-        ],
-        notes: [
-          for (final note in (item[4]! as List<Object?>).cast<List<Object?>>())
-            (text: note[0]! as String, closes: note[1]! as bool),
-        ],
-      ),
+      readability: _readabilityOfJson(item.sublist(3)),
     ),
 ];
+
+/// Reads the `[cells, notes]` pair [_cellsToJson] and [_notesToJson] wrote.
+ReadabilityFacts _readabilityOfJson(List<Object?> json) => (
+  cells: [
+    for (final cell in (json[0]! as List<Object?>).cast<List<Object?>>())
+      [
+        for (final s in cell.cast<List<Object?>>())
+          (
+            language: s[0]! as String,
+            countsChars: s[1]! as bool,
+            words: s[2]! as int,
+            chars: s[3]! as int,
+            runs: s[4]! as int,
+            isHeading: s[5]! as bool,
+          ),
+      ],
+  ],
+  notes: [
+    for (final note in (json[1]! as List<Object?>).cast<List<Object?>>())
+      (text: note[0]! as String, closes: note[1]! as bool),
+  ],
+);

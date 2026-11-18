@@ -45,6 +45,7 @@ int tokenSizeOf(String text) => text.runes.length ~/ 4;
 final _outsideKey = RegExp(r'[^\p{L}\p{M}\p{N} _-]', unicode: true);
 final _keySeparators = RegExp('[ _-]+');
 final _keyEdges = RegExp(r'^_+|_+$');
+final _lineBreak = RegExp(r'\s*\n\s*');
 
 /// The key of the lead: the text before a doc's first `##` header.
 ///
@@ -182,6 +183,11 @@ final class IndexedDoc {
   /// Whether exactly one doc type matches [docPath].
   bool get isTyped => docTypeId != null;
 
+  /// Whether the doc has a `# ` title line that holds text.
+  ///
+  /// The test `check` runs for its missing-title finding.
+  bool get hasTitle => title?.trim().isNotEmpty ?? false;
+
   /// The `status` the doc writes, or null when it writes none.
   ///
   /// A story or FR takes its status from its record entry instead
@@ -193,6 +199,24 @@ final class IndexedDoc {
 
   /// Whether the `draft` key holds the YAML boolean `true`.
   bool get isDraft => frontmatter['draft'] == true;
+
+  /// Returns the value of [key] when the frontmatter holds it as a YAML
+  /// string, else null.
+  ///
+  /// [valuesOf] reads a number as text; this read does not.
+  String? stringValueOf(String key) => switch (frontmatter[key]) {
+    final String value => value,
+    _ => null,
+  };
+
+  /// Returns the `summary` string on one line, or null when it holds no text.
+  ///
+  /// A non-string reads as null as in [stringValueOf]; each line break, with
+  /// the space around it, becomes one space, so a block scalar reads whole.
+  String? get oneLineSummary {
+    final line = stringValueOf('summary')?.trim().replaceAll(_lineBreak, ' ');
+    return line == null || line.isEmpty ? null : line;
+  }
 
   /// Returns the values of [key]: a scalar as one string, each scalar item of
   /// a list, else none.
@@ -364,7 +388,18 @@ ParsedDoc parseIndexedDoc({
     sections: sections,
     links: {for (final place in lineFacts.links) place.target}.toList(),
     lineFacts: lineFacts,
-    readBannedMatches: () => bannedMatchesOf(sections, lineFacts, docType),
+    readBannedMatches: () => bannedMatchesOf(
+      sections,
+      lineFacts,
+      docType,
+      frontmatter: frontmatter,
+      keyLines: _keyLinesOf(yaml),
+      isGenerated: generatedLineTest(
+        doc,
+        lfText,
+        docType?.listedGenerators.toSet() ?? const {},
+      ),
+    ),
     readItemFacts: () => itemFactsOf(
       doc: doc,
       lfText: lfText,
@@ -372,6 +407,7 @@ ParsedDoc parseIndexedDoc({
       laid: laid is Formatted ? laid : null,
       type: docType,
       idPrefixes: idPrefixes,
+      frontmatter: frontmatter,
     ),
     itemWords: docType == null
         ? const []
@@ -519,6 +555,18 @@ Map<String, Object?> _frontmatterValues(
   final map = yaml.map;
   if (map == null) return const {};
   return {for (final entry in map.entries) '${entry.key}': _plain(entry.value)};
+}
+
+/// Returns the file line of each top-level key of [yaml]; empty when the
+/// frontmatter holds no mapping or is not valid YAML.
+Map<String, int> _keyLinesOf(FrontmatterYaml? yaml) {
+  final map = yaml?.map;
+  if (yaml == null || yaml.errorLine != null || map == null) return const {};
+  // The YAML text starts under the opening `---` line.
+  return {
+    for (final entry in map.nodes.entries)
+      '${entry.key}': (entry.key as YamlNode).span.start.line + 2,
+  };
 }
 
 Map<String, Object?> _notIndexed(String docPath, List<String> warnings) {

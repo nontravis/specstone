@@ -31,13 +31,6 @@ Future<({Directory project, List<Finding> found})> _run(
   );
 }
 
-/// Returns the 1-based file line of the first line of [docPath] holding
-/// [needle].
-int _lineOf(Directory project, String docPath, String needle) {
-  final lines = File('${project.path}/docs/$docPath').readAsLinesSync();
-  return lines.indexWhere((line) => line.contains(needle)) + 1;
-}
-
 Map<String, String> _frWith(String replacement) =>
     doc(loginFr, _rationale, replacement);
 
@@ -61,7 +54,7 @@ void main() {
     expect(found, hasLength(1));
     final finding = found.single;
     expect(finding.path, loginFr);
-    expect(finding.line, _lineOf(project, loginFr, _marker));
+    expect(finding.line, lineOfFirst(project, loginFr, _marker));
     expect(finding.keys, {'form': 'marker'});
     expect(finding.message, '${_stillOpen}legacy states none');
     expect(finding.waitsFor, WaitsFor.owner);
@@ -87,8 +80,8 @@ void main() {
     expect(
       [for (final f in found) f.line],
       [
-        _lineOf(project, loginFr, 'Plain paragraph'),
-        _lineOf(project, loginFr, '| time |'),
+        lineOfFirst(project, loginFr, 'Plain paragraph'),
+        lineOfFirst(project, loginFr, '| time |'),
       ],
     );
     expect([for (final f in found) f.keys['form']], ['marker', 'marker']);
@@ -115,7 +108,7 @@ void main() {
 
     expect(found, hasLength(1));
     final finding = found.single;
-    expect(finding.line, _lineOf(project, loginFr, '## TBR'));
+    expect(finding.line, lineOfFirst(project, loginFr, '## TBR'));
     expect(finding.keys, {'form': 'section'});
     expect(finding.message, 'the TBR section is open');
     expect(finding.waitsFor, WaitsFor.owner);
@@ -135,7 +128,7 @@ void main() {
 
     expect(found, hasLength(1));
     expect(found.single.path, loginNf);
-    expect(found.single.line, _lineOf(project, loginNf, '## TBR'));
+    expect(found.single.line, lineOfFirst(project, loginNf, '## TBR'));
     expect(found.single.keys, {'form': 'section'});
   });
 
@@ -167,7 +160,7 @@ void main() {
     expect(found, hasLength(1));
     final finding = found.single;
     expect(finding.path, gnfrDoc);
-    expect(finding.line, _lineOf(project, gnfrDoc, '**TBR:**'));
+    expect(finding.line, lineOfFirst(project, gnfrDoc, '**TBR:**'));
     expect(finding.keys, {'form': 'bullet'});
     expect(finding.message, '$_stillOpen$value');
     expect(finding.waitsFor, WaitsFor.owner);
@@ -183,7 +176,7 @@ void main() {
       expect(found, hasLength(1), reason: value);
       expect(found.single.keys, {'form': 'bullet'}, reason: value);
       expect(found.single.message, '$_stillOpen$value', reason: value);
-      expect(found.single.line, _lineOf(project, gnfrDoc, '**TBR:**'));
+      expect(found.single.line, lineOfFirst(project, gnfrDoc, '**TBR:**'));
     }
   });
 
@@ -279,7 +272,7 @@ void main() {
     );
 
     expect([for (final f in found) f.keys['form']], ['marker', 'section']);
-    expect(found.first.line, _lineOf(project, loginFr, 'Cite'));
+    expect(found.first.line, lineOfFirst(project, loginFr, 'Cite'));
   });
 
   test('$_name E07: a hyphen or a missing dash is no marker', () async {
@@ -357,7 +350,7 @@ void main() {
     );
 
     expect(found, hasLength(1));
-    expect(found.single.line, _lineOf(project, loginNf, _marker));
+    expect(found.single.line, lineOfFirst(project, loginNf, _marker));
     expect(found.single.keys, {'form': 'marker'});
   });
 }

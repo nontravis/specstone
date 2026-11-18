@@ -433,7 +433,7 @@ void _tokenBudgetTests() {
 /// Each bootstrap procedure and its est. tokens once the write block moved to
 /// writes.md, which its one guide call per batch leaves no higher.
 const _bootstrapProcedureTokens = {
-  'specstone-bootstrap-prd/references/procedure.md': 1402,
+  'specstone-bootstrap-prd/references/procedure.md': 1494,
   'specstone-bootstrap-spec/references/procedure.md': 1416,
 };
 

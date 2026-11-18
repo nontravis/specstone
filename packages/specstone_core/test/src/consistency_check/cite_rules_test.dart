@@ -17,7 +17,7 @@ const _domainFile = {
 const _line = 'Users forget passwords.';
 
 /// The file line of [_line] in the login feature.
-const _lineNumber = 13;
+const _lineNumber = 14;
 
 /// The path from the login feature to the login domain.
 const _fromFeature = '../../../specs/f01_login/DOMAIN.md';

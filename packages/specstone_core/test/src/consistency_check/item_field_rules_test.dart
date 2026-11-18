@@ -78,12 +78,6 @@ Future<List<Finding>> _found(
   ];
 }
 
-int _lineOf(String needle) =>
-    File('${_project.path}/docs/$loginFr')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(needle)) +
-    1;
-
 void main() {
   test(
     'a quote line under a heading opens no field entry of its own',
@@ -109,7 +103,7 @@ void main() {
       );
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.itemFieldMissing);
-      expect(found.single.line, _lineOf('- **R1**'));
+      expect(found.single.line, lineOfFirst(_project, loginFr, '- **R1**'));
       expect(found.single.toJson(), containsPair('field', 'Consistency'));
       expect(found.single.waitsFor, WaitsFor.agent);
     },
@@ -145,7 +139,7 @@ void main() {
       _withRationale('$_held\n- **R2** Log it.\n  - **Enforcer:** CheckRun'),
     );
     expect(found, hasLength(1));
-    expect(found.single.line, _lineOf('- **R2**'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, '- **R2**'));
   });
 
   test('a required_when section the doc lacks while an item meets its '
@@ -169,7 +163,7 @@ void main() {
     final found = await _found(_withRationale(_held, behavior: true));
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.sectionUnneeded);
-    expect(found.single.line, _lineOf('## Behavior'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, '## Behavior'));
     expect(found.single.toJson(), containsPair('section', 'behavior'));
     expect(found.single.waitsFor, WaitsFor.agent);
   });
@@ -294,7 +288,7 @@ void main() {
       expect(result, hasLength(1));
       expect(result.single.kind, FindingKind.itemFieldMissing);
       expect(result.single.toJson(), containsPair('field', 'Policy'));
-      expect(result.single.line, _lineOf('- **R1**'));
+      expect(result.single.line, lineOfFirst(_project, loginFr, '- **R1**'));
     });
 
     test('an immediate item holding the conditional field reports it as '
@@ -307,7 +301,7 @@ void main() {
       expect(result, hasLength(1));
       expect(result.single.kind, FindingKind.itemFieldUnneeded);
       expect(result.single.toJson(), containsPair('field', 'Policy'));
-      expect(result.single.line, _lineOf('- **R1**'));
+      expect(result.single.line, lineOfFirst(_project, loginFr, '- **R1**'));
       expect(result.single.waitsFor, WaitsFor.agent);
       expect(
         await found('- **R1** Refuse it.\n  - **Consistency:** immediate'),

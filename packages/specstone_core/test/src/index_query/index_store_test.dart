@@ -4,6 +4,7 @@ import 'dart:isolate';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -663,8 +664,8 @@ void main() {
           ..putDoc(written);
       });
       expect(store.loadContent('n.md').bannedMatches, [
-        (section: 0, line: 4, entry: 0, match: 'fast'),
-        (section: 1, line: 7, entry: 0, match: 'fastly'),
+        const BannedMatch(section: 0, line: 4, entry: 0, match: 'fast'),
+        const BannedMatch(section: 1, line: 7, entry: 0, match: 'fastly'),
       ]);
     });
     test('f04/nfr-p03: the lines a check reads from a stored doc equal those it reads from the text', () async {

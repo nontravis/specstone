@@ -1272,4 +1272,49 @@ void main() {
       );
     });
   });
+
+  group('a field lint', () {
+    void checkNote({required FieldType type, bool list = false}) => check(
+      [
+        builtIn('runbook').copyWith(
+          fields: [
+            MergedField(
+              id: 'note',
+              type: type,
+              list: list,
+              lint: const FieldCaps(maxSentences: 1),
+            ),
+          ],
+        ),
+      ],
+      {
+        'runbook': [
+          layerOf(
+            'runbook',
+            'fields:\n  - id: note\n    lint: {max_sentences: 1}\n',
+          ),
+        ],
+      },
+    );
+
+    final lintFault = isA<TemplateFault>()
+        .having((f) => f.code, 'code', FaultCode.unknownKey)
+        .having((f) => f.key, 'key', 'fields.note.lint')
+        .having((f) => f.file, 'file', _runbookFile);
+
+    test('on a non-string field is unknown_key at the field lint key', () {
+      expect(() => checkNote(type: FieldType.integer), throwsA(lintFault));
+    });
+
+    test('on a list string field is unknown_key at the field lint key', () {
+      expect(
+        () => checkNote(type: FieldType.string, list: true),
+        throwsA(lintFault),
+      );
+    });
+
+    test('on a plain string field loads', () {
+      expect(() => checkNote(type: FieldType.string), returnsNormally);
+    });
+  });
 }

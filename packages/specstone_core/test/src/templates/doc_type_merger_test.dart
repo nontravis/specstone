@@ -1793,4 +1793,82 @@ lint: {banned_words: [simply]}
       );
     });
   });
+
+  group('DocTypeMerger.apply with a field lint', () {
+    const capped = '''
+fields:
+  - id: summary
+    type: string
+    lint:
+      max_sentences: 1
+      max_sentence_words: {default: 20, ko: 12}
+      max_sentence_chars: {default: 80, th: 70}
+''';
+
+    MergedField summaryOf(MergedDocType docType) =>
+        docType.fields.singleWhere((f) => f.id == 'summary');
+
+    MergedDocType cappedBase() =>
+        merger.apply(shipped(), layer(capped, kind: LayerKind.shipped));
+
+    test('a field with no lint is no prose field', () {
+      final field = shipped().fields.singleWhere((f) => f.id == 'owner');
+
+      expect(field.lint, isNull);
+      expect(field.isProse, isFalse);
+    });
+
+    test('a field that sets lint is a prose field', () {
+      final field = summaryOf(cappedBase());
+
+      expect(field.isProse, isTrue);
+      expect(field.lint?.maxSentences, 1);
+    });
+
+    test('an upper layer writing one key keeps the other two', () {
+      final merged = project(
+        cappedBase(),
+        'fields: [{id: summary, lint: {max_sentences: 2}}]',
+      );
+      final lint = summaryOf(merged).lint;
+
+      expect(lint?.maxSentences, 2);
+      expect(lint?.maxSentenceWords, {'default': 20, 'ko': 12});
+      expect(lint?.maxSentenceChars, {'default': 80, 'th': 70});
+    });
+
+    test('an upper map naming one language leaves no lower entry behind', () {
+      final merged = project(
+        cappedBase(),
+        'fields: [{id: summary, lint: {max_sentence_words: {default: 30}, '
+        'max_sentence_chars: {default: 90}}}]',
+      );
+      final lint = summaryOf(merged).lint;
+
+      expect(lint?.maxSentences, 1);
+      expect(lint?.maxSentenceWords, {'default': 30});
+      expect(lint?.maxSentenceChars, {'default': 90});
+    });
+
+    test('a layer that writes no lint keeps the lower lint', () {
+      final merged = project(
+        cappedBase(),
+        'fields: [{id: summary, description: One line.}]',
+      );
+
+      expect(summaryOf(merged).lint?.maxSentences, 1);
+    });
+
+    test('lint appears in the field JSON only when set', () {
+      expect(summaryOf(cappedBase()).toJson()['lint'], {
+        'maxSentences': 1,
+        'maxSentenceWords': {'default': 20, 'ko': 12},
+        'maxSentenceChars': {'default': 80, 'th': 70},
+      });
+      expect(
+        shipped().fields.singleWhere((f) => f.id == 'owner').toJson(),
+        isNot(contains('lint')),
+      );
+    });
+  });
 }

@@ -138,8 +138,9 @@ void main() {
     final found = await _found(
       doc(
         loginFeature,
-        '---\nvision:\n  - PV-01\ngoals:\n  - PG-01\n---\n\n',
-        '',
+        '---\nsummary: Lets an agent sign in.\n'
+            'vision:\n  - PV-01\ngoals:\n  - PG-01\n---\n\n',
+        '---\nsummary: Lets an agent sign in.\n---\n\n',
       ),
       FindingKind.fieldGroupMissing,
     );

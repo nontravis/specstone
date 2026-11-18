@@ -33,14 +33,6 @@ Future<List<Finding>> _found(
 
 late Directory _project;
 
-// The file line of the first line of [docPath] holding [needle], in the project
-// the last _found call wrote.
-int _lineOf(String docPath, String needle) =>
-    File('${_project.path}/docs/$docPath')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(needle)) +
-    1;
-
 Map<String, String> _frWith(String edgeCases) =>
     fr('1. E01 — An empty password → refused.', edgeCases);
 
@@ -60,7 +52,7 @@ void main() {
     );
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.sentencesOverLimit);
-    expect(found.single.line, _lineOf(loginFr, 'Refuse it.'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'Refuse it.'));
     expect(
       found.single.toJson(),
       allOf(containsPair('limit', 1), containsPair('actual', 2)),
@@ -115,7 +107,7 @@ void main() {
         edits: edits,
       );
       expect(found, hasLength(1));
-      expect(found.single.line, _lineOf(loginFr, '- **Why:**'));
+      expect(found.single.line, lineOfFirst(_project, loginFr, '- **Why:**'));
     },
   );
 
@@ -138,7 +130,7 @@ void main() {
       );
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.sentencesOverLimit);
-      expect(found.single.line, _lineOf(loginFr, '| Form |'));
+      expect(found.single.line, lineOfFirst(_project, loginFr, '| Form |'));
     },
   );
 
@@ -150,7 +142,7 @@ void main() {
       edits: edits,
     );
     expect(found, hasLength(1));
-    expect(found.single.line, _lineOf(loginFr, 'Refuse it.'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'Refuse it.'));
     expect(found.single.toJson(), containsPair('actual', 2));
   });
 
@@ -161,7 +153,7 @@ void main() {
       edits: _frWith('1. E01 — Refuse it; log it.'),
     );
     expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
-    expect(found.single.line, _lineOf(loginFr, 'Refuse it;'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'Refuse it;'));
     expect(found.single.toJson(), containsPair('actual', 2));
   });
 
@@ -190,7 +182,7 @@ void main() {
     final over = found.singleWhere(
       (f) => f.kind == FindingKind.sentencesOverLimit,
     );
-    expect(over.line, _lineOf(loginFr, 'Refuse it. Log it.'));
+    expect(over.line, lineOfFirst(_project, loginFr, 'Refuse it. Log it.'));
   });
 
   test('two statement paragraphs give item_count_out_of_range', () async {
@@ -205,7 +197,7 @@ void main() {
       edits: fr(checkPasswordStatement, 'Refuse it.\n\nLog it.'),
     );
     expect(found.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
-    expect(found.single.line, _lineOf(loginFr, '## Statement'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, '## Statement'));
     expect(found.single.toJson(), containsPair('actual', 2));
   });
 
@@ -228,7 +220,7 @@ void main() {
       ),
     );
     expect(found.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
-    expect(found.single.line, _lineOf(projectDoc, '### PV-01'));
+    expect(found.single.line, lineOfFirst(_project, projectDoc, '### PV-01'));
     expect(found.single.toJson(), containsPair('actual', 4));
   });
 
@@ -247,7 +239,10 @@ void main() {
       ),
     );
     expect(found.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
-    expect(found.single.line, _lineOf(loginStory, '### Scenario 2'));
+    expect(
+      found.single.line,
+      lineOfFirst(_project, loginStory, '### Scenario 2'),
+    );
     expect(found.single.toJson(), containsPair('actual', 4));
   });
 
@@ -265,7 +260,7 @@ void main() {
       ),
     );
     expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
-    expect(found.single.line, _lineOf(loginFr, '| Form |'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, '| Form |'));
     expect(found.single.toJson(), containsPair('actual', 3));
   });
 
@@ -279,7 +274,7 @@ void main() {
       ),
     );
     expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
-    expect(found.single.line, _lineOf(loginFr, '### Group'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, '### Group'));
     expect(found.single.toJson(), containsPair('actual', 2));
   });
 
@@ -323,7 +318,10 @@ void main() {
     );
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.prefixCountMismatch);
-    expect(found.single.line, _lineOf(loginStory, '### Scenario 1'));
+    expect(
+      found.single.line,
+      lineOfFirst(_project, loginStory, '### Scenario 1'),
+    );
     expect(
       found.single.toJson(),
       allOf(
@@ -355,7 +353,10 @@ void main() {
       );
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.itemCountOutOfRange);
-      expect(found.single.line, _lineOf(loginStory, '### Scenario 1'));
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginStory, '### Scenario 1'),
+      );
       expect(
         found.single.toJson(),
         allOf(containsPair('limit', 5), containsPair('actual', 6)),
@@ -392,7 +393,10 @@ void main() {
         edits: edits,
       );
       expect(found, hasLength(1));
-      expect(found.single.line, _lineOf(loginFr, '## Edge cases'));
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginFr, '## Edge cases'),
+      );
     },
   );
 
@@ -407,7 +411,7 @@ void main() {
       );
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.linesUnderLimit);
-      expect(found.single.line, _lineOf(loginFr, '## Rationale'));
+      expect(found.single.line, lineOfFirst(_project, loginFr, '## Rationale'));
       expect(
         found.single.toJson(),
         allOf(
@@ -449,7 +453,7 @@ void main() {
       edits: edits,
     );
     expect(found, hasLength(1));
-    expect(found.single.line, _lineOf(loginFr, 'Refuse it.'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'Refuse it.'));
     expect(found.single.toJson(), containsPair('actual', 2));
   });
 
@@ -520,7 +524,10 @@ void main() {
       );
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.subsectionsOverLimit);
-      expect(found.single.line, _lineOf(loginStory, '## Acceptance Criteria'));
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginStory, '## Acceptance Criteria'),
+      );
       expect(
         found.single.toJson(),
         allOf(

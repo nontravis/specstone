@@ -11,6 +11,7 @@ const _readabilityKinds = <FindingKind>{
   FindingKind.wordsOverLimit,
   FindingKind.sentenceCharsOverLimit,
   FindingKind.traceNoteNotLast,
+  FindingKind.sentencesOverLimit,
 };
 const _domainDoc = 'specs/f01_login/DOMAIN.md';
 const _domainLayer = '.specstone/templates/domain.yaml';
@@ -28,14 +29,6 @@ Future<List<Finding>> _found(
       if (_readabilityKinds.contains(f.kind)) f,
   ];
 }
-
-// The file line of the first line of [docPath] holding [needle], in the
-// project the last _found call wrote.
-int _lineOf(String docPath, String needle) =>
-    File('${_project.path}/docs/$docPath')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(needle)) +
-    1;
 
 /// Returns a sentence of [count] words, ended by a full stop.
 String _sentenceOf(int count, [String word = 'word']) =>
@@ -56,7 +49,7 @@ void main() {
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.wordsOverLimit);
     expect(found.single.path, loginFr);
-    expect(found.single.line, _lineOf(loginFr, 'E01'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'E01'));
     expect(found.single.waitsFor, WaitsFor.agent);
     expect(
       found.single.toJson(),
@@ -96,7 +89,7 @@ void main() {
     );
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.wordsOverLimit);
-    expect(found.single.line, _lineOf(loginFr, '| Form |'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, '| Form |'));
     expect(
       found.single.toJson(),
       allOf(containsPair('language', 'default'), containsPair('actual', 30)),
@@ -171,7 +164,7 @@ void main() {
     final found = await _found(_edgeCase('${'ก' * 120}.'));
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.sentenceCharsOverLimit);
-    expect(found.single.line, _lineOf(loginFr, 'E01'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'E01'));
     expect(
       found.single.toJson(),
       allOf(
@@ -246,7 +239,9 @@ void main() {
       found.map((f) => f.toJson()['language']),
       unorderedEquals(['th', 'default']),
     );
-    expect(found.map((f) => f.line).toSet(), {_lineOf(loginFr, 'E01')});
+    expect(found.map((f) => f.line).toSet(), {
+      lineOfFirst(_project, loginFr, 'E01'),
+    });
   });
 
   test('misplaced note gives trace_note_not_last with note', () async {
@@ -255,7 +250,7 @@ void main() {
     );
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.traceNoteNotLast);
-    expect(found.single.line, _lineOf(loginFr, 'E01'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'E01'));
     expect(found.single.waitsFor, WaitsFor.agent);
     expect(
       found.single.toJson(),
@@ -330,7 +325,7 @@ void main() {
       );
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.traceNoteNotLast);
-      expect(found.single.line, _lineOf(loginFr, '| Form |'));
+      expect(found.single.line, lineOfFirst(_project, loginFr, '| Form |'));
       expect(
         found.single.toJson(),
         allOf(
@@ -340,6 +335,113 @@ void main() {
       );
     },
   );
+
+  group('a prose field value', () {
+    const summaryLine = 'summary: Lets an agent sign in.';
+    const noteLayer = '.specstone/templates/feature.yaml';
+
+    Map<String, String> summary(String text) =>
+        doc(loginFeature, summaryLine, 'summary: $text');
+
+    Map<String, String> note(String text) => {
+      ...doc(loginFeature, summaryLine, '$summaryLine\nnote: $text'),
+      noteLayer:
+          'fields:\n  - id: note\n    type: string\n'
+          '    lint: {max_sentences: 1}\n',
+    };
+
+    test('over its word cap gives words_over_limit on the key line', () async {
+      final found = await _found(summary(_sentenceOf(18)));
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.wordsOverLimit);
+      expect(found.single.path, loginFeature);
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginFeature, 'summary:'),
+      );
+      expect(found.single.waitsFor, WaitsFor.agent);
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('field', 'summary'),
+          containsPair('language', 'default'),
+          containsPair('limit', 15),
+          containsPair('actual', 18),
+          containsPair('sentences', 1),
+          isNot(contains('section')),
+          isNot(contains('id')),
+        ),
+      );
+    });
+
+    test('of two sentences gives sentences_over_limit', () async {
+      final found = await _found(summary('One short one. Another short one.'));
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.sentencesOverLimit);
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginFeature, 'summary:'),
+      );
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('field', 'summary'),
+          containsPair('limit', 1),
+          containsPair('actual', 2),
+        ),
+      );
+    });
+
+    test('takes the Korean cap from the field alone', () async {
+      final found = await _found(
+        summary('${List.filled(12, '단어').join(' ')}.'),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.wordsOverLimit);
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('language', 'ko'),
+          containsPair('limit', 10),
+          containsPair('actual', 12),
+        ),
+      );
+    });
+
+    test('weighs an English word in a Thai value by its own caps', () async {
+      final found = await _found(summary('${'ก' * 57} check.'));
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.sentenceCharsOverLimit);
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('field', 'summary'),
+          containsPair('language', 'th'),
+          containsPair('limit', 60),
+          containsPair('actual', 61),
+        ),
+      );
+    });
+
+    test('of a field with no lint is never read', () async {
+      final found = await _found(
+        doc(
+          loginFeature,
+          summaryLine,
+          '$summaryLine\nsystem: ${_sentenceOf(40)}',
+        ),
+      );
+      expect(found, isEmpty);
+    });
+
+    test('of a field capping sentences alone ignores its length', () async {
+      expect(await _found(note(_sentenceOf(40))), isEmpty);
+      final found = await _found(note('One short one. Another short one.'));
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.sentencesOverLimit);
+      expect(found.single.toJson(), containsPair('field', 'note'));
+    });
+  });
 
   test('guide line constants match every shipped guide', () async {
     final project = await writeCheckProject();

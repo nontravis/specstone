@@ -81,6 +81,18 @@ void main() {
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
     });
 
+    test('only the feature summary field carries a lint', () async {
+      final set = await resolvePrdCore();
+      expect(
+        [
+          for (final d in set.docTypes)
+            for (final f in d.fields)
+              if (f.lint != null) '${d.id}.${f.id}',
+        ],
+        ['feature.summary'],
+      );
+    });
+
     test('each doc type flags a doc over its own line and character '
         'caps', () async {
       final set = await resolvePrdCore();

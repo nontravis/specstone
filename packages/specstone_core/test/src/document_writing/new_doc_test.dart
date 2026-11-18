@@ -696,7 +696,7 @@ void main() {
     );
     expect(
       readDoc(root, 'prds/features/f03_billing/FEATURE.md'),
-      startsWith('---\ndraft: true\n---\n\n# billing\n\n## '),
+      startsWith('---\ndraft: true\nsummary:\n---\n\n# billing\n\n## '),
     );
   });
 

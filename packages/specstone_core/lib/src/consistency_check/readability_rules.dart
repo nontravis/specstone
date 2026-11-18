@@ -21,7 +21,8 @@ const citeNoteGuideLine = "Put a cite or an ownership note at the item's end.";
 /// untyped doc has none.
 ///
 /// Each item's sentences and trace notes are the facts the index stores, so
-/// nothing is recounted.
+/// nothing is recounted. A prose field's value is read as one item against its
+/// own caps.
 Iterable<Finding> checkReadability(CheckContext context, IndexedDoc doc) sync* {
   final type = context.typeOf(doc);
   if (type == null) return;
@@ -39,6 +40,58 @@ Iterable<Finding> checkReadability(CheckContext context, IndexedDoc doc) sync* {
       facts.sectionItems[i],
     );
   }
+  yield* _fieldFindings(context, doc, type, facts);
+}
+
+Iterable<Finding> _fieldFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  MergedDocType type,
+  ItemFacts facts,
+) sync* {
+  final docLines = context.linesOf(doc);
+  for (final field in type.fields) {
+    final caps = field.lint;
+    final fact = facts.fieldItems[field.id];
+    final line = docLines.keyLine(field.id);
+    if (caps == null || fact == null || line == null) continue;
+    final keys = <String, Object>{'field': field.id};
+    yield* _sentenceCountFindings(context, doc, caps, fact, line, keys);
+    if (caps.capsLength) {
+      yield* _lengthFindings(
+        context,
+        doc,
+        line,
+        fact.readability,
+        _LengthCaps.ofField(caps),
+        keys,
+      );
+    }
+  }
+}
+
+Iterable<Finding> _sentenceCountFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  FieldCaps caps,
+  FieldFact fact,
+  int line,
+  Map<String, Object> keys,
+) sync* {
+  final limit = caps.maxSentences;
+  if (limit == null) return;
+  final actual = fact.readability.cells
+      .expand((cell) => cell)
+      .where((sentence) => !sentence.isHeading)
+      .length;
+  if (actual <= limit) return;
+  yield context.finding(
+    doc,
+    FindingKind.sentencesOverLimit,
+    line: line,
+    message: 'holds $actual sentences; the limit is $limit',
+    keys: {...keys, 'limit': limit, 'actual': actual},
+  );
 }
 
 Iterable<Finding> _sectionFindings(
@@ -50,7 +103,14 @@ Iterable<Finding> _sectionFindings(
 ) sync* {
   for (final item in items) {
     final keys = <String, Object>{'section': sectionKey, 'id': ?item.id};
-    yield* _lengthFindings(context, doc, lint, item, keys);
+    yield* _lengthFindings(
+      context,
+      doc,
+      item.line,
+      item.readability,
+      _LengthCaps.ofDoc(lint),
+      keys,
+    );
     if (lint.isTraceNoteLast) yield* _noteFindings(context, doc, item, keys);
   }
 }
@@ -58,11 +118,12 @@ Iterable<Finding> _sectionFindings(
 Iterable<Finding> _lengthFindings(
   CheckContext context,
   IndexedDoc doc,
-  MergedLint lint,
-  ItemFact item,
+  int line,
+  ReadabilityFacts readability,
+  _LengthCaps caps,
   Map<String, Object> keys,
 ) sync* {
-  for (final run in _lengthRunsOf(item.readability, lint)) {
+  for (final run in _lengthRunsOf(readability, caps)) {
     if (run.over == 0) continue;
     final unit = run.countsChars ? 'characters' : 'words';
     yield context.finding(
@@ -70,7 +131,7 @@ Iterable<Finding> _lengthFindings(
       run.countsChars
           ? FindingKind.sentenceCharsOverLimit
           : FindingKind.wordsOverLimit,
-      line: item.line,
+      line: line,
       message:
           'the longest sentence holds ${run.longest} $unit; the limit is '
           '${run.limit} for language ${run.language}; '
@@ -125,12 +186,12 @@ typedef _Run = ({
 /// language first appears.
 ///
 /// A `###` heading's sentence counts here, as it does in the sentence cut.
-List<_Run> _lengthRunsOf(ReadabilityFacts facts, MergedLint lint) {
+List<_Run> _lengthRunsOf(ReadabilityFacts facts, _LengthCaps caps) {
   final byLanguage = <String, List<_Sized>>{};
   for (final sentence in facts.cells.expand((cell) => cell)) {
     byLanguage
         .putIfAbsent(sentence.language, () => [])
-        .add(_sizedOf(sentence, lint));
+        .add(_sizedOf(sentence, caps));
   }
   return [
     for (final sizes in byLanguage.values)
@@ -144,19 +205,45 @@ List<_Run> _lengthRunsOf(ReadabilityFacts facts, MergedLint lint) {
   ];
 }
 
-_Sized _sizedOf(SentenceFact sentence, MergedLint lint) {
-  final caps = sentence.countsChars
-      ? lint.sentenceCharCaps
-      : lint.sentenceWordCaps;
-  final limit = caps.capFor(sentence.language);
+/// The sentence caps one read holds its sentences to.
+///
+/// A doc's items weigh each other-script run at the character cap over 25; a
+/// prose field's value, at its character cap over its own word cap.
+final class _LengthCaps {
+  new ofDoc(MergedLint lint)
+    : words = lint.sentenceWordCaps,
+      chars = lint.sentenceCharCaps,
+      weighsRunsByWordCap = false;
+
+  new ofField(FieldCaps caps)
+    : words = SentenceCaps(caps.maxSentenceWords!),
+      chars = SentenceCaps(caps.maxSentenceChars!),
+      weighsRunsByWordCap = true;
+
+  final SentenceCaps words;
+  final SentenceCaps chars;
+  final bool weighsRunsByWordCap;
+
+  int runDivisorOf(String language) =>
+      weighsRunsByWordCap ? words.capFor(language) : defaultRunWeightDivisor;
+}
+
+_Sized _sizedOf(SentenceFact sentence, _LengthCaps caps) {
+  final limit = (sentence.countsChars ? caps.chars : caps.words).capFor(
+    sentence.language,
+  );
   final size = sentence.countsChars
-      ? weightedChars((
-          language: sentence.language,
-          countsChars: true,
-          words: sentence.words,
-          chars: sentence.chars,
-          runs: sentence.runs,
-        ), limit)
+      ? weightedChars(
+          (
+            language: sentence.language,
+            countsChars: true,
+            words: sentence.words,
+            chars: sentence.chars,
+            runs: sentence.runs,
+          ),
+          limit,
+          divisor: caps.runDivisorOf(sentence.language),
+        )
       : sentence.words;
   return (
     language: sentence.language,

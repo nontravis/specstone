@@ -35,6 +35,15 @@ description: |-
 path: prds/features/f{nn}_{slug}/FEATURE.md
 max_depth: 3
 fields:
+  - id: summary
+    type: string
+    required: true
+    description: |-
+      States in one sentence what the feature does for its persona.
+    lint:
+      max_sentences: 1
+      max_sentence_words: {default: 15, ko: 10}
+      max_sentence_chars: {default: 60, th: 60, ja: 36, zh: 27}
   - id: vision
     type: string
     list: true

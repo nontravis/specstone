@@ -236,6 +236,11 @@ final class CheckContext {
     );
   }
 
+  /// Whether file [line] of [doc] is a marker line or inner line of a closed
+  /// generated block, the lines no prose rule reads.
+  bool isGeneratedLine(IndexedDoc doc, int line) =>
+      _generatedLineTestOf(doc)(line);
+
   bool Function(int line) _generatedLineTestOf(IndexedDoc doc) =>
       _generatedLines.putIfAbsent(doc.docPath, () {
         final text = toLf(contentOf(doc).text);

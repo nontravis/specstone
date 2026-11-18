@@ -1,12 +1,17 @@
 // The expected texts are plan literals kept as written.
 
+import 'dart:io';
+
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+
+late Directory _project;
 
 void main() {
   test('f04/us01/s4, f04/us01/fr05/e01: fast counts in the Statement only, not in the Rationale', () async {
@@ -219,6 +224,108 @@ void main() {
       ),
       isEmpty,
     );
+  });
+
+  group('on a prose field value', () {
+    const summaryLine = 'summary: Lets an agent sign in.';
+    const featureLayer = '.specstone/templates/feature.yaml';
+
+    Future<List<Finding>> bannedOf(
+      String summary, {
+      String layer = 'lint:\n  banned_words: [fast]\n',
+    }) async {
+      _project = await writeCheckProject(
+        extra: {
+          featureLayer: layer,
+          ...doc(loginFeature, summaryLine, 'summary: $summary'),
+        },
+      );
+      final report = await checkOf(_project);
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.bannedWord) f,
+      ];
+    }
+
+    test('a doc-level word is reported on the key line under field', () async {
+      final found = await bannedOf('Signs in fast.');
+      expect(found, hasLength(1));
+      expect(found.single.path, loginFeature);
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginFeature, 'summary:'),
+      );
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('word', 'fast'),
+          containsPair('field', 'summary'),
+          isNot(contains('section')),
+        ),
+      );
+    });
+
+    test('a word inside a code span is not reported', () async {
+      expect(await bannedOf('Signs in `fast`.'), isEmpty);
+    });
+
+    test('a doc-level allowed word is not reported', () async {
+      expect(
+        await bannedOf(
+          'Signs in fast.',
+          layer: 'lint:\n  banned_words: [fast]\n  allowed_words: [fast]\n',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a section word is not applied to the value', () async {
+      expect(
+        await bannedOf(
+          'Signs in fast.',
+          layer:
+              'sections:\n  - id: problem\n    lint:\n'
+              '      banned_words: [fast]\n',
+        ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('in a closed generated block', () {
+    final open = generatedOpenMarker('feature_catalog');
+    const features = 'prds/FEATURES.md';
+    const layer = {
+      '.specstone/templates/features.yaml': 'lint:\n  banned_words: [fast]\n',
+    };
+
+    Future<List<int>> bannedLinesIn(String body) async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {...layer, ...doc(features, 'One feature.', body)},
+        ),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.bannedWord) f.line,
+      ];
+    }
+
+    test('a banned word is not reported', () async {
+      expect(
+        await bannedLinesIn('$open\n- A fast login.\n$generatedEndMarker'),
+        isEmpty,
+      );
+    });
+
+    test('the same word beside the block is reported', () async {
+      expect(
+        await bannedLinesIn(
+          '$open\n- A login.\n$generatedEndMarker\n\nIt is fast.',
+        ),
+        hasLength(1),
+      );
+    });
   });
 
   test('cc-s03/inv9: a word builds its pattern once per run', () async {

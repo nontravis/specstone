@@ -1070,6 +1070,161 @@ lint:
       );
     });
 
+    group('field lint', () {
+      FieldCaps? lintOf(String lint) =>
+          _parse('fields: [{id: summary, type: string, lint: $lint}]')
+              .fields
+              .single
+              .lint;
+
+      test('a string field loads all three keys', () {
+        final caps = lintOf(
+          '{max_sentences: 1, max_sentence_words: {default: 20, ko: 12}, '
+          'max_sentence_chars: {default: 80, th: 70}}',
+        );
+
+        expect(caps?.maxSentences, 1);
+        expect(caps?.maxSentenceWords, {'default': 20, 'ko': 12});
+        expect(caps?.maxSentenceChars, {'default': 80, 'th': 70});
+        expect(caps?.capsLength, isTrue);
+      });
+
+      test('max_sentences alone loads and caps no length', () {
+        final caps = lintOf('{max_sentences: 1}');
+
+        expect(caps?.maxSentences, 1);
+        expect(caps?.maxSentenceWords, isNull);
+        expect(caps?.maxSentenceChars, isNull);
+        expect(caps?.capsLength, isFalse);
+      });
+
+      test('a field with no lint holds none', () {
+        expect(
+          _parse('fields: [{id: summary, type: string}]').fields.single.lint,
+          isNull,
+        );
+      });
+
+      test('a key other than the three is unknown_key', () {
+        for (final key in ['trace_note_last', 'max_lines']) {
+          expect(
+            () => lintOf('{$key: 1}'),
+            throwsA(
+              _fault(FaultCode.unknownKey, key: 'fields.summary.lint.$key'),
+            ),
+            reason: key,
+          );
+        }
+      });
+
+      test('a max_sentences below 1 or no number is unknown_value', () {
+        for (final value in ['0', '-1', 'one']) {
+          expect(
+            () => lintOf('{max_sentences: $value}'),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'fields.summary.lint.max_sentences',
+              ),
+            ),
+            reason: value,
+          );
+        }
+      });
+
+      test('a bad map is refused with the field key prefix', () {
+        expect(
+          () => lintOf(
+            '{max_sentence_words: {default: 0}, '
+            'max_sentence_chars: {default: 9}}',
+          ),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'fields.summary.lint.max_sentence_words.default',
+            ),
+          ),
+        );
+        expect(
+          () => lintOf(
+            '{max_sentence_words: {fr: 20}, max_sentence_chars: {default: 9}}',
+          ),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'fields.summary.lint.max_sentence_words.fr',
+            ),
+          ),
+        );
+        expect(
+          () => lintOf(
+            '{max_sentence_words: 30, max_sentence_chars: {default: 9}}',
+          ),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'fields.summary.lint.max_sentence_words',
+            ),
+          ),
+        );
+      });
+
+      test('a map without default is missing_key naming its default', () {
+        const cases = {
+          'max_sentence_words':
+              '{max_sentence_words: {ko: 10}, '
+              'max_sentence_chars: {default: 9}}',
+          'max_sentence_chars':
+              '{max_sentence_words: {default: 9}, '
+              'max_sentence_chars: {th: 10}}',
+        };
+        for (final MapEntry(key: map, value: lint) in cases.entries) {
+          expect(
+            () => lintOf(lint),
+            throwsA(
+              _fault(
+                FaultCode.missingKey,
+                key: 'fields.summary.lint.$map.default',
+              ),
+            ),
+            reason: map,
+          );
+        }
+      });
+
+      test('a map with default and a language entry loads', () {
+        final caps = lintOf(
+          '{max_sentence_words: {default: 9, ko: 10}, '
+          'max_sentence_chars: {default: 9, th: 10}}',
+        );
+
+        expect(caps?.maxSentenceWords, {'default': 9, 'ko': 10});
+        expect(caps?.maxSentenceChars, {'default': 9, 'th': 10});
+      });
+
+      test('one map without its partner is missing_key naming the absent '
+          'key', () {
+        expect(
+          () => lintOf('{max_sentence_words: {default: 20}}'),
+          throwsA(
+            _fault(
+              FaultCode.missingKey,
+              key: 'fields.summary.lint.max_sentence_chars',
+            ),
+          ),
+        );
+        expect(
+          () => lintOf('{max_sentence_chars: {default: 80}}'),
+          throwsA(
+            _fault(
+              FaultCode.missingKey,
+              key: 'fields.summary.lint.max_sentence_words',
+            ),
+          ),
+        );
+      });
+    });
+
     test('doc lint takes the readability keys', () {
       final lint = _parse(
         'lint: {max_sentence_words: {default: 30, ko: 20, ar: 18, he: 18, '
