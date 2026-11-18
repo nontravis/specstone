@@ -50,20 +50,20 @@ void main() {
 
   // A refusal changes nothing: the install is as it was, no worktree is made,
   // no build step ran, and no temp folder exists.
-  void expectNothingChanged() {
-    expect(repo.sandbox.snapshot(), before);
-    expect(repo.worktrees(), hasLength(1));
-    expect(repo.sandbox.logOf('dart'), isEmpty);
-    expect(repo.tmpIsEmpty, isTrue);
+  void expectNothingChanged({String? reason}) {
+    expect(repo.sandbox.snapshot(), before, reason: reason);
+    expect(repo.worktrees(), hasLength(1), reason: reason);
+    expect(repo.sandbox.logOf('dart'), isEmpty, reason: reason);
+    expect(repo.tmpIsEmpty, isTrue, reason: reason);
   }
 
   // A failed build leaves the install as it was with no aside copy beside it,
   // makes no worktree, and deletes its temp folder.
-  void expectBuildLeftNothing() {
-    expect(repo.sandbox.snapshot(), before);
-    expect(installEntries(), unorderedEquals(['bin', 'lib']));
-    expect(repo.worktrees(), hasLength(1));
-    expect(repo.tmpIsEmpty, isTrue);
+  void expectBuildLeftNothing({String? reason}) {
+    expect(repo.sandbox.snapshot(), before, reason: reason);
+    expect(installEntries(), unorderedEquals(['bin', 'lib']), reason: reason);
+    expect(repo.worktrees(), hasLength(1), reason: reason);
+    expect(repo.tmpIsEmpty, isTrue, reason: reason);
   }
 
   Future<void> waitFor(bool Function() isDone) async {
@@ -122,7 +122,7 @@ void main() {
       if (ref.startsWith('-')) {
         expect(repo.sandbox.logOf('git'), hasLength(gitCalls), reason: ref);
       }
-      expectNothingChanged();
+      expectNothingChanged(reason: ref);
     }
   });
 
@@ -138,7 +138,7 @@ void main() {
       expect(result.exitCode, 1, reason: '$args');
       expect(result.stderr, contains('usage:'), reason: '$args');
       expect(repo.sandbox.logOf('git'), isEmpty, reason: '$args');
-      expectNothingChanged();
+      expectNothingChanged(reason: '$args');
     }
   });
 
@@ -259,8 +259,12 @@ void main() {
       expect(result.exitCode, isNot(0), reason: step);
       expect(result.stderr, contains('dart $step'), reason: step);
       expect(result.stderr, contains('stub: dart $step failed'), reason: step);
-      expect(repo.sandbox.logOf('dart'), hasLength(dartCalls + calls));
-      expectBuildLeftNothing();
+      expect(
+        repo.sandbox.logOf('dart'),
+        hasLength(dartCalls + calls),
+        reason: step,
+      );
+      expectBuildLeftNothing(reason: step);
     }
   });
 
@@ -417,7 +421,7 @@ void main() {
       expect(result.exitCode, isNot(0), reason: aside);
       expect(result.stderr, contains('${installDir()}/$folder'), reason: aside);
       expect(result.stderr, contains('stub: cp failed'), reason: aside);
-      expectBuildLeftNothing();
+      expectBuildLeftNothing(reason: aside);
     }
   });
 
@@ -437,6 +441,7 @@ void main() {
       expect(result.stderr, contains('${installDir()}/$folder'), reason: aside);
       expect(result.stderr, contains('stub: mv failed'), reason: aside);
       expect(installEntries(), [remaining], reason: aside);
+      expect(repo.tmpIsEmpty, isTrue, reason: aside);
       if (remaining == 'bin') {
         expect(binEntries(before), isNotEmpty);
         expect(binEntries(repo.sandbox.snapshot()), binEntries(before));
