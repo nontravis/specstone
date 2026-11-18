@@ -13,6 +13,7 @@ const Set<FindingKind> _shapeKinds = {
   FindingKind.prefixCountMismatch,
   FindingKind.linesUnderLimit,
   FindingKind.subsectionsOverLimit,
+  FindingKind.itemLinesOverLimit,
 };
 
 String _sectionLint(String section, String lint) =>
@@ -482,10 +483,13 @@ void main() {
   );
 
   test(
-    'a doc type that sets none of the three keys runs no shape rule',
+    'a doc type that sets none of the count keys runs no count rule',
     () async {
       final project = await writeCheckProject(
-        extra: fr('1. E01 — An empty password → refused.', '1. E01 — a. b. c.'),
+        extra: fr(
+          '1. E01 — An empty password → refused.',
+          '1. E01 — a. b. c.\n   d.\n   e.',
+        ),
       );
       expect(
         (await checkOf(project)).findings
@@ -495,16 +499,91 @@ void main() {
     },
   );
 
+  group('max_item_lines', () {
+    const cap = '      max_item_lines: 1\n';
+
+    test('an item past its line cap is reported', () async {
+      final found = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', cap),
+        edits: _frWith('1. E01 — Refuse it\n   twice.'),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.itemLinesOverLimit);
+      expect(found.single.line, lineOfFirst(_project, loginFr, 'Refuse it'));
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('section', 'edge_cases'),
+          containsPair('limit', 1),
+          containsPair('actual', 2),
+          containsPair('message', 'item has 2 lines; the limit is 1'),
+        ),
+      );
+      expect(found.single.waitsFor, WaitsFor.agent);
+    });
+
+    test('nested items and a fenced block add no line', () async {
+      for (final item in [
+        '1. E01 — Refuse it.\n   - one\n   - two',
+        '1. E01 — Refuse it.\n```\ncode\n```',
+      ]) {
+        final found = await _found(
+          _frLayer,
+          _sectionLint('edge_cases', cap),
+          edits: _frWith(item),
+        );
+        expect(found, isEmpty, reason: item);
+      }
+    });
+
+    test('a quote mark with no text after it adds no line', () async {
+      const intro = 'A wrong password must not sign in.';
+      final quotedHeading = await _found(
+        _frLayer,
+        _sectionLint('rationale', cap),
+        edits: fr(intro, '> ### Group\n>\n> Refuse it.'),
+      );
+      expect(quotedHeading, isEmpty);
+      final quotedItem = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', cap),
+        edits: _frWith('> - E01 — Refuse it\n>   twice.'),
+      );
+      expect(quotedItem.map((f) => f.kind), [FindingKind.itemLinesOverLimit]);
+      expect(quotedItem.single.toJson(), containsPair('actual', 2));
+    });
+
+    test('a heading item counts its paragraph alone', () async {
+      final lint = _sectionLint('rationale', cap);
+      const intro = 'A wrong password must not sign in.';
+      final one = await _found(
+        _frLayer,
+        lint,
+        edits: fr(intro, '### Group\n\nRefuse it.'),
+      );
+      expect(one, isEmpty);
+      final two = await _found(
+        _frLayer,
+        lint,
+        edits: fr(intro, '### Group\n\nRefuse it\ntwice.'),
+      );
+      expect(two.map((f) => f.kind), [FindingKind.itemLinesOverLimit]);
+      expect(two.single.line, lineOfFirst(_project, loginFr, '### Group'));
+      expect(two.single.toJson(), containsPair('actual', 2));
+    });
+  });
+
   test('a doc type that sets none of the five keys runs no shape rule while '
       'the fr type runs its own', () async {
     final project = await writeCheckProject(
       extra: {
         ...fr(checkPasswordStatement, 'Refuse it. Log it.'),
         ...doc(
-          'prds/GLOSSARY.md',
-          '- **Agent** — the coding agent that writes the docs.',
-          '- **Agent** — One. Two. Three.\n  - Nested one.\n  - Nested two.\n'
-              '- **Owner** — Four.\n  Five.\n- **User** — Six.',
+          'prds/FEATURES.md',
+          '- Login\n',
+          '- Login — One. Two. Three.\n  - Nested one.\n  - Nested two.\n'
+              '- Owner — Four.\n  Five.\n- User — Six.\n',
         ),
       },
     );

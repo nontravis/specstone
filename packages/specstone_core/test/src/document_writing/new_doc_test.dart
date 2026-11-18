@@ -79,11 +79,11 @@ void main() {
       '## Acceptance Criteria\n\n'
       '### Scenario 1 — [happy] <what differs>\n\n'
       '- **Given** <only the state the scenario needs>\n'
-      '- **When** <one trigger>\n'
+      '- **When** <trigger>\n'
       '- **Then** <observed outcome>\n\n'
       '### Scenario 2 — [error] <what differs> (BR-01)\n\n'
       '- **Given** <only the state the scenario needs>\n'
-      '- **When** <one trigger>\n'
+      '- **When** <trigger>\n'
       '- **Then** <what the person sees or what the system refuses>\n',
     );
   });

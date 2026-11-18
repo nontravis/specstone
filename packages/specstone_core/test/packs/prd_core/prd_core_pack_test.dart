@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
@@ -11,6 +12,32 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
+
+/// The cite line and the four readability lines every description keeps.
+const _readabilityLines = <String>[
+  _citeLine,
+  _oneRuleLine,
+  citeNoteGuideLine,
+  _exampleLine,
+  _conditionLine,
+];
+
+const _citeLine =
+    'Cite a rule another doc owns by a link to the item that holds it, never '
+    'restate it.';
+
+const _oneRuleLine =
+    'Keep one rule in each item, and put several conditions in a nested list. '
+    'A one-sentence paragraph with no ID moves its detail to the section of '
+    'the same doc that owns it, never into a sub-list.';
+
+const _exampleLine =
+    'Give a non-obvious rule one example inside its item, as a `such as` '
+    'clause or one "For example," sentence, within the sentence\'s cap.';
+
+const _conditionLine =
+    'State the condition first, then the rule, one clause chain per sentence; '
+    'split a sentence whose clauses nest.';
 
 /// The doc types whose guide holds a banned word list at neither level.
 const _noWordListIds = [
@@ -127,6 +154,29 @@ void main() {
         ],
         ['feature.summary'],
       );
+    });
+
+    test(
+      'no description states the sentence length a lint key holds',
+      () async {
+        final set = await resolvePrdCore();
+        for (final docType in set.docTypes) {
+          expect(
+            docType.description,
+            isNot(contains('Each sentence holds')),
+            reason: docType.id,
+          );
+        }
+      },
+    );
+
+    test('the description holds the shared readability lines', () async {
+      final set = await resolvePrdCore();
+      for (final docType in set.docTypes) {
+        for (final line in _readabilityLines) {
+          expect(docType.description, contains(line), reason: docType.id);
+        }
+      }
     });
 
     test('each doc type flags a doc over its own line and character '
