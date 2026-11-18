@@ -151,8 +151,7 @@ final class _MatrixWalk {
   }
 
   Iterable<Finding> _resolved(MatrixRow row) sync* {
-    final item = _items[row.item];
-    if (item == null) return;
+    final item = _items[row.item]!;
     if (item.docTypeId != frType) {
       yield _finding(
         FindingKind.matrixRowUnresolved,
