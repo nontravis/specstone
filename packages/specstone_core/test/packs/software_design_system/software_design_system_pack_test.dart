@@ -320,32 +320,28 @@ void main() {
       const doc = 'docs/$_root/GUIDELINES.md';
       final clean = await writeCheckProject(
         extra: {
-          '.specstone/config.yaml': shippedPinsConfig([
-            'prd-core',
-            'software-tech',
-            'software-design-system',
-          ]),
+          '.specstone/config.yaml': softwareDesignSystemConfig(),
           doc: guidelines,
         },
       );
       final broken = await writeCheckProject(
         extra: {
-          '.specstone/config.yaml': shippedPinsConfig([
-            'prd-core',
-            'software-tech',
-            'software-design-system',
-          ]),
+          '.specstone/config.yaml': softwareDesignSystemConfig(),
           doc: guidelines,
           'app/lib/button.dart': 'const color = 0xFF112233;\n',
         },
       );
 
+      final before = [
+        for (final f in (await checkOf(clean)).findings) f.textLine,
+      ];
+      final after = [
+        for (final f in (await checkOf(broken)).findings) f.textLine,
+      ];
+
+      expect(after, before);
       expect(
-        spots(await checkOf(clean, docPath: '$_root/GUIDELINES.md')),
-        isEmpty,
-      );
-      expect(
-        spots(await checkOf(broken, docPath: '$_root/GUIDELINES.md')),
+        after.where((spot) => spot.contains('app/lib/button.dart')),
         isEmpty,
       );
     });

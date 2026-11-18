@@ -5,7 +5,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
-import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_design_system.dart';
 
 const _groupDoc = 'specs/design_system/components/buttons/GROUP.md';
@@ -52,11 +51,7 @@ Future<List<String>> _findings(
 }) async {
   final project = await writeCheckProject(
     extra: {
-      '.specstone/config.yaml': shippedPinsConfig([
-        'prd-core',
-        'software-tech',
-        'software-design-system',
-      ]),
+      '.specstone/config.yaml': softwareDesignSystemConfig(),
       'docs/$_groupDoc': _group,
       'docs/$doc': component,
     },
@@ -183,7 +178,8 @@ void main() {
   });
 
   group('component doc check', () {
-    test('a complete component in its group gives no finding', () async {
+    test('a complete component in its group, with or without Keyboard, gives '
+        'no finding', () async {
       expect(await _findings(_component()), isEmpty);
       expect(await _findings(_component(body: _body(keyboard: true))), isEmpty);
     });
@@ -216,13 +212,6 @@ void main() {
           kind: FindingKind.fieldValueMismatch,
         ),
         ['$_componentDoc:3: field_value_mismatch'],
-      );
-    });
-
-    test('a component with no Keyboard section gives no finding', () async {
-      expect(
-        await _findings(_component(), kind: FindingKind.requiredSectionMissing),
-        isEmpty,
       );
     });
 

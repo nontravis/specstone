@@ -27,6 +27,18 @@ const softwareDesignSystemIds = <String>[
   'ui_pattern',
 ];
 
+/// The packs of a project that writes design-system docs.
+const softwareDesignSystemPacks = <String>[
+  'prd-core',
+  'software-tech',
+  'software-design-system',
+];
+
+/// The `config.yaml` text pinning [softwareDesignSystemPacks] to the shipped
+/// versions.
+String softwareDesignSystemConfig() =>
+    shippedPinsConfig(softwareDesignSystemPacks);
+
 /// Resolves a temp project that pins the shipped `prd-core`, `software-tech`,
 /// and `software-design-system`.
 ///
@@ -36,11 +48,7 @@ Future<MergedSet> resolveSoftwareDesignSystem({
   Map<String, String> templates = const {},
 }) async {
   final project = await writeTree({
-    '.specstone/config.yaml': shippedPinsConfig([
-      'prd-core',
-      'software-tech',
-      'software-design-system',
-    ]),
+    '.specstone/config.yaml': softwareDesignSystemConfig(),
     for (final MapEntry(:key, :value) in templates.entries)
       '.specstone/templates/$key': value,
   });

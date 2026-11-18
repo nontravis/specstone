@@ -1444,13 +1444,7 @@ items:
 
     test('a project listing the three packs lists the nineteen design-system '
         'doc types beside the others', () async {
-      final runner = await runnerFor(
-        packs: shippedPinsConfig([
-          'prd-core',
-          'software-tech',
-          'software-design-system',
-        ]),
-      );
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
 
       expect(await runner.run(['guide']), 0);
       expect(
@@ -1476,13 +1470,7 @@ items:
 
     test('guide component --json prints the group parent and the lifecycle, '
         'feature, and design_source fields with their export keys', () async {
-      final runner = await runnerFor(
-        packs: shippedPinsConfig([
-          'prd-core',
-          'software-tech',
-          'software-design-system',
-        ]),
-      );
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
 
       final schema = await schemaOf(runner, 'component');
       expect(schema['parent'], 'component_group');
@@ -1502,13 +1490,7 @@ items:
       'guide contributing --json sets export false and guide tokens --json '
       'holds the built-in fields, no perTarget, and one required section',
       () async {
-        final runner = await runnerFor(
-          packs: shippedPinsConfig([
-            'prd-core',
-            'software-tech',
-            'software-design-system',
-          ]),
-        );
+        final runner = await runnerFor(packs: softwareDesignSystemConfig());
 
         expect((await schemaOf(runner, 'contributing'))['export'], false);
         final tokens = await schemaOf(runner, 'tokens');
@@ -1530,13 +1512,7 @@ items:
 
     test('guide guidelines, guide setup, and guide component print their '
         'statements and rules', () async {
-      final runner = await runnerFor(
-        packs: shippedPinsConfig([
-          'prd-core',
-          'software-tech',
-          'software-design-system',
-        ]),
-      );
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
 
       expect(await runner.run(['guide', 'guidelines']), 0);
       expect(
@@ -1585,9 +1561,7 @@ items:
 
       final all = await runnerFor(
         packs: shippedPinsConfig([
-          'prd-core',
-          'software-tech',
-          'software-design-system',
+          ...softwareDesignSystemPacks,
           'agent-skills',
         ]),
       );
