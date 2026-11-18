@@ -639,6 +639,77 @@ void main() {
       expect(notice.lineAfter(), _line);
     });
 
+    test('a connection that does not open within 30 s writes no end write '
+        'and the kept latest decides', () async {
+      final home = await _home(
+        record: _recordText(_now.subtract(_day * 2), _newest),
+      );
+      final timers = <Duration>[];
+      // Every timer runs 100 times shorter, so 30 s fires in 300 ms.
+      final notice = IOOverrides.runZoned(
+        () => runZoned(
+          () => UpdateNotice(
+            console: FakeConsole(
+              stdoutIsTerminal: true,
+              stderrIsTerminal: true,
+            ),
+            environment: const {},
+            home: home,
+            executable: '${home.path}/.specstone/bin/specstone',
+            latestReleaseUrl: Uri.parse('http://127.0.0.1:9/'),
+            runningVersion: _running,
+            clock: () => _now,
+          )..start(const ['folder']),
+          zoneSpecification: ZoneSpecification(
+            createTimer: (self, parent, zone, duration, callback) {
+              timers.add(duration);
+              return parent.createTimer(zone, duration ~/ 100, callback);
+            },
+          ),
+        ),
+        socketStartConnect:
+            (host, port, {sourceAddress, sourcePort = 0}) async =>
+                ConnectionTask.fromSocket(Completer<Socket>().future, () {}),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+
+      expect(timers, contains(const Duration(seconds: 30)));
+      expect(_read(home), {
+        'checkedAt': _now.toIso8601String(),
+        'latest': _newest,
+      });
+      expect(notice.lineAfter(), _line);
+    });
+
+    test('two starts that read the same old record each send a request and '
+        'print the notice', () async {
+      final home = await _home(
+        record: _recordText(_now.subtract(_day * 2), null),
+      );
+      final site = await _Site.open();
+      UpdateNotice check(DateTime Function() clock) => UpdateNotice(
+        console: FakeConsole(stdoutIsTerminal: true, stderrIsTerminal: true),
+        environment: const {},
+        home: home,
+        executable: '${home.path}/.specstone/bin/specstone',
+        latestReleaseUrl: site.url,
+        runningVersion: _running,
+        clock: clock,
+      );
+      final second = check(() => _now);
+      // The first start asks the time after it read the record and before it
+      // writes the record, so the second start runs in that gap.
+      final first = check(() {
+        second.start(const ['folder']);
+        return _now;
+      })..start(const ['folder']);
+      await _until(() => site.requests.length == 2);
+      await _settle();
+
+      expect(first.lineAfter(), _line);
+      expect(second.lineAfter(), _line);
+    });
+
     test('a check run outside any project reads no project and still '
         'prints the notice', () async {
       final home = await _home(
