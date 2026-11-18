@@ -418,10 +418,18 @@ void main() {
         '# Login v2\n',
       );
       file(project, featureKey).writeAsStringSync(edited);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('BEGIN IMMEDIATE')
-        ..execute("DELETE FROM docs WHERE doc_path = '$featureDoc'")
-        ..close();
+      final dying = IndexStore.open(docs.projectRoot);
+      expect(
+        () => dying.write(() {
+          dying
+            ..putDoc(parsed(featureDoc, edited))
+            ..setStatKey(featureDoc, null);
+          throw StateError('process killed part way');
+        }),
+        throwsStateError,
+      );
+      expect(dying.hashes(), committed);
+      dying.close();
 
       final store = IndexStore.open(docs.projectRoot);
       addTearDown(store.close);

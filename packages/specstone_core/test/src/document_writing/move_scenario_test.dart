@@ -1003,20 +1003,23 @@ void main() {
     });
 
     test('a link inside the moved scenario to a scenario that stays reaches the source story', () async {
-      const stays = '$_toAddItem/USER_STORY.md#scenario-1--edge-case-1';
       final root = await _project(
         add: [
           _scenario(1),
           _scenario(2).replaceFirst(
             'sees case 2',
-            'sees case 2, as [Scenario 1]($stays) gives',
+            'sees case 2, as [Scenario 1](#scenario-1--edge-case-1) gives',
           ),
         ],
       );
       _move(root, ['$_addItem#S2']);
       expect(
         readDoc(root, cartDrop),
-        contains('sees case 2, as [Scenario 1]($stays) gives'),
+        contains(
+          'sees case 2, as '
+          '[Scenario 1](../us01_add_item/USER_STORY.md#scenario-1--edge-case-1)'
+          ' gives',
+        ),
       );
     });
 
