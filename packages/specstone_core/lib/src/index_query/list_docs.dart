@@ -41,7 +41,7 @@ final class ListFilters {
 
 /// Returns the docs of [docTypeId] that pass [filters], in tree order.
 ///
-/// A doc holding a string `summary` ends its line with ` — <summary>` and
+/// A doc holding a summary with text ends its line with ` — <summary>` and
 /// carries a `summary` key in JSON.
 ///
 /// Throws a [TemplateFault] for a doc type id the set lacks, an
@@ -86,7 +86,7 @@ String _listLine(DocIndex index, IndexedDoc doc, String? codeTarget) {
   return summary == null ? '$line\n' : '$line — $summary\n';
 }
 
-/// Returns [doc]'s JSON object with a `summary` key when it holds a string.
+/// Returns [doc]'s JSON object with a `summary` key when it holds a summary with text.
 Map<String, Object> _listJson(
   DocIndex index,
   IndexedDoc doc,

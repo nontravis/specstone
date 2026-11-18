@@ -864,11 +864,13 @@ FieldEntry _parseField(
   );
 }
 
+const _defaultLanguage = 'default';
+
 /// Returns the field `lint` of [entry], or null when absent.
 ///
 /// [prefix] is the field's key prefix. Throws `unknown_key` for a key other
-/// than the three, `unknown_value` for a bad value, and `missing_key` for one
-/// sentence map written without the other.
+/// than the three, `unknown_value` for a bad value, and `missing_key` for a
+/// sentence map without `default` or written without the other.
 FieldCaps? _fieldCaps(
   YamlMap entry, {
   required String file,
@@ -912,6 +914,19 @@ FieldCaps? _fieldCaps(
     file: file,
     prefix: lintPrefix,
   );
+  for (final (key, caps) in [
+    ('max_sentence_words', words),
+    ('max_sentence_chars', chars),
+  ]) {
+    if (caps != null && !caps.containsKey(_defaultLanguage)) {
+      throw TemplateFault(
+        FaultCode.missingKey,
+        'the key $_defaultLanguage of $key is required',
+        file: file,
+        key: '$lintPrefix$key.$_defaultLanguage',
+      );
+    }
+  }
   if ((words == null) != (chars == null)) {
     final absent = words == null ? 'max_sentence_words' : 'max_sentence_chars';
     throw TemplateFault(

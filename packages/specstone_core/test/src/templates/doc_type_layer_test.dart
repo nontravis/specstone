@@ -1154,6 +1154,35 @@ lint:
         );
       });
 
+      test('a map without default is missing_key naming its default', () {
+        const cases = {
+          'max_sentence_words': '{max_sentence_words: {ko: 10}, max_sentence_chars: {default: 9}}',
+          'max_sentence_chars': '{max_sentence_words: {default: 9}, max_sentence_chars: {th: 10}}',
+        };
+        for (final MapEntry(key: map, value: lint) in cases.entries) {
+          expect(
+            () => lintOf(lint),
+            throwsA(
+              _fault(
+                FaultCode.missingKey,
+                key: 'fields.summary.lint.$map.default',
+              ),
+            ),
+            reason: map,
+          );
+        }
+      });
+
+      test('a map with default and a language entry loads', () {
+        final caps = lintOf(
+          '{max_sentence_words: {default: 9, ko: 10}, '
+          'max_sentence_chars: {default: 9, th: 10}}',
+        );
+
+        expect(caps?.maxSentenceWords, {'default': 9, 'ko': 10});
+        expect(caps?.maxSentenceChars, {'default': 9, 'th': 10});
+      });
+
       test('one map without its partner is missing_key naming the absent '
           'key', () {
         expect(
