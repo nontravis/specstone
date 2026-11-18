@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/reference_links.dart';
@@ -16,6 +17,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/agent_skills.dart';
+import '../../helpers/check_fixture.dart' show checkOf;
 import '../../helpers/fixture_doc_types.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
@@ -1549,6 +1551,32 @@ void main() {
       );
     });
 
+    test('a Sources link naming no doc is refused by format and reported by '
+        'check as an unresolved doc link at that line', () async {
+      final project = await openSkillProject({
+        skill: skillDocText(sources: [tokensLink, missingLink]),
+        tokens: tokensDoc,
+      });
+
+      final refused = format(project, check: true);
+      final report = await checkOf(project.root);
+
+      expect(
+        refused.toText(),
+        '$skill: refused: skill_source_missing: the source names no doc: '
+        '../design_system/OLD.md\n',
+      );
+      final broken = report.findings.where(
+        (f) => f.kind == FindingKind.linkUnresolved,
+      );
+      expect(broken, hasLength(1));
+      expect(broken.single.path, 'specs/skills/review.md');
+      expect(
+        broken.single.line,
+        project.read(skill).split('\n').indexOf('- $missingLink') + 1,
+      );
+    });
+
     test('a refused skill doc whose own text would change is refused and '
         'left byte for byte', () async {
       final text = skillOutOfOrder([missingLink]);
@@ -1613,6 +1641,25 @@ void main() {
 
       expect(project.file(output).existsSync(), isFalse);
     });
+
+    test(
+      'a source under the target with its skill doc outside it writes no '
+      'reference file, and a check over the docs root lists the file',
+      () async {
+        final project = await openSkillProject({
+          skill: skillDocText(sources: [tokensLink]),
+          tokens: tokensDoc,
+        });
+
+        final scoped = format(project, target: 'docs/specs/design_system');
+        final listed = format(project, check: true);
+
+        expect(scoped.toText(), '');
+        expect(project.file(output).existsSync(), isFalse);
+        expect(listed.toText(), '$tokensReference\n');
+        expect(listed.exitStatus, 1);
+      },
+    );
 
     group('--check', () {
       const oldReference = '$output/references/specs/old.md';

@@ -371,7 +371,7 @@ void main() {
         containsPair('note', '(INV-4)'),
       ),
     );
-    expect(found.single.message, contains(_noGuideTail));
+    expect(found.single.message, endsWith('$_noGuideTail$citeNoteGuideLine'));
   });
 
   test('a note that closes its item gives none', () async {
@@ -381,14 +381,28 @@ void main() {
     expect(found, isEmpty);
   });
 
-  test('each message ends with the guide line of its kind', () async {
-    final words = await _found(_edgeCase(_sentenceOf(30)));
+  test('a length message carries no guide sentence', () async {
+    final words = await _found(_edgeCase(_sentenceOf(31)));
     expect(
       words.single.message,
-      endsWith('$_noGuideTail$sentenceLengthGuideLine'),
+      'the longest sentence holds 31 words; '
+      'the limit is 25 words for language default',
     );
-    final note = await _found(_edgeCase('A (INV-4) b.'));
-    expect(note.single.message, endsWith('$_noGuideTail$citeNoteGuideLine'));
+    final thai = await _found(_edgeCase('${'ก' * 120}.'));
+    expect(
+      thai.single.message,
+      'the longest sentence holds 120 characters; '
+      'the limit is 100 characters for language th',
+    );
+    final raised = await _found({
+      ..._domainWith('- **INV-1** — ${_sentenceOf(31)}'),
+      _domainLayer: 'lint:\n  max_sentence_words:\n    default: 30\n',
+    });
+    expect(
+      raised.single.message,
+      'the longest sentence holds 31 words; '
+      'the limit is 30 words for language default',
+    );
   });
 
   test('a korean sentence takes the ko word cap', () async {
@@ -554,7 +568,7 @@ void main() {
     });
   });
 
-  test('guide line constants match every shipped guide', () async {
+  test('the cite-note guide line matches every shipped guide', () async {
     final project = await writeCheckProject();
     final types = TemplateResolver()
         .resolve(workingDirectory: project, homeDirectory: null)
@@ -569,7 +583,6 @@ void main() {
     });
     for (final type in types) {
       final lines = type.description!.split('\n');
-      expect(lines, contains(sentenceLengthGuideLine), reason: type.id);
       expect(lines, contains(citeNoteGuideLine), reason: type.id);
     }
   });

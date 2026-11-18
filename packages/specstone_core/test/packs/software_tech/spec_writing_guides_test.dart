@@ -34,6 +34,16 @@ const _itemShapes = <String, String>{
   'project_auth': 'one matrix row per resource and operation',
 };
 
+/// The doc types whose item-shape line still says each rule is one sentence.
+const _sentenceRuleIds = {
+  'api',
+  'integration',
+  'auth',
+  'implementation',
+  'project_integration',
+  'project_auth',
+};
+
 void main() {
   late MergedSet set;
   setUpAll(() async {
@@ -147,7 +157,11 @@ void main() {
       for (final MapEntry(key: id, value: shape) in _itemShapes.entries) {
         expect(
           descriptionOf(id),
-          contains('Write one rule per ID: $shape, each rule one sentence.'),
+          contains(
+            'Write one rule per ID: $shape'
+            '${_sentenceRuleIds.contains(id) ? ', each rule one sentence' : ''}'
+            '.',
+          ),
           reason: id,
         );
       }

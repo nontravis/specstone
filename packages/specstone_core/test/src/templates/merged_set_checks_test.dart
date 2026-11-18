@@ -1219,6 +1219,64 @@ void main() {
         ),
       );
     });
+
+    const requiredWithRule =
+        'path: a.md\nsections: [{id: a, header: A, required: true, lint: '
+        '{required_when: {section: b, field: Kind, value: api}}}, '
+        '{id: b, header: B}]\n';
+    const requiredOnly =
+        'path: a.md\nsections: [{id: a, header: A, required: true}, '
+        '{id: b, header: B}]\n';
+    const ruleOnly =
+        'sections: [{id: a, lint: '
+        '{required_when: {section: b, field: Kind, value: api}}}]\n';
+
+    Matcher requiredPairFault(String file) => throwsA(
+      isA<TemplateFault>()
+          .having((f) => f.code, 'code', FaultCode.unknownValue)
+          .having((f) => f.file, 'file', file)
+          .having((f) => f.key, 'key', 'sections.a.lint.required_when')
+          .having(
+            (f) => f.message,
+            'message',
+            'a required section takes no required_when',
+          ),
+    );
+
+    test('a required section with required_when is refused', () {
+      expect(
+        () => checkRunbook([requiredWithRule]),
+        requiredPairFault(lowerFile),
+      );
+    });
+
+    test('a required flag in one layer and required_when in another is '
+        'refused naming the higher writer', () {
+      expect(
+        () => checkRunbook([requiredOnly, ruleOnly]),
+        requiredPairFault(upperFile),
+      );
+      expect(
+        () => checkRunbook([
+          ruleOnAWithB,
+          'sections: [{id: a, required: true}]\n',
+        ]),
+        requiredPairFault(upperFile),
+      );
+    });
+
+    test('an optional section with required_when loads', () {
+      expect(() => checkRunbook([ruleOnAWithB]), returnsNormally);
+      expect(
+        () => checkRunbook([
+          ruleOnAWithB.replaceFirst(
+            'header: A,',
+            'header: A, required: false,',
+          ),
+        ]),
+        returnsNormally,
+      );
+    });
   });
 
   group('checkMergedSet when_field', () {

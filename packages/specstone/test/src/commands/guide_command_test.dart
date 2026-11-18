@@ -18,6 +18,13 @@ import '../../helpers/temp_tree.dart';
 const _configPath = '.specstone/config.yaml';
 const _guideUsage = 'Usage: specstone guide [type …] [--json]';
 
+/// The doc `Limits:` line of a doc type whose layers set no limit.
+const _docLimits =
+    'Limits: at most 600 characters per item; '
+    'at most 25 words per sentence (ko 17); '
+    'at most 100 characters per sentence in a script with no spaces '
+    '(th 100, ja 60, zh 45).';
+
 /// A project doc type that adds `fr` beside the shipped fixture's two.
 const _frLayer = <String, String>{
   '.specstone/templates/fr.yaml':
@@ -164,7 +171,7 @@ void main() {
       expect(
         out.toString(),
         'A feature groups the stories that serve one goal.\n\n'
-        'Second paragraph.\n\n'
+        'Second paragraph.\n\n$_docLimits\n\n'
         '## Feature goal\n\n'
         'Optional section.\n'
         'Why, problem, and audience, one sentence each.\n',
@@ -525,9 +532,9 @@ void main() {
       expect(
         out.toString(),
         '==> fr <==\n'
-        'One requirement.\n'
+        'One requirement.\n\n$_docLimits\n'
         '==> user_story <==\n'
-        'One story\n',
+        'One story\n\n$_docLimits\n',
       );
       expect(err.toString(), isEmpty);
     });
@@ -537,7 +544,7 @@ void main() {
       final runner = await runnerIn(await projectWith(_frLayer));
 
       expect(await runner.run(['guide', 'fr', 'fr']), 0);
-      expect(out.toString(), 'One requirement.\n');
+      expect(out.toString(), 'One requirement.\n\n$_docLimits\n');
       expect(err.toString(), isEmpty);
     });
 
@@ -549,15 +556,15 @@ void main() {
       expect(
         out.toString(),
         '==> user_story <==\n'
-        'One story\n'
+        'One story\n\n$_docLimits\n'
         '==> feature <==\n'
         'A feature groups the stories that serve one goal.\n\n'
-        'Second paragraph.\n\n'
+        'Second paragraph.\n\n$_docLimits\n\n'
         '## Feature goal\n\n'
         'Optional section.\n'
         'Why, problem, and audience, one sentence each.\n'
         '==> fr <==\n'
-        'One requirement.\n',
+        'One requirement.\n\n$_docLimits\n',
       );
       expect(err.toString(), isEmpty);
     });
@@ -619,9 +626,9 @@ void main() {
       expect(
         out.toString(),
         '==> user_story <==\n'
-        'An overridden story.\n'
+        'An overridden story.\n\n$_docLimits\n'
         '==> fr <==\n'
-        'One requirement.\n',
+        'One requirement.\n\n$_docLimits\n',
       );
       expect(err.toString(), isEmpty);
     });
@@ -955,10 +962,75 @@ void main() {
             final isRequired =
                 section['required'] == true || section['requiredWhen'] != null;
             final word = isRequired ? 'Required' : 'Optional';
-            final mark = isConditional ? '$word when ' : '$word section.\n';
+            final mark = isConditional ? '$word when ' : '$word section.';
             expect(
               text,
               contains('## ${section['header']}\n\n$mark'),
+              reason: '$id.${section['id']}',
+            );
+          }
+        }
+      });
+
+      test('the guide of a shipped type prints its limits lines', () async {
+        const sectionSizeKeys = {
+          'minLines',
+          'maxLines',
+          'maxChars',
+          'maxItemLines',
+          'maxSubsections',
+          'itemCount',
+          'maxSentences',
+        };
+        final project = await writeTree({_configPath: shippedPinsConfig()});
+        final ids = const LineSplitter().convert(await guideOut(project, []));
+        expect(ids, isNotEmpty);
+
+        for (final id in ids) {
+          final text = await guideOut(project, [id]);
+          final json = jsonDecode(
+            await guideOut(project, [id, '--json']),
+          ) as Map<String, Object?>;
+          final docLines = text
+              .split('\n')
+              .where((line) => line.startsWith('Limits: '));
+          expect(docLines, hasLength(1), reason: id);
+
+          for (final field
+              in (json['fields']! as List<Object?>)
+                  .cast<Map<String, Object?>>()) {
+            final fieldId = field['id']! as String;
+            final start = text.indexOf('\n- `$fieldId` (');
+            if (start < 0) continue;
+            final next = text.indexOf('\n- `', start + 1);
+            final end = next < 0 ? text.indexOf('\n\nLimits: ', start) : next;
+            final line = text.substring(start, end);
+            expect(
+              line.contains('\n  Limits: '),
+              ((field['lint'] as Map<String, Object?>?) ?? {}).isNotEmpty,
+              reason: '$id.$fieldId',
+            );
+            final targets = (field['docTypes'] as List<Object?>?) ?? const [];
+            if (targets.isNotEmpty) {
+              expect(
+                line,
+                contains(' → ${targets.join(', ')})'),
+                reason: '$id.$fieldId',
+              );
+            }
+          }
+          for (final section
+              in (json['sections']! as List<Object?>)
+                  .cast<Map<String, Object?>>()) {
+            final lint = (section['lint'] as Map<String, Object?>?) ?? {};
+            final start = text.indexOf('## ${section['header']}\n\n');
+            final line = text.substring(
+              start,
+              text.indexOf('\n', start + '## ${section['header']}\n\n'.length),
+            );
+            expect(
+              line.contains(' Limits: '),
+              lint.keys.any(sectionSizeKeys.contains),
               reason: '$id.${section['id']}',
             );
           }
@@ -1199,7 +1271,7 @@ items:
 
       out.clear();
       expect(await runner.run(['guide', 'auth']), 0);
-      expect(out.toString(), 'The auth doc type.\n');
+      expect(out.toString(), 'The auth doc type.\n\n$_docLimits\n');
     });
 
     test('a doc type id is no pattern id under --pattern', () async {
@@ -1830,6 +1902,70 @@ items:
       expect(err.toString(), isEmpty);
     });
 
+    test('guide component prints its description, then the twelve sections in '
+        'order', () async {
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
+
+      expect(await runner.run(['guide', 'component']), 0);
+
+      final text = out.toString();
+      final headers = RegExp(
+        r'^## (.+)$',
+        multiLine: true,
+      ).allMatches(text).map((m) => m[1]).toList();
+      expect(headers, [
+        'Purpose',
+        'When to use',
+        'Anatomy',
+        'Variants',
+        'States',
+        'Props',
+        'Tokens',
+        'Do',
+        "Don't",
+        'Examples',
+        'Keyboard',
+        'Accessibility',
+      ]);
+      final description = text.indexOf("A component: one component's contract");
+      expect(description, 0);
+      expect(
+        text.indexOf('The component doc holds no code'),
+        lessThan(text.indexOf('## Purpose')),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide --pattern <id> prints 5 to 15 item lines, then the Pattern '
+        'sources lines, for each campaign pattern', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      for (final id in [
+        'product_launch',
+        'promotion',
+        'referral',
+        'retention',
+      ]) {
+        out.clear();
+        expect(await runner.run(['guide', '--pattern', id]), 0, reason: id);
+
+        final lines = const LineSplitter().convert(out.toString());
+        final sources = lines.indexOf('Pattern sources:');
+        expect(sources, greaterThan(0), reason: id);
+        final items = lines
+            .sublist(0, sources)
+            .where((l) => l.startsWith('- **'));
+        expect(items.length, inInclusiveRange(5, 15), reason: id);
+        final after = lines.sublist(sources + 1);
+        expect(after, isNotEmpty, reason: id);
+        expect(after, everyElement(startsWith('- ')), reason: id);
+        expect(after, everyElement(contains('https://')), reason: id);
+      }
+      expect(err.toString(), isEmpty);
+    });
+
     test('guide --pattern on a project listing all four packs prints the ten '
         'ids of software-tech', () async {
       final tech = await runnerFor();
@@ -2100,7 +2236,7 @@ items:
           stringContainsInOrder([
             'A journey: ',
             'Keep one goal of one persona, from the start',
-            '## Goal\n\nRequired section.\n',
+            '## Goal\n\nRequired section. Limits: at most 1 line.\n',
             '## Flow\n\nRequired section.\n',
             '## Steps\n\nRequired section.\n',
           ]),
@@ -2118,9 +2254,9 @@ items:
         out.toString(),
         stringContainsInOrder([
           'The project glossary doc: ',
-          'Keep each entry to 300 characters or fewer',
-          '## Terms\n\nOptional section.\n',
-          '- **<Term>** — <one-line definition tying to a concrete entity>',
+          'at most 300 characters per item',
+          '## Terms\n\nOptional section. Limits: at most 1 line per item.\n',
+          '- **<Term>** — <definition tying to a concrete entity>',
         ]),
       );
       expect(err.toString(), isEmpty);

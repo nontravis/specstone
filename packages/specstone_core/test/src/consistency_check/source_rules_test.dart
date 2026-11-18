@@ -172,6 +172,63 @@ void main() {
     expect(_sources(await checkOf(project)), isEmpty);
   }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
+  test(
+    'a web URL opens no network connection while check reads the doc',
+    () async {
+      final project = await _project([
+        'https://www.figma.com/design/abc/Kit?node-id=12-34',
+        'http://example.com/kit.fig',
+      ]);
+      final connects = <Object?>[];
+      final clients = <Object?>[];
+
+      final report = await HttpOverrides.runZoned(
+        () => IOOverrides.runZoned(
+          () => checkOf(project),
+          socketConnect:
+              (host, port, {sourceAddress, sourcePort = 0, timeout}) {
+                connects.add(host);
+                throw const SocketException('no connection expected');
+              },
+        ),
+        createHttpClient: (context) {
+          clients.add(context);
+          throw const SocketException('no client expected');
+        },
+      );
+
+      expect(_sources(report), isEmpty);
+      expect(connects, isEmpty);
+      expect(clients, isEmpty);
+    },
+  );
+
+  test(
+    'a symbolic link to an unreadable file gives no finding, since only '
+    'its existence is read',
+    () async {
+      final project = await _project(
+        ['design/kit.fig'],
+        extra: {'real.fig': 'x'},
+      );
+      Directory('${project.path}/design').createSync();
+      final target = File('${project.path}/real.fig');
+      Link('${project.path}/design/kit.fig').createSync(target.path);
+      expect(Process.runSync('chmod', ['000', target.path]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', target.path]));
+      expect(
+        () => target.openSync().closeSync(),
+        throwsA(isA<FileSystemException>()),
+        reason: 'the probe needs a file this user cannot open',
+      );
+
+      expect(_sources(await checkOf(project)), isEmpty);
+    },
+    skip: Platform.isWindows
+        ? 'file modes need chmod, which Windows lacks'
+        : null,
+  );
+
   test('a symbolic link to nothing is source_path_missing', () async {
     final project = await _project(['design/kit.fig']);
     Directory('${project.path}/design').createSync();

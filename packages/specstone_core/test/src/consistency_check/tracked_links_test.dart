@@ -1021,7 +1021,7 @@ void main() {
       return '---\n'
           '${draft ? 'draft: true\n' : ''}'
           '${confirmed.isEmpty ? '' : 'confirmed:\n$entries'}'
-          '---\n\n# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\n'
+          '---\n\n# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\nSign in.\n\n'
           '## Steps\n\n${steps.join('\n')}\n';
     }
 
@@ -1070,7 +1070,7 @@ void main() {
       expect(
         missing.findings.single.textLine,
         startsWith(
-          '$journeyPath:17: unconfirmed: $label1 has no confirmed entry; read Scenario 1 of $loginStory below, then record $label1 with the fingerprint after it',
+          '$journeyPath:19: unconfirmed: $label1 has no confirmed entry; read Scenario 1 of $loginStory below, then record $label1 with the fingerprint after it',
         ),
       );
 

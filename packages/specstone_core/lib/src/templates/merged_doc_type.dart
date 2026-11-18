@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/guide_limits.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/summary_rows.dart';
@@ -354,6 +355,7 @@ final class MergedSection {
     this.maxSentences,
     this.itemCount,
     this.maxSubsections,
+    this.maxItemLines,
     this.whenField,
     this.isOutputRef = false,
   });
@@ -454,6 +456,9 @@ final class MergedSection {
   /// The most `###` subsections the section holds; null when no layer sets it.
   final int? maxSubsections;
 
+  /// The most non-blank lines one item holds; null when no layer sets it.
+  final int? maxItemLines;
+
   /// The doc field and values that bind [required]; null when no layer sets
   /// it.
   final WhenField? whenField;
@@ -489,6 +494,7 @@ final class MergedSection {
     List<SentenceLimit>? maxSentences,
     ItemCountLint? itemCount,
     int? maxSubsections,
+    int? maxItemLines,
     WhenField? whenField,
     bool? isOutputRef,
   }) => MergedSection(
@@ -518,6 +524,7 @@ final class MergedSection {
     maxSentences: maxSentences ?? this.maxSentences,
     itemCount: itemCount ?? this.itemCount,
     maxSubsections: maxSubsections ?? this.maxSubsections,
+    maxItemLines: maxItemLines ?? this.maxItemLines,
     whenField: whenField ?? this.whenField,
     isOutputRef: isOutputRef ?? this.isOutputRef,
   );
@@ -546,6 +553,7 @@ final class MergedSection {
       'maxSentences': ?maxSentences?.map((l) => l.toJson()).toList(),
       'itemCount': ?itemCount?.toJson(),
       'maxSubsections': ?maxSubsections,
+      'maxItemLines': ?maxItemLines,
     };
     return {
       'id': id,
@@ -956,12 +964,13 @@ final class MergedDocType {
   /// Returns the writing guide, each block set off by a blank line.
   ///
   /// The description and the doc-level banned words come first, then the
-  /// `Fields:` block of the declared non-built-in [fields], then each
-  /// section's header, required, optional, or condition line and description,
-  /// own banned words, and template, then the `Guide sources:` block of
-  /// [reference]. A banned word list drops the allowed words that apply there,
-  /// as `check` does; a description, word list, template, field set, or
-  /// [reference] list left empty adds no block.
+  /// `Fields:` block of the declared non-built-in [fields], then the doc
+  /// `Limits:` line, then each section's header, required, optional, or
+  /// condition line with its `Limits:`, description, own banned words, and
+  /// template, then the `Guide sources:` block of [reference]. A banned word
+  /// list drops the allowed words that apply there, as `check` does; a
+  /// description, word list, template, field set, or [reference] list left
+  /// empty adds no block.
   String renderGuide() {
     final docAllowed = lint.allowedWords ?? const <String>[];
     final sources = reference ?? const <ReferenceEntry>[];
@@ -969,6 +978,7 @@ final class MergedDocType {
       ?_trimmedOrNull(description),
       ?_bannedWordsLine(lint.bannedWords, allowed: docAllowed),
       ?_fieldsBlock(),
+      docLimitsLine(lint),
       for (final section in sections) ...[
         '## ${section.header}',
         [
@@ -985,18 +995,21 @@ final class MergedDocType {
       if (sources.isNotEmpty)
         ['Guide sources:', ...sources.map(referenceSourceLine)].join('\n'),
     ];
-    return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+    return '${blocks.join('\n\n')}\n';
   }
 
   /// Returns the line under [section]'s header that says when the section is
   /// required, optional, or left out.
   ///
   /// A `required_when` rule always makes the section required while it holds.
+  /// The section's `Limits:` clause ends the line.
   String _requirementLine(MergedSection section) {
     final whenField = section.whenField;
     final requiredWhen = section.requiredWhen;
+    final limits = sectionLimitsClause(section) ?? '';
     if (whenField == null && requiredWhen == null) {
-      return section.required ? 'Required section.' : 'Optional section.';
+      final mark = section.required ? 'Required' : 'Optional';
+      return '$mark section.$limits';
     }
     final conditions = [
       if (whenField != null)
@@ -1006,7 +1019,7 @@ final class MergedDocType {
     final mark = requiredWhen != null || section.required
         ? 'Required'
         : 'Optional';
-    return '$mark when ${conditions.join(' and ')}; left out otherwise.';
+    return '$mark when ${conditions.join(' and ')}; left out otherwise.$limits';
   }
 
   String _itemCondition(RequiredWhenLint rule) {
@@ -1035,17 +1048,23 @@ final class MergedDocType {
   }
 
   /// Returns the guide line of [field]; a description line after the first is
-  /// indented two spaces.
+  /// indented two spaces, and a `Limits:` line follows them.
+  ///
+  /// A `doc_ref` field with target doc types names them after its type.
   static String _fieldLine(MergedField field) {
     final flag = field.required ? 'required' : 'optional';
+    final targets = field.docTypes ?? const <String>[];
+    final type = '${field.type.wire}${field.list ? ' list' : ''}';
     final kind = [
-      '${field.type.wire}${field.list ? ' list' : ''}',
+      if (targets.isEmpty) type else '$type → ${targets.join(', ')}',
       ?field.enumValues?.join(', '),
     ];
     final head = '- `${field.id}` ($flag, ${kind.join(': ')})';
     final description = _trimmedOrNull(field.description);
-    if (description == null) return head;
-    return '$head — ${description.split('\n').join('\n  ')}';
+    final line = description == null
+        ? head
+        : '$head — ${description.split('\n').join('\n  ')}';
+    return [line, ?fieldLimitsLine(field.lint)].join('\n');
   }
 
   static final _backtickRun = RegExp('`+');

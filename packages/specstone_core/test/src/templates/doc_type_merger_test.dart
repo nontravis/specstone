@@ -1872,10 +1872,12 @@ lint: {title_no_number: true}
       final merged = project(
         base(),
         'sections: [{id: notes, header: Notes, lint: {min_lines: 1, '
+        'max_item_lines: 4, '
         'item_fields: [{field: Why}], diagram: {title: true}}}]',
       );
       final notes = merged.sections.singleWhere((s) => s.id == 'notes');
       expect(notes.minLines, 1);
+      expect(notes.maxItemLines, 4);
       expect(notes.itemFields?.single.field, 'Why');
       expect(notes.diagram?.title, isTrue);
     });
@@ -1903,6 +1905,25 @@ lint: {title_no_number: true}
       expect(section.itemCount?.max, 3);
       expect(section.itemCount?.perSubsection, isFalse);
       expect(section.itemCount?.prefixes, isEmpty);
+    });
+
+    test("an upper layer's max_item_lines wins the merge", () {
+      final lowerLimit = project(
+        base(),
+        'sections: [{id: invariants, lint: {max_item_lines: 6}}]',
+      );
+      expect(invariants(lowerLimit).maxItemLines, 6);
+      final upper = project(
+        lowerLimit,
+        'sections: [{id: invariants, lint: {max_item_lines: 3}}]',
+      );
+      expect(invariants(upper).maxItemLines, 3);
+      expect(invariants(base()).maxItemLines, isNull);
+      final sparse = project(
+        lowerLimit,
+        'sections: [{id: invariants, lint: {min_lines: 1}}]',
+      );
+      expect(invariants(sparse).maxItemLines, 6);
     });
 
     test('an upper max_sentences list replaces the lower list whole', () {

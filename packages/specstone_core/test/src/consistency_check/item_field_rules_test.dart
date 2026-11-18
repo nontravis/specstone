@@ -61,11 +61,15 @@ const _held =
 
 late Directory _project;
 
-Map<String, String> _withRationale(String body, {bool behavior = false}) =>
-    edit(loginFr, [
-      ('A wrong password must not sign in.', body),
-      if (behavior) ('## Rationale', '## Behavior\n\nSteps.\n\n## Rationale'),
-    ]);
+Map<String, String> _withRationale(
+  String body, {
+  bool behavior = false,
+  String behaviorBody = 'Steps.',
+}) => edit(loginFr, [
+  ('A wrong password must not sign in.', body),
+  if (behavior)
+    ('## Rationale', '## Behavior\n\n$behaviorBody\n\n## Rationale'),
+]);
 
 Future<List<Finding>> _found(
   Map<String, String> edits, {
@@ -179,6 +183,65 @@ void main() {
       ),
     );
     expect(found, isEmpty);
+  });
+
+  test(
+    'a blank required_when section whose condition is met is missing',
+    () async {
+      final found = await _found(
+        _withRationale(
+          '- **R1** Refuse it.\n'
+          '  - **Enforcer:** CheckRun\n'
+          '  - **Consistency:** eventual',
+          behavior: true,
+          behaviorBody: '',
+        ),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.requiredSectionMissing);
+      expect(found.single.line, lineOfFirst(_project, loginFr, '## Behavior'));
+      expect(found.single.toJson(), containsPair('section', 'behavior'));
+    },
+  );
+
+  test(
+    'a blank required_when section whose condition is unmet is unneeded',
+    () async {
+      final found = await _found(
+        _withRationale(_held, behavior: true, behaviorBody: ''),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.sectionUnneeded);
+      expect(found.single.line, lineOfFirst(_project, loginFr, '## Behavior'));
+    },
+  );
+
+  test('a lone sentence under item_fields draws no field finding', () async {
+    final found = await _found(_withRationale('A plain sentence.'));
+    expect(found, isEmpty);
+  });
+
+  test('a sentence between an item and its fields cuts them off', () async {
+    final found = await _found(
+      _withRationale(
+        '- **R1** Refuse it.\n\n'
+        'A plain sentence.\n\n'
+        '  - **Enforcer:** CheckRun',
+      ),
+    );
+    expect(found, hasLength(2));
+    expect(
+      found.map((f) => f.kind),
+      everyElement(FindingKind.itemFieldMissing),
+    );
+    expect(
+      found.map((f) => f.line),
+      everyElement(lineOfFirst(_project, loginFr, '- **R1**')),
+    );
+    expect(
+      found.map((f) => f.toJson()['field']),
+      unorderedEquals(['Enforcer', 'Consistency']),
+    );
   });
 
   test('a doc type that sets neither key runs no item-field rule', () async {

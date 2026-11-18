@@ -231,6 +231,43 @@ void main() {
     expect(err.toString(), isEmpty);
   });
 
+  test(
+    'a blank and a missing required section share one key set in json',
+    () async {
+      final project = await writeCheckProject(
+        extra: edit(loginFr, [
+          ('## Rationale\n\nA wrong password must not sign in.\n\n', ''),
+          (
+            '## Verification\n\nTest: a wrong password is refused.\n',
+            '## Verification\n',
+          ),
+        ]),
+      );
+      final blankLine =
+          File('${project.path}/docs/$loginFr')
+              .readAsLinesSync()
+              .indexWhere((text) => text == '## Verification') +
+          1;
+      final (:runner, :out, :err) = readRunner(project);
+      expect(await runner.run(['check', '--json']), 1);
+      final findings = [
+        for (final f
+            in ((jsonDecode(out.toString())
+                        as Map<String, Object?>)['findings']!
+                    as List)
+                .cast<Map<String, Object?>>())
+          if (f['docPath'] == loginFr &&
+              f['kind'] == 'required_section_missing')
+            f,
+      ];
+      final missing = findings.singleWhere((f) => f['line'] == 1);
+      final blank = findings.singleWhere((f) => f['line'] != 1);
+      expect(blank['line'], blankLine);
+      expect(blank.keys.toSet(), missing.keys.toSet());
+      expect(err.toString(), isEmpty);
+    },
+  );
+
   group('code link', () {
     final current = fileCodeFingerprint(
       utf8.encode(checkProjectFiles()['app/lib/login.dart']!),

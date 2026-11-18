@@ -2,15 +2,14 @@ id: tech_stack
 description: |-
   The project's technology stack: one small set of tables that an Agent loads on most calls.
   Title it `# Tech stack`, with no number.
-  Aim for about 80 lines; keep one fact per table cell and write rows that a reader can check.
+  Keep one fact per table cell and write rows that a reader can check.
   Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   The target's record holds each story's and FR's status and code paths; `code` names the target's own code only.
   Hold no secret in any row.
   Leave performance and scale to the project-wide and per-story non-functional requirements.
-  Write one rule per ID: one Stack row per slot, each rule one sentence.
+  Write one rule per ID: one Stack row per slot.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
   This includes a rule of a project spec doc or of an ancestor feature's spec doc.
-  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
   Put a cite or an ownership note at the item's end.
   Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
@@ -41,6 +40,10 @@ sections:
       Keep the Architecture row to one line pointing at the architecture docs.
       Add the rows Primary dependencies, Testing, and Target platform.
       Write the exact version in Version, since the Agent prefers the stack you establish.
+    lint:
+      max_sentences:
+        - count: 1
+          column: Why
   - id: constraints
     header: Constraints
     description: |-
@@ -51,7 +54,6 @@ sections:
     required: true
     description: |-
       Record the project's naming canonicalization: one canonical noun per concept, and the casing of each artifact once.
-      Rows may exceed five when keys, members, or types need their own rows.
   - id: avoid
     header: Avoid
     description: |-
