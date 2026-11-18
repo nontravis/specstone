@@ -371,6 +371,18 @@ void main() {
     },
   );
 
+  test('a minor of any length moves up by one', () async {
+    for (final (minor, next) in [
+      ('9223372036854775807', '9223372036854775808'),
+      ('9223372036854775808', '9223372036854775809'),
+      ('99999999999999999999', '100000000000000000000'),
+    ]) {
+      git(repo.work, ['tag', 'v0.$minor.0', 'develop']);
+
+      await expectVersion('0.$next.0-dev.0');
+    }
+  });
+
   test('tags outside the Version form or the commit are skipped', () async {
     for (final name in ['vnext', 'v1.2', 'release-2.0.0']) {
       git(repo.work, ['tag', name, 'develop']);
