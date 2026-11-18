@@ -3,6 +3,8 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
 import 'package:specstone_core/src/document_writing/item_landing.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
@@ -14,6 +16,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/override_link_fixture.dart'
     show domainDoc, overrideFiles, rootAddress, rootFingerprint;
@@ -1219,5 +1222,88 @@ void main() {
         expect(readDoc(root, cartRecord), before);
       },
     );
+
+    group('a row stamped before the move', () {
+      const landedCase = '1. E02 — Case 1 → refused.';
+      const movedRow = '- add_item/check_stock E01: `refuses a sold-out item`';
+
+      Future<Directory> stamped(
+        String soldOutStamp, {
+        bool holdsPayRecord = true,
+      }) => writeNestedProject(
+        extra: {
+          ...nestedRecords()
+            ..removeWhere((path, _) => !holdsPayRecord && path == payRecord),
+          'docs/$cartAddFr': fr([1, 2]),
+          'docs/$dropFr': fr([1]),
+          'docs/$chargeFr': fr([1]),
+          cartRecord:
+              '${nestedRecords()[cartRecord]}$matrix'
+              '$movedRow $soldOutStamp\n'
+              '$missingRow ${fingerprintFor('2. E02 — Case 2 → refused.')}\n',
+        },
+      );
+
+      Future<List<Object?>> unsettledLinks(Directory root) async => [
+        for (final finding in (await checkOf(
+          root,
+          docPath: cartRecord,
+        )).findings)
+          if (finding.kind == FindingKind.suspect ||
+              finding.kind == FindingKind.unconfirmed)
+            finding.keys['link'],
+      ];
+
+      test(
+        "a moved edge case's matched row is stamped from its landed block",
+        () async {
+          final root = await stamped(
+            fingerprintFor('1. E01 — Case 1 → refused.'),
+          );
+          move(root, under: 'fr:shop/cart/add_item/drop_stock');
+          expect(readDoc(root, dropFr), contains('$landedCase\n'));
+          expect(
+            readDoc(root, cartRecord),
+            contains(
+              '- add_item/drop_stock E02: `refuses a sold-out item` '
+              '${fingerprintFor(landedCase)}\n',
+            ),
+          );
+          expect(await unsettledLinks(root), isEmpty);
+        },
+      );
+
+      test("a moved edge case's stale row is left as recorded", () async {
+        final stale = fingerprintFor('1. E01 — An old text → refused.');
+        final root = await stamped(stale);
+        move(root, under: 'fr:shop/cart/add_item/drop_stock');
+        expect(
+          readDoc(root, cartRecord),
+          contains(
+            '- add_item/drop_stock E02: `refuses a sold-out item` $stale\n',
+          ),
+        );
+        expect(await unsettledLinks(root), ['add_item/drop_stock#E02']);
+      });
+
+      test(
+        'a row carried into a new record is stamped from its landed block',
+        () async {
+          final root = await stamped(
+            fingerprintFor('1. E01 — Case 1 → refused.'),
+            holdsPayRecord: false,
+          );
+          move(root, under: 'fr:shop/pay/card/charge');
+          expect(readDoc(root, chargeFr), contains('$landedCase\n'));
+          expect(
+            readDoc(root, payRecord),
+            contains(
+              '- card/charge E02: `refuses a sold-out item` '
+              '${fingerprintFor(landedCase)}\n',
+            ),
+          );
+        },
+      );
+    });
   });
 }

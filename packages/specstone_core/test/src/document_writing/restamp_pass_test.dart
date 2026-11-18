@@ -207,7 +207,7 @@ void main() {
       expect(await _suspects(root), ['add_item/check_stock#E02']);
     });
 
-    test('an entry the pass never judged keeps its bytes, and so does the matched entry sharing its fingerprint', () async {
+    test('an entry the pass never judged keeps its bytes, and the matched entry sharing its fingerprint takes the new one', () async {
       final scenario = _scenario(
         'Add an item',
         given: 'a shopper, as [drop]($_dropLink) shows',
@@ -228,9 +228,12 @@ void main() {
           'prds/features/f02_shop/f01_cart/us02_add_item/fr01_check_stock.md';
       expect(
         readDoc(root, movedFr),
-        contains('confirmed:\n  - S1 $recorded\n  - S2 $recorded\n'),
+        contains(
+          'confirmed:\n  - S1 ${fingerprintFor(reordered(scenario))}\n'
+          '  - S2 $recorded\n',
+        ),
       );
-      expect(await _suspects(root), ['S1']);
+      expect(await _suspects(root), isEmpty);
     });
   });
 

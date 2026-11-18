@@ -2,12 +2,14 @@ import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/item_mentions.dart';
+import 'package:specstone_core/src/document_writing/item_moves.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_feature.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
+import 'package:specstone_core/src/document_writing/restamp_pass.dart';
 import 'package:specstone_core/src/document_writing/rewrite_item_refs.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
     show rewriteMovedFrTraces;
@@ -467,26 +469,29 @@ ReadAnswer answerItemMove(
   }
   return session.locked(() {
     session.journalTarget.requireTrusted();
-    final planned = planItemRefs(session, landings);
+    final itemRefs = planItemRefs(session, landings);
     final records = planEdgeCaseRowMoves(session, landings);
     final refs = ItemRefs(
-      edits: _chained(planned.edits, records.edits),
-      listed: planned.listed,
+      edits: _chained(itemRefs.edits, records.edits),
+      listed: itemRefs.listed,
     );
-    final rewrites = planRewrites(
+    final planned = planRewrites(
       session,
       const [],
       docEdits: refs.edits,
-    ).rewrites;
+      creates: records.creates,
+      blocks: BlockMoves.of(ItemMoves(session.index, landings)),
+    );
     final mentions = itemMentions(session, landings, refs: refs);
     if (!dryRun) {
-      MoveJournal([...rewrites, ...records.creates]).run(session.journalTarget);
+      MoveJournal([...planned.rewrites, ...planned.creates])
+          .run(session.journalTarget);
     }
     return _answerFor(
       session,
       const [],
-      rewrites,
-      created: records.creates,
+      planned.rewrites,
+      created: planned.creates,
       mentions: mentions,
       landings: landings,
       dryRun: dryRun,
