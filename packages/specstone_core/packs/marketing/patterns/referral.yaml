@@ -1,0 +1,32 @@
+id: referral
+description: a program in which customers bring new customers
+items:
+  - id: program_type
+    text: The program states its type, whether customers who refer, affiliates, or partners.
+  - id: advocate_groups
+    text: The program names its advocate groups, such as everyday customers, top advocates, affiliates, and partners.
+  - id: trigger_moments
+    text: The program names the moments when a customer is asked to refer, such as right after a good result.
+  - id: share_mechanism
+    text: The program states how a customer shares, by link, code, or invite, and how a referral is credited.
+  - id: incentive_structure
+    text: The program states the reward for the customer who refers and for the person referred.
+  - id: reward_fit
+    text: Each reward matches what its advocate group values.
+  - id: reward_tiers
+    text: Higher rewards go to the top advocates through tiers.
+  - id: actions_beyond_referrals
+    text: The program rewards actions beyond a referral, such as a review or a case study.
+  - id: referral_metrics
+    text: The program counts referrals sent, referrals that convert, and the revenue they bring.
+  - id: referred_first_use
+    text: A referred customer is guided to first use, so that customer can refer in turn.
+reference:
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md
+  - title: Amplitude, AARRR pirate metrics
+    url: https://amplitude.com/blog/pirate-metrics-framework
+  - title: Ortto, Marketing funnel explained
+    url: https://ortto.com/learn/marketing-funnel-explained/
+  - title: Extole, Reward brand advocates
+    url: https://www.extole.com/blog/how-to-reward-brand-advocates-effectively-rewards-tiers-and-community-programs/

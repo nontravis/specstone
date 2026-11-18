@@ -1826,6 +1826,62 @@ items:
       expect(err.toString(), isEmpty);
     });
 
+    test('guide --pattern lists the campaign patterns of marketing, and the '
+        'ten of software-tech beside them in code point order', () async {
+      const campaign = ['product_launch', 'promotion', 'referral', 'retention'];
+      final marketing = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+      expect(await marketing.run(['guide', '--pattern']), 0);
+      expect(const LineSplitter().convert(out.toString()), campaign);
+
+      out.clear();
+      expect(await marketing.run(['guide', '--pattern', '--json']), 0);
+      final entries = (jsonDecode(out.toString()) as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(entries.map((e) => e['pack']), everyElement('marketing'));
+      expect(entries.map((e) => e['description']), [
+        'a launch of a new product or feature to its audience',
+        'a time-boxed offer that drives sales',
+        'a program in which customers bring new customers',
+        'a program that keeps existing customers buying',
+      ]);
+
+      out.clear();
+      final both = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'software-tech', 'marketing']),
+      );
+      expect(await both.run(['guide', '--pattern']), 0);
+      final ids = const LineSplitter().convert(out.toString());
+      expect(ids, hasLength(14));
+      expect(ids, List.of(ids)..sort());
+      expect(ids, containsAll(campaign));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('a project pattern file named like a campaign pattern lists it once '
+        'and keeps marketing as its pack', () async {
+      final runner = await runnerFor(
+        working: await writeTree({
+          _configPath: shippedPinsConfig(['prd-core', 'marketing']),
+          '.specstone/templates/patterns/promotion.yaml': '''
+id: promotion
+items:
+  - id: partner_codes
+    text: Each partner gets its own code.
+''',
+        }),
+      );
+
+      expect(await runner.run(['guide', '--pattern', '--json']), 0);
+      final entries = (jsonDecode(out.toString()) as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final promotions = entries.where((e) => e['id'] == 'promotion');
+      expect(promotions, hasLength(1));
+      expect(promotions.single['pack'], 'marketing');
+      expect(err.toString(), isEmpty);
+    });
+
     test('every shipped feature pattern prints', () async {
       final runner = await runnerFor();
       expect(await runner.run(['guide', '--pattern']), 0);
