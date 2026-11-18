@@ -96,40 +96,38 @@ void main() {
       contains('Inbound\n- traced_from: $frName (fr)\n'),
     );
   });
+  test('a story of another feature is listed, one that resolves to no story is not', () async {
+    final traced = await withFrTracing([
+      'signup/create_account#S1',
+      'nowhere/story#S1',
+    ]);
+    final text = answerRefs(traced, frName).text;
+    expect(
+      text,
+      contains('- traced_from: signup/create_account (user_story)\n'),
+    );
+    expect(text, isNot(contains('nowhere')));
+    expect(
+      answerRefs(traced, 'signup/create_account').text,
+      contains('- traced_from: $frName (fr)\n'),
+    );
+  });
   test(
-    'a story of '
-    'another feature is listed, one that resolves to no story is not',
+    'a repeated depends_on value prints one outbound and one inbound line',
     () async {
-      final traced = await withFrTracing([
-        'signup/create_account#S1',
-        'nowhere/story#S1',
-      ]);
-      final text = answerRefs(traced, frName).text;
+      final repeated = await indexWith({
+        'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\n  - login\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
+      });
       expect(
-        text,
-        contains('- traced_from: signup/create_account (user_story)\n'),
+        answerRefs(repeated, 'feature:signup').text,
+        contains('Outbound\n- depends_on: login (feature)\nInbound\n'),
       );
-      expect(text, isNot(contains('nowhere')));
       expect(
-        answerRefs(traced, 'signup/create_account').text,
-        contains('- traced_from: $frName (fr)\n'),
+        answerRefs(repeated, 'feature:login').text,
+        contains('Inbound\n- depends_on: signup (feature)\nMentions\n'),
       );
     },
   );
-  test('a repeated '
-      'depends_on value prints one outbound and one inbound line', () async {
-    final repeated = await indexWith({
-      'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\n  - login\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
-    });
-    expect(
-      answerRefs(repeated, 'feature:signup').text,
-      contains('Outbound\n- depends_on: login (feature)\nInbound\n'),
-    );
-    expect(
-      answerRefs(repeated, 'feature:login').text,
-      contains('Inbound\n- depends_on: signup (feature)\nMentions\n'),
-    );
-  });
   test(
     'a depends_on '
     'value naming the doc itself is no reference, outbound or inbound',
@@ -145,15 +143,17 @@ void main() {
       );
     },
   );
-  test('one doc in '
-      'depends_on and reference prints one line per field', () async {
-    final both = await indexWith({
-      'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\nreference:\n  - login\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
-    });
-    final text = answerRefs(both, 'feature:signup').text;
-    expect(text, contains('- depends_on: login (feature)\n'));
-    expect(text, contains('- reference: login (feature)\n'));
-  });
+  test(
+    'one doc in depends_on and reference prints one line per field',
+    () async {
+      final both = await indexWith({
+        'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\nreference:\n  - login\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
+      });
+      final text = answerRefs(both, 'feature:signup').text;
+      expect(text, contains('- depends_on: login (feature)\n'));
+      expect(text, contains('- reference: login (feature)\n'));
+    },
+  );
   test('an empty depends_on '
       'list or an empty item prints - none', () async {
     for (final value in ['[]', '\n  - ""']) {
@@ -1078,5 +1078,126 @@ void main() {
         );
       });
     }
+  });
+
+  group('references and mentions of one doc', () {
+    const buyer = 'docs/prds/personas/buyer/PERSONA.md';
+    const buyerPath = 'prds/personas/buyer/PERSONA.md';
+    const specsIndex = 'docs/specs/INDEX.md';
+
+    test("a doc's body link to its story is an outbound link and the story's inbound link", () async {
+      final story = answerRefs(index, 'login/email_login').text;
+      expect(story, contains('Inbound\n- link: $frName (fr)\n'));
+      final fr = answerRefs(index, frName).text;
+      expect(
+        fr,
+        contains('Outbound\n- link: login/email_login (user_story)\nInbound\n'),
+      );
+    });
+
+    test('a vision or goal ID cited in a doc is no reference and no mention of the doc that states it', () async {
+      final cited = await indexWith({
+        'docs/prds/GOAL.md':
+            '# Project goals\n\n## Mid-term goals\n\n### PG-01 — Cost\n\n'
+            '- **Serves:** PV-01\n',
+        buyer:
+            '# Buyer\n\n## Snapshot\nServes PV-01 and `PG-01`, PG-01 again.\n',
+      });
+      expect(
+        answerRefs(cited, 'prds/GOAL.md').text,
+        '==> goal (goal) · prds/GOAL.md <==\n'
+        'Outbound\n- none\nInbound\n- none\nMentions\n- none\n'
+        'Untyped mentions\n- none\n',
+      );
+    });
+
+    test('a doc the markdown parser fails on lists no link but keeps its doc_ref and the others link', () async {
+      const unparsed = '\n[a]:<b\\';
+      final parsed = await indexWith({
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+            '${loginProject['docs/prds/features/f01_login/us01_email_login/USER_STORY.md']}$unparsed',
+        emailFr: '${loginProject[emailFr.replaceFirst('docs/', '')]}$unparsed',
+      });
+      final story = answerRefs(parsed, 'login/email_login').text;
+      expect(
+        story,
+        contains('Outbound\n- persona: buyer (persona)\nInbound\n- none\n'),
+      );
+      expect(
+        answerRefs(parsed, 'password_rules').text,
+        contains('Inbound\n- none\n'),
+      );
+      expect(
+        answerRefs(parsed, 'persona:buyer').text,
+        contains('Inbound\n- persona: login/email_login (user_story)\n'),
+      );
+    });
+
+    test('a typed doc naming a doc by plain path or in a code span, frontmatter included, lists each line under Mentions', () async {
+      final mentions = await indexWith({
+        specsIndex: '# Spec map\n\nThe old index.\n',
+        buyer:
+            '---\nrole: Buyer\npriority: primary\nbasis: specs/INDEX.md\n---\n\n'
+            '# Buyer\n\n## Snapshot\nSee specs/INDEX.md in words.\n'
+            'Also `specs/INDEX.md` here.\n',
+      });
+      final answer = answerRefs(mentions, 'specs/INDEX.md');
+      expect(
+        answer.text,
+        contains(
+          'Mentions\n- $buyerPath:4\n- $buyerPath:10\n- $buyerPath:11\n'
+          'Untyped mentions\n- none\n',
+        ),
+      );
+      expect(
+        (answer.json['docs']! as List).single as Map,
+        containsPair('mentions', [
+          {'path': buyerPath, 'line': 4},
+          {'path': buyerPath, 'line': 10},
+          {'path': buyerPath, 'line': 11},
+        ]),
+      );
+    });
+
+    test('a path inside fenced code or a link destination is no mention and a linking line gives its inbound link only', () async {
+      final mentions = await indexWith({
+        specsIndex: '# Spec map\n\nThe old index.\n',
+        buyer:
+            '# Buyer\n\n## Snapshot\n```text\nspecs/INDEX.md\n```\n'
+            'Open [the map](../../../specs/INDEX.md); specs/INDEX.md has it.\n',
+      });
+      expect(
+        answerRefs(mentions, 'specs/INDEX.md').text,
+        '==> specs/INDEX.md · specs/INDEX.md <==\n'
+        'Outbound\n- none\nInbound\n- link: buyer (persona)\n'
+        'Mentions\n- none\nUntyped mentions\n- none\n',
+      );
+    });
+
+    test('a path with a folder slash after the file name is no mention while a bare file name one doc carries is', () async {
+      final mentions = await indexWith({
+        specsIndex: '# Spec map\n\nThe old index.\n',
+        buyer:
+            '# Buyer\n\n## Snapshot\nSee INDEX.md/ and specs/INDEX.md/ and '
+            'OLD_INDEX.md and INDEX.md.bak here.\n'
+            'Control: INDEX.md names it.\n',
+      });
+      expect(
+        answerRefs(mentions, 'specs/INDEX.md').text,
+        contains('Mentions\n- $buyerPath:5\nUntyped mentions\n- none\n'),
+      );
+    });
+
+    test('a code span naming a doc is a mention under Mentions and adds no inbound line', () async {
+      final mentions = await indexWith({
+        buyer: '# Buyer\n\n## Snapshot\nUses `login/reset_password` daily.\n',
+      });
+      expect(
+        answerRefs(mentions, 'login/reset_password').text,
+        '==> login/reset_password (user_story) · prds/features/f01_login/us02_reset_password/USER_STORY.md <==\n'
+        'Outbound\n- none\nInbound\n- none\n'
+        'Mentions\n- $buyerPath:4\nUntyped mentions\n- none\n',
+      );
+    });
   });
 }
