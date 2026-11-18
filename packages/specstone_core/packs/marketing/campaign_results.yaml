@@ -1,0 +1,29 @@
+id: campaign_results
+description: |-
+  The results of one campaign: its funnel, channels, and spend, beside its campaign.
+  Title it `# <Campaign name> results`, with no number.
+  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
+  A learning edits the doc it corrects.
+  A campaign's results never go under `measurements/`, which keeps the project goals' measurements alone.
+  Cite a small report file, such as a CSV or a short PDF, by markdown link; keep it in the `results/` folder, and keep large binary files out.
+path: specs/f{nn}_{slug}/results/RESULTS.md
+parent: campaign
+sections:
+  - id: funnel
+    header: Funnel
+    required: true
+    description: |-
+      Write the count at each lifecycle stage the campaign moved customers through.
+  - id: channels
+    header: Channels
+    required: true
+    description: |-
+      Write the results of each channel the campaign used.
+  - id: spend
+    header: Spend
+    required: true
+    description: |-
+      Write what the campaign cost, by channel.
+reference:
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

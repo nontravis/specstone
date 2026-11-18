@@ -1,0 +1,19 @@
+id: lifecycle
+description: |-
+  The lifecycle doc: the stages a customer passes from awareness to loyalty, and what moves a customer on.
+  Title it `# Lifecycle`, with no number.
+  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
+  A learning edits the doc it corrects.
+path: specs/marketing/LIFECYCLE.md
+sections:
+  - id: stages
+    header: Stages
+    description: |-
+      List the stages from awareness to loyalty, in order.
+  - id: triggers
+    header: Triggers
+    description: |-
+      Write what moves a customer from one stage to the next.
+reference:
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

@@ -6,6 +6,7 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/marketing.dart';
 import '../../../../specstone_core/test/helpers/prd_core.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/software_design_system.dart';
@@ -1474,6 +1475,7 @@ items:
             ...prdCoreIds,
             ...softwareTechIds,
             ...softwareDesignSystemIds,
+            ...marketingIds,
             'skill',
           ]..sort(),
         );
@@ -1664,6 +1666,51 @@ items:
         contains('Could not find a doc type named "skill".\n\n$_guideUsage'),
       );
       expect(out.toString(), isEmpty);
+    });
+
+    test('a project listing prd-core alone refuses guide campaign with the '
+        'usage', () async {
+      final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
+
+      expect(await runner.run(['guide', 'campaign']), 64);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "campaign".\n\n$_guideUsage'),
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test('guide campaign_results --json and guide positioning --json print '
+        'their parent and sections with no perTarget', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+      List<Map<String, Object?>> sectionsOf(Map<String, Object?> schema) =>
+          (schema['sections']! as List<Object?>).cast<Map<String, Object?>>();
+
+      final results = await schemaOf(runner, 'campaign_results');
+      expect(results['parent'], 'campaign');
+      expect(results.containsKey('perTarget'), isFalse);
+      expect(sectionsOf(results).map((s) => s['id']), [
+        'funnel',
+        'channels',
+        'spend',
+      ]);
+      expect(sectionsOf(results).map((s) => s['required']), everyElement(true));
+
+      final positioning = await schemaOf(runner, 'positioning');
+      expect(positioning.containsKey('perTarget'), isFalse);
+      expect(sectionsOf(positioning).map((s) => s['id']), [
+        'competitive_alternatives',
+        'unique_attributes',
+        'value',
+        'best_fit_customers',
+        'market_category',
+      ]);
+      expect(
+        sectionsOf(positioning).map((s) => s['required']),
+        everyElement(isNot(true)),
+      );
     });
 
     test('with only prd-core a software-tech type is neither listed nor '
