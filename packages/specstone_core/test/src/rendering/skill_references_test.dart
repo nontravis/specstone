@@ -95,6 +95,21 @@ void main() {
       expect(_texts(_plan(project), _skill).keys, [_tokensReference]);
     });
 
+    test('reads a reference-style Sources link whose definition sits in '
+        'another section, and no link outside Sources', () async {
+      final project = await openSkillProject({
+        _skill:
+            '---\noutput: $_output/\ncovers:\n  - $_output/SKILL.md\n---\n\n'
+            '# review\n\n## Purpose\n\nReviews the UI, as $_buttonLink '
+            'shows.\n\n[tokens]: ../design_system/foundations/TOKENS.md\n\n'
+            '## Sources\n\n- [Tokens][tokens]\n',
+        _button: _buttonDoc,
+        _tokens: _tokensDoc,
+      });
+
+      expect(_texts(_plan(project), _skill), {_tokensReference: _tokensDoc});
+    });
+
     test('plans nothing for a skill doc outside the target, though a '
         'source lies under it', () async {
       final project = await openSkillProject({
@@ -252,6 +267,20 @@ void main() {
       );
     });
 
+    test('as missing a source, naming the link as the Owner wrote '
+        'it', () async {
+      final project = await openSkillProject({
+        _skill: skillDocText(sources: ['[Old](<../design_system/old doc.md>)']),
+      });
+
+      _expectRefused(
+        _plan(project),
+        _skill,
+        SkillRefusalCode.skillSourceMissing,
+        'the source names no doc: ../design_system/old doc.md',
+      );
+    });
+
     test('as missing before not exported when the sources hold '
         'both', () async {
       final project = await openSkillProject({
@@ -278,6 +307,16 @@ void main() {
       (
         'outside the project root',
         '../shared/skills/review/',
+        'the output folder is outside the project root',
+      ),
+      (
+        'rooted at a slash on every OS',
+        '/shared/skills/review/',
+        'the output folder is outside the project root',
+      ),
+      (
+        'rooted at a drive on every OS',
+        'C:skills',
         'the output folder is outside the project root',
       ),
       (

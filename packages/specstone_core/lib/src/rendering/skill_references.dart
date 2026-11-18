@@ -1,13 +1,22 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:markdown/markdown.dart' show Element, Node;
+import 'package:markdown/markdown.dart'
+    show
+        BlockParser,
+        Delimiter,
+        Document,
+        Element,
+        ExtensionSet,
+        InlineParser,
+        Line,
+        LinkSyntax,
+        Node,
+        SimpleDelimiter;
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
-import 'package:specstone_core/src/doc_model/markdown_body.dart'
-    show parseMarkdownTree;
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show RelativeLink, readLinkTarget;
@@ -31,6 +40,8 @@ const _sourcesSectionId = 'sources';
 const _outputFieldId = 'output';
 const _referencesFolder = 'references';
 const _frontmatterOpenLine = '---\n';
+final _rootedOutput = RegExp(r'^(?:[/\\]|[A-Za-z]:)');
+final _angleInlineOpen = RegExp(r'\]\(\s*<');
 
 // MARK: - Link actions
 
@@ -247,12 +258,12 @@ final class _Planner {
       return refused(SkillRefusalCode.skillOutputNotAllowed, folderRefusal);
     }
     final sources = <String, _Source>{};
-    for (final href in _sourceHrefsOf(skill)) {
-      final source = _sourceOf(href, skill.docPath);
+    for (final link in _sourceLinksOf(skill)) {
+      final source = _sourceOf(link.href, skill.docPath);
       if (source == null) {
         return refused(
           SkillRefusalCode.skillSourceMissing,
-          'the source names no doc: $href',
+          'the source names no doc: ${link.written}',
         );
       }
       sources.putIfAbsent(source.docPath, () => source);
@@ -417,9 +428,12 @@ String? _stringField(Doc doc, String fieldId) {
 }
 
 /// Returns the folder segments [output] walks down from the project root,
-/// `.` and `..` applied, or null when it is absolute or leaves the root.
+/// `.` and `..` applied, or null when it is rooted or leaves the root.
+///
+/// A leading `/` or `\`, or a drive such as `C:`, counts as rooted on every
+/// OS, so one config reads the same on each.
 List<String>? _segmentsOf(String output) {
-  if (File(output).isAbsolute) return null;
+  if (_rootedOutput.hasMatch(output)) return null;
   final separators = Platform.isWindows ? RegExp(r'[/\\]') : RegExp('/');
   final segments = <String>[];
   for (final segment in output.split(separators)) {
@@ -444,26 +458,99 @@ bool _overlaps(String folder, String other) =>
 String _crossesLink(String path) =>
     'the output path crosses a symbolic link: $path';
 
-/// Returns the href of each link in the skill doc's Sources section, in
-/// order; a footnote's own links are left out.
-List<String> _sourceHrefsOf(_SkillDoc skill) {
+/// Returns each link of the skill doc's Sources section, in order; a
+/// footnote's own links are left out.
+///
+/// A reference link may use a definition written anywhere in the doc: the
+/// block pass reads them all before the section is parsed. A doc `markdown`
+/// fails on yields no link.
+List<_SourceLink> _sourceLinksOf(_SkillDoc skill) {
   final index = sectionIndexOf(skill.doc, skill.docType, _sourcesSectionId);
   if (index == null) return const [];
-  final tree = parseMarkdownTree(skill.doc.sections[index].body);
-  if (tree == null) return const [];
-  final hrefs = <String>[];
+  final syntax = _WrittenLinkSyntax();
+  final List<Node> nodes;
+  try {
+    final document = Document(
+      extensionSet: ExtensionSet.gitHubFlavored,
+      inlineSyntaxes: [syntax],
+    );
+    BlockParser(
+      LineSplitter.split(skill.doc.afterFrontmatter).map(Line.new).toList(),
+      document,
+    ).parseLines();
+    nodes = document.parse(skill.doc.sections[index].body);
+  } on Object {
+    // `markdown` has no failure contract, so every thrown object counts.
+    return const [];
+  }
+  final links = <_SourceLink>[];
   void visit(List<Node> nodes) {
     for (final node in nodes) {
       if (node is! Element || _isFootnoteMade(node)) continue;
-      if (node.tag == 'a') {
-        if (node.attributes['href'] case final href?) hrefs.add(href);
+      final href = node.attributes['href'];
+      final written = syntax.written[node];
+      if (node.tag == 'a' && href != null && written != null) {
+        links.add(_SourceLink(href: href, written: written));
       }
       if (node.children case final children?) visit(children);
     }
   }
 
-  visit(tree.nodes);
-  return hrefs;
+  visit(nodes);
+  return links;
+}
+
+/// One Sources link: the href `markdown` gives it, and its destination as
+/// the Owner wrote it, angle brackets left out.
+final class _SourceLink {
+  new({required this.href, required this.written});
+
+  final String href;
+  final String written;
+}
+
+/// The link syntax `markdown` runs, keeping each link's destination as
+/// written before `markdown` escapes and percent-encodes it into the href.
+///
+/// `markdown` writes each space of an inline `<...>` destination as `%20`
+/// before the node is made, so such a destination turns it back.
+final class _WrittenLinkSyntax extends LinkSyntax {
+  final written = Map<Element, String>.identity();
+  bool _isAngleInline = false;
+
+  @override
+  Iterable<Node>? close(
+    InlineParser parser,
+    covariant SimpleDelimiter opener,
+    Delimiter? closer, {
+    String? tag,
+    required List<Node> Function() getChildren,
+  }) {
+    _isAngleInline =
+        _angleInlineOpen.matchAsPrefix(parser.source, parser.pos) != null;
+    return super.close(
+      parser,
+      opener,
+      closer,
+      tag: tag,
+      getChildren: getChildren,
+    );
+  }
+
+  @override
+  Node createNode(
+    String destination,
+    String? title, {
+    required List<Node> Function() getChildren,
+  }) {
+    final node = super.createNode(destination, title, getChildren: getChildren);
+    if (node is Element) {
+      written[node] = _isAngleInline
+          ? destination.replaceAll('%20', ' ')
+          : destination;
+    }
+    return node;
+  }
 }
 
 bool _isFootnoteMade(Element element) => switch (element.attributes['class']) {

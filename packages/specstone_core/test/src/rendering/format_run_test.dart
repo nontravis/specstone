@@ -993,8 +993,10 @@ void main() {
     const buttonBody = '# Primary button\n\n## Purpose\n\nStarts an action.\n';
     const buttonFormatted =
         '---\nlifecycle: stable\nfeature: login\n---\n\n$buttonBody';
+    // Format adds the blank line under the heading, which export keeps.
     const buttonOutOfOrder =
-        '---\nfeature: login\nlifecycle: stable\n---\n\n$buttonBody';
+        '---\nfeature: login\nlifecycle: stable\n---\n\n'
+        '# Primary button\n\n## Purpose\nStarts an action.\n';
     const buttonExported = '---\nlifecycle: stable\n---\n\n$buttonBody';
 
     String skillOutOfOrder(List<String> sources) {
