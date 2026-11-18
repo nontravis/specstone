@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';

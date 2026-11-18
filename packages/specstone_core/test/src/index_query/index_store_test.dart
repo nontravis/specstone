@@ -9,7 +9,7 @@ import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';

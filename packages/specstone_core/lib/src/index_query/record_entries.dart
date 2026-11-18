@@ -3,6 +3,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
     show withTemplateSection;

@@ -3,7 +3,7 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/record_status.dart';

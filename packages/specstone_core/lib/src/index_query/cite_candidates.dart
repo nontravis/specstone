@@ -15,7 +15,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart'
+import 'package:specstone_core/src/index_query/models/matrix_line.dart'
     show MatrixLine, TestRow;
 
 /// A cite candidate of a typed doc's body: the doc name or

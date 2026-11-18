@@ -8,7 +8,7 @@ import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart'
     show isVerifiedByTest, shownTargetName;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'

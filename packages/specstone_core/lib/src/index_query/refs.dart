@@ -3,7 +3,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
