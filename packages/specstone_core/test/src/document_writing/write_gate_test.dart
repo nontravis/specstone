@@ -692,6 +692,24 @@ void main() {
           : null,
     );
 
+    test('new writes a doc whose path has a .. that Windows collapses onto an '
+        'existing folder', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/templates/persona.yaml':
+              'path: "prds/missing/../personas/{slug}/PERSONA.md"\n',
+        },
+      );
+
+      writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x'));
+
+      expect(
+        File('${root.path}/docs/prds/personas/x/PERSONA.md').existsSync(),
+        isTrue,
+      );
+      expect(Directory('${root.path}/docs/prds/missing').existsSync(), isFalse);
+    }, testOn: 'windows');
+
     test(
       'new refuses a doc folder linked to a .. after a missing name',
       () async {
