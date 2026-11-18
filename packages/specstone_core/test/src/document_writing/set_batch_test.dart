@@ -757,7 +757,7 @@ void main() {
     );
     final text = getText(root, [_signOutUseCase]);
     expect(
-      RegExp('^## Use Case\$', multiLine: true).allMatches(text),
+      RegExp(r'^## Use Case$', multiLine: true).allMatches(text),
       hasLength(2),
       reason: 'both sections sit under one naming line',
     );
