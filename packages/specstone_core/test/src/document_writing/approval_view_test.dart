@@ -364,10 +364,21 @@ void main() {
       );
     });
 
+    test('a saved copy compares as approved and names no commit or path', () {
+      final draft = _draft(lookup: const SavedApprovedCopy(_old));
+      final view = _render(draft);
+
+      expect(view, contains('| old     | approved copy not yet committed |\n'));
+      expect(view, contains('| changes | field `verify_method` |\n'));
+      expect(view, isNot(contains('renamed from')));
+      expect(draftViewJson(draft)['lookup'], 'found');
+      expect(draftViewJson(draft).containsKey('renamedFrom'), isFalse);
+    });
+
     group('the uncommitted-approval hint', () {
       const hint =
-          'commit an approval before you edit the doc again; '
-          'the view compares against committed copies only';
+          'no copy of this approval is saved here or in a commit; '
+          'commit approvals before editing again';
       const approvedEdit =
           '---\nverify_method: demonstration\napproved: "0123456789ab"\n'
           '---\n\n# FR-01 — T\n\n## Statement\nA.\n\n## Rationale\nR2.\n';
@@ -387,7 +398,7 @@ void main() {
       test('a no-copy view of a doc with no approved: value has no hint', () {
         final view = _render(_draft(lookup: const NoApprovedCopy()));
 
-        expect(view, isNot(contains('commit an approval')));
+        expect(view, isNot(contains('commit approvals before editing')));
       });
 
       test('a view with an approved copy has no hint, approved: or not', () {

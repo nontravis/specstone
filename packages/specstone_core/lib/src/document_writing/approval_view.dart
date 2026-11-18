@@ -212,7 +212,7 @@ Map<String, Object> draftViewJson(DraftView draft) {
       'status': ?draft.status,
     'hash': baseHashOf(toLf(draft.text)),
     'lookup': switch (lookup) {
-      ApprovedCopy() => 'found',
+      ApprovedCopy() || SavedApprovedCopy() => 'found',
       NoApprovedCopy() => 'none',
       UnknownHistory() => 'unknown',
     },
@@ -244,20 +244,21 @@ String _onDocPathBase(String projectPath, DraftView draft) {
       : projectPath;
 }
 
-/// Returns the laid-out approved copy of [draft], or null when git found none.
+/// Returns the laid-out approved copy of [draft], or null when none was found.
 String? _approvedTextOf(DraftView draft) => switch (draft.lookup) {
-  ApprovedCopy(:final text) => comparableTextOf(text, draft.mergedType),
+  ApprovedCopy(:final text) ||
+  SavedApprovedCopy(:final text) => comparableTextOf(text, draft.mergedType),
   NoApprovedCopy() || UnknownHistory() => null,
 };
 
 const _noChange = 'no change since the approved copy';
 
 const _uncommittedApprovalHint =
-    'commit an approval before you edit the doc again; '
-    'the view compares against committed copies only';
+    'no copy of this approval is saved here or in a commit; '
+    'commit approvals before editing again';
 
-/// Whether [draft] has no committed approved copy yet carries an `approved:`
-/// value on disk, as a doc approved and then edited before any commit.
+/// Whether [draft] has no approved copy but carries an `approved:` value on
+/// disk, as a doc approved and then edited before any commit or saved copy.
 bool _warnsOfUncommittedApproval(DraftView draft) =>
     draft.lookup is NoApprovedCopy &&
     ApprovalFields.of(Doc.parse(toLf(draft.text))).approvedValue != null;
@@ -296,6 +297,7 @@ String _statusSpan(Map<String, String> byTarget) =>
 String _oldCell(ApprovalLookup lookup) => switch (lookup) {
   ApprovedCopy(:final commit) =>
     'approved copy in commit ${_codeSpan(commit.substring(0, 7))}',
+  SavedApprovedCopy() => 'approved copy not yet committed',
   NoApprovedCopy() => 'none: no commit holds an approved copy',
   UnknownHistory() => 'unknown: git cannot answer',
 };

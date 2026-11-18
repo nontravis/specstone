@@ -261,8 +261,8 @@ void main() {
       expect(
         out.toString(),
         contains(
-          'commit an approval before you edit the doc again; '
-          'the view compares against committed copies only\n',
+          'no copy of this approval is saved here or in a commit; '
+          'commit approvals before editing again\n',
         ),
       );
 
@@ -278,7 +278,10 @@ void main() {
         out.toString(),
         contains('| old     | none: no commit holds an approved copy |\n'),
       );
-      expect(out.toString(), isNot(contains('commit an approval')));
+      expect(
+        out.toString(),
+        isNot(contains('commit approvals before editing')),
+      );
     },
   );
   test('dry run with --yes is a usage error', () async {
@@ -636,10 +639,10 @@ void main() {
     expect(git(root, ['init', '-q']).exitCode, 0);
     expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
     commitAll(root, 'approved');
-    final file = File('${root.path}/docs/$story2');
-    file.writeAsStringSync(
-      story('draft: true\n', 'Sign out. Ends the session. Keeps the cart.'),
-    );
+    final file = File('${root.path}/docs/$story2')
+      ..writeAsStringSync(
+        story('draft: true\n', 'Sign out. Ends the session. Keeps the cart.'),
+      );
     final approve = writeRunner(root);
     expect(
       await approve.runner.run([

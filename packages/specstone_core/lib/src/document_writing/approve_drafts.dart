@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart' show sentencesOf;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/document_writing/approved_copy_store.dart';
 import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -13,6 +15,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _prompt = 'approve? [y/n/q] ';
@@ -29,7 +32,8 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// writes only when its bytes are those the Owner saw, else the draft shows
 /// again at the same position. `n` moves on; `q` and the end of input from
 /// [readLine] end the walk; any other answer asks again. An approval removes
-/// `draft` and writes the doc's ApprovalHash as `approved:`.
+/// `draft` and writes the doc's ApprovalHash as `approved:`, and saves the
+/// approved text in an [ApprovedCopyStore], which the walk's end prunes.
 /// Reads every selected draft, the approved copy of each, and every doc of the
 /// tree once, before the first view shows; with no draft waiting it reads none
 /// of them.
@@ -68,8 +72,9 @@ void approveDrafts(
       color: color,
       codeTarget: codeTarget,
     );
-    if (!_approveOne(session, doc, viewOf, readLine, out)) return;
+    if (!_approveOne(session, doc, viewOf, readLine, out)) break;
   }
+  _pruneApprovedCopies(session);
 }
 
 /// Returns the approval view of each typed draft, for the chat; writes nothing.
@@ -195,6 +200,7 @@ ReadAnswer approveNamed(
     for (final doc in drafts) {
       _writeApproval(session, doc, current[doc.docPath]!);
     }
+    _pruneApprovedCopiesLocked(session);
     return drafts.map(_addressOf).toList();
   });
   return ReadAnswer(
@@ -355,18 +361,23 @@ final class _RunReads {
   ) {
     final lookups = <String, ApprovalLookup>{};
     final approved = <String, String>{};
-    for (final _ShownDraft(:doc) in drafts) {
-      final lookup = history.lastApproved(
-        session.project.projectRoot,
-        session.projectPathOf(doc.docPath),
-        docType: session.index.typeOf(doc),
-      );
+    final store = ApprovedCopyStore(session.project.projectRoot);
+    for (final _ShownDraft(:doc, :bytes) in drafts) {
+      final type = session.index.typeOf(doc);
+      final markOnDisk = ApprovalFields.of(Doc.parse(toLf(utf8.decode(bytes))))
+          .approvedValue;
+      final lookup =
+          store.find(markOnDisk, type) ??
+          history.lastApproved(
+            session.project.projectRoot,
+            session.projectPathOf(doc.docPath),
+            docType: type,
+          );
       lookups[doc.docPath] = lookup;
-      if (lookup case ApprovedCopy(:final text)) {
-        approved[doc.docPath] = comparableTextOf(
-          text,
-          session.index.typeOf(doc),
-        );
+      switch (lookup) {
+        case ApprovedCopy(:final text) || SavedApprovedCopy(:final text):
+          approved[doc.docPath] = comparableTextOf(text, type);
+        case NoApprovedCopy() || UnknownHistory():
       }
     }
     return _RunReads._(lookups, approved, {
@@ -514,7 +525,37 @@ void _writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
     session.index.typeOf(doc),
     statusesOutside: session.project.statusesOutsideApproval,
   );
-  session.writeDoc(doc.docPath, approved, LineEnding.of(text));
+  final written = session.writeDoc(doc.docPath, approved, LineEnding.of(text));
+  ApprovedCopyStore(session.project.projectRoot).save(written);
+}
+
+/// Takes the lock and prunes the saved approved copies (see
+/// [_pruneApprovedCopiesLocked]); a busy lock skips it, as the next run prunes.
+void _pruneApprovedCopies(WriteSession session) {
+  try {
+    session.locked(() => _pruneApprovedCopiesLocked(session));
+  } on IndexFault catch (fault) {
+    if (fault.code != IndexFaultCode.indexBusy) rethrow;
+  }
+}
+
+/// Deletes each saved approved copy whose hash no doc on disk carries as its
+/// `approved:` value; runs under the lock.
+///
+/// A doc that cannot be read leaves every copy in place.
+void _pruneApprovedCopiesLocked(WriteSession session) {
+  final carried = <String>{};
+  try {
+    for (final doc in session.index.docs) {
+      final mark = ApprovalFields.of(
+        Doc.parse(_textOnDisk(session, doc.docPath)),
+      ).approvedValue;
+      if (mark is String) carried.add(mark);
+    }
+  } on RenderFault {
+    return;
+  }
+  ApprovedCopyStore(session.project.projectRoot).prune(carried);
 }
 
 bool _sameBytes(List<int> a, List<int> b) {
