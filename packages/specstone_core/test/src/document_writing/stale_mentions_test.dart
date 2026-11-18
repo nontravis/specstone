@@ -297,7 +297,7 @@ void main() {
           session,
           renameLogin,
           renamed: renamedNamesOf(session, renameLogin),
-        ),
+        ).rewrites,
       ).singleWhere((step) => step.path == 'docs/$note').text;
 
       expect(

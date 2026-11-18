@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart'
     show markdownUnparsedWarning;
+import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -933,12 +934,15 @@ void main() {
       expect(after.size, before.size);
       // A stat that a copy or a clock lag leaves equal to the stored one.
       store.write(
-        () => store.setStatKey(featureDoc, (
-          size: after.size,
-          modified: after.modified.microsecondsSinceEpoch,
-          changed: after.changed.microsecondsSinceEpoch,
-          mode: after.mode,
-        )),
+        () => store.setStatKey(
+          featureDoc,
+          FileStatKey(
+            size: after.size,
+            modified: after.modified.microsecondsSinceEpoch,
+            changed: after.changed.microsecondsSinceEpoch,
+            mode: after.mode,
+          ),
+        ),
       );
 
       final hidden = refresh(project);

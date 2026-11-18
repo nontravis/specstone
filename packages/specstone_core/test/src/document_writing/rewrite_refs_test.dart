@@ -1257,7 +1257,7 @@ void main() {
           extra: {'docs/$fr12': mentionOnly},
         );
         final text = stepText(
-          writeIn(project, (s) => planRewrites(s, reorderMoves)),
+          writeIn(project, (s) => planRewrites(s, reorderMoves).rewrites),
           fr12,
         );
         expect(text, contains('`../us01_reset_password/USER_STORY.md`'));
@@ -1382,7 +1382,7 @@ void main() {
             renamed: RenamedNames({
               const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
             }),
-          ),
+          ).rewrites,
         ),
         story1,
       );
