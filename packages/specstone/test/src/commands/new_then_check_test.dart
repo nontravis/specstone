@@ -44,4 +44,41 @@ void main() {
       containsAll(['required_section_missing', 'field_undeclared']),
     );
   });
+
+  test(
+    'a domain skeleton lists its blank required sections in check',
+    () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['new', 'domain', '--parent', 'login']),
+        0,
+        reason: '$err',
+      );
+      const docPath = 'specs/f01_login/DOMAIN.md';
+      final entitiesLine =
+          readDoc(root, docPath).split('\n').indexOf('## Entities') + 1;
+      expect(entitiesLine, greaterThan(0));
+
+      final (runner: checker, out: checkOut, err: checkErr) = writeRunner(root);
+      await checker.run(['check', '--json']);
+      final findings =
+          ((jsonDecode(checkOut.toString())
+                      as Map<String, Object?>)['findings']!
+                  as List<Object?>)
+              .cast<Map<String, Object?>>()
+              .where((finding) => finding['docPath'] == docPath);
+      expect(
+        findings,
+        contains(
+          allOf(
+            containsPair('kind', 'required_section_missing'),
+            containsPair('section', 'entities'),
+            containsPair('line', entitiesLine),
+          ),
+        ),
+        reason: '$checkOut $checkErr',
+      );
+    },
+  );
 }
