@@ -420,7 +420,13 @@ enum DestinationKind {
 
 /// One code unit of a destination as decoding reads it, and the range of the
 /// text written for it.
-typedef _ReadUnit = ({int code, int start, int end});
+final class _ReadUnit {
+  const new({required this.code, required this.start, required this.end});
+
+  final int code;
+  final int start;
+  final int end;
+}
 
 const _backslash = 0x5C;
 const _hash = 0x23;
@@ -454,7 +460,7 @@ const Map<String, int> _namedSplitters = {
 DestinationParts destinationPartsOf(String written, DestinationKind kind) {
   int? pathEnd;
   final units = _punctuationUnescaped(_parserUnescaped(written, kind));
-  for (final (:code, :start, :end) in _referencesDecoded(units)) {
+  for (final _ReadUnit(:code, :start, :end) in _referencesDecoded(units)) {
     if (code == _questionMark) pathEnd ??= start;
     if (code == _hash) {
       return DestinationParts(pathEnd: pathEnd ?? start, anchorStart: end);
@@ -470,8 +476,7 @@ DestinationParts destinationPartsOf(String written, DestinationKind kind) {
 /// out, as `markdown`'s link parser hands it to `LinkSyntax.createNode`.
 String parsedDestinationOf(String written, DestinationKind kind) =>
     String.fromCharCodes([
-      for (final (:code, start: _, end: _) in _parserUnescaped(written, kind))
-        code,
+      for (final _ReadUnit(:code) in _parserUnescaped(written, kind)) code,
     ]);
 
 /// The units of [written] after the link parser of a [kind] destination
@@ -487,15 +492,15 @@ List<_ReadUnit> _parserUnescaped(String written, DestinationKind kind) {
     final code = written.codeUnitAt(i);
     final next = i + 1 < written.length ? written.codeUnitAt(i + 1) : null;
     if (code != _backslash || next == null) {
-      units.add((code: code, start: i, end: i + 1));
+      units.add(_ReadUnit(code: code, start: i, end: i + 1));
       continue;
     }
     if (dropsBefore.contains(next)) {
-      units.add((code: next, start: i, end: i + 2));
+      units.add(_ReadUnit(code: next, start: i, end: i + 2));
     } else {
       units
-        ..add((code: code, start: i, end: i + 1))
-        ..add((code: next, start: i + 1, end: i + 2));
+        ..add(_ReadUnit(code: code, start: i, end: i + 1))
+        ..add(_ReadUnit(code: next, start: i + 1, end: i + 2));
     }
     // The parser takes the unit after a backslash as it is, never again.
     i++;
@@ -513,7 +518,9 @@ List<_ReadUnit> _punctuationUnescaped(List<_ReadUnit> units) {
         i + 1 < units.length &&
         _isAsciiPunctuation(units[i + 1].code)) {
       final next = units[i + 1];
-      unescaped.add((code: next.code, start: unit.start, end: next.end));
+      unescaped.add(
+        _ReadUnit(code: next.code, start: unit.start, end: next.end),
+      );
       i++;
       continue;
     }
@@ -529,7 +536,7 @@ Iterable<_ReadUnit> _referencesDecoded(List<_ReadUnit> units) sync* {
   var at = 0;
   for (final match in _characterReference.allMatches(text)) {
     yield* units.getRange(at, match.start);
-    yield (
+    yield _ReadUnit(
       code: _referenceCode(match),
       start: units[match.start].start,
       end: units[match.end - 1].end,
