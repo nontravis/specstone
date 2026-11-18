@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';

@@ -4,6 +4,9 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax, parseMarkdownTreeByBlock;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
+import 'package:specstone_core/src/doc_model/models/name_mention.dart';
+import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
+import 'package:specstone_core/src/doc_model/models/tbr_marker_line.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
@@ -134,8 +137,8 @@ final class LineFacts {
     required Doc doc,
     required List<SectionCounts> sectionCounts,
     required int? frontmatterErrorLine,
-    required List<({int line, String written})> bodyNumberLabels,
-    required List<({int line, String rest})> bodyTbrMarkers,
+    required List<NumberLabelLine> bodyNumberLabels,
+    required List<TbrMarkerLine> bodyTbrMarkers,
     required List<CiteCandidate> citeCandidates,
     required List<MermaidBlock> mermaidBlocks,
     required List<String> warnings,
@@ -169,11 +172,11 @@ final class LineFacts {
       linkTexts: links?.texts ?? const [],
       nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
       numberLabels: [
-        for (final (:line, :written) in bodyNumberLabels)
+        for (final NumberLabelLine(:line, :written) in bodyNumberLabels)
           (line: bodyStart + line + 1, written: written),
       ],
       tbrMarkers: [
-        for (final (:line, :rest) in bodyTbrMarkers)
+        for (final TbrMarkerLine(:line, :rest) in bodyTbrMarkers)
           (line: bodyStart + line + 1, rest: rest),
       ],
       citeCandidates: citeCandidates,
@@ -402,7 +405,7 @@ typedef TbrMarkerPlace = ({int line, String rest});
 /// `bodyStart + 1`.
 List<NameMention> _mentionsFrom(String body, int bodyStart) => [
   for (final m in nameMentionsInMarkdown(body))
-    (
+    NameMention(
       line: bodyStart + m.line,
       column: m.column,
       text: m.text,
@@ -413,7 +416,7 @@ List<NameMention> _mentionsFrom(String body, int bodyStart) => [
 /// Returns the mentions [json] holds, as `LineFacts.toJson` wrote them.
 List<NameMention> _mentionsOfJson(Object json) => [
   for (final m in (json as List<Object?>).cast<List<Object?>>())
-    (
+    NameMention(
       line: m[0]! as int,
       column: m[1]! as int,
       text: m[2]! as String,

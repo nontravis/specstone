@@ -1,9 +1,10 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show
-        ItemId,
         ScenarioRef,
         acceptanceSectionId,
         itemKeyOf,

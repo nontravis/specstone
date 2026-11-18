@@ -1,15 +1,10 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
     show Doc, fenceScan, mermaidInfoWord;
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
+import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
-
-/// A doc-name mention: a code span whose whole text, less an optional
-/// `#<section key>`, reads as a DocAddress of the no-lookup class, or a token
-/// of that class in a `mermaid` block.
-///
-/// `line` is 1-based and `column` the 0-based offset of the first character
-/// of `text` in its line, after the opening backticks.
-typedef NameMention = ({int line, int column, String text, DocAddress address});
 
 /// The doc-name mentions of [lf], a doc body or a markdown file, read from its
 /// code spans outside fenced code and from the tokens of its `mermaid` blocks,
@@ -30,7 +25,7 @@ Iterable<NameMention> _tokenMentionsOnLine(
   required bool isSequence,
 }) => [
   for (final token in mermaidTokensIn(line, isSequence: isSequence))
-    (
+    NameMention(
       line: number,
       column: token.column,
       text: token.text,
@@ -110,7 +105,10 @@ List<_Diagram> _mermaidLines(
     if (!fenced[i]) inMermaid = false;
     final inBlock = inMermaid && opened == null && !closes[i];
     if (inBlock && head != _BlockHead.done) {
-      (head, kind) = _afterHeadLine(head, contents[i].trim());
+      _HeadStep(head: head, kind: kind) = _afterHeadLine(
+        head,
+        contents[i].trim(),
+      );
     }
     kinds.add(inBlock ? kind : _Diagram.none);
   }
@@ -120,15 +118,31 @@ List<_Diagram> _mermaidLines(
 /// Where a `mermaid` block stands before its first diagram line.
 enum _BlockHead { start, frontmatter, done }
 
-(_BlockHead, _Diagram) _afterHeadLine(_BlockHead head, String line) {
+/// Where a `mermaid` block stands after one of its head lines, and the diagram
+/// kind read so far.
+final class _HeadStep {
+  const new({required this.head, required this.kind});
+
+  final _BlockHead head;
+  final _Diagram kind;
+}
+
+_HeadStep _afterHeadLine(_BlockHead head, String line) {
   if (head == _BlockHead.frontmatter) {
-    return (line == '---' ? _BlockHead.start : head, _Diagram.flow);
+    return _HeadStep(
+      head: line == '---' ? _BlockHead.start : head,
+      kind: _Diagram.flow,
+    );
   }
-  if (line.isEmpty || line.startsWith('%%')) return (head, _Diagram.flow);
-  if (line == '---') return (_BlockHead.frontmatter, _Diagram.flow);
-  return (
-    _BlockHead.done,
-    line.startsWith(_sequenceHead) ? _Diagram.sequence : _Diagram.flow,
+  if (line.isEmpty || line.startsWith('%%')) {
+    return _HeadStep(head: head, kind: _Diagram.flow);
+  }
+  if (line == '---') {
+    return const _HeadStep(head: _BlockHead.frontmatter, kind: _Diagram.flow);
+  }
+  return _HeadStep(
+    head: _BlockHead.done,
+    kind: line.startsWith(_sequenceHead) ? _Diagram.sequence : _Diagram.flow,
   );
 }
 
@@ -141,11 +155,16 @@ Iterable<NameMention> _spansOnLine(
   int number,
   bool Function(DocAddress address) accepts,
 ) sync* {
-  for (final (:start, :end, :ticks) in codeSpansOf(line)) {
+  for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line)) {
     final text = line.substring(start + ticks, end - ticks);
     final address = readDocAddress(text);
     if (!accepts(address)) continue;
-    yield (line: number, column: start + ticks, text: text, address: address);
+    yield NameMention(
+      line: number,
+      column: start + ticks,
+      text: text,
+      address: address,
+    );
   }
 }
 
@@ -229,11 +248,16 @@ List<NameMention> longerSpanMentionsInMarkdown(String lf) {
 }
 
 Iterable<NameMention> _longerSpansOnLine(String line, int number) sync* {
-  for (final (:start, :end, :ticks) in codeSpansOf(line)) {
+  for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line)) {
     final text = line.substring(start + ticks, end - ticks);
     if (readDocAddress(text).isReferenceWithoutLookup) continue;
     for (final address in referencesWithoutLookupIn(text)) {
-      yield (line: number, column: start + ticks, text: text, address: address);
+      yield NameMention(
+        line: number,
+        column: start + ticks,
+        text: text,
+        address: address,
+      );
     }
   }
 }
@@ -278,7 +302,7 @@ Iterable<NameMention> _pathsOnLine(String line, int number) sync* {
     readTo = end;
     final path = _docPathOf(line.substring(start, end));
     if (path == null) continue;
-    yield (
+    yield NameMention(
       line: number,
       column: start,
       text: path,

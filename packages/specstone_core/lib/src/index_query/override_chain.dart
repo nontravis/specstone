@@ -1,4 +1,4 @@
-import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';

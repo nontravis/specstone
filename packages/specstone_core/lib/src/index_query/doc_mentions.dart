@@ -1,9 +1,8 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DocAddress;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';

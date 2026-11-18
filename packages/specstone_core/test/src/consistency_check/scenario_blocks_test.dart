@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -6,7 +7,7 @@ import '../../helpers/index_fixture.dart';
 
 List<BodyLine> _body(String text, {Set<int> fenced = const {}}) => [
   for (final (i, line) in text.split('\n').indexed)
-    (text: line, line: i + 1, fenced: fenced.contains(i)),
+    BodyLine(text: line, line: i + 1, fenced: fenced.contains(i)),
 ];
 
 void main() {

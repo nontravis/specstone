@@ -9,6 +9,7 @@ import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show normalCodeEntry;
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -22,9 +23,6 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-
-export 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
-    show BodyLine;
 
 /// Why a rule reads a code file, which names what an unreadable file leaves
 /// unchecked.

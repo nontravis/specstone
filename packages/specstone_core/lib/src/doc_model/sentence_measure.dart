@@ -1,18 +1,6 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/inline_holders.dart';
-
-/// What the check counts in one sentence.
-///
-/// `language` is the key of its cap map. A sentence that `countsChars` has
-/// `chars` and `runs` and no `words`; any other has `words` alone. `runs`
-/// holds the other-script runs and code spans, which [weightedChars] weighs.
-typedef SentenceMeasure = ({
-  String language,
-  bool countsChars,
-  int words,
-  int chars,
-  int runs,
-});
+import 'package:specstone_core/src/doc_model/models/sentence_measure.dart';
 
 const _defaultLanguage = 'default';
 
@@ -64,7 +52,13 @@ const Map<String, List<String>> _spacedScriptNames = {
   _greek: ['Greek'],
 };
 
-typedef _Script = ({String language, RegExp letters});
+/// A language and the letters of the scripts it is written in.
+final class _Script {
+  const new({required this.language, required this.letters});
+
+  final String language;
+  final RegExp letters;
+}
 
 RegExp _lettersOf(List<String> scripts) => RegExp(
   '(?=\\p{L})[${scripts.map((name) => '\\p{Script=$name}').join()}]',
@@ -73,7 +67,7 @@ RegExp _lettersOf(List<String> scripts) => RegExp(
 
 List<_Script> _votesOf(Map<String, List<String>> names) => [
   for (final MapEntry(:key, :value) in names.entries)
-    (language: key, letters: _lettersOf(value)),
+    _Script(language: key, letters: _lettersOf(value)),
 ];
 
 final List<_Script> _noSpaceScripts = _votesOf(_noSpaceScriptNames);
@@ -116,8 +110,8 @@ SentenceMeasure measureSentence(String markdownSentence) {
     final language = noSpace == _chinese && _kanaLetters.hasMatch(text)
         ? _japanese
         : noSpace;
-    final (:chars, :runs) = _charsAndRuns(text);
-    return (
+    final _CharsAndRuns(:chars, :runs) = _charsAndRuns(text);
+    return SentenceMeasure(
       language: language,
       countsChars: true,
       words: 0,
@@ -128,7 +122,7 @@ SentenceMeasure measureSentence(String markdownSentence) {
   final language =
       (_isVotable(text) ? _voteOf(text, _spacedScripts) : null) ??
       _defaultLanguage;
-  return (
+  return SentenceMeasure(
     language: language,
     countsChars: false,
     words: _wordsIn(text),
@@ -221,7 +215,16 @@ int _wordsIn(String text) => [
     if (_wordPart.hasMatch(token)) token,
 ].length;
 
-({int chars, int runs}) _charsAndRuns(String text) {
+/// The counted characters of a text's no-space scripts, and its runs of other
+/// scripts and code spans.
+final class _CharsAndRuns {
+  const new({required this.chars, required this.runs});
+
+  final int chars;
+  final int runs;
+}
+
+_CharsAndRuns _charsAndRuns(String text) {
   var chars = 0;
   var runs = 0;
   for (final token in text.split(_whitespaceRuns)) {
@@ -235,5 +238,5 @@ int _wordsIn(String text) => [
       }
     }
   }
-  return (chars: chars, runs: runs);
+  return _CharsAndRuns(chars: chars, runs: runs);
 }

@@ -10,7 +10,8 @@ export 'src/consistency_check/repeat_listing.dart' show RepeatReport;
 export 'src/consistency_check/suspect_list.dart' show answerListSuspect;
 export 'src/consistency_check/tree_rules.dart'
     show checkedFoldersOf, isInCheckedFolder;
-export 'src/doc_model/reference_grammar.dart' show DocAddress, readDocAddress;
+export 'src/doc_model/models/doc_address.dart';
+export 'src/doc_model/reference_grammar.dart' show readDocAddress;
 export 'src/document_writing/approval.dart' show ApprovalHistory;
 export 'src/document_writing/approve_drafts.dart'
     show approveDrafts, approveDryRun, approveNamed;

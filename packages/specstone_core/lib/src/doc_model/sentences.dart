@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf, isTableDelimiterRow, isThematicBreak, startsTable;
+import 'package:specstone_core/src/doc_model/models/text_block.dart';
 import 'package:specstone_core/src/doc_model/table_cell.dart';
 
 const _space = 0x20;
@@ -72,10 +73,6 @@ List<String> sentencesOf(String lfText) => [
   for (final block in textBlocksOf(lfText)) ..._cut(block.text),
 ];
 
-/// A text block of a doc: its `text`, and whether a `###` or deeper heading
-/// is the block.
-typedef TextBlock = ({String text, bool isHeading});
-
 /// Returns the text blocks of [lfText], a doc's LF text, in doc order: its
 /// paragraphs, list items, table cells, and `###` or deeper headings, read past
 /// block quote and list markers, outside the frontmatter, the title, the `##`
@@ -131,7 +128,7 @@ final class _BlockReader {
 
   void _closeBlock() {
     if (_open.isEmpty) return;
-    blocks.add((text: _open.join(' '), isHeading: false));
+    blocks.add(TextBlock(text: _open.join(' '), isHeading: false));
     _open.clear();
   }
 
@@ -187,7 +184,7 @@ final class _BlockReader {
 
   void _add(String block, {bool isHeading = false}) {
     if (block.trim().isNotEmpty) {
-      blocks.add((text: block.trim(), isHeading: isHeading));
+      blocks.add(TextBlock(text: block.trim(), isHeading: isHeading));
     }
   }
 
@@ -209,12 +206,19 @@ String _trimPipes(String row) {
 /// A line read past its containers: its `text`, the count of block quote
 /// marks it opened with, whether a list marker opened it, and the line as
 /// `written`, past the block quote marks only.
-typedef _Stripped = ({
-  String text,
-  int quotes,
-  bool isListItem,
-  String written,
-});
+final class _Stripped {
+  const new({
+    required this.text,
+    required this.quotes,
+    required this.isListItem,
+    required this.written,
+  });
+
+  final String text;
+  final int quotes;
+  final bool isListItem;
+  final String written;
+}
 
 /// Returns [line] past the block quote marks it opens with, and past its list
 /// marker unless it continues a paragraph, or null for a thematic break.
@@ -231,7 +235,7 @@ _Stripped? _withoutContainers(String line, bool continuesParagraph) {
         : null;
     final prefix = quote ?? marker;
     if (prefix == null) {
-      return (
+      return _Stripped(
         text: text,
         quotes: quotes,
         isListItem: isListItem,

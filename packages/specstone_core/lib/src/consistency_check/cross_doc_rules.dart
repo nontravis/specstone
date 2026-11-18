@@ -4,6 +4,8 @@ import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show tableCellRanges, tableHeadCells;
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
+import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -125,7 +127,7 @@ Map<String, int> _operationHeadings(CheckContext context, IndexedDoc api) {
 /// Returns the operation of an Operations `###` [heading]: its code span when
 /// it holds one, else the whole heading text trimmed.
 String? _headingOperation(String heading) {
-  for (final (:start, :end, :ticks) in codeSpansOf(heading)) {
+  for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(heading)) {
     final inner = heading.substring(start + ticks, end - ticks).trim();
     if (inner.isNotEmpty) return inner;
   }
@@ -228,7 +230,7 @@ Iterable<Finding> _scopePathFindings(
   if (index == null) return;
   for (final line in context.bodyLinesOf(topic, index)) {
     if (line.fenced) continue;
-    for (final (:start, :end, :ticks) in codeSpansOf(line.text)) {
+    for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line.text)) {
       final path = line.text.substring(start + ticks, end - ticks).trim();
       if (!path.contains('/') || !isPortableCodeEntry(path)) continue;
       if (covers.any((entry) => _reaches(entry, path))) continue;

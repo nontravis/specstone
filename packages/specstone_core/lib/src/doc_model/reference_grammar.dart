@@ -1,61 +1,13 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show headingItemTextOf;
+import 'package:specstone_core/src/doc_model/models/destination_parts.dart';
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
-
-/// A doc reference split into its parts; DocIndex
-/// resolves it.
-final class DocAddress {
-  const new({this.typeId, required this.body, this.sectionKey});
-
-  /// The text before the first `:`, when that text is one slug
-  /// (`[a-z][a-z0-9_]*`) and the `:` sits before any `#`.
-  final String? typeId;
-
-  /// The Name or path after any `<doc type>:`, before any `#`, as written.
-  final String body;
-
-  /// The text after the first `#`; null when the text holds no `#`.
-  final String? sectionKey;
-
-  /// Whether [body] is a Name: one or more slugs (`[a-z0-9_]+`) joined by
-  /// `/`.
-  bool get isName => _slugCount(body) >= 1;
-
-  /// Whether the form alone marks a reference: a Name of 2 or more
-  /// slugs, bare or after `<doc type>:`, or a one-slug Name after
-  /// `<doc type>:`.
-  bool get isReferenceWithoutLookup =>
-      typeId != null ? isName : _slugCount(body) >= 2;
-
-  /// The text as written, less any `#<section key>`.
-  String get docPart => typeId == null ? body : '$typeId:$body';
-}
-
-/// The number of `/`-joined slugs in [text]; 0 when any segment is not a
-/// non-empty run of `[a-z0-9_]`.
-int _slugCount(String text) {
-  var count = 0;
-  var segmentLength = 0;
-  for (var i = 0; i <= text.length; i++) {
-    if (i < text.length && _isSlugChar(text.codeUnitAt(i))) {
-      segmentLength++;
-      continue;
-    }
-    if (i < text.length && text.codeUnitAt(i) != 0x2F) return 0;
-    if (segmentLength == 0) return 0;
-    count++;
-    segmentLength = 0;
-  }
-  return count;
-}
 
 /// The one-code-point letter test: a letter ends no ID.
 final _letters = RegExp(r'\p{L}', unicode: true);
-
-bool _isSlugChar(int code) =>
-    (code >= 0x61 && code <= 0x7A) || // a-z
-    (code >= 0x30 && code <= 0x39) || // 0-9
-    code == 0x5F; // _
 
 bool _isDigit(int code) => code >= 0x30 && code <= 0x39;
 
@@ -184,54 +136,6 @@ final _closingMark = RegExp(r'[.,;:]$');
 String proseTrimmedPath(String path) =>
     path.replaceFirst(_closingMark, '').replaceFirst(_lineSuffix, '');
 
-/// An item ID or a scenario number where its item opens.
-sealed class IdRead {
-  const new({required this.prefix, required this.digits});
-
-  final String prefix;
-  final String digits;
-
-  /// Prefix plus digits, plus any letter.
-  String get written;
-}
-
-/// Prefix and digits that end at a character that is no letter and no digit.
-final class ItemId extends IdRead {
-  const new({required super.prefix, required super.digits});
-
-  BigInt get number => BigInt.parse(digits);
-
-  @override
-  String get written => '$prefix$digits';
-}
-
-/// Digits a letter follows (`RULE-7a`, `Scenario 6a`): no ID, its own or the
-/// digits'.
-final class LetteredId extends IdRead {
-  const new({
-    required super.prefix,
-    required super.digits,
-    required this.letters,
-  });
-
-  final String letters;
-
-  @override
-  String get written => '$prefix$digits$letters';
-}
-
-/// Digits, a letter run, then a digit (`RULE-7a1`, `Scenario 6a2`): a form
-/// the grammar cannot read, neither an ID nor a lettered one.
-final class UnreadableId extends IdRead {
-  const new({required super.prefix, required super.digits, required this.rest});
-
-  /// The letter and digit run after [digits], as written.
-  final String rest;
-
-  @override
-  String get written => '$prefix$digits$rest';
-}
-
 /// The prefix a `### Scenario <N>` heading's number carries in IDs:
 /// `Scenario `.
 const scenarioIdPrefix = 'Scenario ';
@@ -267,11 +171,8 @@ final _writtenPrefix = RegExp(r'^(?:\*\*)?([A-Za-z][A-Za-z-]*)\d');
 /// An ID is a token of one of [prefixes], the longest first, so `SHA256` is
 /// no ID unless a doc type's section holds the prefix `SHA`. The digits are
 /// read by [readItemIdAt]: a lettered or unreadable form is no ID.
-List<({int at, ItemId id})> itemIdsInProse(
-  String prose, {
-  required Set<String> prefixes,
-}) {
-  final found = <({int at, ItemId id})>[];
+List<ItemIdAt> itemIdsInProse(String prose, {required Set<String> prefixes}) {
+  final found = <ItemIdAt>[];
   final longestFirst = prefixes.toList()..sort((a, b) => b.length - a.length);
   for (final prefix in longestFirst) {
     for (
@@ -285,7 +186,7 @@ List<({int at, ItemId id})> itemIdsInProse(
         final overlaps = found.any(
           (f) => at < f.at + f.id.written.length && f.at < end,
         );
-        if (!overlaps) found.add((at: at, id: id));
+        if (!overlaps) found.add(ItemIdAt(at: at, id: id));
       }
     }
   }
@@ -517,14 +418,15 @@ enum DestinationKind {
   definition,
 }
 
-/// A link destination as written, split as `markdown` reads it: the index
-/// where the text of its href's first `?` or `#` starts, else its length,
-/// and the index past the text of its href's first `#`, null with none.
-typedef DestinationParts = ({int pathEnd, int? anchorStart});
-
 /// One code unit of a destination as decoding reads it, and the range of the
 /// text written for it.
-typedef _ReadUnit = ({int code, int start, int end});
+final class _ReadUnit {
+  const new({required this.code, required this.start, required this.end});
+
+  final int code;
+  final int start;
+  final int end;
+}
 
 const _backslash = 0x5C;
 const _hash = 0x23;
@@ -558,19 +460,23 @@ const Map<String, int> _namedSplitters = {
 DestinationParts destinationPartsOf(String written, DestinationKind kind) {
   int? pathEnd;
   final units = _punctuationUnescaped(_parserUnescaped(written, kind));
-  for (final (:code, :start, :end) in _referencesDecoded(units)) {
+  for (final _ReadUnit(:code, :start, :end) in _referencesDecoded(units)) {
     if (code == _questionMark) pathEnd ??= start;
-    if (code == _hash) return (pathEnd: pathEnd ?? start, anchorStart: end);
+    if (code == _hash) {
+      return DestinationParts(pathEnd: pathEnd ?? start, anchorStart: end);
+    }
   }
-  return (pathEnd: pathEnd ?? written.length, anchorStart: null);
+  return DestinationParts(
+    pathEnd: pathEnd ?? written.length,
+    anchorStart: null,
+  );
 }
 
 /// Returns [written], a [kind] destination as written, angle brackets left
 /// out, as `markdown`'s link parser hands it to `LinkSyntax.createNode`.
 String parsedDestinationOf(String written, DestinationKind kind) =>
     String.fromCharCodes([
-      for (final (:code, start: _, end: _) in _parserUnescaped(written, kind))
-        code,
+      for (final _ReadUnit(:code) in _parserUnescaped(written, kind)) code,
     ]);
 
 /// The units of [written] after the link parser of a [kind] destination
@@ -586,15 +492,15 @@ List<_ReadUnit> _parserUnescaped(String written, DestinationKind kind) {
     final code = written.codeUnitAt(i);
     final next = i + 1 < written.length ? written.codeUnitAt(i + 1) : null;
     if (code != _backslash || next == null) {
-      units.add((code: code, start: i, end: i + 1));
+      units.add(_ReadUnit(code: code, start: i, end: i + 1));
       continue;
     }
     if (dropsBefore.contains(next)) {
-      units.add((code: next, start: i, end: i + 2));
+      units.add(_ReadUnit(code: next, start: i, end: i + 2));
     } else {
       units
-        ..add((code: code, start: i, end: i + 1))
-        ..add((code: next, start: i + 1, end: i + 2));
+        ..add(_ReadUnit(code: code, start: i, end: i + 1))
+        ..add(_ReadUnit(code: next, start: i + 1, end: i + 2));
     }
     // The parser takes the unit after a backslash as it is, never again.
     i++;
@@ -612,7 +518,9 @@ List<_ReadUnit> _punctuationUnescaped(List<_ReadUnit> units) {
         i + 1 < units.length &&
         _isAsciiPunctuation(units[i + 1].code)) {
       final next = units[i + 1];
-      unescaped.add((code: next.code, start: unit.start, end: next.end));
+      unescaped.add(
+        _ReadUnit(code: next.code, start: unit.start, end: next.end),
+      );
       i++;
       continue;
     }
@@ -628,7 +536,7 @@ Iterable<_ReadUnit> _referencesDecoded(List<_ReadUnit> units) sync* {
   var at = 0;
   for (final match in _characterReference.allMatches(text)) {
     yield* units.getRange(at, match.start);
-    yield (
+    yield _ReadUnit(
       code: _referenceCode(match),
       start: units[match.start].start,
       end: units[match.end - 1].end,
@@ -840,7 +748,7 @@ LinkLabel? readLinkLabel(String text) {
   final scenario = readScenarioRef(text);
   if (scenario != null) return ScenarioLabel(scenario);
   if (_isNfrId(text)) return NfrLabel(text);
-  if (_slugCount(text) >= 2) return FrRefLabel(text);
+  if (DocAddress(body: text).isReferenceWithoutLookup) return FrRefLabel(text);
   return null;
 }
 

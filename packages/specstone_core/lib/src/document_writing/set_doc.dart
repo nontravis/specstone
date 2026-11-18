@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show isMatrixSection, isOutsideApproval;

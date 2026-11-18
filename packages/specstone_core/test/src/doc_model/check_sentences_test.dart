@@ -1,8 +1,9 @@
 import 'package:specstone_core/src/doc_model/check_sentences.dart';
+import 'package:specstone_core/src/doc_model/models/check_sentence.dart';
 import 'package:test/test.dart';
 
 List<CheckSentence> _plain(List<String> texts) => [
-  for (final text in texts) (text: text, isHeading: false),
+  for (final text in texts) CheckSentence(text: text, isHeading: false),
 ];
 
 void main() {
@@ -80,13 +81,13 @@ void main() {
 
   test('heading end cuts and is marked', () {
     expect(checkSentencesOf('### Scenario title\nThe body holds.'), [
-      (text: 'Scenario title', isHeading: true),
-      (text: 'The body holds.', isHeading: false),
+      const CheckSentence(text: 'Scenario title', isHeading: true),
+      const CheckSentence(text: 'The body holds.', isHeading: false),
     ]);
     expect(checkSentencesOf('### First. Second\n- item'), [
-      (text: 'First.', isHeading: false),
-      (text: 'Second', isHeading: true),
-      (text: 'item', isHeading: false),
+      const CheckSentence(text: 'First.', isHeading: false),
+      const CheckSentence(text: 'Second', isHeading: true),
+      const CheckSentence(text: 'item', isHeading: false),
     ]);
   });
 

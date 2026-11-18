@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:markdown/markdown.dart';
+import 'package:specstone_core/src/doc_model/models/source_order_nodes.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show schemeEndOf;
 
@@ -31,10 +32,6 @@ const maxMarkdownDepth = 1000;
 /// gets null treats the doc as one it can read no links from and goes on.
 List<Node>? parseMarkdown(String text) => parseMarkdownTree(text)?.nodes;
 
-/// Nodes `markdown` parses a text into, in source order, and the top-level
-/// footnote definitions among them that it drops (see [MarkdownTree]).
-typedef SourceOrderNodes = ({List<Node> nodes, Set<Node> dropped});
-
 /// What `markdown` parses a text into: the nodes it renders, the link
 /// reference definitions it reads, keyed by normalized label, and the nodes in
 /// source order.
@@ -62,7 +59,7 @@ final class MarkdownTree {
   /// reader in source order meets each link where the text holds it.
   late final SourceOrderNodes inSourceOrder = _definesFootnote
       ? _inSourceOrder(_text, nodes)
-      : (nodes: nodes, dropped: const {});
+      : SourceOrderNodes(nodes: nodes, dropped: const {});
 }
 
 /// Returns the [MarkdownTree] of [text], or null when [parseMarkdown] fails on
@@ -175,10 +172,10 @@ SourceOrderNodes _inSourceOrder(String text, List<Node> rendered) {
     _parseInline(document, nodes);
   } on Object {
     // The same text parsed once; a throw here leaves the rendered order.
-    return (nodes: rendered, dropped: const {});
+    return SourceOrderNodes(nodes: rendered, dropped: const {});
   }
   final references = document.footnoteReferences;
-  return (
+  return SourceOrderNodes(
     nodes: nodes,
     dropped: Set.identity()
       ..addAll([
