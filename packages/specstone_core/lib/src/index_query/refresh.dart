@@ -107,17 +107,21 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
     // sections and on the source's name and type, so a change can move the
     // lines of other docs: the table is written whole, never by doc.
     if (reindexed > 0) {
-      final tree = resolveParents(store.loadDocs(), project.set);
+      final docs = store.loadDocs();
+      final tree = resolveParents(docs, project.set);
+      final order = files.keys.toList();
       store.setTree(
         parents: tree.parents,
         parentWarnings: tree.warnings,
-        order: files.keys.toList(),
+        order: order,
       );
+      final byPath = {for (final doc in docs) doc.docPath: doc};
       store.putCitedBy(
         scanCitedBy(
-          store.loadDocs(),
+          [for (final docPath in order) ?byPath[docPath]],
           set: project.set,
           contentOf: (doc) => store.loadContent(doc.docPath),
+          links: store.loadLinks(),
         ),
       );
     }

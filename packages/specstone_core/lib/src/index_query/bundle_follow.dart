@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show linkSourcesOf;
+import 'package:specstone_core/src/index_query/models/cited_candidate.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_section.dart';
 import 'package:specstone_core/src/index_query/models/classified_link.dart';
@@ -436,14 +437,10 @@ final class _Walk {
     final cited = citedBy;
     final section = view.citedSectionAt(at);
     if (cited == null || section == null) return const [];
-    return citedItemsIn(
-      cited,
-      view.doc,
-      view.content,
+    return citedItemsWithin(
+      view.citedCandidatesAt(at, cited, section),
       section,
-      at,
       within: within,
-      extents: view.extentsAt(at),
     );
   }
 
@@ -542,10 +539,13 @@ final class _Walk {
     String? heading,
   }) {
     if (!view.keeps(at, bundle.mode) || _prints(view, extent)) return;
-    final lines = [
-      for (final line in body)
-        if (extent.first <= line.line && line.line <= extent.last) line.text,
-    ];
+    // The body lines are consecutive, so the extent is a slice of them.
+    final offset = body.first.line;
+    final from = extent.first > offset ? extent.first - offset : 0;
+    final past = extent.last - offset + 1 < body.length
+        ? extent.last - offset + 1
+        : body.length;
+    final lines = [for (var k = from; k < past; k++) body[k].text];
     final cited = _citedIn(view, at, within: extent);
     _add(
       AppendedPart(
@@ -608,7 +608,9 @@ final class _DocView {
 
   /// What the walk derives from the doc's sections, once each, since it asks
   /// again for every part it appends.
+  final _bodies = <int, List<BodyLine>>{};
   final _extents = <int, Map<String, LineRange>>{};
+  final _candidates = <int, List<CitedCandidate>>{};
   final _kept = <BundleMode, Set<IndexedSection>>{};
 
   LineFacts get facts => content.lineFacts;
@@ -618,7 +620,25 @@ final class _DocView {
   CitedSection? citedSectionAt(int at) => at < held.length ? held[at] : null;
 
   List<BodyLine> bodyLinesOf(int at) =>
-      sectionBodyLines(content.sections, facts, at);
+      _bodies[at] ??= sectionBodyLines(content.sections, facts, at);
+
+  /// Returns the items and `###` blocks of the section at [at], whose held
+  /// section is [section], that [cited] holds lines for.
+  ///
+  /// A view lives in one walk, which holds one cited-by index, so [cited] is
+  /// the same on every call.
+  List<CitedCandidate> citedCandidatesAt(
+    int at,
+    CitedByIndex cited,
+    CitedSection section,
+  ) => _candidates[at] ??= citedCandidatesIn(
+    cited,
+    doc,
+    content,
+    section,
+    at,
+    extents: extentsAt(at),
+  );
 
   /// Returns the extent of each item of the section at [at], by ID, as
   /// [itemExtentsOf] reads the section; none when the doc holds no section

@@ -1079,6 +1079,7 @@ void main() {
           store.loadDocs(),
           set: docs.set,
           contentOf: (doc) => store.loadContent(doc.docPath),
+          links: store.loadLinks(),
         );
       }
 

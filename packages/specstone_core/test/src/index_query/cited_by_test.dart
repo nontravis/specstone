@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
+import 'package:specstone_core/src/index_query/models/indexed_link.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:test/test.dart';
 
@@ -718,6 +719,11 @@ void main() {
       index.docs,
       set: index.set,
       contentOf: index.contentOf,
+      links: [
+        for (final doc in index.docs)
+          for (final to in index.linkedFrom(doc))
+            IndexedLink(source: doc.docPath, target: to.docPath),
+      ],
     );
 
     expect({
@@ -726,6 +732,46 @@ void main() {
     expect(fresh.length, greaterThan(8));
     expect(Map.of(stored), fresh);
     expect(stored.keys.toList(), fresh.keys.toList());
+  });
+
+  test('a scan loads only the docs a link starts from or reaches', () async {
+    const lonely = 'docs/specs/topics/lonely.md';
+    final index = await _index(
+      'Lock by $_inv13.',
+      extra: {lonely: '# Lonely\n\n## Purpose\nNothing links here.\n'},
+    );
+    final loaded = <String>{};
+
+    scanCitedBy(
+      index.docs,
+      set: index.set,
+      contentOf: (doc) {
+        loaded.add(doc.docPath);
+        return index.contentOf(doc);
+      },
+      links: [
+        for (final doc in index.docs)
+          for (final to in index.linkedFrom(doc))
+            IndexedLink(source: doc.docPath, target: to.docPath),
+      ],
+    );
+
+    expect(loaded, contains(_domain));
+    expect(loaded, contains(_frPath));
+    expect(loaded, isNot(contains('specs/topics/lonely.md')));
+  });
+
+  test('the line of a link on the last line of a doc with no final newline is read', () async {
+    const guide = 'docs/specs/topics/guide.md';
+    const last = 'See [INV-14](../f02_signup/DOMAIN.md#invariants)';
+    final cited = _citedBy(
+      await _index(
+        'Check it.',
+        extra: {guide: '# Guide\n\n## Purpose\nFirst.\n$last'},
+      ),
+    );
+
+    expect(_of(cited, _domain, 'INV-14').map((by) => by.line), [last]);
   });
 
   group('citedItemsIn', () {
