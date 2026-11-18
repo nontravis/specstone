@@ -3,7 +3,7 @@ description: |-
   The record of one feature in one code target: the status and the code paths of each story and FR of the feature.
   Title it `# <Feature name> implementation`, such as `# Rendering implementation`, with no number.
   Aim for one line per entry in `statuses`, one per code path in `implements`, and one per test file in `tests`.
-  The 400-line cap does not count these frontmatter lines, so the 60,000-character cap bounds them.
+  The line cap does not count these frontmatter lines, so the character cap bounds them.
   Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   The record is the one home of each story's and FR's status and code paths in its target; an item with no `statuses` line, outside every skip, is `planned`, code paths or not.
   A `skipped` entry carries a one-line reason and no code path; a skip on the feature or on a story covers everything below it.
