@@ -339,12 +339,12 @@ try {
         return $full.TrimEnd('\')
     }
 
-    # Prints one line naming the first `stn` on the cut $env:Path other than
-    # in $BinFolder, as bin\stn.exe walks it:
-    # an entry that reads as $BinFolder, or holds stn.exe and specstone.exe,
-    # is skipped; a `stn` is a file named stn.exe, .cmd, .bat, .com, or .ps1,
-    # tried in that order. The notice never changes the run's exit status.
-    function Write-OtherStnNotice([string]$BinFolder) {
+    # Returns the path of the first `stn` on $env:Path in an entry other than
+    # $BinFolder, or $null when there is none. An entry that reads as
+    # $BinFolder, or holds stn.exe and specstone.exe (a Specstone install), is
+    # skipped; a `stn` is a file named stn.exe, .cmd, .bat, .com, or .ps1,
+    # tried in that order inside an entry.
+    function Find-OtherStn([string]$BinFolder) {
         $own = Get-FolderIdentity $BinFolder
         foreach ($entry in @(Split-PathText (Get-EnvText 'Path'))) {
             try {
@@ -359,14 +359,23 @@ try {
                 $shown = $entry.TrimEnd('\', '/')
                 foreach ($extension in 'exe', 'cmd', 'bat', 'com', 'ps1') {
                     if (Test-Path -LiteralPath (Join-Path $folder "stn.$extension") -PathType Leaf) {
-                        Write-Host "specstone: another stn is at $shown\stn.$extension; type specstone to run the CLI"
-                        return
+                        return "$shown\stn.$extension"
                     }
                 }
             } catch {
-                # an entry the OS cannot read holds no stn that the shim could run
+                # an entry the OS cannot read holds no stn that the Owner could run
             }
         }
+        return $null
+    }
+
+    # Prints one line naming the other stn at $Path, which the Owner then types
+    # specstone in place of. It never changes the run's exit status.
+    function Write-OtherStnNotice([string]$Path) {
+        if ($Path.Length -eq 0) {
+            return
+        }
+        Write-Host "specstone: another stn is at $Path; stn is not installed, type specstone to run the CLI"
     }
 
     # Deletes the *.old leftovers under bin\ and lib\ of $InstallDir. A file that
@@ -401,10 +410,33 @@ try {
         return $candidate
     }
 
-    # Puts the archive's lib\ and bin\ into $InstallDir, bin last. Each existing
-    # file is renamed to <name>.old first, so a running specstone.exe can be
-    # replaced; a failure puts every renamed file back and removes what it copied.
-    function Install-Files([string]$InstallDir) {
+    # Removes the stn.exe an earlier run placed in $BinFolder: a delete, else a
+    # rename to <name>.old that a later run deletes. Returns the path when both
+    # fail, else $null.
+    function Remove-PlacedStn([string]$BinFolder) {
+        $path = Join-Path $BinFolder 'stn.exe'
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            return $null
+        }
+        try {
+            Remove-Item -LiteralPath $path -Force
+            return $null
+        } catch {
+            # a running stn.exe holds the file; try the rename
+        }
+        try {
+            Move-Item -LiteralPath $path -Destination (Get-OldName $path)
+            return $null
+        } catch {
+            return $path
+        }
+    }
+
+    # Puts the archive's lib\ and bin\ into $InstallDir, bin last, without the
+    # archive's stn.exe when $SkipStn is set. Each existing file is renamed to
+    # <name>.old first, so a running specstone.exe can be replaced; a failure
+    # puts every renamed file back and removes what it copied.
+    function Install-Files([string]$InstallDir, [switch]$SkipStn) {
         $renamed = New-Object System.Collections.ArrayList
         $copied = New-Object System.Collections.ArrayList
         $current = $InstallDir
@@ -425,6 +457,9 @@ try {
                 }
                 foreach ($file in @(Get-ChildItem -LiteralPath $source -Recurse -File -Force)) {
                     $relative = $file.FullName.Substring($source.Length).TrimStart('\')
+                    if ($SkipStn -and $name -eq 'bin' -and $relative -eq 'stn.exe') {
+                        continue
+                    }
                     $destination = Join-Path $target $relative
                     $current = $destination
                     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
@@ -494,7 +529,10 @@ try {
         }
         $newVersion = (@($probe.Output) -join "`n").Trim()
 
+        $binFolder = Join-Path $installDir 'bin'
+        $otherStn = Find-OtherStn $binFolder
         Remove-OldLeftovers $installDir
+        $stnRemovalFailed = $null
         $oldVersion = ''
         $oldBinary = Join-Path $installDir 'bin\specstone.exe'
         if (Test-Path -LiteralPath $oldBinary) {
@@ -509,13 +547,19 @@ try {
             } else {
                 Write-Host "specstone $newVersion is already the latest release"
             }
+            if ($null -ne $otherStn) {
+                $stnRemovalFailed = Remove-PlacedStn $binFolder
+            }
         } else {
-            Install-Files $installDir
+            Install-Files $installDir -SkipStn:($null -ne $otherStn)
             Write-Host "specstone $newVersion installed in $installDir\bin"
         }
 
-        Add-UserPathEntry (Join-Path $installDir 'bin')
-        Write-OtherStnNotice (Join-Path $installDir 'bin')
+        Add-UserPathEntry $binFolder
+        Write-OtherStnNotice $otherStn
+        if ($null -ne $stnRemovalFailed) {
+            [Console]::Error.WriteLine("specstone: could not remove ${stnRemovalFailed}: delete it yourself")
+        }
         try {
             Write-MissingPrerequisites
         } catch {

@@ -1235,7 +1235,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
       String notice(String path) =>
           'specstone: another stn is at $path; '
-          'type specstone to run the CLI';
+          'stn is not installed, type specstone to run the CLI';
 
       // Writes another tool's `stn` file named [extension] in [folder] and
       // returns its path.
@@ -1262,8 +1262,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
       }
 
       pathTest(
-        'another stn.exe on a later absolute entry prints '
-        r'one notice line; bin\stn.exe is installed, no stn.cmd; exit 0',
+        r'another stn.exe on the PATH leaves no bin\stn.exe and prints the '
+        'notice once',
         () async {
           final sb = await sandboxWithShim();
           final tools = Directory('${sb.root.path}\\space tools')..createSync();
@@ -1286,35 +1286,131 @@ if ($env:HARNESS_MODE -eq 'iex') {
             1,
             reason: '${r.stdout}',
           );
-          expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
+          expect(File('${binDir(sb)}\\specstone.exe').existsSync(), isTrue);
+          expect(File('${binDir(sb)}\\stn.exe').existsSync(), isFalse);
           expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isFalse);
         },
       );
 
+      pathTest('an earlier stn.ps1 is named before a later stn.exe', () async {
+        final sb = await sandboxWithShim();
+        final earlier = otherStn('${sb.root.path}\\earlier', 'ps1');
+        final later = otherStn('${sb.root.path}\\later', 'exe');
+
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, [
+              '${sb.home.path}\\.specstone\\bin',
+              '${sb.root.path}\\earlier',
+              '${sb.root.path}\\later',
+            ]),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), contains(notice(earlier)));
+        expect(flat(r.stdout), isNot(contains(later)));
+        expect(File('${binDir(sb)}\\stn.exe').existsSync(), isFalse);
+        expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isFalse);
+      });
+
       pathTest(
-        'the earliest match is stn.ps1, an earlier stn.ps1 named '
-        r'before a later stn.exe; bin\stn.exe installed, no stn.cmd',
+        'a rerun after another stn appears removes the placed stn.exe',
+        () async {
+          for (final sameVersion in [true, false]) {
+            final sb = await sandboxWithShim();
+            final bin = '${sb.home.path}\\.specstone\\bin';
+            final first = await runInstall(
+              sb,
+              extra: {
+                'PATH': pathWith(sb, [bin]),
+              },
+            );
+            expect(first.exitCode, 0, reason: '${first.stderr}');
+            expect(File('$bin\\stn.exe').existsSync(), isTrue);
+            final tools = Directory('${sb.root.path}\\tools')..createSync();
+            final found = otherStn(tools.path, 'cmd');
+            if (!sameVersion) {
+              await sb.writeArchive('windows-x64', version: '0.3.0');
+            }
+            final entries = {
+              'PATH': pathWith(sb, [bin, tools.path]),
+            };
+
+            final r = await runInstall(sb, extra: entries);
+
+            final reason = 'same Version: $sameVersion; ${r.stderr}';
+            expect(r.exitCode, 0, reason: reason);
+            expect(flat(r.stdout), contains(notice(found)), reason: reason);
+            expect(File('$bin\\stn.exe').existsSync(), isFalse, reason: reason);
+            if (!sameVersion) {
+              final again = await runInstall(sb, extra: entries);
+              expect(again.exitCode, 0, reason: '${again.stderr}');
+              expect(
+                File('$bin\\stn.exe.old').existsSync(),
+                isFalse,
+                reason: reason,
+              );
+            }
+          }
+        },
+      );
+
+      pathTest(
+        'no other stn at the installed version with stn.exe missing leaves '
+        'bin as it is',
         () async {
           final sb = await sandboxWithShim();
-          final earlier = otherStn('${sb.root.path}\\earlier', 'ps1');
-          final later = otherStn('${sb.root.path}\\later', 'exe');
+          final bin = '${sb.home.path}\\.specstone\\bin';
+          final entries = {
+            'PATH': pathWith(sb, [bin]),
+          };
+          final first = await runInstall(sb, extra: entries);
+          expect(first.exitCode, 0, reason: '${first.stderr}');
+          File('$bin\\stn.exe').deleteSync();
+
+          final r = await runInstall(sb, extra: entries);
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), isNot(contains('another stn')));
+          expect(File('$bin\\stn.exe').existsSync(), isFalse);
+        },
+      );
+
+      pathTest(
+        'a placed stn.exe that will not go reports the failed delete',
+        () async {
+          final sb = await sandboxWithShim();
+          final bin = '${sb.home.path}\\.specstone\\bin';
+          final first = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, [bin]),
+            },
+          );
+          expect(first.exitCode, 0, reason: '${first.stderr}');
+          final tools = Directory('${sb.root.path}\\tools')..createSync();
+          final found = otherStn(tools.path, 'cmd');
+          final held = File('$bin\\stn.exe').openSync();
+          addTearDown(held.closeSync);
 
           final r = await runInstall(
             sb,
             extra: {
-              'PATH': pathWith(sb, [
-                '${sb.home.path}\\.specstone\\bin',
-                '${sb.root.path}\\earlier',
-                '${sb.root.path}\\later',
-              ]),
+              'PATH': pathWith(sb, [bin, tools.path]),
             },
           );
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(flat(r.stdout), contains(notice(earlier)));
-          expect(flat(r.stdout), isNot(contains(later)));
-          expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
-          expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isFalse);
+          expect(flat(r.stdout), contains(notice(found)));
+          expect(
+            flat(r.stderr),
+            contains(
+              'specstone: could not remove $bin\\stn.exe: '
+              'delete it yourself',
+            ),
+          );
         },
       );
 
@@ -1351,6 +1447,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(flat(r.stdout), isNot(contains('another stn')));
+        expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
       });
 
       pathTest('a stn on a relative entry only prints no notice', () async {
@@ -1366,6 +1463,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(flat(r.stdout), isNot(contains('another stn')));
+        expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
       });
 
       pathTest('the install folder with a trailing '
@@ -1405,6 +1503,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
           expect(flat(r.stdout), isNot(contains('another stn')), reason: entry);
+          expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
         }
       });
 
@@ -1422,6 +1521,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(flat(r.stdout), isNot(contains('another stn')));
+        expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
       });
 
       pathTest(
@@ -1441,40 +1541,38 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
           expect(flat(r.stdout), isNot(contains('another stn')));
+          expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
         },
       );
 
-      pathTest(
-        'a folder holding stn.exe and specstone.exe is skipped as '
-        'the shim skips it, so a later stn is named and a lone one is not',
-        () async {
-          final sb = await sandboxWithShim();
-          final copy = '${sb.root.path}\\other install';
-          otherStn(copy, 'exe');
-          File('$copy\\specstone.exe').writeAsStringSync('fake');
-          final later = otherStn('${sb.root.path}\\later', 'exe');
-          final bin = '${sb.home.path}\\.specstone\\bin';
+      pathTest('a folder holding stn.exe and specstone.exe is skipped as a '
+          'Specstone install', () async {
+        final sb = await sandboxWithShim();
+        final copy = '${sb.root.path}\\other install';
+        otherStn(copy, 'exe');
+        File('$copy\\specstone.exe').writeAsStringSync('fake');
+        final later = otherStn('${sb.root.path}\\later', 'exe');
+        final bin = '${sb.home.path}\\.specstone\\bin';
 
-          final alone = await runInstall(
-            sb,
-            extra: {
-              'PATH': pathWith(sb, [bin, copy]),
-            },
-          );
-          final withLater = await runInstall(
-            sb,
-            extra: {
-              'PATH': pathWith(sb, [bin, copy, '${sb.root.path}\\later']),
-            },
-          );
+        final alone = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, [bin, copy]),
+          },
+        );
+        final withLater = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, [bin, copy, '${sb.root.path}\\later']),
+          },
+        );
 
-          expect(alone.exitCode, 0, reason: '${alone.stderr}');
-          expect(flat(alone.stdout), isNot(contains('another stn')));
-          expect(withLater.exitCode, 0, reason: '${withLater.stderr}');
-          expect(flat(withLater.stdout), contains(notice(later)));
-          expect(flat(withLater.stdout), isNot(contains(copy)));
-        },
-      );
+        expect(alone.exitCode, 0, reason: '${alone.stderr}');
+        expect(flat(alone.stdout), isNot(contains('another stn')));
+        expect(withLater.exitCode, 0, reason: '${withLater.stderr}');
+        expect(flat(withLater.stdout), contains(notice(later)));
+        expect(flat(withLater.stdout), isNot(contains(copy)));
+      });
 
       pathTest('a folder holding stn.cmd and specstone.exe is no marker, '
           'so its stn.cmd is named', () async {
