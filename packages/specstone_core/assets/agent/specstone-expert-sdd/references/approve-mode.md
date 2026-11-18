@@ -29,7 +29,7 @@ that `ask` uses. Read the keys of each finding (`docPath`, `kind`, `waitsFor`), 
    landed what it flagged.
 
 Without an audit, a flow takes tests 1 and 2 alone: one edit of `specstone-update-sdd`, `specstone-sync-sdd`,
-`specstone-bootstrap-prd`, `specstone-bootstrap-spec`, and each of the four first drafts of `specstone-init`.
+`specstone-bootstrap-prd`, `specstone-bootstrap-spec`, and each first draft of `specstone-init`.
 `specstone-brainstorming-sdd` hands its last audit's relay block to tests 3 and 4 and every author reply to test 5. Its
 `Waits on the Owner:` lines are not read: test 2 judges the same findings.
 
