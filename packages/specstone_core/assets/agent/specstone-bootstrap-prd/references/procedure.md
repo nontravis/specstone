@@ -2,7 +2,7 @@ Step 1, the gate, ran.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
 Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming canonicalization
-sections go to `specstone-bootstrap-spec`. Follow the `specstone-expert-sdd` skill for every write; before the first,
+sections go to `specstone-bootstrap-spec`. Follow `specstone-expert-sdd` for every write; before the first,
 run `specstone guide <type> …` once, naming every type you write; a type met later gets its call before its first write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
@@ -23,16 +23,15 @@ whole section.
 | Finding | Fix |
 |---|---|
 | `required_section_missing` on the features doc | step 6 |
-| `required_field_missing` on a feature's `summary` | one sentence from the doc's own text on what it does for its persona, per `specstone guide feature`; `set --field summary` |
+| `required_field_missing` on a feature's `summary` | one sentence from the doc's text on what it does for its persona, per `specstone guide feature`; `set --field summary` |
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
 | `singular_doc_missing`; `section_undeclared` on PROJECT's goals or glossary section | `goal-move.md`; `glossary-move.md` for `prds/GLOSSARY.md` and the glossary |
-| `section_undeclared` holding several items the guide wants one per file | step 4 |
+| `section_undeclared` holding several items the guide wants one per file; `untyped_doc` | step 4 |
 | `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; a statement whose home is a spec doc waits for `specstone-bootstrap-spec`; then drop the section |
 | `field_undeclared` on a feature's `implements` | step 3 |
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
-| `feature_status_written` | drop the feature's `status` key |
-| `untyped_doc` | step 4 |
-| `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit`, `subsections_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
+| `feature_status_written` | drop its `status` key |
+| `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit`, `subsections_over_limit`, `item_count_out_of_range` on FR edge cases | `../../specstone-expert-sdd/references/size-fix.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
 | `words_over_limit`, `sentence_chars_over_limit`, `trace_note_not_last`, `sentences_over_limit`, `item_lines_over_limit` | `../../specstone-expert-sdd/references/readability-fix.md` |
 | any other under `prds/` or `measurements/` | rewrite what it names per the loaded guide; one clearing with no write goes to step 6 |
@@ -40,7 +39,7 @@ whole section.
 ## 3. Move a feature's code pointers
 
 Give each `implements:` entry of a `FEATURE.md` to the record entry of the story or FR whose behavior that code does, in
-the first listed code target, unless it holds it already; drop an entry no one doc takes as a
+the first listed code target, unless it holds it; drop an entry no one doc takes as a
 proposal named in step 6. Pipe that record's whole new list, as YAML `- item` lines, to
 `specstone set implementation:<feature> --field implements --base <hash>`. Then drop the feature's `implements` key.
 
