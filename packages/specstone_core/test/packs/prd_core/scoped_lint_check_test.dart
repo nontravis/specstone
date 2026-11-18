@@ -155,7 +155,8 @@ void main() {
         doc(
           loginStory,
           '- **When** the Agent signs in\n',
-          '- **When** the Agent signs in\n- **When** the Agent signs in again\n',
+          '- **When** the Agent signs in\n'
+              '- **When** the Agent signs in again\n',
         ),
         FindingKind.prefixCountMismatch,
       );
