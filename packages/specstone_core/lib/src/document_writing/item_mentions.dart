@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, resolveDocLink;
+import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show extensionOfCodePath, nameMentionsInFile, readsNameMentions;
@@ -276,7 +277,10 @@ List<StaleMention> _bareMentions(
   final skippedHeads = <MovedSpan>{};
   final mentions = <StaleMention>[];
   final runPrefixes = itemIdPrefixesOf(index.set.docTypes);
-  for (final (:at, :id) in itemIdsInProse(prose, prefixes: moves.prefixes)) {
+  for (final ItemIdAt(:at, :id) in itemIdsInProse(
+    prose,
+    prefixes: moves.prefixes,
+  )) {
     final number = body.fileLineOf(at);
     final span = spans
         .where((span) => span.first <= number && number <= span.last)

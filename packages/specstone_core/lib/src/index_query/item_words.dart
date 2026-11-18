@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/doc_items.dart'
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax;
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show itemIdsInProse, readItemId;
@@ -178,7 +179,7 @@ String _linksAsText(String text, String definitions) {
 /// Returns [text] with each item ID of [prefixes] blanked to spaces.
 String _withoutItemIds(String text, Set<String> prefixes) {
   var out = text;
-  for (final (:at, :id) in itemIdsInProse(text, prefixes: prefixes)) {
+  for (final ItemIdAt(:at, :id) in itemIdsInProse(text, prefixes: prefixes)) {
     out = out.replaceRange(at, at + id.written.length, ' ' * id.written.length);
   }
   return out;

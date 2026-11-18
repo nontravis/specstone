@@ -1,7 +1,9 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show headingItemTextOf;
+import 'package:specstone_core/src/doc_model/models/destination_parts.dart';
 import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 
 /// The one-code-point letter test: a letter ends no ID.
@@ -169,11 +171,8 @@ final _writtenPrefix = RegExp(r'^(?:\*\*)?([A-Za-z][A-Za-z-]*)\d');
 /// An ID is a token of one of [prefixes], the longest first, so `SHA256` is
 /// no ID unless a doc type's section holds the prefix `SHA`. The digits are
 /// read by [readItemIdAt]: a lettered or unreadable form is no ID.
-List<({int at, ItemId id})> itemIdsInProse(
-  String prose, {
-  required Set<String> prefixes,
-}) {
-  final found = <({int at, ItemId id})>[];
+List<ItemIdAt> itemIdsInProse(String prose, {required Set<String> prefixes}) {
+  final found = <ItemIdAt>[];
   final longestFirst = prefixes.toList()..sort((a, b) => b.length - a.length);
   for (final prefix in longestFirst) {
     for (
@@ -187,7 +186,7 @@ List<({int at, ItemId id})> itemIdsInProse(
         final overlaps = found.any(
           (f) => at < f.at + f.id.written.length && f.at < end,
         );
-        if (!overlaps) found.add((at: at, id: id));
+        if (!overlaps) found.add(ItemIdAt(at: at, id: id));
       }
     }
   }
@@ -419,11 +418,6 @@ enum DestinationKind {
   definition,
 }
 
-/// A link destination as written, split as `markdown` reads it: the index
-/// where the text of its href's first `?` or `#` starts, else its length,
-/// and the index past the text of its href's first `#`, null with none.
-typedef DestinationParts = ({int pathEnd, int? anchorStart});
-
 /// One code unit of a destination as decoding reads it, and the range of the
 /// text written for it.
 typedef _ReadUnit = ({int code, int start, int end});
@@ -462,9 +456,14 @@ DestinationParts destinationPartsOf(String written, DestinationKind kind) {
   final units = _punctuationUnescaped(_parserUnescaped(written, kind));
   for (final (:code, :start, :end) in _referencesDecoded(units)) {
     if (code == _questionMark) pathEnd ??= start;
-    if (code == _hash) return (pathEnd: pathEnd ?? start, anchorStart: end);
+    if (code == _hash) {
+      return DestinationParts(pathEnd: pathEnd ?? start, anchorStart: end);
+    }
   }
-  return (pathEnd: pathEnd ?? written.length, anchorStart: null);
+  return DestinationParts(
+    pathEnd: pathEnd ?? written.length,
+    anchorStart: null,
+  );
 }
 
 /// Returns [written], a [kind] destination as written, angle brackets left
