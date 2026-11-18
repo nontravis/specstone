@@ -156,6 +156,16 @@ void main() {
       expect(changes.added, ['Copied.']);
     });
 
+    test('a sentence the draft holds twice lists once as new', () {
+      final changes = _changes(
+        approved: '## Statement\nStays.\n',
+        draft: '## Statement\nStays. Twice.\n\n## Rationale\nTwice.\n',
+        runCopies: ['## Statement\nStays.\n'],
+      );
+
+      expect(changes.added, ['Twice.']);
+    });
+
     test('a sentence of the draft that a copy holds in a wrapped block quote '
         'is not new', () {
       final changes = _changes(
