@@ -12,7 +12,7 @@ import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show PointerKind, PointerRoot, RecordStatus;
+    show RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _codeField = 'code';
@@ -118,20 +118,6 @@ bool readsCoversCode(
   String pointer, {
   required bool endsWait,
 }) => endsWait && namesFileOrFolderFrom(root, pointer);
-
-/// Returns the `covers`-like fields of [type]: each `output_ref` field whose
-/// pointer is `prefix`, in field order; none for an untyped doc.
-///
-/// The one field selection the code rules and the migrate stamp read.
-List<MergedField> coversFieldsOf(MergedDocType? type) => [
-  for (final field in type?.fields ?? const <MergedField>[])
-    if (isCodeLinkField(field) && field.pointer == PointerKind.prefix) field,
-];
-
-/// Whether [field]'s entries resolve from the project root, which belongs to
-/// no code target, in place of a code root.
-bool readsFromProjectRoot(MergedField field) =>
-    field.root == PointerRoot.project;
 
 /// Returns the `covers_path_missing` and `code_root_missing` findings of a
 /// typed [doc].

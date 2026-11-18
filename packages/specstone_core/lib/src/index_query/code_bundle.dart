@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart'
     show absoluteFrom, pathInside;
-import 'package:specstone_core/src/consistency_check/code_rules.dart'
-    show coversFieldsOf, readsFromProjectRoot;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -149,23 +147,30 @@ List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
     if (doc.docTypeId == null || index.hasTwins && doc.target == null) {
       continue;
     }
-    for (final field in coversFieldsOf(index.typeOf(doc))) {
-      if (readsFromProjectRoot(field)) continue;
-      for (final entry in doc.valuesOf(field.id)) {
-        final covered = _withoutTrailingSlash(CodeLinkEntry(entry).pointer);
-        if (covered.isEmpty || !_isPrefixOf(covered, code.path)) continue;
-        if (covered.length > longest) {
-          longest = covered.length;
-          matches
-            ..clear()
-            ..add(doc);
-        } else if (covered.length == longest && !matches.contains(doc)) {
-          matches.add(doc);
-        }
+    for (final covered in _coveredPaths(index, doc)) {
+      if (covered.isEmpty || !_isPrefixOf(covered, code.path)) continue;
+      if (covered.length > longest) {
+        longest = covered.length;
+        matches
+          ..clear()
+          ..add(doc);
+      } else if (covered.length == longest && !matches.contains(doc)) {
+        matches.add(doc);
       }
     }
   }
   return matches;
+}
+
+/// Returns the code-root paths [doc]'s `covers` fields name, each without a
+/// trailing slash.
+Iterable<String> _coveredPaths(DocIndex index, IndexedDoc doc) sync* {
+  for (final field in coversFieldsOf(index.typeOf(doc))) {
+    if (readsFromProjectRoot(field)) continue;
+    for (final entry in doc.valuesOf(field.id)) {
+      yield _withoutTrailingSlash(CodeLinkEntry(entry).pointer);
+    }
+  }
 }
 
 List<IndexedDoc> _tracedDocs(DocIndex index, CodePath code) => [

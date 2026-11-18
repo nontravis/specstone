@@ -601,8 +601,8 @@ void main() {
     });
   });
   group('a skill doc whose covers entry reads from the project root', () {
-    Future<(ReadSession, Directory)> skillProject({String? codeRoot}) async {
-      final project = await writeLoginProject(
+    Future<Bundle Function()> skillCall({String? codeRoot}) async {
+      final root = await writeLoginProject(
         extra: {
           '.specstone/config.yaml':
               '${skillPinsConfig()}${codeRoot == null ? '' : 'code_root: $codeRoot\n'}',
@@ -611,29 +611,25 @@ void main() {
           if (codeRoot != null) '$codeRoot/keep.txt': '',
         },
       );
-      final session = openSession(project);
-      addTearDown(session.close);
-      return (session, project);
+      final opened = openSession(root);
+      addTearDown(opened.close);
+      return () => pickCodeBundle(
+        opened.index,
+        resolveCodePath(
+          skillFile,
+          workingDirectory: root,
+          targets: opened.project.targets,
+          codeRootOf: opened.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
     }
-
-    Bundle skillBundle(ReadSession session, Directory project) =>
-        pickCodeBundle(
-          session.index,
-          resolveCodePath(
-            skillFile,
-            workingDirectory: project,
-            targets: session.project.targets,
-            codeRootOf: session.project.codeRootOf,
-          ),
-          BundleMode.implement,
-          noProject: false,
-        );
 
     test(
       'is never a spec match, so its file gets the no-doc warning',
       () async {
-        final (session, project) = await skillProject();
-        final bundle = skillBundle(session, project);
+        final bundle = (await skillCall())();
 
         expect(bundle.docPaths, isNot(contains(skillDoc)));
         expect(bundle.warnings, ['no doc covers or implements $skillFile']);
@@ -642,10 +638,10 @@ void main() {
     test(
       'leaves its file outside the code root, which refuses the path',
       () async {
-        final (session, project) = await skillProject(codeRoot: 'specstone');
+        final pick = await skillCall(codeRoot: 'specstone');
 
         expect(
-          () => skillBundle(session, project),
+          pick,
           throwsA(
             isA<IndexFault>().having(
               (x) => x.code,
