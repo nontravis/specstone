@@ -129,12 +129,19 @@ void main() {
 
     test('the description holds one line for each skill rule', () {
       final lines = skill.description!.split('\n');
-      expect(lines.length, greaterThanOrEqualTo(5));
-      expect(
-        lines.where((l) => l.contains('Specstone installs and distributes')),
-        hasLength(1),
-      );
-      expect(lines.where((l) => l.contains('`<output>/SKILL.md`')), isNotEmpty);
+      const rulePhrases = [
+        'The Owner writes `SKILL.md` by hand',
+        'holds one entry, `<output>/SKILL.md`',
+        'read from the project root, never from a code root',
+        'Specstone installs and distributes no project skill',
+      ];
+      for (final phrase in rulePhrases) {
+        expect(
+          lines.where((l) => l.contains(phrase)),
+          hasLength(1),
+          reason: phrase,
+        );
+      }
     });
 
     test('lists beside the prd-core doc types', () {

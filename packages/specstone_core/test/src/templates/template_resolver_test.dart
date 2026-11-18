@@ -2369,11 +2369,10 @@ path: adr/{slug}.md
   group('TemplateResolver.availableManifests and resolveCarried', () {
     test('availableManifests gives the carried version of each shipped '
         'pack', () {
-      final manifests = TemplateResolver().availableManifests([
-        'agent-skills',
-        'prd-core',
-        'software-tech',
-      ], homeDirectory: null);
+      final manifests = TemplateResolver().availableManifests(
+        shippedPackVersions().keys.toList(),
+        homeDirectory: null,
+      );
 
       expect({
         for (final e in manifests.entries) e.key: '${e.value.version}',
