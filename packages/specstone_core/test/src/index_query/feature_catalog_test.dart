@@ -256,6 +256,18 @@ void main() {
       expect(_cells(row), hasLength(5));
     });
 
+    test('an already escaped pipe in a summary stays one escape', () async {
+      final index = await _open(
+        _feature('f01_a', 'A', front: 'summary: "Reads \\\\| writes."\n'),
+      );
+
+      final row = _rows(_text(index)).single;
+
+      expect(row, contains(r'Reads \| writes.'));
+      expect(row, isNot(contains(r'\\|')));
+      expect(_cells(row), hasLength(5));
+    });
+
     test('a summary that spans lines stays in one row', () async {
       final index = await _open(
         _feature('f01_a', 'A', front: 'summary: "One\\ntwo."\n'),

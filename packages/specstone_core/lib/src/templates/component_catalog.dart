@@ -20,6 +20,7 @@ const _tableHead =
     '|---|---|---|---|---|';
 
 final _lineBreak = RegExp(r'\s*\n\s*');
+final _unescapedPipe = RegExp(r'(?<!\\)\|');
 
 // MARK: - Generator
 
@@ -79,7 +80,7 @@ String _docLink(IndexedDoc component, String discoveryDocPath) {
   return '[${_cell(component.docPath)}]($href)';
 }
 
-/// Returns [text] as one table cell: line breaks become spaces and each `|` is
-/// escaped.
+/// Returns [text] as one table cell: line breaks become spaces and each `|` not
+/// written `\|` is escaped.
 String _cell(String text) =>
-    text.trim().replaceAll(_lineBreak, ' ').replaceAll('|', r'\|');
+    text.trim().replaceAll(_lineBreak, ' ').replaceAll(_unescapedPipe, r'\|');

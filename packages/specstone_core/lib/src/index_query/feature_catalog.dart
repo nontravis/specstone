@@ -30,6 +30,7 @@ const List<RecordStatus> _statusOrder = [
 ];
 
 final _lineBreak = RegExp(r'\s*\n\s*');
+final _unescapedPipe = RegExp(r'(?<!\\)\|');
 
 // MARK: - Generator
 
@@ -139,10 +140,10 @@ String _featureLink(IndexedDoc feature, String featuresDocPath) {
   return '[${_cell(text)}]($href)';
 }
 
-/// Returns [text] as one table cell: line breaks become spaces and each `|` is
-/// escaped.
+/// Returns [text] as one table cell: line breaks become spaces and each `|` not
+/// written `\|` is escaped.
 String _cell(String text) =>
-    text.trim().replaceAll(_lineBreak, ' ').replaceAll('|', r'\|');
+    text.trim().replaceAll(_lineBreak, ' ').replaceAll(_unescapedPipe, r'\|');
 
 /// Returns what [cell] gives for the one target, or for each target as
 /// `<target>: <cell>` joined by `, ` when the project names two or more.

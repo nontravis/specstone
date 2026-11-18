@@ -132,6 +132,29 @@ void main() {
       expect(_cells(_rows(_text(index)).single)[2], _dash);
     });
 
+    test('a component with an empty Purpose section reads a dash', () async {
+      final index = await _open(
+        _component('buttons', 'primary_button', purpose: ''),
+      );
+
+      expect(_cells(_rows(_text(index)).single)[2], _dash);
+    });
+
+    test('an already escaped pipe stays one escape', () async {
+      final index = await _open(
+        _component(
+          'buttons',
+          'primary_button',
+          purpose: r'Picks a \| b for you. Next.',
+        ),
+      );
+
+      final row = _rows(_text(index)).single;
+
+      expect(_cells(row), hasLength(5));
+      expect(_cells(row)[2], r'Picks a \| b for you.');
+    });
+
     test('a component with no lifecycle reads a dash', () async {
       final index = await _open(
         _component('buttons', 'primary_button', lifecycle: null),
@@ -162,14 +185,14 @@ void main() {
           _component(
             'buttons',
             'primary_button',
-            purpose: r'Picks `a \| b` for you. Next.',
+            purpose: 'Picks a | b for you. Next.',
           ),
         );
 
         final row = _rows(_text(index)).single;
 
         expect(_cells(row), hasLength(5));
-        expect(_cells(row)[2], contains(r'\|'));
+        expect(_cells(row)[2], r'Picks a \| b for you.');
       },
     );
 
