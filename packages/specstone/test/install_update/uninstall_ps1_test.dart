@@ -3,6 +3,7 @@
 @Timeout(Duration(minutes: 10))
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -271,6 +272,123 @@ void main() {
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
       expect((r.stdout as String).trim(), endsWith('PATH=$path'));
+    });
+
+    // The script starts no program by name, so no planted program shows its
+    // PATH; the one place the narrowed PATH shows is `$env:Path` while it
+    // runs. This copy of the script prints it, and the variable that would
+    // make cmd.exe skip the current folder, right before the removals.
+    Future<String> probeScript(ScriptSandbox sb) async {
+      const anchor = r'$results = @((Remove-Folder';
+      final text = File('${repoRoot().path}\\uninstall.ps1').readAsStringSync();
+      expect(text, contains(anchor));
+      final probe = File('${sb.root.path}\\uninstall_probe.ps1')
+        ..writeAsStringSync(
+          text.replaceFirst(
+            anchor,
+            r"Write-Host ('NARROWED=' + $env:Path); "
+            "Write-Host ('NOCWD=<' + "
+            r"$env:NoDefaultCurrentDirectoryInExePath + '>'); "
+            '$anchor',
+          ),
+          encoding: ascii,
+        );
+      return probe.path;
+    }
+
+    String valueOf(Object? stdout, String key) => [
+      for (final line in '$stdout'.split(RegExp(r'\r?\n')))
+        if (line.startsWith('$key=')) line.substring(key.length + 1),
+    ].single;
+
+    pathTest('an empty, ., ~, or relative PATH entry is dropped before any '
+        'program starts, and the rest keep their order', () async {
+      final sb = await installedSandbox();
+      final probe = await probeScript(sb);
+      final system = sb.env()['PATH']!;
+
+      final r = await sb.run(
+        probe,
+        extra: {'PATH': r'.;;planted;~;~\bin;C:\Windows;' + system},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(valueOf(r.stdout, 'NARROWED'), r'C:\Windows;' + system);
+    });
+
+    pathTest('the absolute entries stay, a quoted one holding a semicolon '
+        'is quoted again, and NoDefaultCurrentDirectoryInExePath stays '
+        'unset', () async {
+      final sb = await installedSandbox();
+      final probe = await probeScript(sb);
+      final system = sb.env()['PATH']!;
+
+      final r = await sb.run(
+        probe,
+        extra: {'PATH': r'C:/Tools;"C:\Pro;gram";\\server\share;' + system},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        valueOf(r.stdout, 'NARROWED'),
+        r'C:/Tools;"C:\Pro;gram";\\server\share;' + system,
+      );
+      expect(valueOf(r.stdout, 'NOCWD'), '<>');
+    });
+
+    pathTest('the user PATH item comes from the registry as written, not '
+        'from the session PATH', () async {
+      final sb = await installedSandbox();
+      const sessionOnly = r'C:\session\only';
+
+      final r = await sb.run(
+        'uninstall.ps1',
+        extra: {'PATH': '${sb.env()['PATH']};$sessionOnly;${binDir(sb)}'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect((await readUserPath())?.value, otherItems);
+
+      final second = await createScriptSandbox();
+      second.installFake();
+      await writeUserPath((value: otherItems, kind: 'String'));
+
+      final r2 = await second.run(
+        'uninstall.ps1',
+        extra: {'PATH': '${second.env()['PATH']};${binDir(second)}'},
+      );
+
+      expect(r2.exitCode, 0, reason: '${r2.stderr}');
+      expect((await readUserPath())?.value, otherItems);
+      expect(r2.stdout, isNot(contains('from the user PATH')));
+    });
+
+    pathTest('USERPROFILE stands in when HOME is unset, and HOME wins over a '
+        'different USERPROFILE', () async {
+      final sb = await installedSandbox();
+      final other = Directory('${sb.root.path}\\profile_home')..createSync();
+      File('${other.path}\\.specstone\\bin\\specstone.exe')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('x');
+
+      final wins = await sb.run(
+        'uninstall.ps1',
+        extra: {'USERPROFILE': other.path},
+      );
+
+      expect(wins.exitCode, 0, reason: '${wins.stderr}');
+      expect(Directory(binDir(sb)).existsSync(), isFalse);
+      expect(
+        File('${other.path}\\.specstone\\bin\\specstone.exe').existsSync(),
+        isTrue,
+      );
+
+      final fallback = await installedSandbox();
+      final r = await fallback.run('uninstall.ps1', extra: {'HOME': ''});
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(Directory(binDir(fallback)).existsSync(), isFalse);
+      expect((await readUserPath())?.value, otherItems);
     });
   });
 }
