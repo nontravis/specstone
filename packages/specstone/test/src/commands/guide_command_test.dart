@@ -7,6 +7,7 @@ import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/marketing.dart';
+import '../../../../specstone_core/test/helpers/personal_branding.dart';
 import '../../../../specstone_core/test/helpers/prd_core.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/software_design_system.dart';
@@ -1476,6 +1477,7 @@ items:
             ...softwareTechIds,
             ...softwareDesignSystemIds,
             ...marketingIds,
+            ...personalBrandingIds,
             'skill',
           ]..sort(),
         );
@@ -1751,6 +1753,57 @@ items:
         ),
       );
       expect(err.toString(), isEmpty);
+    });
+
+    test('guide voice prints the marketing sections, then Writing habits '
+        'last', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(personalBrandingPacks),
+      );
+
+      expect(await runner.run(['guide', 'voice']), 0);
+      final headers = RegExp(
+        r'^## (.+)$',
+        multiLine: true,
+      ).allMatches(out.toString()).map((m) => m[1]).toList();
+      expect(headers.sublist(headers.indexOf('Tone')), [
+        'Tone',
+        'Words',
+        'Writing habits',
+      ]);
+      expect(err.toString(), isEmpty);
+    });
+
+    test('a project listing prd-core and marketing refuses guide story with '
+        'the usage', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      expect(await runner.run(['guide', 'story']), 64);
+      expect(
+        err.toString(),
+        contains('Could not find a doc type named "story".\n\n$_guideUsage'),
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test('guide proof --json prints the three optional sections and no '
+        'perTarget', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(personalBrandingPacks),
+      );
+
+      final schema = await schemaOf(runner, 'proof');
+      expect(schema.containsKey('perTarget'), isFalse);
+      final sections = (schema['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(sections.map((s) => s['id']), [
+        'results',
+        'testimonials',
+        'credentials',
+      ]);
+      expect(sections.map((s) => s['required']), everyElement(isNot(true)));
     });
 
     test('with only prd-core a software-tech type is neither listed nor '
