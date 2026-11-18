@@ -461,6 +461,8 @@ void main() {
   });
   test('a query on an FR adds the query sections alone of its feature and of each joined doc, then the map', () async {
     final i = await indexWith({
+      '.specstone/templates/user_story.yaml':
+          'sections:\n  - id: use_case\n    query: true\n',
       featureKey:
           '${loginProject[featureKey]}\n## Benefit hypothesis\nWe believe sign-in rises.\n',
       _projectFile: _projectWithoutGlossary,
@@ -484,6 +486,13 @@ void main() {
       ),
     );
     expect(a.text, isNot(contains('Benefit hypothesis')));
+    expect(
+      a.text,
+      contains(
+        '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md <==\n'
+        '## Use Case\nSign in with an email.',
+      ),
+    );
     expect(a.text, isNot(contains('# Agent signs in with email')));
     expect(a.text, contains('==> map: login (feature) <=='));
   });
@@ -1297,26 +1306,21 @@ void main() {
       expect(design(i, budget: tokens).exitStatus, 0);
       expect(design(i, budget: tokens - 1).exitStatus, 1);
     });
-    test('a bundle within the budget goes over it once its appended part and cited-by lines count', () async {
+    test('a bundle whose size without its cited-by lines fits the budget goes over it once the lines count', () async {
       final i = await citedIndex();
       final a = design(i);
       final text = shown(a);
-      final picked = text
-          .substring(0, text.indexOf('==> signup (domain)'))
+      final withoutLines = text
           .split('\n')
           .where((l) => !l.startsWith('  · cited by '))
           .join('\n');
 
       expect(text, contains('  · cited by guide (topic)'));
-      final room = tokenSizeOf(picked);
+      expect(text, contains('  · cited by $frName (fr)'));
+      final room = tokenSizeOf(withoutLines);
       expect(room, lessThan(a.json['tokens']! as int));
+      expect(design(i, budget: room).exitStatus, 1);
       expect(design(i, budget: a.json['tokens']! as int).exitStatus, 0);
-      final over = design(i, budget: room);
-      expect(over.exitStatus, 1);
-      expect(
-        over.text,
-        contains('- signup (domain) · cited invariants [INV-14] · '),
-      );
     });
   });
   group('budget', () {
@@ -1920,6 +1924,14 @@ void main() {
       ], orderedEquals([login, listChecks, signup, linkNotes]..sort()));
       expect(listChecks, greaterThan(login));
       expect(linkNotes, greaterThan(signup));
+      expect(
+        '==> '.allMatches(a.text.substring(login, listChecks)),
+        hasLength(1),
+      );
+      expect(
+        '==> '.allMatches(a.text.substring(signup, linkNotes)),
+        hasLength(1),
+      );
     });
   });
 
