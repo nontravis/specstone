@@ -6,19 +6,6 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 
 const _approvedId = 'approved';
 
-/// The five fields every doc type carries below its lowest layer.
-const _builtInFields = <MergedField>[
-  MergedField(id: 'slug', type: FieldType.string, list: true),
-  MergedField(
-    id: 'status',
-    type: FieldType.enumType,
-    enumValues: ['planned', 'implemented', 'deprecated'],
-  ),
-  MergedField(id: 'draft', type: FieldType.boolean),
-  MergedField(id: 'approved', type: FieldType.string),
-  MergedField(id: 'reference', type: FieldType.docRef, list: true),
-];
-
 /// Returns [base] with [write] applied, or [base] when [write] is null.
 ///
 /// A [PlainList] is accepted only where [base] is null. A [ListChange] starts
@@ -71,7 +58,7 @@ final class DocTypeMerger {
   /// Returns the empty doc type [id] holding only the built-in fields.
   MergedDocType builtInBase(String id) => MergedDocType(
     id: id,
-    fields: _builtInFields,
+    fields: builtInFields,
     sections: const [],
     lint: const MergedLint(),
     files: const [],
@@ -295,12 +282,13 @@ final class DocTypeMerger {
             docTypes: _frozen(entry.docTypes),
             pointer: _pointerOf(entry, type, layer),
             description: entry.description,
+            lint: entry.lint,
           ),
         );
         continue;
       }
       final current = fields[index];
-      if (_isBuiltIn(current.id)) _checkLocked(current, entry, layer);
+      if (current.isBuiltIn) _checkLocked(current, entry, layer);
       if (entry.disabled) {
         fields.removeAt(index);
         disabledIds.add(entry.id);
@@ -314,10 +302,15 @@ final class DocTypeMerger {
         docTypes: _frozen(entry.docTypes),
         pointer: _pointerOf(entry, entry.type ?? current.type, layer),
         description: entry.description,
+        lint: _mergedCaps(current.lint, entry.lint),
       );
     }
     return fields;
   }
+
+  /// Returns [lower] with each key [upper] writes replacing the same key.
+  FieldCaps? _mergedCaps(FieldCaps? lower, FieldCaps? upper) =>
+      upper == null ? null : (lower?.mergedWith(upper) ?? upper);
 
   /// Returns the kind [entry] writes, read only when [type] is `output_ref`.
   ///
@@ -559,8 +552,6 @@ final class DocTypeMerger {
 
   List<String>? _frozen(List<String>? list) =>
       list == null ? null : List.unmodifiable(list);
-
-  bool _isBuiltIn(String id) => _builtInFields.any((f) => f.id == id);
 
   void _checkLocked(MergedField current, FieldEntry entry, DocTypeLayer layer) {
     final changesType = entry.type != null && entry.type != current.type;

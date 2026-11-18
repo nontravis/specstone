@@ -53,6 +53,12 @@ void main() {
     expect(weightedChars(measure, 45), 7 + 2);
   });
 
+  test('weighted chars take the divisor a caller names', () {
+    final measure = measureSentence('ใช้ check ทุกครั้ง');
+    expect(weightedChars(measure, 60, divisor: 15), 7 + 4);
+    expect(weightedChars(measure, 60, divisor: 25), 7 + 3);
+  });
+
   test('kana takes ja and han alone takes zh', () {
     expect(measureSentence('これは日本語です').language, 'ja');
     expect(measureSentence('カタカナ').language, 'ja');

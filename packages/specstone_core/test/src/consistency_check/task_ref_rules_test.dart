@@ -32,13 +32,6 @@ Future<Directory> _project(
   );
 }
 
-/// The 1-based line of the first line of [path] in [project] holding [text].
-int _lineOf(Directory project, String path, String text) =>
-    File('${project.path}/docs/$path')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(text)) +
-    1;
-
 Future<List<Finding>> _missing(Directory project) async => [
   for (final finding in (await checkOf(project)).findings)
     if (finding.kind == FindingKind.taskItemMissing) finding,
@@ -72,7 +65,7 @@ void main() {
     final finding = found.single;
     expect(finding.path, _domain);
     expect(finding.name, 'login');
-    expect(finding.line, _lineOf(project, _domain, 'ENG-42'));
+    expect(finding.line, lineOfFirst(project, _domain, 'ENG-42'));
     expect(finding.waitsFor, WaitsFor.agent);
     expect(finding.toJson(), containsPair('task', 'ENG-42'));
     expect(finding.toJson(), containsPair('item', 'INV-4'));
@@ -132,7 +125,7 @@ void main() {
 
     expect(found, hasLength(1));
     expect(found.single.toJson(), containsPair('item', 'INV-8'));
-    expect(found.single.line, _lineOf(project, _domain, 'ENG-43'));
+    expect(found.single.line, lineOfFirst(project, _domain, 'ENG-43'));
   });
 
   test('an entry naming a heading of the lead resolves by its text', () async {
@@ -197,7 +190,7 @@ void main() {
         for (final f in report.findings)
           if (f.kind == FindingKind.fieldValueMismatch) f.line,
       ],
-      [_lineOf(project, _domain, 'tasks:')],
+      [lineOfFirst(project, _domain, 'tasks:')],
     );
   });
 
@@ -220,7 +213,7 @@ void main() {
 
     expect(found, hasLength(1));
     expect(found.single.path, loginFeature);
-    expect(found.single.line, _lineOf(project, loginFeature, 'ENG-44'));
+    expect(found.single.line, lineOfFirst(project, loginFeature, 'ENG-44'));
     expect(found.single.toJson(), containsPair('item', 'ghost'));
   });
 
@@ -297,7 +290,7 @@ void main() {
       expect(found, hasLength(1));
       final finding = found.single;
       expect(finding.path, _domain);
-      expect(finding.line, _lineOf(project, _domain, 'ENG-42'));
+      expect(finding.line, lineOfFirst(project, _domain, 'ENG-42'));
       expect(finding.waitsFor, WaitsFor.agent);
       expect(finding.toJson(), containsPair('task', 'ENG-42'));
       expect(finding.toJson(), containsPair('item', 'INV-4'));

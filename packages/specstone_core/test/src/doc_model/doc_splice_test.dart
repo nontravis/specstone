@@ -190,47 +190,50 @@ void main() {
     expect(withLead('# T', 'new\n'), '# T\nnew\n');
   });
 
-  test('f02/us02/fr02: with fieldOrder an absent key lands at its slot and no block moves', () {
-    const text = '---\nb: 1\nd: 2\n---\n';
-    const order = ['a', 'b', 'c', 'd'];
-    expect(
-      withKeyBlock(text, 'c', 'c: 3\n', fieldOrder: order),
-      '---\nb: 1\nc: 3\nd: 2\n---\n',
-    );
-    expect(
-      withKeyBlock(text, 'a', 'a: 0\n', fieldOrder: order),
-      '---\na: 0\nb: 1\nd: 2\n---\n',
-    );
-    expect(
-      withKeyBlock(text, 'z', 'z: 9\n', fieldOrder: order),
-      '---\nb: 1\nd: 2\nz: 9\n---\n',
-    );
-  });
-  test('f02/us02/fr02: with fieldOrder a key lands after the keyless block when no earlier key is held', () {
-    expect(
-      withKeyBlock(
-        '---\nstray line\nd: 2\n---\n',
-        'a',
-        'a: 0\n',
-        fieldOrder: ['a', 'd'],
-      ),
-      '---\nstray line\na: 0\nd: 2\n---\n',
-    );
-  });
   test(
-    'f02/us02/fr02: with fieldOrder an existing key is replaced in place',
+    'with fieldOrder an absent key lands at its slot and no block moves',
     () {
+      const text = '---\nb: 1\nd: 2\n---\n';
+      const order = ['a', 'b', 'c', 'd'];
       expect(
-        withKeyBlock(
-          '---\nb: 1\nd: 2\n---\n',
-          'b',
-          'b: 7\n',
-          fieldOrder: ['d', 'b'],
-        ),
-        '---\nb: 7\nd: 2\n---\n',
+        withKeyBlock(text, 'c', 'c: 3\n', fieldOrder: order),
+        '---\nb: 1\nc: 3\nd: 2\n---\n',
+      );
+      expect(
+        withKeyBlock(text, 'a', 'a: 0\n', fieldOrder: order),
+        '---\na: 0\nb: 1\nd: 2\n---\n',
+      );
+      expect(
+        withKeyBlock(text, 'z', 'z: 9\n', fieldOrder: order),
+        '---\nb: 1\nd: 2\nz: 9\n---\n',
       );
     },
   );
+  test(
+    'with fieldOrder a key follows the keyless block if no earlier key is held',
+    () {
+      expect(
+        withKeyBlock(
+          '---\nstray line\nd: 2\n---\n',
+          'a',
+          'a: 0\n',
+          fieldOrder: ['a', 'd'],
+        ),
+        '---\nstray line\na: 0\nd: 2\n---\n',
+      );
+    },
+  );
+  test('with fieldOrder an existing key is replaced in place', () {
+    expect(
+      withKeyBlock(
+        '---\nb: 1\nd: 2\n---\n',
+        'b',
+        'b: 7\n',
+        fieldOrder: ['d', 'b'],
+      ),
+      '---\nb: 7\nd: 2\n---\n',
+    );
+  });
 
   test('a fingerprint is 12 lowercase hex characters and nothing else', () {
     expect(isFingerprint(baseHashOf('abc')), isTrue);

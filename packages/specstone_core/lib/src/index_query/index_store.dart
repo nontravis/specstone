@@ -71,12 +71,14 @@ const _notWritableMessage =
 /// `mermaid` block to each line's name mentions, so an older index is rebuilt.
 /// Layout 26 stores each typed doc's `mermaid` blocks in its line facts and
 /// adds the `diagram_parses` table, so an index of layout 25, which holds
-/// neither, is rebuilt. Layout 27 holds no unreadable links in the line facts,
-/// so an index of layout 26 is rebuilt. Layout 28 adds the `matrix_lines`
+/// neither, is rebuilt. Two builds took layout 27 apart: one holds no
+/// unreadable links in the line facts; the other stores each prose field's
+/// readability facts and pattern matches. Layout 28 adds the `matrix_lines`
 /// column and leaves a record's matrix section out of its size counts, so an
 /// index of layout 27, whose record rows hold no Verification matrix lines, is
-/// rebuilt.
-const indexLayoutVersion = 28;
+/// rebuilt. Layout 29 holds both, so an index of layout 27 or 28, which lacks
+/// one or the other, is rebuilt.
+const indexLayoutVersion = 29;
 
 const _schema = '''
 CREATE TABLE meta (

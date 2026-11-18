@@ -9,6 +9,8 @@ import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -797,6 +799,90 @@ void main() {
       expect(visibleOf(crlf.content.itemFacts.sectionItems.last), [
         '1. E01 — A link here.'.length,
       ]);
+    });
+  });
+
+  group('prose fields', () {
+    const noteType = MergedDocType(
+      id: 'note',
+      fields: [
+        MergedField(
+          id: 'summary',
+          type: FieldType.string,
+          lint: FieldCaps(maxSentences: 2),
+        ),
+        MergedField(id: 'plain', type: FieldType.string),
+      ],
+      sections: [],
+      lint: MergedLint(),
+      files: [],
+    );
+
+    ItemFacts noteFacts(String text) => parseIndexedDoc(
+      docPath: 'n.md',
+      bytes: utf8.encode(text),
+      match: MatchedDocType(noteType),
+      statusesOutside: true,
+    ).content.itemFacts;
+
+    test('a string value stores its sentences as one item and adds no item '
+        'count', () {
+      final facts = noteFacts(
+        '---\nsummary: One two three. Four five.\n---\n\n# T\n',
+      );
+
+      final cells = facts.fieldItems['summary']!.readability.cells;
+      expect(cells, hasLength(1));
+      expect(cells.single.map((s) => (s.language, s.words)), [
+        ('default', 3),
+        ('default', 2),
+      ]);
+      expect(facts.fieldItems.keys, ['summary']);
+      expect(facts.leadItems, isEmpty);
+      expect(facts.sectionItems, isEmpty);
+    });
+
+    test('a two-line block scalar is one value whose sentence spans both '
+        'lines', () {
+      final facts = noteFacts(
+        '---\nsummary: |\n  One two\n  three four.\n---\n\n# T\n',
+      );
+
+      final cells = facts.fieldItems['summary']!.readability.cells;
+      expect(cells.single.map((s) => s.words), [4]);
+    });
+
+    test('a field that sets no lint gets no facts', () {
+      expect(
+        noteFacts('---\nplain: One two.\n---\n\n# T\n').fieldItems,
+        isEmpty,
+      );
+    });
+
+    test('a value that is not a string gets no facts', () {
+      expect(
+        noteFacts('---\nsummary: [a, b]\n---\n\n# T\n').fieldItems,
+        isEmpty,
+      );
+      expect(noteFacts('---\nsummary: 42\n---\n\n# T\n').fieldItems, isEmpty);
+    });
+
+    test('an untyped doc gets no facts', () {
+      expect(
+        factsOf('README.md', '---\nsummary: One two.\n---\n\n# T\n').fieldItems,
+        isEmpty,
+      );
+    });
+
+    test('the field facts round-trip through JSON', () {
+      final facts = noteFacts('---\nsummary: One two. Three.\n---\n\n# T\n');
+      final back = ItemFacts.fromJson(jsonDecode(jsonEncode(facts.toJson())));
+
+      expect(
+        back.fieldItems['summary']!.readability.cells,
+        facts.fieldItems['summary']!.readability.cells,
+      );
+      expect(jsonEncode(back.toJson()), jsonEncode(facts.toJson()));
     });
   });
 

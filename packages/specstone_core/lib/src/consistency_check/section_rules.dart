@@ -20,7 +20,7 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   if (type == null) return;
   final lines = context.linesOf(doc);
   final held = context.contentOf(doc).sections;
-  if (doc.title?.trim().isEmpty ?? true) {
+  if (!doc.hasTitle) {
     yield context.finding(
       doc,
       FindingKind.titleMissing,

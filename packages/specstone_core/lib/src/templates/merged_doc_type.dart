@@ -5,6 +5,19 @@ import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/summary_rows.dart';
 
+/// The five fields every doc type carries below its lowest layer.
+const builtInFields = <MergedField>[
+  MergedField(id: 'slug', type: FieldType.string, list: true),
+  MergedField(
+    id: 'status',
+    type: FieldType.enumType,
+    enumValues: ['planned', 'implemented', 'deprecated'],
+  ),
+  MergedField(id: 'draft', type: FieldType.boolean),
+  MergedField(id: 'approved', type: FieldType.string),
+  MergedField(id: 'reference', type: FieldType.docRef, list: true),
+];
+
 /// One enabled frontmatter field of a merged doc type.
 final class MergedField {
   const new({
@@ -16,6 +29,7 @@ final class MergedField {
     this.docTypes,
     PointerKind? pointer,
     this.description,
+    this.lint,
   }) : pointer = type == FieldType.outputRef ? pointer : null;
 
   /// The field id.
@@ -42,11 +56,20 @@ final class MergedField {
   /// What the field holds.
   final String? description;
 
+  /// The sentence caps of a prose field; null for any other field.
+  final FieldCaps? lint;
+
+  /// Whether the field is a prose field, one that sets `lint`.
+  bool get isProse => lint != null;
+
+  /// Whether Specstone or the Owner sets the field, so a layer cannot own it.
+  bool get isBuiltIn => builtInFields.any((field) => field.id == id);
+
   /// Returns a copy with each non-null argument replacing its property.
   ///
   /// A list the new type does not use is dropped unless the call writes it:
   /// [enumValues] belongs to `enum` only, [docTypes] to `doc_ref` only, and
-  /// [pointer] to `output_ref` only.
+  /// [pointer] to `output_ref` only. [lint] replaces the whole caps value.
   MergedField copyWith({
     FieldType? type,
     bool? list,
@@ -55,6 +78,7 @@ final class MergedField {
     List<String>? docTypes,
     PointerKind? pointer,
     String? description,
+    FieldCaps? lint,
   }) {
     final newType = type ?? this.type;
     return MergedField(
@@ -69,6 +93,7 @@ final class MergedField {
           docTypes ?? (newType == FieldType.docRef ? this.docTypes : null),
       pointer: pointer ?? this.pointer,
       description: description ?? this.description,
+      lint: lint ?? this.lint,
     );
   }
 
@@ -84,6 +109,42 @@ final class MergedField {
     'docTypes': ?docTypes,
     'pointer': ?pointer?.wire,
     'description': ?description,
+    'lint': ?lint?.toJson(),
+  };
+}
+
+/// The sentence caps of one prose field, each key set or null.
+///
+/// A key an upper layer writes replaces the lower key whole; a key it leaves
+/// out stays. The two maps are written as a pair in one layer file.
+final class FieldCaps {
+  const new({this.maxSentences, this.maxSentenceWords, this.maxSentenceChars});
+
+  /// The most sentences the field's value may hold.
+  final int? maxSentences;
+
+  /// The most words of one sentence, by language key.
+  final Map<String, int>? maxSentenceWords;
+
+  /// The most characters of one sentence in a script with no spaces, by
+  /// language key.
+  final Map<String, int>? maxSentenceChars;
+
+  /// Whether the caps limit the length of a sentence.
+  bool get capsLength => maxSentenceWords != null || maxSentenceChars != null;
+
+  /// Returns these caps with each key [upper] writes replacing the same key.
+  FieldCaps mergedWith(FieldCaps upper) => FieldCaps(
+    maxSentences: upper.maxSentences ?? maxSentences,
+    maxSentenceWords: upper.maxSentenceWords ?? maxSentenceWords,
+    maxSentenceChars: upper.maxSentenceChars ?? maxSentenceChars,
+  );
+
+  /// Returns the JSON object of the keys set.
+  Map<String, Object> toJson() => {
+    'maxSentences': ?maxSentences,
+    'maxSentenceWords': ?maxSentenceWords,
+    'maxSentenceChars': ?maxSentenceChars,
   };
 }
 
@@ -863,20 +924,26 @@ final class MergedDocType {
 
   /// Returns the writing guide, each block set off by a blank line.
   ///
-  /// The description and the doc-level banned words come first, then each
-  /// section's header, description, own banned words, and template, then the
-  /// `Guide sources:` block of [reference]. A banned word list drops the
-  /// allowed words that apply there, as `check` does; a description, word
-  /// list, template, or [reference] list left empty adds no block.
+  /// The description and the doc-level banned words come first, then the
+  /// `Fields:` block of the declared non-built-in [fields], then each
+  /// section's header, required or optional mark and description, own banned
+  /// words, and template, then the `Guide sources:` block of [reference]. A
+  /// banned word list drops the allowed words that apply there, as `check`
+  /// does; a description, word list, template, field set, or [reference] list
+  /// left empty adds no block.
   String renderGuide() {
     final docAllowed = lint.allowedWords ?? const <String>[];
     final sources = reference ?? const <ReferenceEntry>[];
     final blocks = <String>[
       ?_trimmedOrNull(description),
       ?_bannedWordsLine(lint.bannedWords, allowed: docAllowed),
+      ?_fieldsBlock(),
       for (final section in sections) ...[
         '## ${section.header}',
-        ?_trimmedOrNull(section.description),
+        [
+          if (section.required) 'Required section.' else 'Optional section.',
+          ?_trimmedOrNull(section.description),
+        ].join('\n'),
         ?_bannedWordsLine(
           section.bannedWords,
           allowed: [...docAllowed, ...?section.allowedWords],
@@ -888,6 +955,28 @@ final class MergedDocType {
         ['Guide sources:', ...sources.map(referenceSourceLine)].join('\n'),
     ];
     return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
+  }
+
+  /// Returns the `Fields:` block of the non-built-in [fields], or null when
+  /// the type declares none.
+  String? _fieldsBlock() {
+    final declared = fields.where((field) => !field.isBuiltIn);
+    if (declared.isEmpty) return null;
+    return ['Fields:', ...declared.map(_fieldLine)].join('\n');
+  }
+
+  /// Returns the guide line of [field]; a description line after the first is
+  /// indented two spaces.
+  static String _fieldLine(MergedField field) {
+    final flag = field.required ? 'required' : 'optional';
+    final kind = [
+      '${field.type.wire}${field.list ? ' list' : ''}',
+      ?field.enumValues?.join(', '),
+    ];
+    final head = '- `${field.id}` ($flag, ${kind.join(': ')})';
+    final description = _trimmedOrNull(field.description);
+    if (description == null) return head;
+    return '$head — ${description.split('\n').join('\n  ')}';
   }
 
   static final _backtickRun = RegExp('`+');

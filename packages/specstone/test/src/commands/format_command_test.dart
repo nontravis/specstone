@@ -5,7 +5,9 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/fixture_packs.dart';
+import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 const _formatUsage =
@@ -502,9 +504,13 @@ sections:
       expect(runner.generators.kinds, runner.templates.generatorKinds);
     });
 
-    test('the default runner registers journey_flow and '
-        'scenario_copy', () {
-      expect(SpecstoneCommandRunner().generators.kinds, shippedGeneratorKinds);
+    test('the default runner registers journey_flow, scenario_copy, and '
+        'feature_catalog', () {
+      expect(SpecstoneCommandRunner().generators.kinds, {
+        'journey_flow',
+        'scenario_copy',
+        'feature_catalog',
+      });
     });
 
     test('help format prints the usage to out and exits 0', () async {
@@ -521,6 +527,116 @@ sections:
       expect(await runner.run(['format', 'a', 'b']), 64);
       expect(out.toString(), isEmpty);
       expect(err.toString(), contains(_formatUsage));
+    });
+  });
+
+  group('the features doc on the shipped prd-core', () {
+    const featuresDoc = 'docs/prds/FEATURES.md';
+    const approvedStamp = 'approved: "0123456789ab"';
+    const featuresRoot = 'docs/prds/features';
+
+    String story(String status) =>
+        '---\nstatus: $status\n---\n\n# Agent uses it\n\n'
+        '## Use Case\nUse it.\n';
+
+    String feature(String title, {String front = ''}) =>
+        '${front.isEmpty ? '' : '---\n$front---\n\n'}# $title\n\n'
+        '## Problem\nNeed it.\n';
+
+    String read(Directory project) =>
+        File.fromUri(project.uri.resolve(featuresDoc)).readAsStringSync();
+
+    Future<String> formatFeaturesDoc(Directory project) async {
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['format', featuresDoc]),
+        0,
+        reason: '${run.out}${run.err}',
+      );
+      expect(run.err.toString(), isEmpty);
+      return read(project);
+    }
+
+    test('format writes the catalog, rewrites an edited line, lists a new '
+        'feature, and keeps the doc approved', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+        featuresDoc:
+            '---\n$approvedStamp\n---\n\n# Feature map\n\n## Features\n\n'
+            '## System interaction diagram\n\n```mermaid\nflowchart LR\n'
+            '  Owner --> Shop\n```\n\n## Systems\n\n| System | Description |\n'
+            '|---|---|\n| Shop | Sells goods. |\n',
+        '$featuresRoot/f01_shop/FEATURE.md': feature(
+          'Shop',
+          front:
+              'summary: Lets a shopper buy goods.\nvision:\n  - PV-01\n'
+              'goals:\n  - PG-01\n',
+        ),
+        '$featuresRoot/f01_shop/us01_greet/USER_STORY.md': story('implemented'),
+        '$featuresRoot/f01_shop/f01_cart/FEATURE.md': feature('Cart'),
+        '$featuresRoot/f01_shop/f01_cart/us01_add/USER_STORY.md': story(
+          'planned',
+        ),
+        '$featuresRoot/f02_blog/FEATURE.md': feature(
+          'Blog',
+          front: 'summary: Lets an author publish posts.\n',
+        ),
+        '$featuresRoot/f02_blog/us01_post/USER_STORY.md': story('implemented'),
+        '$featuresRoot/f03_pay/FEATURE.md': feature('Pay'),
+        '$featuresRoot/f03_pay/us01_charge/USER_STORY.md': story('implemented'),
+      });
+
+      final first = await formatFeaturesDoc(project);
+
+      expect(
+        first,
+        contains('3 features · 4 stories · 2 implemented, 1 planned'),
+      );
+      expect(
+        first,
+        contains(
+          '| [Shop](features/f01_shop/FEATURE.md) | Lets a shopper buy goods. '
+          '| planned | 1/2 | PV-01, PG-01 |',
+        ),
+      );
+      expect(
+        first,
+        contains(
+          '| [Pay](features/f03_pay/FEATURE.md) | — | implemented | 1/1 | — |',
+        ),
+      );
+      expect(first, isNot(contains('Cart')));
+
+      File.fromUri(project.uri.resolve(featuresDoc)).writeAsStringSync(
+        first.replaceFirst('Lets a shopper buy goods.', 'edited by hand'),
+      );
+      File.fromUri(project.uri.resolve('$featuresRoot/f04_search/FEATURE.md'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync(feature('Search'));
+      File.fromUri(
+          project.uri.resolve(
+            '$featuresRoot/f04_search/us01_find/USER_STORY.md',
+          ),
+        )
+        ..createSync(recursive: true)
+        ..writeAsStringSync(story('planned'));
+
+      final second = await formatFeaturesDoc(project);
+
+      expect(
+        second,
+        contains('4 features · 5 stories · 2 implemented, 2 planned'),
+      );
+      expect(
+        second,
+        contains(
+          '| [Search](features/f04_search/FEATURE.md) | — | planned | 0/1 | — |',
+        ),
+      );
+      expect(second, contains('Lets a shopper buy goods.'));
+      expect(second, isNot(contains('edited by hand')));
+      expect(second, contains(approvedStamp));
+      expect(second, isNot(contains('draft: true')));
     });
   });
 }

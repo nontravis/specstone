@@ -73,12 +73,13 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
 /// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
 /// `doc_types` entry of a `doc_ref` field names a doc type id of the set
-/// (`unknown_value`), every `lint.required_field_groups` entry names a
-/// field of its doc type (`unknown_value`), every section `required_when`
-/// names a section of its doc type (`unknown_value`), every section
-/// `when_field` names a field of its doc type (`unknown_value`), at most one
-/// doc type holds a `record_status` field and its merged `per_target` is
-/// `true`, a `targets:` config without the record doc type is refused, and a
+/// (`unknown_value`), every field `lint` sits on a string field with no
+/// `list: true` (`unknown_key`), every `lint.required_field_groups` entry
+/// names a field of its doc type (`unknown_value`), every section
+/// `required_when` names a section of its doc type (`unknown_value`), every
+/// section `when_field` names a field of its doc type (`unknown_value`), at
+/// most one doc type holds a `record_status` field and its merged `per_target`
+/// is `true`, a `targets:` config without the record doc type is refused, and a
 /// doc type that carries the `patterns` field holds an enabled `out_of_scope`
 /// section (`unknown_value`), and a `path` under `.specstone/` belongs only to
 /// the record doc type, below `.specstone/records/` (`unknown_value`).
@@ -96,6 +97,7 @@ void checkMergedSet(
   _checkRecordPaths(sorted, layerLists);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
+  _checkFieldLint(sorted, layerLists);
   _checkSummaryFor(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
   _checkRequiredWhen(sorted, layerLists);
@@ -336,6 +338,33 @@ void _checkFieldTargets(
           key: 'fields.${field.id}.doc_types',
         );
       }
+    }
+  }
+}
+
+/// Throws `unknown_key` for a field `lint` on a field that is not a lone
+/// string.
+void _checkFieldLint(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    for (final field in docType.fields) {
+      if (!field.isProse || (field.type == FieldType.string && !field.list)) {
+        continue;
+      }
+      throw TemplateFault(
+        FaultCode.unknownKey,
+        'a lint takes only a field of type string with no list',
+        file: _writerOf(
+          docType.id,
+          (layer) => layer.fields.any(
+            (entry) => entry.id == field.id && entry.lint != null,
+          ),
+          layerLists,
+        ),
+        key: 'fields.${field.id}.lint',
+      );
     }
   }
 }

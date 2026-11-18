@@ -444,7 +444,7 @@ void main() {
       }
     });
 
-    test('f02/us01/fr07: --batch writes a block that names the jaspr twin by its path, and the flutter twin stays', () async {
+    test('--batch writes a block that names the jaspr twin by its path, and the flutter twin stays', () async {
       final root = await writeTwinProject();
       final flutterBefore = readDoc(root, flutterArchitecture);
       final read = writeRunner(root);
@@ -471,7 +471,7 @@ void main() {
       );
       expect(readDoc(root, flutterArchitecture), flutterBefore);
     });
-    test('f02/us01/fr07: --batch with --target exits 64 as argument_conflict and writes nothing', () async {
+    test('--batch with --target exits 64 as argument_conflict and writes nothing', () async {
       final root = await writeTwinProject();
       final before = readDoc(root, jasprArchitecture);
       final file = File('${root.path}/batch.md')..writeAsStringSync('x\n');

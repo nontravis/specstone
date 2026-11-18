@@ -43,6 +43,8 @@ export 'src/index_query/bundle_render.dart' show ContextAnswer, answerContext;
 export 'src/index_query/code_bundle.dart'
     show CodePath, pickCodeBundle, resolveCodePath;
 export 'src/index_query/doc_index.dart' show DocIndex;
+export 'src/index_query/feature_catalog.dart'
+    show featureCatalogBlocks, featureCatalogKind;
 export 'src/index_query/get_docs.dart' show answerGet;
 export 'src/index_query/index_fault.dart'
     show IndexFault, IndexFaultCode, IndexFaults;

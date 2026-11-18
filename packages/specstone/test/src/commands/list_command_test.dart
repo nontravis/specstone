@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -37,13 +38,13 @@ Future<Directory> suspectProject() => writeCheckProject(
 );
 
 void main() {
-  test('f01/us03/s1, f01/us03/fr01: list feature prints the feature line and exits 0', () async {
+  test('list feature prints the feature line and exits 0', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['list', 'feature']), 0);
     expect(out.toString(), startsWith('login (feature) — Login · planned · '));
     expect(err.toString(), isEmpty);
   });
-  test('f01/us03/fr01: --json prints docs and warnings', () async {
+  test('--json prints docs and warnings', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['list', 'feature', '--json']), 0);
     expect((jsonDecode(out.toString()) as Map).keys.toList(), [
@@ -51,7 +52,48 @@ void main() {
       'warnings',
     ]);
   });
-  test('f01/us03/fr01/e04: no doc type is argument_missing, exit 64', () async {
+  group('through the built CLI', () {
+    late String binary;
+    setUpAll(() async => binary = await buildSpecstone());
+
+    Future<ProcessResult> listFeature(List<String> extraArgs) async {
+      final root = await writeReadProject(
+        extra: {
+          'docs/prds/features/f01_login/FEATURE.md':
+              '---\nsummary: Grounds a task in one call.\n---\n\n# Login\n',
+        },
+      );
+      return Process.run(binary, [
+        'list',
+        'feature',
+        ...extraArgs,
+      ], workingDirectory: root.path);
+    }
+
+    test('list ends a feature line with its summary', () async {
+      final result = await listFeature([]);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        (result.stdout as String).trimRight(),
+        allOf(
+          startsWith('login (feature) — Login · '),
+          endsWith(' — Grounds a task in one call.'),
+        ),
+      );
+    });
+
+    test('--json gives the summary key', () async {
+      final result = await listFeature(['--json']);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final docs =
+          (jsonDecode(result.stdout as String) as Map)['docs']! as List;
+      expect(
+        docs.single,
+        containsPair('summary', 'Grounds a task in one call.'),
+      );
+    });
+  });
+  test('no doc type is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['list']), 64);
     expect(
@@ -60,7 +102,7 @@ void main() {
     );
     expect(out.toString(), isEmpty);
   });
-  test('f04/us04/s8, f04/us04/fr04/e01, f04/us04/fr04/e02: list fr --suspect keeps the suspect FR only', () async {
+  test('list fr --suspect keeps the suspect FR only', () async {
     for (final args in [
       ['list', 'fr', '--suspect'],
       ['list', 'fr', '--suspect', '--under', 'login/email_login'],
@@ -125,7 +167,7 @@ void main() {
     },
   );
 
-  test('f04/us04/fr04/e03, f04/us04/fr04/e05: list api --suspect keeps an API doc with a suspect row; a type with no '
+  test('list api --suspect keeps an API doc with a suspect row; a type with no '
       'tracked link lists nothing', () async {
     final api = readRunner(
       await writeCheckProject(
@@ -142,7 +184,7 @@ void main() {
     expect(feature.out.toString(), isEmpty);
   });
 
-  test('f04/us04/fr04/e04, f04/us04/fr02/e06: an unconfirmed link, a draft\'s included, does not count', () async {
+  test('an unconfirmed link, a draft\'s included, does not count', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
         extra: edit(loginFr, [
@@ -182,7 +224,7 @@ void main() {
     final outside = readRunner(await writeTree({}));
     expect(await outside.runner.run(['list', 'fr', '--suspect']), 78);
   });
-  test('f01/us03/s10, f01/us03/fr01/e06: outside a project, or under a 9.9.9 pin, exits 78', () async {
+  test('outside a project, or under a 9.9.9 pin, exits 78', () async {
     final outside = readRunner(await writeTree({}));
     expect(await outside.runner.run(['list', 'feature']), 78);
     final pinned = readRunner(
@@ -258,7 +300,7 @@ void main() {
           '# Record\n',
     });
 
-    test('f01/us03/fr02/e09: list fr --no-implements --target jaspr keeps the FR with no code in jaspr', () async {
+    test('list fr --no-implements --target jaspr keeps the FR with no code in jaspr', () async {
       final (:runner, :out, :err) = readRunner(await twoTargets());
       expect(
         await runner.run([
@@ -278,47 +320,50 @@ void main() {
       expect(out.toString(), contains(' · planned · '));
     });
 
-    test('f01/us03/fr02/e11: list user_story --status skipped --target jaspr keeps the skipped story', () async {
-      final (:runner, :out, :err) = readRunner(
-        await writeTree({
-          '.specstone/templates/implementation.yaml':
-              'id: implementation\n'
-              'description: One feature record per target.\n'
-              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-              'parent: feature\n'
-              'per_target: true\n'
-              'fields:\n'
-              '  - id: statuses\n'
-              '    type: record_status\n'
-              '    list: true\n',
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}targets:\n'
-              '  flutter:\n    code_root: flutter_lib\n'
-              '  jaspr:\n    code_root: jaspr_lib\n',
-          'flutter_lib/.keep': '',
-          'jaspr_lib/.keep': '',
-          'docs/prds/features/f01_login/FEATURE.md':
-              '# Login\n\n## Problem\n.\n',
-          'docs/prds/features/f01_login/us01_show/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent sees it\n\n## Use Case\n.\n',
-          'docs/prds/features/f01_login/us02_hide/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent hides it\n\n## Use Case\n.\n',
-          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': '---\nstatuses:\n  - show:implemented\n  - hide:implemented\n---\n\n# Record\n',
-          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': '---\nstatuses:\n  - hide:skipped:no hide on the web\n---\n\n# Record\n',
-        }),
-      );
-      expect(
-        await runner.run([
-          'list',
-          'user_story',
-          '--status',
-          'skipped',
-          '--target',
-          'jaspr',
-        ]),
-        0,
-      );
-      expect(out.toString().split('\n').where((l) => l.isNotEmpty), [
-        startsWith('login/hide (user_story) — Agent hides it · skipped · '),
-      ]);
-    });
+    test(
+      'list user_story --status skipped --target jaspr keeps the skipped story',
+      () async {
+        final (:runner, :out, :err) = readRunner(
+          await writeTree({
+            '.specstone/templates/implementation.yaml':
+                'id: implementation\n'
+                'description: One feature record per target.\n'
+                'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+                'parent: feature\n'
+                'per_target: true\n'
+                'fields:\n'
+                '  - id: statuses\n'
+                '    type: record_status\n'
+                '    list: true\n',
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}targets:\n'
+                '  flutter:\n    code_root: flutter_lib\n'
+                '  jaspr:\n    code_root: jaspr_lib\n',
+            'flutter_lib/.keep': '',
+            'jaspr_lib/.keep': '',
+            'docs/prds/features/f01_login/FEATURE.md':
+                '# Login\n\n## Problem\n.\n',
+            'docs/prds/features/f01_login/us01_show/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent sees it\n\n## Use Case\n.\n',
+            'docs/prds/features/f01_login/us02_hide/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent hides it\n\n## Use Case\n.\n',
+            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': '---\nstatuses:\n  - show:implemented\n  - hide:implemented\n---\n\n# Record\n',
+            'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': '---\nstatuses:\n  - hide:skipped:no hide on the web\n---\n\n# Record\n',
+          }),
+        );
+        expect(
+          await runner.run([
+            'list',
+            'user_story',
+            '--status',
+            'skipped',
+            '--target',
+            'jaspr',
+          ]),
+          0,
+        );
+        expect(out.toString().split('\n').where((l) => l.isNotEmpty), [
+          startsWith('login/hide (user_story) — Agent hides it · skipped · '),
+        ]);
+      },
+    );
   });
 }

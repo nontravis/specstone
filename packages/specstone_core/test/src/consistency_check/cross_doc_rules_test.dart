@@ -30,12 +30,6 @@ Future<List<Finding>> _found(Map<String, String> edits) async {
   ];
 }
 
-int _lineOf(String docPath, String needle) =>
-    File('${_project.path}/docs/$docPath')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(needle)) +
-    1;
-
 void main() {
   test('a feature system naming a Systems row has no finding', () async {
     final found = await _found({
@@ -53,7 +47,10 @@ void main() {
     });
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.systemUnresolved);
-    expect(found.single.line, _lineOf(loginFeature, 'system: Watch app'));
+    expect(
+      found.single.line,
+      lineOfFirst(_project, loginFeature, 'system: Watch app'),
+    );
     expect(found.single.toJson(), containsPair('system', 'Watch app'));
     expect(found.single.waitsFor, WaitsFor.agent);
   });
@@ -67,13 +64,14 @@ void main() {
     });
     expect(found, hasLength(2));
     final byLine = {for (final f in found) f.line: f};
-    final row = byLine[_lineOf(loginApi, 'specstone check --repeats')];
+    final row =
+        byLine[lineOfFirst(_project, loginApi, 'specstone check --repeats')];
     expect(row?.kind, FindingKind.operationUnmatched);
     expect(
       row?.toJson(),
       containsPair('operation', 'specstone check --repeats'),
     );
-    final block = byLine[_lineOf(loginApi, '### signIn')];
+    final block = byLine[lineOfFirst(_project, loginApi, '### signIn')];
     expect(block?.kind, FindingKind.operationUnmatched);
     expect(block?.toJson(), containsPair('operation', 'signIn'));
   });
@@ -89,7 +87,7 @@ void main() {
     });
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.operationUnmatched);
-    expect(found.single.line, _lineOf(loginApi, '### `signOut`'));
+    expect(found.single.line, lineOfFirst(_project, loginApi, '### `signOut`'));
     expect(found.single.toJson(), containsPair('operation', 'signOut'));
   });
 
@@ -114,7 +112,7 @@ void main() {
     });
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.scopeOperationUnresolved);
-    expect(found.single.line, _lineOf(_authDoc, 'deleteAccount'));
+    expect(found.single.line, lineOfFirst(_project, _authDoc, 'deleteAccount'));
     expect(found.single.toJson(), containsPair('operation', 'deleteAccount'));
   });
 
@@ -139,7 +137,10 @@ void main() {
       });
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.scopePathUncovered);
-      expect(found.single.line, _lineOf(_topicDoc, 'lib/src/rendering/'));
+      expect(
+        found.single.line,
+        lineOfFirst(_project, _topicDoc, 'lib/src/rendering/'),
+      );
       expect(found.single.toJson(), containsPair('path', 'lib/src/rendering/'));
     },
   );

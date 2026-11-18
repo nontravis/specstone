@@ -146,6 +146,7 @@ final class FieldEntry {
     this.docTypes,
     this.pointer,
     this.description,
+    this.lint,
     required this.disabled,
   });
 
@@ -175,6 +176,11 @@ final class FieldEntry {
 
   /// What the field holds, when written.
   final String? description;
+
+  /// The sentence caps of a prose field, when this layer writes them.
+  ///
+  /// Whether the field is a string is checked once the merge knows the type.
+  final FieldCaps? lint;
 
   /// Whether the field is turned off by this layer.
   final bool disabled;
@@ -716,7 +722,14 @@ const _fieldKeys = {
   'pointer',
   'required',
   'description',
+  'lint',
   'disabled',
+};
+
+const _fieldLintKeys = {
+  'max_sentences',
+  'max_sentence_words',
+  'max_sentence_chars',
 };
 
 const _sectionKeys = {
@@ -853,9 +866,89 @@ FieldEntry _parseField(
       file: file,
       prefix: prefix,
     ),
+    lint: _fieldCaps(entry, file: file, prefix: prefix),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
         false,
+  );
+}
+
+const _defaultLanguage = 'default';
+
+/// Returns the field `lint` of [entry], or null when absent.
+///
+/// [prefix] is the field's key prefix. Throws `unknown_key` for a key other
+/// than the three, `unknown_value` for a bad value, and `missing_key` for a
+/// sentence map without `default` or written without the other.
+FieldCaps? _fieldCaps(
+  YamlMap entry, {
+  required String file,
+  required String prefix,
+}) {
+  final map = optionalValue<YamlMap>(entry, 'lint', file: file, prefix: prefix);
+  if (map == null) return null;
+  final lintPrefix = '${prefix}lint.';
+  checkKeys(
+    map,
+    _fieldLintKeys,
+    file: file,
+    format: 'doc-type',
+    prefix: lintPrefix,
+  );
+  final maxSentences = optionalValue<int>(
+    map,
+    'max_sentences',
+    file: file,
+    prefix: lintPrefix,
+  );
+  if (maxSentences != null && maxSentences < 1) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key max_sentences must be a whole number of 1 or more',
+      file: file,
+      key: '${lintPrefix}max_sentences',
+    );
+  }
+  final words = _sentenceCaps(
+    map,
+    'max_sentence_words',
+    sentenceWordLanguages,
+    file: file,
+    prefix: lintPrefix,
+  );
+  final chars = _sentenceCaps(
+    map,
+    'max_sentence_chars',
+    sentenceCharLanguages,
+    file: file,
+    prefix: lintPrefix,
+  );
+  for (final (key, caps) in [
+    ('max_sentence_words', words),
+    ('max_sentence_chars', chars),
+  ]) {
+    if (caps != null && !caps.containsKey(_defaultLanguage)) {
+      throw TemplateFault(
+        FaultCode.missingKey,
+        'the key $_defaultLanguage of $key is required',
+        file: file,
+        key: '$lintPrefix$key.$_defaultLanguage',
+      );
+    }
+  }
+  if ((words == null) != (chars == null)) {
+    final absent = words == null ? 'max_sentence_words' : 'max_sentence_chars';
+    throw TemplateFault(
+      FaultCode.missingKey,
+      'the key $absent is required beside its partner',
+      file: file,
+      key: '$lintPrefix$absent',
+    );
+  }
+  return FieldCaps(
+    maxSentences: maxSentences,
+    maxSentenceWords: words,
+    maxSentenceChars: chars,
   );
 }
 
@@ -985,12 +1078,14 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
       'max_sentence_words',
       sentenceWordLanguages,
       file: file,
+      prefix: 'lint.',
     ),
     maxSentenceChars: _sentenceCaps(
       map,
       'max_sentence_chars',
       sentenceCharLanguages,
       file: file,
+      prefix: 'lint.',
     ),
     traceNoteLast: optionalValue<bool>(
       map,
@@ -1007,7 +1102,9 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
   );
 }
 
-/// Returns the doc-level sentence cap map at [key], or null when absent.
+/// Returns the sentence cap map at [key] of [map], or null when absent.
+///
+/// [prefix] is the key prefix of [map], `lint.` at doc level.
 ///
 /// Throws `unknown_value` for a map that is no map, a language key outside
 /// [languages], or an entry that is no whole number of 1 or more.
@@ -1016,12 +1113,13 @@ Map<String, int>? _sentenceCaps(
   String key,
   Set<String> languages, {
   required String file,
+  required String prefix,
 }) {
-  final caps = optionalValue<YamlMap>(map, key, file: file, prefix: 'lint.');
+  final caps = optionalValue<YamlMap>(map, key, file: file, prefix: prefix);
   if (caps == null) return null;
   final entries = <String, int>{};
   for (final MapEntry(key: language, :value) in caps.entries) {
-    final entryKey = 'lint.$key.$language';
+    final entryKey = '$prefix$key.$language';
     if (language is! String || !languages.contains(language)) {
       throw TemplateFault(
         FaultCode.unknownValue,

@@ -252,7 +252,7 @@ void main() {
   });
 
   test(
-    'f04/us03/fr01/e15: an NFR block of a project-layer section with no '
+    'an NFR block of a project-layer section with no '
     'prefix_id keys by its heading ID, for an override and its fingerprint',
     () async {
       const recorded =
@@ -444,7 +444,7 @@ void main() {
     ]);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
       '$goalDoc:11: vision_goal_unresolved',
-      '$loginFeature:3: vision_goal_unresolved',
+      '$loginFeature:4: vision_goal_unresolved',
     ]);
   });
 
@@ -472,8 +472,8 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$loginFeature:3: vision_goal_unresolved',
-      '$loginFeature:5: vision_goal_unresolved',
+      '$loginFeature:4: vision_goal_unresolved',
+      '$loginFeature:6: vision_goal_unresolved',
     ]);
     expect(
       report.findings
@@ -1420,7 +1420,7 @@ void main() {
             '## Project goals\n\n### PG-07 — Only here\n\n**Serves:** PV-01\nMore.\n\n## Role\n',
           ),
           ...doc(goalDoc, '**Serves:** PV-01', '**Serves:** PV-01, PG-07'),
-          ...doc(loginFeature, '---\nvision:', '---\nvision:\n  - PG-07'),
+          ...doc(loginFeature, 'vision:', 'vision:\n  - PG-07'),
         },
       ),
     );
@@ -1723,7 +1723,7 @@ void main() {
         },
       );
       expect(found(report, FindingKind.visionGoalUnresolved), [
-        '$loginFeature:5:null:PG-06',
+        '$loginFeature:6:null:PG-06',
       ]);
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
     });
@@ -1735,7 +1735,7 @@ void main() {
         extra: edit(loginFeature, [('  - PG-01\n', '  - PG-09\n')]),
       );
       expect(found(report, FindingKind.visionGoalUnresolved), [
-        '$loginFeature:5:null:PG-09',
+        '$loginFeature:6:null:PG-09',
       ]);
     });
 
@@ -1780,7 +1780,7 @@ void main() {
           'docs/$goalDoc': '# Project goals\n\n## Long-term goals\n\n### PG-01a — Goal\n\nText.\n',
         }, extra: doc(loginFeature, 'PG-01', id));
         expect(found(report, FindingKind.visionGoalUnresolved), [
-          '$loginFeature:5:null:$id',
+          '$loginFeature:6:null:$id',
           '$loginStory:3:null:PG-01',
         ]);
         expect(spots(report, FindingKind.goalServesMissing), isEmpty);
@@ -1794,7 +1794,7 @@ void main() {
         await writeCheckProject(without: {'docs/$goalDoc'}),
       );
       expect(found(report, FindingKind.visionGoalUnresolved), [
-        '$loginFeature:5:null:PG-01',
+        '$loginFeature:6:null:PG-01',
         '$loginStory:3:null:PG-01',
       ]);
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
@@ -1836,7 +1836,7 @@ void main() {
         },
       );
       expect(found(report, FindingKind.visionGoalUnresolved), [
-        '$loginFeature:5:null:PG-02',
+        '$loginFeature:6:null:PG-02',
       ]);
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
       expect(spots(report, FindingKind.goalServesHorizon), isEmpty);
@@ -1845,7 +1845,7 @@ void main() {
     test('an empty goal doc holds no goal', () async {
       final report = await checkGoals({'docs/$goalDoc': ''});
       expect(found(report, FindingKind.visionGoalUnresolved), [
-        '$loginFeature:5:null:PG-01',
+        '$loginFeature:6:null:PG-01',
         '$loginStory:3:null:PG-01',
       ]);
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);

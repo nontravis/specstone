@@ -5,13 +5,52 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 
-/// One `banned_patterns` match on a line of a held section.
+/// One `banned_patterns` match on a line of a held section or on a prose field
+/// value.
 ///
-/// - `section`: the position of the held section.
-/// - `line`: the 1-based file line.
-/// - `entry`: the position of the entry in [bannedEntriesOf] for the section.
-/// - `match`: the matched text; never empty and never excepted.
-typedef BannedMatch = ({int section, int line, int entry, String match});
+/// Exactly one of [section] and [field] is set.
+final class BannedMatch {
+  const new({
+    this.section,
+    this.field,
+    required this.line,
+    required this.entry,
+    required this.match,
+  }) : assert(
+         (section == null) != (field == null),
+         'a match names a section or a field, never both',
+       );
+
+  /// The position of the held section; null for a field match.
+  final int? section;
+
+  /// The id of the prose field; null for a section match.
+  final String? field;
+
+  /// The 1-based file line; a field match sits on its key's line.
+  final int line;
+
+  /// The position of the entry in [bannedEntriesOf] for the section; for a
+  /// field match, in the doc-level entries.
+  final int entry;
+
+  /// The matched text; never empty and never excepted.
+  final String match;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is BannedMatch &&
+      other.section == section &&
+      other.field == field &&
+      other.line == line &&
+      other.entry == entry &&
+      other.match == match;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(section, field, line, entry, match);
+}
 
 /// Returns the banned entries of a held section: [type]'s, then [template]'s.
 List<PatternEntry> bannedEntriesOf(
@@ -19,17 +58,22 @@ List<PatternEntry> bannedEntriesOf(
   MergedSection? template,
 ) => [...?type.lint.bannedPatterns, ...?template?.bannedPatterns];
 
-/// Returns the banned-pattern matches on the lines of the held [sections].
+/// Returns the banned-pattern matches on the lines of the held [sections] and
+/// on the string values of the prose fields in [frontmatter].
 ///
 /// The doc-level entries search every line, a section's own only its
-/// `linePrefix` lines; fenced code is skipped. A code-span match that names
-/// doc-tree folders is kept, since that test reads the whole tree. Empty for
-/// an untyped doc.
+/// `linePrefix` lines; fenced code and a line [isGenerated] marks are skipped.
+/// A prose field takes the doc-level entries alone, each match on the key's
+/// line from [keyLines]. A code-span match that names doc-tree folders is
+/// kept, since that test reads the whole tree. Empty for an untyped doc.
 List<BannedMatch> bannedMatchesOf(
   List<IndexedSection> sections,
   LineFacts facts,
-  MergedDocType? type,
-) {
+  MergedDocType? type, {
+  required Map<String, Object?> frontmatter,
+  required Map<String, int> keyLines,
+  required bool Function(int line) isGenerated,
+}) {
   if (type == null) return const [];
   final templates = heldTemplatesOf(sections, type);
   final docCount = type.lint.bannedPatterns?.length ?? 0;
@@ -39,16 +83,43 @@ List<BannedMatch> bannedMatchesOf(
     if (entries.isEmpty) continue;
     final prefix = templates[i]?.linePrefix;
     for (final searched in searchLinesOf(sections, facts, i)) {
+      if (isGenerated(searched.line)) continue;
       final onPrefix = prefix == null || searched.raw.startsWith(prefix);
       final searchedCount = onPrefix ? entries.length : docCount;
       for (var k = 0; k < searchedCount; k++) {
         for (final match in _matchesOf(entries[k], searched)) {
-          matches.add((
-            section: i,
-            line: searched.line,
-            entry: k,
-            match: match,
-          ));
+          matches.add(
+            BannedMatch(
+              section: i,
+              line: searched.line,
+              entry: k,
+              match: match,
+            ),
+          );
+        }
+      }
+    }
+  }
+  return [...matches, ..._fieldMatchesOf(type, frontmatter, keyLines)];
+}
+
+List<BannedMatch> _fieldMatchesOf(
+  MergedDocType type,
+  Map<String, Object?> frontmatter,
+  Map<String, int> keyLines,
+) {
+  final entries = type.lint.bannedPatterns ?? const <PatternEntry>[];
+  final matches = <BannedMatch>[];
+  for (final field in type.fields) {
+    final value = frontmatter[field.id];
+    final line = keyLines[field.id];
+    if (!field.isProse || value is! String || line == null) continue;
+    for (final text in value.split('\n')) {
+      for (var k = 0; k < entries.length; k++) {
+        for (final match in _matchesOf(entries[k], SearchLine(text, line))) {
+          matches.add(
+            BannedMatch(field: field.id, line: line, entry: k, match: match),
+          );
         }
       }
     }
@@ -58,17 +129,18 @@ List<BannedMatch> bannedMatchesOf(
 
 /// Returns [matches] as the JSON lists the index stores.
 List<Object?> bannedMatchesToJson(List<BannedMatch> matches) => [
-  for (final m in matches) [m.section, m.line, m.entry, m.match],
+  for (final m in matches) [m.section, m.field, m.line, m.entry, m.match],
 ];
 
 /// Reads the matches [bannedMatchesToJson] wrote.
 List<BannedMatch> bannedMatchesFromJson(List<Object?> json) => [
   for (final m in json.cast<List<Object?>>())
-    (
-      section: m[0]! as int,
-      line: m[1]! as int,
-      entry: m[2]! as int,
-      match: m[3]! as String,
+    BannedMatch(
+      section: m[0] as int?,
+      field: m[1] as String?,
+      line: m[2]! as int,
+      entry: m[3]! as int,
+      match: m[4]! as String,
     ),
 ];
 

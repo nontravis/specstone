@@ -617,49 +617,43 @@ void main() {
     );
   });
 
-  test(
-    'f02/us02/fr02/e02: an fr skeleton writes its required fields empty',
-    () async {
-      final root = await writeWriteProject();
-      writeIn(
+  test('an fr skeleton writes its required fields empty', () async {
+    final root = await writeWriteProject();
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'fr',
+        parent: 'login/reset_password',
+        slug: 'notify',
+      ),
+    );
+    expect(
+      readDoc(
         root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'fr',
-          parent: 'login/reset_password',
-          slug: 'notify',
-        ),
-      );
-      expect(
-        readDoc(
-          root,
-          'prds/features/f01_login/us03_reset_password/fr03_notify.md',
-        ),
-        startsWith('---\ndraft: true\ntraced_from:\nverify_method:\n---\n'),
-      );
-    },
-  );
+        'prds/features/f01_login/us03_reset_password/fr03_notify.md',
+      ),
+      startsWith('---\ndraft: true\ntraced_from:\nverify_method:\n---\n'),
+    );
+  });
 
-  test(
-    'f02/us02/fr02/e05: text that lacks a required section is written as given',
-    () async {
-      final root = await writeWriteProject();
-      writeIn(
-        root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'user_story',
-          parent: 'login',
-          slug: 'plain',
-          text: '# Plain\n\nJust prose.\n',
-        ),
-      );
-      expect(
-        readDoc(root, 'prds/features/f01_login/us04_plain/USER_STORY.md'),
-        '---\ndraft: true\n---\n\n# Plain\n\nJust prose.\n',
-      );
-    },
-  );
+  test('text that lacks a required section is written as given', () async {
+    final root = await writeWriteProject();
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'plain',
+        text: '# Plain\n\nJust prose.\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_plain/USER_STORY.md'),
+      '---\ndraft: true\n---\n\n# Plain\n\nJust prose.\n',
+    );
+  });
 
   test('f02/us02/fr02/e01, final Minor 5: stdin holding an approved key refuses before any path is claimed', () async {
     final root = await writeWriteProject();
@@ -694,7 +688,7 @@ void main() {
     );
   });
 
-  test('f02/us02/fr02/e06: empty text gives the skeleton', () async {
+  test('empty text gives the skeleton', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -702,7 +696,7 @@ void main() {
     );
     expect(
       readDoc(root, 'prds/features/f03_billing/FEATURE.md'),
-      startsWith('---\ndraft: true\n---\n\n# billing\n\n## '),
+      startsWith('---\ndraft: true\nsummary:\n---\n\n# billing\n\n## '),
     );
   });
 
