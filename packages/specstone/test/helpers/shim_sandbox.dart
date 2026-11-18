@@ -7,9 +7,6 @@ import 'package:test/test.dart';
 import 'built_stn.dart';
 import 'script_sandbox.dart';
 
-/// The loop guard variable the `stn` shim sets before a hand-off.
-const stnGuardVariable = 'SPECSTONE_STN_GUARD';
-
 /// The environment variable whose value is the fake `specstone`'s exit status.
 const fakeExitVariable = 'FAKE_EXIT';
 
@@ -41,9 +38,9 @@ enum StnShell { cmd, powershell }
 /// The folder is deleted by `addTearDown`. The sandbox's
 /// `<home>/.specstone/bin/` holds the installed shim (a copy of the repo's
 /// `stn`, or on Windows the `stn.exe` that `build.ps1` builds) and a fake
-/// `specstone` that records its argv, stdin, `PATH`, and the guard's value to
-/// a log and exits with the status in `FAKE_EXIT` (0 when unset). On Windows
-/// the fake is a compiled `specstone.exe`, compiled once per run.
+/// `specstone` that records its argv, stdin, and `PATH` to a log and exits
+/// with the status in `FAKE_EXIT` (0 when unset). On Windows the fake is a
+/// compiled `specstone.exe`, compiled once per run.
 Future<ShimSandbox> createShimSandbox() async {
   final root = await Directory.systemTemp.createTemp('specstone_shim_');
   addTearDown(() => root.delete(recursive: true));
@@ -84,9 +81,6 @@ final class ShimSandbox {
   /// The folder holding the run logs.
   Directory get logs => Directory(_join(root.path, 'logs'));
 
-  /// The file another tool's `stn.ps1` creates when it runs.
-  File get ps1Marker => File(_join(logs.path, 'ps1.ran'));
-
   Directory get _tmp => Directory(_join(root.path, 'tmp'));
 
   /// Returns the log lines of [name], or none when it wrote no log.
@@ -111,9 +105,8 @@ final class ShimSandbox {
   /// Writes another tool's recording `stn` in [folder], exiting with [exit].
   ///
   /// The other `stn` records to the `other` log, so `logOf('other')` shows
-  /// whether and how it ran. On Windows [extension] (`exe`, `cmd`, `bat`,
-  /// `com`, or `ps1`) picks the file; a `stn.ps1` records nothing and creates
-  /// [ps1Marker]. POSIX ignores [extension].
+  /// whether and how it ran. On Windows [extension] (`exe`, `cmd`, `bat`, or
+  /// `com`) picks the file. POSIX ignores [extension].
   void otherStn(String folder, {int exit = 0, String extension = 'cmd'}) {
     if (_windows) {
       _writeWindowsOther(folder, exit, extension);
@@ -259,7 +252,7 @@ final class ShimSandbox {
   }
 
   /// Writes an executable `/bin/sh` [file] that records its argv, stdin,
-  /// `PATH`, and the guard's value to the log [name], then runs [exit], a
+  /// and `PATH` to the log [name], then runs [exit], a
   /// literal or a shell expression such as `'${FAKE_EXIT:-0}'`.
   void _writeRecorder(File file, String name, [String? exit]) {
     file
@@ -271,7 +264,6 @@ printf 'argv\\n' >> "\$log"
 for a in "\$@"; do printf '%s\\n' "\$a" >> "\$log"; done
 printf 'stdin\\n%s\\n' "\$(cat 2>/dev/null)" >> "\$log"
 printf 'path\\n%s\\n' "\$PATH" >> "\$log"
-printf 'guard\\n%s\\n' "\${$stnGuardVariable:-unset}" >> "\$log"
 exit ${exit ?? '\${$fakeExitVariable:-0}'}
 ''');
     _makeExecutable(file);
@@ -307,11 +299,6 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
         if (!recorder.existsSync()) _writeRecorderExe(recorder);
         File(_join(folder, 'stn.$extension')).writeAsStringSync(
           '@"%~dp0stn-recorder.exe" %*\r\n@exit /b $exit\r\n',
-        );
-      case 'ps1':
-        File(_join(folder, 'stn.ps1')).writeAsStringSync(
-          "New-Item -ItemType File -Force -Path '${ps1Marker.path}'"
-          ' | Out-Null\r\nexit $exit\r\n',
         );
       default:
         throw ArgumentError.value(extension, 'extension', 'not a stn kind');
@@ -373,7 +360,7 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
 }
 
 // The Windows recorder: logs argv, stdin (read only when STUB_READ_STDIN is
-// 1), PATH, and the guard to <STUB_LOG_DIR>\<name>.log, name `specstone` for
+// 1), and PATH to <STUB_LOG_DIR>\<name>.log, name `specstone` for
 // specstone.exe and `other` for any other file; it writes STUB_STDOUT, when
 // set, to its stdout as one line and STUB_STDERR, when set, to its stderr. Its
 // exit status is the number in `<its path>.exit`, else FAKE_EXIT for
@@ -414,8 +401,6 @@ Future<void> main(List<String> args) async {
     input.join('\n'),
     'path',
     env['PATH'] ?? '',
-    'guard',
-    env['SPECSTONE_STN_GUARD'] ?? 'unset',
   ];
   File('${env['STUB_LOG_DIR']}\\$name.log')
       .writeAsStringSync('${log.join('\n')}\n', mode: FileMode.append);

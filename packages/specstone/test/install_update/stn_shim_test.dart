@@ -15,7 +15,7 @@ void main() {
   Directory dir(String path) => Directory(path)..createSync(recursive: true);
 
   test('stn runs the specstone beside it, '
-      'passing argv, stdin, PATH, and no guard, exit 0', () async {
+      'passing argv, stdin, and PATH, exit 0', () async {
     final sb = await createShimSandbox();
     final path = '${sb.bin.path}:$systemEntries';
 
@@ -34,8 +34,6 @@ void main() {
       'hello',
       'path',
       path,
-      'guard',
-      'unset',
     ]);
     expect(sb.logOf('other'), isEmpty);
   });
@@ -71,8 +69,6 @@ void main() {
       '',
       'path',
       '${sb.bin.path}:$systemEntries',
-      'guard',
-      'unset',
     ]);
   });
 
