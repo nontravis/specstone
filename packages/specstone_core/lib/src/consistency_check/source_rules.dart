@@ -30,29 +30,39 @@ Iterable<Finding> checkDesignSources(
     if (field.type != FieldType.sourceRef) continue;
     for (final (:value, :line, text: _) in lines.entriesOf(field.id)) {
       if (value is! String || _webUrl.hasMatch(value)) continue;
-      final kind = _leavesProject(value)
-          ? FindingKind.sourcePathOutsideProject
-          : namesFileOrFolderFrom(context.projectRoot, value)
-          ? null
-          : FindingKind.sourcePathMissing;
-      if (kind == null) continue;
+      final broken = _breakOf(context, value);
+      if (broken == null) continue;
       yield context.finding(
         doc,
-        kind,
+        broken.kind,
         line: line,
-        message: kind == FindingKind.sourcePathMissing
-            ? '$value names nothing on disk'
-            : '$value leaves the project root',
+        message: '$value ${broken.reason}',
         keys: {'entry': value},
       );
     }
   }
 }
 
+/// Returns why the path [entry] is broken, null when it names something under
+/// the project root.
+({FindingKind kind, String reason})? _breakOf(
+  CheckContext context,
+  String entry,
+) {
+  if (_leavesProject(entry)) {
+    return (
+      kind: FindingKind.sourcePathOutsideProject,
+      reason: 'leaves the project root',
+    );
+  }
+  if (namesFileOrFolderFrom(context.projectRoot, entry)) return null;
+  return (kind: FindingKind.sourcePathMissing, reason: 'names nothing on disk');
+}
+
 /// Whether [entry] is rooted, or reaches above the project root after its
-/// `.` and `..` segments apply.
+/// `.` and `..` segments apply, `\` read as a separator too.
 bool _leavesProject(String entry) {
   if (_rootedPath.hasMatch(entry)) return true;
-  final normal = normalCodeEntry(entry);
+  final normal = normalCodeEntry(entry.replaceAll(r'\', '/'));
   return normal == _parentSegment || normal.startsWith('$_parentSegment/');
 }

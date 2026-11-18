@@ -106,13 +106,23 @@ void main() {
 
   test('a path that leaves the project root is source_path_outside_project, '
       'whether or not the file exists, also after normalizing', () async {
-    final project = await _project(
-      ['../kit.fig', 'design/../../kit.fig', '/etc/hosts', 'C:/kit.fig', '..'],
-      extra: {'../kit.fig': 'x'},
-    );
+    final outside = 'kit_outside_$pid.fig';
+    final project = await _project([
+      '../$outside',
+      'design/../../kit.fig',
+      '/etc/hosts',
+      'C:/kit.fig',
+      '..',
+      r'..\kit.fig',
+    ]);
+    final sibling = File('${project.parent.path}/$outside')
+      ..writeAsStringSync('x');
+    addTearDown(() {
+      if (sibling.existsSync()) sibling.deleteSync();
+    });
 
     expect(_sources(await checkOf(project)), [
-      _at(project, _mockupDoc, 'source_path_outside_project', '../kit.fig'),
+      _at(project, _mockupDoc, 'source_path_outside_project', '../$outside'),
       _at(
         project,
         _mockupDoc,
@@ -122,6 +132,7 @@ void main() {
       _at(project, _mockupDoc, 'source_path_outside_project', '/etc/hosts'),
       _at(project, _mockupDoc, 'source_path_outside_project', 'C:/kit.fig'),
       _at(project, _mockupDoc, 'source_path_outside_project', '..'),
+      _at(project, _mockupDoc, 'source_path_outside_project', r'..\kit.fig'),
     ]);
   });
 
@@ -205,5 +216,17 @@ void main() {
     expect(_sources(await checkOf(project)), [
       _at(project, _componentDoc, 'source_path_missing', 'design/button.fig'),
     ]);
+  });
+
+  test('a component doc with no design_source gives no finding', () async {
+    final project = await writeCheckProject(
+      extra: {
+        '.specstone/config.yaml': softwareDesignSystemConfig(),
+        'docs/$_componentGroupDoc': '# Buttons\n\n## Purpose\n\nButtons.\n',
+        'docs/$_componentDoc': '---\nlifecycle: stable\n---\n\n# Button\n',
+      },
+    );
+
+    expect(_sources(await checkOf(project)), isEmpty);
   });
 }
