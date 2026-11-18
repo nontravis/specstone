@@ -109,6 +109,12 @@ List<Finding> _suspects(CheckReport report) =>
 List<Finding> _unconfirmed(CheckReport report) =>
     _ofKind(report, FindingKind.codeUnconfirmed);
 
+/// Returns the `code_suspect` findings of the record in [project].
+Future<List<Finding>> _recordSuspects(Directory project) async => [
+  for (final f in _suspects(await _run(project)))
+    if (f.path == _recordPath) f,
+];
+
 List<Finding> _ofKind(CheckReport report, FindingKind kind) => [
   for (final f in report.findings)
     if (f.kind == kind) f,
@@ -349,6 +355,69 @@ void main() {
         for (final f in (await _run(project)).findings)
           if (f.kind == FindingKind.implementsPathUnresolved) f,
       ], hasLength(3));
+    });
+
+    test('a Symbol entry or a covers entry ending in an 11- or 13-character '
+        'token is reported, never clean', () async {
+      const elevenHex = '9a1c03be55d';
+      const thirteenHex = '9a1c03be55d22';
+      final record = _record(
+        code: ['$_fr:$_pointer $elevenHex', '$_fr:$_pointer $thirteenHex'],
+      );
+      final project = await _project(
+        record,
+        extra: _covering(
+          '  - app/lib/ $elevenHex\n  - app/lib/ $thirteenHex\n',
+        ),
+        unfingerprinted: {'docs/$loginArchitecture'},
+      );
+
+      final report = await _run(project);
+
+      expect(
+        _ofKind(
+          report,
+          FindingKind.implementsSymbolUnresolved,
+        ).map((f) => f.line),
+        [_lineOf(record, elevenHex), _lineOf(record, thirteenHex)],
+      );
+      expect(
+        _ofKind(report, FindingKind.coversPathMissing).map((f) => f.path),
+        [loginArchitecture, loginArchitecture],
+      );
+      expect(_suspects(report), isEmpty);
+    });
+
+    test('whose file changed a line inside a block comment gives '
+        'code_suspect', () async {
+      const before = '/*\n  the old note\n*/\nint a;\n';
+      final project = await _project(
+        _record(code: ['$_fr:$_login ${_fingerprintOf(before, _login)}']),
+        extra: {_login: before},
+      );
+      expect(await _recordSuspects(project), isEmpty);
+
+      File(
+        '${project.path}/$_login',
+      ).writeAsStringSync(before.replaceFirst('the old note', 'the new note'));
+
+      expect(await _recordSuspects(project), hasLength(1));
+    });
+
+    test('whose file changed a line of a string literal that opens with // '
+        'gives no code_suspect, and any other line of it one', () async {
+      const before = "const s = '''\n// first\nkept\n''';\n";
+      final project = await _project(
+        _record(code: ['$_fr:$_login ${_fingerprintOf(before, _login)}']),
+        extra: {_login: before},
+      );
+      final file = File('${project.path}/$_login')
+        ..writeAsStringSync(before.replaceFirst('// first', '// second'));
+      expect(await _recordSuspects(project), isEmpty);
+
+      file.writeAsStringSync(before.replaceFirst('kept', 'changed'));
+
+      expect(await _recordSuspects(project), hasLength(1));
     });
 
     test('written with a ./ prefix shares its one read with the Symbol '
