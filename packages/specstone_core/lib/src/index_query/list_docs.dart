@@ -86,7 +86,8 @@ String _listLine(DocIndex index, IndexedDoc doc, String? codeTarget) {
   return summary == null ? '$line\n' : '$line — $summary\n';
 }
 
-/// Returns [doc]'s JSON object with a `summary` key when it holds a summary with text.
+/// Returns [doc]'s JSON object, with a `summary` key when the summary has
+/// text.
 Map<String, Object> _listJson(
   DocIndex index,
   IndexedDoc doc,

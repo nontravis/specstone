@@ -1156,8 +1156,12 @@ lint:
 
       test('a map without default is missing_key naming its default', () {
         const cases = {
-          'max_sentence_words': '{max_sentence_words: {ko: 10}, max_sentence_chars: {default: 9}}',
-          'max_sentence_chars': '{max_sentence_words: {default: 9}, max_sentence_chars: {th: 10}}',
+          'max_sentence_words':
+              '{max_sentence_words: {ko: 10}, '
+              'max_sentence_chars: {default: 9}}',
+          'max_sentence_chars':
+              '{max_sentence_words: {default: 9}, '
+              'max_sentence_chars: {th: 10}}',
         };
         for (final MapEntry(key: map, value: lint) in cases.entries) {
           expect(
