@@ -9,6 +9,7 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -48,6 +49,7 @@ final class DocsProject {
     required this.stampsHaveRun,
     required this.statusesOutsideApproval,
     required this.verificationCoverage,
+    required this.cleanup,
     required this.matcher,
     required this.set,
   }) : _codeRoots = codeRoots,
@@ -88,6 +90,7 @@ final class DocsProject {
       stampsHaveRun: approval.stampsHaveRun(config.pins),
       statusesOutsideApproval: approval.statusesOutsideApproval(config.pins),
       verificationCoverage: config.verificationCoverage,
+      cleanup: config.cleanup,
       matcher: DocTypeMatcher(set, targetNames: config.targetNames),
       set: set,
     );
@@ -109,6 +112,10 @@ final class DocsProject {
   /// Whether the config turns on `check`'s coverage finding; read once at
   /// open.
   final bool verificationCoverage;
+
+  /// The bounds that keep the saved bundles and reports small; read once at
+  /// open.
+  final CleanupBounds cleanup;
 
   /// The roots and whether this machine's Owner trusts them for writes.
   final RootTrust trust;

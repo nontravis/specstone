@@ -267,6 +267,7 @@ void main() {
       docsRoot: Directory(under(real, 'docs')),
       isBare: true,
       asJson: asJson,
+      cleanup: null,
       warnings: warnings,
       exitStatus: exitStatus,
     );
