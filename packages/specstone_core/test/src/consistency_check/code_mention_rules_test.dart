@@ -11,9 +11,11 @@ import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/agent_skills.dart' show skillDocText;
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/skill_doc_fixture.dart' show skillPinsConfig;
 import '../../helpers/target_fixture.dart';
 
 const _fr = 'login/email_login/check_password';
@@ -213,6 +215,28 @@ void main() {
         expect(_cited(report), isEmpty);
       },
     );
+
+    test('a skill reference file is not read, its skill file is', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': skillPinsConfig(),
+            ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
+            'docs/specs/skills/review.md': skillDocText(
+              output: 'skills/review/',
+            ),
+            'skills/review/SKILL.md': 'Use `feature:login`.\n',
+            'skills/review/references/specs/design_system/TOKENS.md':
+                'Use `feature:login`.\n',
+            'skills/other/references/NOTES.md': 'Use `feature:login`.\n',
+          },
+        ),
+      );
+      expect(_cited(report), [
+        'skills/other/references/NOTES.md:1 feature:login',
+        'skills/review/SKILL.md:1 feature:login',
+      ]);
+    });
 
     test('an agent file under a code root is never read', () async {
       final report = await checkOf(
