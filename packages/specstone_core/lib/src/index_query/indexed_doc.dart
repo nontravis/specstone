@@ -205,7 +205,7 @@ ParsedDoc parseIndexedDoc({
   Set<String> idPrefixes = const {},
 }) {
   final warnings = <String>[];
-  final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
+  final _Decoded(:text, :isUtf8) = _decode(bytes, docPath, warnings);
   final lfText = toLf(text);
   final doc = Doc.parse(lfText);
   final (:docType, :target) = switch (match) {
@@ -353,19 +353,26 @@ DocContent docStructureOf(String lfText, MergedDocType? docType) {
   );
 }
 
-({String text, bool isUtf8}) _decode(
-  List<int> bytes,
-  String docPath,
-  List<String> warnings,
-) {
+_Decoded _decode(List<int> bytes, String docPath, List<String> warnings) {
   try {
-    return (text: utf8.decode(bytes), isUtf8: true);
+    return _Decoded(text: utf8.decode(bytes), isUtf8: true);
   } on FormatException {
     warnings.add(
       '$docPath: not UTF-8 text; indexed with replacement characters',
     );
-    return (text: utf8.decode(bytes, allowMalformed: true), isUtf8: false);
+    return _Decoded(
+      text: utf8.decode(bytes, allowMalformed: true),
+      isUtf8: false,
+    );
   }
+}
+
+/// A file's decoded text, and whether its bytes were UTF-8.
+final class _Decoded {
+  const new({required this.text, required this.isUtf8});
+
+  final String text;
+  final bool isUtf8;
 }
 
 /// Returns the counts of each of [sections], in its order.

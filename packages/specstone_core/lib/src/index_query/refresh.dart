@@ -165,7 +165,15 @@ final class _ListedFile {
   final FileStatKey? stat;
 
   /// The bytes and their hash; null while the stored hash is trusted.
-  ({List<int> bytes, String hash})? content;
+  _FileContent? content;
+}
+
+/// A listed file's bytes and their hash.
+final class _FileContent {
+  const new({required this.bytes, required this.hash});
+
+  final List<int> bytes;
+  final String hash;
 }
 
 /// The `.md` files of one refresh, each read at most once.
@@ -258,7 +266,7 @@ final class _Listing {
   bool _read(String docPath, _ListedFile listed) {
     try {
       final bytes = listed.file.readAsBytesSync();
-      listed.content = (bytes: bytes, hash: contentHashOf(bytes));
+      listed.content = _FileContent(bytes: bytes, hash: contentHashOf(bytes));
       hashed++;
       return true;
     } on FileSystemException {

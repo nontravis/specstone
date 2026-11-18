@@ -143,7 +143,7 @@ ItemFacts itemFactsOf({
     countedText,
     type?.listedGenerators.toSet() ?? const {},
   );
-  final (:counts, :items) = _leadOf(
+  final _Lead(:counts, :items) = _leadOf(
     counted,
     countedText,
     lines,
@@ -331,7 +331,7 @@ List<BodyLine> leadBodyLinesOf(
 /// last with the line feeds between, and its items.
 ///
 /// The counts are null when the lead holds no text.
-({SectionCounts? counts, List<ItemFact> items}) _leadOf(
+_Lead _leadOf(
   Doc doc,
   String text,
   LineFacts lines,
@@ -341,16 +341,24 @@ List<BodyLine> leadBodyLinesOf(
   final body = leadBodyLinesOf(doc, text, lines, isGenerated);
   bool holdsText(BodyLine line) => line.text.trim().isNotEmpty;
   final first = body.indexWhere(holdsText);
-  if (first < 0) return (counts: null, items: const []);
+  if (first < 0) return const _Lead(counts: null, items: []);
   final last = body.lastIndexWhere(holdsText);
   var chars = last - first;
   for (var k = first; k <= last; k++) {
     chars += _codePointsOf(body[k].text);
   }
-  return (
+  return _Lead(
     counts: SectionCounts(lines: last - first + 1, chars: chars),
     items: _itemFactsIn(body, null, reads),
   );
+}
+
+/// The counts of a lead, null when it holds no text, and its items.
+final class _Lead {
+  const new({required this.counts, required this.items});
+
+  final SectionCounts? counts;
+  final List<ItemFact> items;
 }
 
 /// What an item's visible count and readability facts are read against.
@@ -544,7 +552,12 @@ String? itemKeyOfHead(
 
 /// An item ID read at the start of an item, and whether it is the number of a
 /// `### Scenario <N>` heading.
-typedef _ItemIdRead = ({ItemId id, bool isScenario});
+final class _ItemIdRead {
+  const new({required this.id, required this.isScenario});
+
+  final ItemId id;
+  final bool isScenario;
+}
 
 _ItemIdRead? _idReadOfHead(
   String head, {
@@ -554,11 +567,13 @@ _ItemIdRead? _idReadOfHead(
 }) {
   if (isHeading && isAcceptanceCriteria) {
     final scenario = readScenarioHead(head);
-    if (scenario is ItemId) return (id: scenario, isScenario: true);
+    if (scenario is ItemId) {
+      return _ItemIdRead(id: scenario, isScenario: true);
+    }
   }
   if (prefixId == null) return null;
   return switch (readItemId(head, prefixId)) {
-    final ItemId id => (id: id, isScenario: false),
+    final ItemId id => _ItemIdRead(id: id, isScenario: false),
     _ => null,
   };
 }

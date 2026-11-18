@@ -482,17 +482,22 @@ List<MergedField> _recordFieldsOf(MergedDocType recordType) => [
 /// alone as one line; null when the key is absent.
 ///
 /// Throws [RecordFieldUnreadable] for a block that is no valid YAML.
-({KeyBlock block, List<Object?> lines})? _fieldLinesOf(
-  String lfText,
-  MergedField field,
-) {
+_FieldLines? _fieldLinesOf(String lfText, MergedField field) {
   final block = (Doc.parse(lfText).frontmatter ?? const <KeyBlock>[])
       .where((b) => b.name == field.id)
       .firstOrNull;
   if (block == null) return null;
   final lines = listEntriesOf(block);
   if (lines == null) throw RecordFieldUnreadable(block.key);
-  return (block: block, lines: lines);
+  return _FieldLines(block: block, lines: lines);
+}
+
+/// A field's key block and the lines it lists.
+final class _FieldLines {
+  const new({required this.block, required this.lines});
+
+  final KeyBlock block;
+  final List<Object?> lines;
 }
 
 /// Returns [lfText] with the block of [field] listing [lines] over [onDisk]

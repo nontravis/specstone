@@ -6,7 +6,15 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 
 const _indent = '  ';
 
-typedef _SectionSize = ({String key, int chars, List<ItemFact> items});
+/// A section's key, its stored characters, and its items, as the tree prints
+/// them.
+final class _SectionSize {
+  const new({required this.key, required this.chars, required this.items});
+
+  final String key;
+  final int chars;
+  final List<ItemFact> items;
+}
 
 /// Returns the docs tree, or the subtree of every doc [target] addresses.
 ///
@@ -194,9 +202,9 @@ List<_SectionSize> _sectionSizesOf(DocIndex index, IndexedDoc doc) {
   final facts = content.itemFacts;
   return [
     if (facts.lead case final lead?)
-      (key: leadKey, chars: lead.chars, items: facts.leadItems),
+      _SectionSize(key: leadKey, chars: lead.chars, items: facts.leadItems),
     for (final (i, section) in content.sections.indexed)
-      (
+      _SectionSize(
         key: section.key,
         chars: content.lineFacts.sectionCounts[i].chars,
         items: facts.sectionItems[i],

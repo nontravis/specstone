@@ -8,7 +8,12 @@ const _featureItem = '';
 
 /// The record doc of one feature in one target: the feature's name, the one
 /// the record's entry items are relative to, and its parsed entries.
-typedef _RecordDoc = ({String feature, List<RecordEntry> entries});
+final class _RecordDoc {
+  const new({required this.feature, required this.entries});
+
+  final String feature;
+  final List<RecordEntry> entries;
+}
 
 /// The docs of one snapshot as a parent tree, with each story's, FR's, and
 /// feature's status in each code target, read from no store.
@@ -230,10 +235,12 @@ final class StatusTree {
       if (member.docTypeId != featureType) continue;
       for (final record in ofTypeNamed(type.id, member.name)) {
         if (record.target != codeTarget) continue;
-        records.add((
-          feature: member.name,
-          entries: recordEntriesAt(record.docPath),
-        ));
+        records.add(
+          _RecordDoc(
+            feature: member.name,
+            entries: recordEntriesAt(record.docPath),
+          ),
+        );
       }
     }
     return records;

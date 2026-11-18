@@ -83,7 +83,7 @@ ReadAnswer answerRefs(DocIndex index, String address, {String? codeTarget}) {
   );
 }
 
-({String text, Map<String, Object> json}) _answerFor(
+_DocRefs _answerFor(
   DocIndex index,
   IndexedDoc doc,
   Map<String, List<_Ref>> inboundByPath,
@@ -117,7 +117,7 @@ ReadAnswer answerRefs(DocIndex index, String address, {String? codeTarget}) {
     ..write(_groupLines(mentions))
     ..writeln('Untyped mentions')
     ..write(_groupLines(untypedMentions));
-  return (
+  return _DocRefs(
     text: text.toString(),
     json: {
       'name': doc.name,
@@ -129,6 +129,14 @@ ReadAnswer answerRefs(DocIndex index, String address, {String? codeTarget}) {
       'untypedMentions': [for (final ref in untypedMentions) ref.json],
     },
   );
+}
+
+/// One doc's references as printed: its text block and its JSON object.
+final class _DocRefs {
+  const new({required this.text, required this.json});
+
+  final String text;
+  final Map<String, Object> json;
 }
 
 /// Returns the outbound references of [doc]: its `doc_ref` fields in field

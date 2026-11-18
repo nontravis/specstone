@@ -108,7 +108,7 @@ List<WrittenPath> pathsWrittenIn(DocIndex index, IndexedDoc doc) {
   return [
     for (final (i, text) in lines.indexed)
       if (!content.lineFacts.isFenced(i + 1))
-        for (final (:written, :named) in _pathsOnLine(
+        for (final _PathOnLine(:written, :named) in _pathsOnLine(
           index,
           doc,
           text,
@@ -119,7 +119,7 @@ List<WrittenPath> pathsWrittenIn(DocIndex index, IndexedDoc doc) {
   ];
 }
 
-Iterable<({String written, IndexedDoc named})> _pathsOnLine(
+Iterable<_PathOnLine> _pathsOnLine(
   DocIndex index,
   IndexedDoc from,
   String line,
@@ -142,9 +142,17 @@ Iterable<({String written, IndexedDoc named})> _pathsOnLine(
     if (candidates == null) continue;
     final docPath = docNamedBy(written, from.docPath, candidates);
     if (index.at(docPath ?? '') case final named?) {
-      yield (written: written, named: named);
+      yield _PathOnLine(written: written, named: named);
     }
   }
+}
+
+/// A path written on a line, and the doc it names.
+final class _PathOnLine {
+  const new({required this.written, required this.named});
+
+  final String written;
+  final IndexedDoc named;
 }
 
 /// A doc's line facts and, on first use, its LF lines with link destinations
