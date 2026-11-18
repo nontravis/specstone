@@ -10,7 +10,7 @@ List<String> _headers(Doc doc) => [for (final s in doc.sections) s.headerText];
 
 void main() {
   group('Doc.parse', () {
-    test('doc_model/s03/inv4: frontmatter, head, and sections in file '
+    test('frontmatter, head, and sections in file '
         'order', () {
       final doc = Doc.parse(
         '---\nstatus: planned\n---\n\n# T\n\nlead\n\n## A\na1\n### A.1\na2\n'
@@ -25,14 +25,14 @@ void main() {
       expect(doc.title, 'T');
     });
 
-    test('doc_model/s03/inv4: afterFrontmatter is the text after the closing '
+    test('afterFrontmatter is the text after the closing '
         'line', () {
       final doc = Doc.parse('---\nstatus: planned\n---\n\n# T\n\n## A\na\n');
 
       expect(doc.afterFrontmatter, '\n# T\n\n## A\na\n');
     });
 
-    test('doc_model/s03/inv4: a section keeps its header line as written and '
+    test('a section keeps its header line as written and '
         'the text after ## trimmed', () {
       final doc = Doc.parse('##   Spaced  Title \t\n   ## Indented\n##\nend\n');
 
@@ -43,7 +43,7 @@ void main() {
       expect(_headers(doc), ['Spaced  Title', 'Indented', '']);
     });
 
-    test('doc_model/s03/inv4: a line that is not a ## header opens no '
+    test('a line that is not a ## header opens no '
         'section', () {
       final doc = Doc.parse('##x\n    ## four spaces\n#### deep\n# one\n');
 
@@ -51,14 +51,14 @@ void main() {
       expect(doc.head, '##x\n    ## four spaces\n#### deep\n# one\n');
     });
 
-    test('doc_model/s03/inv5: a section body keeps inner bytes and drops '
+    test('a section body keeps inner bytes and drops '
         'trailing blank lines', () {
       final doc = Doc.parse('## A\nx  \n\n\ty\n\n\n');
 
       expect(doc.sections.single.body, 'x  \n\n\ty\n');
     });
 
-    test('doc_model/s03/inv5: a section with only blank lines has an empty '
+    test('a section with only blank lines has an empty '
         'body', () {
       final doc = Doc.parse('## A\n\n  \n## B\nb\n');
 
@@ -66,32 +66,29 @@ void main() {
       expect(doc.sections[1].body, 'b\n');
     });
 
-    test('doc_model/s03/inv5: a last line without a newline is kept', () {
+    test('a last line without a newline is kept', () {
       final doc = Doc.parse('## A\na\nlast');
 
       expect(doc.sections.single.body, 'a\nlast');
     });
 
-    test(
-      'doc_model/s03/inv6, f05/us01/fr03/e03: key blocks keep their text byte '
-      'for byte',
-      () {
-        final doc = Doc.parse(
-          '---\n# owner note\nvision:\n  - PV-01\n  # inner\n# date note\n'
-          'date: 2026-10-23 # c\nq: "x"\n# tail\n---\n',
-        );
+    test('key blocks keep their text byte '
+        'for byte', () {
+      final doc = Doc.parse(
+        '---\n# owner note\nvision:\n  - PV-01\n  # inner\n# date note\n'
+        'date: 2026-10-23 # c\nq: "x"\n# tail\n---\n',
+      );
 
-        expect(_keys(doc), ['vision', 'date', 'q']);
-        expect(_texts(doc), [
-          '# owner note\nvision:\n  - PV-01\n  # inner\n',
-          '# date note\ndate: 2026-10-23 # c\n',
-          'q: "x"\n# tail\n',
-        ]);
-        expect(doc.frontmatter![1].valueText, '2026-10-23 # c');
-        expect(doc.frontmatter![0].valueText, '- PV-01');
-        expect(doc.frontmatter![2].valueText, '"x"');
-      },
-    );
+      expect(_keys(doc), ['vision', 'date', 'q']);
+      expect(_texts(doc), [
+        '# owner note\nvision:\n  - PV-01\n  # inner\n',
+        '# date note\ndate: 2026-10-23 # c\n',
+        'q: "x"\n# tail\n',
+      ]);
+      expect(doc.frontmatter![1].valueText, '2026-10-23 # c');
+      expect(doc.frontmatter![0].valueText, '- PV-01');
+      expect(doc.frontmatter![2].valueText, '"x"');
+    });
 
     test('doc_model: indentedValueText keeps the indent of a list and '
         'drops comment lines and trailing blank lines', () {
@@ -108,7 +105,7 @@ void main() {
       );
     });
 
-    test('doc_model/s03/inv6: blank lines above a key join that key and '
+    test('blank lines above a key join that key and '
         'the blocks cover every line', () {
       const inner = 'a: 1\n\n# about b\n\nb: 2\n  more\nc:\n\n';
       final doc = Doc.parse('---\n$inner---\n');
@@ -121,32 +118,29 @@ void main() {
       expect(_texts(doc).join(), inner);
     });
 
-    test('doc_model/s03/inv6: a quoted key and a key holding a colon start '
+    test('a quoted key and a key holding a colon start '
         'blocks', () {
       final doc = Doc.parse('---\n"a b": 1\nurl: http://x\n\'q\': 2\n---\n');
 
       expect(_keys(doc), ['"a b"', 'url', "'q'"]);
     });
 
-    test(
-      "doc_model/s03/inv6, HD4: a key block's name drops its YAML quotes",
-      () {
-        final doc = Doc.parse('---\n"a b": 1\nurl: http://x\n\'q\': 2\n---\n');
+    test("a key block's name drops its YAML quotes", () {
+      final doc = Doc.parse('---\n"a b": 1\nurl: http://x\n\'q\': 2\n---\n');
 
-        expect([for (final b in doc.frontmatter!) b.name], ['a b', 'url', 'q']);
-        expect(_keys(doc), ['"a b"', 'url', "'q'"]);
-        expect(Doc.parse('---\n# note\n---\n').frontmatter!.single.name, '');
-      },
-    );
+      expect([for (final b in doc.frontmatter!) b.name], ['a b', 'url', 'q']);
+      expect(_keys(doc), ['"a b"', 'url', "'q'"]);
+      expect(Doc.parse('---\n# note\n---\n').frontmatter!.single.name, '');
+    });
 
-    test('doc_model/s03/inv6: an empty frontmatter has no blocks', () {
+    test('an empty frontmatter has no blocks', () {
       final doc = Doc.parse('---\n---\n# T\n');
 
       expect(doc.frontmatter, isEmpty);
       expect(doc.title, 'T');
     });
 
-    test('doc_model/s03/inv6 (controller ruling): frontmatter with no key '
+    test('frontmatter with no key '
         'line forms one keyless block', () {
       final list = Doc.parse('---\n- a\n- b\n---\n# T\n');
       final comment = Doc.parse('---\n# note\n---\n');
@@ -158,7 +152,7 @@ void main() {
       expect(_texts(comment), ['# note\n']);
     });
 
-    test('doc_model/s03/inv6 (controller ruling): a stray line above the '
+    test('a stray line above the '
         'first key forms a leading keyless block', () {
       final doc = Doc.parse(
         '---\n- a\n# stray note\n\n  indented\n# owns k\nk: 1\nj: 2\n---\n',
@@ -172,7 +166,7 @@ void main() {
       ]);
     });
 
-    test('doc_model/s03/inv6 (controller ruling): comments directly above '
+    test('comments directly above '
         'the first key stay with that key', () {
       final doc = Doc.parse('---\n# one\n\n# two\nk: 1\n---\n');
 
@@ -209,17 +203,14 @@ void main() {
       expect(doc.sections[0].body, '### sub\ntext\n#### deeper\n');
     });
 
-    test(
-      'review focus 1: a ## line inside a fenced block is not a section',
-      () {
-        final doc = Doc.parse('## A\n```md\n## not a section\n```\n');
+    test('a ## line inside a fenced block is not a section', () {
+      final doc = Doc.parse('## A\n```md\n## not a section\n```\n');
 
-        expect(_headers(doc), ['A']);
-        expect(doc.sections.single.body, '```md\n## not a section\n```\n');
-      },
-    );
+      expect(_headers(doc), ['A']);
+      expect(doc.sections.single.body, '```md\n## not a section\n```\n');
+    });
 
-    test('review focus 1: a fence closes on the same character and at least '
+    test('a fence closes on the same character and at least '
         'as many', () {
       final doc = Doc.parse(
         '## A\n````\n```\n## in\n~~~~\n````\n## B\n~~~\n## in\n```\n'
@@ -229,7 +220,7 @@ void main() {
       expect(_headers(doc), ['A', 'B', 'C']);
     });
 
-    test('review focus 1: an unclosed fence runs to the end of the text', () {
+    test('an unclosed fence runs to the end of the text', () {
       final doc = Doc.parse('## A\n   ```\n## in\n## in too\n');
 
       expect(_headers(doc), ['A']);
@@ -260,7 +251,7 @@ void main() {
       }
     });
 
-    test('E04: a fence nested in '
+    test('a fence nested in '
         'a list item that runs to the end is unclosed', () {
       expect(
         Doc.parse('## A\n- item\n\n    ```\n    code\n').hasUnclosedFence,
@@ -313,14 +304,14 @@ void main() {
       );
     });
 
-    test('review focus 1: a backtick fence whose info string holds a '
+    test('a backtick fence whose info string holds a '
         'backtick is not a fence', () {
       final doc = Doc.parse('## A\n```a`b\n## B\n');
 
       expect(_headers(doc), ['A', 'B']);
     });
 
-    test('review focus 1: a fenced block in the head hides its ## line', () {
+    test('a fenced block in the head hides its ## line', () {
       final doc = Doc.parse('~~~\n## x\n~~~\n## A\n');
 
       expect(_headers(doc), ['A']);

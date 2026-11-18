@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
-  test('dw-s05: base_mismatch carries file, key, and current; the text form names file and key', () {
+  test('base_mismatch carries file, key, and current; the text form names file and key', () {
     final fault = WriteFault(
       WriteFaultCode.baseMismatch,
       'the section changed since base 3f9a1c0b7e21',
@@ -35,7 +35,7 @@ void main() {
     );
   });
 
-  test('dw-s05: doc_referenced lists relatedFiles after "; also"; owner_terminal_required exits 77 with no file', () {
+  test('doc_referenced lists relatedFiles after "; also"; owner_terminal_required exits 77 with no file', () {
     final fault = WriteFault(
       WriteFaultCode.docReferenced,
       'docs outside user_story:login/reset_password link into it',
@@ -62,51 +62,42 @@ void main() {
     expect(owner.toText(), 'm');
   });
 
-  test(
-    'dw-s05: the codes keep the catalog order, wire names, and exit statuses',
-    () {
-      expect(
-        [
-          for (final code in WriteFaultCode.values)
-            (code.wire, code.exitStatus),
-        ],
-        [
-          ('base_mismatch', 75),
-          ('replace_unmatched', 75),
-          ('replace_ambiguous', 64),
-          ('field_unknown', 64),
-          ('field_value_invalid', 64),
-          ('field_not_writable', 64),
-          ('required_target', 64),
-          ('doc_exists', 64),
-          ('doc_referenced', 64),
-          ('position_out_of_range', 64),
-          ('doc_type_not_movable', 64),
-          ('item_not_found', 64),
-          ('owner_terminal_required', 77),
-          ('migrate_pending', 75),
-          ('draft_not_found', 65),
-          ('plan_mismatch', 75),
-        ],
-      );
-    },
-  );
+  test('the codes keep the catalog order, wire names, and exit statuses', () {
+    expect(
+      [for (final code in WriteFaultCode.values) (code.wire, code.exitStatus)],
+      [
+        ('base_mismatch', 75),
+        ('replace_unmatched', 75),
+        ('replace_ambiguous', 64),
+        ('field_unknown', 64),
+        ('field_value_invalid', 64),
+        ('field_not_writable', 64),
+        ('required_target', 64),
+        ('doc_exists', 64),
+        ('doc_referenced', 64),
+        ('position_out_of_range', 64),
+        ('doc_type_not_movable', 64),
+        ('item_not_found', 64),
+        ('owner_terminal_required', 77),
+        ('migrate_pending', 75),
+        ('draft_not_found', 65),
+        ('plan_mismatch', 75),
+      ],
+    );
+  });
 
   test('migrate_pending exits 75', () {
     expect(WriteFaultCode.migratePending.wire, 'migrate_pending');
     expect(WriteFaultCode.migratePending.exitStatus, 75);
   });
 
-  test(
-    'dw-s05: a text form with several relatedFiles joins them with commas',
-    () {
-      final fault = WriteFault(
-        WriteFaultCode.docReferenced,
-        'linked',
-        file: story3,
-        relatedFiles: [fr12, fr32],
-      );
-      expect(fault.toText(), '$story3: linked; also $fr12, $fr32');
-    },
-  );
+  test('a text form with several relatedFiles joins them with commas', () {
+    final fault = WriteFault(
+      WriteFaultCode.docReferenced,
+      'linked',
+      file: story3,
+      relatedFiles: [fr12, fr32],
+    );
+    expect(fault.toText(), '$story3: linked; also $fr12, $fr32');
+  });
 }

@@ -201,7 +201,7 @@ void main() {
       );
     });
 
-    test('$_fr E15: the import block paths run from the file folder', () {
+    test('the import block paths run from the file folder', () {
       final block = importBlock(
         cliVersion: '9.8.7',
         agentMdPath: '../.specstone/AGENT.md',
@@ -228,15 +228,12 @@ void main() {
       );
     });
 
-    test(
-      '$_fr E21: the cursor rules file is frontmatter then the inline block',
-      () {
-        expect(
-          cursorRulesText(cliVersion: specstoneVersion),
-          '---\nalwaysApply: true\n---\n${_inlineBlock()}',
-        );
-      },
-    );
+    test('the cursor rules file is frontmatter then the inline block', () {
+      expect(
+        cursorRulesText(cliVersion: specstoneVersion),
+        '---\nalwaysApply: true\n---\n${_inlineBlock()}',
+      );
+    });
   });
 
   group('scanMarkers', () {
@@ -258,42 +255,42 @@ void main() {
       expect(scan.isMalformed, isFalse);
     });
 
-    test('$_fr E05: a BEGIN with no END is malformed', () {
+    test('a BEGIN with no END is malformed', () {
       final scan = scanMarkers('a\n$_begin\nb\n');
 
       expect(scan.isMalformed, isTrue);
       expect(scan.firstMarkerLine, 2);
     });
 
-    test('$_fr E05: an END with no BEGIN before it is malformed', () {
+    test('an END with no BEGIN before it is malformed', () {
       final scan = scanMarkers('a\nb\n$_end\n');
 
       expect(scan.isMalformed, isTrue);
       expect(scan.firstMarkerLine, 3);
     });
 
-    test('$_fr E05: an END before the BEGIN is malformed', () {
+    test('an END before the BEGIN is malformed', () {
       final scan = scanMarkers('$_end\n$_begin\n');
 
       expect(scan.isMalformed, isTrue);
       expect(scan.firstMarkerLine, 1);
     });
 
-    test('$_fr E05: two BEGIN lines are malformed', () {
+    test('two BEGIN lines are malformed', () {
       final scan = scanMarkers('$_begin\n$_begin\n$_end\n');
 
       expect(scan.isMalformed, isTrue);
       expect(scan.firstMarkerLine, 1);
     });
 
-    test('$_fr E05: two END lines are malformed', () {
+    test('two END lines are malformed', () {
       final scan = scanMarkers('$_begin\n$_end\nx\n$_end\n');
 
       expect(scan.isMalformed, isTrue);
       expect(scan.firstMarkerLine, 1);
     });
 
-    test('$_fr E13: a BEGIN with no version is the Owner text', () {
+    test('a BEGIN with no version is the Owner text', () {
       final scan = scanMarkers('<!-- BEGIN specstone -->\n$_end\n');
 
       expect(scan.beginLine, isNull);
@@ -301,7 +298,7 @@ void main() {
       expect(scan.isMalformed, isTrue);
     });
 
-    test('$_fr E13: a BEGIN naming a pre-release version is a marker', () {
+    test('a BEGIN naming a pre-release version is a marker', () {
       final scan = scanMarkers(
         '<!-- BEGIN specstone v1.2.0-beta.1 -->\n$_end\n',
       );
@@ -312,7 +309,7 @@ void main() {
     });
 
     for (final version in ['1.2.0-beta.01', '1.2', '1.2.0+build.5']) {
-      test('$_fr E13: a BEGIN naming "$version" is the Owner text', () {
+      test('a BEGIN naming "$version" is the Owner text', () {
         final scan = scanMarkers('<!-- BEGIN specstone v$version -->\n$_end\n');
 
         expect(scan.beginLine, isNull);
@@ -321,7 +318,7 @@ void main() {
       });
     }
 
-    test('$_fr E13: a BEGIN line holding a 3 MB version is read', () {
+    test('a BEGIN line holding a 3 MB version is read', () {
       final preRelease = List.filled(1600000, 'a').join('.');
       final core = '1' * 3000000;
 
@@ -333,7 +330,7 @@ void main() {
       }
     });
 
-    test('$_fr E13: a BEGIN line holding a 3 MB non-version is Owner text', () {
+    test('a BEGIN line holding a 3 MB non-version is Owner text', () {
       for (final token in ['a' * 3000000, '1.0.0-${'a.' * 1600000}!']) {
         final scan = scanMarkers('<!-- BEGIN specstone v$token -->\n$_end\n');
 
@@ -342,17 +339,14 @@ void main() {
       }
     });
 
-    test(
-      '$_fr E13: a marker with other text on its line is the Owner text',
-      () {
-        final scan = scanMarkers('x $_begin\n$_end y\n');
+    test('a marker with other text on its line is the Owner text', () {
+      final scan = scanMarkers('x $_begin\n$_end y\n');
 
-        expect(scan.firstMarkerLine, isNull);
-        expect(scan.isMalformed, isFalse);
-      },
-    );
+      expect(scan.firstMarkerLine, isNull);
+      expect(scan.isMalformed, isFalse);
+    });
 
-    test('$_fr E13: a marker inside a fenced code block is the Owner text', () {
+    test('a marker inside a fenced code block is the Owner text', () {
       final scan = scanMarkers('```\n$_begin\nx\n```\n$_begin\n$_end\n');
 
       expect(scan.beginLine, 5);
@@ -360,7 +354,7 @@ void main() {
       expect(scan.isMalformed, isFalse);
     });
 
-    test('$_fr E14: CRLF line ends do not hide a marker', () {
+    test('CRLF line ends do not hide a marker', () {
       final scan = scanMarkers(_crlf('a\n$_begin\nb\n$_end\n'));
 
       expect(scan.beginLine, 2);
@@ -368,14 +362,14 @@ void main() {
       expect(scan.isMalformed, isFalse);
     });
 
-    test('$_fr R47: an unclosed fence is malformed at its opening line', () {
+    test('an unclosed fence is malformed at its opening line', () {
       final scan = scanMarkers('intro\n```dart\ncode\n');
 
       expect(scan.isMalformed, isTrue);
       expect(scan.firstMarkerLine, 2);
     });
 
-    test('$_fr R47: a BOM then a fence opens the fence on line 1', () {
+    test('a BOM then a fence opens the fence on line 1', () {
       final scan = scanMarkers('\uFEFF```\n$_begin\n$_end\n');
 
       expect(scan.isMalformed, isTrue);
@@ -383,7 +377,7 @@ void main() {
       expect(scan.beginLine, isNull);
     });
 
-    test('$_fr R47: a closed fence earlier does not hide the open one', () {
+    test('a closed fence earlier does not hide the open one', () {
       final scan = scanMarkers('```\nx\n```\ntext\n```\nopen\n');
 
       expect(scan.isMalformed, isTrue);
@@ -399,7 +393,7 @@ void main() {
   });
 
   group('upsertBlock', () {
-    test('$_fr E01: an empty file becomes the block alone', () {
+    test('an empty file becomes the block alone', () {
       expect(upsertBlock('', _inlineBlock()), _inlineBlock());
     });
 
@@ -412,7 +406,7 @@ void main() {
       );
     });
 
-    test('$_fr E02: the block is appended and every earlier byte stays', () {
+    test('the block is appended and every earlier byte stays', () {
       const owner = '# My project\n\nOwner text.\n';
 
       expect(upsertBlock(owner, _importBlock()), '$owner\n${_importBlock()}');
@@ -434,7 +428,7 @@ void main() {
       expect(upsertBlock(owner, _importBlock()), '$owner${_importBlock()}');
     });
 
-    test('$_fr E03: a differing body is replaced in place', () {
+    test('a differing body is replaced in place', () {
       final old = _lines([
         '<!-- BEGIN specstone v0.0.1 -->',
         'an older rule',
@@ -448,7 +442,7 @@ void main() {
       );
     });
 
-    test('$_fr E03: a hand-edited rule line is replaced', () {
+    test('a hand-edited rule line is replaced', () {
       final edited = _inlineBlock().replaceFirst('Owner', 'Boss');
       final file = 'top\n${edited}bottom\n';
 
@@ -458,18 +452,18 @@ void main() {
       );
     });
 
-    test('$_fr E04: a matching body under another version changes nothing', () {
+    test('a matching body under another version changes nothing', () {
       final file =
           'x\n${_importBlock().replaceFirst(specstoneVersion, '0.0.1')}y\n';
 
       expect(upsertBlock(file, _importBlock()), isNull);
     });
 
-    test('$_fr E09: a file already holding the block gives null', () {
+    test('a file already holding the block gives null', () {
       expect(upsertBlock('x\n${_inlineBlock()}', _inlineBlock()), isNull);
     });
 
-    test('$_fr E14: a CRLF file takes the block with CRLF', () {
+    test('a CRLF file takes the block with CRLF', () {
       final owner = _crlf('# Mine\nText.\n');
 
       expect(
@@ -478,26 +472,23 @@ void main() {
       );
     });
 
-    test('$_fr E14: a CRLF block matches its LF block', () {
+    test('a CRLF block matches its LF block', () {
       final file = _crlf('x\n${_importBlock()}');
 
       expect(upsertBlock(file, _importBlock()), isNull);
     });
 
-    test(
-      '$_fr E14: a CRLF block with a differing body is replaced in CRLF',
-      () {
-        final old = _crlf(
-          _lines(['<!-- BEGIN specstone v0.0.1 -->', 'old', _end]),
-        );
-        final file = '${_crlf('top\n')}$old${_crlf('bottom\n')}';
+    test('a CRLF block with a differing body is replaced in CRLF', () {
+      final old = _crlf(
+        _lines(['<!-- BEGIN specstone v0.0.1 -->', 'old', _end]),
+      );
+      final file = '${_crlf('top\n')}$old${_crlf('bottom\n')}';
 
-        expect(
-          upsertBlock(file, _importBlock()),
-          '${_crlf('top\n')}${_crlf(_importBlock())}${_crlf('bottom\n')}',
-        );
-      },
-    );
+      expect(
+        upsertBlock(file, _importBlock()),
+        '${_crlf('top\n')}${_crlf(_importBlock())}${_crlf('bottom\n')}',
+      );
+    });
 
     test('$_fr: a UTF-8 BOM stays when the block is appended', () {
       const owner = '\uFEFFOwner text.\n';
@@ -527,13 +518,13 @@ void main() {
       );
     });
 
-    test('$_fr E05: a malformed text is a caller error', () {
+    test('a malformed text is a caller error', () {
       expect(
         () => upsertBlock('$_begin\n', _importBlock()),
         throwsArgumentError,
       );
     });
-    test('$_fr R47: a stray fence refuses, naming the line not the text', () {
+    test('a stray fence refuses, naming the line not the text', () {
       expect(
         () => upsertBlock('Owner secret\n```\ncode\n', _importBlock()),
         throwsA(
@@ -544,16 +535,13 @@ void main() {
       );
     });
 
-    test(
-      '$_fr R47: a closed fence upserts and a second run changes 0 bytes',
-      () {
-        const owner = '```\ncode\n```\n';
-        final first = upsertBlock(owner, _importBlock());
+    test('a closed fence upserts and a second run changes 0 bytes', () {
+      const owner = '```\ncode\n```\n';
+      final first = upsertBlock(owner, _importBlock());
 
-        expect(first, '$owner\n${_importBlock()}');
-        expect(upsertBlock(first!, _importBlock()), isNull);
-      },
-    );
+      expect(first, '$owner\n${_importBlock()}');
+      expect(upsertBlock(first!, _importBlock()), isNull);
+    });
 
     test(
       'the first rule says code and tests name no doc, path, or item ID',

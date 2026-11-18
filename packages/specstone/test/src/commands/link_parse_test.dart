@@ -172,7 +172,7 @@ void main() {
     ...buildCommands,
   ], tags: 'f01/us01/fr03/e12, s03/inv8, LP2');
 
-  test('f04/us02/fr04/e08, LP1: check reports the link as written', () async {
+  test('check reports the link as written', () async {
     final run = await runIn(await caseProject('\n[x](%DB.md)\n'), ['check']);
 
     expect(
@@ -185,7 +185,7 @@ void main() {
     expect(run.err, isNot(contains('Unhandled exception')));
   });
 
-  test('f05/us02/fr03/e10, LP1: build shows the path', () async {
+  test('build shows the path', () async {
     final project = await caseProject('\n[x](%DB.md)\n');
     final run = await runIn(project, [
       'build',
@@ -217,7 +217,7 @@ void main() {
     tags: 'f05/us02/fr02/e08, LP5',
   );
 
-  test('f01/us01/fr03/e12, s03/inv24, LP3: structure warns on each read until '
+  test('structure warns on each read until '
       'the doc is fixed', () async {
     const tail = '\n[a]:<b\\';
     final project = await caseProject(tail);
@@ -247,7 +247,7 @@ void main() {
     '\n${'> ' * 2000}x\n',
   ]) {
     test(
-      'f01/us01/fr03/e12, LP2: each parser fault class answers '
+      'each parser fault class answers '
       '(${tail.length > 40 ? 'deep blockquote' : jsonEncode(tail)})',
       () async {
         final run = await runIn(await caseProject(tail), ['structure']);
@@ -258,27 +258,20 @@ void main() {
     );
   }
 
-  test(
-    'f01/us07/fr01/e11, LP3: refs lists no link from the unparsed doc',
-    () async {
-      final unparsed = await runIn(await caseProject('\n[a]:<b\\'), [
-        'refs',
-        story,
-        '--json',
-      ]);
-      final clean = await runIn(await caseProject(''), [
-        'refs',
-        story,
-        '--json',
-      ]);
+  test('refs lists no link from the unparsed doc', () async {
+    final unparsed = await runIn(await caseProject('\n[a]:<b\\'), [
+      'refs',
+      story,
+      '--json',
+    ]);
+    final clean = await runIn(await caseProject(''), ['refs', story, '--json']);
 
-      expect(unparsed.code, 0, reason: unparsed.out + unparsed.err);
-      expect(_linkEntries(unparsed.out), isEmpty);
-      expect(_linkEntries(clean.out), isNotEmpty);
-    },
-  );
+    expect(unparsed.code, 0, reason: unparsed.out + unparsed.err);
+    expect(_linkEntries(unparsed.out), isEmpty);
+    expect(_linkEntries(clean.out), isNotEmpty);
+  });
 
-  test('f02/us05/fr02/e08, dw-s03/inv10, LP3: a rename keeps every byte of the '
+  test('a rename keeps every byte of the '
       'unparsed doc and warns', () async {
     final project = await caseProject('\n[a]:<b\\');
     final before = File.fromUri(project.uri.resolve(frFile)).readAsBytesSync();

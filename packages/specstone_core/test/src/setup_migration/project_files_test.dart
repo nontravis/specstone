@@ -196,13 +196,12 @@ void main() {
       final pins = {
         'prd-core': PackVersion.parse('1.2.3', file: 'f', key: 'k'),
       };
-      const source = 'setup_migration/migrate_legacy_docs/write_project_files';
       const targets = [
         CodeTarget('flutter', codeRoot: 'flutter_ws'),
         CodeTarget('jaspr', codeRoot: '../jaspr ws'),
       ];
 
-      test('$source E15: the map follows packs, one target a block, before '
+      test('the map follows packs, one target a block, before '
           'the agent file roots', () {
         expect(
           configText(
@@ -217,7 +216,7 @@ void main() {
         );
       });
 
-      test('$source E15: the config reader reads the map back', () async {
+      test('the config reader reads the map back', () async {
         final root = await writeTree({
           '.specstone/config.yaml': configText(pins, targets: targets),
         });
@@ -242,7 +241,7 @@ void main() {
           ),
         ),
       ]) {
-        test('$source E15: targets beside $label is an ArgumentError', () {
+        test('targets beside $label is an ArgumentError', () {
           expect(call, throwsArgumentError);
         });
       }
@@ -409,7 +408,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr05/e06, f06/us01/fr05/e07: singular doc types order '
+    test('singular doc types order '
         'goal after project', () {
       final set = TemplateResolver().resolveCarried(
         packNames: _packs,

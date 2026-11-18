@@ -358,7 +358,7 @@ void main() {
     check('a final line break is kept', 'a\n\nb\n', 'a\n\nb\n');
   });
 
-  test('$_slug E07: laying out twice equals once', () {
+  test('laying out twice equals once', () {
     for (final c in laidOut) {
       String run(String s) =>
           layOutText(s, underHeading: c.underHeading, blockKinds: c.kinds);

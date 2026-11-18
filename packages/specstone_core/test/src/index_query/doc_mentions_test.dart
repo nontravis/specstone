@@ -122,7 +122,7 @@ void main() {
       return [for (final mention in mentionsOf(index, target)) mention.line];
     }
 
-    test('E04: a code span of '
+    test('a code span of '
         'the name or the typed name is a mention, a bare one-slug name or '
         'plain text is none', () async {
       expect(
@@ -135,7 +135,7 @@ void main() {
     });
 
     test(
-      'E04: a story is '
+      'a story is '
       'mentioned by its name and its typed name, not by another type',
       () async {
         final index = await indexWith({
@@ -149,7 +149,7 @@ void main() {
     );
 
     test(
-      'E13: a name in '
+      'a name in '
       'fenced code or on a line that links to the doc is no mention',
       () async {
         expect(
@@ -163,7 +163,7 @@ void main() {
       },
     );
 
-    test('E12: a path and a '
+    test('a path and a '
         'name on one line give one mention of it', () async {
       expect(
         await linesNaming(
@@ -174,7 +174,7 @@ void main() {
       );
     });
 
-    test('E04: a name '
+    test('a name '
         'mention of the doc inside the doc itself is no mention', () async {
       final index = await indexWith({
         'docs/prds/features/f01_login/FEATURE.md':

@@ -217,7 +217,7 @@ void main() {
   });
 
   for (final (:name, :links, :topicAnchor) in _readForms) {
-    group('R74, $name:', () {
+    group('$name:', () {
       final domain = _domainOf(links);
 
       test('the index reads the topic and story links', () {
@@ -259,7 +259,7 @@ void main() {
     });
   }
 
-  group('R74, a link inside an image description:', () {
+  group('a link inside an image description:', () {
     final domain = _domainOf(
       '![see [a]($_topicLink)](pic.png) RULE-7a\n'
       '![see [b]($_storyLink#$_oldSlug)](pic.png)\n\n'
@@ -296,7 +296,7 @@ void main() {
     });
   });
 
-  group('R74, a doc markdown fails on:', () {
+  group('a doc markdown fails on:', () {
     final domain = _domainOf(
       '[a]($_topicLink) RULE-7a\n[b]($_storyLink#$_oldSlug)\n$_unparsed',
     );

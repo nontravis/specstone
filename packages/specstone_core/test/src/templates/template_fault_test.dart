@@ -57,7 +57,7 @@ void main() {
       }
     });
 
-    test('s05 catalog: value names are the camelCase of the wire code', () {
+    test('catalog: value names are the camelCase of the wire code', () {
       for (final code in FaultCode.values) {
         final camel = code.wire.replaceAllMapped(
           RegExp('_([a-z])'),
@@ -69,7 +69,7 @@ void main() {
   });
 
   group('TemplateFault', () {
-    test('f03/us01/fr01/e04, f03/us01/fr03/e04: yaml fault JSON has a line '
+    test('yaml fault JSON has a line '
         'and no key or relatedFiles', () {
       final fault = TemplateFault(
         FaultCode.yamlSyntax,
@@ -88,7 +88,7 @@ void main() {
       });
     });
 
-    test('f03/us01/fr01/e04, f03/us01/fr03/e04: parent_cycle JSON keeps '
+    test('parent_cycle JSON keeps '
         'relatedFiles', () {
       final fault = TemplateFault(
         FaultCode.parentCycle,
@@ -144,7 +144,7 @@ void main() {
       expect(fault, isA<Exception>());
     });
 
-    test('F-05 fault contract: a TemplateFault is a SpecstoneFault with the '
+    test('fault contract: a TemplateFault is a SpecstoneFault with the '
         'same exitStatus, toJson, and toText', () {
       final fault = TemplateFault(
         FaultCode.yamlSyntax,

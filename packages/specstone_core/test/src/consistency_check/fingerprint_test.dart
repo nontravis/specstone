@@ -8,7 +8,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 
 void main() {
-  test('cc-s03/inv3, f04/us04/fr01/e06, review focus 1: a fingerprint ignores trailing blank lines and CRLF', () {
+  test('a fingerprint ignores trailing blank lines and CRLF', () {
     expect(fingerprintOf(''), 'e3b0c44298fc');
     expect(fingerprintOf(loginScenario2), fingerprintFor(loginScenario2));
     expect(
@@ -22,13 +22,13 @@ void main() {
     expect(fingerprintOf(loginScenario2), matches(RegExp(r'^[0-9a-f]{12}$')));
   });
 
-  test('cc-s03/inv3: upstream text keeps one final line break, and an all-blank block stays empty', () {
+  test('upstream text keeps one final line break, and an all-blank block stays empty', () {
     expect(upstreamText('a\nb'), 'a\nb\n');
     expect(upstreamText('a\nb\n  \n\n'), 'a\nb\n');
     expect(upstreamText('\n \n'), '');
   });
 
-  group('E06: a fingerprint reads the block as format lays it out', () {
+  group('a fingerprint reads the block as format lays it out', () {
     const laid =
         '### Scenario 3 — [happy] Table\n\n| Item | Count |\n| --- | --- |\n'
         '| apple | 2 |\n';
@@ -55,7 +55,7 @@ void main() {
     });
   });
 
-  test('E06: a section body fingerprints the same with or without the gap under its heading', () {
+  test('a section body fingerprints the same with or without the gap under its heading', () {
     expect(fingerprintOf('Text\n'), fingerprintOf('\nText\n'));
     expect(fingerprintOf('\n\nText\n'), fingerprintOf('Text\n'));
     expect(fingerprintOf('\nText\n'), isNot(fingerprintOf('\nTest\n')));

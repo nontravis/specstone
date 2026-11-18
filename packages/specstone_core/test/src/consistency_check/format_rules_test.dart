@@ -17,7 +17,7 @@ void main() {
     expect(spots(report, FindingKind.formatDrift), isEmpty);
   });
 
-  test('E01: a table padded to a different width gives one format_drift on line 1 naming the file and its fix', () async {
+  test('a table padded to a different width gives one format_drift on line 1 naming the file and its fix', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: fr(
@@ -35,7 +35,7 @@ void main() {
     expect(finding.keys, isEmpty);
   });
 
-  test('E02: sections out of the template order give one format_drift however many places differ', () async {
+  test('sections out of the template order give one format_drift however many places differ', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
@@ -51,7 +51,7 @@ void main() {
     ]);
   });
 
-  test('E02: a header differing from the template in letter case gives one format_drift', () async {
+  test('a header differing from the template in letter case gives one format_drift', () async {
     final report = await checkOf(
       await writeCheckProject(extra: fr('## Edge cases', '## Edge Cases')),
     );
@@ -60,20 +60,17 @@ void main() {
     ]);
   });
 
-  test(
-    'E03: a doc differing in line endings only gives no format_drift',
-    () async {
-      final text = checkProjectFiles()['docs/$loginFr']!;
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {'docs/$loginFr': text.replaceAll('\n', '\r\n')},
-        ),
-      );
-      expect(spots(report, FindingKind.formatDrift), isEmpty);
-    },
-  );
+  test('a doc differing in line endings only gives no format_drift', () async {
+    final text = checkProjectFiles()['docs/$loginFr']!;
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {'docs/$loginFr': text.replaceAll('\n', '\r\n')},
+      ),
+    );
+    expect(spots(report, FindingKind.formatDrift), isEmpty);
+  });
 
-  test('E04: a doc the format command refuses, for an unknown header, gives no format_drift', () async {
+  test('a doc the format command refuses, for an unknown header, gives no format_drift', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: fr('## Rationale', '## Mystery\nx\n\n## Rationale'),
@@ -83,22 +80,19 @@ void main() {
     expect(spots(report, FindingKind.sectionUndeclared), hasLength(1));
   });
 
-  test(
-    'E04: a doc with an unclosed code fence gives no format_drift',
-    () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: fr(
-            'A wrong password must not sign in.\n',
-            'A wrong password must not sign in.\n\n```\nopen\n',
-          ),
+  test('a doc with an unclosed code fence gives no format_drift', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: fr(
+          'A wrong password must not sign in.\n',
+          'A wrong password must not sign in.\n\n```\nopen\n',
         ),
-      );
-      expect(spots(report, FindingKind.formatDrift), isEmpty);
-    },
-  );
+      ),
+    );
+    expect(spots(report, FindingKind.formatDrift), isEmpty);
+  });
 
-  test('E04: a doc with an open generated block, which format refuses, gives no format_drift', () async {
+  test('a doc with an open generated block, which format refuses, gives no format_drift', () async {
     const journey = 'prds/journeys/sign_in/JOURNEY.md';
     final report = await checkOf(
       await writeCheckProject(
@@ -114,7 +108,7 @@ void main() {
     expect(spots(report, FindingKind.formatDrift), isEmpty);
   });
 
-  test('E05: an untyped doc gives no format_drift', () async {
+  test('an untyped doc gives no format_drift', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: {'docs/prds/notes/loose.md': '#   Loose\n\n\n\ntext   \n'},
@@ -124,7 +118,7 @@ void main() {
     expect(spots(report, FindingKind.formatDrift), isEmpty);
   });
 
-  test('E06: a doc lacking a required section but laid out gives required_section_missing only', () async {
+  test('a doc lacking a required section but laid out gives required_section_missing only', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: fr('## Statement\n\n$checkPasswordStatement\n\n', ''),
@@ -137,7 +131,7 @@ void main() {
   });
 
   test(
-    'E07: a generated block with out-of-date text gives no format_drift',
+    'a generated block with out-of-date text gives no format_drift',
     () async {
       const journey = 'prds/journeys/sign_in/JOURNEY.md';
       final report = await checkOf(
@@ -156,24 +150,28 @@ void main() {
     },
   );
 
-  test('E08: check <target> reports format_drift for the docs of the target unit only', () async {
-    const signupFr = 'prds/features/f02_signup/us01_create/fr01_store.md';
-    final project = await writeCheckProject(
-      extra: {
-        ...fr('## Edge cases', '## Edge Cases'),
-        'docs/prds/features/f02_signup/FEATURE.md': '# Sign up\n',
-        'docs/prds/features/f02_signup/us01_create/USER_STORY.md': '# Create\n',
-        'docs/$signupFr': checkProjectFiles()['docs/$loginFr']!.replaceFirst(
-          '## Edge cases',
-          '## Edge Cases',
-        ),
-      },
-    );
-    expect(
-      spots(await checkOf(project, target: 'login'), FindingKind.formatDrift),
-      ['$loginFr:1: format_drift'],
-    );
-  });
+  test(
+    'check <target> reports format_drift for the docs of the target unit only',
+    () async {
+      const signupFr = 'prds/features/f02_signup/us01_create/fr01_store.md';
+      final project = await writeCheckProject(
+        extra: {
+          ...fr('## Edge cases', '## Edge Cases'),
+          'docs/prds/features/f02_signup/FEATURE.md': '# Sign up\n',
+          'docs/prds/features/f02_signup/us01_create/USER_STORY.md':
+              '# Create\n',
+          'docs/$signupFr': checkProjectFiles()['docs/$loginFr']!.replaceFirst(
+            '## Edge cases',
+            '## Edge Cases',
+          ),
+        },
+      );
+      expect(
+        spots(await checkOf(project, target: 'login'), FindingKind.formatDrift),
+        ['$loginFr:1: format_drift'],
+      );
+    },
+  );
 
   test(
     'a drifted record names the project path of its file in the fix',

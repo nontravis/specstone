@@ -710,7 +710,7 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr05, Review Focus 5: a CRLF record reports a faulty line '
+  test('a CRLF record reports a faulty line '
       'once, at its line', () async {
     final crlf = _record(statuses: ['$_story:planned', 'ghost:planned'])
         .replaceAll('\n', '\r\n');
@@ -719,7 +719,7 @@ void main() {
     expect(_found(report), ['${_statusLine(1)} record_entry_unresolved']);
   });
 
-  test('f04/us03/fr05, Review Focus 5: a record with malformed frontmatter '
+  test('a record with malformed frontmatter '
       'is reported once, as invalid YAML', () async {
     final report = await _check(
       '---\nstatuses:\n  - ghost:planned\n  : [\n---\n\n# Record\n',
@@ -754,7 +754,7 @@ void main() {
 
     const jaspr = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
 
-    test('f04/us03/fr05, INV-32: each record is checked in its own target, '
+    test('each record is checked in its own target, '
         'once', () async {
       final report = await check();
 
@@ -768,7 +768,7 @@ void main() {
       );
     });
 
-    test('f04/us03/fr05, INV-32: --target keeps the records of that target '
+    test('--target keeps the records of that target '
         'alone', () async {
       final flutter = await check(codeTarget: 'flutter');
       final jasprOnly = await check(codeTarget: 'jaspr');

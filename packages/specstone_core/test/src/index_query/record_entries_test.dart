@@ -123,27 +123,24 @@ void main() {
     ]);
   });
 
-  test(
-    'Review Focus 3: a second `:` before the Symbol stays inside the path',
-    () {
-      final doc = _record(
-        'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
-        '---\n'
-            'implements:\n'
-            '  - show_toast:lib/toast.dart:Toast:showToast\n'
-            '---\n\n# Feedback implementation\n',
-      );
+  test('a second `:` before the Symbol stays inside the path', () {
+    final doc = _record(
+      'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+      '---\n'
+          'implements:\n'
+          '  - show_toast:lib/toast.dart:Toast:showToast\n'
+          '---\n\n# Feedback implementation\n',
+    );
 
-      expect(recordEntriesOf(doc, _recordType), const [
-        RecordEntry(
-          item: 'show_toast',
-          codePaths: ['lib/toast.dart:Toast:showToast'],
-        ),
-      ]);
-    },
-  );
+    expect(recordEntriesOf(doc, _recordType), const [
+      RecordEntry(
+        item: 'show_toast',
+        codePaths: ['lib/toast.dart:Toast:showToast'],
+      ),
+    ]);
+  });
 
-  test('Review Focus 5: a CRLF record keeps its entries', () {
+  test('a CRLF record keeps its entries', () {
     final doc = _record(
       'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
       '---\r\n'
@@ -163,7 +160,7 @@ void main() {
     ]);
   });
 
-  test('Review Focus 5: a record whose frontmatter is not valid YAML is kept '
+  test('a record whose frontmatter is not valid YAML is kept '
       'with a warning and holds no entries', () {
     final doc = _record(
       'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
@@ -993,7 +990,7 @@ void main() {
       _ => null,
     };
 
-    test('E19: the lines of the carried items come back with the new item and '
+    test('the lines of the carried items come back with the new item and '
         'the rest of the line as written', () {
       final lines = recordLinesCarried(record, _recordType, carry);
 
@@ -1001,7 +998,7 @@ void main() {
       expect(lines.code, ['k/a:lib/a.dart:A']);
     });
 
-    test('E21: the own line of the feature is left out when carry gives its '
+    test('the own line of the feature is left out when carry gives its '
         'empty item no name', () {
       final lines = recordLinesCarried(
         record,
@@ -1013,7 +1010,7 @@ void main() {
       expect(lines.statuses, hasLength(3));
     });
 
-    test('E19: a skip reason keeps its text', () {
+    test('a skip reason keeps its text', () {
       final lines = recordLinesCarried(
         record,
         _recordType,
@@ -1023,7 +1020,7 @@ void main() {
       expect(lines.statuses, ['k/b:skipped:out of scope']);
     });
 
-    test('E19: added lines follow the held ones, each field written as a block '
+    test('added lines follow the held ones, each field written as a block '
         'list over the lines held', () {
       final text = addRecordLines(
         '---\nstatuses:\n  - c:planned\n---\n\n# R\n',
@@ -1043,7 +1040,7 @@ void main() {
       );
     });
 
-    test('E20: a skeleton key with no value takes the lines', () {
+    test('a skeleton key with no value takes the lines', () {
       final text = addRecordLines(
         '---\ndraft: true\nstatuses:\n---\n\n# R\n',
         _recordType,
@@ -1056,7 +1053,7 @@ void main() {
       );
     });
 
-    test('E20: no line to add leaves the text and returns null', () {
+    test('no line to add leaves the text and returns null', () {
       expect(addRecordLines(record, _recordType, const RecordLines()), isNull);
     });
 
@@ -1184,21 +1181,18 @@ void main() {
       ),
     );
 
-    test(
-      'E19: addRecordLines refuses rather than drop the lines held there',
-      () {
-        expect(
-          () => addRecordLines(
-            broken,
-            _recordType,
-            const RecordLines(code: ['k/a:lib/a.dart']),
-          ),
-          unreadable,
-        );
-      },
-    );
+    test('addRecordLines refuses rather than drop the lines held there', () {
+      expect(
+        () => addRecordLines(
+          broken,
+          _recordType,
+          const RecordLines(code: ['k/a:lib/a.dart']),
+        ),
+        unreadable,
+      );
+    });
 
-    test('E19: addRecordLines adds to a readable field beside it', () {
+    test('addRecordLines adds to a readable field beside it', () {
       expect(
         addRecordLines(
           broken,
@@ -1209,7 +1203,7 @@ void main() {
       );
     });
 
-    test('E19: rewriteRecordItems refuses, as the block may hold a line it '
+    test('rewriteRecordItems refuses, as the block may hold a line it '
         'must change', () {
       expect(
         () => rewriteRecordItems(broken, _recordType, (_) => null),
@@ -1217,7 +1211,7 @@ void main() {
       );
     });
 
-    test('E19: recordLinesCarried refuses, as the block may hold a line it '
+    test('recordLinesCarried refuses, as the block may hold a line it '
         'must carry', () {
       expect(
         () => recordLinesCarried(broken, _recordType, (_) => 'k'),

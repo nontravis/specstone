@@ -15,7 +15,7 @@ import '../../helpers/write_runner.dart';
 
 void main() {
   const newStory = 'prds/features/f01_login/us04_recover_account/USER_STORY.md';
-  test('f02/us02/s1: new prints the naming line, exit 0', () async {
+  test('new prints the naming line, exit 0', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -70,7 +70,7 @@ void main() {
     expect(err.toString(), contains('run specstone migrate'));
     expect(out.toString(), isEmpty);
   });
-  test('f02/us02/s2: piped stdin is the doc text', () async {
+  test('piped stdin is the doc text', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -99,7 +99,7 @@ void main() {
     expect(text, contains('draft: true'));
     expect(text, isNot(contains('<Role>')));
   });
-  test('f02/us02/s7: a parent no doc carries exits 64', () async {
+  test('a parent no doc carries exits 64', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -119,44 +119,44 @@ void main() {
     expect(out.toString(), isEmpty);
     expect(err.toString(), 'no feature doc carries the name nobody\n');
   });
+  test('new --help names the three forms of --parent', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['new', '--help']), 0);
+    expect(
+      out.toString(),
+      contains('The parent doc: <doc type>:<name>, a bare name, or a path.'),
+    );
+  });
   test(
-    'f02/us02/fr01/e20: new --help names the three forms of --parent',
+    'a --parent that names 2 or more features exits 64 listing each',
     () async {
-      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-      expect(await runner.run(['new', '--help']), 0);
+      final root = await writeWriteProject(
+        extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login\n'},
+      );
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
       expect(
-        out.toString(),
-        contains('The parent doc: <doc type>:<name>, a bare name, or a path.'),
+        await runner.run([
+          'new',
+          'user_story',
+          '--parent',
+          'login',
+          '--slug',
+          'x',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString().trimRight().split('\n').last,
+        'login names 2 feature docs: prds/features/f01_login/FEATURE.md, '
+        'prds/features/f03_login/FEATURE.md',
       );
     },
   );
-  test('f02/us02/fr01/e21: a --parent that names 2 or more features exits 64 listing each', () async {
-    final root = await writeWriteProject(
-      extra: {'docs/prds/features/f03_login/FEATURE.md': '# Login\n'},
-    );
-    final (:runner, :out, :err) = writeRunner(
-      root,
-      console: FakeConsole(stdinIsTerminal: true),
-    );
-    expect(
-      await runner.run([
-        'new',
-        'user_story',
-        '--parent',
-        'login',
-        '--slug',
-        'x',
-      ]),
-      64,
-    );
-    expect(out.toString(), isEmpty);
-    expect(
-      err.toString().trimRight().split('\n').last,
-      'login names 2 feature docs: prds/features/f01_login/FEATURE.md, '
-      'prds/features/f03_login/FEATURE.md',
-    );
-  });
-  test('f02/us02/fr01/e10: no doc type is argument_missing', () async {
+  test('no doc type is argument_missing', () async {
     final (:runner, :out, :err) = writeRunner(
       await writeWriteProject(),
       console: FakeConsole(stdinIsTerminal: true),
@@ -164,7 +164,7 @@ void main() {
     expect(await runner.run(['new']), 64);
     expect(err.toString(), startsWith('new needs a doc type'));
   });
-  test('f02/us02/fr01: two positionals are a usage error, exit 64', () async {
+  test('two positionals are a usage error, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['new', 'a', 'b']), 64);
     expect(out.toString(), isEmpty);
@@ -181,7 +181,8 @@ void main() {
       contains('The parent doc: <doc type>:<name>, a bare name, or a path.'),
     );
   });
-  test('f02/us02/fr01/e20, P20: a --parent with a #section suffix is argument_invalid, exit 64, and writes nothing', () async {
+  test('a --parent with a #section suffix is argument_invalid, exit 64, and '
+      'writes nothing', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -405,7 +406,7 @@ sections:
       without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
     );
 
-    test('E24: new architecture --target jaspr prints the naming line of the '
+    test('new architecture --target jaspr prints the naming line of the '
         'jaspr doc, exit 0', () async {
       final root = await twinWithoutDocs();
       final (:runner, :out, :err) = writeRunner(
@@ -432,7 +433,7 @@ sections:
       expect(hasDoc(root, flutterArchitecture), isFalse);
     });
 
-    test('E25: no --target exits 64 naming the flag and both targets, and '
+    test('no --target exits 64 naming the flag and both targets, and '
         'creates no file', () async {
       final root = await twinWithoutDocs();
       final (:runner, :out, :err) = writeRunner(

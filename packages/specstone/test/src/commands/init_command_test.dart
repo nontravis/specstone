@@ -128,7 +128,7 @@ void main() {
   });
 
   test(
-    'E05: init '
+    'init '
     'refuses a malformed instruction file, exit 65, writing nothing',
     () async {
       final root = await writeTree({
@@ -163,7 +163,7 @@ void main() {
     );
   });
 
-  test('ms-r11: init on a legacy folder with neither a terminal nor --yes '
+  test('init on a legacy folder with neither a terminal nor --yes '
       'exits 77 naming both ways', () async {
     final root = await gitFixture(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(root);
@@ -185,7 +185,7 @@ void main() {
     ),
     (['--plan', '1a2b3c4d5e6f'], '--plan goes only with --yes.'),
   ]) {
-    test('ms-r11: init ${args.join(' ')} is a usage error, exit 64', () async {
+    test('init ${args.join(' ')} is a usage error, exit 64', () async {
       final root = await writeTree({'keep.txt': 'x\n'});
       final (:runner, :out, :err) = writeRunner(root);
 
@@ -196,7 +196,7 @@ void main() {
     });
   }
 
-  test("ms-r11: init --yes --plan with migrate's dry-run hash applies the "
+  test("init --yes --plan with migrate's dry-run hash applies the "
       'legacy run with no terminal and no prompt', () async {
     final root = await gitFixture(acmeLegacy);
     final hash = await _dryRunPlanHash(root);
@@ -211,7 +211,7 @@ void main() {
     expect(subjects, hasLength(3));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('ms-r11: init --yes --plan on an empty folder sets up the drafts as '
+  test('init --yes --plan on an empty folder sets up the drafts as '
       'init does; no plan applies there', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);

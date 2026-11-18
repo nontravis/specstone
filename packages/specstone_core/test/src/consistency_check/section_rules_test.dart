@@ -18,7 +18,7 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 
 void main() {
-  test('f04/us01/s2, f04/us01/fr04/e01: a requirement with no Statement section names the file and the section', () async {
+  test('a requirement with no Statement section names the file and the section', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: fr('## Statement\n\n$checkPasswordStatement\n\n', ''),
@@ -57,7 +57,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr04/e02, f04/us01/fr04/e03: a header apart from letter case and whitespace is the section; an '
+  test('a header apart from letter case and whitespace is the section; an '
       'unknown one is section_undeclared', () async {
     final spaced = await checkOf(
       await writeCheckProject(
@@ -468,7 +468,7 @@ void main() {
     },
   );
 
-  test('E09: size counts the laid-out text, not the padding on disk', () async {
+  test('size counts the laid-out text, not the padding on disk', () async {
     final padded =
         '| Case${' ' * 600} | Result |\n|${'-' * 602}|--------|\n'
         '| wrong${' ' * 599} | refused |\n';
@@ -488,7 +488,7 @@ void main() {
     ]);
   });
 
-  test('E09: a section counts the blank lines format adds under its ### headings', () async {
+  test('a section counts the blank lines format adds under its ### headings', () async {
     final body = '${'### Head\ntext\n' * 3}${'filler\n' * 32}';
     final report = await checkOf(
       await writeCheckProject(
@@ -506,7 +506,7 @@ void main() {
     expect(finding.toJson(), containsPair('actual', 39));
   });
 
-  test('E09: a doc format refuses counts its text on disk', () async {
+  test('a doc format refuses counts its text on disk', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: {
@@ -556,7 +556,7 @@ void main() {
         );
 
     test(
-      'E10: an item over the default limit is item_over_limit with its ID',
+      'an item over the default limit is item_over_limit with its ID',
       () async {
         final project = await withEdgeItem(640);
         final finding = (await itemFindings(project)).single;
@@ -585,23 +585,20 @@ void main() {
       },
     );
 
-    test(
-      'E11: a paragraph with no ID is item_over_limit with no id key',
-      () async {
-        final project = await writeCheckProject(
-          extra: fr(rationaleFrom, '${padded('A long rationale', 700)}\n'),
-        );
-        final finding = (await itemFindings(project)).single;
+    test('a paragraph with no ID is item_over_limit with no id key', () async {
+      final project = await writeCheckProject(
+        extra: fr(rationaleFrom, '${padded('A long rationale', 700)}\n'),
+      );
+      final finding = (await itemFindings(project)).single;
 
-        expect(finding.line, lineOf(project, loginFr, 'A long rationale'));
-        expect(finding.toJson(), isNot(contains('id')));
-        expect(
-          finding.message,
-          'the item at line ${finding.line} of section rationale has 700 '
-          'characters; the limit is 600',
-        );
-      },
-    );
+      expect(finding.line, lineOf(project, loginFr, 'A long rationale'));
+      expect(finding.toJson(), isNot(contains('id')));
+      expect(
+        finding.message,
+        'the item at line ${finding.line} of section rationale has 700 '
+        'characters; the limit is 600',
+      );
+    });
 
     test('item over the cap only through its links gives no finding', () async {
       final links = [
@@ -638,7 +635,7 @@ void main() {
       );
     });
 
-    test('E12: a fenced code block is no item', () async {
+    test('a fenced code block is no item', () async {
       final project = await writeCheckProject(
         extra: {
           itemLimitTemplate: 'sections:\n  - id: verification\n    lint:\n      max_chars: 1000\n',
@@ -655,7 +652,7 @@ void main() {
       expect(over.toJson(), containsPair('section', 'verification'));
     });
 
-    test('E10: a repeated header the formatter refuses keeps each section its own items on disk', () async {
+    test('a repeated header the formatter refuses keeps each section its own items on disk', () async {
       final project = await writeCheckProject(
         extra: fr(
           '## Rationale\n',
@@ -674,7 +671,7 @@ void main() {
     });
 
     test(
-      'E13: an item of 700 characters under max_item_chars 900 is no finding',
+      'an item of 700 characters under max_item_chars 900 is no finding',
       () async {
         final project = await withEdgeItem(
           700,
@@ -685,30 +682,36 @@ void main() {
       },
     );
 
-    test('E14: an item of 901 characters under max_item_chars 900 is item_over_limit', () async {
-      final project = await withEdgeItem(
-        901,
-        template: 'lint:\n  max_item_chars: 900\n',
-      );
+    test(
+      'an item of 901 characters under max_item_chars 900 is item_over_limit',
+      () async {
+        final project = await withEdgeItem(
+          901,
+          template: 'lint:\n  max_item_chars: 900\n',
+        );
 
-      expect(
-        (await itemFindings(project)).single.toJson(),
-        allOf(containsPair('limit', 900), containsPair('actual', 901)),
-      );
-    });
+        expect(
+          (await itemFindings(project)).single.toJson(),
+          allOf(containsPair('limit', 900), containsPair('actual', 901)),
+        );
+      },
+    );
 
-    test('E13, E14: an item of exactly the limit is no finding, one character more is one', () async {
-      expect(await itemFindings(await withEdgeItem(600)), isEmpty);
-      expect(
-        (await itemFindings(await withEdgeItem(601))).single.toJson(),
-        containsPair('actual', 601),
-      );
-      const raised = 'lint:\n  max_item_chars: 900\n';
-      expect(
-        await itemFindings(await withEdgeItem(900, template: raised)),
-        isEmpty,
-      );
-    });
+    test(
+      'an item of exactly the limit is no finding, one character more is one',
+      () async {
+        expect(await itemFindings(await withEdgeItem(600)), isEmpty);
+        expect(
+          (await itemFindings(await withEdgeItem(601))).single.toJson(),
+          containsPair('actual', 601),
+        );
+        const raised = 'lint:\n  max_item_chars: 900\n';
+        expect(
+          await itemFindings(await withEdgeItem(900, template: raised)),
+          isEmpty,
+        );
+      },
+    );
 
     test('a glossary entry of 301 characters is item_over_limit and one of 300 '
         'is no finding', () async {
@@ -754,7 +757,7 @@ void main() {
       expect((await itemFindings(project)).map((f) => f.path), [loginStory]);
     });
 
-    test('E15: a lead paragraph over the limit is item_over_limit in section _lead', () async {
+    test('a lead paragraph over the limit is item_over_limit in section _lead', () async {
       final project = await writeCheckProject(
         extra: doc(
           loginArchitecture,
@@ -776,24 +779,21 @@ void main() {
       );
     });
 
-    test(
-      'E10: a lettered item form holds no ID and takes the line form',
-      () async {
-        final project = await writeCheckProject(
-          extra: fr(edgeFrom, '${padded('3. E03a — A lettered case', 640)}\n'),
-        );
-        final finding = (await itemFindings(project)).single;
+    test('a lettered item form holds no ID and takes the line form', () async {
+      final project = await writeCheckProject(
+        extra: fr(edgeFrom, '${padded('3. E03a — A lettered case', 640)}\n'),
+      );
+      final finding = (await itemFindings(project)).single;
 
-        expect(finding.toJson(), isNot(contains('id')));
-        expect(
-          finding.message,
-          'the item at line ${finding.line} of section edge_cases has 640 '
-          'characters; the limit is 600',
-        );
-      },
-    );
+      expect(finding.toJson(), isNot(contains('id')));
+      expect(
+        finding.message,
+        'the item at line ${finding.line} of section edge_cases has 640 '
+        'characters; the limit is 600',
+      );
+    });
 
-    test('E10: sections out of template order give the key and the line structure prints', () async {
+    test('sections out of template order give the key and the line structure prints', () async {
       final project = await writeCheckProject(
         extra: fr(
           '## Statement\n\n$checkPasswordStatement\n\n## Edge cases\n\n$edgeFrom\n',

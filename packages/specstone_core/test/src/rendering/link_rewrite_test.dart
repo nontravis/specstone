@@ -109,7 +109,7 @@ void main() {
     expect(html, isNot(contains('<a href="../../us01_a')));
   });
 
-  test('f05/us02/fr03/e03, NFR-Pr01: http and https links stay, in any '
+  test('http and https links stay, in any '
       'letter case', () async {
     final html = await _build({
       _storyA: _story(
@@ -194,7 +194,7 @@ void main() {
       expect(_rewritten('[x](c.md)'), '<p><a href="#doc-1">x</a></p>');
     });
 
-    test('f05/us02/fr03/e10, LP1: a link whose escape is not UTF-8 shows its '
+    test('a link whose escape is not UTF-8 shows its '
         'path', () {
       expect(
         _rewritten('[x](%DB.md)', docPath: 'a/b/c.md'),
@@ -242,7 +242,7 @@ void main() {
               _docAnchorsOf(Doc.parse(markdown).afterFrontmatter)[path],
         ).html;
 
-    test('resolve_links E04: a bare fragment reaches a span id and an a name '
+    test('a bare fragment reaches a span id and an a name '
         'behind the doc prefix', () {
       final html = body(
         '<span id="note">x</span> <a name="n2"></a>\n\n[1](#note) [2](#n2)\n',
@@ -254,7 +254,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-n2">2</a>'));
     });
 
-    test('resolve_links E05: footnote links reach their mates and a written '
+    test('footnote links reach their mates and a written '
         '#fn-1 names no anchor', () {
       final html = body('$footnote\n[a](#fn-1)');
 
@@ -264,13 +264,13 @@ void main() {
       expect(html, contains('<a href="#doc-1">a</a>'));
     });
 
-    test('resolve_links E07: a fragment naming no anchor goes to the doc', () {
+    test('a fragment naming no anchor goes to the doc', () {
       final html = body('[a](#nope)');
 
       expect(html, contains('<a href="#doc-1">a</a>'));
     });
 
-    test('resolve_links E08: a link to another doc reaches the prefixed id of '
+    test('a link to another doc reaches the prefixed id of '
         'its heading or body id, else the doc anchor', () {
       const markdown =
           '[a](../d.md#target) [b](../d.md#box) [c](../d.md) '
@@ -295,7 +295,7 @@ void main() {
       expect(html, contains('<a href="#doc-2">e</a>'));
     });
 
-    test('resolve_links E11: two ## Notes headings carry notes and notes-1 '
+    test('two ## Notes headings carry notes and notes-1 '
         'and a link reaches the second', () {
       final html = body('## Notes\n\n## Notes\n\n[x](#notes-1)');
 
@@ -304,7 +304,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-notes-1">x</a>'));
     });
 
-    test('resolve_links E11, P2: a title equal to a body heading takes the '
+    test('a title equal to a body heading takes the '
         'first slug and the body heading the next', () {
       final html = body('# Notes\n\n## Notes\n\n[x](#notes-1)');
 
@@ -313,7 +313,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-notes-1">x</a>'));
     });
 
-    test('resolve_links E11, R60: a doc renders from its one body parse, and '
+    test('a doc renders from its one body parse, and '
         'the anchor set it returns is the set check reads, so a later doc '
         'link needs no second parse', () {
       for (final markdown in [
@@ -336,7 +336,7 @@ void main() {
       }
     });
 
-    test('resolve_links E11: every heading id equals the doc anchor and the '
+    test('every heading id equals the doc anchor and the '
         'anchorsOf slug, slug for slug', () {
       const markdown =
           '# Title\n\n## A & B\n\n### `move` - FR-01\n\n## A & B\n\n'
@@ -358,7 +358,7 @@ void main() {
       expect(html, isNot(contains('outside-link')));
     });
 
-    test('resolve_links E11, P2: a title line inside a raw html block makes no '
+    test('a title line inside a raw html block makes no '
         'heading, so the body keeps every heading and its slug', () {
       final html = body('<div>\n# T\n</div>\n\n# Later\n\n[x](#later)');
 
@@ -366,7 +366,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-later">x</a>'));
     });
 
-    test('resolve_links E11, P2: headings before the title line keep their '
+    test('headings before the title line keep their '
         'own slugs', () {
       final html = body('## Pre\n\n# T\n\n## Post\n\n[x](#post)');
 
@@ -375,7 +375,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-post">x</a>'));
     });
 
-    test('resolve_links E13: an empty fragment reaches the doc top', () {
+    test('an empty fragment reaches the doc top', () {
       final html = body('[top](#) [x](../d.md#)');
 
       expect(html, contains('<a href="#doc-1">top</a>'));
@@ -475,7 +475,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr03/e04, s03/inv23, FM8: single-quoted, unquoted, and '
+    test('single-quoted, unquoted, and '
         'upper-case ids are prefixed and their fragments follow', () {
       final html = body(
         "<div id='a'>x</div>\n<div id=b>y</div>\n<div ID=\"c\">z</div>\n\n"
@@ -490,7 +490,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-c">3</a>'));
     });
 
-    test('f05/us02/fr03/e08, s03/inv23, FM8: a link to another doc keeps its '
+    test('a link to another doc keeps its '
         'anchor when the body holds a raw id equal to it', () {
       final html = body('<a id="doc-2"></a>\n\n[d](../d.md)\n');
 
@@ -498,7 +498,7 @@ void main() {
       expect(html, contains('<a id="doc-1-doc-2"></a>'));
     });
 
-    test('f05/us02/fr03/e07, s03/inv18, s03/inv23, FM8: an id in a tag the tag '
+    test('an id in a tag the tag '
         'filter escapes is text, not an id', () {
       final html = body('x <textarea id="t"> y\n\n[go](#t)\n');
 
@@ -507,7 +507,7 @@ void main() {
       expect(html, isNot(contains('doc-1-t')));
     });
 
-    test('f05/us02/fr03/e07, s03/inv23, FM8: an id inside an html comment is '
+    test('an id inside an html comment is '
         'no id', () {
       final html = body('<!-- <a id="c"></a> -->\n\n[go](#c)\n');
 
@@ -515,7 +515,7 @@ void main() {
       expect(html, contains('<a href="#doc-1">go</a>'));
     });
 
-    test('f05/us02/fr03/e07, s03/inv23, FM8: <!--> is a comment closed at '
+    test('<!--> is a comment closed at '
         'once, so an id after it is scoped', () {
       final html = body('<!-->\n\n<a id="c"></a>\n\n[go](#c)\n');
 
@@ -523,7 +523,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-c">go</a>'));
     });
 
-    test('f05/us02/fr03/e07, s03/inv23, FM8: <!---> is a comment closed at '
+    test('<!---> is a comment closed at '
         'once, so an id after it is scoped', () {
       final html = body('<!--->\n\n<a id="c"></a>\n\n[go](#c)\n');
 
@@ -531,7 +531,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-c">go</a>'));
     });
 
-    test('f05/us02/fr03/e07, s03/inv23, FM8: a comment ends at --!>, so an '
+    test('a comment ends at --!>, so an '
         'id after it is scoped', () {
       final html = body('<!-- note --!>\n<a id="c"></a>\n-->\n\n[go](#c)\n');
 
@@ -539,7 +539,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-c">go</a>'));
     });
 
-    test('f05/us02/fr03/e04, s03/inv23, FM8: a quoted > before the id does '
+    test('a quoted > before the id does '
         'not end the tag', () {
       final html = body('<div title="a>b" id="q"></div>\n\n[go](#q)\n');
 
@@ -547,7 +547,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-q">go</a>'));
     });
 
-    test('f05/us02/fr03/e04, s03/inv23, FM8: of a repeated attribute name the '
+    test('of a repeated attribute name the '
         'first wins', () {
       final html = body('<div id="a" id="b">x</div>\n\n[1](#a) [2](#b)\n');
 
@@ -556,7 +556,7 @@ void main() {
       expect(html, contains('<a href="#doc-1">2</a>'));
     });
 
-    test('f05/us02/fr03/e07, s03/inv23, FM8: an end tag, a declaration, and a '
+    test('an end tag, a declaration, and a '
         'processing instruction hold no id', () {
       final html = body(
         '<div id="a">x</div>\n\n</p id="e">\n\n<!DOCTYPE html id="d">\n\n'
@@ -573,7 +573,7 @@ void main() {
       expect('href="#doc-1"'.allMatches(html), hasLength(3));
     });
 
-    test('f05/us02/fr03/e04, s03/inv23, P3: scopeIds rewrites ids and names '
+    test('scopeIds rewrites ids and names '
         'only, so a raw html href stays as written', () {
       final html = body(
         '<div id="a">x</div>\n\n<a href=\'#a\'>1</a> <a HREF="#a">2</a>\n',
@@ -584,7 +584,7 @@ void main() {
       expect(html, contains('<a HREF="#a">2</a>'));
     });
 
-    test('f05/us02/fr03/e07, s03/inv23, FM8: an unterminated comment leaves '
+    test('an unterminated comment leaves '
         'the rest of the text unchanged', () {
       final html = body('<div id="a">x</div>\n\n<!-- <a id="c"></a>\n');
 
@@ -593,7 +593,7 @@ void main() {
       expect(html, isNot(contains('doc-1-c')));
     });
 
-    test('f05/us02/fr03/e04, s03/inv23, FM8: an unterminated quoted value '
+    test('an unterminated quoted value '
         'leaves the rest of the text unchanged', () {
       final html = body('<div id="a">x</div>\n\n<div title="oops id="b">\n');
 

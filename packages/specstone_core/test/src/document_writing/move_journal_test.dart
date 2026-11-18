@@ -248,7 +248,7 @@ void main() {
     docFile(root, path).renameSync(target.path);
   }
 
-  test('f02/us04/fr01, dw-s03/inv9, NFR-DI01, FN3: a delete move outwaits a '
+  test('a delete move outwaits a '
       'reader that holds the file open for 300 ms', () async {
     await whileHeld(
       docFile(root, story3).path,
@@ -263,7 +263,7 @@ void main() {
     expect(hasDoc(root, story3), isFalse);
   });
 
-  test('f02/us05/fr01, dw-s03/inv9, FN3: a reorder move of a folder outwaits a '
+  test('a reorder move of a folder outwaits a '
       'reader that holds a file inside it for 300 ms', () async {
     await whileHeld(
       docFile(root, story2).path,
@@ -284,7 +284,7 @@ void main() {
   });
 
   test(
-    'f02/us04/fr03, FN3: a move blocked past the 1 s limit fails with '
+    'a move blocked past the 1 s limit fails with '
     'output_not_writable',
     () async {
       final clock = Stopwatch();
@@ -322,7 +322,7 @@ void main() {
         : 'only Windows refuses to rename an open file',
   );
 
-  test('f02/us04/fr03, dw-s03/inv9, f02/us04/fr03/e06: run moves to the trash, prunes, then clears journal and trash', () {
+  test('run moves to the trash, prunes, then clears journal and trash', () {
     const MoveJournal([
       MoveStep('docs/$fr31', '$_trashDocs/$fr31'),
       MoveStep('docs/$fr32', '$_trashDocs/$fr32'),
@@ -338,29 +338,32 @@ void main() {
     );
   });
 
-  test('f02/us04/s4, f02/us04/fr03/e01, nfr-di01: a delete stopped after two of five moves is finished by the replay', () {
-    final files = [story3, fr31, fr32, signupFeature, signupArch];
-    writeJournal(root, [
-      for (final path in files) MoveStep('docs/$path', '$_trashDocs/$path'),
-      const PruneStep('docs/$_login/us03_reset_password'),
-      const PruneStep('docs/prds/features/f02_signup'),
-      const PruneStep('docs/specs/f02_signup'),
-    ]);
-    moveToTrash(story3);
-    moveToTrash(fr31);
-    MoveJournal.replay(
-      JournalTarget.of(openProject(root), homeDirectory: testHome()),
-    );
-    for (final path in files) {
-      expect(hasDoc(root, path), isFalse, reason: path);
-    }
-    expect(dirExists('docs/$_login/us03_reset_password'), isFalse);
-    expect(dirExists('docs/prds/features/f02_signup'), isFalse);
-    expect(dirExists('docs/specs/f02_signup'), isFalse);
-    expect(hasDoc(root, loginFeature), isTrue);
-    expect(journalExists(), isFalse);
-    expect(dirExists(MoveJournal.trashPath), isFalse);
-  });
+  test(
+    'a delete stopped after two of five moves is finished by the replay',
+    () {
+      final files = [story3, fr31, fr32, signupFeature, signupArch];
+      writeJournal(root, [
+        for (final path in files) MoveStep('docs/$path', '$_trashDocs/$path'),
+        const PruneStep('docs/$_login/us03_reset_password'),
+        const PruneStep('docs/prds/features/f02_signup'),
+        const PruneStep('docs/specs/f02_signup'),
+      ]);
+      moveToTrash(story3);
+      moveToTrash(fr31);
+      MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      );
+      for (final path in files) {
+        expect(hasDoc(root, path), isFalse, reason: path);
+      }
+      expect(dirExists('docs/$_login/us03_reset_password'), isFalse);
+      expect(dirExists('docs/prds/features/f02_signup'), isFalse);
+      expect(dirExists('docs/specs/f02_signup'), isFalse);
+      expect(hasDoc(root, loginFeature), isTrue);
+      expect(journalExists(), isFalse);
+      expect(dirExists(MoveJournal.trashPath), isFalse);
+    },
+  );
 
   test(
     'a rename stopped before its link rewrite writes the listed text on replay',
@@ -417,7 +420,8 @@ void main() {
     expect(dirExists(MoveJournal.trashPath), isFalse);
   });
 
-  test('f02/us04/fr03/e04, nfr-di01: a replay that stops partway keeps the journal, and the next replay finishes', () {
+  test('a replay that stops partway keeps the journal, and the next replay '
+      'finishes', () {
     final locked = Directory('${root.path}/docs/$_login/us03_reset_password');
     writeJournal(root, [
       const MoveStep(
@@ -482,7 +486,7 @@ void main() {
         ),
   );
 
-  test('final Minor 2, f02/us04/fr03, dw-s03/inv9: a journal that does not parse is refused and the trash stays', () {
+  test('a journal that does not parse is refused and the trash stays', () {
     final journal = File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{"steps": [');
@@ -515,7 +519,7 @@ void main() {
     expect(readDoc(root, story1), before);
   });
 
-  test('final Minor 2, f02/us04/fr03: a journal with an unknown step is refused like an unparsable one', () {
+  test('a journal with an unknown step is refused like an unparsable one', () {
     final journal = File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync(
@@ -538,7 +542,7 @@ void main() {
     expect(dirExists(MoveJournal.trashPath), isTrue);
   });
 
-  test('f02/us04/fr03/e03, final Minor 3: a replay skips a stage move whose slot is taken', () {
+  test('a replay skips a stage move whose slot is taken', () {
     const stage = MoveJournal.stagePath;
     const us01 = 'docs/$_login/us01_email_login';
     File('${root.path}/$stage/0/kept.md')
@@ -555,26 +559,29 @@ void main() {
     expect(dirExists(MoveJournal.trashPath), isFalse);
   });
 
-  test('f02/us04/fr03, dw-s03/inv9: a PruneStep keeps a folder that holds a file and stops at the docs root', () async {
-    final bare = await writeTree({
-      '.specstone/config.yaml': writeProject['.specstone/config.yaml']!,
-      'docs/keep/file.md': 'x',
-    });
-    Directory('${bare.path}/docs/a/b').createSync(recursive: true);
-    Directory('${bare.path}/docs/keep/inner').createSync();
-    final project = JournalTarget.of(
-      openProject(bare),
-      homeDirectory: testHome(),
-    );
+  test(
+    'a PruneStep keeps a folder that holds a file and stops at the docs root',
+    () async {
+      final bare = await writeTree({
+        '.specstone/config.yaml': writeProject['.specstone/config.yaml']!,
+        'docs/keep/file.md': 'x',
+      });
+      Directory('${bare.path}/docs/a/b').createSync(recursive: true);
+      Directory('${bare.path}/docs/keep/inner').createSync();
+      final project = JournalTarget.of(
+        openProject(bare),
+        homeDirectory: testHome(),
+      );
 
-    const PruneStep('docs/keep/inner').apply(project);
-    const PruneStep('docs/a/b').apply(project);
+      const PruneStep('docs/keep/inner').apply(project);
+      const PruneStep('docs/a/b').apply(project);
 
-    expect(Directory('${bare.path}/docs/keep').existsSync(), isTrue);
-    expect(Directory('${bare.path}/docs/keep/inner').existsSync(), isFalse);
-    expect(Directory('${bare.path}/docs/a').existsSync(), isFalse);
-    expect(Directory('${bare.path}/docs').existsSync(), isTrue);
-  });
+      expect(Directory('${bare.path}/docs/keep').existsSync(), isTrue);
+      expect(Directory('${bare.path}/docs/keep/inner').existsSync(), isFalse);
+      expect(Directory('${bare.path}/docs/a').existsSync(), isFalse);
+      expect(Directory('${bare.path}/docs').existsSync(), isTrue);
+    },
+  );
 
   test('a WriteStep writes only a file that exists and differs, and a MoveStep '
       'skips a missing source', () {
@@ -667,7 +674,7 @@ void main() {
   );
 
   test(
-    'f02/us04/fr03, dw-s03/inv9, HD1: a docs root on another volume refuses before the journal',
+    'a docs root on another volume refuses before the journal',
     () async {
       final volume = _otherVolume()!;
       final outside = volume.createTempSync('specstone_docs_');
@@ -735,7 +742,8 @@ void main() {
         : false,
   );
 
-  test('f02/us04/fr03, dw-s03/inv9, HD1: a docs root without write permission still deletes a unit whose folder is writable', () async {
+  test('a docs root without write permission still deletes a unit whose folder '
+      'is writable', () async {
     final docs = '${root.path}/docs';
     addTearDown(() => Process.runSync('chmod', ['755', docs]));
     dropLinkIntoStory3();
@@ -756,7 +764,7 @@ void main() {
     expect(dirExists(MoveJournal.trashPath), isFalse);
   }, skip: unreadablePathSkipReason() ?? false);
 
-  test('f02/us04/fr03, dw-s03/inv9, HD1: a folder linked out of the roots refuses before the journal', () {
+  test('a folder linked out of the roots refuses before the journal', () {
     final outside = Directory.systemTemp.createTempSync('specstone_folder_');
     addTearDown(() => outside.deleteSync(recursive: true));
     File('${outside.path}/note.md').writeAsStringSync('note\n');
@@ -787,7 +795,7 @@ void main() {
     writeIn(root, (_) {});
   }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
-  test('f02/us04/fr03, dw-s03/inv9, HD1: a probe folder that cannot be removed does not hide the move', () {
+  test('a probe folder that cannot be removed does not hide the move', () {
     IOOverrides.runWithIOOverrides(
       () => const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
           .run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
@@ -798,7 +806,8 @@ void main() {
     expect(dirExists(MoveJournal.trashPath), isFalse);
   });
 
-  test('f02/us04/fr03, dw-s03/inv9, HD1: a refused probe whose folder cannot be removed still comes back as the refusal', () {
+  test('a refused probe whose folder cannot be removed still comes back as the '
+      'refusal', () {
     Directory('${root.path}/.specstone').createSync();
     File('${root.path}/${MoveJournal.trashPath}').writeAsStringSync('');
 
@@ -822,7 +831,7 @@ void main() {
     expect(hasDoc(root, story3), isTrue);
   });
 
-  test('dw-s03/inv9, H09: a move step moves a symlink as itself', () {
+  test('a move step moves a symlink as itself', () {
     final outside = Directory.systemTemp.createTempSync('specstone_link_');
     addTearDown(() => outside.deleteSync(recursive: true));
     File('${outside.path}/keep.md').writeAsStringSync('keep\n');
@@ -1378,29 +1387,39 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
-    test('f06/us01/fr01/e05, f06/us01/fr07: a project in a subfolder of its repository commits its own paths', () async {
-      final repo = await _gitTree({
-        'app/docs/prds/d01_context.md': '# D-01 — App context\n',
-        'docs/prds/d01_context.md': '# D-01 — Root context\n',
-      });
-      final app = Directory('${repo.path}${Platform.pathSeparator}app');
-      final base = _head(repo);
+    test(
+      'a project in a subfolder of its repository commits its own paths',
+      () async {
+        final repo = await _gitTree({
+          'app/docs/prds/d01_context.md': '# D-01 — App context\n',
+          'docs/prds/d01_context.md': '# D-01 — Root context\n',
+        });
+        final app = Directory('${repo.path}${Platform.pathSeparator}app');
+        final base = _head(repo);
 
-      MoveJournal([
-        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
-        CommitStep(
-          message: 'move',
-          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
-          base: base,
-        ),
-      ]).run(_target(app));
+        MoveJournal([
+          const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+          CommitStep(
+            message: 'move',
+            paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+            base: base,
+          ),
+        ]).run(_target(app));
 
-      expect(_log(repo), ['move', 'initial']);
-      expect(
-        git(repo, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
-        'R100\tapp/docs/prds/d01_context.md\tapp/docs/prds/PROJECT.md\n',
-      );
-    }, skip: skipGit);
+        expect(_log(repo), ['move', 'initial']);
+        expect(
+          git(repo, [
+            'show',
+            '--name-status',
+            '-M',
+            '--format=',
+            'HEAD',
+          ]).stdout,
+          'R100\tapp/docs/prds/d01_context.md\tapp/docs/prds/PROJECT.md\n',
+        );
+      },
+      skip: skipGit,
+    );
 
     test(
       'a path git ignores stays out of both commits and still moves',
@@ -1453,7 +1472,8 @@ void main() {
       skip: skipGit,
     );
 
-    test('f06/us01/fr07, dw-s03/inv6: an untracked ignored file with the bytes of a moved tracked file stays out of the commit', () async {
+    test('an untracked ignored file with the bytes of a moved tracked file '
+        'stays out of the commit', () async {
       final root = await _gitTree({
         '.gitignore': '.DS_Store\n',
         'docs/specs/shared/notes.txt': 'same bytes\n',
@@ -1490,7 +1510,8 @@ void main() {
       );
     }, skip: skipGit);
 
-    test('f06/us01/fr07, dw-s03/inv6: a tracked file moved onto an ignored path stays a rename, and an untracked one stays out', () async {
+    test('a tracked file moved onto an ignored path stays a rename, and an '
+        'untracked one stays out', () async {
       final root = await _gitTree({
         '.gitignore': '.DS_Store\n',
         'docs/specs/shared/s01_architecture.md': '# Shared\n',
@@ -1920,7 +1941,7 @@ void main() {
     });
   });
 
-  group('dw-s03/inv9, F6-D35: the journal cursor', () {
+  group('the journal cursor', () {
     const x = 'docs/prds/x.md';
     const y = 'docs/prds/y.md';
     const z = 'docs/prds/z.md';
@@ -1971,7 +1992,7 @@ void main() {
       expect(fileAt(z).existsSync(), isFalse);
     }
 
-    test('dw-s03/inv9, F6-D35: a run records the count of steps finished in the cursor file', () {
+    test('a run records the count of steps finished in the cursor file', () {
       stopAfterChain();
 
       expect(cursorFile().readAsStringSync(), '2');
@@ -1981,7 +2002,8 @@ void main() {
       );
     });
 
-    test('dw-s03/inv9, F6-D35: a run writes the journal once and the cursor before the first step and after each', () {
+    test('a run writes the journal once and the cursor before the first step '
+        'and after each', () {
       final files = _CreatedFiles();
 
       IOOverrides.runWithIOOverrides(
@@ -1996,23 +2018,21 @@ void main() {
       );
     });
 
-    test(
-      'dw-s03/inv9, F6-D35: a finished run or replay leaves no cursor file',
-      () {
-        const MoveJournal(stopped).run(_target(tree));
+    test('a finished run or replay leaves no cursor file', () {
+      const MoveJournal(stopped).run(_target(tree));
 
-        expect(cursorFile().existsSync(), isFalse);
-        expect(journal().existsSync(), isFalse);
+      expect(cursorFile().existsSync(), isFalse);
+      expect(journal().existsSync(), isFalse);
 
-        writeJournal(tree, const [MoveStep(y, z)]);
-        MoveJournal.replay(_target(tree));
+      writeJournal(tree, const [MoveStep(y, z)]);
+      MoveJournal.replay(_target(tree));
 
-        expect(cursorFile().existsSync(), isFalse);
-        expect(MoveJournal.pending(tree), isFalse);
-      },
-    );
+      expect(cursorFile().existsSync(), isFalse);
+      expect(MoveJournal.pending(tree), isFalse);
+    });
 
-    test('dw-s03/inv9, F6-D35, final M1: a run whose first step fails leaves cursor 0, so remaining keeps an unpark whose slot is still empty', () {
+    test('a run whose first step fails leaves cursor 0, so remaining keeps an '
+        'unpark whose slot is still empty', () {
       jamStuck();
 
       expect(
@@ -2028,26 +2048,30 @@ void main() {
       );
     });
 
-    test('dw-s03/inv9, F6-D35, final M2: a run resets a cursor file no journal owns before its first step', () {
-      Directory('${tree.path}/${MoveJournal.trashPath}')
-          .createSync(recursive: true);
-      cursorFile().writeAsStringSync('2');
-      jamStuck();
+    test(
+      'a run resets a cursor file no journal owns before its first step',
+      () {
+        Directory('${tree.path}/${MoveJournal.trashPath}')
+            .createSync(recursive: true);
+        cursorFile().writeAsStringSync('2');
+        jamStuck();
 
-      expect(
-        () => const MoveJournal(firstFails).run(_target(tree)),
-        throwsA(isA<RenderFault>()),
-      );
-      unjamStuck();
+        expect(
+          () => const MoveJournal(firstFails).run(_target(tree)),
+          throwsA(isA<RenderFault>()),
+        );
+        unjamStuck();
 
-      expect(cursorFile().readAsStringSync(), '0');
-      expect(
-        MoveJournal.remaining(_target(tree)).first.describe(),
-        'write $stuck',
-      );
-    });
+        expect(cursorFile().readAsStringSync(), '0');
+        expect(
+          MoveJournal.remaining(_target(tree)).first.describe(),
+          'write $stuck',
+        );
+      },
+    );
 
-    test('dw-s03/inv9, F6-D35: a run stopped after a chain replays from its cursor and leaves the landed doc alone', () {
+    test('a run stopped after a chain replays from its cursor and leaves the '
+        'landed doc alone', () {
       stopAfterChain();
 
       MoveJournal.replay(_target(tree));
@@ -2057,31 +2081,32 @@ void main() {
       expect(MoveJournal.pending(tree), isFalse);
     });
 
+    test('remaining lists the steps from the cursor on', () {
+      stopAfterChain();
+
+      expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
+        'write $stuck',
+      ]);
+    });
+
     test(
-      'dw-s03/inv9, F6-D35: remaining lists the steps from the cursor on',
+      'a journal with no cursor replays every step, each skipped when done',
       () {
-        stopAfterChain();
+        fileAt(x).renameSync(fileAt(y).path);
+        writeJournal(tree, chain);
 
         expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
-          'write $stuck',
+          'move $z -> $x',
         ]);
+        MoveJournal.replay(_target(tree));
+
+        expectChainLanded();
+        expect(MoveJournal.pending(tree), isFalse);
       },
     );
 
-    test('dw-s03/inv9, F6-D35: a journal with no cursor replays every step, each skipped when done', () {
-      fileAt(x).renameSync(fileAt(y).path);
-      writeJournal(tree, chain);
-
-      expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
-        'move $z -> $x',
-      ]);
-      MoveJournal.replay(_target(tree));
-
-      expectChainLanded();
-      expect(MoveJournal.pending(tree), isFalse);
-    });
-
-    test('dw-s03/inv9, F6-D35: a replay records the cursor too, so a second stop resumes past the chain', () {
+    test('a replay records the cursor too, so a second stop resumes past the '
+        'chain', () {
       writeJournal(tree, stopped);
       jamStuck();
       expect(
@@ -2096,7 +2121,8 @@ void main() {
       expect(fileAt(stuck).readAsStringSync(), 'new\n');
     });
 
-    test('dw-s03/inv9, F6-D35, final M4: a journal delete that fails keeps the cursor, so a replay leaves the chain landed', () {
+    test('a journal delete that fails keeps the cursor, so a replay leaves the '
+        'chain landed', () {
       expect(
         () => IOOverrides.runWithIOOverrides(
           () => const MoveJournal(chain).run(_target(tree)),
@@ -2114,7 +2140,7 @@ void main() {
       expect(MoveJournal.pending(tree), isFalse);
     });
 
-    test('dw-s03/inv9, F6-D35: a crash between a step and its cursor write finishes on replay', () {
+    test('a crash between a step and its cursor write finishes on replay', () {
       for (final step in chain) {
         step.apply(_target(tree));
       }
@@ -2127,39 +2153,42 @@ void main() {
       expect(MoveJournal.pending(tree), isFalse);
     });
 
-    test('dw-s03/inv9, F6-D35, final Minor 2: a cursor that does not count the steps is refused and the trash stays', () {
-      for (final cursor in ['-1', '3', '+1', ' 1', '1.5', 'two', '']) {
-        writeAt(chain, cursor);
+    test(
+      'a cursor that does not count the steps is refused and the trash stays',
+      () {
+        for (final cursor in ['-1', '3', '+1', ' 1', '1.5', 'two', '']) {
+          writeAt(chain, cursor);
 
-        for (final read in [
-          () => MoveJournal.replay(_target(tree)),
-          () => MoveJournal.remaining(_target(tree)),
-        ]) {
-          expect(
-            read,
-            throwsA(
-              isA<RenderFault>()
-                  .having(
-                    (e) => e.code,
-                    'code',
-                    RenderFaultCode.outputNotWritable,
-                  )
-                  .having(
-                    (e) => e.message,
-                    'message',
-                    'cannot replay ${MoveJournal.journalPath}: '
-                        '${MoveJournal.cursorPath} holds '
-                        '${jsonEncode(cursor)}, not a count of its 2 steps; '
-                        'fix or remove it',
-                  ),
-            ),
-            reason: cursor,
-          );
+          for (final read in [
+            () => MoveJournal.replay(_target(tree)),
+            () => MoveJournal.remaining(_target(tree)),
+          ]) {
+            expect(
+              read,
+              throwsA(
+                isA<RenderFault>()
+                    .having(
+                      (e) => e.code,
+                      'code',
+                      RenderFaultCode.outputNotWritable,
+                    )
+                    .having(
+                      (e) => e.message,
+                      'message',
+                      'cannot replay ${MoveJournal.journalPath}: '
+                          '${MoveJournal.cursorPath} holds '
+                          '${jsonEncode(cursor)}, not a count of its 2 steps; '
+                          'fix or remove it',
+                    ),
+              ),
+              reason: cursor,
+            );
+          }
+          expect(journal().existsSync(), isTrue, reason: cursor);
+          expect(fileAt(x).readAsStringSync(), 'x body\n', reason: cursor);
         }
-        expect(journal().existsSync(), isTrue, reason: cursor);
-        expect(fileAt(x).readAsStringSync(), 'x body\n', reason: cursor);
-      }
-    });
+      },
+    );
   });
 
   group('a run with no home folder to record its journal', () {

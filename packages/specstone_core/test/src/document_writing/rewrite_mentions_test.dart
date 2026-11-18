@@ -27,20 +27,17 @@ void main() {
   }) =>
       rewritePathMentions(text, docPath: docPath, moves: moves, exists: exists);
 
-  test(
-    'f02/us05/fr02/e10, M2: a backticked mention follows the moved folder',
-    () {
-      final result = rewrite(
-        'See `../us02_sign_out/USER_STORY.md` for the flow.\n',
-      );
+  test('a backticked mention follows the moved folder', () {
+    final result = rewrite(
+      'See `../us02_sign_out/USER_STORY.md` for the flow.\n',
+    );
 
-      expect(
-        result?.lfText,
-        'See `../us03_sign_out/USER_STORY.md` for the flow.\n',
-      );
-      expect(result?.count, 1);
-    },
-  );
+    expect(
+      result?.lfText,
+      'See `../us03_sign_out/USER_STORY.md` for the flow.\n',
+    );
+    expect(result?.count, 1);
+  });
 
   test(
     'a link to the project root keeps its text through a change of depth',
@@ -50,7 +47,7 @@ void main() {
     },
   );
 
-  test('f02/us05/fr02/e10, M1: a link out of the docs root and back in by '
+  test('a link out of the docs root and back in by '
       'name follows the moved file', () {
     const moves = <PathMove>[PathMove(from: 'prds/x.md', to: 'prds/y.md')];
     expect(
@@ -59,7 +56,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e10, M2: a mention of a name Windows would trim is left '
+  test('a mention of a name Windows would trim is left '
       'as written, whatever the disk holds', () {
     for (final mention in ['../notes./a.md', r'../notes\a.md']) {
       expect(
@@ -76,14 +73,14 @@ void main() {
     }
   });
 
-  test('f02/us05/fr02/e10, M2: a plain mention follows the moved folder', () {
+  test('a plain mention follows the moved folder', () {
     expect(
       rewrite('# T\n\nSee ../us02_sign_out/USER_STORY.md now\n')?.lfText,
       '# T\n\nSee ../us03_sign_out/USER_STORY.md now\n',
     );
   });
 
-  test('f02/us05/fr02/e10, RF1: a line suffix, a closing dot, and a fragment stay as written', () {
+  test('a line suffix, a closing dot, and a fragment stay as written', () {
     expect(
       rewrite(
         'a `../us02_sign_out/s03_domain.md:12`, b ../us02_sign_out/FEATURE.md. c ../us02_sign_out/a.md#use_case\n',
@@ -92,14 +89,14 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e10, RF1: a line and column suffix stays as written', () {
+  test('a line and column suffix stays as written', () {
     expect(
       rewrite('at ../us02_sign_out/a.dart:12:5;\n')?.lfText,
       'at ../us03_sign_out/a.dart:12:5;\n',
     );
   });
 
-  test('f02/us05/fr02/e11, RF2: prose that names no existing file stays through every move', () {
+  test('prose that names no existing file stays through every move', () {
     final seen = <String>[];
     final result = rewrite(
       'Use and/or, or prds/x.md from the docs root, or ../us02_sign_out/gone.md\n',
@@ -116,7 +113,7 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e11, M2: exists reads the path before the moves, from the project root', () {
+  test('exists reads the path before the moves, from the project root', () {
     final seen = <String>[];
     rewrite(
       'See ../us02_sign_out/USER_STORY.md\n',
@@ -271,23 +268,20 @@ void main() {
     expect(rewrite('# T\n\nNothing here.\n'), isNull);
   });
 
-  test(
-    'f02/us05/fr02/e11, review 1: a plain word equal to a sibling name stays',
-    () {
-      const moves = <PathMove>[PathMove(from: 'a/b/x.md', to: 'a/y/x.md')];
+  test('a plain word equal to a sibling name stays', () {
+    const moves = <PathMove>[PathMove(from: 'a/b/x.md', to: 'a/y/x.md')];
 
-      expect(
-        rewrite(
-          'The architecture of the system. See reports for detail.\n',
-          docPath: 'a/b/x.md',
-          moves: moves,
-        ),
-        isNull,
-      );
-    },
-  );
+    expect(
+      rewrite(
+        'The architecture of the system. See reports for detail.\n',
+        docPath: 'a/b/x.md',
+        moves: moves,
+      ),
+      isNull,
+    );
+  });
 
-  test('f02/us05/fr02/e10, review 1: a folder with a slash and a bare file '
+  test('a folder with a slash and a bare file '
       'name still count', () {
     final result = rewrite(
       'See reports/ and archive.md\n',
@@ -298,7 +292,7 @@ void main() {
     expect(result?.lfText, 'See ../b/reports/ and ../b/archive.md\n');
   });
 
-  test('f02/us05/fr02/e10, review 2: exists runs once per path', () {
+  test('exists runs once per path', () {
     var calls = 0;
     rewrite(
       'See ../us02_sign_out/a.md and ../us02_sign_out/a.md again\n',
@@ -311,7 +305,7 @@ void main() {
     expect(calls, 1);
   });
 
-  test('f02/us05/fr02/e10, review 3: a leading ./ stays on a mention', () {
+  test('a leading ./ stays on a mention', () {
     final result = rewrite(
       'See ./b.md and ./c.md\n',
       docPath: 'a/x.md',
@@ -321,7 +315,7 @@ void main() {
     expect(result?.lfText, 'See ./d.md and ./c.md\n');
   });
 
-  test('f02/us05/fr02/e10, review 3: a leading ./ goes when the new path starts with ../', () {
+  test('a leading ./ goes when the new path starts with ../', () {
     final result = rewrite(
       'See ./b.md\n',
       docPath: 'a/x.md',

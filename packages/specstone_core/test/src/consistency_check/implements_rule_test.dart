@@ -107,16 +107,13 @@ void main() {
   const point = '$_fr:$login:checkPassword';
   const entry = '$login:checkPassword';
 
-  test(
-    'f04/us02/s1, f04/us02/fr01/e01: every pointer of the fixture resolves',
-    () async {
-      final report = await _run(await _project(_record(code: [point])));
+  test('every pointer of the fixture resolves', () async {
+    final report = await _run(await _project(_record(code: [point])));
 
-      expect(_found(report), isEmpty);
-    },
-  );
+    expect(_found(report), isEmpty);
+  });
 
-  test('f04/us02/s2, f04/us02/fr01/e02: a renamed function names the pointer and the symbol', () async {
+  test('a renamed function names the pointer and the symbol', () async {
     final report = await _run(
       await _project(
         _record(code: [point]),
@@ -306,7 +303,7 @@ void main() {
     expect(_found(report).single.message, 'the code path is empty');
   });
 
-  test('f04/us02/fr01/e03, f04/us02/fr01/e10: a pointer with a backslash or a name Windows trims '
+  test('a pointer with a backslash or a name Windows trims '
       'names no file on any OS, though a POSIX disk holds one', () async {
     for (final pointer in [r'app\lib\login.dart', 'app/lib/login.dart.']) {
       final root = await _project(_record(code: ['$_fr:$pointer']));
@@ -318,7 +315,7 @@ void main() {
     }
   }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
 
-  test('f04/us02/s7, f04/us02/fr01/e03: a pointer to a folder, or to nothing, names no file', () async {
+  test('a pointer to a folder, or to nothing, names no file', () async {
     final folder = await _run(await _project(_record(code: ['$_fr:app/lib'])));
     expect(_spots(folder), [
       '$_recordPath:${_codeLine(1, 0)}: implements_path_unresolved',
@@ -331,19 +328,14 @@ void main() {
     ]);
   });
 
-  test(
-    'f04/us02/fr01/e04, cc-s03/inv1: a pointer with no Symbol reads no file',
-    () async {
-      final session = openSession(
-        await _project(_record(code: ['$_fr:$login'])),
-      );
-      addTearDown(session.close);
-      final context = CheckContext(session);
+  test('a pointer with no Symbol reads no file', () async {
+    final session = openSession(await _project(_record(code: ['$_fr:$login'])));
+    addTearDown(session.close);
+    final context = CheckContext(session);
 
-      expect(checkImplements(context, session.index.at(_recordPath)!), isEmpty);
-      expect(context.codeFilesRead, 0);
-    },
-  );
+    expect(checkImplements(context, session.index.at(_recordPath)!), isEmpty);
+    expect(context.codeFilesRead, 0);
+  });
 
   test(
     'a pointer ending in a fingerprint resolves as one without it',
@@ -414,7 +406,7 @@ void main() {
     expect(_found(one).single.toJson()['symbol'], 'signOut');
   });
 
-  test('f04/us02/fr01/e06, f04/us02/fr01/e07: a whole word only, found in any text, comments included', () async {
+  test('a whole word only, found in any text, comments included', () async {
     final part = await _run(
       await _project(
         _record(code: [point]),
@@ -487,7 +479,8 @@ void main() {
     },
   );
 
-  test('f04/us02/s16, f04/us02/fr01/e12: a planned entry names a file not written yet, and resolves once implemented', () async {
+  test('a planned entry names a file not written yet, and resolves once '
+      'implemented', () async {
     const planned = '$_fr:planned';
     const code = '$_fr:app/lib/toast.dart:showToast';
     final before = await _run(

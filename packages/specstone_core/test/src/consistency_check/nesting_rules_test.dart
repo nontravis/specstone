@@ -41,7 +41,7 @@ String _paddedPath(String prefix, String suffix, int total) {
 
 void main() {
   group('feature_mixed_children', () {
-    test('f04/us01/fr10/e01, sf-r1: a story left in shop gives feature_mixed_children on shop with docTypes feature and user_story', () async {
+    test('a story left in shop gives feature_mixed_children on shop with docTypes feature and user_story', () async {
       final report = await checkOf(
         await writeNestedProject(
           extra: {
@@ -85,7 +85,7 @@ void main() {
       expect(found['docTypes'], ['epic', 'feature', 'user_story']);
     });
 
-    test('f04/us01/fr10/e01, sf-r10: new feature --parent under a feature that holds stories makes check report feature_mixed_children on it', () async {
+    test('new feature --parent under a feature that holds stories makes check report feature_mixed_children on it', () async {
       final root = await writeNestedProject();
       writeIn(
         root,
@@ -101,7 +101,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr10/e02, f04/us01/fr11/e01: the nested project gives none of the four nesting kinds', () async {
+    test('the nested project gives none of the four nesting kinds', () async {
       final report = await checkOf(await writeNestedProject());
       expect([
         for (final kind in [
@@ -116,54 +116,51 @@ void main() {
   });
 
   group('sub_feature_too_small', () {
-    test('f04/us01/fr10/e02, sf-c4: pay with one story gives sub_feature_too_small, minimum 2, actual 1', () async {
+    test(
+      'pay with one story gives sub_feature_too_small, minimum 2, actual 1',
+      () async {
+        final report = await checkOf(
+          await writeNestedProject(without: {'docs/$payRefund'}),
+        );
+        expect(_jsonOf(report, FindingKind.subFeatureTooSmall), [
+          {
+            'kind': 'sub_feature_too_small',
+            'docPath': payFeature,
+            'name': 'shop/pay',
+            'line': 1,
+            'message': 'holds 1 children; a nested feature holds at least 2',
+            'waitsFor': 'agent',
+            'minimum': 2,
+            'actual': 1,
+          },
+        ]);
+      },
+    );
+
+    test('pay with a story and a sub-feature gives none', () async {
       final report = await checkOf(
-        await writeNestedProject(without: {'docs/$payRefund'}),
+        await writeNestedProject(
+          without: {'docs/$payRefund'},
+          extra: {
+            'docs/prds/features/f02_shop/f02_pay/f01_x/FEATURE.md':
+                nestedFiles()['docs/$payFeature']!,
+          },
+        ),
       );
-      expect(_jsonOf(report, FindingKind.subFeatureTooSmall), [
-        {
-          'kind': 'sub_feature_too_small',
-          'docPath': payFeature,
-          'name': 'shop/pay',
-          'line': 1,
-          'message': 'holds 1 children; a nested feature holds at least 2',
-          'waitsFor': 'agent',
-          'minimum': 2,
-          'actual': 1,
-        },
-      ]);
+      expect(
+        spots(report, FindingKind.subFeatureTooSmall),
+        isNot(contains('$payFeature:1: sub_feature_too_small')),
+      );
     });
 
-    test(
-      'f04/us01/fr10/e02, sf-c4: pay with a story and a sub-feature gives none',
-      () async {
-        final report = await checkOf(
-          await writeNestedProject(
-            without: {'docs/$payRefund'},
-            extra: {
-              'docs/prds/features/f02_shop/f02_pay/f01_x/FEATURE.md':
-                  nestedFiles()['docs/$payFeature']!,
-            },
-          ),
-        );
-        expect(
-          spots(report, FindingKind.subFeatureTooSmall),
-          isNot(contains('$payFeature:1: sub_feature_too_small')),
-        );
-      },
-    );
-
-    test(
-      'f04/us01/fr10/e02, sf-c4: shop, a top feature, never gives it',
-      () async {
-        final report = await checkOf(
-          await writeNestedProject(
-            without: {'docs/$payFeature', 'docs/$payCard', 'docs/$payRefund'},
-          ),
-        );
-        expect(spots(report, FindingKind.subFeatureTooSmall), isEmpty);
-      },
-    );
+    test('shop, a top feature, never gives it', () async {
+      final report = await checkOf(
+        await writeNestedProject(
+          without: {'docs/$payFeature', 'docs/$payCard', 'docs/$payRefund'},
+        ),
+      );
+      expect(spots(report, FindingKind.subFeatureTooSmall), isEmpty);
+    });
   });
 
   group('nesting_over_limit', () {
@@ -175,7 +172,7 @@ void main() {
       'docs/$_deepStory': nestedFiles()['docs/$cartDrop']!,
     };
 
-    test('f04/us01/fr10/e03, sf-r5: a FEATURE.md at depth 4 gives nesting_over_limit, limit 3, actual 4, and its story gives no finding of any kind', () async {
+    test('a FEATURE.md at depth 4 gives nesting_over_limit, limit 3, actual 4, and its story gives no finding of any kind', () async {
       final report = await checkOf(await writeNestedProject(extra: withStory));
       expect(_jsonOf(report, FindingKind.nestingOverLimit), [
         {
@@ -194,7 +191,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr10/e03, sf-r5: the same doc with no story under it gives one finding', () async {
+    test('the same doc with no story under it gives one finding', () async {
       final report = await checkOf(await writeNestedProject(extra: deepFiles));
       expect(_under(report, _deepFolder), [
         '$_deepFeature: nesting_over_limit',
@@ -264,7 +261,7 @@ void main() {
     const folder = 'prds/features/f02_shop/f01_cart/us01_add_item/';
     final frBody = nestedFiles()['docs/$cartAddFr']!;
 
-    test('f04/us01/fr11/e01, sf-r9: a doc whose docs/<DocPath> is 201 characters gives path_over_limit, limit 200, actual 201', () async {
+    test('a doc whose docs/<DocPath> is 201 characters gives path_over_limit, limit 200, actual 201', () async {
       final path = _paddedPath('${folder}fr02_', '.md', 201);
       final report = await checkOf(
         await writeNestedProject(extra: {'docs/$path': frBody}),
@@ -284,29 +281,23 @@ void main() {
       ]);
     });
 
-    test(
-      'f04/us01/fr11/e01, sf-r9: a doc at 200 characters gives none',
-      () async {
-        final path = _paddedPath('${folder}fr02_', '.md', 200);
-        final report = await checkOf(
-          await writeNestedProject(extra: {'docs/$path': frBody}),
-        );
-        expect(spots(report, FindingKind.pathOverLimit), isEmpty);
-      },
-    );
+    test('a doc at 200 characters gives none', () async {
+      final path = _paddedPath('${folder}fr02_', '.md', 200);
+      final report = await checkOf(
+        await writeNestedProject(extra: {'docs/$path': frBody}),
+      );
+      expect(spots(report, FindingKind.pathOverLimit), isEmpty);
+    });
 
-    test(
-      'f04/us01/fr11/e01, sf-r9: an untyped doc that long gives one',
-      () async {
-        final path = _paddedPath('${folder}NOTES_', '.md', 201);
-        final report = await checkOf(
-          await writeNestedProject(extra: {'docs/$path': '# Notes\n'}),
-        );
-        expect(spots(report, FindingKind.pathOverLimit), [
-          '$path:1: path_over_limit',
-        ]);
-      },
-    );
+    test('an untyped doc that long gives one', () async {
+      final path = _paddedPath('${folder}NOTES_', '.md', 201);
+      final report = await checkOf(
+        await writeNestedProject(extra: {'docs/$path': '# Notes\n'}),
+      );
+      expect(spots(report, FindingKind.pathOverLimit), [
+        '$path:1: path_over_limit',
+      ]);
+    });
 
     test(
       'a record at 200 characters from the project root gives none, at 201 one',

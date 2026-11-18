@@ -23,7 +23,8 @@ void main() {
 
   DocPathShape shape(String id) => DocPathShape.of(set.lookup(id)!, set)!;
 
-  test('dw-s03/inv7, H22: spec folder moves pair each folder with the one its child doc type holds after the move', () {
+  test('spec folder moves pair each folder with the one its child doc type '
+      'holds after the move', () {
     final feature = set.lookup('feature')!;
     expect(specFolderMovesOf(set, feature, ['01', 'login'], ['02', 'login']), [
       const PathMove(
@@ -38,7 +39,8 @@ void main() {
     );
   });
 
-  test('dw-s03/inv7, H22: spec folder moves pair child folders that sort differently before and after by child type', () async {
+  test('spec folder moves pair child folders that sort differently before and '
+      'after by child type', () async {
     final custom = await resolvePrdCore(
       templates: {
         'spec_a.yaml': 'id: spec_a\ndescription: Spec A\npath: specs/f{nn}_{slug}_a/A.md\nparent: feature\n',
@@ -60,17 +62,11 @@ void main() {
     ]);
   });
 
-  test(
-    'dw-s03/inv6: padNumber pads to two digits and keeps a longer number',
-    () {
-      expect(
-        [padNumber(1), padNumber(99), padNumber(100)],
-        ['01', '99', '100'],
-      );
-    },
-  );
+  test('padNumber pads to two digits and keeps a longer number', () {
+    expect([padNumber(1), padNumber(99), padNumber(100)], ['01', '99', '100']);
+  });
 
-  test('dw-s03/inv6: siblings on disk are the matching own segments, sorted by number', () {
+  test('siblings on disk are the matching own segments, sorted by number', () {
     expect(
       [
         for (final s in siblingsOnDisk(openProject(root), shape('user_story'), [
@@ -91,28 +87,21 @@ void main() {
     );
   });
 
-  test(
-    'final Minor 1, dw-s03/inv8: a folder with no doc file is no sibling',
-    () async {
-      final copy = await writeWriteProject();
-      Directory('${copy.path}/docs/prds/features/f01_login/us09_empty')
-          .createSync();
-      final names = [
-        for (final s in siblingsOnDisk(openProject(copy), shape('user_story'), [
-          '01',
-          'login',
-        ]))
-          s.name,
-      ];
-      expect(names, [
-        'us01_email_login',
-        'us02_sign_out',
-        'us03_reset_password',
-      ]);
-    },
-  );
+  test('a folder with no doc file is no sibling', () async {
+    final copy = await writeWriteProject();
+    Directory('${copy.path}/docs/prds/features/f01_login/us09_empty')
+        .createSync();
+    final names = [
+      for (final s in siblingsOnDisk(openProject(copy), shape('user_story'), [
+        '01',
+        'login',
+      ]))
+        s.name,
+    ];
+    expect(names, ['us01_email_login', 'us02_sign_out', 'us03_reset_password']);
+  });
 
-  test('dw-s03/inv8, final Important 3: an unreadable container is output_not_writable', () async {
+  test('an unreadable container is output_not_writable', () async {
     final copy = await writeWriteProject();
     final container = '${copy.path}/docs/prds/features/f01_login';
     Process.runSync('chmod', ['000', container]);
@@ -134,7 +123,7 @@ void main() {
     );
   }, skip: unreadablePathSkipReason() ?? false);
 
-  test('dw-s03/inv6: a file own segment lists files, not folders', () {
+  test('a file own segment lists files, not folders', () {
     final names = [
       for (final s in siblingsOnDisk(openProject(root), shape('fr'), [
         '01',
@@ -150,7 +139,7 @@ void main() {
     ]);
   });
 
-  test('f02/us02/fr01/e10: checkSlug accepts lowercase letters, digits, and underscore only', () {
+  test('checkSlug accepts lowercase letters, digits, and underscore only', () {
     checkSlug('email_2');
     for (final bad in ['', 'Email', 'a-b', 'a b', 'a\n']) {
       expect(

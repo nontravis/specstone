@@ -43,7 +43,7 @@ List<Finding> _missingOf(CheckReport report) => [
 ];
 
 void main() {
-  test('f04/us01/s5, f04/us01/fr06/e01, f04/us01/fr06/e02: a file in a checked folder no pattern matches is '
+  test('a file in a checked folder no pattern matches is '
       'untyped; a file outside them gets no check', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -60,7 +60,7 @@ void main() {
     ]);
   });
 
-  test('f04/us01/fr06/e05, f04/us01/fr06/e06: a project path pattern adds its folder; two matching patterns are '
+  test('a project path pattern adds its folder; two matching patterns are '
       'doc_type_ambiguous, and its warning is not printed', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -84,7 +84,7 @@ void main() {
     expect(report.warnings, isEmpty);
   });
 
-  test('f04/us01/fr07/e01, f04/us01/fr07/e02: two stories numbered us01 under one feature are reported on each; '
+  test('two stories numbered us01 under one feature are reported on each; '
       'an fr01 and an nf01 are no siblings', () async {
     const reset = 'prds/features/f01_login/us01_reset_password/USER_STORY.md';
     final report = await checkOf(
@@ -155,7 +155,7 @@ void main() {
     });
   });
 
-  test('f04/us01/s7, f04/us01/fr07/e03, f04/us04/fr01/e09, cc-s03/inv13: a requirement whose story is gone has no '
+  test('a requirement whose story is gone has no '
       'parent and no trace or suspect finding', () async {
     final report = await checkOf(
       await writeCheckProject(without: {'docs/$loginStory'}),
@@ -339,7 +339,7 @@ void main() {
     },
   );
   group('nested features', () {
-    test('f04/us01/fr07/e11, sf-c11: cart with no shop FEATURE.md is parent_missing', () async {
+    test('cart with no shop FEATURE.md is parent_missing', () async {
       final report = await checkOf(
         await writeNestedProject(without: {'docs/$shopFeature'}),
       );
@@ -439,8 +439,8 @@ void main() {
     expect(isInCheckedFolder(folders, 'prds/FEATURES.md'), isTrue);
   });
 
-  group('f04/us01/fr07 singular_doc_missing', () {
-    test('f04/us01/fr07/e13: a goal doc type and no prds/GOAL.md is one '
+  group('singular_doc_missing', () {
+    test('a goal doc type and no prds/GOAL.md is one '
         'finding at line 1 with the type key and no name', () async {
       final report = await checkOf(
         await writeCheckProject(without: {'docs/$_goalDoc'}),
@@ -457,7 +457,7 @@ void main() {
       );
     });
 
-    test('f04/us01/fr07/e14: no project doc is one finding at its path, '
+    test('no project doc is one finding at its path, '
         'type project', () async {
       final report = await checkOf(
         await writeCheckProject(without: {'docs/$projectDoc'}),
@@ -469,7 +469,7 @@ void main() {
       expect(_missingOf(report).single.name, isNull);
     });
 
-    test('f04/us01/fr07/e15: a project-layer type at prds/STYLE.md with no '
+    test('a project-layer type at prds/STYLE.md with no '
         'file is one finding', () async {
       final report = await checkOf(
         await writeCheckProject(
@@ -483,7 +483,7 @@ void main() {
       expect(_missingOf(report).single.name, isNull);
     });
 
-    test('f04/us01/fr07/e15: a per_target type is one finding per target that '
+    test('a per_target type is one finding per target that '
         'lacks it, each with its target key', () async {
       final report = await checkOf(
         await writeTwinProject(
@@ -504,7 +504,7 @@ void main() {
       expect(missing.single.keys, {'type': 'style', 'target': 'jaspr'});
     });
 
-    test('f04/us01/fr07/e21: a project on the shipped pins with no glossary '
+    test('a project on the shipped pins with no glossary '
         'doc is one finding at its path, type glossary', () async {
       final report = await checkOf(
         await writeCheckProject(without: {'docs/$_glossaryDoc'}),
@@ -549,7 +549,7 @@ void main() {
       );
     });
 
-    test('f04/us01/fr07/e16: one code target and no tech stack doc is one '
+    test('one code target and no tech stack doc is one '
         'finding with no target key', () async {
       final report = await checkOf(
         await writeCheckProject(without: {'docs/$techStack'}),
@@ -562,7 +562,7 @@ void main() {
       expect(_missingOf(report).single.message, isNot(contains('--target')));
     });
 
-    test('f04/us01/fr07/e17: flutter and jaspr with no jaspr tech stack is '
+    test('flutter and jaspr with no jaspr tech stack is '
         'one finding for jaspr, its message ending --target jaspr', () async {
       final report = await checkOf(
         await writeTwinProject(without: {'docs/specs/jaspr/TECH_STACK.md'}),
@@ -577,7 +577,7 @@ void main() {
       expect(missing.single.message, endsWith(' --target jaspr'));
     });
 
-    test('f04/us01/fr07/e18: a project spec doc type with no doc is no '
+    test('a project spec doc type with no doc is no '
         'finding', () async {
       final report = await checkOf(
         await writeCheckProject(without: {'docs/$loginArchitecture'}),
@@ -588,7 +588,7 @@ void main() {
       expect(spots(report, FindingKind.singularDocMissing), isEmpty);
     });
 
-    test('f04/us01/fr07/e19: a merged set with no goal doc type is no goal '
+    test('a merged set with no goal doc type is no goal '
         'finding', () async {
       final project = await fixtureProject({});
       final session = ReadSession.open(

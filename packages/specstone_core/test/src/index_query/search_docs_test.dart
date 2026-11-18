@@ -25,62 +25,59 @@ void main() {
       if (l.isNotEmpty && !l.startsWith('  ')) l,
   ];
 
-  test('f01/us06/s1, f01/us06/fr01: hits name doc and section, with type, title, and an indented snippet', () async {
-    final answer = answerSearch(
-      index,
-      'lock the account',
-      const SearchOptions(),
-    );
-    expect(
-      heads(answer),
-      containsAll([
-        'login/email_login/lock_after_failures#statement (fr) — Lock after failures',
-        'login/email_login#acceptance_criteria (user_story) — Agent signs in with email',
-      ]),
-    );
-    expect(answer.text, contains('\n  '));
-    expect(answer.text, contains('lock the account'));
-  });
-  test('f01/us06/s2, f01/us06/fr01/e02, f01/us06/fr01/e06, f01/us01/s7: a Thai phrase hits the untyped doc by DocPath and snake_case key', () async {
-    expect(heads(answerSearch(index, 'ค้นหา', const SearchOptions())), [
-      'prds/d01_context.md#project_vision — D-01 — Project context',
-    ]);
-  });
   test(
-    'f01/us06/s2, f01/us06/fr01/e03: a word part matches the longer word',
+    'hits name doc and section, with type, title, and an indented snippet',
     () async {
+      final answer = answerSearch(
+        index,
+        'lock the account',
+        const SearchOptions(),
+      );
       expect(
-        heads(answerSearch(index, 'ount', const SearchOptions())),
-        contains(
+        heads(answer),
+        containsAll([
           'login/email_login/lock_after_failures#statement (fr) — Lock after failures',
-        ),
+          'login/email_login#acceptance_criteria (user_story) — Agent signs in with email',
+        ]),
       );
+      expect(answer.text, contains('\n  '));
+      expect(answer.text, contains('lock the account'));
     },
   );
   test(
-    'f01/us06/s3, f01/us06/fr01/e05: an alias hit points at the first section',
+    'a Thai phrase hits the untyped doc by DocPath and snake_case key',
     () async {
-      expect(
-        heads(answerSearch(index, 'sign-in', const SearchOptions())),
-        contains('login#problem (feature) — Login'),
-      );
+      expect(heads(answerSearch(index, 'ค้นหา', const SearchOptions())), [
+        'prds/d01_context.md#project_vision — D-01 — Project context',
+      ]);
     },
   );
-  test('f01/us06/s5, f01/us06/fr01/e04: quotes, asterisks, AND, and NEAR( are plain text', () async {
+  test('a word part matches the longer word', () async {
+    expect(
+      heads(answerSearch(index, 'ount', const SearchOptions())),
+      contains(
+        'login/email_login/lock_after_failures#statement (fr) — Lock after failures',
+      ),
+    );
+  });
+  test('an alias hit points at the first section', () async {
+    expect(
+      heads(answerSearch(index, 'sign-in', const SearchOptions())),
+      contains('login#problem (feature) — Login'),
+    );
+  });
+  test('quotes, asterisks, AND, and NEAR( are plain text', () async {
     for (final query in ['"lock', 'account*', 'the AND account', 'NEAR(lock']) {
       expect(answerSearch(index, query, const SearchOptions()).exitStatus, 0);
     }
   });
-  test(
-    'f01/us06/s6, f01/us06/fr01/e07: no hit is an empty answer and success',
-    () async {
-      final answer = answerSearch(index, 'zzqqxx', const SearchOptions());
-      expect(answer.text, isEmpty);
-      expect(answer.json['hits'], isEmpty);
-      expect(answer.exitStatus, 0);
-    },
-  );
-  test('f01/us06/s7, f01/us06/fr01/e01: fewer than 3 characters is query_too_short', () {
+  test('no hit is an empty answer and success', () async {
+    final answer = answerSearch(index, 'zzqqxx', const SearchOptions());
+    expect(answer.text, isEmpty);
+    expect(answer.json['hits'], isEmpty);
+    expect(answer.exitStatus, 0);
+  });
+  test('fewer than 3 characters is query_too_short', () {
     expect(
       () => checkQuery('ui'),
       throwsA(
@@ -93,7 +90,7 @@ void main() {
     );
     expect(() => checkQuery('ค้น'), returnsNormally);
   });
-  test('f01/us06/s4, f01/us06/fr02, f01/us06/fr02/e02: --type and --under narrow, --limit caps', () async {
+  test('--type and --under narrow, --limit caps', () async {
     final answer = answerSearch(
       index,
       'system shall',
@@ -194,20 +191,17 @@ void main() {
       );
     }
   });
-  test(
-    'plan decision 11: a title hit on a doc with no section prints no key',
-    () async {
-      final answer = answerSearch(index, 'Readme', const SearchOptions());
-      expect(heads(answer), contains('README.md — Readme'));
-      expect(
-        (answer.json['hits']! as List)
-            .cast<Map<String, Object?>>()
-            .firstWhere((h) => h['name'] == 'README.md')
-            .containsKey('section'),
-        isFalse,
-      );
-    },
-  );
+  test('a title hit on a doc with no section prints no key', () async {
+    final answer = answerSearch(index, 'Readme', const SearchOptions());
+    expect(heads(answer), contains('README.md — Readme'));
+    expect(
+      (answer.json['hits']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((h) => h['name'] == 'README.md')
+          .containsKey('section'),
+      isFalse,
+    );
+  });
   test('a snippet over several lines prints as one indented line, JSON keeps '
       'it as indexed', () async {
     final multi = await searchIndexWith({
@@ -221,7 +215,8 @@ void main() {
     );
   });
 
-  test('s03/inv26, api:index_query operations: --under with --target stays in that target, an unknown name is argument_invalid', () async {
+  test('api:index_query operations: --under with --target stays in that '
+      'target, an unknown name is argument_invalid', () async {
     const feature = 'prds/features/f01_toast/FEATURE.md';
     const flutterArch = 'specs/flutter/f01_toast/ARCHITECTURE.md';
     const jasprArch = 'specs/jaspr/f01_toast/ARCHITECTURE.md';

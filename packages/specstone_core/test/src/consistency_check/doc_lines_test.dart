@@ -7,44 +7,35 @@ void main() {
       '# Title\n\n'
       '## Statement\nBody.\n';
 
-  test(
-    'cc-s03/inv14: key, entry, and section lines are 1-based in the file',
-    () {
-      final lines = DocLines.of(text);
-      expect(lines.keyLine('status'), 2);
-      expect(lines.keyLine('missing'), isNull);
-      expect(lines.entriesOf('traced_from'), [
-        (value: 'S1', line: 4, text: 'S1'),
-        (value: 'S2', line: 5, text: 'S2'),
-      ]);
-      expect(lines.entriesOf('owner'), [(value: 'x', line: 6, text: 'x')]);
-      expect(lines.sectionLines, [11]);
-      expect(lines.lines, hasLength(12));
-      expect(lines.frontmatterErrorLine, isNull);
-    },
-  );
+  test('key, entry, and section lines are 1-based in the file', () {
+    final lines = DocLines.of(text);
+    expect(lines.keyLine('status'), 2);
+    expect(lines.keyLine('missing'), isNull);
+    expect(lines.entriesOf('traced_from'), [
+      (value: 'S1', line: 4, text: 'S1'),
+      (value: 'S2', line: 5, text: 'S2'),
+    ]);
+    expect(lines.entriesOf('owner'), [(value: 'x', line: 6, text: 'x')]);
+    expect(lines.sectionLines, [11]);
+    expect(lines.lines, hasLength(12));
+    expect(lines.frontmatterErrorLine, isNull);
+  });
 
-  test(
-    'review focus 1: a CRLF file has the lines and counts of its LF twin',
-    () {
-      final lf = DocLines.of(text);
-      final crlf = DocLines.of(text.replaceAll('\n', '\r\n'));
-      expect(crlf.lines, lf.lines);
-      expect(crlf.charCount, lf.charCount);
-      expect(crlf.sectionLines, lf.sectionLines);
-      expect(crlf.entriesOf('traced_from'), lf.entriesOf('traced_from'));
-    },
-  );
+  test('a CRLF file has the lines and counts of its LF twin', () {
+    final lf = DocLines.of(text);
+    final crlf = DocLines.of(text.replaceAll('\n', '\r\n'));
+    expect(crlf.lines, lf.lines);
+    expect(crlf.charCount, lf.charCount);
+    expect(crlf.sectionLines, lf.sectionLines);
+    expect(crlf.entriesOf('traced_from'), lf.entriesOf('traced_from'));
+  });
 
-  test(
-    'review focus 2: a ## line inside a fenced code block is no section',
-    () {
-      final lines = DocLines.of(
-        '# T\n\n```\n## not a section\n```\n\n## Real\nx\n',
-      );
-      expect(lines.sectionLines, [7]);
-    },
-  );
+  test('a ## line inside a fenced code block is no section', () {
+    final lines = DocLines.of(
+      '# T\n\n```\n## not a section\n```\n\n## Real\nx\n',
+    );
+    expect(lines.sectionLines, [7]);
+  });
 
   test('frontmatter YAML with an unclosed quote names the parser line', () {
     expect(

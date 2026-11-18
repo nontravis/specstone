@@ -10,8 +10,6 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
-const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
-
 const _storyPath = 'prds/features/f01_a/us01_b/USER_STORY.md';
 const _frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _draftFrPath = 'prds/features/f01_a/us01_b/fr02_d.md';
@@ -99,7 +97,7 @@ void main() {
     );
   });
 
-  group('$_fr E30', () {
+  group('the approval hash stamp', () {
     test('a doc with approved: true and a doc with neither key take the '
         'approval hash of their content; a draft keeps its frontmatter', () {
       final docs = {
@@ -264,7 +262,7 @@ void main() {
     });
   });
 
-  group('$_fr E31', () {
+  group('the entry fingerprint stamp', () {
     test('a matched entry takes the fingerprint of its upstream block after '
         'the run, whether the run rewrote the block or not', () {
       const reworded = '### Scenario 1 — [happy] one\n\n- **Given** a g';
@@ -427,7 +425,7 @@ void main() {
     });
   });
 
-  group('$_fr E38', () {
+  group('the type a doc had before the run', () {
     test('a doc is judged by the type it had before the run: a field the '
         'final type dropped still stays out of its hash', () {
       final dropped = _typeAt(_storyPath)!;

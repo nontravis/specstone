@@ -132,7 +132,7 @@ migrations:
     expect(selectUpgrades({'acme': _v('1.7.0')}, {'acme': pack()}), isEmpty);
   });
 
-  test('f06/us02/fr01/e01, f06/us02/s1: no entry in range changes the pin '
+  test('no entry in range changes the pin '
       'only', () {
     final upgrades = selectUpgrades(
       {'acme': _v('1.0.0')},
@@ -156,7 +156,7 @@ migrations:
     expect(upgrades.single.steps, isEmpty);
   });
 
-  test('f06/us02/fr01/e04, f06/us02/s4: two releases behind gives both '
+  test('two releases behind gives both '
       "releases' steps, the older first", () {
     final upgrades = selectUpgrades(
       {'acme': _v('1.0.0')},

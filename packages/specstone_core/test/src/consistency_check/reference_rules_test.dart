@@ -19,7 +19,7 @@ void main() {
   const template =
       'reference:\n  add:\n    - title: Login rules\n      doc: login_rules\n';
 
-  test('f04/us02/fr05/e01, f04/us02/fr05/e02: a template reference doc no doc carries is reported at the template, '
+  test('a template reference doc no doc carries is reported at the template, '
       'on a whole-project run only', () async {
     final project = await writeCheckProject(
       extra: {'.specstone/templates/fr.yaml': template},
@@ -39,7 +39,7 @@ void main() {
     expect(spots(await checkOf(found)), isEmpty);
   });
 
-  test('f04/us02/s9, f04/us02/fr05/e03, f04/us02/fr05/e05: a listed file missing beside its reference doc, and a '
+  test('a listed file missing beside its reference doc, and a '
       'Concerns line pointing nowhere, are one finding each', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -61,7 +61,7 @@ void main() {
     expect(report.findings.last.toJson()['target'], 'AUTH.md');
   });
 
-  test('f04/us02/fr05/e03, f04/us02/fr05/e05: a name that ends in a space is '
+  test('a name that ends in a space is '
       'no file on any OS, though a POSIX disk holds one', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -104,7 +104,7 @@ void main() {
     expect(spots(await checkOf(root)), ['$rules:6: listed_file_missing']);
   }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
 
-  test('f04/us02/fr05/e04, f04/us02/fr05/e06: a sibling file, a section of the doc, or N/A resolves', () async {
+  test('a sibling file, a section of the doc, or N/A resolves', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra:
@@ -124,73 +124,77 @@ void main() {
     expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
   });
 
-  test('f04/us02/fr05/e08-e12: a see target reads through the link grammar, trailing punctuation dropped', () async {
-    Future<List<String>> targetsOf(String concerns) async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra:
-              {
-                ...doc(
-                  loginArchitecture,
-                  '- Errors: see Components\n',
-                  concerns,
+  test(
+    'a see target reads through the link grammar, trailing punctuation dropped',
+    () async {
+      Future<List<String>> targetsOf(String concerns) async {
+        final report = await checkOf(
+          await writeCheckProject(
+            extra:
+                {
+                  ...doc(
+                    loginArchitecture,
+                    '- Errors: see Components\n',
+                    concerns,
+                  ),
+                  'docs/specs/f01_login/ERROR.md':
+                      '# Login errors\n\n## Known\n',
+                  'docs/specs/f01_login/a/b.md': '# B\n',
+                }..update(
+                  'docs/$loginArchitecture',
+                  (text) =>
+                      '$text\n## Observability\nLogs.\n\n### Deep dive\n\n'
+                      '<a id="body-anchor"></a>\n',
                 ),
-                'docs/specs/f01_login/ERROR.md': '# Login errors\n\n## Known\n',
-                'docs/specs/f01_login/a/b.md': '# B\n',
-              }..update(
-                'docs/$loginArchitecture',
-                (text) =>
-                    '$text\n## Observability\nLogs.\n\n### Deep dive\n\n'
-                    '<a id="body-anchor"></a>\n',
-              ),
-        ),
-      );
-      return [
-        for (final f in report.findings)
-          if (f.kind == FindingKind.concernsTargetUnresolved)
-            f.toJson()['target']! as String,
-      ];
-    }
+          ),
+        );
+        return [
+          for (final f in report.findings)
+            if (f.kind == FindingKind.concernsTargetUnresolved)
+              f.toJson()['target']! as String,
+        ];
+      }
 
-    expect(
-      await targetsOf(
-        '- A: see ERROR.md.\n'
-        '- B: see [the errors](ERROR.md)\n'
-        '- C: see `ERROR.md`;\n'
-        '- D: see Observability.\n'
-        '- E: see #deep-dive\n'
-        '- F: see #body-anchor\n'
-        '- G: see #\n'
-        '- H: see [top](#)\n'
-        '- I: see ERROR.md#known\n'
-        '- J: see [e](ERROR.md#known)\n'
-        '- K: see ERROR.md#\n',
-      ),
-      isEmpty,
-    );
-    expect(
-      await targetsOf(
-        '- A: see #no-such-anchor.\n'
-        '- B: see [gone](MISSING.md)\n'
-        '- C: see MISSING.md.\n'
-        '- D: see [x](#also-missing)\n'
-        '- E: see ERROR.md#missing\n'
-        '- X: see [x]()\n'
-        '- Y: see ?q\n'
-        '- Z: see a%2Fb.md\n',
-      ),
-      [
-        '#no-such-anchor',
-        '[gone](MISSING.md)',
-        'MISSING.md',
-        '[x](#also-missing)',
-        'ERROR.md#missing',
-        '[x]()',
-        '?q',
-        'a%2Fb.md',
-      ],
-    );
-  });
+      expect(
+        await targetsOf(
+          '- A: see ERROR.md.\n'
+          '- B: see [the errors](ERROR.md)\n'
+          '- C: see `ERROR.md`;\n'
+          '- D: see Observability.\n'
+          '- E: see #deep-dive\n'
+          '- F: see #body-anchor\n'
+          '- G: see #\n'
+          '- H: see [top](#)\n'
+          '- I: see ERROR.md#known\n'
+          '- J: see [e](ERROR.md#known)\n'
+          '- K: see ERROR.md#\n',
+        ),
+        isEmpty,
+      );
+      expect(
+        await targetsOf(
+          '- A: see #no-such-anchor.\n'
+          '- B: see [gone](MISSING.md)\n'
+          '- C: see MISSING.md.\n'
+          '- D: see [x](#also-missing)\n'
+          '- E: see ERROR.md#missing\n'
+          '- X: see [x]()\n'
+          '- Y: see ?q\n'
+          '- Z: see a%2Fb.md\n',
+        ),
+        [
+          '#no-such-anchor',
+          '[gone](MISSING.md)',
+          'MISSING.md',
+          '[x](#also-missing)',
+          'ERROR.md#missing',
+          '[x]()',
+          '?q',
+          'a%2Fb.md',
+        ],
+      );
+    },
+  );
 
   test(
     'a see link target reads every CommonMark link form the link rule reads',
@@ -285,7 +289,7 @@ void main() {
     );
   });
 
-  test('f04/us02/fr05/e08, f04/us02/fr05/e11, f04/us02/fr05/e14: a see target reads one way bare and as a link that spans it', () async {
+  test('a see target reads one way bare and as a link that spans it', () async {
     Future<CheckReport> reportOf(
       String concerns, {
       bool unparsed = false,
@@ -403,21 +407,24 @@ void main() {
     );
   });
 
-  test('f04/us02/fr05/e07, cc-s03/inv2: a merged set with no architecture doc type runs no Concerns rule', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-          ...doc(
-            loginArchitecture,
-            '- Errors: see Components\n',
-            '- Auth: see AUTH.md\n',
-          ),
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
-  });
+  test(
+    'a merged set with no architecture doc type runs no Concerns rule',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+            ...doc(
+              loginArchitecture,
+              '- Errors: see Components\n',
+              '- Auth: see AUTH.md\n',
+            ),
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
+    },
+  );
 
   test('a doc of a type built on architecture gets the Concerns rule', () async {
     const layer = '.specstone/templates/edge_architecture_root.yaml';

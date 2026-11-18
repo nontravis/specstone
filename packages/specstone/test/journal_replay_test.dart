@@ -62,7 +62,7 @@ void main() {
     },
   );
 
-  test('E14: the next '
+  test('the next '
       'write command finishes a stopped batch and keeps a doc edited after the '
       'stop', () async {
     final twin = await writeWriteProject();

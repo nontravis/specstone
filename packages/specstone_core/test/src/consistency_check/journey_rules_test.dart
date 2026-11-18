@@ -61,7 +61,7 @@ List<Finding> _of(List<Finding> findings, FindingKind kind) => [
 ];
 
 void main() {
-  test('f04/us02/s10, f04/us02/fr06/e01, f10/us01/s6: step: login/email_login '
+  test('step: login/email_login '
       'S9 is journey_step_unresolved at its step: line', () async {
     final found = await _check(['### 1. Sign in', 'step: $_story S9']);
     expect(found, hasLength(1));
@@ -80,7 +80,7 @@ void main() {
     ]);
   });
 
-  test('f04/us02/fr06, f04/us02/fr06/e10: a lettered scenario number is '
+  test('a lettered scenario number is '
       'journey_step_unresolved, never Scenario 1', () async {
     final found = await _check(['### 1. Sign in', 'step: $_story S1a']);
     final unresolved = _of(found, FindingKind.journeyStepUnresolved);
@@ -106,7 +106,7 @@ void main() {
     expect(found.single.toJson(), containsPair('step', ''));
   });
 
-  test('f04/us02/s11, f04/us02/fr06/e04, f10/us01/fr02/e05: after: 7 in a '
+  test('after: 7 in a '
       'journey of steps 1 to 5 is journey_after_unresolved', () async {
     final found = await _check([
       for (var n = 1; n <= 5; n++) ...['### $n. Step $n', 'step: $_story S1'],
@@ -134,7 +134,7 @@ void main() {
     expect(_of(found, FindingKind.journeyAfterUnresolved), hasLength(1));
   });
 
-  test('f04/us02/s12, f04/us02/fr06/e08, f10/us01/fr02/e08: a second '
+  test('a second '
       '### 3. heading is journey_step_duplicate at that heading', () async {
     final found = await _check([
       '### 3. First',
@@ -163,7 +163,7 @@ void main() {
     expect(found.map((f) => f.kind), [FindingKind.journeyStepDuplicate]);
   });
 
-  test('f04/us02/fr06, f10/us01/fr02/e06: a step: that does not read as '
+  test('a step: that does not read as '
       '<story identity> S<N> is journey_step_unresolved', () async {
     final found = await _check(['### 1. Sign in', 'step: login']);
     expect(found, hasLength(1));
@@ -202,7 +202,7 @@ void main() {
   group('persona', () {
     final steps = ['### 1. Sign in', 'step: $_story S1'];
 
-    test('f10/us01/s4, f10/us01/fr01/e03: a journey with no persona key has '
+    test('a journey with no persona key has '
         'no persona finding', () async {
       expect(await _check(steps), isEmpty);
     });

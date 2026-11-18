@@ -102,7 +102,7 @@ void main() {
   }
 
   group('refreshIndex', () {
-    test('f01/us01/fr02, f01/us01/fr02/e01, s03/inv1: a first refresh builds one entry per .md file', () async {
+    test('a first refresh builds one entry per .md file', () async {
       final (:result, :store) = refresh(await writeLoginProject());
       expect(result.fullBuild, isTrue);
       expect(result.reindexed, 25);
@@ -156,36 +156,39 @@ void main() {
       expect(again.result.reindexed, 1);
       expect(docAt(again.store, record).title, 'Login v2');
     });
-    test('f01/us01/fr02/e03: an unchanged file is never reindexed; one edit reindexes one file', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      expect(refresh(project).result.reindexed, 0);
-      File('${project.path}/$featureKey').writeAsStringSync('# Login v2\n');
-      final again = refresh(project).result;
-      expect(again.fullBuild, isFalse);
-      expect(again.reindexed, 1);
-    });
     test(
-      'f01/us01/fr02/e06: the answer reflects every edit made before the call',
+      'an unchanged file is never reindexed; one edit reindexes one file',
       () async {
         final project = await writeLoginProject();
         refresh(project);
+        expect(refresh(project).result.reindexed, 0);
         File('${project.path}/$featureKey').writeAsStringSync('# Login v2\n');
-        expect(docAt(refresh(project).store, featureDoc).title, 'Login v2');
+        final again = refresh(project).result;
+        expect(again.fullBuild, isFalse);
+        expect(again.reindexed, 1);
       },
     );
-    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a warm refresh with no change hashes no file and writes nothing', () async {
+    test('the answer reflects every edit made before the call', () async {
       final project = await writeLoginProject();
-      backdate(project);
-      expect(refresh(project).result.hashed, 25);
-      final written = watchWrites(project);
-      final (:result, :store) = refresh(project);
-      expect(result.hashed, 0);
-      expect(result.reindexed, 0);
-      expect(written(), isFalse);
-      expect(paths(store), hasLength(25));
+      refresh(project);
+      File('${project.path}/$featureKey').writeAsStringSync('# Login v2\n');
+      expect(docAt(refresh(project).store, featureDoc).title, 'Login v2');
     });
-    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: an edit that keeps the size and the mtime is seen inside the racy window', () async {
+    test(
+      'a warm refresh with no change hashes no file and writes nothing',
+      () async {
+        final project = await writeLoginProject();
+        backdate(project);
+        expect(refresh(project).result.hashed, 25);
+        final written = watchWrites(project);
+        final (:result, :store) = refresh(project);
+        expect(result.hashed, 0);
+        expect(result.reindexed, 0);
+        expect(written(), isFalse);
+        expect(paths(store), hasLength(25));
+      },
+    );
+    test('an edit that keeps the size and the mtime is seen inside the racy window', () async {
       final project = await writeLoginProject();
       backdate(project);
       final feature = File('${project.path}/$featureKey')
@@ -222,7 +225,7 @@ void main() {
       expect(after, isNot(before));
       expect(docAt(refresh(project).store, 'README.md').approvalHash, isNull);
     });
-    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: an edit that changes the size or the mtime is seen', () async {
+    test('an edit that changes the size or the mtime is seen', () async {
       final project = await writeLoginProject();
       backdate(project);
       refresh(project);
@@ -246,7 +249,7 @@ void main() {
       expect(feature.lengthSync(), size);
       expect(docAt(refresh(project).store, featureDoc).title, 'Login v3');
     });
-    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a touched file is not reindexed, and its new stat is stored so the next call hashes no file', () async {
+    test('a touched file is not reindexed, and its new stat is stored so the next call hashes no file', () async {
       final project = await writeLoginProject();
       backdate(project);
       refresh(project);
@@ -261,7 +264,7 @@ void main() {
       expect(written(), isTrue);
       expect(refresh(project).result.hashed, 0);
     });
-    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a bulk change listed inside the racy window is hashed once more, then checked_at moves and the next call hashes no file', () async {
+    test('a bulk change listed inside the racy window is hashed once more, then checked_at moves and the next call hashes no file', () async {
       final project = await writeLoginProject();
       backdate(project);
       final rewound = storeCheckedAt(
@@ -279,26 +282,30 @@ void main() {
       expect(refresh(project).result.hashed, 0);
       expect(written(), isFalse);
     });
-    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a file still inside the racy window stays hashed after checked_at moves', () async {
-      final project = await writeLoginProject();
-      backdate(project);
-      // An mtime later than every refresh's start keeps the file inside the
-      // racy window however slow the run.
-      File('${project.path}/$featureKey')
-          .setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
-      storeCheckedAt(
-        refresh(project).store,
-        File('${project.path}/docs/README.md'),
-        const Duration(seconds: 1),
-      );
-      var written = watchWrites(project);
-      expect(refresh(project).result.hashed, 25);
-      expect(written(), isTrue);
-      written = watchWrites(project);
-      expect(refresh(project).result.hashed, 1);
-      expect(written(), isFalse);
-    });
-    test('f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a file 1.9 s older than checked_at is hashed, and one 2.1 s older is trusted', () async {
+    test(
+      'a file still inside the racy window stays hashed after checked_at moves',
+      () async {
+        final project = await writeLoginProject();
+        backdate(project);
+        // An mtime later than every refresh's start keeps the file inside the
+        // racy window however slow the run.
+        File(
+          '${project.path}/$featureKey',
+        ).setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+        storeCheckedAt(
+          refresh(project).store,
+          File('${project.path}/docs/README.md'),
+          const Duration(seconds: 1),
+        );
+        var written = watchWrites(project);
+        expect(refresh(project).result.hashed, 25);
+        expect(written(), isTrue);
+        written = watchWrites(project);
+        expect(refresh(project).result.hashed, 1);
+        expect(written(), isFalse);
+      },
+    );
+    test('a file 1.9 s older than checked_at is hashed, and one 2.1 s older is trusted', () async {
       final project = await writeLoginProject();
       backdate(project);
       final feature = File('${project.path}/$featureKey');
@@ -313,7 +320,7 @@ void main() {
       expect(refresh(project).result.hashed, 0);
     });
     test(
-      'f01/us01/fr02, f01/us01/fr02/e06, s03/inv1: a replacement that keeps the size, the mtime, and the mode is seen',
+      'a replacement that keeps the size, the mtime, and the mode is seen',
       skip: Platform.isWindows
           ? 'FileStat.changed is the creation time on Windows, which a save over a file can keep'
           : null,
@@ -338,24 +345,27 @@ void main() {
         expect(docAt(refresh(project).store, featureDoc).title, 'Logon');
       },
     );
-    test('f01/us01/fr02, f01/us01/fr02/e03, s03/inv1: a file whose stat fails is read on every call and stores no stat key', () async {
-      final project = await writeLoginProject();
-      backdate(project);
-      refresh(project);
-      ({RefreshResult result, IndexStore store}) failingReadme() =>
-          IOOverrides.runWithIOOverrides(
-            () => refresh(project),
-            _FailedStat('README.md'),
-          );
-      final first = failingReadme();
-      expect(first.result.hashed, 1);
-      expect(first.store.statKeys()['README.md'], isNull);
-      final written = watchWrites(project);
-      expect(failingReadme().result.hashed, 1);
-      expect(written(), isFalse);
-    });
     test(
-      'f01/us01/fr02, f01/us01/fr02/e08, s03/inv1: a chmod that makes a trusted file unreadable warns and drops it',
+      'a file whose stat fails is read on every call and stores no stat key',
+      () async {
+        final project = await writeLoginProject();
+        backdate(project);
+        refresh(project);
+        ({RefreshResult result, IndexStore store}) failingReadme() =>
+            IOOverrides.runWithIOOverrides(
+              () => refresh(project),
+              _FailedStat('README.md'),
+            );
+        final first = failingReadme();
+        expect(first.result.hashed, 1);
+        expect(first.store.statKeys()['README.md'], isNull);
+        final written = watchWrites(project);
+        expect(failingReadme().result.hashed, 1);
+        expect(written(), isFalse);
+      },
+    );
+    test(
+      'a chmod that makes a trusted file unreadable warns and drops it',
       skip: unreadablePathSkipReason(),
       () async {
         final project = await writeLoginProject();
@@ -370,7 +380,7 @@ void main() {
         expect(paths(store), isNot(contains('README.md')));
       },
     );
-    test('f01/us01/fr02, f01/us01/fr02/e02, s03/inv2: an index an older build reset to its own layout is rebuilt with no fault', () async {
+    test('an index an older build reset to its own layout is rebuilt with no fault', () async {
       final project = await writeLoginProject();
       refresh(project);
       final raw = sqlite3.open('${project.path}/$indexFilePath');
@@ -396,7 +406,7 @@ void main() {
       expect(result.fullBuild, isTrue);
       expect(paths(store), hasLength(25));
     });
-    test('f04/nfr-p03, s03/inv2: an index at layout 1, with no line facts, is rebuilt to layout 2 with them', () async {
+    test('an index at layout 1, with no line facts, is rebuilt to layout 2 with them', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -449,28 +459,25 @@ void main() {
         indexLayoutVersion,
       );
     });
-    test(
-      'domain:index_query INV-2: an index at layout 4, with no banned-pattern '
-      'matches, is rebuilt to the current layout with them',
-      () async {
-        final project = await writeLoginProject();
-        refresh(project);
-        sqlite3.open('${project.path}/$indexFilePath')
-          ..execute('ALTER TABLE docs DROP COLUMN banned_matches')
-          ..execute('UPDATE meta SET layout = 4')
-          ..close();
-        final (:result, store: _) = refresh(project);
-        expect(result.fullBuild, isTrue);
-        final after = sqlite3.open('${project.path}/$indexFilePath');
-        addTearDown(after.close);
-        expect(
-          after.select('SELECT layout FROM meta').single['layout'],
-          indexLayoutVersion,
-        );
-        expect(after.select('SELECT banned_matches FROM docs'), hasLength(25));
-      },
-    );
-    test('domain:index_query INV-2: an index at layout 5, its banned-pattern '
+    test('an index at layout 4, with no banned-pattern '
+        'matches, is rebuilt to the current layout with them', () async {
+      final project = await writeLoginProject();
+      refresh(project);
+      sqlite3.open('${project.path}/$indexFilePath')
+        ..execute('ALTER TABLE docs DROP COLUMN banned_matches')
+        ..execute('UPDATE meta SET layout = 4')
+        ..close();
+      final (:result, store: _) = refresh(project);
+      expect(result.fullBuild, isTrue);
+      final after = sqlite3.open('${project.path}/$indexFilePath');
+      addTearDown(after.close);
+      expect(
+        after.select('SELECT layout FROM meta').single['layout'],
+        indexLayoutVersion,
+      );
+      expect(after.select('SELECT banned_matches FROM docs'), hasLength(25));
+    });
+    test('an index at layout 5, its banned-pattern '
         'matches from the old backtick pairing, is rebuilt to the current layout with '
         'them recomputed', () async {
       final project = await writeLoginProject();
@@ -533,7 +540,7 @@ void main() {
         );
       },
     );
-    test('domain:index_query INV-2: an index at layout 12, with no item facts, '
+    test('an index at layout 12, with no item facts, '
         'is rebuilt in full to the current layout with them', () async {
       final project = await writeLoginProject();
       refresh(project);
@@ -719,7 +726,7 @@ void main() {
         ['the system shall follow domainlogin'],
       );
     });
-    test('LP2: a typed doc holding a link and a blockquote nested 5,000 deep '
+    test('a typed doc holding a link and a blockquote nested 5,000 deep '
         'indexes, its link no cite candidate', () async {
       const frPath =
           'prds/features/f01_login/us01_email_login/'
@@ -742,18 +749,15 @@ void main() {
       );
       expect(store.loadContent(frPath).lineFacts.citeCandidates, isEmpty);
     });
-    test(
-      'f04/nfr-p03, s03/inv2: an index at the current layout is not rebuilt',
-      () async {
-        final project = await writeLoginProject();
-        refresh(project);
-        backdate(project);
-        refresh(project);
-        final (:result, store: _) = refresh(project);
-        expect(result.fullBuild, isFalse);
-      },
-    );
-    test('f01/us01/fr05/e01, s03/inv23: a call that waited for the lock finds the stamp current and does not rebuild', () async {
+    test('an index at the current layout is not rebuilt', () async {
+      final project = await writeLoginProject();
+      refresh(project);
+      backdate(project);
+      refresh(project);
+      final (:result, store: _) = refresh(project);
+      expect(result.fullBuild, isFalse);
+    });
+    test('a call that waited for the lock finds the stamp current and does not rebuild', () async {
       final project = await writeLoginProject();
       refresh(project);
       File('${project.path}/.specstone/templates/feature.yaml')
@@ -777,7 +781,7 @@ void main() {
       });
       expect(await peer, isFalse);
     });
-    test('f01/us01/fr05/e01, s03/inv1: a call that waited for the lock reads again each file the index no longer vouches for', () async {
+    test('a call that waited for the lock reads again each file the index no longer vouches for', () async {
       final project = await writeLoginProject();
       backdate(project);
       refresh(project);
@@ -799,7 +803,7 @@ void main() {
       expect(await peer, isFalse);
       expect(paths(holder), hasLength(26));
     });
-    test('f01/us01/fr05/e01, f01/us01/fr02/e06, s03/inv1: a call that waited for the lock stores the start of its listing, so a file inside the window then is hashed again next call', () async {
+    test('a call that waited for the lock stores the start of its listing, so a file inside the window then is hashed again next call', () async {
       final project = await writeLoginProject();
       backdate(project);
       refresh(project);
@@ -829,7 +833,7 @@ void main() {
       expect(await peer, isFalse);
       expect(refresh(project).result.hashed, 1);
     });
-    test('f01/us01/fr02/e14, s03/inv2: a target renamed or removed rebuilds '
+    test('a target renamed or removed rebuilds '
         'the whole index; a code_root change alone does not', () async {
       const recordLayer = '.specstone/templates/implementation.yaml';
       const recordDocType =
@@ -909,26 +913,29 @@ void main() {
         reason: 'a code_root change alone rebuilds nothing (INV-2)',
       );
     });
-    test('f01/us01/fr02/e02, s03/inv2: an edit under .specstone/templates/ rebuilds the whole index', () async {
-      final project = await writeLoginProject(
-        extra: {
-          featureKey: '${loginProject[featureKey]}\n## Open Notes\nLater.\n',
-        },
-      );
-      String lastKey(IndexStore s) =>
-          s.loadContent(featureDoc).sections.last.key;
-      expect(lastKey(refresh(project).store), 'open_notes');
-      File('${project.path}/.specstone/templates/feature.yaml')
-        ..createSync(recursive: true)
-        ..writeAsStringSync(
-          'sections:\n  - id: open_notes\n    header: Open Notes\n'
-          '    after: out_of_scope\n',
+    test(
+      'an edit under .specstone/templates/ rebuilds the whole index',
+      () async {
+        final project = await writeLoginProject(
+          extra: {
+            featureKey: '${loginProject[featureKey]}\n## Open Notes\nLater.\n',
+          },
         );
-      final (:result, :store) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      expect(lastKey(store), 'open_notes');
-    });
-    test('f01/us01/fr02/e02, s03/inv2: an index built by another binary version is rebuilt', () async {
+        String lastKey(IndexStore s) =>
+            s.loadContent(featureDoc).sections.last.key;
+        expect(lastKey(refresh(project).store), 'open_notes');
+        File('${project.path}/.specstone/templates/feature.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            'sections:\n  - id: open_notes\n    header: Open Notes\n'
+            '    after: out_of_scope\n',
+          );
+        final (:result, :store) = refresh(project);
+        expect(result.fullBuild, isTrue);
+        expect(lastKey(store), 'open_notes');
+      },
+    );
+    test('an index built by another binary version is rebuilt', () async {
       final project = await writeLoginProject();
       final first = refresh(project).store;
       first.write(
@@ -940,11 +947,11 @@ void main() {
       expect(result.fullBuild, isTrue);
       expect(paths(store), hasLength(25));
     });
-    test('f01/us01/fr02/e04, s03/inv3: .dbml and .apidog.json files are never indexed', () async {
+    test('.dbml and .apidog.json files are never indexed', () async {
       final store = refresh(await writeLoginProject()).store;
       expect(paths(store).where((p) => !p.endsWith('.md')), isEmpty);
     });
-    test('f01/us01/fr02/e05: a renamed doc leaves its old DocPath and gains its new one in one refresh', () async {
+    test('a renamed doc leaves its old DocPath and gains its new one in one refresh', () async {
       final project = await writeLoginProject();
       refresh(project);
       File('${project.path}/docs/README.md')
@@ -955,7 +962,7 @@ void main() {
       expect(paths(store), isNot(contains('README.md')));
     });
     test(
-      'f01/us01/fr02/e08, s03/inv1: an unreadable file and an unlistable folder are left out with warnings',
+      'an unreadable file and an unlistable folder are left out with warnings',
       skip: unreadablePathSkipReason(),
       () async {
         final project = await writeLoginProject(
@@ -981,7 +988,7 @@ void main() {
         expect(paths(store), isNot(contains('README.md')));
       },
     );
-    test('f01/us01/fr02/e09, s03/inv1: dot-named files and folders are never listed', () async {
+    test('dot-named files and folders are never listed', () async {
       final store = refresh(
         await writeLoginProject(
           extra: {
@@ -997,7 +1004,7 @@ void main() {
       );
     });
     test(
-      'f01/us01/fr02/e10, s03/inv1: a symbolic link to a file or a folder is not followed',
+      'a symbolic link to a file or a folder is not followed',
       skip: Platform.isWindows ? 'links need privileges on Windows' : null,
       () async {
         final project = await writeLoginProject();
@@ -1011,7 +1018,7 @@ void main() {
         expect(paths(store), isNot(contains('linked/b.md')));
       },
     );
-    test("f01/us01/fr03/e01, f01/us01/fr03/e04, s03/inv7: a refresh stores each doc's parent doc", () async {
+    test("a refresh stores each doc's parent doc", () async {
       final store = refresh(await writeLoginProject()).store;
       expect(
         docAt(
@@ -1026,7 +1033,7 @@ void main() {
       );
       expect(docAt(store, 'prds/PROJECT.md').parentPath, isNull);
     });
-    test("f01/us01/fr03/e01, s03/inv7: a refresh that reindexes one doc keeps that doc's parent doc", () async {
+    test("a refresh that reindexes one doc keeps that doc's parent doc", () async {
       const requirement =
           'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
       final project = await writeLoginProject();
@@ -1040,7 +1047,7 @@ void main() {
         'prds/features/f01_login/us01_email_login/USER_STORY.md',
       );
     });
-    test('f01/us01/fr03/e10: a second feature named login leaves the story with no parent and a stored warning', () async {
+    test('a second feature named login leaves the story with no parent and a stored warning', () async {
       const story = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
       final store = refresh(
         await writeLoginProject(
@@ -1054,13 +1061,16 @@ void main() {
           'prds/features/f03_login/FEATURE.md; it has no parent doc';
       expect(docAt(store, story).warnings, [warning]);
     });
-    test('f01/us01/fr03/e11: a spec folder numbered f02_login takes the feature login as parent', () async {
-      final store = refresh(
-        await writeLoginProject(
-          extra: {'docs/specs/f02_login/API.md': '# Login API v2\n'},
-        ),
-      ).store;
-      expect(docAt(store, 'specs/f02_login/API.md').parentPath, featureDoc);
-    });
+    test(
+      'a spec folder numbered f02_login takes the feature login as parent',
+      () async {
+        final store = refresh(
+          await writeLoginProject(
+            extra: {'docs/specs/f02_login/API.md': '# Login API v2\n'},
+          ),
+        ).store;
+        expect(docAt(store, 'specs/f02_login/API.md').parentPath, featureDoc);
+      },
+    );
   });
 }

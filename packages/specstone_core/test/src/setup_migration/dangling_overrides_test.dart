@@ -102,7 +102,7 @@ MigrateFault _refusal(_Case fixture) {
 }
 
 void main() {
-  test('f06/us02/fr03, f06/us02/s8: an override naming a section the new '
+  test('an override naming a section the new '
       'version lacks and no step renames refuses', () async {
     final fault = _refusal(
       await _case({'runbook': 'sections: [{id: checklist, required: true}]'}),

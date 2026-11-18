@@ -20,7 +20,7 @@ String _seen(Directory root, String address) =>
     '$address@${(getDoc(root, address)['bases']! as Map)['doc']}';
 
 void main() {
-  test('f02/us03/s7, f02/us03/fr01/e04: approve without a terminal exits 77 and shows nothing', () async {
+  test('approve without a terminal exits 77 and shows nothing', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['approve']), 77);
     expect(out.toString(), isEmpty);
@@ -52,29 +52,26 @@ void main() {
     expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
   });
-  test(
-    'ms-r10: at a terminal, two names walk the drafts under either',
-    () async {
-      final root = await writeWriteProject();
-      final console = FakeConsole(
-        stdinIsTerminal: true,
-        stdoutIsTerminal: true,
-        answers: List.filled(12, 'n'),
-      );
-      final (:runner, :out, :err) = writeRunner(root, console: console);
-      expect(
-        await runner.run([
-          'approve',
-          'feature:signup',
-          'user_story:login/email_login',
-        ]),
-        0,
-      );
-      expect(err.toString(), isEmpty);
-      expect('approve? [y/n/q] '.allMatches(out.toString()), hasLength(4));
-    },
-  );
-  test('ms-r10: --yes approves each <type>:<name>@<hash> draft with no terminal and no prompt, one line each', () async {
+  test('at a terminal, two names walk the drafts under either', () async {
+    final root = await writeWriteProject();
+    final console = FakeConsole(
+      stdinIsTerminal: true,
+      stdoutIsTerminal: true,
+      answers: List.filled(12, 'n'),
+    );
+    final (:runner, :out, :err) = writeRunner(root, console: console);
+    expect(
+      await runner.run([
+        'approve',
+        'feature:signup',
+        'user_story:login/email_login',
+      ]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect('approve? [y/n/q] '.allMatches(out.toString()), hasLength(4));
+  });
+  test('--yes approves each <type>:<name>@<hash> draft with no terminal and no prompt, one line each', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(root);
     expect(
@@ -96,7 +93,7 @@ void main() {
     expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
   });
-  test('ms-r10: --yes with no name is a usage error, exit 64', () async {
+  test('--yes with no name is a usage error, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(
       await writeWriteProject(),
       console: FakeConsole(stdinIsTerminal: true, stdoutIsTerminal: true),
@@ -108,7 +105,7 @@ void main() {
       startsWith('--yes needs the names of the drafts it approves.\n'),
     );
   });
-  test('ms-r10: --yes on a name without @<hash> is a usage error, exit 64, and approves nothing', () async {
+  test('--yes on a name without @<hash> is a usage error, exit 64, and approves nothing', () async {
     final root = await writeWriteProject();
     final before = File('${root.path}/docs/$signupFeature').readAsStringSync();
     final (:runner, :out, :err) = writeRunner(root);
@@ -132,7 +129,7 @@ void main() {
     );
     expect(File('${root.path}/docs/$signupFeature').readAsStringSync(), before);
   });
-  test('ms-r10: a @<hash> without --yes is a usage error, exit 64', () async {
+  test('a @<hash> without --yes is a usage error, exit 64', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -168,24 +165,34 @@ void main() {
       archBefore,
     );
   });
-  test('ms-r10: --yes on a doc that is no draft exits 65 naming it, and approves nothing', () async {
-    final root = await writeWriteProject();
-    final before = File('${root.path}/docs/$signupFeature').readAsStringSync();
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'approve',
-        _seen(root, 'feature:signup'),
-        _seen(root, 'feature:login'),
-        '--yes',
-      ]),
-      65,
-    );
-    expect(out.toString(), isEmpty);
-    expect(err.toString(), 'feature:login is no draft waiting for approval\n');
-    expect(File('${root.path}/docs/$signupFeature').readAsStringSync(), before);
-  });
-  test('ms-r10: --yes on a name no doc carries is doc_not_found, exit 64, and approves nothing', () async {
+  test(
+    '--yes on a doc that is no draft exits 65 naming it, and approves nothing',
+    () async {
+      final root = await writeWriteProject();
+      final before = File('${root.path}/docs/$signupFeature')
+          .readAsStringSync();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'approve',
+          _seen(root, 'feature:signup'),
+          _seen(root, 'feature:login'),
+          '--yes',
+        ]),
+        65,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'feature:login is no draft waiting for approval\n',
+      );
+      expect(
+        File('${root.path}/docs/$signupFeature').readAsStringSync(),
+        before,
+      );
+    },
+  );
+  test('--yes on a name no doc carries is doc_not_found, exit 64, and approves nothing', () async {
     final root = await writeWriteProject();
     final before = File('${root.path}/docs/$signupFeature').readAsStringSync();
     final (:runner, :out, :err) = writeRunner(root);
@@ -202,7 +209,7 @@ void main() {
     expect(err.toString(), isNotEmpty);
     expect(File('${root.path}/docs/$signupFeature').readAsStringSync(), before);
   });
-  test('ms-r10: the help names --yes and what it does', () async {
+  test('the help names --yes and what it does', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['approve', '--help']), 0);
     expect(
@@ -296,7 +303,7 @@ void main() {
       64,
     );
   });
-  group('E09', () {
+  group('a usage error', () {
     for (final (args, message) in [
       (['--json'], '--json goes only with --dry-run.'),
       (
@@ -325,7 +332,7 @@ void main() {
       );
     }
   });
-  group('E10', () {
+  group('--dry-run --json', () {
     test('--dry-run --json prints one object holding each draft and the count, the drafts and hashes its view prints', () async {
       final root = await writeWriteProject();
       var (:runner, :out, :err) = writeRunner(root);
@@ -438,31 +445,31 @@ void main() {
       );
     }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
   });
-  test('ms-r10: a @<hash> without --yes on a non-terminal is a usage error, exit 64', () async {
-    final root = await writeWriteProject();
-    final (:runner, :out, :err) = writeRunner(root);
-    final named = _seen(root, 'feature:signup');
-    expect(await runner.run(['approve', named]), 64);
-    expect(out.toString(), isEmpty);
-    expect(
-      err.toString(),
-      startsWith('$named: a @<hash> goes only with --yes.\n'),
-    );
-  });
   test(
-    'R70: a doc path holding @ names the doc, so --dry-run reads it',
+    'a @<hash> without --yes on a non-terminal is a usage error, exit 64',
     () async {
-      final root = await writeWriteProject(
-        extra: {'docs/prds/a@b.md': '---\ndraft: true\n---\n\n# A\n'},
-      );
+      final root = await writeWriteProject();
       final (:runner, :out, :err) = writeRunner(root);
-      expect(await runner.run(['approve', 'prds/a@b.md', '--dry-run']), 0);
-      expect(err.toString(), isEmpty);
-      expect(out.toString(), 'no draft waits for approval\n');
+      final named = _seen(root, 'feature:signup');
+      expect(await runner.run(['approve', named]), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        startsWith('$named: a @<hash> goes only with --yes.\n'),
+      );
     },
   );
+  test('a doc path holding @ names the doc, so --dry-run reads it', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/prds/a@b.md': '---\ndraft: true\n---\n\n# A\n'},
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['approve', 'prds/a@b.md', '--dry-run']), 0);
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), 'no draft waits for approval\n');
+  });
   test(
-    'R70: --yes on a doc path holding @ names the doc and asks for the hash',
+    '--yes on a doc path holding @ names the doc and asks for the hash',
     () async {
       const name = 'prds/a@0123456789ab.md';
       final root = await writeWriteProject(
@@ -550,7 +557,7 @@ void main() {
     expect(await runner.run(['approve', '--dry-run']), 0);
     expect(out.toString(), isNot(contains('\x1b[')));
   });
-  test('E17: --dry-run on a layout-only draft shows no change', () async {
+  test('--dry-run on a layout-only draft shows no change', () async {
     const compact =
         '| Component | Responsibility |\n|---|---|\n| Signup form | Collects the email |\n';
     const padded =
@@ -574,7 +581,7 @@ void main() {
     expect(out.toString(), contains('| changes | none |'));
     expect(out.toString(), contains('no change since the approved copy'));
   });
-  test('E23: --dry-run lists the sentence dropped and the one new, and not the one moved', () async {
+  test('--dry-run lists the sentence dropped and the one new, and not the one moved', () async {
     String story(String mark, String useCase) =>
         '---\nstatus: planned\n$mark---\n\n# Sign out\n\n## Use Case\n\n'
         '$useCase\n\n## Acceptance Criteria\n\n- **Given** a signed-in user\n';

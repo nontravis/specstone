@@ -277,7 +277,7 @@ void main() {
     );
   });
 
-  test('E08: a code span whose text before its first colon is no slug is no '
+  test('a code span whose text before its first colon is no slug is no '
       'doc address, so an in: code '
       'entry reports it', () async {
     final findings = await _findings(
@@ -300,28 +300,32 @@ void main() {
     );
   });
 
-  test('f04/us01/fr08, f04/nfr-p03, s03/inv2: an edited pattern applies on the next check over the same index', () async {
-    String layer(String pattern) => _banned('''
+  test(
+    'an edited pattern applies on the next check over the same index',
+    () async {
+      String layer(String pattern) => _banned('''
       - id: word
         pattern: '$pattern'
         message: no word
 ''');
-    final project = await writeCheckProject(
-      extra: {
-        _frLayer: layer('fast'),
-        ...fr(checkPasswordStatement, 'The system shall refuse fast, slow.'),
-      },
-    );
-    Future<List<Object?>> matched() async => [
-      for (final f in (await checkOf(project)).findings)
-        if (f.kind == FindingKind.patternBanned) f.toJson()['match'],
-    ];
-    expect(await matched(), ['fast']);
-    File('${project.path}/$_frLayer').writeAsStringSync(layer('slow'));
-    expect(await matched(), ['slow']);
-  });
+      final project = await writeCheckProject(
+        extra: {
+          _frLayer: layer('fast'),
+          ...fr(checkPasswordStatement, 'The system shall refuse fast, slow.'),
+        },
+      );
+      Future<List<Object?>> matched() async => [
+        for (final f in (await checkOf(project)).findings)
+          if (f.kind == FindingKind.patternBanned) f.toJson()['match'],
+      ];
+      expect(await matched(), ['fast']);
+      File('${project.path}/$_frLayer').writeAsStringSync(layer('slow'));
+      expect(await matched(), ['slow']);
+    },
+  );
 
-  test('f04/us01/fr08, f04/nfr-p03: a doc edited after a check reports its new match and drops the removed one', () async {
+  test('a doc edited after a check reports its new match and drops the removed '
+      'one', () async {
     final layer = _banned('''
       - id: word
         pattern: '(fast|slow)'
