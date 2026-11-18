@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show isThematicBreak;
+import 'package:specstone_core/src/doc_model/models/block_scan.dart';
+import 'package:specstone_core/src/doc_model/models/fence_scan.dart';
 import 'package:yaml/yaml.dart';
 
 /// One frontmatter key kept as its original text, comments included.
@@ -334,13 +336,7 @@ List<bool> fencedLines(List<String> lines) => blockScan(lines).fenced;
 
 /// Reads [lines] (each without its line end) the way [Doc.parse] does,
 /// starting outside any fence.
-///
-/// Per line, `fenced` is whether it is fenced code content or a fence
-/// delimiter, and `continuesParagraph` whether it is the next line of the
-/// paragraph above it (GFM). `openFence` is the delimiter line of a fence
-/// still open after the last line, or null when every fence closed.
-({List<bool> fenced, List<bool> continuesParagraph, String? openFence})
-blockScan(List<String> lines) {
+BlockScan blockScan(List<String> lines) {
   final tracker = _BlockTracker();
   final fenced = List.filled(lines.length, false);
   final continues = List.filled(lines.length, false);
@@ -348,7 +344,7 @@ blockScan(List<String> lines) {
     fenced[i] = tracker.consume(lines[i]);
     continues[i] = tracker.continuesParagraph;
   }
-  return (
+  return BlockScan(
     fenced: fenced,
     continuesParagraph: continues,
     openFence: tracker.openingLine,
@@ -360,19 +356,7 @@ const mermaidInfoWord = 'mermaid';
 
 /// Reads [lines] as [blockScan] does and reports, per line, the fence it
 /// opens or closes.
-///
-/// `opens` holds the info word of the fence a line opens (empty without one),
-/// null on any other line; `closes` is whether a line is a closing delimiter.
-/// A fence a container ends has no closing line. `contents` holds, per line,
-/// the text of a fence's content line past its containers' marks (tabs
-/// expanded), and an empty string on any other line.
-({
-  List<bool> fenced,
-  List<String?> opens,
-  List<bool> closes,
-  List<String> contents,
-})
-fenceScan(List<String> lines) {
+FenceScan fenceScan(List<String> lines) {
   final tracker = _BlockTracker();
   final fenced = List.filled(lines.length, false);
   final opens = List<String?>.filled(lines.length, null);
@@ -384,7 +368,12 @@ fenceScan(List<String> lines) {
     closes[i] = tracker.closedFence;
     contents[i] = tracker.fenceContent;
   }
-  return (fenced: fenced, opens: opens, closes: closes, contents: contents);
+  return FenceScan(
+    fenced: fenced,
+    opens: opens,
+    closes: closes,
+    contents: contents,
+  );
 }
 
 const _tab = 0x09;
