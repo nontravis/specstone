@@ -6,7 +6,6 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 
 const _file = 'USER_STORY.md';
-const _name = 'consistency_check/find_broken_pointers/report_number_labels';
 
 /// The body line of the login feature that the tests replace.
 const _line = 'Users forget passwords.';
@@ -48,7 +47,7 @@ void main() {
     expect(finding.toJson(), containsPair('label', run));
   });
 
-  test('$_name: a folder path followed by an item ID or scenario segment '
+  test('a folder path followed by an item ID or scenario segment '
       'gives one finding for the path', () async {
     final cell = path(path('f03', 'us02'), 'fr04');
     final findings = await labelsInFeature('Cite ${path(cell, 'e09')} here.');
@@ -57,7 +56,7 @@ void main() {
     expect(findings.single.keys, {'label': cell});
   });
 
-  test('$_name: a folder path followed by a numbered folder gives one '
+  test('a folder path followed by a numbered folder gives one '
       'finding for the path', () async {
     final cell = path('us03', 'fr04');
     final findings = await labelsInFeature('Cite ${path(cell, 'nf02')} here.');
@@ -161,24 +160,21 @@ void main() {
     },
   );
 
-  test('$_name: a placeholder label gives none', () async {
+  test('a placeholder label gives none', () async {
     final findings = await labelsInFeature(
       'Cite F-<nn> US-<nn> FR-<nn> or f<nn>/us<nn>/fr<nn>.',
     );
     expect(findings, isEmpty);
   });
 
-  test(
-    '$_name: a label in a link destination gives none, the link text one',
-    () async {
-      final findings = await labelsInFeature(
-        '[${us(1)} ${fr(2)}](../${path('us01', 'fr02')}.md)',
-      );
-      expect(findings.map((f) => f.keys['label']), ['${us(1)} ${fr(2)}']);
-    },
-  );
+  test('a label in a link destination gives none, the link text one', () async {
+    final findings = await labelsInFeature(
+      '[${us(1)} ${fr(2)}](../${path('us01', 'fr02')}.md)',
+    );
+    expect(findings.map((f) => f.keys['label']), ['${us(1)} ${fr(2)}']);
+  });
 
-  test('$_name: a doc-scope run reports the same finding', () async {
+  test('a doc-scope run reports the same finding', () async {
     final project = await writeCheckProject(
       extra: doc(loginFeature, _line, 'Cite ${f(1)}.'),
     );

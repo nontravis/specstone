@@ -37,7 +37,7 @@ List<DocItem> _itemsOf(List<BodyLine> body) => [
 ];
 
 void main() {
-  group('doc_model/doc_items sectionItemsOf', () {
+  group('sectionItemsOf', () {
     test('a list item '
         'counts without its nested items and a nested item alone', () {
       final items = _items(

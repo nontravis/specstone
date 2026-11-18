@@ -621,7 +621,7 @@ void main() {
     });
   });
 
-  group('index_query/view_docs_tree/print_docs_tree, status per code target', () {
+  group('status per code target', () {
     const featureText =
         '---\nstatus: implemented\n---\n\n# Toast\n\n## Problem\nBurnt '
         'toast.\n';
@@ -851,7 +851,7 @@ void main() {
       );
     });
 
-    test('api:index_query: a parentless doc of another target is left out with '
+    test('a parentless doc of another target is left out with '
         '--target', () async {
       final session = openSession(
         await writeTree({

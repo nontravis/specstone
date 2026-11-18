@@ -154,7 +154,7 @@ void main() {
       ({'prd-core': '1.8.0'}, true),
       (<String, String>{'acme': '9.0.0'}, false),
     ]) {
-      test('domain:document_writing Approval: pins $pins -> $expected', () {
+      test('Approval: pins $pins -> $expected', () {
         expect(
           stampsHaveRun({for (final e in pins.entries) e.key: v(e.value)}),
           expected,
@@ -171,12 +171,9 @@ void main() {
     String hash(String text) =>
         approvalHashOf(text, _docType, statusesOutside: true);
 
-    test(
-      'domain:document_writing ApprovalHash: 12 lowercase hex characters',
-      () {
-        expect(hash(body), matches(RegExp(r'^[0-9a-f]{12}$')));
-      },
-    );
+    test('ApprovalHash: 12 lowercase hex characters', () {
+      expect(hash(body), matches(RegExp(r'^[0-9a-f]{12}$')));
+    });
 
     test('padded cells give the same hash', () {
       final padded = body.replaceFirst(

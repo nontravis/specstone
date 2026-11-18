@@ -130,35 +130,29 @@ void main() {
     expect(result.out, isEmpty);
   });
 
-  test(
-    'api:agent_plugin: a design document under docs/designs gets no check',
-    () async {
-      final root = await writeCheckProject(
-        extra: {
-          'docs/designs/2026-11-11-x-design.md': '# X\n\nSee $_brokenLink.\n',
-        },
-      );
-      final result = await postEdit(
-        root,
-        abs(root, 'designs/2026-11-11-x-design.md'),
-      );
-      expect(result.status, 0);
-      expect(result.out, isEmpty);
-    },
-  );
+  test('a design document under docs/designs gets no check', () async {
+    final root = await writeCheckProject(
+      extra: {
+        'docs/designs/2026-11-11-x-design.md': '# X\n\nSee $_brokenLink.\n',
+      },
+    );
+    final result = await postEdit(
+      root,
+      abs(root, 'designs/2026-11-11-x-design.md'),
+    );
+    expect(result.status, 0);
+    expect(result.out, isEmpty);
+  });
 
-  test(
-    'api:agent_plugin: a design document under a nested docs/superpowers/specs '
-    'folder gets no check',
-    () async {
-      final root = await writeCheckProject(
-        extra: {'docs/superpowers/specs/x.md': '# X\n\nSee $_brokenLink.\n'},
-      );
-      final result = await postEdit(root, abs(root, 'superpowers/specs/x.md'));
-      expect(result.status, 0);
-      expect(result.out, isEmpty);
-    },
-  );
+  test('a design document under a nested docs/superpowers/specs '
+      'folder gets no check', () async {
+    final root = await writeCheckProject(
+      extra: {'docs/superpowers/specs/x.md': '# X\n\nSee $_brokenLink.\n'},
+    );
+    final result = await postEdit(root, abs(root, 'superpowers/specs/x.md'));
+    expect(result.status, 0);
+    expect(result.out, isEmpty);
+  });
 
   test('a code file prints nothing', () async {
     final root = await writeCheckProject();

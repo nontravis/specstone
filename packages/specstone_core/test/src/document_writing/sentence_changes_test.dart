@@ -1,8 +1,6 @@
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:test/test.dart';
 
-const _name = 'document_writing/approve_drafts/show_changes_since_approval';
-
 String _doc(String body) => '---\nverify_method: test\n---\n\n# T\n\n$body';
 
 /// Returns the changes of [draft] against [approved], the way a run reads
@@ -199,7 +197,7 @@ void main() {
     });
   });
 
-  group('$_name run lookup', () {
+  group('run lookup', () {
     test('a tree set that also holds the sentences of other drafts drops the '
         'same sentences as one for this draft alone', () {
       final approved = _doc('## Statement\nKept. Gone.\n');

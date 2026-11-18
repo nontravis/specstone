@@ -10,9 +10,6 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
 
-const _story = 'document_writing/edit_one_section_or_field';
-const _wb = '$_story/write_a_batch';
-
 typedef _Run = ({int code, String out, String err});
 
 void main() {
@@ -205,37 +202,34 @@ void main() {
     ]);
   });
 
-  test(
-    '$_wb: --json prints one object holding blocks in file order and an empty warnings array',
-    () async {
-      final root = await writeWriteProject();
-      var text = await getText(root, [story2, fr11, loginArch]);
-      text = edit(text, 'Sign out.', 'Sign out everywhere.');
-      text = edit(
-        text,
-        'Collects the email and the password',
-        'Collects the email',
-      );
-      final file = await batchFile(text);
+  test('--json prints one object holding blocks in file order and an empty warnings array', () async {
+    final root = await writeWriteProject();
+    var text = await getText(root, [story2, fr11, loginArch]);
+    text = edit(text, 'Sign out.', 'Sign out everywhere.');
+    text = edit(
+      text,
+      'Collects the email and the password',
+      'Collects the email',
+    );
+    final file = await batchFile(text);
 
-      final result = await specstone(root, ['set', '--batch', file, '--json']);
+    final result = await specstone(root, ['set', '--batch', file, '--json']);
 
-      expect(result.code, 0, reason: result.err);
-      expect(result.err, isEmpty);
-      final printed = decode(result.out);
-      expect(printed.keys, unorderedEquals(['blocks', 'warnings']));
-      expect(printed['warnings'], isEmpty);
-      final blocks = (printed['blocks']! as List).cast<Map<String, Object?>>();
-      expect(blocks.map((b) => b['path']), [story2, fr11, loginArch]);
-      expect(blocks.map((b) => b['written']), [true, false, true]);
-      for (final block in blocks) {
-        expect(block.keys, containsAll(['name', 'docType', 'path', 'key']));
-        expect(block['key'], 'doc');
-        expect(block['base'], matches(RegExp(r'^[0-9a-f]{12}$')));
-        expect(block['draft'], isA<bool>());
-      }
-    },
-  );
+    expect(result.code, 0, reason: result.err);
+    expect(result.err, isEmpty);
+    final printed = decode(result.out);
+    expect(printed.keys, unorderedEquals(['blocks', 'warnings']));
+    expect(printed['warnings'], isEmpty);
+    final blocks = (printed['blocks']! as List).cast<Map<String, Object?>>();
+    expect(blocks.map((b) => b['path']), [story2, fr11, loginArch]);
+    expect(blocks.map((b) => b['written']), [true, false, true]);
+    for (final block in blocks) {
+      expect(block.keys, containsAll(['name', 'docType', 'path', 'key']));
+      expect(block['key'], 'doc');
+      expect(block['base'], matches(RegExp(r'^[0-9a-f]{12}$')));
+      expect(block['draft'], isA<bool>());
+    }
+  });
 
   group('options beside --batch', () {
     test('a doc address beside --batch refuses argument_conflict, before the file is read', () async {

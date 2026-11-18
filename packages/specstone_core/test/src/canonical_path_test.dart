@@ -7,9 +7,6 @@ import 'package:test/test.dart';
 import '../helpers/relative_link.dart';
 import '../helpers/temp_tree.dart';
 
-const _scope = 'document_writing/delete_doc_subtree/finish_interrupted_move';
-const _codeScope = 'index_query/get_task_bundle/bundle_docs_for_code_path';
-
 final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
     : null;
@@ -30,7 +27,7 @@ final _churnAnswers = <(String, String Function(String))>[
 ];
 
 void main() {
-  group('$_scope: canonicalPath follows a link to a target not made yet', () {
+  group('canonicalPath follows a link to a target not made yet', () {
     late Directory base;
 
     setUp(() async {
@@ -108,7 +105,7 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group('$_scope: canonicalPath on a . or .. after a missing name', () {
+  group('canonicalPath on a . or .. after a missing name', () {
     late Directory base;
 
     setUp(() async {
@@ -150,7 +147,7 @@ void main() {
     });
   });
 
-  group('$_scope: canonicalPath on a path that vanishes mid-resolve', () {
+  group('canonicalPath on a path that vanishes mid-resolve', () {
     const churnFor = Duration(seconds: 2);
 
     test('a file another isolate makes and deletes counts as missing, never '
@@ -207,7 +204,7 @@ void main() {
     });
   });
 
-  group('$_scope: canonicalPath when the resolve answers for a name deleted '
+  group('canonicalPath when the resolve answers for a name deleted '
       'meanwhile', () {
     late String path;
 
@@ -310,7 +307,7 @@ void main() {
     });
   });
 
-  group('$_scope: canonicalPath when a link changes while it is read', () {
+  group('canonicalPath when a link changes while it is read', () {
     late String link;
 
     setUp(() async {
@@ -388,7 +385,7 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group('$_scope: canonicalPath on a name below a link whose resolve '
+  group('canonicalPath on a name below a link whose resolve '
       'fails', () {
     test('places the name under the real target of the link', () async {
       final base = Directory(
@@ -408,7 +405,7 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group('$_scope: canonicalPath on a network share the disk cannot reach', () {
+  group('canonicalPath on a network share the disk cannot reach', () {
     const share = r'\\localhost\specstone-missing-share$';
     const path = '$share\\f.md';
     const posixHasNoShare = 'only Windows reads a path as a network share';
@@ -425,7 +422,7 @@ void main() {
     }, skip: Platform.isWindows ? null : posixHasNoShare);
   });
 
-  group('$_scope: isVolumeRoot', () {
+  group('isVolumeRoot', () {
     for (final (path, isWindows, expected) in [
       ('/', false, true),
       ('/a', false, false),
@@ -441,7 +438,7 @@ void main() {
     }
   });
 
-  group('$_scope: linkTargetPath on POSIX', () {
+  group('linkTargetPath on POSIX', () {
     test('an absolute target stays as written', () {
       expect(linkTargetPath('/p/proj/lnk', '/x/y', isWindows: false), '/x/y');
     });
@@ -463,7 +460,7 @@ void main() {
     });
   });
 
-  group('$_scope: linkTargetPath on Windows', () {
+  group('linkTargetPath on Windows', () {
     test('a target that starts with one separator is rooted at the drive of '
         'the link', () {
       expect(
@@ -516,7 +513,7 @@ void main() {
     });
   });
 
-  group('$_codeScope: pathInside reads a path under a code root', () {
+  group('pathInside reads a path under a code root', () {
     test('a windows path under the root reads /-separated from it', () {
       expect(
         pathInside(r'C:\p\ws', r'C:\p\ws\web\lib', isWindows: true),

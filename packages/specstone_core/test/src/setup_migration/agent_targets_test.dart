@@ -19,9 +19,6 @@ import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 
-const _write = 'setup_migration/set_up_new_project/write_agent_files';
-const _stale =
-    'consistency_check/find_template_breaks/report_stale_agent_blocks';
 const _agentMd = '.specstone/AGENT.md';
 const _cursor = '.cursor/rules/specstone.mdc';
 const _gitFile = 'gitdir: ../elsewhere/.git/worktrees/w\n';
@@ -87,7 +84,7 @@ void _apply(Directory base, AgentWritePlan plan) {
 
 void main() {
   group('agentFilesSince', () {
-    test('$_write: prd-core 1.7.0 and software-tech 1.4.0', () {
+    test('prd-core 1.7.0 and software-tech 1.4.0', () {
       expect(
         agentFilesSince.keys,
         unorderedEquals(['prd-core', 'software-tech']),
@@ -1035,22 +1032,19 @@ void main() {
       },
     );
 
-    test(
-      '$_write: a .cursor file is no .cursor folder; AGENTS.md is made',
-      () async {
-        final base = await _base({'proj/.cursor': 'not a folder'});
+    test('a .cursor file is no .cursor folder; AGENTS.md is made', () async {
+      final base = await _base({'proj/.cursor': 'not a folder'});
 
-        final plan = planAgentWrites(_inputs(base), full: true);
+      final plan = planAgentWrites(_inputs(base), full: true);
 
-        expect(_paths(plan), [
-          _agentMd,
-          'AGENTS.md',
-          for (final path in skillPaths())
-            if (!path.startsWith('.cursor/')) path,
-        ]);
-        expect(plan.skipped, ['.cursor is not a folder; left as it is']);
-      },
-    );
+      expect(_paths(plan), [
+        _agentMd,
+        'AGENTS.md',
+        for (final path in skillPaths())
+          if (!path.startsWith('.cursor/')) path,
+      ]);
+      expect(plan.skipped, ['.cursor is not a folder; left as it is']);
+    });
 
     test('a .cursor rules file differing in frontmatter only is '
         'rewritten whole', () async {
@@ -1829,7 +1823,7 @@ void main() {
     };
 
     for (final MapEntry(:key, :value) in fixtures.entries) {
-      test('$_stale: drifts are empty exactly when the non-full plan is '
+      test('drifts are empty exactly when the non-full plan is '
           'empty ($key)', () async {
         final base = await _base(value);
 
@@ -1840,33 +1834,30 @@ void main() {
       });
     }
 
-    test(
-      '$_stale: the same holds with unlisted, listed, and clean tops',
-      () async {
-        final shared = {
-          'proj/.specstone/AGENT.md': agentMdText,
-          'proj/AGENTS.md': _inline(),
-          'proj/other/.git/HEAD': 'ref\n',
-        };
-        final cases = <(Map<String, String>, List<String>)>[
-          ({...shared}, []),
-          ({...shared, 'proj/other/AGENTS.md': _inline()}, []),
-          ({...shared, 'proj/other/AGENTS.md': _inline()}, ['other']),
-          ({...shared, 'proj/other/AGENTS.md': 'x\n'}, ['other']),
-          ({...shared, 'proj/other/CLAUDE.md': _imports('../')}, ['other']),
-        ];
-        for (final (files, roots) in cases) {
-          final base = await _base(files);
-          final inputs = _inputs(base, code: ['proj/other/'], roots: roots);
+    test('the same holds with unlisted, listed, and clean tops', () async {
+      final shared = {
+        'proj/.specstone/AGENT.md': agentMdText,
+        'proj/AGENTS.md': _inline(),
+        'proj/other/.git/HEAD': 'ref\n',
+      };
+      final cases = <(Map<String, String>, List<String>)>[
+        ({...shared}, []),
+        ({...shared, 'proj/other/AGENTS.md': _inline()}, []),
+        ({...shared, 'proj/other/AGENTS.md': _inline()}, ['other']),
+        ({...shared, 'proj/other/AGENTS.md': 'x\n'}, ['other']),
+        ({...shared, 'proj/other/CLAUDE.md': _imports('../')}, ['other']),
+      ];
+      for (final (files, roots) in cases) {
+        final base = await _base(files);
+        final inputs = _inputs(base, code: ['proj/other/'], roots: roots);
 
-          expect(
-            agentFileDrifts(inputs).isEmpty,
-            planAgentWrites(inputs, full: false).isEmpty,
-            reason: '$files $roots',
-          );
-        }
-      },
-    );
+        expect(
+          agentFileDrifts(inputs).isEmpty,
+          planAgentWrites(inputs, full: false).isEmpty,
+          reason: '$files $roots',
+        );
+      }
+    });
   });
 
   group('planAgentWrites with the Claude Code settings file', () {

@@ -34,9 +34,6 @@ import '../../helpers/shipped_pins.dart'
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
-const _story = 'document_writing/edit_one_section_or_field';
-const _wb = '$_story/write_a_batch';
-
 const _useCase = 'user_story:login/email_login#use_case';
 const _criteria = 'user_story:login/email_login#acceptance_criteria';
 const _signOutUseCase = 'user_story:login/sign_out#use_case';
@@ -1083,25 +1080,22 @@ void main() {
     ]);
   });
 
-  test(
-    '$_wb: a section block with empty text removes an optional section and prints the base of an absent section',
-    () async {
-      final withRules = writeProject['docs/$story1']!.replaceFirst(
-        '## Acceptance Criteria',
-        '## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria',
-      );
-      final root = await writeWriteProject(extra: {'docs/$story1': withRules});
-      const rules = 'user_story:login/email_login#rules';
-      final line = getText(root, [rules]).split('\n').first;
+  test('a section block with empty text removes an optional section and prints the base of an absent section', () async {
+    final withRules = writeProject['docs/$story1']!.replaceFirst(
+      '## Acceptance Criteria',
+      '## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria',
+    );
+    final root = await writeWriteProject(extra: {'docs/$story1': withRules});
+    const rules = 'user_story:login/email_login#rules';
+    final line = getText(root, [rules]).split('\n').first;
 
-      final answer = runBatch(root, '$line\n');
+    final answer = runBatch(root, '$line\n');
 
-      expect(readDoc(root, story1), isNot(contains('## Rules')));
-      expect(answer.json['blocks'], [containsPair('base', emptyBaseHash)]);
-    },
-  );
+    expect(readDoc(root, story1), isNot(contains('## Rules')));
+    expect(answer.json['blocks'], [containsPair('base', emptyBaseHash)]);
+  });
 
-  test('$_wb: a lead block writes the lead and prints its new base', () async {
+  test('a lead block writes the lead and prints its new base', () async {
     final root = await writeWriteProject();
     const lead = 'user_story:login/reset_password#_lead';
     final line = getText(root, [lead]).split('\n').first;
@@ -1116,32 +1110,29 @@ void main() {
     expect(answer.json['blocks'], [containsPair('written', true)]);
   });
 
-  test(
-    '$_wb: two section blocks of one doc, the first adding a template section the doc lacks and the second rewriting a section after it, land in one write of that doc, each checked against the doc on disk',
-    () async {
-      final root = await writeWriteProject();
-      const rules = 'user_story:login/email_login#rules';
-      final text =
-          '==> $_story1Line · $story1#rules · base $emptyBaseHash <==\n'
-          '## Rules\n- BR-01 One account per email.\n\n'
-          '${edit(getText(root, [_criteria]), 'a registered email', 'a registered email and a password')}';
+  test('two section blocks of one doc, the first adding a template section the doc lacks and the second rewriting a section after it, land in one write of that doc, each checked against the doc on disk', () async {
+    final root = await writeWriteProject();
+    const rules = 'user_story:login/email_login#rules';
+    final text =
+        '==> $_story1Line · $story1#rules · base $emptyBaseHash <==\n'
+        '## Rules\n- BR-01 One account per email.\n\n'
+        '${edit(getText(root, [_criteria]), 'a registered email', 'a registered email and a password')}';
 
-      final answer = runBatch(root, text);
+    final answer = runBatch(root, text);
 
-      final doc = readDoc(root, story1);
-      expect(
-        doc,
-        contains(
-          '## Use Case\n\nSign in with an email.\n\n## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
-        ),
-      );
-      expect(doc, contains('a registered email and a password'));
-      expect(answer.text.trimRight().split('\n'), [
-        '==> $_story1Line · $story1#rules · base ${partBase(root, rules)} <==',
-        '==> $_story1Line · $story1#acceptance_criteria · base ${partBase(root, _criteria)} <==',
-      ]);
-    },
-  );
+    final doc = readDoc(root, story1);
+    expect(
+      doc,
+      contains(
+        '## Use Case\n\nSign in with an email.\n\n## Rules\n\n- BR-01 One account per email.\n\n## Acceptance Criteria\n',
+      ),
+    );
+    expect(doc, contains('a registered email and a password'));
+    expect(answer.text.trimRight().split('\n'), [
+      '==> $_story1Line · $story1#rules · base ${partBase(root, rules)} <==',
+      '==> $_story1Line · $story1#acceptance_criteria · base ${partBase(root, _criteria)} <==',
+    ]);
+  });
 
   test('a whole-doc block that changes only an output_ref field leaves an approved doc approved with its approval hash intact', () async {
     final root = await writeWriteProject();
@@ -1398,7 +1389,7 @@ void main() {
   );
 
   test(
-    '$_wb: a batch file with no block refuses at the file level and writes nothing',
+    'a batch file with no block refuses at the file level and writes nothing',
     () async {
       final root = await writeWriteProject();
 
@@ -1411,24 +1402,21 @@ void main() {
     },
   );
 
-  test(
-    '$_wb: a block text holding a naming-line shape at column 0 outside a fence refuses with nothing written; a fenced or indented one is text',
-    () async {
-      final root = await writeWriteProject();
-      const shaped = '==> other (feature) · prds/f.md#problem · base zz <==';
-      final text = getText(root, [_useCase]);
-      final refused = refuse(root, '${text.trimRight()}\n\n$shaped\n');
-      expect(onlyEntry(refused).code, 'argument_invalid');
-      expect(onlyEntry(refused).message, contains('naming line'));
+  test('a block text holding a naming-line shape at column 0 outside a fence refuses with nothing written; a fenced or indented one is text', () async {
+    final root = await writeWriteProject();
+    const shaped = '==> other (feature) · prds/f.md#problem · base zz <==';
+    final text = getText(root, [_useCase]);
+    final refused = refuse(root, '${text.trimRight()}\n\n$shaped\n');
+    expect(onlyEntry(refused).code, 'argument_invalid');
+    expect(onlyEntry(refused).message, contains('naming line'));
 
-      final answer = runBatch(
-        root,
-        '${text.trimRight()}\n\n```text\n$shaped\n```\n\n    $shaped\n',
-      );
-      expect(answer.json['blocks'], [containsPair('written', true)]);
-      expect(readDoc(root, story1), contains('\n    $shaped\n'));
-    },
-  );
+    final answer = runBatch(
+      root,
+      '${text.trimRight()}\n\n```text\n$shaped\n```\n\n    $shaped\n',
+    );
+    expect(answer.json['blocks'], [containsPair('written', true)]);
+    expect(readDoc(root, story1), contains('\n    $shaped\n'));
+  });
 
   test('an unedited block for a template section the doc lacks, optional or required, is unchanged, and an approved doc stays approved', () async {
     final root = await writeWriteProject();

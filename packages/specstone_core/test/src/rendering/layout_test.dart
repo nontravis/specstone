@@ -2,8 +2,6 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/layout.dart';
 import 'package:test/test.dart';
 
-const _slug = 'rendering/format_docs/normalize_layout_whitespace';
-
 void main() {
   final laidOut = <({String input, bool underHeading, Set<String> kinds})>[];
 
@@ -15,7 +13,7 @@ void main() {
     Set<String> blockKinds = const {},
   }) {
     laidOut.add((input: input, underHeading: underHeading, kinds: blockKinds));
-    test('$_slug $name', () {
+    test(name, () {
       expect(
         layOutText(input, underHeading: underHeading, blockKinds: blockKinds),
         expected,

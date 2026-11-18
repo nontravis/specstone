@@ -726,7 +726,7 @@ void main() {
     );
   });
 
-  group('consistency_check/find_template_breaks/check_target, code targets', () {
+  group('code targets', () {
     const flutter = CodeTarget('flutter', codeRoot: 'flutter_ws');
     const jaspr = CodeTarget('jaspr', codeRoot: 'jaspr_ws');
     const flutterArch = flutterArchitecture;

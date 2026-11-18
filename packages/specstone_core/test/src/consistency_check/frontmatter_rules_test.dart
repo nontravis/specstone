@@ -114,7 +114,7 @@ void main() {
     expect(report.findings.single.toJson().containsKey('field'), isFalse);
   });
 
-  group('consistency_check/find_template_breaks/check_frontmatter_fields, records', () {
+  group('records', () {
     const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
     /// The record doc with [recordFrontmatter]; the shipped pack types it.

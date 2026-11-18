@@ -215,7 +215,7 @@ void main() {
     );
   });
 
-  test('api:index_query operations: --under with --target stays in that '
+  test('--under with --target stays in that '
       'target, an unknown name is argument_invalid', () async {
     const feature = 'prds/features/f01_toast/FEATURE.md';
     const flutterArch = 'specs/flutter/f01_toast/ARCHITECTURE.md';

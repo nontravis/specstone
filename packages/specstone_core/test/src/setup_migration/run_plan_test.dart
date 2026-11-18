@@ -203,8 +203,7 @@ void main() {
     expect(commits.last.moves, isEmpty);
   });
 
-  group('setup_migration/migrate_legacy_docs/commit_and_resume, '
-      'agent files', () {
+  group('agent files', () {
     test('one step per agent file follows every other write and create, '
         'a new file created and an existing file written', () {
       final steps = _planWithAgents().journalSteps(

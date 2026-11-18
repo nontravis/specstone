@@ -1273,7 +1273,6 @@ sections:
   });
 }
 
-const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
 
 /// A `CLAUDE.md` whose block imports the `.specstone/AGENT.md` it lacks.
@@ -2954,7 +2953,7 @@ void _moveToRecordTests() {
       ]);
     });
 
-    group('$_fr, the shipped software-tech pack', () {
+    group('the shipped software-tech pack', () {
       Future<Directory> shippedProject({
         Map<String, String> extra = const {},
       }) => writeTree({
