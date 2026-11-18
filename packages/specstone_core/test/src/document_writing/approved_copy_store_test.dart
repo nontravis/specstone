@@ -13,6 +13,7 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
+import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -63,7 +64,9 @@ void main() {
         withApprovalHash(body, null, statusesOutside: true);
 
     test('a saved copy is found by the mark it carries', () async {
-      final store = ApprovedCopyStore(await writeTree({'a.txt': 'a'}));
+      final store = ApprovedCopyStore(
+        await writeTree({'.specstone/config.yaml': ''}),
+      );
       final text = approvedText('# T\n\nBody.\n');
 
       store.save(text);
@@ -72,7 +75,7 @@ void main() {
     });
 
     test('a copy edited after it was saved, or saved under another mark, is not found', () async {
-      final root = await writeTree({'a.txt': 'a'});
+      final root = await writeTree({'.specstone/config.yaml': ''});
       final store = ApprovedCopyStore(root);
       final text = approvedText('# T\n\nBody.\n');
       final mark = _markIn(text);
@@ -86,7 +89,7 @@ void main() {
     });
 
     test('a value that is no hash finds nothing and reads no path', () async {
-      final root = await writeTree({'a.txt': 'a'});
+      final root = await writeTree({'.specstone/config.yaml': ''});
       File('${root.path}/outside.md')
           .writeAsStringSync(approvedText('# T\n\nBody.\n'));
 
@@ -136,8 +139,39 @@ void main() {
       },
     );
 
+    test('the first save adds approved/ to an existing .specstone/.gitignore and keeps its lines', () async {
+      final root = await writeTree({
+        '.specstone/.gitignore': 'index.sqlite*\nbuild/\nmine/\n',
+      });
+
+      ApprovedCopyStore(root).save(approvedText('# T\n\nBody.\n'));
+
+      expect(
+        File('${root.path}/.specstone/.gitignore').readAsStringSync(),
+        'index.sqlite*\nbuild/\nmine/\ntrash/\nbundles/\nreports/\napproved/\n',
+      );
+      expect(Directory('${root.path}/$_storeFolder').listSync(), hasLength(1));
+    });
+
+    test(
+      'a .gitignore that cannot take the approved/ line skips the save',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final root = await writeTree({
+          '.specstone/.gitignore': 'index.sqlite*\n',
+        });
+        final ignore = File('${root.path}/.specstone/.gitignore');
+        Process.runSync('chmod', ['444', ignore.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', ignore.path]));
+
+        ApprovedCopyStore(root).save(approvedText('# T\n\nBody.\n'));
+
+        expect(Directory('${root.path}/$_storeFolder').existsSync(), isFalse);
+      },
+    );
+
     test('prune of a project with no store folder makes none', () async {
-      final root = await writeTree({'a.txt': 'a'});
+      final root = await writeTree({'.specstone/config.yaml': ''});
 
       ApprovedCopyStore(root).prune(const {});
 
@@ -258,6 +292,29 @@ void main() {
       step().apply(target);
 
       expect(readDoc(root, persona), 'changed\n');
+      expect(Directory('${root.path}/$_storeFolder').existsSync(), isFalse);
+    });
+
+    test(
+      'saves the copy on a replay when the stopped run had written the file',
+      () {
+        docFile(root, persona).writeAsStringSync(stamped);
+        writeJournal(root, [step()]);
+
+        MoveJournal.replay(target);
+
+        expect(_copyFile(root, _markIn(stamped)).readAsStringSync(), stamped);
+      },
+    );
+
+    test('saves no copy for a file that is gone', () {
+      WriteStep(
+        'docs/prds/missing.md',
+        stamped,
+        before: before,
+        keepsApprovedCopy: true,
+      ).apply(target);
+
       expect(Directory('${root.path}/$_storeFolder').existsSync(), isFalse);
     });
 
@@ -432,6 +489,61 @@ void main() {
 
         expect(_copyFile(root, firstMark).existsSync(), isFalse);
         expect(_copyFile(root, _markOf(root, persona)).existsSync(), isTrue);
+      },
+    );
+
+    test('a doc another session made and approved while the walk waited keeps its copy', () async {
+      final root = await writeWriteProject();
+      const other = 'prds/personas/shopper/PERSONA.md';
+      var asked = false;
+      String? answer() {
+        if (!asked) {
+          asked = true;
+          docFile(root, other)
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              '---\ndraft: true\n---\n\n# Shopper\n\n## Profile\nShops.\n',
+            );
+          _walkApproving(root, 'persona:shopper');
+        }
+        return 'y';
+      }
+
+      writeIn(
+        root,
+        (s) => approveDrafts(
+          s,
+          names: ['persona:buyer'],
+          readLine: answer,
+          out: StringBuffer(),
+        ),
+      );
+
+      expect(_copyFile(root, _markOf(root, other)).existsSync(), isTrue);
+      expect(_copyFile(root, _markOf(root, persona)).existsSync(), isTrue);
+    });
+
+    test(
+      'a doc whose frontmatter is not valid YAML leaves every copy in place',
+      () async {
+        final root = await writeWriteProject();
+        _walkApproving(root, 'persona:buyer');
+        final mark = _markOf(root, persona);
+        final file = docFile(root, persona);
+        file.writeAsStringSync(
+          file.readAsStringSync().replaceFirst(
+            'approved: "$mark"\n',
+            'approved: "$mark"\nbroken: [unclosed\n',
+          ),
+        );
+
+        _walkApproving(root, 'feature:signup');
+
+        expect(_copyFile(root, mark).existsSync(), isTrue);
+        expect(
+          _copyFile(root, _markOf(root, signupFeature)).existsSync(),
+          isTrue,
+        );
       },
     );
 

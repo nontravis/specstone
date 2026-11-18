@@ -414,7 +414,7 @@ final class WriteStep extends JournalStep {
   final String? before;
 
   /// Whether [text] is an approved doc whose copy the step saves in an
-  /// [ApprovedCopyStore] once it has written the file.
+  /// [ApprovedCopyStore] once it has written the file or finds it written.
   final bool keepsApprovedCopy;
 
   /// Returns this step with [keepsApprovedCopy] set; an unguarded step, as an
@@ -454,8 +454,12 @@ final class WriteStep extends JournalStep {
   @override
   void apply(JournalTarget target) {
     try {
-      if (isDone(target)) return;
       final file = File(_absolute(target, path));
+      if (isDone(target)) {
+        // A stopped run wrote the file but may not have saved its copy.
+        if (keepsApprovedCopy && file.existsSync()) _keepApprovedCopy(target);
+        return;
+      }
       if (before case final expected?
           when textHashOf(_textOf(file)) != expected) {
         target.warn('$path changed since the stopped run; left as it is');
@@ -467,15 +471,16 @@ final class WriteStep extends JournalStep {
         return;
       }
       writeFileAtomic(file, utf8.encode(text));
-      if (keepsApprovedCopy) {
-        ApprovedCopyStore(target.projectRoot).save(toLf(_withoutBom(text)));
-      }
+      if (keepsApprovedCopy) _keepApprovedCopy(target);
     } on FileSystemException catch (error) {
       throw _notWritable('write', path, error);
     } on FormatException catch (error) {
       throw _notWritable('write', path, error);
     }
   }
+
+  void _keepApprovedCopy(JournalTarget target) =>
+      ApprovedCopyStore(target.projectRoot).save(toLf(_withoutBom(text)));
 
   static String _textOf(File file) => _withoutBom(file.readAsStringSync());
 

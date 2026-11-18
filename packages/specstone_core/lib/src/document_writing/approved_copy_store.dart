@@ -6,7 +6,10 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/index_query/index_store.dart'
+    show ensureSpecstoneGitignore;
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _folderBelowRoot = '.specstone/approved';
@@ -25,16 +28,21 @@ final class ApprovedCopyStore {
   /// Saves [lfApproved], a doc written with its `approved:` mark, under that
   /// mark.
   ///
-  /// A text whose mark is not an ApprovalHash saves nothing. A copy that
-  /// cannot be saved is skipped, so the view reads git history instead.
+  /// A text whose mark is not an ApprovalHash saves nothing. The `approved/`
+  /// line of `.specstone/.gitignore` is ensured before the write, so a copy is
+  /// never left unignored. A copy that cannot be saved is skipped, so the view
+  /// reads git history instead.
   void save(String lfApproved) {
     final hash = _markOf(lfApproved);
     if (hash == null) return;
     try {
+      ensureSpecstoneGitignore(_folder.parent);
       _folder.createSync(recursive: true);
       writeFileAtomic(_fileOf(hash), utf8.encode(lfApproved));
     } on FileSystemException {
       // The approval is already written; the copy only speeds the view up.
+    } on RenderFault {
+      // A `.gitignore` that leads outside the project is never written.
     }
   }
 

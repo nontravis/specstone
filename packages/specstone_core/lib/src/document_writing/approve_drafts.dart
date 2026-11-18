@@ -14,8 +14,9 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/doc_tree.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart' show Target;
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _prompt = 'approve? [y/n/q] ';
@@ -350,8 +351,9 @@ final class _RunReads {
     : _tree = _unionOf(_treeSentences.values),
       _runCopies = sentenceSetOf(_approved.values);
 
-  /// Reads the approved copy of each of [drafts] through [history], then the
-  /// text of every doc the index lists, typed or not, as on disk.
+  /// Reads the approved copy of each of [drafts], from the saved copy its
+  /// `approved:` mark names, else through [history] from git, then the text of
+  /// every doc the index lists, typed or not, as on disk.
   ///
   /// Throws `RenderFault` `output_not_writable` for a doc that cannot be read.
   factory read(
@@ -400,7 +402,8 @@ final class _RunReads {
   /// The sentences of the approved copy of each draft the run shows.
   final Set<String> _runCopies;
 
-  /// Returns what git said about the approved copy of [doc].
+  /// Returns where the approved copy of [doc] was found, the saved copy or
+  /// git's history, or that none was.
   ApprovalLookup lookupOf(IndexedDoc doc) => _lookups[doc.docPath]!;
 
   /// Returns the sentences [doc] dropped and added, [text] being its draft as
@@ -542,20 +545,41 @@ void _pruneApprovedCopies(WriteSession session) {
 /// Deletes each saved approved copy whose hash no doc on disk carries as its
 /// `approved:` value; runs under the lock.
 ///
-/// A doc that cannot be read leaves every copy in place.
+/// The docs are listed and read as they are on disk now, not as the session's
+/// snapshot held them, so a doc another session made or approved meanwhile
+/// keeps its copy. A folder or doc that cannot be read, and a doc whose
+/// frontmatter is not valid YAML, leave every copy in place.
 void _pruneApprovedCopiesLocked(WriteSession session) {
+  final project = session.project;
   final carried = <String>{};
-  try {
-    for (final doc in session.index.docs) {
-      final mark = ApprovalFields.of(
-        Doc.parse(_textOnDisk(session, doc.docPath)),
-      ).approvedValue;
-      if (mark is String) carried.add(mark);
+  for (final root in [
+    if (project.docsRoot.existsSync()) Target(project.docsRoot, ''),
+    ?project.recordsTarget,
+  ]) {
+    for (final entry in collectDocEntries(root, project.matcher)) {
+      switch (entry) {
+        case UnreadableFolder():
+          return;
+        case DocFile(:final file, :final docPath) when docPath.endsWith('.md'):
+          final String text;
+          try {
+            text = toLf(
+              utf8.decode(file.readAsBytesSync(), allowMalformed: true),
+            );
+          } on FileSystemException {
+            return;
+          }
+          final isReadable =
+              comparedApprovalHash(text, null, statusesOutside: true) != null;
+          if (!isReadable) return;
+          final mark = ApprovalFields.of(Doc.parse(text)).approvedValue;
+          if (mark is String) carried.add(mark);
+        case DocFile():
+          break;
+      }
     }
-  } on RenderFault {
-    return;
   }
-  ApprovedCopyStore(session.project.projectRoot).prune(carried);
+  ApprovedCopyStore(project.projectRoot).prune(carried);
 }
 
 bool _sameBytes(List<int> a, List<int> b) {
