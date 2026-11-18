@@ -14,12 +14,10 @@ const _recentUse = Duration(hours: 1);
 /// let go, by last use, then trims `bundles/` to its size cap.
 ///
 /// Last use is the later of a file's modification and access time. The size
-/// step skips a file in [keep], one last used within the past hour, and one
-/// dated after [now]. Folders and links stay, and no link is followed; a
-/// folder that is a link, or lies below one, is left alone. A file or folder
-/// that cannot be listed, read, or deleted is skipped silently.
-///
-/// [keep] holds canonical paths.
+/// step skips a file in [keep] and one last used within the past hour; a file
+/// dated after [now] sorts newest. Folders and links stay, and a folder that
+/// is or lies below a link is left alone. What cannot be listed, read, or
+/// deleted is skipped silently. [keep] holds canonical paths.
 void pruneSpecstoneFolder(
   Directory projectRoot, {
   required Set<String> keep,
@@ -132,9 +130,13 @@ final class _FolderPrune {
     ]..sort(_byLastUseThenPath);
     for (final file in order) {
       if (total <= maxBytes) return;
+      if (_isOwn(file.file)) continue;
       if (_deleted(file.file)) total -= file.size;
     }
   }
+
+  // Resolved only for a file about to be deleted: one stat per entry otherwise.
+  bool _isOwn(File file) => keep.contains(canonicalPath(file.path));
 
   void _visit(File file) {
     final FileStat stat;
@@ -148,16 +150,16 @@ final class _FolderPrune {
     final lastUse = stat.modified.isAfter(stat.accessed)
         ? stat.modified
         : stat.accessed;
-    final isOwn = keep.contains(canonicalPath(file.path));
-    final isExpired = now.difference(lastUse) > maxAge;
-    if (isExpired && !isOwn && _deleted(file)) return;
+    final age = now.difference(lastUse);
+    final isExpired = age > maxAge;
+    if (isExpired && !_isOwn(file) && _deleted(file)) return;
     _left.add(
       _LeftFile(
         file: file,
         lastUse: lastUse,
         size: stat.size,
-        isTrimmable:
-            !isOwn && !isExpired && now.difference(lastUse) > _recentUse,
+        // A file dated after now is not recent: it sorts newest.
+        isTrimmable: !isExpired && (age > _recentUse || age.isNegative),
       ),
     );
   }
@@ -191,7 +193,7 @@ final class _LeftFile {
   final DateTime lastUse;
   final int size;
 
-  /// Whether the size step may delete it: not a run's own file, not one the age
-  /// step could not delete, and not used within the past hour.
+  /// Whether the size step may try it: not one the age step kept as the run's
+  /// own or could not delete, and not used within the past hour.
   final bool isTrimmable;
 }

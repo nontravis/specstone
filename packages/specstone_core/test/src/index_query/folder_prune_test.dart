@@ -70,13 +70,16 @@ void main() {
       ? CleanupBounds.defaults.bundlesMaxAge
       : CleanupBounds.defaults.reportsMaxAge;
 
-  void link(String path, String target) {
+  /// Makes a link and returns true; false, with the test skipped, when Windows
+  /// refuses it for want of a privilege.
+  bool link(String path, String target) {
     try {
       Link(path).createSync(target);
+      return true;
     } on FileSystemException {
       if (Platform.isWindows) {
         markTestSkipped('creating a link needs a privilege on Windows');
-        return;
+        return false;
       }
       rethrow;
     }
@@ -203,8 +206,10 @@ void main() {
           ..writeAsStringSync('keep me too')
           ..setLastModifiedSync(now.subtract(age + _day))
           ..setLastAccessedSync(now.subtract(age + _day));
-        link('${folder(name).path}/file_link', outside.path);
-        link('${folder(name).path}/folder_link', outsideFolder.path);
+        if (!link('${folder(name).path}/file_link', outside.path)) return;
+        if (!link('${folder(name).path}/folder_link', outsideFolder.path)) {
+          return;
+        }
 
         prune();
 
@@ -221,7 +226,7 @@ void main() {
           ..setLastModifiedSync(now.subtract(age + _day))
           ..setLastAccessedSync(now.subtract(age + _day));
         Directory('${root.path}/.specstone').deleteSync(recursive: true);
-        link('${root.path}/.specstone', elsewhere.path);
+        if (!link('${root.path}/.specstone', elsewhere.path)) return;
 
         prune();
 
@@ -235,7 +240,7 @@ void main() {
           ..setLastModifiedSync(now.subtract(age + _day))
           ..setLastAccessedSync(now.subtract(age + _day));
         folder(name).deleteSync();
-        link(folder(name).path, elsewhere.path);
+        if (!link(folder(name).path, elsewhere.path)) return;
 
         prune();
 
@@ -307,6 +312,30 @@ void main() {
         () => pruneListed(listing([_Vanishing(vanishing), other])),
         returnsNormally,
       );
+
+      expect(other.existsSync(), isFalse);
+    });
+
+    test('a file the age step cannot delete keeps its size in the total', () {
+      final stuck = put('bundles', 'a.txt', modified: _day * 9, bytes: 400000);
+      final other = put('bundles', 'b.txt', modified: _hour * 3, bytes: 300000);
+
+      pruneListed(listing([_Stuck(stuck), other]), maxBytes: 500000);
+
+      expect(stuck.existsSync(), isTrue);
+      expect(other.existsSync(), isFalse);
+    });
+
+    test('a file another process deleted keeps its size in the total', () {
+      final vanishing = put(
+        'bundles',
+        'a.txt',
+        modified: _day * 9,
+        bytes: 400000,
+      );
+      final other = put('bundles', 'b.txt', modified: _hour * 3, bytes: 300000);
+
+      pruneListed(listing([_Vanishing(vanishing), other]), maxBytes: 500000);
 
       expect(other.existsSync(), isFalse);
     });
@@ -482,15 +511,48 @@ void main() {
       },
     );
 
-    test('bundles keep a file whose times lie after now', () {
+    test('bundles trim a file whose times lie after now last', () {
       final future = put('bundles', 'a.txt', modified: -_day, bytes: 400000);
       final older = put('bundles', 'b.txt', modified: _hour * 3, bytes: 400000);
 
-      prune(bounds: boundsOf(bundlesMaxBytes: 100));
+      prune(bounds: boundsOf(bundlesMaxBytes: 500000));
 
-      expect(future.existsSync(), isTrue);
       expect(older.existsSync(), isFalse);
+      expect(future.existsSync(), isTrue);
     });
+
+    test(
+      'bundles trim a file whose times lie after now when the cap needs',
+      () {
+        final future = put('bundles', 'a.txt', modified: -_day, bytes: 400000);
+        final older = put(
+          'bundles',
+          'b.txt',
+          modified: _hour * 3,
+          bytes: 400000,
+        );
+
+        prune(bounds: boundsOf(bundlesMaxBytes: 100));
+
+        expect(older.existsSync(), isFalse);
+        expect(future.existsSync(), isFalse);
+      },
+    );
+
+    test('bundles skip a file that is no regular file', () {
+      final fifo = File('${folder('bundles').path}/pipe');
+      Process.runSync('mkfifo', [fifo.path]);
+      Process.runSync('touch', ['-t', '200001010000', fifo.path]);
+      final big = put('bundles', 'a.txt', modified: _hour * 3, bytes: 400000);
+
+      expect(
+        () => prune(bounds: boundsOf(bundlesMaxBytes: 100)),
+        returnsNormally,
+      );
+
+      expect(FileSystemEntity.typeSync(fifo.path), FileSystemEntityType.pipe);
+      expect(big.existsSync(), isFalse);
+    }, skip: Platform.isWindows ? 'a named pipe is a POSIX file' : null);
 
     test('bundles keep a file at one hour old away from the size step', () {
       final edge = put('bundles', 'a.txt', modified: _hour, bytes: 400000);
@@ -538,7 +600,7 @@ void main() {
     test('bundles never count a link toward the total', () {
       final target = File('${root.path}/big.bin')
         ..writeAsBytesSync(List.filled(2 * _megabyte, 0));
-      link('${folder('bundles').path}/big_link', target.path);
+      if (!link('${folder('bundles').path}/big_link', target.path)) return;
       final real = put('bundles', 'a.txt', modified: _hour * 5, bytes: 400000);
 
       prune(bounds: boundsOf(bundlesMaxBytes: 500000));
@@ -752,6 +814,15 @@ final class _Vanishing extends ForwardingFile {
     super.deleteSync(recursive: recursive);
     super.deleteSync(recursive: recursive);
   }
+}
+
+/// A file no delete removes, as one a handle holds open on Windows.
+final class _Stuck extends ForwardingFile {
+  new(super.inner);
+
+  @override
+  void deleteSync({bool recursive = false}) =>
+      throw FileSystemException('delete refused', path);
 }
 
 /// A file whose stat fails, as one deleted while it is read does.

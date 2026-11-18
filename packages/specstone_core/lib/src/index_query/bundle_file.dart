@@ -139,7 +139,7 @@ int _nameStartOf(String path) {
 // MARK: - Write
 
 /// Writes [bundle]'s text to [file], and its refs text to the refs file beside
-/// it when the answer is split, then prunes old bundle files.
+/// it when the answer is split, then prunes old bundle and report files.
 ///
 /// An `implement` refs file opens with the index lines of its docs and parts,
 /// each range counting those lines; the reply's refs header and `--json` count
