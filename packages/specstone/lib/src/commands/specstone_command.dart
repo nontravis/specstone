@@ -211,7 +211,7 @@ abstract class SpecstoneCommand extends Command<int> {
     required Directory? projectRoot,
     required Directory? docsRoot,
     required bool asJson,
-    CleanupBounds? cleanup,
+    required CleanupBounds? cleanup,
     List<String> flags = const [],
     List<String> args = const [],
     String? codeTarget,

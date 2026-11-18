@@ -13,6 +13,8 @@ import 'helpers/baseline_tree.dart';
 import 'helpers/best_of.dart';
 import 'helpers/built_cli.dart';
 
+/// The files a busy project's `.specstone/bundles/` held when measured.
+const _savedBundleCount = 1221;
 const _approveDocCount = 2000;
 const _approveDraftCount = 20;
 const _sentencesPerDoc = 55;
@@ -169,6 +171,28 @@ void main() {
     print(
       'diagnostic: in-process context call ${watch.elapsedMilliseconds} ms',
     );
+  });
+
+  test('specstone context --out, over a bundles folder of $_savedBundleCount '
+      'small files, answers within 500 ms in the fastest of five calls', () {
+    const call = [
+      'context',
+      'feature_1/story_1',
+      '--for',
+      'implement',
+      '--out',
+    ];
+    final bundles = Directory('${project.path}/.specstone/bundles')
+      ..createSync(recursive: true);
+    addTearDown(() => bundles.deleteSync(recursive: true));
+    for (var n = 0; n < _savedBundleCount; n++) {
+      File('${bundles.path}/saved_$n.txt').writeAsStringSync('saved\n');
+    }
+    timed(call); // warm-up: the index is current after it
+    final best = bestOf(timingRuns, () => timed(call), label: 'prune calls');
+    expect(best, lessThanOrEqualTo(const Duration(milliseconds: 500)));
+    // ignore: avoid_print, the gate reports the figure so a slow run shows by how much.
+    print('diagnostic: context --out over $_savedBundleCount files $best');
   });
 
   test('specstone context for a story, ending with the stale-project '

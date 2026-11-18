@@ -155,7 +155,7 @@ ReadAnswer answerOutFile({
   Directory? docsRoot,
   required bool isBare,
   required bool asJson,
-  CleanupBounds? cleanup,
+  required CleanupBounds? cleanup,
   List<String> warnings = const [],
   int exitStatus = 0,
 }) {

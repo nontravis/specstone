@@ -2048,7 +2048,8 @@ void main() {
       final outside = await writeTree({'.keep': ''});
       final old = File('${outside.path}/old.txt')
         ..writeAsStringSync('old\n')
-        ..setLastModifiedSync(twoDaysAgo);
+        ..setLastModifiedSync(twoDaysAgo)
+        ..setLastAccessedSync(twoDaysAgo);
       Link('${project.path}/.specstone/bundles').createSync(outside.path);
       final (status, _) = await run(project, [
         'context',
@@ -2196,6 +2197,37 @@ void main() {
         );
         expect((await run(looser, ['get', story, '--out'])).$1, 0);
         expect(looseBundle.existsSync(), isTrue);
+        expect(looseReport.existsSync(), isTrue);
+      },
+    );
+
+    test(
+      'a cleanup map in the config moves the report bound of guide --out',
+      () async {
+        final tighter = await writeReadProject(
+          extra: {
+            '.specstone/config.yaml': cleanupConfig(
+              '  reports_max_age_days: 1\n',
+            ),
+          },
+        );
+        final tightReport = aged(tighter, '.specstone/reports/old.txt');
+        expect((await run(tighter, ['guide', 'feature', '--out'])).$1, 0);
+        expect(tightReport.existsSync(), isFalse);
+
+        final looser = await writeReadProject(
+          extra: {
+            '.specstone/config.yaml': cleanupConfig(
+              '  reports_max_age_days: 30\n',
+            ),
+          },
+        );
+        final looseReport = aged(
+          looser,
+          '.specstone/reports/old.txt',
+          age: const Duration(days: 8),
+        );
+        expect((await run(looser, ['guide', 'feature', '--out'])).$1, 0);
         expect(looseReport.existsSync(), isTrue);
       },
     );
