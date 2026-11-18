@@ -14,10 +14,10 @@ const _recentUse = Duration(hours: 1);
 /// let go, by last use, then trims `bundles/` to its size cap.
 ///
 /// Last use is the later of a file's modification and access time. The size
-/// step skips a file in [keep] and one last used within the past hour; a file
-/// dated after [now] sorts newest. Folders and links stay, and a folder that
-/// is or lies below a link is left alone. What cannot be listed, read, or
-/// deleted is skipped silently. [keep] holds canonical paths.
+/// step skips a file in [keep] and one last used within an hour of [now]; a
+/// file dated further after [now] sorts newest. Folders and links stay, and a
+/// folder that is or lies below a link is left alone. What cannot be listed,
+/// read, or deleted is skipped silently. [keep] holds canonical paths.
 void pruneSpecstoneFolder(
   Directory projectRoot, {
   required Set<String> keep,
@@ -158,8 +158,9 @@ final class _FolderPrune {
         file: file,
         lastUse: lastUse,
         size: stat.size,
-        // A file dated after now is not recent: it sorts newest.
-        isTrimmable: !isExpired && (age > _recentUse || age.isNegative),
+        // The grace hour holds on both sides of now: a parallel run may write
+        // after this run took now.
+        isTrimmable: !isExpired && age.abs() > _recentUse,
       ),
     );
   }

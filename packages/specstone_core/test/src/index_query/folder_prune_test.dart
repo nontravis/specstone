@@ -539,6 +539,21 @@ void main() {
       },
     );
 
+    test('bundles keep a file dated seconds after now, the cap unmet', () {
+      final parallel = put(
+        'bundles',
+        'a.txt',
+        modified: const Duration(seconds: -5),
+        bytes: 400000,
+      );
+      final older = put('bundles', 'b.txt', modified: _hour * 3, bytes: 400000);
+
+      prune(bounds: boundsOf(bundlesMaxBytes: 100));
+
+      expect(older.existsSync(), isFalse);
+      expect(parallel.existsSync(), isTrue);
+    });
+
     test('bundles skip a file that is no regular file', () {
       final fifo = File('${folder('bundles').path}/pipe');
       Process.runSync('mkfifo', [fifo.path]);
