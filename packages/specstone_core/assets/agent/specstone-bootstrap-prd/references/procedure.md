@@ -24,7 +24,7 @@ whole section.
 | Finding | Fix |
 |---|---|
 | `required_section_missing` on the features doc | step 6 |
-| `required_field_missing` on a feature's `summary` | one sentence on what it does for its persona, per `specstone guide feature`; `set --field summary` |
+| `required_field_missing` on a feature's `summary` | one sentence from the doc's own text on what it does for its persona, per `specstone guide feature`; `set --field summary` |
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
 | `singular_doc_missing`; `section_undeclared` on PROJECT's goals or glossary section | `goal-move.md`; `glossary-move.md` for `prds/GLOSSARY.md` and the glossary |
 | `section_undeclared` holding several items the guide wants one per file | step 4 |
@@ -74,9 +74,9 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 ## 6. Fill the skeletons, then ask for approval
 
 `specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (the project, features, and
-gnfr docs): read each with `specstone get` and fill it with the Owner. Set a goal or glossary doc's title to its guide's
-with `--title` when it differs. In the features doc, `set` an empty `## Features` header on the hash of empty text, run
-`specstone format` on it, and title it `# Feature map` the same way.
+gnfr docs): read each with `specstone get` and fill it with the Owner. Set a goal, glossary, or features doc's title to
+its guide's with `--title` when it differs. In the features doc, `set` an empty `## Features` header on the base `get` prints
+for it, run `specstone format` on it.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding. Name
