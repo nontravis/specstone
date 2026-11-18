@@ -9,6 +9,7 @@ import 'package:specstone_core/src/consistency_check/trace_rules.dart'
     show isVerifiedByTest, shownTargetName;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/models/record_test_line.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
@@ -99,7 +100,7 @@ Finding _missingRow(
 Map<String, Set<String>> _testPathsOf(IndexedDoc record, MergedField? field) {
   final paths = <String, Set<String>>{};
   if (field == null) return paths;
-  for (final (:item, :path) in recordTestLinesOf(record, field)) {
+  for (final RecordTestLine(:item, :path) in recordTestLinesOf(record, field)) {
     paths.putIfAbsent(item, () => {}).add(path);
   }
   return paths;
