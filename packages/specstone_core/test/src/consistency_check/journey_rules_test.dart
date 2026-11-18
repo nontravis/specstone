@@ -7,16 +7,17 @@ import '../../helpers/check_fixture.dart';
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
 const _story = 'login/email_login';
 
-// The first step heading sits on line 15, below the four lines the approval
+// The first step heading sits on line 17, below the four lines the approval
 // stamp opens a doc with; its step: line two below.
-const _firstStepLine = 15;
+const _firstStepLine = 17;
 
 // A journey with a scenario 1 step has a front matter of its own, so the stamp
 // adds one line to its five.
 const _entryLines = 2;
 
 String _journey(List<String> stepLines, {String frontmatter = ''}) =>
-    '$frontmatter# Sign in\n\n## Goal\n\nGet in.\n\n## Flow\n\n## Steps\n\n'
+    '$frontmatter# Sign in\n\n## Goal\n\nGet in.\n\n'
+    '## Flow\n\nSign in.\n\n## Steps\n\n'
     '${_withBlankUnderHeadings(stepLines)}\n';
 
 // Lays out the step lines: a blank line under each step heading.
@@ -134,19 +135,34 @@ void main() {
     expect(_of(found, FindingKind.journeyAfterUnresolved), hasLength(1));
   });
 
-  test('a second '
-      '### 3. heading is journey_step_duplicate at that heading', () async {
+  test(
+    'a second ### 3. heading is journey_step_duplicate at that heading',
+    () async {
+      final found = await _check([
+        '### 3. First',
+        'step: $_story S1',
+        '### 3. Second',
+        'step: $_story S1',
+      ]);
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.journeyStepDuplicate);
+      expect(found.single.line, _firstStepLine + _entryLines + 3);
+      expect(found.single.message, 'step number 3 is carried by a step above');
+      expect(found.single.toJson(), containsPair('number', '3'));
+    },
+  );
+
+  test('step 3x with after: 4 below it is journey_after_unresolved', () async {
     final found = await _check([
-      '### 3. First',
+      '### 3x. Branch',
       'step: $_story S1',
-      '### 3. Second',
+      'after: 4',
+      '### 4. Four',
       'step: $_story S1',
     ]);
-    expect(found, hasLength(1));
-    expect(found.single.kind, FindingKind.journeyStepDuplicate);
+    expect(found.map((f) => f.kind), [FindingKind.journeyAfterUnresolved]);
     expect(found.single.line, _firstStepLine + _entryLines + 3);
-    expect(found.single.message, 'step number 3 is carried by a step above');
-    expect(found.single.toJson(), containsPair('number', '3'));
+    expect(found.single.toJson(), containsPair('after', '4'));
   });
 
   test('an after: 3 below two step 3s gives the duplicate '
@@ -220,6 +236,21 @@ void main() {
         },
       );
       expect(_of(found, FindingKind.docRefUnresolved), isEmpty);
+    });
+
+    test('a journey of three resolved personas raises no finding', () async {
+      const names = ['buyer', 'seller', 'admin'];
+      final found = await _check(
+        steps,
+        fields: ['persona: [${names.join(', ')}]'],
+        extra: {
+          for (final name in names)
+            'docs/prds/personas/$name/PERSONA.md':
+                '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n'
+                '# $name\n',
+        },
+      );
+      expect(found, isEmpty);
     });
 
     test('40 steps raise no count finding', () async {

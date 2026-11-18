@@ -40,8 +40,7 @@ void main() {
     ]);
   });
 
-  test('the 29 NASA words on '
-      'the Statement section only, and the NASA handbook', () {
+  test('fr lints the 29 NASA words on Statement only, and the handbook', () {
     expectNasaLint(
       fr,
       sections: ['statement'],
@@ -55,6 +54,10 @@ void main() {
     expectTemplatesFreeOfListedWords(fr);
   });
 
+  test('the description states no number a lint key holds', () {
+    expect(fr.description, isNot(contains('Statement as one sentence')));
+  });
+
   test('fr marks statement summary', () {
     expect(
       [
@@ -62,6 +65,90 @@ void main() {
           if (s.summary == true) s.id,
       ],
       ['statement'],
+    );
+  });
+
+  test('the description states the item shape and that edge cases exercise'
+      ' each Statement clause', () {
+    final description = fr.description!;
+
+    expect(
+      description,
+      contains(
+        'Write the Statement with one "shall", stated positively, with a '
+        'quantified value kept in it, such as `within 2 s`.',
+      ),
+    );
+    expect(
+      description,
+      contains(
+        'Write one Edge cases item per case; a case the system does not '
+        'handle goes there too, with what happens then.',
+      ),
+    );
+    expect(description, contains('leave mechanics to the spec docs'));
+    expect(
+      description,
+      contains(
+        'Keep the trace in `traced_from` alone, never in the Statement or an '
+        'edge case.',
+      ),
+    );
+    expect(
+      description,
+      contains(
+        'Exercise each Statement clause and each Input or Output row with an '
+        'edge case, or with a scenario the FR traces.',
+      ),
+    );
+  });
+
+  test('the verification description and template show one Pass criteria'
+      ' line and name no test file', () {
+    final verification = sectionOf(fr, 'verification');
+    final template = verification.template!;
+
+    expect(
+      verification.description,
+      contains(
+        'Write a long Verification as one `- **Pass criteria:**` line with '
+        'one nested bullet per condition.',
+      ),
+    );
+    expect(verification.description, contains('Name no test file here'));
+    expect(
+      RegExp(r'\*\*Pass criteria:\*\*').allMatches(template),
+      hasLength(1),
+    );
+    expect(
+      template,
+      isNot(matches(RegExp(r'_test\.|\.test\.|\.spec\.|\btests?/'))),
+    );
+  });
+
+  test('the edge cases template shows the several-trigger shape and the'
+      ' description names it', () {
+    final edgeCases = sectionOf(fr, 'edge_cases');
+
+    expect(
+      edgeCases.template,
+      contains(
+        '2. E02 — <lead> → <response>\n'
+        '   <more response, one sentence per line, with no blank line>\n'
+        '   - <trigger>\n'
+        '   - <trigger>',
+      ),
+    );
+    expect(
+      edgeCases.description,
+      contains(
+        'For several triggers, keep the `→` in the lead and join the '
+        'response as indented lines, with no blank line.',
+      ),
+    );
+    expect(
+      edgeCases.description,
+      contains('List the triggers as nested items.'),
     );
   });
 }

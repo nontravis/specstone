@@ -260,9 +260,18 @@ bool awaitsApproval(
 bool isGuarded(ApprovalFields fields) =>
     fields.approvedValue != null || !fields.isDraft;
 
-/// What the git history says about the last approved copy of a doc.
+/// Where the last approved copy of a doc was found, or that none was.
 sealed class ApprovalLookup {
   const new();
+}
+
+/// The copy saved when the doc's current approval was written, not yet in any
+/// commit.
+final class SavedApprovedCopy extends ApprovalLookup {
+  const new(this.text);
+
+  /// The LF text of the copy as approved.
+  final String text;
 }
 
 /// The newest committed copy that counts as approved ([countsAsApprovedCopy]).

@@ -194,6 +194,22 @@ void main() {
       );
     });
 
+    test('a component with no Purpose section is required_section_missing '
+        'for it', () async {
+      final body = _body().replaceFirst(
+        '## Purpose\n\nWrites one line.\n\n',
+        '',
+      );
+      expect(body, isNot(contains('## Purpose')));
+
+      final findings = await _findings(
+        _component(body: body),
+        kind: FindingKind.requiredSectionMissing,
+      );
+
+      expect(findings, ['$_componentDoc:1: required_section_missing']);
+    });
+
     test('a feature that names no feature doc is doc_ref_unresolved', () async {
       expect(
         await _findings(

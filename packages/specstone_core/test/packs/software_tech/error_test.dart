@@ -27,4 +27,12 @@ void main() {
       SectionSpec('fallback', 'Fallback'),
     ]);
   });
+
+  test('error_catalog caps its two prose columns at one sentence each', () {
+    final caps = sectionOf(error, 'error_catalog').maxSentences!;
+    expect(
+      [for (final c in caps) (c.count, c.column)],
+      [(1, 'Triggered by'), (1, 'Client guidance')],
+    );
+  });
 }

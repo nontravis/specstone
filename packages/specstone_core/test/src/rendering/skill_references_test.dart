@@ -310,7 +310,7 @@ void main() {
   group('a skill doc whose output folder is not allowed is refused', () {
     const rows = [
       (
-        'outside the project root',
+        'a relative path that climbs above the project',
         '../shared/skills/review/',
         'the output folder is outside the project root',
       ),
@@ -325,7 +325,7 @@ void main() {
         'the output folder is outside the project root',
       ),
       (
-        'inside the docs root',
+        'a path under the docs folder',
         'docs/skills/review/',
         'the output folder is inside the docs root',
       ),

@@ -41,7 +41,7 @@ final _allowed = <_Allowed>[
     'Quote line language marker such as `> en:`, no reference.',
   ),
   _core(
-    'consistency_check/item_field_rules.dart',
+    'consistency_check/section_fields.dart',
     r"""RegExp(r'^\*\*(.+?)\:\*\*\s*(.*)$'""",
     'Matches a `- **<field>:** <text>` label, no reference.',
   ),
@@ -146,11 +146,6 @@ final _allowed = <_Allowed>[
     'setup_migration/legacy_rewrites.dart',
     r"""RegExp('^${RegExp.escape(block.key)}(?=\\s*:)'""",
     'Legacy reader: finds a frontmatter key line by name.',
-  ),
-  _core(
-    'setup_migration/legacy_rewrites.dart',
-    r"""RegExp(r'^[A-Z][A-Z0-9]*-\d+ — '""",
-    'Legacy reader: drops a pre-1.2.0 `US-01 — ` title prefix.',
   ),
   _core(
     'setup_migration/legacy_tree.dart',

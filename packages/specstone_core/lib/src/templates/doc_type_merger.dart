@@ -431,6 +431,7 @@ final class DocTypeMerger {
             maxSentences: entry.lint?.maxSentences,
             itemCount: entry.lint?.itemCount,
             maxSubsections: entry.lint?.maxSubsections,
+            maxItemLines: entry.lint?.maxItemLines,
             whenField: entry.whenField,
             isOutputRef: entry.outputRef ?? false,
           ),
@@ -497,6 +498,7 @@ final class DocTypeMerger {
         maxSentences: entry.lint?.maxSentences,
         itemCount: entry.lint?.itemCount,
         maxSubsections: entry.lint?.maxSubsections,
+        maxItemLines: entry.lint?.maxItemLines,
         whenField: entry.whenField,
         isOutputRef: entry.outputRef,
       );

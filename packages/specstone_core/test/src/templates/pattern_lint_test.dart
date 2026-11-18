@@ -36,6 +36,25 @@ lint:
     - [vision]
 ''';
 
+const _lowerWithRequired = '''
+id: feature
+description: d
+path: prds/features/f{nn}_{slug}/FEATURE.md
+sections:
+  - id: goal
+    header: Feature goal
+    lint:
+      required_patterns:
+        - id: r1
+          pattern: 'x'
+          message: lower r1
+lint:
+  banned_patterns:
+    - id: a
+      pattern: 'old'
+      message: lower a
+''';
+
 /// Resolves the fixture set with [project] written as the project feature
 /// layer, on top of [shipped] when given.
 Future<MergedSet> _resolve({String? shipped, required String project}) async {
@@ -61,6 +80,16 @@ Future<void> _expectFault(
         ),
   ),
 );
+
+/// Runs [run] and returns the fault it throws.
+Future<TemplateFault> _faultOf(Future<Object?> run) async {
+  try {
+    await run;
+  } on TemplateFault catch (fault) {
+    return fault;
+  }
+  throw StateError('the layers merged with no fault');
+}
 
 void main() {
   test('banned_patterns, required_patterns, and '
@@ -219,6 +248,122 @@ lint:
 
     expect([for (final p in patterns) p.id], ['a']);
     expect(patterns.single.pattern, 'new');
+  });
+
+  test('add of a new id and of a lower id leaves every other entry'
+      ' unchanged', () async {
+    final set = await _resolve(
+      shipped: _lowerFeature,
+      project: '''
+lint:
+  banned_patterns:
+    add:
+      - id: a
+        pattern: 'new'
+        message: upper a
+''',
+    );
+    final patterns = {
+      for (final p in set.lookup('feature')!.lint.bannedPatterns!) p.id: p,
+    };
+
+    expect(patterns.keys, unorderedEquals(['a', 'b']));
+    expect(patterns['a']!.pattern, 'new');
+    expect(patterns['b']!.pattern, 'bee');
+    expect(patterns['b']!.message, 'lower b');
+  });
+
+  test(
+    'a remove-only layer leaves every other pattern entry unchanged',
+    () async {
+      final set = await _resolve(
+        shipped: _lowerFeature,
+        project: '''
+lint:
+  banned_patterns:
+    remove: [b]
+''',
+      );
+      final patterns = set.lookup('feature')!.lint.bannedPatterns!;
+
+      expect([for (final p in patterns) p.id], ['a']);
+      expect(patterns.single.pattern, 'old');
+      expect(patterns.single.message, 'lower a');
+    },
+  );
+
+  test('a remove of an id no lower layer holds names the file and key'
+      ' and exits 78', () async {
+    final banned = await _faultOf(
+      _resolve(
+        shipped: _lowerWithRequired,
+        project: '''
+lint:
+  banned_patterns:
+    remove: [zzz]
+''',
+      ),
+    );
+    final required = await _faultOf(
+      _resolve(
+        shipped: _lowerWithRequired,
+        project: '''
+sections:
+  - id: goal
+    lint:
+      required_patterns:
+        remove: [zzz]
+''',
+      ),
+    );
+
+    expect(banned.code, FaultCode.overrideIdNotFound);
+    expect(banned.file, _projectFile);
+    expect(banned.key, 'lint.banned_patterns');
+    expect(banned.exitStatus, 78);
+    expect(required.code, FaultCode.overrideIdNotFound);
+    expect(required.file, _projectFile);
+    expect(required.key, 'sections.goal.lint.required_patterns');
+    expect(required.exitStatus, 78);
+  });
+
+  test('a plain pattern list over a lower list names the file and key'
+      ' and exits 78', () async {
+    final banned = await _faultOf(
+      _resolve(
+        shipped: _lowerWithRequired,
+        project: '''
+lint:
+  banned_patterns:
+    - id: c
+      pattern: 'c'
+      message: m
+''',
+      ),
+    );
+    final required = await _faultOf(
+      _resolve(
+        shipped: _lowerWithRequired,
+        project: '''
+sections:
+  - id: goal
+    lint:
+      required_patterns:
+        - id: c
+          pattern: 'c'
+          message: m
+''',
+      ),
+    );
+
+    expect(banned.code, FaultCode.listOverrideNeedsAddRemove);
+    expect(banned.file, _projectFile);
+    expect(banned.key, 'lint.banned_patterns');
+    expect(banned.exitStatus, 78);
+    expect(required.code, FaultCode.listOverrideNeedsAddRemove);
+    expect(required.file, _projectFile);
+    expect(required.key, 'sections.goal.lint.required_patterns');
+    expect(required.exitStatus, 78);
   });
 
   test('remove of an id no lower layer holds is '

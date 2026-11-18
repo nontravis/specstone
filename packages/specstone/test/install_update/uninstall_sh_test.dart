@@ -136,6 +136,26 @@ void main() {
       expect(r.stdout, isNot(contains('Removed the PATH entry')));
     });
 
+    test('the entry comes from the profile as written, not from the '
+        'session PATH', () async {
+      final expanded = 'export PATH="${sb.home.path}/.specstone/bin:\$PATH"';
+      profile('.zshrc', 'keep\n$entry\n');
+      profile('.bashrc', '$expanded\n');
+
+      final r = await sb.run(
+        'uninstall.sh',
+        extra: {'PATH': '${sb.stubs.path}:/usr/bin:/bin:/opt/session/only'},
+      );
+
+      expect(r.exitCode, 0);
+      expect(read('.zshrc'), 'keep\n');
+      expect(read('.bashrc'), '$expanded\n');
+      expect(
+        r.stdout,
+        isNot(contains('Removed the PATH entry from ${sb.home.path}/.bashrc')),
+      );
+    });
+
     test('every profile file the install can write is '
         'cleaned, ~/.bash_login included', () async {
       for (final name in [
@@ -445,6 +465,51 @@ exec /bin/rm "$@"''');
       expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
     });
 
+    test('HOME wins over a different USERPROFILE', () async {
+      sb.installFake();
+      final other = Directory('${sb.root.path}/profile_home')..createSync();
+      File('${other.path}/.specstone/bin/specstone')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\n');
+
+      final r = await sb.run(
+        'uninstall.sh',
+        extra: {'USERPROFILE': other.path},
+      );
+
+      expect(r.exitCode, 0);
+      expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
+      expect(
+        File('${other.path}/.specstone/bin/specstone').existsSync(),
+        isTrue,
+      );
+      expect(r.stdout, isNot(contains(other.path)));
+    });
+
+    test('a CLI that is still running is removed anyway', () async {
+      final marker = File('${sb.root.path}/cli_started');
+      final binary = File(home('.specstone/bin/specstone'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\n: > "${marker.path}"\nexec sleep 60\n');
+      Process.runSync('chmod', ['755', binary.path]);
+      final running = await Process.start(binary.path, const []);
+      addTearDown(() async {
+        running.kill();
+        await running.exitCode;
+      });
+      for (var tries = 0; !marker.existsSync() && tries < 100; tries++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect(marker.existsSync(), isTrue, reason: 'the CLI never started');
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, 0);
+      expect(r.stderr, '');
+      expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
+      expect(r.stdout, contains('Removed ${sb.home.path}/.specstone/bin\n'));
+    });
+
     test('with neither HOME nor USERPROFILE set it exits 1 '
         'and touches nothing', () async {
       final r = await sb.run(
@@ -510,6 +575,55 @@ exec /bin/rm "$@"''');
           expect(read('.zshrc'), '');
         });
       }
+
+      test('a ~ entry is dropped and the absolute entries keep their '
+          'order', () async {
+        sb.installFake();
+        profile('.zshrc', '$entry\n');
+        final first = Directory('${sb.root.path}/first')..createSync();
+        final second = Directory('${sb.root.path}/second')..createSync();
+        for (final folder in [first, second]) {
+          final name = folder.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+          File('${folder.path}/rm')
+            ..writeAsStringSync(
+              '#!/bin/sh\necho $name >> "\$STUB_LOG_DIR/rm-order.log"\n'
+              'exec /bin/rm "\$@"\n',
+            )
+            ..createSync();
+          Process.runSync('chmod', ['755', '${folder.path}/rm']);
+        }
+        for (final tilde in ['${sb.root.path}/~', home('~')]) {
+          File('$tilde/rm')
+            ..createSync(recursive: true)
+            ..writeAsStringSync('#!/bin/sh\n: > "\$STUB_LOG_DIR/tilde.ran"\n');
+          Process.runSync('chmod', ['755', '$tilde/rm']);
+        }
+
+        final r = await sb.run(
+          'uninstall.sh',
+          extra: {
+            'PATH': '~:~/.specstone:${first.path}:${second.path}:/usr/bin:/bin',
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(File('${sb.logs.path}/tilde.ran').existsSync(), isFalse);
+        final order = File('${sb.logs.path}/rm-order.log').readAsLinesSync();
+        expect(order.toSet(), {'first'});
+        expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
+      });
+
+      test('with no absolute entry left the system folders stand '
+          'in', () async {
+        sb.installFake();
+        profile('.zshrc', '$entry\n');
+
+        final r = await sb.run('uninstall.sh', extra: {'PATH': '~:.:'});
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
+        expect(read('.zshrc'), '');
+      });
 
       test(
         'a PATH of relative entries only searches no relative folder',

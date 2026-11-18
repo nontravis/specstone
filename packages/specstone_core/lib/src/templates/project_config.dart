@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/release_version.dart';
+import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -114,8 +115,9 @@ Directory? findProjectRoot(Directory start) => matchProjectRoot(start)?.root;
 
 /// The project config: the pack version each pack is pinned to, the code
 /// targets code paths are written from, the repository tops already offered
-/// agent files, the Version stamp of the run that wrote them, and whether
-/// `check` reports unproven edge cases.
+/// agent files, the Version stamp of the run that wrote them, whether `check`
+/// reports unproven edge cases, and the bounds that keep the saved bundles and
+/// reports small.
 final class ProjectConfig {
   new _({
     required this.pins,
@@ -124,6 +126,7 @@ final class ProjectConfig {
     required this.agentFileRoots,
     required this.agentFilesVersion,
     required this.verificationCoverage,
+    required this.cleanup,
   });
 
   /// Reads `.specstone/config.yaml` under the project [root].
@@ -131,16 +134,18 @@ final class ProjectConfig {
   /// Throws `unknown_value` first when `.specstone` is a link or a file, since
   /// no byte is read through it, then `unknown_key` for a key other than
   /// `packs`, `code_root`, `targets`, `agent_file_roots`,
-  /// `agent_files_version`, and `verification_coverage` or a `packs` key that
-  /// is not kebab-case,
+  /// `agent_files_version`, `verification_coverage`, and `cleanup`, a `packs`
+  /// key that is not kebab-case, or a `cleanup` key other than its three
+  /// bounds,
   /// `missing_key` when `packs` is absent, `pack_version_invalid` for a bad
   /// pin, `prd_core_missing` when `packs` pins no `prd-core`, and
   /// `unknown_value` for a `code_root` that is not a string, is empty, is
   /// absolute, or holds a backslash, for an `agent_file_roots` that is not a
   /// list of such strings, for an `agent_files_version` that is not a Version,
-  /// for a `verification_coverage` that is not a boolean, and for a `targets`
-  /// that is empty, sits beside `code_root:`, or holds two targets on one code
-  /// folder.
+  /// for a `verification_coverage` that is not a boolean, for a `cleanup` that
+  /// is not a map or holds a bound that is not a positive integer, and for a
+  /// `targets` that is empty, sits beside `code_root:`, or holds two targets
+  /// on one code folder.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
@@ -160,6 +165,7 @@ final class ProjectConfig {
         _agentFileRootsKey,
         _agentFilesVersionKey,
         verificationCoverageKey,
+        cleanupKey,
       },
       file: projectConfigPath,
       format: 'config',
@@ -204,6 +210,7 @@ final class ProjectConfig {
             file: projectConfigPath,
           ) ??
           false,
+      cleanup: CleanupBounds.fromConfig(map, file: projectConfigPath),
     );
   }
 
@@ -242,6 +249,10 @@ final class ProjectConfig {
   /// Whether `check` reports the unproven edge cases of a record's matrix;
   /// `false` when the config has no `verification_coverage`.
   final bool verificationCoverage;
+
+  /// The bounds the prune commands keep `bundles/` and `reports/` within; each
+  /// default when the config has no `cleanup`.
+  final CleanupBounds cleanup;
 
   /// The config path, relative to the project root.
   String get file => projectConfigPath;
@@ -292,6 +303,30 @@ AgentFilesStamp readAgentFilesVersion(Directory root) {
     return const AgentFilesStampUnreadable();
   } on FileSystemException {
     return const AgentFilesStampUnreadable();
+  }
+}
+
+/// Reads `cleanup` alone from the config under the project [root], for
+/// commands that load no templates.
+///
+/// Reads no other key, so a broken `packs` or an unknown key does not hide the
+/// bounds. Never throws: a config that cannot be read gives
+/// [CleanupBounds.defaults], and each bound that does not read gives its own
+/// default.
+CleanupBounds readCleanupBounds(Directory root) {
+  try {
+    requireSpecstoneFolder(root);
+    final text = decodeYamlBytes(
+      readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
+      file: projectConfigPath,
+    );
+    return CleanupBounds.fromConfigLeniently(
+      readYamlMap(text, file: projectConfigPath),
+    );
+  } on TemplateFault {
+    return CleanupBounds.defaults;
+  } on FileSystemException {
+    return CleanupBounds.defaults;
   }
 }
 

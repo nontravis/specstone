@@ -379,7 +379,223 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
+  group('a docs root counts only as a folder', () {
+    Future<Directory> projectWithDocsLink(String outsideDocs) async {
+      final base = await writeTree({
+        'proj/.specstone/config.yaml': writeProject['.specstone/config.yaml']!,
+        'proj/note.md': '# n\n',
+        'out/file.txt': 'mine\n',
+        'out/docs/a.md': '# a\n',
+      });
+      Link('${base.path}/proj/docs').createSync(outsideDocs);
+      return base;
+    }
+
+    JournalTarget targetOf(Directory project) => JournalTarget(
+      projectRoot: project,
+      docsRoot: Directory('${project.path}/docs'),
+      homeDirectory: testHome(),
+    );
+
+    test('a docs link to a folder outside the project bounds the replay of '
+        'a step path under it', () async {
+      final base = await projectWithDocsLink('../out/docs');
+      final project = Directory('${base.path}/proj');
+      writeJournal(project, [const CreateStep('docs/b.md', 'payload\n')]);
+
+      MoveJournal.replay(targetOf(project));
+
+      expect(
+        File('${base.path}/out/docs/b.md').readAsStringSync(),
+        'payload\n',
+      );
+      expect(
+        File('${project.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+      );
+    }, skip: _linksUnavailable);
+
+    test('a docs link to a file bounds no step path under it', () async {
+      final base = await projectWithDocsLink('../out/file.txt');
+      final project = Directory('${base.path}/proj');
+      writeJournal(project, [const CreateStep('docs/b.md', 'payload\n')]);
+      final before = _snapshot(base);
+
+      expect(() => MoveJournal.replay(targetOf(project)), _leaves('docs/b.md'));
+
+      expect(_snapshot(base), before);
+    }, skip: _linksUnavailable);
+  });
+
+  group('a linked file the journal machinery writes', () {
+    late Directory root;
+    late Directory outside;
+
+    setUp(() async {
+      root = await writeWriteProject();
+      outside = await writeTree({'target.txt': '0'});
+      writeIn(root, (session) => session.project);
+    });
+
+    JournalTarget target() =>
+        JournalTarget.of(openProject(root), homeDirectory: testHome());
+
+    void linkFile(String path) {
+      final file = File('${root.path}/$path');
+      file.parent.createSync(recursive: true);
+      if (file.existsSync()) {
+        File('${outside.path}/target.txt')
+            .writeAsBytesSync(file.readAsBytesSync());
+        file.deleteSync();
+      }
+      Link(file.path).createSync('${outside.path}/target.txt');
+    }
+
+    test('a linked journal file is refused with the path leading outside', () {
+      writeJournal(root, [
+        const MoveStep('docs/$story3', 'docs/$story3.moved'),
+      ]);
+      linkFile(MoveJournal.journalPath);
+      final outsideBefore = _snapshot(outside);
+
+      expect(
+        () => MoveJournal.replay(target()),
+        _leadsOutside(MoveJournal.journalPath),
+      );
+
+      expect(_snapshot(outside), outsideBefore);
+    }, skip: _linksUnavailable);
+
+    test('a linked cursor file is refused with the path leading outside', () {
+      writeJournal(root, [
+        const MoveStep('docs/$story3', 'docs/$story3.moved'),
+      ]);
+      linkFile(MoveJournal.cursorPath);
+      final outsideBefore = _snapshot(outside);
+
+      expect(
+        () => MoveJournal.replay(target()),
+        _leadsOutside(MoveJournal.cursorPath),
+      );
+
+      expect(_snapshot(outside), outsideBefore);
+    }, skip: _linksUnavailable);
+
+    test('a linked commit pathspec file is refused with the path leading '
+        'outside', () {
+      writeJournal(root, [
+        const CommitStep(
+          message: 'move',
+          paths: ['docs/$story1'],
+          base: '0000000',
+        ),
+      ]);
+      linkFile('.specstone/trash/commit.pathspec');
+      final outsideBefore = _snapshot(outside);
+      final gitTarget = JournalTarget(
+        projectRoot: root,
+        docsRoot: Directory('${root.path}/docs'),
+        homeDirectory: testHome(),
+        runGit: (arguments, {required workingDirectory, environment}) =>
+            ProcessResult(0, arguments.first == 'log' ? 1 : 0, '', ''),
+      );
+
+      expect(
+        () => MoveJournal.replay(gitTarget),
+        _leadsOutside('.specstone/trash/commit.pathspec'),
+      );
+
+      expect(_snapshot(outside), outsideBefore);
+    }, skip: _linksUnavailable);
+
+    test('a linked .gitignore is refused with the path leading outside', () {
+      linkFile('.specstone/.gitignore');
+      final outsideBefore = _snapshot(outside);
+
+      expect(
+        () =>
+            const MoveJournal([MoveStep('docs/$story3', 'docs/$story3.moved')])
+                .run(target()),
+        _leadsOutside('.specstone/.gitignore'),
+      );
+
+      expect(_snapshot(outside), outsideBefore);
+    }, skip: _linksUnavailable);
+  });
+
   group('each path is checked where it is used', () {
+    test('a refused later step leaves the steps before it done and the '
+        'journal in place', () async {
+      final root = await writeWriteProject();
+      final outside = await writeTree({'victim.txt': 'mine\n'});
+      Link('${root.path}/docs/lnk').createSync(outside.path);
+      writeJournal(root, [
+        const MoveStep('docs/$story3', 'docs/$story3.moved'),
+        const MoveStep('docs/lnk', 'docs/escape'),
+        const WriteStep.unguarded('docs/escape/victim.txt', 'payload\n'),
+      ]);
+
+      expect(
+        () => MoveJournal.replay(
+          JournalTarget.of(openProject(root), homeDirectory: testHome()),
+        ),
+        _leaves('docs/escape/victim.txt'),
+      );
+
+      expect(File('${root.path}/docs/$story3.moved').existsSync(), isTrue);
+      expect(Link('${root.path}/docs/escape').existsSync(), isTrue);
+      expect(Link('${root.path}/docs/lnk').existsSync(), isFalse);
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isTrue,
+      );
+      expect(File('${outside.path}/victim.txt').readAsStringSync(), 'mine\n');
+    }, skip: _linksUnavailable);
+
+    test('a .specstone path turned into a link between two uses is refused '
+        'at the later use', () async {
+      final root = await writeWriteProject();
+      final outside = await writeTree({'target.txt': '1'});
+      writeIn(root, (session) => session.project);
+      writeJournal(root, [
+        const MoveStep('docs/$story3', 'docs/$story3.moved'),
+        const CommitStep(
+          message: 'move',
+          paths: ['docs/$story1'],
+          base: '0000000',
+        ),
+      ]);
+      var swapped = false;
+      ProcessResult linkTheCursor(
+        List<String> arguments, {
+        required String workingDirectory,
+        Map<String, String>? environment,
+      }) {
+        if (!swapped) {
+          swapped = true;
+          final cursor = File('${root.path}/${MoveJournal.cursorPath}')
+            ..deleteSync();
+          Link(cursor.path).createSync('${outside.path}/target.txt');
+        }
+        return ProcessResult(0, arguments.first == 'log' ? 1 : 0, '', '');
+      }
+
+      expect(
+        () => MoveJournal.replay(
+          JournalTarget(
+            projectRoot: root,
+            docsRoot: Directory('${root.path}/docs'),
+            homeDirectory: testHome(),
+            runGit: linkTheCursor,
+          ),
+        ),
+        _leadsOutside(MoveJournal.cursorPath),
+      );
+
+      expect(swapped, isTrue);
+      expect(File('${outside.path}/target.txt').readAsStringSync(), '1');
+    }, skip: _linksUnavailable);
+
     test('a link an earlier step moves into place is refused at the next '
         'step, and the folder behind it keeps its text', () async {
       final root = await writeWriteProject();

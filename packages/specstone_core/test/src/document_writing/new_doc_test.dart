@@ -1,8 +1,10 @@
 // Test names carry the story, FR, and edge-case IDs on one line.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -12,6 +14,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -76,11 +79,11 @@ void main() {
       '## Acceptance Criteria\n\n'
       '### Scenario 1 — [happy] <what differs>\n\n'
       '- **Given** <only the state the scenario needs>\n'
-      '- **When** <one trigger>\n'
+      '- **When** <trigger>\n'
       '- **Then** <observed outcome>\n\n'
       '### Scenario 2 — [error] <what differs> (BR-01)\n\n'
       '- **Given** <only the state the scenario needs>\n'
-      '- **When** <one trigger>\n'
+      '- **When** <trigger>\n'
       '- **Then** <what the person sees or what the system refuses>\n',
     );
   });
@@ -505,6 +508,94 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'a parent at the depth limit exits 64 with argument_invalid',
+      () async {
+        const deep = 'prds/features/f02_shop/f01_cart/f01_deep';
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$deep/FEATURE.md': '# Deep\n',
+            'docs/$deep/f01_deeper/FEATURE.md': '# Deeper\n',
+          },
+        );
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerNew(
+              s,
+              docTypeId: 'feature',
+              parent: 'shop/cart/deep/deeper',
+              slug: 'x',
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exit', 64),
+          ),
+        );
+      },
+    );
+
+    test(
+      'a flat set exits 64 with argument_invalid on feature --parent',
+      () async {
+        final root = await writeWriteProject(
+          extra: {'.specstone/templates/feature.yaml': 'max_depth: 0\n'},
+        );
+        expect(
+          () => writeIn(
+            root,
+            (s) =>
+                answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exit', 64),
+          ),
+        );
+      },
+    );
+
+    test(
+      'a feature type with max_depth unset takes no --parent either',
+      () async {
+        final root = await writeWriteProject();
+        final files = {...shippedPackFiles};
+        final feature = utf8.decode(files['prd-core/feature.yaml']!);
+        final unset = feature.replaceFirst(
+          RegExp(r'^max_depth: .*\n', multiLine: true),
+          '',
+        );
+        expect(unset, isNot(feature), reason: 'the shipped feature sets it');
+        files['prd-core/feature.yaml'] = Uint8List.fromList(utf8.encode(unset));
+        expect(
+          () => writeIn(
+            root,
+            (s) =>
+                answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
+            templates: TemplateResolver(shippedFiles: files),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exit', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'feature takes no --parent',
+                ),
+          ),
+        );
+        expect(
+          Directory('${root.path}/docs/prds/features/f01_login/f01_x')
+              .existsSync(),
+          isFalse,
+        );
+      },
+    );
   });
 
   test('an unknown doc type is doc_type_unknown', () async {
@@ -574,6 +665,32 @@ void main() {
         'us02_sign_out',
         'us03_reset_password',
       },
+    );
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test('an uncreatable doc folder exits 73 with output_not_writable naming the doc', () async {
+    final root = await writeWriteProject();
+    final folder = Directory('${root.path}/docs/prds/features/f01_login');
+    Process.runSync('chmod', ['555', folder.path]);
+    addTearDown(() => Process.runSync('chmod', ['755', folder.path]));
+    expect(
+      () => writeIn(
+        root,
+        (s) =>
+            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'y'),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.exitStatus, 'exit', 73)
+            .having(
+              (f) => f.message,
+              'message',
+              startsWith(
+                'cannot write prds/features/f01_login/us04_y/USER_STORY.md: ',
+              ),
+            ),
+      ),
     );
   }, skip: unreadablePathSkipReason() ?? false);
 
@@ -883,6 +1000,50 @@ sections:
       '## Use Case\n\nSign in.\n\n## Acceptance Criteria\n\n- **Given** x\n',
     );
     expect(answer.json['path'], path);
+  });
+
+  test(
+    'stdin that starts with a blank line gets no second blank line after draft',
+    () async {
+      final root = await writeWriteProject();
+      writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'a',
+          text: '\n# Mine\n\nJust prose.\n',
+        ),
+      );
+      expect(
+        readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
+        '---\ndraft: true\n---\n\n# Mine\n\nJust prose.\n',
+      );
+    },
+  );
+
+  test('stdin with its sections out of order and a padded table is written laid out', () async {
+    final root = await writeWriteProject();
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        text:
+            '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
+            '## Acceptance Criteria\n\n- **Given** x\n\n'
+            '## Use Case\n\n| Role   | Goal    |\n|---|---|\n| Agent  | Sign in |\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
+      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
+      '## Use Case\n\n| Role | Goal |\n|---|---|\n| Agent | Sign in |\n\n'
+      '## Acceptance Criteria\n\n- **Given** x\n',
+    );
   });
 
   test(

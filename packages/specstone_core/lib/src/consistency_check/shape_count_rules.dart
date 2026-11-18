@@ -1,17 +1,21 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/required_sections.dart';
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show ownTextLineCountOf;
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/readability_facts.dart';
 import 'package:specstone_core/src/index_query/models/sentence_fact.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// Returns the sentence, item-count, line-floor, and subsection-cap findings
-/// of a typed [doc]; an untyped doc has none.
+/// Returns the sentence, item-count, line-floor, subsection-cap, and
+/// item-line-cap findings of a typed [doc]; an untyped doc has none.
 ///
 /// An item is a top-level list item, table row, paragraph, or `###` heading
 /// with the paragraph under it; a nested item and fenced code are none. A
-/// sentence count is the stored fact of its item.
+/// sentence count is the stored fact of its item. A blank required section
+/// skips both floors, `min_lines` and the `item_count` minimum.
 Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
   if (context.typeOf(doc) == null) return;
   final lines = context.linesOf(doc);
@@ -20,9 +24,11 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
     final template = context.templateSectionAt(doc, i);
     if (template == null) continue;
     final headerLine = lines.sectionLines[i];
+    final blankRequired =
+        isBlankAt(context, doc, i) && isRequiredOn(context, doc, template);
     final minLines = template.minLines;
     final actualLines = lines.sectionCounts[i].lines;
-    if (minLines != null && actualLines < minLines) {
+    if (!blankRequired && minLines != null && actualLines < minLines) {
       yield context.finding(
         doc,
         FindingKind.linesUnderLimit,
@@ -40,8 +46,19 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
     final limits = template.maxSentences ?? const <SentenceLimit>[];
     final count = template.itemCount;
     final maxSubsections = template.maxSubsections;
-    if (limits.isEmpty && count == null && maxSubsections == null) continue;
+    final maxItemLines = template.maxItemLines;
+    if (limits.isEmpty &&
+        count == null &&
+        maxSubsections == null &&
+        maxItemLines == null) {
+      continue;
+    }
     final section = _Block(_heldItemsIn(context, doc, i));
+    if (maxItemLines != null) {
+      yield* _itemLineFindings(context, doc, template.id, [
+        for (final entry in section.readable) entry.item,
+      ], maxItemLines);
+    }
     if (maxSubsections != null) {
       yield* _subsectionLimitFindings(
         context,
@@ -56,7 +73,14 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
       yield* _sentenceFindings(context, doc, section, limit);
     }
     if (count != null) {
-      yield* _countFindings(context, doc, section, headerLine, count);
+      yield* _countFindings(
+        context,
+        doc,
+        section,
+        headerLine,
+        count,
+        skipMin: blankRequired,
+      );
     }
   }
 }
@@ -78,6 +102,31 @@ Iterable<Finding> _subsectionLimitFindings(
     message: 'section $sectionId has $actual subsections; the limit is $limit',
     keys: {'section': sectionId, 'limit': limit, 'actual': actual},
   );
+}
+
+/// Returns a finding for each of [items] with more non-blank lines of its own
+/// than [limit].
+///
+/// A `###` heading item counts its paragraph alone. A nested item and a fenced
+/// block sit outside an item's text, so they add no line.
+Iterable<Finding> _itemLineFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  String sectionId,
+  List<SectionItem> items,
+  int limit,
+) sync* {
+  for (final item in items) {
+    final actual = ownTextLineCountOf(item);
+    if (actual <= limit) continue;
+    yield context.finding(
+      doc,
+      FindingKind.itemLinesOverLimit,
+      line: item.line,
+      message: 'item has $actual lines; the limit is $limit',
+      keys: {'section': sectionId, 'limit': limit, 'actual': actual},
+    );
+  }
 }
 
 /// Returns the items of the held section at [index] of [doc], each with the
@@ -155,14 +204,15 @@ Iterable<Finding> _countFindings(
   IndexedDoc doc,
   _Block section,
   int headerLine,
-  ItemCountLint lint,
-) sync* {
+  ItemCountLint lint, {
+  required bool skipMin,
+}) sync* {
   if (!lint.perSubsection) {
-    yield* _countIn(context, doc, section, headerLine, lint);
+    yield* _countIn(context, doc, section, headerLine, lint, skipMin: skipMin);
     return;
   }
   for (final (:line, :block) in section.subsections) {
-    yield* _countIn(context, doc, block, line, lint);
+    yield* _countIn(context, doc, block, line, lint, skipMin: skipMin);
   }
 }
 
@@ -171,10 +221,11 @@ Iterable<Finding> _countIn(
   IndexedDoc doc,
   _Block block,
   int line,
-  ItemCountLint lint,
-) sync* {
+  ItemCountLint lint, {
+  required bool skipMin,
+}) sync* {
   final actual = block.items.length;
-  final min = lint.min;
+  final min = skipMin ? null : lint.min;
   final max = lint.max;
   final (bound, message) = switch ((min, max)) {
     (final min?, _) when actual < min => (

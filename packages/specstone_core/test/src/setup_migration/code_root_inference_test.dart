@@ -284,6 +284,51 @@ void main() {
     expect(choice, (value: '..', found: 1, cited: 2));
   }, skip: _windowsSkip);
 
+  test('a candidate named with a trailing space or a trailing dot is not '
+      'ranked, so the winner is a value that can be written', () async {
+    for (final name in ['code ', 'code.']) {
+      final tree = await _tree({
+        _repositoryMark: '',
+        'proj/keep.txt': '',
+        'lib/b.dart': '',
+      });
+      File('${tree.path}/$name/lib/a.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('');
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        link: Directory('${tree.path}/$name'),
+        implementsEntries: ['lib/a.dart', 'lib/b.dart'],
+      );
+
+      expect(choice, (value: '..', found: 1, cited: 2), reason: '"$name"');
+    }
+  }, skip: _windowsSkip);
+
+  test('a link folder on another drive is not ranked, so the winner is a '
+      'value that can be written', () async {
+    final tree = await _tree({'proj/keep.txt': ''});
+    final otherDrive = _folderOnAnotherDrive(tree);
+    if (otherDrive == null) {
+      markTestSkipped('no writable second drive on this machine');
+      return;
+    }
+    for (final name in ['a', 'b']) {
+      File('${otherDrive.path}/lib/$name.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('');
+    }
+
+    final choice = _infer(
+      _at(tree, 'proj'),
+      link: otherDrive,
+      implementsEntries: ['lib/a.dart', 'lib/b.dart'],
+    );
+
+    expect(choice, (value: '.', found: 0, cited: 2));
+  }, testOn: 'windows');
+
   test('entries every candidate resolves go to the '
       'deepest candidate', () async {
     final tree = await _tree({'proj/keep.txt': '', 'proj/code/keep.txt': ''});
@@ -580,6 +625,23 @@ void main() {
       },
     );
 
+    test('g8-r9: a .git link whose target resolves marks a child '
+        'repository', () async {
+      final tree = await _tree({
+        'proj/keep.txt': '',
+        'proj/code/lib/a.dart': '',
+        'gitstore/HEAD': '',
+      });
+      if (!_linkOrSkip('${tree.path}/proj/code/.git', '../../gitstore')) return;
+
+      final choice = _infer(
+        _at(tree, 'proj'),
+        implementsEntries: ['lib/a.dart'],
+      );
+
+      expect(choice, (value: 'code', found: 1, cited: 1));
+    });
+
     test('g8-r9: a child folder symlinked from outside the root is ranked '
         'under its canonical path', () async {
       final tree = await _tree({
@@ -637,6 +699,23 @@ void main() {
 final Object _windowsSkip = Platform.isWindows
     ? r'POSIX path rules: \ is a name character and / roots a path'
     : false;
+
+/// Returns a new temp folder on a Windows drive other than the one of [tree],
+/// or null when no other drive takes a folder.
+Directory? _folderOnAnotherDrive(Directory tree) {
+  final treeDrive = tree.path.substring(0, 1).toUpperCase();
+  for (final letter in 'CDEFGHIJKLMNOPQRSTUVWXYZ'.split('')) {
+    if (letter == treeDrive || !Directory('$letter:\\').existsSync()) continue;
+    try {
+      final folder = Directory('$letter:\\').createTempSync('specstone_drive_');
+      addTearDown(() => folder.deleteSync(recursive: true));
+      return folder;
+    } on FileSystemException {
+      continue;
+    }
+  }
+  return null;
+}
 
 /// Links [linkPath] to [target]; marks the test skipped and returns false
 /// where links need privileges.

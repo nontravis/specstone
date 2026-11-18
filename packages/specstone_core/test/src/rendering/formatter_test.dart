@@ -361,14 +361,46 @@ void main() {
       expect(_format(disk, feature), disk);
     });
 
-    test('a '
-        'frontmatter line starting "# " and a key block line ending in '
+    test('a frontmatter line starting "# " and a key block line ending in '
         'spaces stay verbatim', () async {
       final feature = await _feature();
       const disk =
           '---\n# comment  \nstatus: planned  \n---\n\n'
           '## Feature name\n\nn\n';
 
+      expect(_format(disk, feature), disk);
+    });
+
+    test('a doc with approved keeps it and gains no section', () async {
+      final feature = await _feature();
+      const disk =
+          '---\napproved: "0123456789ab"\n---\n\n## Feature name\n\nn\n';
+
+      expect(_format(disk, feature), disk);
+      const both =
+          '---\ndraft: false\napproved: "0123456789ab"\n---\n\n'
+          '## Feature name\n\nn\n';
+      expect(_format(both, feature), both);
+    });
+
+    test('a block scalar line ending in spaces stays unchanged through '
+        'format', () async {
+      final feature = await _feature();
+      const disk =
+          '---\nstatus: planned\nnote: |\n  first line  \n  second line\t\n'
+          '---\n\n## Feature name\n\nn\n';
+
+      expect(_format(disk, feature), disk);
+    });
+
+    test('frontmatter with no key line at all stays one verbatim leading '
+        'block', () async {
+      final feature = await _feature();
+      const disk =
+          '---\n  orphan: line  \n# only a comment\n  - stray  \n---\n\n'
+          '## Feature name\n\nn\n';
+
+      expect(Doc.parse(disk).frontmatter!.map((b) => b.key), [isEmpty]);
       expect(_format(disk, feature), disk);
     });
 

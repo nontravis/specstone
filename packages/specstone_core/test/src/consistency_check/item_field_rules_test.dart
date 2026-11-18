@@ -61,11 +61,15 @@ const _held =
 
 late Directory _project;
 
-Map<String, String> _withRationale(String body, {bool behavior = false}) =>
-    edit(loginFr, [
-      ('A wrong password must not sign in.', body),
-      if (behavior) ('## Rationale', '## Behavior\n\nSteps.\n\n## Rationale'),
-    ]);
+Map<String, String> _withRationale(
+  String body, {
+  bool behavior = false,
+  String behaviorBody = 'Steps.',
+}) => edit(loginFr, [
+  ('A wrong password must not sign in.', body),
+  if (behavior)
+    ('## Rationale', '## Behavior\n\n$behaviorBody\n\n## Rationale'),
+]);
 
 Future<List<Finding>> _found(
   Map<String, String> edits, {
@@ -181,6 +185,65 @@ void main() {
     expect(found, isEmpty);
   });
 
+  test(
+    'a blank required_when section whose condition is met is missing',
+    () async {
+      final found = await _found(
+        _withRationale(
+          '- **R1** Refuse it.\n'
+          '  - **Enforcer:** CheckRun\n'
+          '  - **Consistency:** eventual',
+          behavior: true,
+          behaviorBody: '',
+        ),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.requiredSectionMissing);
+      expect(found.single.line, lineOfFirst(_project, loginFr, '## Behavior'));
+      expect(found.single.toJson(), containsPair('section', 'behavior'));
+    },
+  );
+
+  test(
+    'a blank required_when section whose condition is unmet is unneeded',
+    () async {
+      final found = await _found(
+        _withRationale(_held, behavior: true, behaviorBody: ''),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.sectionUnneeded);
+      expect(found.single.line, lineOfFirst(_project, loginFr, '## Behavior'));
+    },
+  );
+
+  test('a lone sentence under item_fields draws no field finding', () async {
+    final found = await _found(_withRationale('A plain sentence.'));
+    expect(found, isEmpty);
+  });
+
+  test('a sentence between an item and its fields cuts them off', () async {
+    final found = await _found(
+      _withRationale(
+        '- **R1** Refuse it.\n\n'
+        'A plain sentence.\n\n'
+        '  - **Enforcer:** CheckRun',
+      ),
+    );
+    expect(found, hasLength(2));
+    expect(
+      found.map((f) => f.kind),
+      everyElement(FindingKind.itemFieldMissing),
+    );
+    expect(
+      found.map((f) => f.line),
+      everyElement(lineOfFirst(_project, loginFr, '- **R1**')),
+    );
+    expect(
+      found.map((f) => f.toJson()['field']),
+      unorderedEquals(['Enforcer', 'Consistency']),
+    );
+  });
+
   test('a doc type that sets neither key runs no item-field rule', () async {
     final project = await writeCheckProject(
       extra: _withRationale('- **R1** Refuse it.', behavior: true),
@@ -190,6 +253,36 @@ void main() {
           .where((f) => _fieldKinds.contains(f.kind)),
       isEmpty,
     );
+  });
+
+  test('a layer of another doc type sets item_fields with no doc type id '
+      'named', () async {
+    _project = await writeCheckProject(
+      extra: {
+        '.specstone/templates/user_story.yaml': '''
+sections:
+  - id: rules
+    lint:
+      item_fields:
+        - field: Enforcer
+        - field: Consistency
+          values: [immediate, eventual]
+''',
+        ...doc(
+          loginStory,
+          '## Acceptance Criteria',
+          '## Rules\n\n- **BR-01** Refuse it.\n  - **Enforcer:** CheckRun\n\n'
+              '## Acceptance Criteria',
+        ),
+      },
+    );
+    final found = [
+      for (final f in (await checkOf(_project)).findings)
+        if (_fieldKinds.contains(f.kind)) f,
+    ];
+    expect(found.map((f) => (f.kind, f.path, f.toJson()['field'])), [
+      (FindingKind.itemFieldMissing, loginStory, 'Consistency'),
+    ]);
   });
 
   group('the shipped domain invariants', () {
@@ -246,6 +339,34 @@ void main() {
         await domainFindings('$_eventual\n$_policy\n$_immediate'),
         isEmpty,
       );
+    });
+
+    test('a project entry for Corrective policy with no when makes every '
+        'invariant need one', () async {
+      const layer = '''
+sections:
+  - id: invariants
+    lint:
+      item_fields:
+        add:
+          - field: Corrective policy
+''';
+      _project = await writeCheckProject(
+        extra: {
+          '.specstone/templates/domain.yaml': layer,
+          _domainPath:
+              '# Login domain\n\n## Entities\n- Account\n\n'
+              '## Invariants\n$_eventual\n$_policy\n$_immediate\n',
+        },
+      );
+      final found = [
+        for (final f in (await checkOf(_project)).findings)
+          if (domainKinds.contains(f.kind)) f,
+      ];
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.itemFieldMissing);
+      expect(found.single.toJson(), containsPair('field', 'Corrective policy'));
+      expect(found.single.line, domainLineOf('- **INV-2**'));
     });
 
     test('a leftover corrective policies section is undeclared and its '
@@ -344,6 +465,39 @@ sections:
       );
       expect(unmet.single.kind, FindingKind.itemFieldUnneeded);
     });
+
+    test('an item with neither Consistency nor the conditional field is '
+        'missing only Consistency', () async {
+      final result = await found('- **R1** Refuse it.');
+      expect(result.map((f) => (f.kind, f.toJson()['field'])), [
+        (FindingKind.itemFieldMissing, 'Consistency'),
+      ]);
+    });
+
+    test(
+      'an unmet item holding a field text outside values is unneeded',
+      () async {
+        const layer = '''
+sections:
+  - id: rationale
+    lint:
+      item_fields:
+        - field: Consistency
+        - field: Policy
+          values: [retry]
+          when: {field: Consistency, value: eventual}
+''';
+        final result = await found(
+          '- **R1** Refuse it.\n'
+          '  - **Consistency:** immediate\n'
+          '  - **Policy:** later',
+          layer: layer,
+        );
+        expect(result.map((f) => (f.kind, f.toJson()['field'])), [
+          (FindingKind.itemFieldUnneeded, 'Policy'),
+        ]);
+      },
+    );
 
     test('a Consistency in another letter case meets no condition', () async {
       final result = await found(

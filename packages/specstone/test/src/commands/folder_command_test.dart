@@ -187,7 +187,7 @@ void main() {
       expect(result.stderr, isEmpty);
     });
 
-    test('it reads no config and opens no index, so a '
+    test('it loads no templates and opens no index, so a '
         'config no read accepts still prints and the folder gains only '
         'reports/', () async {
       final root = await writeTree({
@@ -205,6 +205,17 @@ void main() {
       expect(names, {'config.yaml', 'reports'});
     });
 
+    test('a .specstone regular file below a project lets the search go '
+        'upward to that project', () async {
+      final root = await writeTree({..._project(), 'app/.specstone': 'x'});
+
+      final result = await run('${root.path}/app/lib');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, '${_folderOf(root)}\n');
+      expect(File('${root.path}/app/.specstone').readAsStringSync(), 'x');
+    });
+
     test('a .specstone regular file with no project '
         'above it is project_not_found, exit 78', () async {
       final tree = await writeTree({'.specstone': 'x', 'lib/main.dart': ''});
@@ -218,5 +229,207 @@ void main() {
       expect(error['code'], 'project_not_found');
       expect(File('${tree.path}/.specstone').readAsStringSync(), 'x');
     });
+  });
+
+  group('folder prunes', () {
+    /// Writes [path] under [root], last modified [modified] ago and last
+    /// read [read] ago (the same as [modified] by default), and returns it.
+    File aged(
+      Directory root,
+      String path,
+      Duration modified, {
+      Duration? read,
+    }) {
+      final now = DateTime.now();
+      return File('${root.path}/$path')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('old\n')
+        ..setLastModifiedSync(now.subtract(modified))
+        ..setLastAccessedSync(now.subtract(read ?? modified));
+    }
+
+    test('a report last used 8 days ago and a bundle last used 2 days ago '
+        'are gone, and stdout holds the folder line alone', () async {
+      final root = await writeTree(_project());
+      final report = aged(
+        root,
+        '.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+      final bundle = aged(
+        root,
+        '.specstone/bundles/old.txt',
+        const Duration(days: 2),
+      );
+      final fresh = aged(
+        root,
+        '.specstone/reports/fresh.txt',
+        const Duration(minutes: 1),
+      );
+
+      final result = await run(root.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, '${_folderOf(root)}\n');
+      expect(result.stderr, isEmpty);
+      expect(report.existsSync(), isFalse);
+      expect(bundle.existsSync(), isFalse);
+      expect(fresh.existsSync(), isTrue);
+    });
+
+    test('a refused run, a positional argument or a reports/ that cannot be '
+        'made, keeps every aged file', () async {
+      final refusedArgument = await writeTree(_project());
+      final report = aged(
+        refusedArgument,
+        '.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+      final bundle = aged(
+        refusedArgument,
+        '.specstone/bundles/old.txt',
+        const Duration(days: 2),
+      );
+      final blocked = await writeTree({
+        ..._project(),
+        '.specstone/reports': 'a file where the folder goes',
+      });
+      final blockedBundle = aged(
+        blocked,
+        '.specstone/bundles/old.txt',
+        const Duration(days: 2),
+      );
+
+      final argument = await run(refusedArgument.path, ['login']);
+      final unwritable = await run(blocked.path);
+
+      expect(argument.exitCode, 64);
+      expect(unwritable.exitCode, 73);
+      expect(report.existsSync(), isTrue);
+      expect(bundle.existsSync(), isTrue);
+      expect(blockedBundle.existsSync(), isTrue);
+    });
+
+    test('--json stdout of a run that prunes equals that of a run with '
+        'nothing to prune', () async {
+      final pruning = await writeTree(_project());
+      final report = aged(
+        pruning,
+        '.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+      final idle = await writeTree(_project());
+
+      final pruned = await run(pruning.path, ['--json']);
+      final unpruned = await run(idle.path, ['--json']);
+
+      expect(report.existsSync(), isFalse);
+      expect(pruned.exitCode, 0, reason: '${pruned.stderr}');
+      expect(jsonDecode(pruned.stdout as String), {
+        'folder': _folderOf(pruning),
+      });
+      expect(
+        (pruned.stdout as String).replaceAll(_folderOf(pruning), ''),
+        (unpruned.stdout as String).replaceAll(_folderOf(idle), ''),
+      );
+    });
+
+    test('a report modified 10 days ago and read 2 days ago stays', () async {
+      final root = await writeTree(_project());
+      final report = aged(
+        root,
+        '.specstone/reports/read.txt',
+        const Duration(days: 10),
+        read: const Duration(days: 2),
+      );
+
+      final result = await run(root.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(report.existsSync(), isTrue);
+    });
+
+    test('a cleanup map in the config keeps a report the default would '
+        'delete', () async {
+      final root = await writeTree({
+        ..._project(),
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}cleanup:\n  reports_max_age_days: 30\n',
+      });
+      final report = aged(
+        root,
+        '.specstone/reports/old.txt',
+        const Duration(days: 10),
+      );
+
+      final result = await run(root.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(report.existsSync(), isTrue);
+    });
+
+    test('a cleanup value that is no positive integer exits 0 and the '
+        'prune uses that key default', () async {
+      final root = await writeTree({
+        ..._project(),
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}cleanup:\n  reports_max_age_days: soon\n',
+      });
+      final report = aged(
+        root,
+        '.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+
+      final result = await run(root.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, '${_folderOf(root)}\n');
+      expect(report.existsSync(), isFalse);
+    });
+
+    test('a run from a subfolder prunes the project above it', () async {
+      final root = await writeTree(_project());
+      final report = aged(
+        root,
+        '.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+
+      final result = await run('${root.path}/app/lib');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(report.existsSync(), isFalse);
+    });
+
+    test('a run through a docs link prunes the project the link stands '
+        'for', () async {
+      final tree = await writeTree({
+        'ws/.specstone/config.yaml': shippedPinsConfig(),
+        'ws/example/.specstone/config.yaml': shippedPinsConfig(),
+        'ws/example/docs/prds/FEATURES.md': '# Features\n',
+        'ws/code/example/keep.txt': '',
+      });
+      createRelativeLink(
+        '${tree.path}/ws/code/example/docs',
+        '../../example/docs',
+      );
+      final linked = aged(
+        tree,
+        'ws/example/.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+      final outer = aged(
+        tree,
+        'ws/.specstone/reports/old.txt',
+        const Duration(days: 8),
+      );
+
+      final result = await run('${tree.path}/ws/code/example');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(linked.existsSync(), isFalse);
+      expect(outer.existsSync(), isTrue);
+    }, skip: _linksUnavailable);
   });
 }

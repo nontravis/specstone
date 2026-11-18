@@ -203,6 +203,14 @@ void main() {
       );
     });
 
+    test('a covers entry naming another path instead of SKILL.md gives no '
+        'finding', () async {
+      expect(
+        await _skillFindings(_skillText(covers: '  - app/lib/login.dart\n')),
+        isEmpty,
+      );
+    });
+
     test('a skill doc with only Sources gives no finding, and a Sources link '
         'to a doc of another pack is accepted', () async {
       expect(await _skillFindings(_skillText()), isEmpty);

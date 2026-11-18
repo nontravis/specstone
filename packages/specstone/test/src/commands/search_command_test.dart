@@ -55,6 +55,76 @@ void main() {
       isFalse,
     );
   });
+  test('a missing query prints argument_missing in the --json error', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['search', '--json']), 64);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'argument_missing',
+    );
+    expect(out.toString(), isEmpty);
+  });
+  test('no project and a template fault name their codes and touch no '
+      'index', () async {
+    final bare = await writeTree({});
+    final outside = readRunner(bare);
+    expect(await outside.runner.run(['search', 'login', '--json']), 78);
+    expect(
+      ((jsonDecode(outside.err.toString()) as Map)['error'] as Map)['code'],
+      'project_not_found',
+    );
+    expect(File('${bare.path}/.specstone/index.sqlite').existsSync(), isFalse);
+    final pinned = await writeReadProject(
+      extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
+    );
+    final faulty = readRunner(pinned);
+    expect(await faulty.runner.run(['search', 'login', '--json']), 78);
+    expect(
+      ((jsonDecode(faulty.err.toString()) as Map)['error'] as Map)['code'],
+      'pack_pin_newer',
+    );
+    expect(
+      File('${pinned.path}/.specstone/index.sqlite').existsSync(),
+      isFalse,
+    );
+  });
+  test('an unknown --type is doc_type_unknown, exit 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run(['search', 'login', '--type', 'nosuchtype', '--json']),
+      64,
+    );
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'doc_type_unknown',
+    );
+  });
+  test('an --under name no doc carries is doc_not_found, exit 64', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run(['search', 'login', '--under', 'nosuchdoc', '--json']),
+      64,
+    );
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'doc_not_found',
+    );
+  });
+  test('a --limit of -5 or ten is argument_invalid, exit 64', () async {
+    for (final limit in ['-5', 'ten']) {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run(['search', 'login', '--limit', limit, '--json']),
+        64,
+        reason: '--limit $limit',
+      );
+      expect(
+        ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+        'argument_invalid',
+        reason: '--limit $limit',
+      );
+    }
+  });
   test('--limit 0 exits 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['search', 'login', '--limit', '0']), 64);

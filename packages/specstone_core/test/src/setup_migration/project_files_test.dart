@@ -315,6 +315,35 @@ void main() {
       );
     });
 
+    test('a grouped tree writes each story, NFR, and spec doc path with the '
+        'group as the first slug', () {
+      final overrides = groupedPathOverrides();
+      const prds = 'prds/features/{slug}/f{nn}_{slug}';
+      const specs = 'specs/{slug}/f{nn}_{slug}';
+
+      expect(
+        {
+          for (final id in [
+            'user_story',
+            'nf',
+            'architecture',
+            'error',
+            'integration',
+            'auth',
+          ])
+            id: overrides['.specstone/templates/$id.yaml'],
+        },
+        {
+          'user_story': 'path: $prds/us{nn}_{slug}/USER_STORY.md\n',
+          'nf': 'path: $prds/us{nn}_{slug}/nf{nn}_{slug}.md\n',
+          'architecture': 'path: $specs/ARCHITECTURE.md\n',
+          'error': 'path: $specs/ERROR.md\n',
+          'integration': 'path: $specs/INTEGRATION.md\n',
+          'auth': 'path: $specs/AUTH.md\n',
+        },
+      );
+    });
+
     test('a legacy NFR category with no GNFR section '
         'becomes a gnfr section override', () {
       final entry = gnfrOverride(['Data integrity', 'Token efficiency']);

@@ -372,6 +372,21 @@ void main() {
     ]);
     expect(parts.single.text, '## Acceptance Criteria\n- Given a reset');
   });
+  test('a summary section linked before its doc link prints in the later summary', () async {
+    final parts = await followed(
+      'See [reset use case]($_resetStory#use-case), then [reset]($_resetStory).',
+    );
+
+    expect(parts.map(_id), [
+      'prds/features/f01_login/us02_reset_password/USER_STORY.md#use_case',
+      'prds/features/f01_login/us02_reset_password/USER_STORY.md summary',
+    ]);
+    expect(parts.first.text, '## Use Case\nReset it.');
+    expect(
+      parts.last.text,
+      '# Agent resets a password\n\n## Use Case\nReset it.',
+    );
+  });
   test(
     'a part printed whole or already appended is not appended again',
     () async {
@@ -572,6 +587,54 @@ void main() {
       );
       expect(parts.map(_id), [
         'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md#components',
+      ]);
+    },
+  );
+
+  test(
+    "a link into another code target's doc is appended with no --target given",
+    () async {
+      const show =
+          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md';
+      final session = openSession(
+        await writeTree({
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          '.specstone/templates/tech_stack.yaml':
+              'id: tech_stack\nper_target: true\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n'
+              '  jaspr:\n    code_root: jaspr_lib\n',
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+          'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
+          'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '# Toast\n',
+          'docs/prds/features/f02_feedback/f04_alert/FEATURE.md': '# Alert\n',
+          show:
+              '# Agent sees a toast\n\n## Use Case\nSee the '
+              '[flutter toast](../../../../../specs/flutter/f02_feedback/f04_alert/ARCHITECTURE.md#components).\n',
+          'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+              '# Toast architecture\n',
+          'docs/specs/flutter/f02_feedback/f04_alert/ARCHITECTURE.md': '# Alert architecture\n\n## Components\n| Component | Responsibility |\n|---|---|\n| Toast | Shows it |\n',
+          'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+              '# Toast architecture\n',
+          'docs/specs/flutter/TECH_STACK.md': '# Flutter stack\n',
+          'docs/specs/jaspr/TECH_STACK.md': '# Jaspr stack\n',
+        }),
+      );
+      addTearDown(session.close);
+      final parts = followLinks(
+        session.index,
+        pickBundle(
+          session.index,
+          'feedback/toast/show',
+          BundleMode.design,
+          noProject: false,
+        ),
+      );
+      expect(parts.map(_id), [
+        'specs/flutter/f02_feedback/f04_alert/ARCHITECTURE.md#components',
       ]);
     },
   );

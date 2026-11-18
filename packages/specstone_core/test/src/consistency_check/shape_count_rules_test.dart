@@ -13,6 +13,7 @@ const Set<FindingKind> _shapeKinds = {
   FindingKind.prefixCountMismatch,
   FindingKind.linesUnderLimit,
   FindingKind.subsectionsOverLimit,
+  FindingKind.itemLinesOverLimit,
 };
 
 String _sectionLint(String section, String lint) =>
@@ -400,28 +401,41 @@ void main() {
     },
   );
 
-  test(
-    'a section with an empty body under its min_lines floor reports actual 0',
-    () async {
-      final edits = fr('A wrong password must not sign in.', '');
-      final found = await _found(
-        _frLayer,
-        _sectionLint('rationale', '      min_lines: 2\n'),
-        edits: edits,
-      );
-      expect(found, hasLength(1));
-      expect(found.single.kind, FindingKind.linesUnderLimit);
-      expect(found.single.line, lineOfFirst(_project, loginFr, '## Rationale'));
-      expect(
-        found.single.toJson(),
-        allOf(
-          containsPair('section', 'rationale'),
-          containsPair('limit', 2),
-          containsPair('actual', 0),
-        ),
-      );
-    },
-  );
+  test('a blank required section skips min_lines', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', '      min_lines: 2\n'),
+      edits: fr('A wrong password must not sign in.', ''),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a blank required section skips the item_count minimum', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', '''
+      item_count:
+        min: 3
+'''),
+      edits: fr('A wrong password must not sign in.', ''),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a blank optional section keeps its min_lines result', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('input_output', '      min_lines: 2\n'),
+      edits: fr('## Edge cases', '## Input / Output\n\n## Edge cases'),
+    );
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.linesUnderLimit);
+    expect(
+      found.single.line,
+      lineOfFirst(_project, loginFr, '## Input / Output'),
+    );
+    expect(found.single.toJson(), containsPair('actual', 0));
+  });
 
   test('one body line under a min_lines floor of 2 reports actual 1, the '
       'header line counting none', () async {
@@ -467,6 +481,63 @@ void main() {
   });
 
   test(
+    'a blank section made required by required_when skips both floors',
+    () async {
+      final found = await _found(
+        _frLayer,
+        '''
+sections:
+  - id: behavior
+    lint:
+      min_lines: 2
+      item_count:
+        min: 3
+      required_when:
+        section: rationale
+        field: Consistency
+        value: eventual
+''',
+        edits: edit(loginFr, [
+          (
+            'A wrong password must not sign in.',
+            '- **R1** Refuse it.\n  - **Consistency:** eventual',
+          ),
+          ('## Rationale', '## Behavior\n\n## Rationale'),
+        ]),
+      );
+      expect(found, isEmpty);
+    },
+  );
+
+  test('a blank persona snapshot reports the section and no floor', () async {
+    const personaPath = 'prds/personas/buyer/PERSONA.md';
+    final project = await writeCheckProject(
+      extra: {
+        'docs/$personaPath':
+            '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n'
+            '# Buyer\n\n## Snapshot\n',
+      },
+    );
+    final findings = (await checkOf(project)).findings
+        .where((f) => f.path == personaPath)
+        .toList();
+    final missing = findings.where(
+      (f) =>
+          f.kind == FindingKind.requiredSectionMissing &&
+          f.toJson()['section'] == 'snapshot',
+    );
+    expect(missing, hasLength(1));
+    expect(
+      missing.single.line,
+      lineOfFirst(project, personaPath, '## Snapshot'),
+    );
+    expect(
+      findings.map((f) => f.kind),
+      isNot(contains(FindingKind.linesUnderLimit)),
+    );
+  });
+
+  test(
     'a section of 2 body lines at its min_lines floor has no finding',
     () async {
       final found = await _found(
@@ -482,10 +553,13 @@ void main() {
   );
 
   test(
-    'a doc type that sets none of the three keys runs no shape rule',
+    'a doc type that sets none of the count keys runs no count rule',
     () async {
       final project = await writeCheckProject(
-        extra: fr('1. E01 — An empty password → refused.', '1. E01 — a. b. c.'),
+        extra: fr(
+          '1. E01 — An empty password → refused.',
+          '1. E01 — a. b. c.\n   d.\n   e.',
+        ),
       );
       expect(
         (await checkOf(project)).findings
@@ -494,6 +568,152 @@ void main() {
       );
     },
   );
+
+  group('max_item_lines', () {
+    const cap = '      max_item_lines: 1\n';
+
+    test('an item past its line cap is reported', () async {
+      final found = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', cap),
+        edits: _frWith('1. E01 — Refuse it\n   twice.'),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.itemLinesOverLimit);
+      expect(found.single.line, lineOfFirst(_project, loginFr, 'Refuse it'));
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('section', 'edge_cases'),
+          containsPair('limit', 1),
+          containsPair('actual', 2),
+          containsPair('message', 'item has 2 lines; the limit is 1'),
+        ),
+      );
+      expect(found.single.waitsFor, WaitsFor.agent);
+    });
+
+    test('nested items and a fenced block add no line', () async {
+      for (final item in [
+        '1. E01 — Refuse it.\n   - one\n   - two',
+        '1. E01 — Refuse it.\n```\ncode\n```',
+      ]) {
+        final found = await _found(
+          _frLayer,
+          _sectionLint('edge_cases', cap),
+          edits: _frWith(item),
+        );
+        expect(found, isEmpty, reason: item);
+      }
+    });
+
+    test('a quote mark with no text after it adds no line', () async {
+      const intro = 'A wrong password must not sign in.';
+      final quotedHeading = await _found(
+        _frLayer,
+        _sectionLint('rationale', cap),
+        edits: fr(intro, '> ### Group\n>\n> Refuse it.'),
+      );
+      expect(quotedHeading, isEmpty);
+      final quotedItem = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', cap),
+        edits: _frWith('> - E01 — Refuse it\n>   twice.'),
+      );
+      expect(quotedItem.map((f) => f.kind), [FindingKind.itemLinesOverLimit]);
+      expect(quotedItem.single.toJson(), containsPair('actual', 2));
+    });
+
+    test('a heading item counts its paragraph alone', () async {
+      final lint = _sectionLint('rationale', cap);
+      const intro = 'A wrong password must not sign in.';
+      final one = await _found(
+        _frLayer,
+        lint,
+        edits: fr(intro, '### Group\n\nRefuse it.'),
+      );
+      expect(one, isEmpty);
+      final two = await _found(
+        _frLayer,
+        lint,
+        edits: fr(intro, '### Group\n\nRefuse it\ntwice.'),
+      );
+      expect(two.map((f) => f.kind), [FindingKind.itemLinesOverLimit]);
+      expect(two.single.line, lineOfFirst(_project, loginFr, '### Group'));
+      expect(two.single.toJson(), containsPair('actual', 2));
+    });
+  });
+
+  test('a doc type that sets none of the five keys runs no shape rule while '
+      'the fr type runs its own', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ...fr(checkPasswordStatement, 'Refuse it. Log it.'),
+        ...doc(
+          'prds/FEATURES.md',
+          '- Login\n',
+          '- Login — One. Two. Three.\n  - Nested one.\n  - Nested two.\n'
+              '- Owner — Four.\n  Five.\n- User — Six.\n',
+        ),
+      },
+    );
+    final found = [
+      for (final f in (await checkOf(project)).findings)
+        if (_shapeKinds.contains(f.kind)) f,
+    ];
+    expect(found.map((f) => f.path).toSet(), {loginFr});
+    expect(found.map((f) => f.kind), contains(FindingKind.sentencesOverLimit));
+  });
+
+  test(
+    'an edge case with an arrow, a colon, and a dash is one sentence',
+    () async {
+      final found = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', _oneSentence),
+        edits: _frWith(
+          '1. E01 — A wrong password: refused → the Agent stays out.',
+        ),
+      );
+      expect(found, isEmpty);
+    },
+  );
+
+  test(
+    'two japanese sentences joined by a stop with no space give two',
+    () async {
+      final found = await _found(
+        _frLayer,
+        _sectionLint('edge_cases', _oneSentence),
+        edits: _frWith('1. E01 — 拒否する。ログに残す。'),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.sentencesOverLimit);
+      expect(found.single.line, lineOfFirst(_project, loginFr, '拒否する'));
+      expect(
+        found.single.toJson(),
+        allOf(containsPair('limit', 1), containsPair('actual', 2)),
+      );
+    },
+  );
+
+  test('a stop quoted in a code span ends no sentence', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('statement', _oneSentence),
+      edits: fr(checkPasswordStatement, 'Refuse the stop `。` at once.'),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a stop inside link text ends no sentence', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('edge_cases', _oneSentence),
+      edits: _frWith('1. E01 — Refuse [a. b](x) at once.'),
+    );
+    expect(found, isEmpty);
+  });
 
   test('a blockquoted item is counted and cut like any other item', () async {
     final edits = _frWith('> - E01 — Refuse it. Log it.');

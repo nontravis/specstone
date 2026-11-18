@@ -79,6 +79,117 @@ void main() {
     );
   });
 
+  test('two sentences report the kind and the default language', () async {
+    final found = await _found(
+      _edgeCase('${_sentenceOf(26)} ${_sentenceOf(31)}'),
+    );
+    expect(found.single.kind, FindingKind.wordsOverLimit);
+    expect(found.single.toJson(), containsPair('language', 'default'));
+  });
+
+  test('a closing group of two item links gives none', () async {
+    final found = await _found(
+      _domainWith(
+        '- **INV-1** — ${_sentenceOf(25).replaceFirst('.', '')} '
+        '([INV-74](DOMAIN.md#invariants), [INV-75](DOMAIN.md#invariants)).',
+      ),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a group joined by semicolons gives one finding at most', () async {
+    final found = await _found(
+      _edgeCase('An empty password (INV-4; INV-5) is refused.'),
+    );
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.traceNoteNotLast);
+    expect(found.single.toJson(), containsPair('note', '(INV-4; INV-5)'));
+  });
+
+  group('an ownership clause', () {
+    test('as the last clause gives none', () async {
+      final found = await _found(
+        _edgeCase(
+          'A password is hashed. INV-4 owns the recipe, '
+          'and every other doc cites it.',
+        ),
+      );
+      expect(found, isEmpty);
+    });
+
+    test('before another clause gives trace_note_not_last', () async {
+      final found = await _found(
+        _edgeCase('A password is hashed. INV-4 owns the recipe. It is kept.'),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.traceNoteNotLast);
+      expect(found.single.line, lineOfFirst(_project, loginFr, 'E01'));
+    });
+
+    test('after a group leaves the group misplaced', () async {
+      final found = await _found(
+        _edgeCase('A password is hashed (INV-4). INV-5 owns the recipe.'),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.traceNoteNotLast);
+      expect(found.single.toJson(), containsPair('note', '(INV-4)'));
+    });
+  });
+
+  test('a note before nested items gives none', () async {
+    final found = await _found(
+      _domainWith('- **INV-1** — A password is hashed (INV-4).\n  - Nested.'),
+    );
+    expect(found, isEmpty);
+  });
+
+  test(
+    'a note closing a cell before text in the next cell gives none',
+    () async {
+      final found = await _found(
+        fr(
+          'A wrong password must not sign in.',
+          '| Part | Responsibility | Owner |\n|---|---|---|\n'
+              '| Form | Takes it (INV-4) | Keeps it. |',
+        ),
+      );
+      expect(found, isEmpty);
+    },
+  );
+
+  test('a default-only layer leaves the korean cap merged', () async {
+    final found = await _found({
+      ..._domainWith('- **INV-1** — ${_sentenceOf(18, '가')}'),
+      _domainLayer: 'lint:\n  max_sentence_words:\n    default: 30\n',
+    });
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.wordsOverLimit);
+    expect(
+      found.single.toJson(),
+      allOf(
+        containsPair('language', 'ko'),
+        containsPair('limit', 17),
+        containsPair('actual', 18),
+      ),
+    );
+  });
+
+  test('english terms never outvote a korean sentence', () async {
+    final found = await _found(
+      _edgeCase('${List.filled(17, '가').join(' ')} API CLI JSON.'),
+    );
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.wordsOverLimit);
+    expect(
+      found.single.toJson(),
+      allOf(
+        containsPair('language', 'ko'),
+        containsPair('limit', 17),
+        containsPair('actual', 20),
+      ),
+    );
+  });
+
   test('long cell gives finding at row line', () async {
     final found = await _found(
       fr(
@@ -260,7 +371,7 @@ void main() {
         containsPair('note', '(INV-4)'),
       ),
     );
-    expect(found.single.message, contains(_noGuideTail));
+    expect(found.single.message, endsWith('$_noGuideTail$citeNoteGuideLine'));
   });
 
   test('a note that closes its item gives none', () async {
@@ -270,14 +381,28 @@ void main() {
     expect(found, isEmpty);
   });
 
-  test('each message ends with the guide line of its kind', () async {
-    final words = await _found(_edgeCase(_sentenceOf(30)));
+  test('a length message carries no guide sentence', () async {
+    final words = await _found(_edgeCase(_sentenceOf(31)));
     expect(
       words.single.message,
-      endsWith('$_noGuideTail$sentenceLengthGuideLine'),
+      'the longest sentence holds 31 words; '
+      'the limit is 25 words for language default',
     );
-    final note = await _found(_edgeCase('A (INV-4) b.'));
-    expect(note.single.message, endsWith('$_noGuideTail$citeNoteGuideLine'));
+    final thai = await _found(_edgeCase('${'ก' * 120}.'));
+    expect(
+      thai.single.message,
+      'the longest sentence holds 120 characters; '
+      'the limit is 100 characters for language th',
+    );
+    final raised = await _found({
+      ..._domainWith('- **INV-1** — ${_sentenceOf(31)}'),
+      _domainLayer: 'lint:\n  max_sentence_words:\n    default: 30\n',
+    });
+    expect(
+      raised.single.message,
+      'the longest sentence holds 31 words; '
+      'the limit is 30 words for language default',
+    );
   });
 
   test('a korean sentence takes the ko word cap', () async {
@@ -443,7 +568,7 @@ void main() {
     });
   });
 
-  test('guide line constants match every shipped guide', () async {
+  test('the cite-note guide line matches every shipped guide', () async {
     final project = await writeCheckProject();
     final types = TemplateResolver()
         .resolve(workingDirectory: project, homeDirectory: null)
@@ -458,7 +583,6 @@ void main() {
     });
     for (final type in types) {
       final lines = type.description!.split('\n');
-      expect(lines, contains(sentenceLengthGuideLine), reason: type.id);
       expect(lines, contains(citeNoteGuideLine), reason: type.id);
     }
   });

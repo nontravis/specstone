@@ -282,4 +282,129 @@ void main() {
       ]);
     });
   });
+
+  group('on a project with no docs folder', () {
+    const readCommands = [
+      ['structure'],
+      ['structure', '--json'],
+      ['list', 'user_story'],
+      ['list', 'user_story', '--json'],
+      ['search', 'login'],
+      ['search', 'login', '--json'],
+      ['check'],
+      ['check', '--json'],
+      ['get', 'feature:login'],
+      ['refs', 'feature:login'],
+      ['context', 'feature:login', '--for', 'design'],
+      ['structure', 'feature:login'],
+    ];
+
+    test('each read command answers as on an empty docs folder', () async {
+      final bare = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      final empty = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/.keep': '',
+      });
+      for (final args in readCommands) {
+        final (runner: bareRunner, out: bareOut, err: bareErr) = readRunner(
+          bare,
+        );
+        final (runner: emptyRunner, out: emptyOut, err: emptyErr) = readRunner(
+          empty,
+        );
+        final bareStatus = await bareRunner.run(args);
+        expect(await emptyRunner.run(args), bareStatus, reason: '$args');
+        expect(bareOut.toString(), emptyOut.toString(), reason: '$args');
+        expect(bareErr.toString(), emptyErr.toString(), reason: '$args');
+      }
+    });
+
+    test('structure, list, and search print no doc and exit 0', () async {
+      final bare = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      for (final args in [
+        ['structure'],
+        ['list', 'user_story'],
+        ['search', 'login'],
+      ]) {
+        final (:runner, :out, :err) = readRunner(bare);
+        expect(await runner.run(args), 0, reason: '$args');
+        expect(out.toString(), isEmpty, reason: '$args');
+        expect(err.toString(), isEmpty, reason: '$args');
+      }
+    });
+
+    test('a read command naming a doc is doc_not_found, exit 64', () async {
+      final bare = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      for (final args in [
+        ['get', 'feature:login'],
+        ['refs', 'feature:login'],
+        ['context', 'feature:login', '--for', 'design'],
+      ]) {
+        final (:runner, :out, :err) = readRunner(bare);
+        expect(await runner.run(args), 64, reason: '$args');
+        expect(err.toString(), 'no feature doc carries the name login\n');
+        expect(out.toString(), isEmpty);
+      }
+    });
+  });
+
+  test('a read command in a project with no trust record works and writes the ignore file on its first open', () async {
+    final base = await writeTree({
+      'ext/prds/features/f01_login/FEATURE.md': '# Login\n\n## Problem\n.\n',
+      'proj/.specstone/config.yaml': shippedPinsConfig(),
+    });
+    Link('${base.path}/proj/docs').createSync('${base.path}/ext');
+    final project = Directory('${base.path}/proj');
+    final ignore = File('${project.path}/.specstone/.gitignore');
+    expect(ignore.existsSync(), isFalse);
+    final (:runner, :out, :err) = readRunner(project);
+
+    expect(await runner.run(['structure']), 0);
+
+    expect(out.toString(), contains('login (feature)'));
+    expect(err.toString(), isEmpty);
+    expect(ignore.existsSync(), isTrue);
+    expect(ignore.readAsStringSync(), contains('index.sqlite'));
+  }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
+
+  test(
+    'a target no doc carries is doc_not_found with --json, exit 64',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(await runner.run(['structure', 'logn', '--json']), 64);
+      expect(errorOf(err), {
+        'code': 'doc_not_found',
+        'message': 'no doc carries the name logn',
+      });
+      expect(out.toString(), isEmpty);
+    },
+  );
+
+  test(
+    'a doc type the merged set lacks is doc_type_unknown, exit 64',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run(['structure', 'architectur:login', '--json']),
+        64,
+      );
+      expect(errorOf(err)['code'], 'doc_type_unknown');
+      expect(out.toString(), isEmpty);
+    },
+  );
+
+  test('outside a project the --json error is project_not_found, and no index is made', () async {
+    final folder = await writeTree({});
+    final (:runner, :out, :err) = readRunner(folder);
+    expect(await runner.run(['structure', '--json']), 78);
+    expect(errorOf(err)['code'], 'project_not_found');
+    expect(out.toString(), isEmpty);
+    expect(folder.listSync(), isEmpty);
+  });
 }

@@ -4,7 +4,7 @@ description: |-
   Title it `# <Name>`, with no number: the activity as actor, verb, and object.
   State what the person does and gets, never how: no screens, fields, tables, or design choices.
   Check INVEST: independent, negotiable, valuable, estimable, small, and testable.
-  Split a story that needs more than 6 scenarios, along business behavior and never along technical layers.
+  Split a story that holds too many scenarios, along business behavior and never along technical layers.
   Keep team-wide quality checks in the Definition of Done, never in a story's criteria.
   Write one rule per ID: each `BR-*` rule states one thing, with mechanics left to the spec docs.
   Keep a bound in the rule it limits, and the trace in `vision:` and `goals:`, never in the prose.
@@ -12,7 +12,6 @@ description: |-
   Keep prose at reader altitude: name no class, function, file path, error code, plan, or ruling.
   State the present truth; history lives in git.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
   Put a cite or an ownership note at the item's end.
   Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
@@ -25,13 +24,11 @@ fields:
     list: true
     description: |-
       Lists the vision IDs (`PV-*`) the story serves; each must be one the parent feature lists.
-      Write at least one ID across `vision` and `goals`.
   - id: goals
     type: string
     list: true
     description: |-
       Lists the goal IDs (`PG-*`) of the goal doc that the story serves; each must be one the parent feature lists.
-      Write at least one ID across `vision` and `goals`.
   - id: persona
     type: doc_ref
     list: true
@@ -57,29 +54,32 @@ sections:
     header: Rules
     prefix_id: BR-
     description: |-
-      Write it when the story has two or more rules; skip it for a rule that everyone already understands.
+      Write it for rules the story needs spelled out; skip it for a rule that everyone already understands.
       Write each rule as `**BR-NN** — <rule>`.
       Cite a rule's id at the end of the title of each scenario that illustrates it.
     template: |-
       - **BR-01** — <rule>
     summary: true
+    lint:
+      item_count:
+        min: 2
   - id: acceptance_criteria
     header: Acceptance Criteria
     required: true
     description: |-
       Title each scenario `### Scenario N — [happy|edge|error] <what differs> (BR-NN)`, naming what differs.
-      Give only the state the scenario needs in Given; use one When; chain extra outcomes with And or But.
-      Make each Then observable by the person or an external system, in the domain's words; keep 3 to 5 steps.
-      Write at least one `[error]` scenario, or write "Error cases: N/A — <reason>".
+      Give only the state the scenario needs in Given; name the trigger in When; chain extra outcomes with And or But.
+      Make each Then observable by the person or an external system, in the domain's words.
+      Write an `[error]` scenario, or write "Error cases: N/A — <reason>".
     template: |-
       ### Scenario 1 — [happy] <what differs>
       - **Given** <only the state the scenario needs>
-      - **When** <one trigger>
+      - **When** <trigger>
       - **Then** <observed outcome>
 
       ### Scenario 2 — [error] <what differs> (BR-01)
       - **Given** <only the state the scenario needs>
-      - **When** <one trigger>
+      - **When** <trigger>
       - **Then** <what the person sees or what the system refuses>
     lint:
       names_codes: true

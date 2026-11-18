@@ -34,6 +34,10 @@ void main() {
     expect(features.description, contains('Systems table'));
   });
 
+  test('the description states no number a lint key holds', () {
+    expect(features.description, isNot(contains('three sections')));
+  });
+
   test('the Features section holds a generated block with no template', () {
     final section = sectionOf(features, 'features');
     expect(section.description, contains('generated block'));

@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/software_tech.dart';
 
 late Directory _project;
 
@@ -139,6 +140,54 @@ void main() {
   });
 
   test(
+    'every software-tech doc type sets no banned word at either level',
+    () async {
+      final merged = await resolveSoftwareTech();
+      for (final id in softwareTechIds) {
+        final type = merged.lookup(id)!;
+        expect(type.lint.bannedWords ?? const <String>[], isEmpty, reason: id);
+        for (final section in type.sections) {
+          expect(
+            section.bannedWords ?? const <String>[],
+            isEmpty,
+            reason: '$id ${section.id}',
+          );
+        }
+      }
+    },
+  );
+
+  test('check reports no banned word in a doc of any software-tech doc type '
+      'whose sections all hold banned words', () async {
+    final merged = await resolveSoftwareTech();
+    final specDocs = <String, String>{};
+    for (final id in softwareTechIds) {
+      final type = merged.lookup(id)!;
+      final path = type.path!
+          .replaceAll('{nn}', '01')
+          .replaceAll('{slug}', 'sample');
+      final sections = [
+        for (final section in type.sections)
+          '## ${section.header}\n\nThis is fast and easy.\n',
+      ];
+      specDocs[path.startsWith('.specstone/') ? path : 'docs/$path'] =
+          '# Sample $id\n\n${sections.join('\n')}';
+    }
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...specDocs,
+          ...fr(
+            checkPasswordStatement,
+            'The system shall refuse a wrong password fast.',
+          ),
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.bannedWord), ['$loginFr:14: banned_word']);
+  });
+
+  test(
     'a banned-word finding names the template section id, not the header slug',
     () async {
       final report = await checkOf(
@@ -193,6 +242,47 @@ void main() {
         .where((f) => f.kind == FindingKind.bannedWord)
         .toList();
   }
+
+  test(
+    'Fast is reported while fastest and safe-area are other words',
+    () async {
+      final capital = await bannedIn('The system shall refuse a Fast login.');
+      expect(capital.map((f) => f.toJson()['word']), ['fast']);
+      expect(
+        await bannedIn(
+          'The system shall refuse the fastest and safe-area logins.',
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test('a two-word phrase is not reported out of order or inside longer'
+      ' words', () async {
+    Future<List<Object?>> phrasesIn(String statement) async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/fr.yaml': 'lint:\n  banned_words: [ad hoc]\n',
+            ...fr(checkPasswordStatement, statement),
+          },
+        ),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.bannedWord) f.toJson()['word'],
+      ];
+    }
+
+    expect(await phrasesIn('The system shall refuse an ad hoc login.'), [
+      'ad hoc',
+    ]);
+    expect(await phrasesIn('The system shall refuse a hoc ad login.'), isEmpty);
+    expect(
+      await phrasesIn('The system shall refuse a shad hocus login.'),
+      isEmpty,
+    );
+  });
 
   test('a word inside a single-backtick code span is not reported', () async {
     expect(await bannedIn('The system shall refuse a `fast` login.'), isEmpty);

@@ -120,6 +120,23 @@ void main() {
       ]);
     });
 
+    test('a bare item ID in a code file or an agent file is not listed, a name beside it is', () async {
+      final root = await writeCheckProject(
+        extra: {
+          'app/lib/doc.dart':
+              '// E01 and INV-6 and S2 stay\n'
+              '// `E01` then `login/email_login`\n',
+          'CLAUDE.md':
+              'Read `E01`, INV-6, and `S2`.\nSee `login/email_login`.\n',
+        },
+      );
+
+      expect(staleAfter(root, renameLogin), [
+        at('CLAUDE.md', 2, 'login/email_login'),
+        at('app/lib/doc.dart', 2, 'login/email_login'),
+      ]);
+    });
+
     test('is not listed when the names do not change', () async {
       final root = await writeCheckProject(
         extra: {'app/lib/doc.dart': '// `login/email_login`\n'},
@@ -263,6 +280,32 @@ void main() {
           at('docs/$note', 3 + i, 'login/email_login B$i'),
         ],
       ]);
+    });
+
+    test('a node in a mermaid block follows the rename and one in another fenced block stays unlisted', () async {
+      const node = '  N[login/email_login E06]';
+      final root = await withNote(
+        '# Ideas\n\n'
+        '```mermaid\nflowchart LR\n$node\n```\n\n'
+        '```text\n$node\n```\n\n'
+        'A span `login/email_login E06`.\n',
+      );
+
+      final rewritten = writeIn(
+        root,
+        (session) => planRewrites(
+          session,
+          renameLogin,
+          renamed: renamedNamesOf(session, renameLogin),
+        ).rewrites,
+      ).singleWhere((step) => step.path == 'docs/$note').text;
+
+      expect(
+        rewritten,
+        contains('```mermaid\nflowchart LR\n  N[signin/email_login E06]\n```'),
+      );
+      expect(rewritten, contains('```text\n$node\n```'));
+      expect(spansAfter(root), [at('docs/$note', 12, 'login/email_login E06')]);
     });
 
     test('a span naming no renamed doc is not listed', () async {

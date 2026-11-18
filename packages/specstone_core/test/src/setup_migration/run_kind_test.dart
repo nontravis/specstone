@@ -6,6 +6,7 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -88,8 +89,7 @@ void main() {
     expect(_choose(root), RunKind.none);
   });
 
-  test('pins equal '
-      'and every typed doc laid out is none', () async {
+  test('pins equal and every typed doc laid out is none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
       'docs/prds/features/f01_a/FEATURE.md': _laidOutFeature,
@@ -98,8 +98,7 @@ void main() {
     expect(_choose(root), RunKind.none);
   });
 
-  test('pins equal '
-      'and one typed doc off its layout is upgrade', () async {
+  test('pins equal and one typed doc off its layout is upgrade', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
       'docs/prds/features/f01_a/FEATURE.md': _laidOutFeature,
@@ -109,8 +108,7 @@ void main() {
     expect(_choose(root), RunKind.upgrade);
   });
 
-  test('a doc '
-      'format refuses alone is none', () async {
+  test('a doc format refuses alone is none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
       'docs/prds/features/f01_a/FEATURE.md': '## Notes\nx   \n',
@@ -119,19 +117,21 @@ void main() {
     expect(_choose(root), RunKind.none);
   });
 
-  test('a newer pin '
-      'refuses pack_pin_newer, alone or beside an older pin', () async {
-    final alone = await writeTree({
-      '.specstone/config.yaml': 'packs:\n  prd-core: 9.0.0\n',
-    });
-    final beside = await writeTree({
-      '.specstone/config.yaml':
-          'packs:\n  prd-core: 9.0.0\n  software-tech: 1.0.0\n',
-    });
+  test(
+    'a newer pin refuses pack_pin_newer, alone or beside an older pin',
+    () async {
+      final alone = await writeTree({
+        '.specstone/config.yaml': 'packs:\n  prd-core: 9.0.0\n',
+      });
+      final beside = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 9.0.0\n  software-tech: 1.0.0\n',
+      });
 
-    expect(() => _choose(alone), _pinNewer());
-    expect(() => _choose(beside), _pinNewer());
-  });
+      expect(() => _choose(alone), _pinNewer());
+      expect(() => _choose(beside), _pinNewer());
+    },
+  );
 
   test('with two newer pins the refusal names the earlier '
       'pack in code point order', () async {
@@ -498,5 +498,147 @@ void main() {
       expect(_choose(named), RunKind.none);
       expect(_choose(unnamed), RunKind.none);
     });
+  });
+
+  group('the layout compare', () {
+    test('line endings are set aside, a laid out CRLF doc is none, an off'
+        ' layout one is an upgrade', () async {
+      String crlf(String text) => text.replaceAll('\n', '\r\n');
+      final laid = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/prds/features/f01_a/FEATURE.md': crlf(_laidOutFeature),
+      });
+      final off = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/prds/features/f01_a/FEATURE.md': crlf(_offLayoutFeature),
+      });
+
+      expect(_choose(laid), RunKind.none);
+      expect(_choose(off), RunKind.upgrade);
+    });
+
+    test('a generated block keeps its derived text, an off layout line'
+        ' outside it still makes an upgrade', () async {
+      const block =
+          '<!-- specstone:generated feature_catalog (do not edit) -->\n'
+          'derived   text  \n\n\n'
+          '<!-- specstone:generated end -->\n';
+      final inside = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/prds/FEATURES.md': '## Features\n\n$block',
+      });
+      final outside = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/prds/FEATURES.md': '## Features\n\n$block\nafter   \n',
+      });
+
+      expect(_choose(inside), RunKind.none);
+      expect(_choose(outside), RunKind.upgrade);
+    });
+  });
+
+  group('a stale agent file with every pin equal', () {
+    test('.specstone/AGENT.md with other bytes alone is an upgrade whose'
+        ' plan holds the agent files step alone', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '.specstone/AGENT.md': 'other bytes\n',
+      });
+
+      final plan = planUpgradeRun(
+        Directory(root.resolveSymbolicLinksSync()),
+        templates: TemplateResolver(),
+        homeDirectory: null,
+      );
+
+      expect(_choose(root), RunKind.upgrade);
+      expect(
+        plan.toText(),
+        'pack upgrade: pins unchanged, agent files only\n'
+        'commit 2, rewrites:\n'
+        '  agent files: 1 files\n',
+      );
+      expect(plan.lists.agentFiles, ['.specstone/AGENT.md']);
+      expect(plan.moves, isEmpty);
+    });
+
+    test('an agent file that differs, with its skill files current,'
+        ' is an upgrade', () async {
+      final texts = skillFileTexts();
+      final path = texts.keys.firstWhere(
+        (key) => key.startsWith('.claude/agents/'),
+      );
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...texts,
+        path: '${texts[path]}hand edit\n',
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+
+    test('an agent file missing, with its skill files present,'
+        ' is an upgrade', () async {
+      final texts = skillFileTexts();
+      final path = texts.keys.firstWhere(
+        (key) => key.startsWith('.claude/agents/'),
+      );
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        for (final MapEntry(:key, :value) in texts.entries)
+          if (key != path) key: value,
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+  });
+
+  group('a file or top where no run writes', () {
+    const stale =
+        'Owner\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
+        '<!-- END specstone -->\n';
+
+    test('an instruction file with no Specstone block, at the root or at'
+        ' a listed top, starts no run', () async {
+      final atRoot = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'CLAUDE.md': 'Owner rules\n',
+      });
+      final atTop = await _project({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: other\n'
+            'agent_file_roots:\n  - other\n',
+        'other/.git/HEAD': 'ref\n',
+        'other/AGENTS.md': 'Owner rules\n',
+      });
+
+      expect(_choose(atRoot), RunKind.none);
+      expect(_choose(atTop), RunKind.none);
+    });
+
+    test('an instruction file linked outside the project root starts'
+        ' no run', () async {
+      final base = await writeTree({
+        'shared/CLAUDE.md': stale,
+        'proj/.specstone/config.yaml': shippedPinsConfig(),
+      });
+      final project = Directory.fromUri(base.uri.resolve('proj/'));
+      Link(project.uri.resolve('CLAUDE.md').toFilePath())
+          .createSync(base.uri.resolve('shared/CLAUDE.md').toFilePath());
+
+      expect(_choose(project), RunKind.none);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('an instruction file linked below a .git entry starts'
+        ' no run', () async {
+      final project = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '.git/config': stale,
+      });
+      Link(project.uri.resolve('CLAUDE.md').toFilePath())
+          .createSync('.git/config');
+
+      expect(_choose(project), RunKind.none);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
   });
 }

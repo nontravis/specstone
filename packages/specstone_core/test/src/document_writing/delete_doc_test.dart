@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
+import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
@@ -634,6 +635,108 @@ void main() {
     });
   }
 
+  test('a unit of never-approved docs checks the plan hash under --yes the same way', () async {
+    final root = await writeWriteProject(extra: withoutLink);
+    String planOf() =>
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+            ).json['plan']!
+            as String;
+    final hash = planOf();
+    final original = readDoc(root, fr32);
+    docFile(root, fr32).writeAsStringSync('${original}More.\n');
+
+    expect(
+      () => del(
+        root,
+        ['user_story:login/reset_password'],
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.planMismatch)
+            .having((f) => f.exitStatus, 'exitStatus', 75),
+      ),
+    );
+    for (final path in [story3, fr31, fr32]) {
+      expect(hasDoc(root, path), isTrue, reason: path);
+    }
+
+    docFile(root, fr32).writeAsStringSync(original);
+    final answer = del(
+      root,
+      ['user_story:login/reset_password'],
+      confirmation: OwnerConfirmation.given,
+      planHash: hash,
+    );
+    expect(answer.json['removed'], [story3, fr31, fr32]);
+  });
+
+  group('mention lines in each git state', () {
+    const mentioned =
+        'Read `user_story:login/reset_password#use_case` first.\n';
+    const tracked = '.claude/rules/tracked.md';
+    const untracked = '.claude/rules/untracked.md';
+
+    Future<Directory> agentProject() => writeWriteProject(
+      extra: {...withoutLink, 'CLAUDE.md': mentioned, tracked: mentioned},
+    );
+
+    List<String> mentionPaths(ReadAnswer answer) => [
+      for (final mention in answer.json['mentions']! as List)
+        (mention as Map<String, Object?>)['path']! as String,
+    ];
+
+    Future<void> expectMentions(Directory root, List<String> paths) async {
+      final dry = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+      );
+      expect(mentionPaths(dry), paths);
+      final applied = del(
+        root,
+        ['user_story:login/reset_password'],
+        confirmation: OwnerConfirmation.given,
+        planHash: dry.json['plan']! as String,
+      );
+      expect(applied.json['removed'], [story3, fr31, fr32]);
+      expect(mentionPaths(applied), paths);
+    }
+
+    test(
+      'outside any git work tree the instruction files alone are read',
+      () async {
+        final root = await agentProject();
+
+        await expectMentions(root, ['CLAUDE.md']);
+      },
+    );
+
+    test(
+      'in a git work tree with no commit the instruction files alone are read',
+      () async {
+        final root = await agentProject();
+        expect(git(root, ['init', '-q']).exitCode, 0);
+
+        await expectMentions(root, ['CLAUDE.md']);
+      },
+      skip: hasGit ? null : 'git is not available',
+    );
+
+    test('in a git work tree with a commit the tracked agent files are read and an untracked one is not', () async {
+      final root = await agentProject();
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      commitAll(root, 'first');
+      File('${root.path}/$untracked')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(mentioned);
+
+      await expectMentions(root, [tracked, 'CLAUDE.md']);
+    }, skip: hasGit ? null : 'git is not available');
+  });
+
   test('an FR goes alone', () async {
     final root = await writeWriteProject();
     expect(
@@ -689,6 +792,61 @@ void main() {
     expect(del(root, ['architecture:signup']).json['removed'], [signupArch]);
     expect(hasDoc(root, signupFeature), isTrue);
   });
+
+  test('a middle story delete leaves the higher sibling its number until the next reorder closes the gap', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    del(
+      root,
+      ['user_story:login/sign_out'],
+      confirmation: OwnerConfirmation.prompt,
+      answers: ['y'],
+    );
+    expect(hasDoc(root, story2), isFalse);
+    expect([hasDoc(root, story1), hasDoc(root, story3)], [true, true]);
+
+    writeIn(
+      root,
+      (s) => answerReorder(s, 'user_story:login/reset_password', place: '2'),
+    );
+
+    expect(
+      hasDoc(root, 'prds/features/f01_login/us02_reset_password/USER_STORY.md'),
+      isTrue,
+    );
+    expect(hasDoc(root, story3), isFalse);
+  });
+
+  test(
+    'a bare name that one typed doc carries deletes it like the typed name',
+    () async {
+      final root = await writeWriteProject(extra: withoutLink);
+
+      final answer = del(root, ['login/reset_password']);
+
+      expect(answer.json['removed'], [story3, fr31, fr32]);
+      expect(hasDoc(root, story3), isFalse);
+      expect([hasDoc(root, story1), hasDoc(root, story2)], [true, true]);
+    },
+  );
+
+  test(
+    'a file that cannot be moved refuses with exit status 73 naming it',
+    () async {
+      final root = await writeWriteProject(extra: withoutLink);
+
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => del(root, ['user_story:login/reset_password']),
+          FailingRenameHook('docs/$fr31'),
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.exitStatus, 'exitStatus', 73)
+              .having((f) => f.message, 'message', contains(fr31)),
+        ),
+      );
+    },
+  );
 
   test('a doc_ref value from outside is a referrer too', () async {
     final root = await writeWriteProject();
@@ -841,6 +999,74 @@ void main() {
     expect(hasDoc(root, story3), isTrue);
   });
 
+  test('a doc with no draft and no approved value is guarded whatever the config pins say', () async {
+    final belowApprove = resolverCarrying({
+      'prd-core': '1.6.0',
+      'software-tech': '1.3.0',
+    });
+    for (final (label, config, templates) in [
+      (
+        'both packs pinned below the pins approve walks it from',
+        'packs:\n  prd-core: 1.6.0\n  software-tech: 1.3.0\n',
+        belowApprove,
+      ),
+      (
+        'only prd-core pinned',
+        shippedPinsConfig(['prd-core']),
+        TemplateResolver(),
+      ),
+    ]) {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': config,
+          'docs/$fr32': '# Expire reset link\n',
+        },
+      );
+
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerDelete(
+            s,
+            ['fr:login/reset_password/expire_reset_link'],
+            confirmation: OwnerConfirmation.missing,
+            readLine: () => null,
+            prompts: StringBuffer(),
+          ),
+          templates: templates,
+        ),
+        refusesWith(WriteFaultCode.ownerTerminalRequired),
+        reason: label,
+      );
+      expect(hasDoc(root, fr32), isTrue, reason: label);
+    }
+  });
+
+  test('an approved doc edited after a commit stays guarded, and so does a doc whose hash no longer matches with no draft', () async {
+    final root = await writeWriteProject();
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    commitAll(root, 'approved');
+    docFile(root, fr11).writeAsStringSync('${readDoc(root, fr11)}More.\n');
+    commitAll(root, 'edit after approval');
+
+    expect(
+      () => del(root, ['fr:login/email_login/validate_credentials']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(root, fr11), isTrue);
+
+    final other = await writeWriteProject(
+      extra: {
+        'docs/$fr32': '---\napproved: "0123456789ab"\ntraced_from: US-03\nverify_method: test\n---\n\n# Expire reset link\n',
+      },
+    );
+    expect(
+      () => del(other, ['fr:login/reset_password/expire_reset_link']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(hasDoc(other, fr32), isTrue);
+  }, skip: hasGit ? null : 'git is not available');
+
   test('a doc whose whole frontmatter is invalid YAML is guarded', () async {
     final root = await writeWriteProject(
       extra: {'docs/$fr32': '---\ndraft: true\n: [unclosed\n---\n\n# Expire\n'},
@@ -938,6 +1164,72 @@ void main() {
     expect(prompts.toString(), isEmpty);
     expect(treeBytes(root), before);
   });
+
+  test('a guarded delete whose roots wait for the trust record refuses after the plan and terminal checks, before it lists the files', () async {
+    final root = await writeWriteProject(
+      without: {
+        for (final k in writeProject.keys)
+          if (k.startsWith('docs/')) k,
+      },
+    );
+    final outside = await writeTree({
+      for (final MapEntry(:key, :value) in {
+        ...writeProject,
+        ...approvedSignOut,
+      }.entries)
+        if (key.startsWith('docs/')) key.substring(5): value,
+    });
+    Link('${root.path}/docs').createSync(outside.path);
+    final before = treeBytes(outside);
+    final hash =
+        writeIn(
+              root,
+              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            ).json['plan']!
+            as String;
+    final prompts = StringBuffer();
+    Matcher refusesOutside() => throwsA(
+      isA<RenderFault>()
+          .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+          .having((f) => f.exitStatus, 'exitStatus', 73)
+          .having((f) => f.file, 'file', MoveJournal.journalPath),
+    );
+
+    expect(
+      () => del(root, ['user_story:login/sign_out']),
+      refusesWith(WriteFaultCode.ownerTerminalRequired),
+    );
+    expect(
+      () => del(
+        root,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.given,
+        planHash: '000000000000',
+      ),
+      refusesWith(WriteFaultCode.planMismatch),
+    );
+    expect(
+      () => del(
+        root,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        prompts: prompts,
+      ),
+      refusesOutside(),
+    );
+    expect(prompts.toString(), isEmpty);
+    expect(
+      () => del(
+        root,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+      ),
+      refusesOutside(),
+    );
+    expect(treeBytes(outside), before);
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
   test('the Owner deleting a never-approved unit sees no prompt', () async {
     final root = await writeWriteProject(extra: withoutLink);
@@ -1209,6 +1501,34 @@ void main() {
       expect(hasDoc(root, loginArch), isTrue);
     });
 
+    test(
+      'an untyped single-file delete moves the file to the trash folder',
+      () async {
+        final root = await writeWriteProject(extra: untyped);
+        expect(
+          () => IOOverrides.runWithIOOverrides(
+            () => del(root, [scratch]),
+            FailingRenameHook('docs/$scratch'),
+          ),
+          throwsA(isA<RenderFault>()),
+        );
+
+        final journal = File('${root.path}/${MoveJournal.journalPath}');
+        expect(journal.existsSync(), isTrue);
+        expect(
+          journal.readAsStringSync(),
+          contains('.specstone/trash/files/docs/$scratch'),
+        );
+        writeIn(root, (s) => s.index.docs.length);
+        expect(hasDoc(root, scratch), isFalse);
+        expect(hasDoc(root, notes), isTrue);
+        expect(
+          Directory('${root.path}/.specstone/trash').existsSync(),
+          isFalse,
+        );
+      },
+    );
+
     test('docs/ and an untyped DocPath deletes that one file only', () async {
       final root = await writeWriteProject(extra: untyped);
       expect(del(root, ['docs/$scratch']).json, {
@@ -1429,6 +1749,44 @@ void main() {
       });
     });
 
+    test('the prompt counts each file of a target inside another target once', () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Signup](features/f02_signup/FEATURE.md)\n',
+          'docs/$persona':
+              '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+        },
+      );
+      final alone =
+          writeIn(
+                root,
+                (s) => answerDeleteDryRun(s, ['feature:login']),
+              ).json['files']!
+              as List;
+      final prompts = StringBuffer();
+
+      final answer = del(
+        root,
+        ['feature:login', 'user_story:login/email_login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        prompts: prompts,
+      );
+
+      expect(answer.json['removed'], alone);
+      expect(
+        prompts.toString(),
+        endsWith('delete ${alone.length} files? [y/N] '),
+      );
+      for (final path in alone) {
+        expect(
+          '$path\n'.allMatches(prompts.toString()),
+          hasLength(1),
+          reason: '$path',
+        );
+      }
+    });
+
     test('the same target twice removes its file once', () async {
       final root = await writeWriteProject(extra: untyped);
       final answer = del(root, [scratch, scratch]);
@@ -1543,6 +1901,34 @@ void main() {
       expect(delLogin(root).warnings, isEmpty);
     });
 
+    test('a doc-name mention from inside the unit gives no warning', () async {
+      final root = await mentioning({
+        'prds/features/f01_login/us01_email_login/USER_STORY.md':
+            writeProject['docs/$story1']!.replaceFirst(
+              'Sign in with an email.',
+              'Sign in with an email, see `feature:login` and `login/reset_password`.',
+            ),
+      });
+
+      expect(delLogin(root).warnings, isEmpty);
+    });
+
+    test(
+      'the mentioning doc keeps its bytes whatever form its mentions take',
+      () async {
+        const text =
+            '# Project context\n\nSee `features/f01_login/FEATURE.md`,\n'
+            '`feature:login`, and `login/reset_password`.\n';
+        final root = await mentioning({project: text});
+
+        final answer = delLogin(root);
+
+        expect(answer.json['removed'], contains(loginFeature));
+        expect(answer.warnings, isNotEmpty);
+        expect(readDoc(root, project), text);
+      },
+    );
+
     test('a mention from an untyped doc gives no warning', () async {
       final root = await mentioning({
         'prds/d02_notes.md':
@@ -1620,9 +2006,7 @@ void main() {
       expect(delLogin(root).warnings, isEmpty);
     });
 
-    test('a doc-name '
-        'mention of the feature warns as a path mention does, the delete '
-        'going on', () async {
+    test('a doc-name mention of the feature warns as a path mention does, the delete going on', () async {
       final root = await mentioning({
         project: '# Project context\n\nSee `feature:login`.\n',
       });
@@ -1634,9 +2018,7 @@ void main() {
       expect(hasDoc(root, project), isTrue);
     });
 
-    test('a bare '
-        'name and a typed name of one doc on two lines give one warning, and '
-        'a dry run warns the same', () async {
+    test('a bare name and a typed name of one doc on two lines give one warning, and a dry run warns the same', () async {
       final root = await mentioning({
         project:
             '# Project context\n\nSee `login/reset_password`.\n\n'
@@ -1654,8 +2036,7 @@ void main() {
       expect(hasDoc(root, story3), isTrue);
     });
 
-    test('a '
-        'doc-name mention from an untyped doc gives no warning', () async {
+    test('a doc-name mention from an untyped doc gives no warning', () async {
       final root = await mentioning({
         'prds/d02_notes.md': '# Notes\n\nSee `feature:login`.\n',
       });
@@ -1746,6 +2127,18 @@ void main() {
         refusedForJourney(story3),
       );
       expect(hasDoc(root, story3), isTrue);
+    });
+
+    test('a journey step outside a several-target set refuses and removes neither target', () async {
+      final root = await writeWriteProject(extra: _onlyJourneyRefers('S1'));
+      expect(
+        () => del(root, [
+          'user_story:login/reset_password',
+          'architecture:signup',
+        ]),
+        refusedForJourney(story3),
+      );
+      expect([hasDoc(root, story3), hasDoc(root, signupArch)], [true, true]);
     });
   });
 
@@ -2121,6 +2514,80 @@ void main() {
       expect(readDoc(root, _loginRecord), isNot(contains('reset_password')));
     });
 
+    test('a record edited after the dry run is plan_mismatch with exit 75, and nothing is removed or written', () async {
+      final root = await writeWriteProject(extra: _withRecords());
+      final hash =
+          writeIn(
+                root,
+                (s) =>
+                    answerDeleteDryRun(s, ['user_story:login/reset_password']),
+              ).json['plan']!
+              as String;
+      docFile(root, _loginRecord).writeAsStringSync(
+        _loginRecordText.replaceFirst('# Record', '# Record\n\nEdited.'),
+      );
+      final edited = readDoc(root, _loginRecord);
+
+      expect(
+        () => del(
+          root,
+          ['user_story:login/reset_password'],
+          confirmation: OwnerConfirmation.given,
+          planHash: hash,
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.planMismatch)
+              .having((f) => f.exitStatus, 'exitStatus', 75)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('the delete list is not the one the Owner saw'),
+              ),
+        ),
+      );
+      for (final path in removedStory3) {
+        expect(hasDoc(root, path), isTrue, reason: path);
+      }
+      expect(readDoc(root, _loginRecord), edited);
+    });
+
+    test('the mentions lines follow the rewrites lines, a tracked CLAUDE.md among them, and the apply keeps those files as they are', () async {
+      const code = '// `login/reset_password` goes\n';
+      const agent = 'Details: `docs/$story3`.\n';
+      final root = await writeWriteProject(
+        extra: {
+          ..._withRecords(),
+          'docs/specs/TECH_STACK.md':
+              '---\ncode:\n  - lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
+              '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+              '## Naming\n\n- snake_case file names\n',
+          'app/lib/reset.dart': code,
+          'CLAUDE.md': agent,
+        },
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      commitAll(root, 'first');
+      const mentions =
+          'mentions CLAUDE.md:1 docs/$story3\n'
+          'mentions app/lib/reset.dart:1 login/reset_password\n';
+
+      final dry = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+      );
+      expect(
+        dry.text,
+        '${removedStory3.join('\n')}\n$recordEntries\n${mentions}plan '
+        '${dry.json['plan']}\ndry run: nothing removed\n',
+      );
+
+      final applied = del(root, ['user_story:login/reset_password']);
+      expect(applied.text, '${removedStory3.join('\n')}\n$mentions');
+      expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
+      expect(File('${root.path}/app/lib/reset.dart').readAsStringSync(), code);
+    }, skip: hasGit ? null : 'git is not available');
+
     test('the Owner prompt lists each record with its entries and counts the files of the unit alone; a record edited while it waits shows the list again, and nothing is written', () async {
       final root = await writeWriteProject(
         extra: {
@@ -2368,6 +2835,27 @@ void main() {
         );
         for (final path in [flutterRecord, jasprRecord]) {
           final record = readDoc(root, path);
+          expect(record, isNot(contains('check_password')), reason: path);
+          expect(record, contains('draft: true'), reason: path);
+        }
+      },
+    );
+
+    test(
+      "an FR delete drops that FR's entry from the record of every target",
+      () async {
+        final root = await twins();
+
+        del(
+          root,
+          ['fr:login/email_login/check_password'],
+          confirmation: OwnerConfirmation.prompt,
+          answers: ['y'],
+        );
+
+        for (final path in [flutterRecord, jasprRecord]) {
+          final record = readDoc(root, path);
+          expect(record, contains("'email_login:implemented'"), reason: path);
           expect(record, isNot(contains('check_password')), reason: path);
           expect(record, contains('draft: true'), reason: path);
         }

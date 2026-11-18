@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone/src/command_runner.dart';
+import 'package:specstone_core/specstone_core.dart' show TemplateResolver;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
@@ -17,6 +19,14 @@ Future<String> _dryRunPlanHash(Directory root, String target) async {
   expect(await runner.run(['delete', target, '--dry-run', '--json']), 0);
   return (jsonDecode(out.toString()) as Map)['plan']! as String;
 }
+
+/// [fr12] without its link into the reset story, so that story has no referrer.
+const noLinkIn = {
+  'docs/$fr12':
+      '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n'
+      '# Lock after failures\n\n## Statement\n\n'
+      'The system shall lock the account.\n',
+};
 
 void main() {
   test('delete prints one removed path per line', () async {
@@ -479,6 +489,264 @@ void main() {
         expect(await runner.run(['delete', 'feature:ay', '--dry-run']), 64);
         expect(out.toString(), isEmpty);
         expect(err.toString(), 'no feature doc carries the name ay\n');
+      },
+    );
+  });
+
+  group('refusals and prompts of delete', () {
+    const resetStory = 'user_story:login/reset_password';
+
+    Map<String, Object?> errorOf(StringBuffer err) =>
+        (jsonDecode(err.toString()) as Map)['error']! as Map<String, Object?>;
+
+    test('a referred unit and an unknown target refuse a dry run', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['delete', resetStory, '--dry-run', '--json']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(errorOf(err)['code'], 'doc_referenced');
+
+      final (runner: second, out: secondOut, err: secondErr) = writeRunner(
+        root,
+      );
+      expect(
+        await second.run([
+          'delete',
+          'fr:login/no_such_fr',
+          '--dry-run',
+          '--json',
+        ]),
+        64,
+      );
+      expect(secondOut.toString(), isEmpty);
+      expect(errorOf(secondErr)['code'], 'doc_not_found');
+      expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
+    });
+
+    test('a guarded delete with no home folder refuses output_not_writable, '
+        'exit 73, and lists no file and asks nothing', () async {
+      final root = await writeWriteProject();
+      final out = StringBuffer();
+      final err = StringBuffer();
+      var asked = 0;
+      final runner = SpecstoneCommandRunner(
+        out: out,
+        err: err,
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['y'],
+          onReadLine: (_) => asked++,
+        ),
+        environment: const {},
+      );
+
+      expect(await runner.run(['delete', fr11Target, '--json']), 73);
+
+      expect(out.toString(), isEmpty);
+      expect(asked, 0);
+      final error = errorOf(err);
+      expect(error['code'], 'output_not_writable');
+      expect(error['file'], '.specstone/trash/journal.json');
+      expect(
+        error['message'],
+        'cannot write .specstone/trash/journal.json: no home folder to record '
+        'it in',
+      );
+      expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
+    });
+
+    test('--yes --plan never prompts at an interactive terminal', () async {
+      final root = await writeWriteProject();
+      final hash = await _dryRunPlanHash(root, fr11Target);
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['n'],
+          onReadLine: (_) => fail('a --yes delete must not prompt'),
+        ),
+      );
+      expect(
+        await runner.run(['delete', fr11Target, '--yes', '--plan', hash]),
+        0,
+        reason: err.toString(),
+      );
+      expect(out.toString(), '$fr11\n');
+      expect(File('${root.path}/docs/$fr11').existsSync(), isFalse);
+    });
+
+    test(
+      'any answer but y at the Owner prompt exits 0 and removes nothing',
+      () async {
+        const approvedStory =
+            '---\nstatus: planned\napproved: true\n---\n\n# Reset password\n\n'
+            '## Use Case\n\nReset a password.\n\n## Acceptance Criteria\n\n'
+            '- **Given** a forgotten password\n';
+        final root = await writeWriteProject(
+          extra: {...noLinkIn, 'docs/$story3': approvedStory},
+        );
+        for (final answer in ['n', '', 'yes', null]) {
+          final (:runner, :out, :err) = writeRunner(
+            root,
+            console: FakeConsole(
+              stdinIsTerminal: true,
+              stdoutIsTerminal: true,
+              answers: [answer],
+            ),
+          );
+          expect(
+            await runner.run(['delete', resetStory]),
+            0,
+            reason: '$answer',
+          );
+          expect(
+            out.toString(),
+            '$story3\n$fr31\n$fr32\ndelete 3 files? [y/N] ',
+          );
+          expect(err.toString(), isEmpty);
+          for (final kept in [story3, fr31, fr32]) {
+            expect(File('${root.path}/docs/$kept').existsSync(), isTrue);
+          }
+        }
+      },
+    );
+
+    test(
+      'a typed target a doc outside links into exits 64 naming doc_referenced',
+      () async {
+        final root = await writeWriteProject();
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(await runner.run(['delete', resetStory]), 64);
+        expect(
+          err.toString(),
+          '$story3: docs outside $resetStory link into it; also $fr12\n',
+        );
+        expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
+      },
+    );
+
+    test(
+      'a journey step that names the story refuses the delete with exit 64',
+      () async {
+        const journey = 'prds/journeys/sign_in/JOURNEY.md';
+        final root = await writeWriteProject(
+          extra: {
+            ...noLinkIn,
+            'docs/$journey':
+                '---\ndraft: true\n---\n\n# Sign in\n\n## Goal\nGet in.\n\n'
+                '## Flow\n\n## Steps\n### 1. Reset\nstep: login/reset_password S1\n',
+          },
+        );
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(await runner.run(['delete', resetStory]), 64);
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          '$story3: docs outside $resetStory link into it; also $journey\n',
+        );
+        expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
+      },
+    );
+
+    test('a --base option is reported as an unknown option', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(await runner.run(['delete', fr11Target, '--base', 'x']), 64);
+      expect(
+        err.toString(),
+        startsWith('Could not find an option named "--base".\n'),
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test(
+      'delete refuses no target, an unknown one, and a shared name',
+      () async {
+        final root = await writeWriteProject();
+        for (final (args, code) in [
+          (<String>[], 'argument_missing'),
+          (['feature:nowhere'], 'doc_not_found'),
+          (['login'], 'argument_invalid'),
+        ]) {
+          final (:runner, :out, :err) = writeRunner(root);
+          expect(
+            await runner.run(['delete', ...args, '--json']),
+            64,
+            reason: code,
+          );
+          expect(errorOf(err)['code'], code);
+        }
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(await runner.run(['delete', 'login']), 64);
+        expect(err.toString(), contains('feature:login'));
+        expect(err.toString(), contains('architecture:login'));
+        expect(File('${root.path}/docs/$loginFeature').existsSync(), isTrue);
+      },
+    );
+  });
+
+  group('delete of several targets', () {
+    const draftNotes = '---\ndraft: true\n---\n\n# Notes\n';
+
+    test('an untyped doc with no draft mark needs the plan hash', () async {
+      final root = await writeWriteProject(extra: {'docs/$notes': '# Notes\n'});
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['delete', notes]), 77);
+      expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
+
+      final hash = await _dryRunPlanHash(root, notes);
+      final (runner: second, out: secondOut, err: secondErr) = writeRunner(
+        root,
+      );
+      expect(
+        await second.run(['delete', notes, '--yes', '--plan', hash]),
+        0,
+        reason: secondErr.toString(),
+      );
+      expect(secondOut.toString(), '$notes\n');
+      expect(File('${root.path}/docs/$notes').existsSync(), isFalse);
+    });
+
+    test('one unresolved target among several refuses every target', () async {
+      final root = await writeWriteProject(extra: {'docs/$notes': draftNotes});
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['delete', notes, 'feature:nowhere']), 64);
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), 'no feature doc carries the name nowhere\n');
+      expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
+    });
+
+    test('one typed target prints each of its removed paths', () async {
+      final root = await writeWriteProject(extra: noLinkIn);
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['delete', 'user_story:login/reset_password']),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), '$story3\n$fr31\n$fr32\n');
+    });
+
+    test(
+      'a bare name of two docs among targets lists each candidate',
+      () async {
+        final root = await writeWriteProject(
+          extra: {'docs/$notes': draftNotes},
+        );
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(await runner.run(['delete', 'login', notes]), 64);
+        expect(out.toString(), isEmpty);
+        expect(err.toString(), contains('feature:login'));
+        expect(err.toString(), contains('architecture:login'));
+        expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
+        expect(File('${root.path}/docs/$loginFeature').existsSync(), isTrue);
       },
     );
   });

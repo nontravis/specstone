@@ -4,6 +4,7 @@ library;
 import 'dart:io';
 
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../helpers/script_sandbox.dart';
 import '../helpers/temp_tree.dart';
@@ -38,6 +39,73 @@ void main() {
     expect(text, isNot(contains('\n## test ')));
     expect(text, isNot(contains('\n## specstone_core ')));
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('a runtime package added to the CLI later has its license in the '
+      'notices', () async {
+    final root = await writeTree({
+      'pubspec.yaml':
+          'name: fixture_workspace\n'
+          'publish_to: none\n'
+          'environment:\n  sdk: ^3.13.0\n'
+          'workspace:\n  - packages/specstone\n',
+      'packages/specstone/pubspec.yaml':
+          'name: specstone\n'
+          'publish_to: none\n'
+          'resolution: workspace\n'
+          'environment:\n  sdk: ^3.13.0\n'
+          'dependencies:\n  added_later: {path: ../../added_later}\n',
+      'added_later/pubspec.yaml':
+          'name: added_later\n'
+          'version: 4.5.6\n'
+          'publish_to: none\n'
+          'environment:\n  sdk: ^3.13.0\n',
+      'added_later/lib/added_later.dart': '',
+      'added_later/LICENSE': 'Added later license text.\n',
+      'packages/specstone_core/assets/mermaid/LICENSE': 'Mermaid license.\n',
+    });
+    final get = await Process.run(Platform.resolvedExecutable, [
+      'pub',
+      'get',
+    ], workingDirectory: root.path);
+    expect(get.exitCode, 0, reason: '${get.stderr}');
+    final out = File('${root.path}/THIRD_PARTY_NOTICES');
+
+    final r = await Process.run(Platform.resolvedExecutable, [
+      'run',
+      '${repoRoot().path}/tool/third_party_notices.dart',
+      out.path,
+    ], workingDirectory: root.path);
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    expect(
+      out.readAsStringSync(),
+      contains('\n## added_later 4.5.6\n\nAdded later license text.'),
+    );
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('the release workflow writes the notices file at each release, and no '
+      'copy is checked in', () {
+    final workflow = loadYaml(
+      File('${repoRoot().path}/.github/workflows/release.yaml')
+          .readAsStringSync(),
+    ) as YamlMap;
+    final runs = [
+      for (final job in (workflow['jobs'] as YamlMap).values)
+        for (final step in ((job as YamlMap)['steps'] as YamlList?) ?? const [])
+          '${(step as YamlMap)['run']}',
+    ];
+
+    expect(
+      runs.where(
+        (run) => run.contains('dart run tool/third_party_notices.dart'),
+      ),
+      hasLength(1),
+    );
+    expect(
+      File('${repoRoot().path}/THIRD_PARTY_NOTICES').existsSync(),
+      isFalse,
+    );
+  });
 
   test('a dependency with no license file fails the tool, '
       'naming it', () async {

@@ -332,6 +332,11 @@ void main() {
       expect(sentences('architecture', 'components'), [(1, 'Responsibility')]);
       expect(sentences('domain', 'invariants'), [(1, null)]);
       expect(sentences('topic', 'rules'), [(1, null)]);
+      expect(sentences('error', 'error_catalog'), [
+        (1, 'Triggered by'),
+        (1, 'Client guidance'),
+      ]);
+      expect(sentences('tech_stack', 'stack'), [(1, 'Why')]);
       final fields = section('domain', 'invariants').itemFields!;
       expect(
         [for (final f in fields) f.field],
@@ -352,6 +357,18 @@ void main() {
       expect(section('error', 'error_catalog').catalog!.column, 'Code');
     });
 
+    test('the item line, line, and item count keys sit on their sections', () {
+      for (final (docType, id) in [
+        ('architecture', 'concerns'),
+        ('architecture', 'design_references'),
+      ]) {
+        expect(section(docType, id).maxItemLines, 1, reason: '$docType.$id');
+      }
+      expect(section('auth', 'enforcement').maxLines, 1);
+      final purpose = section('topic', 'purpose').itemCount!;
+      expect((purpose.min, purpose.max), (null, 1));
+    });
+
     test('no other spec section sets a guide-rule key', () {
       final found = <String>{
         for (final (docType, s) in specSections())
@@ -363,17 +380,26 @@ void main() {
               s.maxLines != null ||
               s.minLines != null ||
               s.itemCount != null ||
+              s.maxItemLines != null ||
               s.namesCodes != null)
             '${docType.id}.${s.id}',
       };
       expect(found, {
         'architecture.component_diagram',
         'architecture.components',
+        'architecture.concerns',
+        'architecture.design_references',
+        'auth.enforcement',
         'domain.invariants',
         'topic.rules',
+        'topic.purpose',
+        'tech_stack.stack',
         'error.error_catalog',
         'project_architecture.component_diagram',
         'project_architecture.components',
+        'project_architecture.concerns',
+        'project_architecture.design_references',
+        'project_auth.enforcement',
         'project_domain.invariants',
         'project_error.error_catalog',
         'project_api.conventions',
@@ -588,6 +614,19 @@ void main() {
         final snapshot = section(docType, 'snapshot');
         expect((snapshot.minLines, snapshot.maxLines), (2, 4), reason: docType);
       }
+      final rules = section('user_story', 'rules').itemCount!;
+      expect((rules.min, rules.max), (2, null));
+      final alternatives = section('persona', 'alternatives').itemCount!;
+      expect((alternatives.min, alternatives.max), (1, null));
+      expect(section('journey', 'goal').maxLines, 1);
+      for (final (docType, id) in [
+        ('feature', 'out_of_scope'),
+        ('glossary', 'terms'),
+        ('project', 'name'),
+        ('project', 'roles'),
+      ]) {
+        expect(section(docType, id).maxItemLines, 1, reason: '$docType.$id');
+      }
     });
 
     test('the story scenario cap is 6 and no other section sets one', () {
@@ -630,16 +669,24 @@ void main() {
             if (s.maxSentences != null ||
                 s.itemCount != null ||
                 s.minLines != null ||
-                s.maxLines != null)
+                s.maxLines != null ||
+                s.maxItemLines != null)
               '${docType.id}.${s.id}',
       };
       expect(found, {
         'project.vision',
+        'project.name',
+        'project.roles',
         'fr.statement',
         'user_story.acceptance_criteria',
+        'user_story.rules',
         'persona.jobs',
         'persona.snapshot',
+        'persona.alternatives',
         'anti_persona.snapshot',
+        'journey.goal',
+        'feature.out_of_scope',
+        'glossary.terms',
       });
     });
 

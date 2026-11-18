@@ -664,6 +664,59 @@ void main() {
     });
   });
 
+  test('the last of two differing statuses lines decides the status, and '
+      'only the second is a duplicate', () async {
+    final skippedLast = await _check(
+      _record(
+        statuses: ['$_story:planned', '$_story:skipped:no toast host'],
+        code: ['$_story:lib/a.dart'],
+      ),
+    );
+    final plannedLast = await _check(
+      _record(
+        statuses: ['$_story:skipped:no toast host', '$_story:planned'],
+        code: ['$_story:lib/a.dart'],
+      ),
+    );
+
+    expect(_found(skippedLast), [
+      '${_statusLine(1)} record_entry_duplicate',
+      '${_codeLine(2, 0)} skip_with_code',
+    ]);
+    expect(_found(plannedLast), ['${_statusLine(1)} record_entry_duplicate']);
+  });
+
+  test('under an ancestor skip an implements line naming the nested feature '
+      'with no statuses line is feature_status_written', () async {
+    final report = await _checkNested(
+      _record(statuses: [':skipped:no shop']),
+      _record(code: [':lib/a.dart']),
+    );
+
+    expect(_found(report, _cartRecord), [
+      '${_codeLine(0, 0)} feature_status_written',
+    ]);
+  });
+
+  test('a statuses or implements line with no colon names its whole line as '
+      'the unresolved entry', () async {
+    final report = await _check(
+      _record(statuses: ['show_toast'], code: ['show_toast']),
+    );
+
+    expect(_found(report), [
+      '${_statusLine(0)} record_entry_unresolved',
+      '${_codeLine(1, 0)} record_entry_unresolved',
+    ]);
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.recordEntryUnresolved) f.keys['entry'],
+      ],
+      ['show_toast', 'show_toast'],
+    );
+  });
+
   test('a line that names no item is unresolved, once, even '
       'when it holds the only fault', () async {
     final report = await _check(

@@ -27,6 +27,18 @@ void main() {
     ]);
   });
 
+  test('the description states no number a lint key holds', () {
+    expect(
+      sectionOf(techStack, 'naming').description,
+      isNot(contains('Rows may exceed five')),
+    );
+  });
+
+  test('stack caps its Why column at one sentence', () {
+    final caps = sectionOf(techStack, 'stack').maxSentences!;
+    expect([for (final c in caps) (c.count, c.column)], [(1, 'Why')]);
+  });
+
   test('tech_stack joins implement and design', () async {
     final set = await resolveSoftwareTech();
     expect(set.lookup('tech_stack')!.bundle, ['implement', 'design']);

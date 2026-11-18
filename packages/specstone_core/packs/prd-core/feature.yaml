@@ -5,7 +5,7 @@ description: |-
   The title holds the name and the folder slug is the code, so write no Feature name section.
   Name the feature by the outcome it creates for the persona, and let the name imply its boundary.
   Never write `status:`; it is computed from the feature's stories.
-  Write at least one ID across `vision:` (`PV-*`) and `goals:` (`PG-*`).
+  Serve a vision or a goal: write `vision:` (`PV-*`) or `goals:` (`PG-*`).
   Name the personas served precisely in `persona:`, never "everyone"; an Agent-only feature has none.
   Pair the problem with a shaped solution: a problem alone is unshaped work, a solution alone has no test of fit.
   Reject grab-bags such as "X 2.0" or "redesign Y"; narrow them to one problem with a clear done.
@@ -16,7 +16,6 @@ description: |-
   Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
   Keep a bound in the item it limits, and the trace in `vision:` and `goals:`, never in the prose.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
   Put a cite or an ownership note at the item's end.
   Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
@@ -30,7 +29,7 @@ description: |-
   The parent keeps only what all its sub-features share.
   When `check` reports `chars_over_limit` or `lines_over_limit` on a feature's doc that a write has laid out, propose a sub-feature split by the same three questions; the Owner approves it.
   A feature of fewer than 4 stories takes no split, since a split needs at least 2 sub-features of at least 2 stories each and a feature holds stories or sub-features, never both; say why no split applies.
-  `item_over_limit` takes no split, since a split never shrinks one item; the item takes its doc type's item shape instead.
+  `item_over_limit` and `item_lines_over_limit` take no split, since a split never shrinks one item; the item takes its doc type's item shape instead.
   Cut no text to pass a size.
 path: prds/features/f{nn}_{slug}/FEATURE.md
 max_depth: 3
@@ -49,13 +48,11 @@ fields:
     list: true
     description: |-
       Lists the vision IDs (`PV-*`) of PROJECT that the feature serves.
-      Write at least one ID across `vision` and `goals`.
   - id: goals
     type: string
     list: true
     description: |-
       Lists the goal IDs (`PG-*`) of the goal doc that the feature serves.
-      Write at least one ID across `vision` and `goals`.
   - id: persona
     type: doc_ref
     list: true
@@ -133,15 +130,15 @@ sections:
     header: Out-of-scope
     required: true
     description: |-
-      List the use cases left out to fit the appetite or keep the problem tractable, one line each.
+      List the use cases left out to fit the appetite or keep the problem tractable.
       Write each line as `<thing> — <owning feature | not planned>`; mark a deferred item with its owning feature.
       Write the skip line of a pattern item as `<pattern>/<item>` in a code span, then ` — `, then the reason.
-      The list has no cap on the number of lines.
     template: |-
       - <thing> — <owning feature | not planned>
       - `<pattern>/<item>` — <why the feature skips the item>
     query: true
     lint:
+      max_item_lines: 1
       banned_patterns:
         - id: out_of_scope_owner
           pattern: '^[-*] (?!.* — )'

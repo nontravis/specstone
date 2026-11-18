@@ -2,6 +2,8 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -104,6 +106,65 @@ void main() {
         expect(view, contains('| changes | `## Statement` |'));
         expect(view, contains('```diff\n'));
       }
+    });
+
+    test('spaces and tabs at line ends are a layout change', () {
+      final view = _render(
+        _draft(
+          text: fr('\nOne \nTwo\t\nThree   \n'),
+          lookup: _copy(fr('\nOne\nTwo\nThree\n')),
+          mergedType: frType,
+        ),
+      );
+      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
+    });
+
+    test('blank lines under a heading are a layout change', () {
+      final view = _render(
+        _draft(
+          text: fr('One.\n'),
+          lookup: _copy(fr('\n\nOne.\n')),
+          mergedType: frType,
+        ),
+      );
+      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
+    });
+
+    test('a header written in another letter case is a layout change', () {
+      final view = _render(
+        _draft(
+          text: fr('\nOne.\n').replaceFirst('## Statement', '## STATEMENT'),
+          lookup: _copy(fr('\nOne.\n')),
+          mergedType: frType,
+        ),
+      );
+      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
+    });
+
+    test('the order of keys and of sections is a layout change', () {
+      const ordered = MergedDocType(
+        id: 'fr',
+        fields: [
+          MergedField(id: 'first', type: FieldType.string),
+          MergedField(id: 'second', type: FieldType.string),
+        ],
+        sections: [
+          MergedSection(id: 'statement', header: 'Statement'),
+          MergedSection(id: 'rationale', header: 'Rationale'),
+        ],
+        lint: MergedLint(),
+        files: [],
+      );
+      const template =
+          '---\nfirst: a\nsecond: b\n---\n\n# T\n\n'
+          '## Statement\nS.\n\n## Rationale\nR.\n';
+      const shuffled =
+          '---\nsecond: b\nfirst: a\n---\n\n# T\n\n'
+          '## Rationale\nR.\n\n## Statement\nS.\n';
+      final view = _render(
+        _draft(text: shuffled, lookup: _copy(template), mergedType: ordered),
+      );
+      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
     });
 
     test('a copy the formatter refuses compares as written', () {
@@ -328,6 +389,19 @@ void main() {
       expect(view, contains('| changes | field `verify_method` |\n'));
     });
 
+    test('an approved copy holding a hash hides it from the diff and rows', () {
+      final oldHashed = _old.replaceFirst(
+        'verify_method: test\n',
+        'verify_method: test\napproved: "0f469db9b19c"\n',
+      );
+
+      final view = _render(_draft(lookup: _copy(oldHashed)));
+
+      expect(view, isNot(contains('0f469db9b19c')));
+      expect(view, isNot(contains('approved:')));
+      expect(view, contains('| changes | field `verify_method` |\n'));
+    });
+
     test('withoutApprovalMarks drops both key blocks only', () {
       expect(
         withoutApprovalMarks(
@@ -364,10 +438,21 @@ void main() {
       );
     });
 
+    test('a saved copy compares as approved and names no commit or path', () {
+      final draft = _draft(lookup: const SavedApprovedCopy(_old));
+      final view = _render(draft);
+
+      expect(view, contains('| old     | approved copy not yet committed |\n'));
+      expect(view, contains('| changes | field `verify_method` |\n'));
+      expect(view, isNot(contains('renamed from')));
+      expect(draftViewJson(draft)['lookup'], 'found');
+      expect(draftViewJson(draft).containsKey('renamedFrom'), isFalse);
+    });
+
     group('the uncommitted-approval hint', () {
       const hint =
-          'commit an approval before you edit the doc again; '
-          'the view compares against committed copies only';
+          'no copy of this approval is saved here or in a commit; '
+          'commit approvals before editing again';
       const approvedEdit =
           '---\nverify_method: demonstration\napproved: "0123456789ab"\n'
           '---\n\n# FR-01 — T\n\n## Statement\nA.\n\n## Rationale\nR2.\n';
@@ -387,7 +472,7 @@ void main() {
       test('a no-copy view of a doc with no approved: value has no hint', () {
         final view = _render(_draft(lookup: const NoApprovedCopy()));
 
-        expect(view, isNot(contains('commit an approval')));
+        expect(view, isNot(contains('commit approvals before editing')));
       });
 
       test('a view with an approved copy has no hint, approved: or not', () {
@@ -462,6 +547,15 @@ void main() {
       final view = _render(_draft(text: newText, lookup: _copy(oldText)));
 
       expect(view, contains('| changes | `` ## Run `get` `` |\n'));
+    });
+
+    test('a frontmatter key holding backticks prints in a longer span', () {
+      const oldText = '---\n"a`b": 1\n---\n# T\n';
+      const newText = '---\n"a`b": 2\n---\n# T\n';
+
+      final view = _render(_draft(text: newText, lookup: _copy(oldText)));
+
+      expect(view, contains('| changes | field ``a`b`` |\n'));
     });
 
     test('a | in a table cell is escaped', () {

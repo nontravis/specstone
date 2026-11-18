@@ -134,6 +134,14 @@ void main() {
     expect(_found(report), isEmpty);
   });
 
+  test('a stateDiagram-v2 block is not read', () async {
+    final report = await _checkArchitecture(
+      '```mermaid\nstateDiagram-v2\n[*] --> Idle\nIdle --> Busy\n```',
+    );
+
+    expect(_found(report), isEmpty);
+  });
+
   test('a flowchart block in a section whose guide sets no diagram key is '
       'not read', () async {
     final report = await _check(
