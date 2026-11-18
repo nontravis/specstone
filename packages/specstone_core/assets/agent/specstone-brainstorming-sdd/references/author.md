@@ -6,7 +6,7 @@ Ask the Owner nothing: list each gap in the report.
 - **Design document**: read it whole; list each decision, ruling, and Docs to change row.
 - **Drafts** (each pass after the first): the drafts list, the first author report's drafts plus each doc a later
   pass added; in a fix round, the audit's `Findings:` lines too.
-  Before your first write, re-read the drafts in one `specstone get <drafts list>` call. When it refuses with
+  Before your first write, re-read the drafts in one `specstone get <drafts list>`. When it refuses with
   `doc_not_found`, drop each name it names, rerun on the rest; list each dropped name under `Findings:`, or
   as `Not landed:` when listed and never created. Through steps 2 to 4, write an amended design into the drafts
   and fix those findings in them. List each finding outside those drafts under `Findings:`, unfixed.
@@ -58,7 +58,7 @@ Then run `specstone check <feature> --repeats` per feature of your drafts: a dra
 item links it instead. Save each `check` by `--out`, never a redirect.
 
 Fix each second-run finding, even one the first run had, in a section your writes touched. List each in an untouched
-section, such as a doc you only confirmed again, under `Findings:`, unfixed.
+section, such as a doc you only confirmed again, under `Findings:`, unfixed. Two kinds differ:
 
 - **A `suspect` link in another doc:** confirm it again per `specstone-expert-sdd`; that doc joins your
   drafts, or list it under `Findings:` when you cannot.
@@ -87,7 +87,7 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, step 1's list less each name dropped, plus each
   doc added; names only, no `--target`. A moved doc and its children go by their new name.
 - **Counts**: take every count from one `specstone approve --dry-run --json` after your last write. Your
-  drafts are the docs your own list names; the output names a moved one by its old name until its `Move:` line
+  drafts are the docs your list names; the output names a moved one by its old name until its `Move:` line
   runs. Name each other draft it lists under `Other drafts:`, never counted; one of yours it shows as no draft goes
   under `Findings:`.
 - **Move**: only for a moved doc, item, or scenario: one line per target parent or `--top`; copy each
