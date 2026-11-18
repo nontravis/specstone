@@ -577,6 +577,38 @@ void main() {
       );
     });
 
+    test('a row of a skipped item gets no finding of any kind but the skip '
+        "rule's", () async {
+      for (final statuses in [
+        ['$_fr:skipped:no toast host'],
+        ['$_story:skipped:no toast host'],
+        [':skipped:no web view'],
+      ]) {
+        final record = withRows(_record(statuses: statuses), [
+          '- $_fr E01: `shows a toast`',
+          '- $_fr E01: `shows a toast` 3f9a1c0b7e2d',
+          '- $_fr E99: `shows a toast`',
+          '- $_fr E01 skipped: no host',
+        ]);
+
+        final report = await _check(record);
+
+        final kinds = [
+          for (final f in report.findings)
+            if (f.path == _recordPath && f.line >= rowLine(record, 0)) f.kind,
+        ];
+
+        expect(kinds, hasLength(4), reason: '$statuses');
+        expect(
+          kinds,
+          everyElement(
+            anyOf(FindingKind.skipWithCode, FindingKind.entryUnderSkip),
+          ),
+          reason: '$statuses',
+        );
+      }
+    });
+
     test('a row of an item that holds no fault gives no finding, a row '
         'naming a story included', () async {
       final record = withRows(

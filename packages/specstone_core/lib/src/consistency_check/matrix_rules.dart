@@ -133,11 +133,21 @@ final class _MatrixWalk {
             '`<test name>`" or "- <item> <edge case> skipped: <reason>"',
             {'row': text},
           );
+        case final MatrixRow row when _isSkipped(row):
+          break;
         case final MatrixRow row:
           yield* _resolved(row);
           yield* _related(row);
       }
     }
+  }
+
+  // The record entry rule reports a row of a skipped FR alone.
+  bool _isSkipped(MatrixRow row) {
+    final item = _items[row.item];
+    return item != null &&
+        item.docTypeId == frType &&
+        isSkippedIn(_context, _record, item);
   }
 
   Iterable<Finding> _resolved(MatrixRow row) sync* {

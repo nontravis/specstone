@@ -329,7 +329,7 @@ final class _RowLink {
 }
 
 // The rows of [record] whose edge case exists: a row naming a story, a
-// missing item, or a missing edge case takes no state.
+// missing item, a missing edge case, or a skipped requirement takes no state.
 Iterable<_RowLink> _rowLinksOf(CheckContext context, IndexedDoc record) sync* {
   final read = recordDocOf(context, record);
   if (read == null || record.matrixLines.isEmpty) return;
@@ -337,7 +337,11 @@ Iterable<_RowLink> _rowLinksOf(CheckContext context, IndexedDoc record) sync* {
   final blocksOf = <String, Map<String, String>>{};
   for (final row in record.matrixLines.whereType<MatrixRow>()) {
     final fr = items[row.item];
-    if (fr == null || fr.docTypeId != _frType) continue;
+    if (fr == null ||
+        fr.docTypeId != _frType ||
+        isSkippedIn(context, record, fr)) {
+      continue;
+    }
     final blocks = blocksOf.putIfAbsent(
       fr.docPath,
       () => edgeCaseBlocksOf(context, fr),

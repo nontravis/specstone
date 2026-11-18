@@ -1555,8 +1555,12 @@ void main() {
       String name = 'refuses an empty one',
     ]) => '- $item E01: `$name`${fingerprint == null ? '' : ' $fingerprint'}';
 
-    String record(List<String> rows, {String front = ''}) =>
-        '${recordText(front: front, statuses: const ['$item:implemented'])}'
+    String record(
+      List<String> rows, {
+      String front = '',
+      List<String> statuses = const ['$item:implemented'],
+    }) =>
+        '${recordText(front: front, statuses: statuses)}'
         '\n## Verification matrix\n\n${rows.join('\n')}\n';
 
     int rowLine(String record, int i) =>
@@ -1803,6 +1807,43 @@ void main() {
           '    fingerprint $current',
         ]);
       }
+    });
+
+    test('the rows of a skipped requirement take no state', () async {
+      final rows = [
+        testRow(null, 'refuses an unstamped one'),
+        testRow(older, 'refuses a stale one'),
+      ];
+      for (final statuses in [
+        const ['$item:skipped:no clock on CI'],
+        const [':skipped:no web view'],
+        const ['email_login:skipped:no web view'],
+      ]) {
+        final text = record(rows, statuses: statuses);
+
+        expect(await findingsOf(text), isEmpty, reason: '$statuses');
+      }
+    });
+
+    test('a stale row of a skipped requirement is no suspect link', () async {
+      Future<bool> isSuspectRecord(List<String> statuses) async {
+        final project = await writeCheckProject(
+          extra: {
+            loginRecord: record([testRow(older)], statuses: statuses),
+          },
+          unstamped: {loginRecord},
+        );
+        final session = openSession(project);
+        addTearDown(session.close);
+        return hasSuspectLink(
+          CheckContext(session),
+          session.index.at(loginRecord)!,
+        );
+      }
+
+      expect(await isSuspectRecord(const ['$item:implemented']), isTrue);
+      expect(await isSuspectRecord(const ['$item:skipped:no clock']), isFalse);
+      expect(await isSuspectRecord(const [':skipped:no web view']), isFalse);
     });
   });
 }

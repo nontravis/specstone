@@ -35,6 +35,15 @@ RecordDoc? recordDocIn(
   return (type: type, feature: feature, lines: lines);
 }
 
+/// Whether [item] is skipped in the target of [record], by its own entry or by
+/// a skip that covers it.
+///
+/// The record entry rule reports a row of such an item, so no other rule
+/// judges it.
+bool isSkippedIn(CheckContext context, IndexedDoc record, IndexedDoc item) =>
+    context.index.itemStatus(item, codeTarget: record.target) ==
+    RecordStatus.skipped;
+
 /// One `statuses` line of a record: its text, its file line, and what it
 /// reads as.
 final class StatusLine {
