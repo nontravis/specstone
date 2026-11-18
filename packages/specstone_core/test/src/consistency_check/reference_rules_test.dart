@@ -457,6 +457,155 @@ void main() {
     expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
   });
 
+  test(
+    'a see path to an existing file outside the doc folder resolves',
+    () async {
+      final report = await _concernsReport(
+        '- NFRs: see ../../prds/GNFR.md\n'
+        '- Linked: see [gnfr](../../prds/GNFR.md)\n'
+        '- Gone: see ../../prds/GONE.md\n',
+        files: {'docs/prds/GNFR.md': '# Global NFRs\n'},
+      );
+      expect(_targetsOf(report), ['../../prds/GONE.md']);
+    },
+  );
+
+  test('a link written inside a code span names its own text as an unresolved target', () async {
+    final report = await _concernsReport(
+      '- Domain: see `[DOMAIN.md](DOMAIN.md)`\n- Plain: see `DOMAIN.md`;\n',
+      files: {'docs/specs/f01_login/DOMAIN.md': '# Domain\n'},
+    );
+    expect(spots(report, FindingKind.concernsTargetUnresolved), [
+      '$loginArchitecture:22: concerns_target_unresolved',
+    ]);
+    expect(_targetsOf(report), ['[DOMAIN.md](DOMAIN.md)']);
+  });
+
+  test('a see anchor resolves by the slug of a section heading', () async {
+    final report = await _concernsReport(
+      '- Rollout: see #rollout\n- Missing: see #nothing\n',
+      appended: '\n## Rollout\n\nOne stage.\n',
+    );
+    expect(_targetsOf(report), ['#nothing']);
+    expect(spots(report, FindingKind.concernsTargetUnresolved), [
+      '$loginArchitecture:23: concerns_target_unresolved',
+    ]);
+  });
+
+  test(
+    'a see anchor resolves by a body tag id, an anchor name, or a deep heading',
+    () async {
+      final report = await _concernsReport(
+        '- Rollback: see #rollback\n'
+        '- Undo: see #undo\n'
+        '- Retry: see #retry\n'
+        '- Missing: see #nothing\n',
+        appended:
+            '\n## Operations\n\n### Rollback\n\n<div id="undo">Undo.</div>\n\n'
+            '<a name="retry"></a>\n',
+      );
+      expect(_targetsOf(report), ['#nothing']);
+    },
+  );
+
+  test('a section link to the slug of a heading resolves while a bare section link does not', () async {
+    final report = await _concernsReport(
+      '- Parts: see [x](#components)\n'
+      '- Bare: see Components\n'
+      '- Link: see [x](Components)\n',
+    );
+    expect(_targetsOf(report), ['[x](Components)']);
+  });
+
+  test('a link to a missing anchor of a file is both an unresolved target and a missing link anchor on one line', () async {
+    final report = await _concernsReport(
+      '- Domain: see [DOMAIN.md](DOMAIN.md#nothing)\n',
+      files: {'docs/specs/f01_login/DOMAIN.md': '# Domain\n\n## Lifecycle\n'},
+    );
+    expect(_targetsOf(report), ['[DOMAIN.md](DOMAIN.md#nothing)']);
+    expect(
+      spots(report)
+          .where(
+            (s) =>
+                s.contains('concerns_target_unresolved') ||
+                s.contains('link_anchor_missing'),
+          )
+          .toSet(),
+      {
+        '$loginArchitecture:22: concerns_target_unresolved',
+        '$loginArchitecture:22: link_anchor_missing',
+      },
+    );
+  });
+
+  test('a bare see anchor in a doc the parser fails on raises nothing while a bare missing file still does', () async {
+    final report = await _concernsReport(
+      '- A: see #nothing\n- B: see MISSING.md\n',
+      appended: '\n[a]:<b\\',
+    );
+    expect(spots(report, FindingKind.markdownUnparsed), [
+      '$loginArchitecture:1: markdown_unparsed',
+    ]);
+    expect(_targetsOf(report), ['MISSING.md']);
+  });
+
+  test('a see anchor of a file no doc indexes or of a doc the parser fails on raises nothing', () async {
+    final report = await _concernsReport(
+      '- A: see NOTES.txt#nothing\n'
+      '- B: see BROKEN.md#nothing\n'
+      '- C: see ERROR.md#nothing\n'
+      '- D: see ERROR.md#\n',
+      files: {
+        'docs/specs/f01_login/NOTES.txt': 'plain\n',
+        'docs/specs/f01_login/BROKEN.md': '# Broken\n\n[a]:<b\\',
+        'docs/specs/f01_login/ERROR.md': '# Login errors\n\n## Known\n',
+      },
+    );
+    expect(_targetsOf(report), ['ERROR.md#nothing']);
+  });
+
+  test('a type built on architecture takes the Concerns rule yet does not stand for the architecture doc of a feature with implemented code', () async {
+    const built = 'specs/f01_login/EDGE_ARCHITECTURE.md';
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n'
+              '  - id: implements\n'
+              '    type: output_ref\n'
+              '    list: true\n'
+              '    pointer: item_exact\n',
+          '.specstone/templates/edge_architecture.yaml':
+              'id: edge_architecture\nextends: architecture\n'
+              'path: specs/f{nn}_{slug}/EDGE_ARCHITECTURE.md\n',
+          'docs/$built':
+              '# Edge architecture\n\n## Concerns\n\n- Auth: see AUTH.md\n',
+          record:
+              "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
+              "implements:\n  - 'email_login/check_password:app/lib/login.dart:checkPassword'\n"
+              '---\n\n# Record\n',
+        },
+        without: {'docs/$loginArchitecture'},
+        unstamped: {record, 'docs/$built'},
+      ),
+    );
+    expect(spots(report, FindingKind.concernsTargetUnresolved), [
+      '$built:5: concerns_target_unresolved',
+    ]);
+    expect(spots(report, FindingKind.architectureMissing), [
+      '$loginFeature:1: architecture_missing',
+    ]);
+  });
+
   group('see targets in the other root', () {
     const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
     const toRecord = '../../../$record';
@@ -511,3 +660,21 @@ void main() {
 
 bool _isConcern(Finding finding) =>
     finding.kind == FindingKind.concernsTargetUnresolved;
+
+Future<CheckReport> _concernsReport(
+  String concerns, {
+  Map<String, String> files = const {},
+  String appended = '',
+}) async => await checkOf(
+  await writeCheckProject(
+    extra: {
+      ...doc(loginArchitecture, '- Errors: see Components\n', concerns),
+      ...files,
+    }..update('docs/$loginArchitecture', (text) => '$text$appended'),
+  ),
+);
+
+List<String> _targetsOf(CheckReport report) => [
+  for (final f in report.findings.where(_isConcern))
+    f.toJson()['target']! as String,
+];
