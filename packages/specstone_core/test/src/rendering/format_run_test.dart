@@ -1311,29 +1311,53 @@ void main() {
         expect(snapshot(project), before);
       });
 
-      test('a CRLF checkout after a format lists nothing', () async {
-        final project = await formatted({});
-        for (final path in [
-          skill,
-          button,
-          tokens,
-          buttonReference,
-          tokensReference,
-        ]) {
-          final file = project.file(path);
-          file.writeAsStringSync(
-            file
-                .readAsStringSync()
-                .replaceAll('\r\n', '\n')
-                .replaceAll('\n', '\r\n'),
-          );
-        }
+      test('a CRLF project after a format lists nothing and the written '
+          'reference is CRLF', () async {
+        String crlf(String text) => text.replaceAll('\n', '\r\n');
+        final project = await openSkillProject({
+          skill: crlf(skillDocText(sources: [tokensLink, buttonLink])),
+          button: crlf(buttonFormatted),
+          tokens: crlf(tokensDoc),
+        });
+        format(project);
 
         final report = format(project, check: true);
+
+        expect(project.read(tokensReference), crlf(tokensDoc));
+        expect(report.toText(), '');
+        expect(report.exitStatus, 0);
+      });
+
+      test('a plain format lists no leftover and exits 0', () async {
+        final project = await formatted({oldReference: '# Old\n'});
+
+        final report = format(project);
 
         expect(report.toText(), '');
         expect(report.exitStatus, 0);
       });
+
+      test('an unreadable references folder is skipped with a warning, no '
+          'partial list', () async {
+        final project = await formatted({
+          '$output/references/specs/a/old.md': '# Old\n',
+          '$output/references/specs/z/old.md': '# Old\n',
+        });
+        final folder = Directory(
+          '${project.root.path}/$output/references/specs/z',
+        );
+        await Process.run('chmod', ['000', folder.path]);
+        addTearDown(() => Process.run('chmod', ['755', folder.path]));
+
+        final report = format(project, check: true);
+
+        expect(report.toText(), '');
+        expect(report.files.last.path, '$output/references/');
+        expect(report.files.last.status, FileStatus.skipped);
+        expect(report.warnings, [
+          '$output/references/: cannot be read; skipped',
+        ]);
+      }, skip: unreadablePathSkipReason());
     });
 
     test('a run with no link rewriter writes no reference file', () async {

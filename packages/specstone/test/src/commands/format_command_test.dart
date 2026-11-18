@@ -863,7 +863,9 @@ sections:
             .readAsStringSync(),
         before,
       );
-      await run(project, ['format']);
+      final plain = await run(project, ['format']);
+      expect(plain.exitCode, 0, reason: '${plain.stderr}');
+      expect(plain.stdout, '$references/foundations/TOKENS.md: formatted\n');
       expect(File('${project.path}/$old').existsSync(), isTrue);
     });
   });

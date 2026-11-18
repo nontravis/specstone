@@ -242,30 +242,46 @@ FormatReport _withReferences(
   SkillReferences skills,
 ) {
   final check = report.check;
+  final warnings = [...report.warnings];
   final files = [
     for (final result in report.files) ...[
       result,
       if (result.skillRefusal == null)
         if (skills.of(result.path) case final ExportedSkill skill)
-          ..._referenceResults(project, skill, check: check),
+          ..._referenceResults(
+            project,
+            skill,
+            check: check,
+            warnings: warnings,
+          ),
     ],
   ];
-  return FormatReport(check: check, files: files, warnings: report.warnings);
+  return FormatReport(check: check, files: files, warnings: warnings);
 }
 
 List<FileResult> _referenceResults(
   DocsProject project,
   ExportedSkill skill, {
   required bool check,
+  required List<String> warnings,
 }) {
   final results = [
     for (final reference in skill.files)
       if (_differsOnDisk(reference))
         _referenceResult(project, reference, check: check),
-    if (check)
-      for (final path in skill.leftoverPaths)
-        FileResult(path: path, status: FileStatus.leftover),
   ];
+  if (check) {
+    try {
+      for (final path in skill.leftoverPaths) {
+        results.add(FileResult(path: path, status: FileStatus.leftover));
+      }
+    } on FileSystemException {
+      // Like an unlistable doc folder: skipped with a warning, never silent.
+      final folder = skill.referencesPath;
+      results.add(FileResult(path: folder, status: FileStatus.skipped));
+      warnings.add('$folder: cannot be read; skipped');
+    }
+  }
   return results..sort((a, b) => compareCodePoints(a.path, b.path));
 }
 

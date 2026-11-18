@@ -148,28 +148,30 @@ final class ExportedSkill extends SkillPlan {
   /// The path of [_referencesFolder] from the project root, ending in `/`.
   final String _prefix;
 
+  /// The references folder's path from the project root, ending in `/`.
+  String get referencesPath => _prefix;
+
   /// Returns the path, from the project root, of each regular file under the
   /// references folder that no planned file names, in code point order.
   ///
   /// A symbolic link is not followed and not listed.
+  ///
+  /// Throws a [FileSystemException] when the folder or one under it cannot
+  /// be listed; no partial list is returned.
   List<String> get leftoverPaths {
     if (!_referencesFolder.existsSync()) return const [];
     final planned = {for (final file in files) file.path};
     final found = <String>[];
-    try {
-      for (final entity in _referencesFolder.listSync(
-        recursive: true,
-        followLinks: false,
-      )) {
-        if (entity is! File) continue;
-        final relative = entity.path
-            .substring(_referencesFolder.path.length + 1)
-            .replaceAll(Platform.pathSeparator, '/');
-        final path = '$_prefix$relative';
-        if (!planned.contains(path)) found.add(path);
-      }
-    } on FileSystemException {
-      // An unlistable folder lists no leftover, as the doc walk skips it.
+    for (final entity in _referencesFolder.listSync(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is! File) continue;
+      final relative = entity.path
+          .substring(_referencesFolder.path.length + 1)
+          .replaceAll(Platform.pathSeparator, '/');
+      final path = '$_prefix$relative';
+      if (!planned.contains(path)) found.add(path);
     }
     return found..sort(compareCodePoints);
   }
@@ -322,12 +324,11 @@ final class _Planner {
       for (final source in sources.values)
         _referenceFile(placed[source.docPath]!, source, sources.keys.toSet()),
     ]..sort((a, b) => compareCodePoints(a.path, b.path));
-    final folder = [...segments, _referencesFolder];
     return ExportedSkill(
       skill.path,
       files,
-      Directory(_joined(folder)),
-      '${folder.join('/')}/',
+      Directory(_joined([...segments, _referencesFolder])),
+      _referencesPrefixOf(segments),
     );
   }
 
@@ -495,8 +496,11 @@ List<String>? _segmentsOf(String output) {
 String? skillReferencesPrefixOf(String output) {
   final segments = _segmentsOf(output);
   if (segments == null) return null;
-  return '${[...segments, _referencesFolder].join('/')}/';
+  return _referencesPrefixOf(segments);
 }
+
+String _referencesPrefixOf(List<String> segments) =>
+    '${[...segments, _referencesFolder].join('/')}/';
 
 bool _overlaps(String folder, String other) =>
     folder == other ||
