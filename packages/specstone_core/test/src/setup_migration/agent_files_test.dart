@@ -2,8 +2,6 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
-const _fr = 'setup_migration/set_up_new_project/write_agent_files';
-
 /// The AGENT.md text: the FR gives its meanings, the asset its wording.
 const _agentMd =
     '# Specstone\n'
@@ -70,15 +68,15 @@ String _inlineBlock() => inlineBlock(cliVersion: specstoneVersion);
 
 void main() {
   group('texts', () {
-    test('$_fr: agentMdText equals the FR AGENT.md text byte for byte', () {
+    test('agentMdText equals the FR AGENT.md text byte for byte', () {
       expect(agentMdText, _agentMd);
     });
 
-    test('$_fr: the AGENT.md text counts at most $_agentMdWordBound words', () {
+    test('the AGENT.md text counts at most $_agentMdWordBound words', () {
       expect(_wordsOf(agentMdText), lessThanOrEqualTo(_agentMdWordBound));
     });
 
-    test('$_fr: one clause adds the target flag, at most '
+    test('one clause adds the target flag, at most '
         '$_targetClauseWordBound words, naming no target', () {
       final clauses = [
         for (final line in agentMdText.split('\n'))
@@ -101,7 +99,7 @@ void main() {
       expect(skillName.hasMatch(_inlineBlock()), isFalse);
     });
 
-    test('$_fr: the check rule names the tag and waitsFor, no prose rule', () {
+    test('the check rule names the tag and waitsFor, no prose rule', () {
       expect(agentMdText, contains('`(waits for the Owner)`'));
       expect(agentMdText, contains('`waitsFor`'));
       expect(agentMdText, isNot(contains('says it waits')));
@@ -131,7 +129,7 @@ void main() {
       },
     );
 
-    test('$_fr verification: the read rule names a bare --out last in its '
+    test('the read rule names a bare --out last in its '
         'command and a search of the saved file before any get', () {
       for (final text in [agentMdText, _inlineBlock()]) {
         final rule = _rules(text)
@@ -179,7 +177,7 @@ void main() {
       },
     );
 
-    test('$_fr verification: the citation rule names a markdown link', () {
+    test('the citation rule names a markdown link', () {
       for (final text in [agentMdText, _inlineBlock()]) {
         final rule = _rules(text).singleWhere((r) => r.startsWith('- Cite'));
 
@@ -188,7 +186,7 @@ void main() {
       }
     });
 
-    test('$_fr: the import block holds the goal line before END', () {
+    test('the import block holds the goal line before END', () {
       expect(
         _importBlock(),
         _lines([
@@ -221,7 +219,7 @@ void main() {
       );
     });
 
-    test('$_fr: the inline block ends with the project and goal rules', () {
+    test('the inline block ends with the project and goal rules', () {
       expect(
         _inlineBlock(),
         '$_begin\n$_agentMd$_projectRule\n$_goalRule\n$_end\n',
@@ -237,7 +235,7 @@ void main() {
   });
 
   group('scanMarkers', () {
-    test('$_fr: a text without markers scans clean', () {
+    test('a text without markers scans clean', () {
       final scan = scanMarkers('Owner text\nmore\n');
 
       expect(scan.beginLine, isNull);
@@ -246,7 +244,7 @@ void main() {
       expect(scan.isMalformed, isFalse);
     });
 
-    test('$_fr: one BEGIN then one END gives their 1-based lines', () {
+    test('one BEGIN then one END gives their 1-based lines', () {
       final scan = scanMarkers('top\n$_begin\nbody\n$_end\nbottom\n');
 
       expect(scan.beginLine, 2);
@@ -384,7 +382,7 @@ void main() {
       expect(scan.firstMarkerLine, 5);
     });
 
-    test('$_fr: a BOM before the first marker does not hide it', () {
+    test('a BOM before the first marker does not hide it', () {
       final scan = scanMarkers('\uFEFF$_begin\nb\n$_end\n');
 
       expect(scan.beginLine, 1);
@@ -490,13 +488,13 @@ void main() {
       );
     });
 
-    test('$_fr: a UTF-8 BOM stays when the block is appended', () {
+    test('a UTF-8 BOM stays when the block is appended', () {
       const owner = '\uFEFFOwner text.\n';
 
       expect(upsertBlock(owner, _importBlock()), '$owner\n${_importBlock()}');
     });
 
-    test('$_fr: a UTF-8 BOM stays when the first line is the BEGIN line', () {
+    test('a UTF-8 BOM stays when the first line is the BEGIN line', () {
       final old = _lines([
         '\uFEFF<!-- BEGIN specstone v0.0.1 -->',
         'old',
@@ -509,7 +507,7 @@ void main() {
       );
     });
 
-    test('$_fr: an END line without a final line feed stays without one', () {
+    test('an END line without a final line feed stays without one', () {
       final old = ['<!-- BEGIN specstone v0.0.1 -->', 'old', _end].join('\n');
 
       expect(

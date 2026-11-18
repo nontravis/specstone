@@ -79,7 +79,7 @@ void main() {
     expect(await readRunner(pinned).runner.run(['search', 'login']), 78);
   });
 
-  test('api:index_query operations: search --under --target keeps one target, '
+  test('search --under --target keeps one target, '
       'an unknown name is refused', () async {
     final project = await writeTree({
       '.specstone/templates/architecture.yaml':

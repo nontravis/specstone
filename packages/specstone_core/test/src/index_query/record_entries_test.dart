@@ -70,7 +70,7 @@ IndexedDoc _record(String path, String text, {MergedDocType? type}) =>
     ).doc;
 
 void main() {
-  test('domain:index_query RecordEntry: a record indexes its entries, the '
+  test('RecordEntry: a record indexes its entries, the '
       'feature itself named by an empty item', () {
     final doc = _record(
       'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
@@ -103,7 +103,7 @@ void main() {
     ]);
   });
 
-  test('domain:index_query RecordEntry: a status line no RecordStatus names '
+  test('RecordEntry: a status line no RecordStatus names '
       'gives the entry no status', () {
     final doc = _record(
       'specs/jaspr/f02_feedback/IMPLEMENTATION.md',

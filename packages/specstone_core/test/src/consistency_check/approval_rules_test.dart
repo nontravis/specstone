@@ -18,7 +18,6 @@ import '../../helpers/shipped_pins.dart'
     show pinStatusesBelow, shippedStatusesOutside, statusesBelowResolver;
 import '../../helpers/temp_tree.dart';
 
-const _name = 'consistency_check/find_template_breaks/report_stale_approvals';
 const _stale =
     "the doc changed since the Owner approved it; it waits for the Owner's specstone approve";
 const _unapproved =
@@ -92,7 +91,7 @@ Future<CheckReport> _checkBelowPins(Map<String, String> extra) async {
 
 void main() {
   test(
-    '$_name: a project whose docs carry their approval hash raises no approval_stale',
+    'a project whose docs carry their approval hash raises no approval_stale',
     () async {
       expect(_stales(await checkOf(await writeCheckProject())), isEmpty);
     },
@@ -349,56 +348,47 @@ void main() {
     expect(_stales(report).single.keys, {'value': '123e45678901'});
   });
 
-  test(
-    '$_name: an approved: key with no value reports its own line with the no-approval message and no value',
-    () async {
+  test('an approved: key with no value reports its own line with the no-approval message and no value', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: fr('traced_from:\n', 'approved:\ntraced_from:\n'),
+        unstamped: {'docs/$loginFr'},
+      ),
+    );
+    expect(spots(report, FindingKind.approvalStale), [
+      '$loginFr:2: approval_stale',
+    ]);
+    final finding = _stales(report).single;
+    expect(finding.message, _unapproved);
+    expect(finding.keys, isEmpty);
+  });
+
+  test('an approved: list of any shape is one approval_stale with value as written, and check does not throw', () async {
+    for (final (written, value) in [
+      ('approved: []', '[]'),
+      ('approved: [a, b]', '[a, b]'),
+      ('approved:\n  - a\n  - b', '- a\n  - b'),
+    ]) {
       final report = await checkOf(
         await writeCheckProject(
-          extra: fr('traced_from:\n', 'approved:\ntraced_from:\n'),
-          unstamped: {'docs/$loginFr'},
+          extra: fr('traced_from:', '$written\ntraced_from:'),
         ),
       );
       expect(spots(report, FindingKind.approvalStale), [
         '$loginFr:2: approval_stale',
-      ]);
-      final finding = _stales(report).single;
-      expect(finding.message, _unapproved);
-      expect(finding.keys, isEmpty);
-    },
-  );
+      ], reason: written);
+      expect(_stales(report).single.keys, {'value': value}, reason: written);
+    }
+  });
 
-  test(
-    '$_name: an approved: list of any shape is one approval_stale with value as written, and check does not throw',
-    () async {
-      for (final (written, value) in [
-        ('approved: []', '[]'),
-        ('approved: [a, b]', '[a, b]'),
-        ('approved:\n  - a\n  - b', '- a\n  - b'),
-      ]) {
-        final report = await checkOf(
-          await writeCheckProject(
-            extra: fr('traced_from:', '$written\ntraced_from:'),
-          ),
-        );
-        expect(spots(report, FindingKind.approvalStale), [
-          '$loginFr:2: approval_stale',
-        ], reason: written);
-        expect(_stales(report).single.keys, {'value': value}, reason: written);
-      }
-    },
-  );
-
-  test(
-    '$_name: a tree pinned below both pins raises nothing for approved: true docs or docs with no approved: key',
-    () async {
-      final report = await _checkBelowPins({
-        'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!.replaceFirst(
-          'traced_from:\n',
-          'approved: true\ntraced_from:\n',
-        ),
-        'docs/$loginStory': checkProjectFiles()['docs/$loginStory']!,
-      });
-      expect(_stales(report), isEmpty);
-    },
-  );
+  test('a tree pinned below both pins raises nothing for approved: true docs or docs with no approved: key', () async {
+    final report = await _checkBelowPins({
+      'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!.replaceFirst(
+        'traced_from:\n',
+        'approved: true\ntraced_from:\n',
+      ),
+      'docs/$loginStory': checkProjectFiles()['docs/$loginStory']!,
+    });
+    expect(_stales(report), isEmpty);
+  });
 }

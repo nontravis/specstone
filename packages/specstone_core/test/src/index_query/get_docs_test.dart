@@ -498,7 +498,7 @@ void main() {
       throwsA(isA<IndexFault>()),
     );
   });
-  group('index_query/read_doc_section/print_doc_or_section, several names', () {
+  group('several names', () {
     const featurePath = 'prds/features/f01_login/FEATURE.md';
     const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     List<String> headings(String text) => [

@@ -211,20 +211,23 @@ void main() {
       expect(result.reindexed, 1);
       expect(docAt(store, featureDoc).title, 'Logon');
     });
-    test('domain:document_writing ApprovalHash: an edited doc stores the new hash, an untyped doc none', () async {
-      final project = await writeLoginProject();
-      backdate(project);
-      final before = docAt(refresh(project).store, featureDoc).approvalHash;
-      expect(before, matches(RegExp(r'^[0-9a-f]{12}$')));
-      final feature = File('${project.path}/$featureKey');
-      feature.writeAsStringSync(
-        feature.readAsStringSync().replaceFirst('# Login\n', '# Login v2\n'),
-      );
-      final after = docAt(refresh(project).store, featureDoc).approvalHash;
-      expect(after, matches(RegExp(r'^[0-9a-f]{12}$')));
-      expect(after, isNot(before));
-      expect(docAt(refresh(project).store, 'README.md').approvalHash, isNull);
-    });
+    test(
+      'ApprovalHash: an edited doc stores the new hash, an untyped doc none',
+      () async {
+        final project = await writeLoginProject();
+        backdate(project);
+        final before = docAt(refresh(project).store, featureDoc).approvalHash;
+        expect(before, matches(RegExp(r'^[0-9a-f]{12}$')));
+        final feature = File('${project.path}/$featureKey');
+        feature.writeAsStringSync(
+          feature.readAsStringSync().replaceFirst('# Login\n', '# Login v2\n'),
+        );
+        final after = docAt(refresh(project).store, featureDoc).approvalHash;
+        expect(after, matches(RegExp(r'^[0-9a-f]{12}$')));
+        expect(after, isNot(before));
+        expect(docAt(refresh(project).store, 'README.md').approvalHash, isNull);
+      },
+    );
     test('an edit that changes the size or the mtime is seen', () async {
       final project = await writeLoginProject();
       backdate(project);

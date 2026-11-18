@@ -16,8 +16,6 @@ import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
-const _gate = 'document_writing/delete_doc_subtree/finish_interrupted_move';
-
 final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
     : null;
@@ -48,7 +46,7 @@ const _leaves = 'it leads outside the project';
 const _underGit = 'it lies under .git';
 
 void main() {
-  group('$_gate: writeRefusalOf', () {
+  group('writeRefusalOf', () {
     late Directory base;
     late Directory project;
     late Directory outside;
@@ -230,7 +228,7 @@ void main() {
     });
   });
 
-  group('$_gate: pathFromProjectRoot', () {
+  group('pathFromProjectRoot', () {
     test('on Windows a path joined with / is named from the root it lies '
         'under', () {
       final project = Directory(r'C:\proj');
@@ -274,7 +272,7 @@ void main() {
     });
   });
 
-  group('$_gate: skippedLineOf', () {
+  group('skippedLineOf', () {
     test('names the reason a file is left', () {
       expect(
         skippedLineOf('../a/AGENTS.md'),
@@ -295,7 +293,7 @@ void main() {
     });
   });
 
-  group('$_gate: a write outside the journal that leads out is refused', () {
+  group('a write outside the journal that leads out is refused', () {
     late Directory outside;
     late Directory root;
 
@@ -463,7 +461,7 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group('$_gate: a dangling link at an index name', () {
+  group('a dangling link at an index name', () {
     late Directory outside;
     late Directory root;
 
@@ -528,7 +526,7 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group('$_gate: a docs link to a folder not made yet', () {
+  group('a docs link to a folder not made yet', () {
     Future<Directory> projectWithoutDocs() => writeWriteProject(
       without: {
         for (final key in writeProject.keys)
@@ -574,7 +572,7 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
-  group('$_gate: the layouts that lead out by design write once the Owner '
+  group('the layouts that lead out by design write once the Owner '
       'trusts them', () {
     test('a project reached through a docs link, with a .specstone link '
         'beside the docs link, writes into the real project', () async {

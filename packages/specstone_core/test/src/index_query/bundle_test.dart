@@ -793,7 +793,7 @@ void main() {
     expect(BundleMode.values.map((m) => m.wire).toSet(), bundleModeWires);
   });
 
-  group('index_query/get_task_bundle/pick_bundle_docs, per code target', () {
+  group('per code target', () {
     const archToast = 'f02_feedback/f03_toast/ARCHITECTURE.md';
     const flutterArch = 'specs/flutter/$archToast';
     const jasprArch = 'specs/jaspr/$archToast';

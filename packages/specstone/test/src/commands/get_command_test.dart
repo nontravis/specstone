@@ -77,7 +77,7 @@ void main() {
       ),
     );
   });
-  group('index_query/read_doc_section/print_doc_or_section, several names', () {
+  group('several names', () {
     const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     const featurePath = 'prds/features/f01_login/FEATURE.md';
 
@@ -525,7 +525,7 @@ void main() {
     });
   });
 
-  group('index_query/read_doc_section/resolve_doc_name, --target', () {
+  group('--target', () {
     test("--target jaspr keeps the name to jaspr's docs and the "
         'shared docs, a path whatever the target', () async {
       final (:runner, :out, :err) = readRunner(await writeTargetedProject());

@@ -24,7 +24,6 @@ import '../../helpers/write_fixture.dart';
 
 const _login = 'prds/features/f01_login';
 const _trashDocs = '.specstone/trash/files/docs';
-const _finish = 'document_writing/delete_doc_subtree/finish_interrupted_move';
 
 /// Returns a folder on another volume than the temp folder, else null.
 ///
@@ -850,7 +849,7 @@ void main() {
     expect(File('${outside.path}/keep.md').readAsStringSync(), 'keep\n');
   }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
-  group('$_finish: an untrusted journal', () {
+  group('an untrusted journal', () {
     Matcher untrusted(String reason) => throwsA(
       isA<RenderFault>()
           .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
@@ -1128,7 +1127,7 @@ void main() {
     }, skip: unreadablePathSkipReason() ?? false);
   });
 
-  test('$_finish: a file made read-only since the run was planned is left '
+  test('a file made read-only since the run was planned is left '
       'as it is, named in a warning, and keeps its mode', () {
     final file = docFile(root, persona);
     final original = file.readAsStringSync();
@@ -1153,7 +1152,7 @@ void main() {
   group('create and commit steps', () {
     final skipGit = hasGit ? null : 'git is not available';
 
-    test('$_finish: a commit takes a path that reads as a glob as itself, '
+    test('a commit takes a path that reads as a glob as itself, '
         'so a file it would match stays out of the commit', () async {
       final root = await _gitTree({
         'app/[slug]/page.ts': '// a\n',
@@ -1182,7 +1181,7 @@ void main() {
       );
     }, skip: skipGit);
 
-    test("$_finish: a commit hook's own glob still matches", () async {
+    test("a commit hook's own glob still matches", () async {
       final root = await _gitTree({'app/[slug]/page.ts': '// a\n'});
       final base = _head(root);
       File('${root.path}/app/[slug]/page.ts').writeAsStringSync('// a2\n');
@@ -1218,7 +1217,7 @@ void main() {
       );
     });
 
-    test('$_finish: a create step whose file holds its text byte for byte is '
+    test('a create step whose file holds its text byte for byte is '
         'a replay, done', () async {
       final root = await writeTree({'docs/prds/PROJECT.md': 'new\n'});
       const step = CreateStep('docs/prds/PROJECT.md', 'new\n');
@@ -1232,7 +1231,7 @@ void main() {
       );
     });
 
-    test('$_finish: a create step never overwrites another file, and stops the '
+    test('a create step never overwrites another file, and stops the '
         'run before the later steps', () async {
       final root = await writeTree({
         'docs/prds/PROJECT.md': 'old\n',
@@ -1268,24 +1267,21 @@ void main() {
       expect(MoveJournal.pending(root), isTrue);
     });
 
-    test(
-      '$_finish: a folder where a create step writes stops the run too',
-      () async {
-        final root = await writeTree({'docs/prds/PROJECT.md/keep.txt': ''});
+    test('a folder where a create step writes stops the run too', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md/keep.txt': ''});
 
-        expect(
-          () => const CreateStep(
-            'docs/prds/PROJECT.md',
-            'new\n',
-          ).apply(_target(root)),
-          throwsA(isA<RenderFault>()),
-        );
-        expect(
-          Directory('${root.path}/docs/prds/PROJECT.md').existsSync(),
-          isTrue,
-        );
-      },
-    );
+      expect(
+        () => const CreateStep(
+          'docs/prds/PROJECT.md',
+          'new\n',
+        ).apply(_target(root)),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        Directory('${root.path}/docs/prds/PROJECT.md').existsSync(),
+        isTrue,
+      );
+    });
 
     test('a journal of moves, commit 1, writes, commit 2 makes two commits, '
         'the first pure renames', () async {

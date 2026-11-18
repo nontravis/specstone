@@ -40,8 +40,7 @@ void main() {
     }
   });
 
-  group('template_packs/write_spec_docs_from_software_tech/'
-      'ship_software_tech_pack', () {
+  group('the shipped software-tech pack', () {
     late MergedSet both;
     late MergedSet prdOnly;
     setUpAll(() async {

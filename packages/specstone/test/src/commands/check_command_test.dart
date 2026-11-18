@@ -467,7 +467,7 @@ void main() {
     expect(file.readAsStringSync(), contains(kept));
   });
 
-  group('consistency_check/find_template_breaks/check_target, --target', () {
+  group('--target', () {
     // The shared API doc stays out, so only the feature and the twins speak.
     Future<Directory> twinProject() =>
         writeTwinProject(without: {'docs/$loginApi'});
@@ -534,7 +534,7 @@ void main() {
     );
   });
 
-  group('consistency_check/find_prd_spec_disagreements, two targets', () {
+  group('two targets', () {
     const layer =
         'id: implementation\n'
         'description: One feature record per target.\n'

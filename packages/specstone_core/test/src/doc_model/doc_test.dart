@@ -273,7 +273,7 @@ void main() {
       ]);
     });
 
-    test('doc_model/doc: blockScan reads a thematic break with tabs between '
+    test('blockScan reads a thematic break with tabs between '
         'its marks as markdown does, one that ends the paragraph above it', () {
       for (final rule in ['*\t*\t*', '- -\t-', '_\t_ _\t', '---\t']) {
         expect(

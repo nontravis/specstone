@@ -9,7 +9,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 
-const _name = 'consistency_check/find_template_breaks/report_open_tbrs';
 const _dash = '—';
 const _marker = 'TBR $_dash ';
 const _openNoValue = 'the value is still to be resolved';
@@ -42,7 +41,7 @@ Map<String, String> _frWithSection(String section) => edit(loginFr, [
 ]);
 
 void main() {
-  test('$_name: a project with no TBR gives no finding', () async {
+  test('a project with no TBR gives no finding', () async {
     expect((await _run(const {})).found, isEmpty);
   });
 
@@ -340,7 +339,7 @@ void main() {
     expect(spots(report, FindingKind.untypedDoc), ['$untyped:1: untyped_doc']);
   });
 
-  test('$_name: a marker in a doc type with no tbr section is still read '
+  test('a marker in a doc type with no tbr section is still read '
       'as a marker', () async {
     final (:project, :found) = await _run(
       doc(loginNf, _nfRationale, 'Wait ${_marker}1 s.'),

@@ -14,8 +14,6 @@ import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 
-const _stale =
-    'consistency_check/find_template_breaks/report_stale_agent_blocks';
 const _migrate = 'run `specstone migrate`';
 const _agentMd = '.specstone/AGENT.md';
 const _upgrade = 'run `specstone upgrade`';
@@ -189,7 +187,7 @@ void main() {
     );
   });
 
-  test('$_stale Output: a block with no goal line is stale', () async {
+  test('a block with no goal line is stale', () async {
     final found = await _staleOf({
       'CLAUDE.md':
           'top\n${_imports().replaceFirst('@docs/prds/GOAL.md\n', '')}',
@@ -201,67 +199,55 @@ void main() {
     expect(found.single.line, 2);
   });
 
-  test(
-    '$_stale Output: a hand-edited block is one finding on its BEGIN line, no name',
-    () async {
-      final found = await _staleOf({
-        'AGENTS.md': 'top\n${_inline().replaceFirst('Rules', 'Rule')}',
-        _agentMd: agentMdText,
-      });
+  test('a hand-edited block is one finding on its BEGIN line, no name', () async {
+    final found = await _staleOf({
+      'AGENTS.md': 'top\n${_inline().replaceFirst('Rules', 'Rule')}',
+      _agentMd: agentMdText,
+    });
 
-      expect(found, hasLength(1));
-      expect(found.single.path, 'AGENTS.md');
-      expect(found.single.line, 2);
-      expect(found.single.name, isNull);
-      expect(
-        found.single.message,
-        'the Specstone block differs from what the running CLI writes; $_migrate',
-      );
-    },
-  );
+    expect(found, hasLength(1));
+    expect(found.single.path, 'AGENTS.md');
+    expect(found.single.line, 2);
+    expect(found.single.name, isNull);
+    expect(
+      found.single.message,
+      'the Specstone block differs from what the running CLI writes; $_migrate',
+    );
+  });
 
-  test(
-    '$_stale Output: AGENT.md with other bytes is one finding on line 1',
-    () async {
-      final found = await _staleOf({_agentMd: 'hand edit\n'});
+  test('AGENT.md with other bytes is one finding on line 1', () async {
+    final found = await _staleOf({_agentMd: 'hand edit\n'});
 
-      expect([for (final f in found) '${f.path}:${f.line}'], ['$_agentMd:1']);
-      expect(
-        found.single.message,
-        '$_agentMd differs from what the running CLI writes; $_migrate',
-      );
-    },
-  );
+    expect([for (final f in found) '${f.path}:${f.line}'], ['$_agentMd:1']);
+    expect(
+      found.single.message,
+      '$_agentMd differs from what the running CLI writes; $_migrate',
+    );
+  });
 
-  test(
-    '$_stale Output: an import block without AGENT.md is one finding',
-    () async {
-      final found = await _staleOf({'CLAUDE.md': 'x\n${_imports()}'});
+  test('an import block without AGENT.md is one finding', () async {
+    final found = await _staleOf({'CLAUDE.md': 'x\n${_imports()}'});
 
-      expect([for (final f in found) '${f.path}:${f.line}'], ['CLAUDE.md:2']);
-      expect(
-        found.single.message,
-        'the block imports $_agentMd, which is missing; $_migrate',
-      );
-    },
-  );
+    expect([for (final f in found) '${f.path}:${f.line}'], ['CLAUDE.md:2']);
+    expect(
+      found.single.message,
+      'the block imports $_agentMd, which is missing; $_migrate',
+    );
+  });
 
-  test(
-    '$_stale Output: malformed marker lines are one finding on the first marker',
-    () async {
-      final found = await _staleOf({
-        'CLAUDE.md': 'x\n<!-- BEGIN specstone v1.0.0 -->\nno end\n',
-        _agentMd: agentMdText,
-      });
+  test('malformed marker lines are one finding on the first marker', () async {
+    final found = await _staleOf({
+      'CLAUDE.md': 'x\n<!-- BEGIN specstone v1.0.0 -->\nno end\n',
+      _agentMd: agentMdText,
+    });
 
-      expect([for (final f in found) '${f.path}:${f.line}'], ['CLAUDE.md:2']);
-      expect(
-        found.single.message,
-        'the Specstone marker lines are malformed and `specstone migrate` '
-        'refuses the file; repair the block by hand',
-      );
-    },
-  );
+    expect([for (final f in found) '${f.path}:${f.line}'], ['CLAUDE.md:2']);
+    expect(
+      found.single.message,
+      'the Specstone marker lines are malformed and `specstone migrate` '
+      'refuses the file; repair the block by hand',
+    );
+  });
 
   test('a file with no block, and no rules file, is no finding', () async {
     expect(
