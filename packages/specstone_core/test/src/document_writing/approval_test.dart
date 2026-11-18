@@ -853,25 +853,29 @@ void main() {
     skip: skipGit,
   );
 
-  test('the lookup goes on past a non-string approved value to an older approved copy', () async {
-    final repo = await _repo({'docs/$signupFeature': _approvedText});
-    commitAll(repo, 'approved');
-    for (final value in ['123456789012', '[a, b]']) {
-      File('${repo.path}/docs/$signupFeature').writeAsStringSync(
-        '---\napproved: $value\n---\n# Signup\n\nNewer body $value.\n',
-      );
-      commitAll(repo, 'approved as $value');
-    }
+  test(
+    'the lookup goes past a non-string approved value to an older copy',
+    () async {
+      final repo = await _repo({'docs/$signupFeature': _approvedText});
+      commitAll(repo, 'approved');
+      for (final value in ['123456789012', '[a, b]']) {
+        File('${repo.path}/docs/$signupFeature').writeAsStringSync(
+          '---\napproved: $value\n---\n# Signup\n\nNewer body $value.\n',
+        );
+        commitAll(repo, 'approved as $value');
+      }
 
-    expect(
-      ApprovalHistory().lastApproved(
-        repo,
-        'docs/$signupFeature',
-        docType: _docType,
-      ),
-      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
-    );
-  }, skip: skipGit);
+      expect(
+        ApprovalHistory().lastApproved(
+          repo,
+          'docs/$signupFeature',
+          docType: _docType,
+        ),
+        isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+      );
+    },
+    skip: skipGit,
+  );
 
   test('an unquoted digits hash is no hash', () async {
     final digits = RegExp(r'"(\d{12})"');
