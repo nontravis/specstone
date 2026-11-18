@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/models/link_ends.dart';
+
 const _openBracket = 0x5B;
 const _closeBracket = 0x5D;
 const _openParen = 0x28;
@@ -13,17 +15,12 @@ bool isEscaped(String text, int at) {
   return (at - start).isOdd;
 }
 
-/// Returns where the link `[text](destination)` opening at [open] in [text]
-/// ends, or null when none does.
+/// Returns where the link opening at [open] in [text] ends, or null when none
+/// does.
 ///
-/// `textEnd` is the offset of the `]`, and `end` one past the `)`. A key of
-/// [skips] is the offset where a held run begins and its value is where the
-/// run ends; the scan jumps over each such run.
-({int textEnd, int end})? linkAt(
-  String text,
-  int open, {
-  Map<int, int> skips = const {},
-}) {
+/// A key of [skips] is the offset where a held run begins and its value is
+/// where the run ends; the scan jumps over each such run.
+LinkEnds? linkAt(String text, int open, {Map<int, int> skips = const {}}) {
   final textEnd = _closerOf(text, open, _openBracket, _closeBracket, skips);
   if (textEnd < 0 ||
       textEnd + 1 >= text.length ||
@@ -31,7 +28,7 @@ bool isEscaped(String text, int at) {
     return null;
   }
   final destEnd = _closerOf(text, textEnd + 1, _openParen, _closeParen, skips);
-  return destEnd < 0 ? null : (textEnd: textEnd, end: destEnd + 1);
+  return destEnd < 0 ? null : LinkEnds(textEnd: textEnd, end: destEnd + 1);
 }
 
 /// Returns the offset of the [closer] that matches the [opener] at [open],

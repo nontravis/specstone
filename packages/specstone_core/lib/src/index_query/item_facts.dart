@@ -4,7 +4,10 @@ import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show tableCellRanges;
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/item_trace_notes.dart';
 import 'package:specstone_core/src/doc_model/models/section_item.dart';
+import 'package:specstone_core/src/doc_model/models/sentence_measure.dart';
+import 'package:specstone_core/src/doc_model/models/trace_note.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/sentence_measure.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
@@ -416,7 +419,11 @@ ReadabilityFacts _readabilityOf(
 ) {
   final isRow = item.kind == SectionItemKind.tableRow;
   final own = isRow ? item.firstLine : item.text;
-  final (:notes, :counted) = traceNotesOf(own, idPrefixes, isTableRow: isRow);
+  final ItemTraceNotes(:notes, :counted) = traceNotesOf(
+    own,
+    idPrefixes,
+    isTableRow: isRow,
+  );
   // A scenario number is not an item ID; only an item ID is stripped.
   final id = read != null && !read.isScenario ? read.id.written : null;
   return (
@@ -431,7 +438,7 @@ ReadabilityFacts _readabilityOf(
           ],
     notes: [
       for (final note in notes)
-        (text: note.closes ? '' : note.text, closes: note.closes),
+        TraceNote(text: note.closes ? '' : note.text, closes: note.closes),
     ],
   );
 }
@@ -618,6 +625,6 @@ ReadabilityFacts _readabilityOfJson(List<Object?> json) => (
   ],
   notes: [
     for (final note in (json[1]! as List<Object?>).cast<List<Object?>>())
-      (text: note[0]! as String, closes: note[1]! as bool),
+      TraceNote(text: note[0]! as String, closes: note[1]! as bool),
   ],
 );

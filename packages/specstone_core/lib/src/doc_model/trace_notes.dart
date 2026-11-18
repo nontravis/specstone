@@ -4,12 +4,11 @@ import 'package:specstone_core/src/doc_model/inline_holders.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show tableCellRanges;
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/models/item_trace_notes.dart';
+import 'package:specstone_core/src/doc_model/models/trace_note.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart'
     show collapseWhitespace;
-
-/// A trace note of an item, and whether it closes the item or its table cell.
-typedef TraceNote = ({String text, bool closes});
 
 const _openBracket = 0x5B;
 const _openParen = 0x28;
@@ -30,15 +29,15 @@ final _nestedLine = RegExp(r'^[ \t]+(?:[-+*]|\d{1,9}[.)])[ \t]');
 
 typedef _Span = ({int start, int end});
 
-/// Returns every trace note of [lfItemText] in file order, and the text with
-/// its closing notes removed.
+/// Returns the trace notes of [lfItemText] and its text without the closing
+/// ones.
 ///
 /// A note is a group of item references or a clause whose first word is an
 /// item reference and whose second is `owns` or `cites`. A reference is an
 /// item or scenario link, or a bare ID of one of [idPrefixes]. An item closes
 /// with its last note; a table row ([isTableRow], read as the table reader
 /// cuts it) closes each cell with that cell's last.
-({List<TraceNote> notes, String counted}) traceNotesOf(
+ItemTraceNotes traceNotesOf(
   String lfItemText,
   Set<String> idPrefixes, {
   required bool isTableRow,
@@ -54,10 +53,10 @@ typedef _Span = ({int start, int end});
     final end = _closeEnd(own, found.last.end, scope.end);
     if (end != null) closings.add((start: found.last.start, end: end));
   }
-  return (
+  return ItemTraceNotes(
     notes: [
       for (final note in notes)
-        (
+        TraceNote(
           text: _noteText(own.substring(note.start, note.end)),
           closes: closings.any((closing) => closing.start == note.start),
         ),

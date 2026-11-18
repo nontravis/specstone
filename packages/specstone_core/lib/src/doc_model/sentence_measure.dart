@@ -1,18 +1,6 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/inline_holders.dart';
-
-/// What the check counts in one sentence.
-///
-/// `language` is the key of its cap map. A sentence that `countsChars` has
-/// `chars` and `runs` and no `words`; any other has `words` alone. `runs`
-/// holds the other-script runs and code spans, which [weightedChars] weighs.
-typedef SentenceMeasure = ({
-  String language,
-  bool countsChars,
-  int words,
-  int chars,
-  int runs,
-});
+import 'package:specstone_core/src/doc_model/models/sentence_measure.dart';
 
 const _defaultLanguage = 'default';
 
@@ -117,7 +105,7 @@ SentenceMeasure measureSentence(String markdownSentence) {
         ? _japanese
         : noSpace;
     final (:chars, :runs) = _charsAndRuns(text);
-    return (
+    return SentenceMeasure(
       language: language,
       countsChars: true,
       words: 0,
@@ -128,7 +116,7 @@ SentenceMeasure measureSentence(String markdownSentence) {
   final language =
       (_isVotable(text) ? _voteOf(text, _spacedScripts) : null) ??
       _defaultLanguage;
-  return (
+  return SentenceMeasure(
     language: language,
     countsChars: false,
     words: _wordsIn(text),

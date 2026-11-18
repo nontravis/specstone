@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/models/trace_note.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
@@ -441,7 +442,9 @@ void main() {
         0,
       );
 
-      expect(item.readability.notes, [(text: '(RULE-10)', closes: false)]);
+      expect(item.readability.notes, [
+        const TraceNote(text: '(RULE-10)', closes: false),
+      ]);
       expect(item.readability.cells.single.single.words, 8);
     });
 
@@ -481,7 +484,7 @@ void main() {
         0,
       );
 
-      expect(item.readability.notes, [(text: '', closes: true)]);
+      expect(item.readability.notes, [const TraceNote(text: '', closes: true)]);
       expect(item.readability.cells.single, hasLength(1));
     });
 
@@ -529,7 +532,7 @@ void main() {
         0,
       );
 
-      expect(item.readability.notes, [(text: '', closes: true)]);
+      expect(item.readability.notes, [const TraceNote(text: '', closes: true)]);
       expect(item.readability.cells.single.every((s) => s.words == 0), isTrue);
     });
 
