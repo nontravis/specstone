@@ -4,10 +4,12 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/commands/upgrade_command.dart';
+import 'package:specstone_core/specstone_core.dart' show specstoneVersion;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/posix_modes.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/package_root.dart';
 import '../../helpers/script_sandbox.dart';
 import '../../helpers/temp_tree.dart';
@@ -431,6 +433,65 @@ void main() {
       expect(run[2], endsWith('specstone.exe'));
       expect(err.toString(), 'stale line\n');
     }, testOn: 'windows');
+
+    // The served script is the repository's own install.ps1, which renames the
+    // running `specstone.exe` itself; a later run deletes the `.old` file.
+    test(
+      'the real install.ps1 renames the running specstone.exe to .old, and a '
+      'later upgrade deletes that .old',
+      () async {
+        final bundle = File(await buildSpecstone()).parent.parent;
+        final sandbox = await createScriptSandbox();
+        await sandbox.writeArchive('windows-x64', bundle: bundle);
+        final exe = File(
+          '${sandbox.home.path}\\.specstone\\bin\\specstone.exe',
+        );
+        await sandbox.compileFakeCli('0.0.1', exe.path);
+        final running = await Process.start(exe.path, const []);
+        addTearDown(running.kill);
+        final script = File('${repoRoot().path}\\install.ps1')
+            .readAsStringSync();
+        handle = (request) async {
+          request.response.write(script);
+          await request.response.close();
+        };
+        final project = Directory('${sandbox.root.path}\\project')
+          ..createSync();
+        final upgrade = runnerFor(
+          exe.path,
+          sandbox.env({'SPECSTONE_ARCHIVE_DIR': sandbox.archives.path}),
+          windows: true,
+          workingDirectory: project,
+        );
+        final old = File('${exe.path}.old');
+        String versionOf(File file) =>
+            (Process.runSync(file.path, const ['--version']).stdout as String)
+                .trim();
+
+        await withUserPathLock(() async {
+          expect(await upgrade.run(['upgrade']), 0, reason: '$err');
+          expect(old.existsSync(), isTrue);
+          expect(versionOf(old), '0.0.1');
+          expect(versionOf(exe), specstoneVersion);
+
+          running.kill();
+          await running.exitCode;
+          for (var attempt = 0; attempt < 50; attempt++) {
+            try {
+              old.openSync(mode: FileMode.append).closeSync();
+              break;
+            } on FileSystemException {
+              await Future<void>.delayed(const Duration(milliseconds: 100));
+            }
+          }
+
+          expect(await upgrade.run(['upgrade']), 0, reason: '$err');
+          expect(versionOf(old), specstoneVersion);
+        });
+      },
+      testOn: 'windows',
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
 
     test(
       'no server refuses '
