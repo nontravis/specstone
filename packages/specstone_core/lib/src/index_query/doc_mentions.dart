@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
 /// A doc line that names another doc's file in text or holds a doc-name
@@ -30,7 +31,7 @@ String _withoutDestinations(String lf) {
   if (!body.contains('](') && !body.contains(']:')) return lf;
   final bodyStart = lf.length - body.length;
   final units = lf.codeUnits.toList();
-  for (final (:start, :end, link: _, kind: _) in linkScanOf(
+  for (final ScannedDestination(:start, :end) in linkScanOf(
     body,
     firstLine: 1,
   ).destinations) {

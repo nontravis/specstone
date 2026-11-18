@@ -33,7 +33,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
-import 'package:specstone_core/src/index_query/link_scan.dart' show LinkSource;
+import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show byteOrderMark;

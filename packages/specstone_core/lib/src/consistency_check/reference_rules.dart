@@ -11,7 +11,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show sourceHrefsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart'
-    show LinkSource, linkSourcesOf;
+    show linkSourcesOf;
+import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;

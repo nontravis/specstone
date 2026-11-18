@@ -7,8 +7,8 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show destinationWithPath, isAngleBracketed;
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf, sourceHrefsOf;
-import 'package:specstone_core/src/index_query/link_scan.dart'
-    show LinkScan, linkScanOf;
+import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
 import 'package:specstone_core/src/rendering/skill_references.dart';
 
 const _bang = 0x21;

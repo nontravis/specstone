@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:test/test.dart';
 
@@ -45,7 +46,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end, link: _, kind: _) in scan.destinations)
+          for (final ScannedDestination(:start, :end) in scan.destinations)
             body.substring(start, end),
         ]..sort(),
         [
@@ -63,7 +64,7 @@ void main() {
 
       expect(
         [
-          for (final (:start, :end, link: _, kind: _) in scan.destinations)
+          for (final ScannedDestination(:start, :end) in scan.destinations)
             angled.substring(start, end),
         ],
         ['b c.md#x'],
@@ -78,7 +79,8 @@ void main() {
 
       expect(
         {
-          for (final (:start, :end, :link, kind: _) in scan.destinations)
+          for (final ScannedDestination(:start, :end, :link)
+              in scan.destinations)
             linked.substring(start, end): link,
         },
         {'a.md': 0, 'b.md': null, 'c.png': 1, 'd.md': null},
@@ -94,7 +96,8 @@ void main() {
 
       expect(
         {
-          for (final (:start, :end, link: _, :kind) in scan.destinations)
+          for (final ScannedDestination(:start, :end, :kind)
+              in scan.destinations)
             linked.substring(start, end): kind,
         },
         {

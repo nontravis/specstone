@@ -6,6 +6,9 @@ import 'package:specstone_core/src/doc_model/models/source_order_nodes.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show parsedDestinationOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 
 /// The syntax that makes `markdown`'s link elements, whose href it decodes.
 final _linkSyntax = LinkSyntax();
@@ -361,7 +364,7 @@ HrefDestinations hrefDestinationsOf(
       destination: _hrefOfLink(destination),
   };
   String? hrefOf(ScannedDestination destination) {
-    final (:start, :end, :link, :kind) = destination;
+    final ScannedDestination(:start, :end, :link, :kind) = destination;
     if (kind == DestinationKind.definition) {
       return definitionHrefs[lfBody.substring(start, end)];
     }

@@ -17,6 +17,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
 import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart'
     show MatrixLine, TestRow;
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 
 /// A cite candidate of a typed doc's body: the doc name or
 /// path as written, less its `#<section key>`, at its 1-based file `line`,
@@ -278,7 +279,7 @@ _LinkRanges _linkRangesOf(String body, int firstLine) {
   return _LinkRanges([
     for (final source in scan.sources)
       TextRange(start: source.offset, end: source.end),
-    for (final (:start, :end, link: _, :kind) in scan.destinations)
+    for (final ScannedDestination(:start, :end, :kind) in scan.destinations)
       if (kind == DestinationKind.definition) TextRange(start: start, end: end),
   ]);
 }

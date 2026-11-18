@@ -28,8 +28,9 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf, sourceHrefsOf;
-import 'package:specstone_core/src/index_query/link_scan.dart'
-    show LinkScan, LinkSource, linkScanOf;
+import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'

@@ -32,8 +32,8 @@ import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart'
     show leafTextOf, linkLabel;
 import 'package:specstone_core/src/index_query/link_places.dart' show LinkText;
-import 'package:specstone_core/src/index_query/link_scan.dart' show LinkSource;
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart'
     show journeyTypeId;

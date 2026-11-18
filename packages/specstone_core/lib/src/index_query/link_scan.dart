@@ -9,24 +9,10 @@ import 'package:markdown/markdown.dart'
 import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart';
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/link_source.dart';
+import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/index_query/models/written_destination.dart';
-
-/// A source of an `a` or `img` element markdown makes: the body offsets of its
-/// first character and after its last, its file line, and, for an inline or
-/// reference link or image, its destination as written (null for an autolink,
-/// an email autolink, or a GFM bare URL or email), angle brackets dropped, and
-/// whether angle brackets enclose it, and the body offset of the `]` that ends
-/// its text (null for an autolink, an email autolink, or a GFM bare URL or
-/// email, which have no bracketed text); the text starts after the `[`, or
-/// after the `![` of an image.
-typedef LinkSource = ({
-  int offset,
-  int end,
-  int line,
-  String? shown,
-  bool angle,
-  int? textEnd,
-});
 
 /// Returns the sources of the links in [lfBody], in source order.
 ///
@@ -65,33 +51,6 @@ List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
   return _sourcesOf(lfBody, reader, firstLine);
 }
 
-/// A link destination as written: its body range, angle brackets left out,
-/// the index in the scan's sources of the link written with it, null for a
-/// definition's and for one in an image description, which drops its link,
-/// and how `markdown` reads it.
-typedef ScannedDestination = ({
-  int start,
-  int end,
-  int? link,
-  DestinationKind kind,
-});
-
-/// What one link scan of a body reads: its link sources, its prose, and the
-/// range of each link destination as written.
-///
-/// `prose` is the body with every code unit that is no prose blanked to a
-/// space, line ends and length kept: what `markdown` never reads as inline
-/// text (see [leafTextOf]), and in the inline text each code span, autolink,
-/// GFM bare URL or email, raw HTML run, and inline link's parenthesized
-/// destination and title. Link text, a full reference's label, and a
-/// definition's label stay. `destinations` hold each inline link's
-/// destination and each definition's.
-typedef LinkScan = ({
-  List<LinkSource> sources,
-  String prose,
-  List<ScannedDestination> destinations,
-});
-
 /// Returns the link scan of [lfBody] as [linkSourcesOf] reads it, with the
 /// prose and destination ranges that scan passes over.
 LinkScan linkScanOf(String lfBody, {required int firstLine}) {
@@ -119,19 +78,24 @@ LinkScan linkScanOf(String lfBody, {required int firstLine}) {
     for (final (index, found) in reader.found.indexed)
       if (found.destination case final destination?) destination.start: index,
   };
-  return (
+  return LinkScan(
     sources: sources,
     prose: String.fromCharCodes(prose),
     destinations: [
       for (final (:start, :end, :angle) in reader.destinations)
-        (
+        ScannedDestination(
           start: start,
           end: end,
           link: linkAt[start],
           kind: angle ? DestinationKind.angleInline : DestinationKind.inline,
         ),
       for (final TextRange(:start, :end) in leaf.definitionDestinations)
-        (start: start, end: end, link: null, kind: DestinationKind.definition),
+        ScannedDestination(
+          start: start,
+          end: end,
+          link: null,
+          kind: DestinationKind.definition,
+        ),
     ],
   );
 }
@@ -147,14 +111,16 @@ List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
     for (; counted < offset; counted++) {
       if (lfBody.codeUnitAt(counted) == _lineFeed) line++;
     }
-    sources.add((
-      offset: offset,
-      end: end,
-      line: line,
-      shown: shown,
-      angle: angle,
-      textEnd: textEnd,
-    ));
+    sources.add(
+      LinkSource(
+        offset: offset,
+        end: end,
+        line: line,
+        shown: shown,
+        angle: angle,
+        textEnd: textEnd,
+      ),
+    );
   }
   return sources;
 }
