@@ -131,6 +131,21 @@ void main() {
     expect(finding.keys, {'target': ''});
   });
 
+  test('a line with no link or an empty marker tracks no link and gets no '
+      'unconfirmed', () async {
+    for (final line in ['- Overrides: INV-3 — $_because', '- Overrides:']) {
+      final files = _withLoginDomain([line]);
+      final read = await _read(files, _loginDomain);
+
+      expect(read.lines.single.address, isNull, reason: line);
+      final report = await checkOf(await _write(files), docPath: _loginDomain);
+      final kinds = report.findings.map((f) => f.kind).toList();
+      expect(kinds, contains(FindingKind.overrideLineMalformed), reason: line);
+      expect(kinds, isNot(contains(FindingKind.unconfirmed)), reason: line);
+      expect(kinds, isNot(contains(FindingKind.overrideNotInChain)));
+    }
+  });
+
   test('a sibling feature doc is out of chain', () async {
     final files = {
       ..._withLoginDomain([

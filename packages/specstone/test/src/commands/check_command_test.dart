@@ -1339,6 +1339,52 @@ void main() {
     });
   });
 
+  test(
+    'check reports a task ref left on a done feature and starts no git process',
+    () async {
+      const docPath = 'specs/f01_login/DOMAIN.md';
+      final project = await writeCheckProject(
+        unstamped: {'docs/$docPath'},
+        extra: {
+          'docs/$docPath':
+              '---\ntasks:\n  - INV-4:ENG-42\n---\n\n# Login domain\n\n'
+              '## Invariants\n\n- **INV-4** An email is unique.\n',
+          loginRecord:
+              "---\nstatuses:\n  - 'email_login:implemented'\n"
+              "  - 'email_login/check_password:implemented'\n---\n\n"
+              '# Login implementation\n',
+        },
+      );
+      final shims = await Directory.systemTemp.createTemp(
+        'specstone_git_shim_',
+      );
+      addTearDown(() => shims.delete(recursive: true));
+      final marker = File('${shims.path}/git_was_spawned');
+      final shim = File('${shims.path}/git')
+        ..writeAsStringSync(
+          '#!/bin/sh\necho spawned >> "${marker.path}"\nexit 1\n',
+        );
+      expect(Process.runSync('chmod', ['+x', shim.path]).exitCode, 0);
+
+      final run = await Process.run(
+        binary,
+        ['check', '--json'],
+        workingDirectory: project.path,
+        environment: {'PATH': '${shims.path}:${Platform.environment['PATH']}'},
+      );
+
+      final findings =
+          (jsonDecode(run.stdout as String) as Map)['findings']! as List;
+      expect(
+        [for (final f in findings) (f as Map)['kind']],
+        contains('task_ref_leftover'),
+        reason: '${run.stdout}\n${run.stderr}',
+      );
+      expect(marker.existsSync(), isFalse);
+    },
+    skip: Platform.isWindows ? 'the git shim is a POSIX script' : null,
+  );
+
   group('mermaid parse through the built binary', () {
     final hasNode = _nodeStarts();
     final noNode = hasNode ? null : 'node is not on PATH';

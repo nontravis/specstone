@@ -221,6 +221,22 @@ void main() {
     );
   });
 
+  test('a section link in a closing group is no note and its words count', () {
+    const text = 'Rule ([invariants](DOMAIN.md#invariants)).';
+    final read = traceNotesOf(text, _prefixes, isTableRow: false);
+    expect(read.notes, isEmpty);
+    expect(read.counted, text);
+  });
+
+  test('a link inside the words of an ownership clause makes it no note', () {
+    const text =
+        'The recipe is fixed. The rule [INV-4](DOMAIN.md#invariants) owns '
+        'the recipe, and every other doc cites it.';
+    final read = traceNotesOf(text, _prefixes, isTableRow: false);
+    expect(read.notes, isEmpty);
+    expect(read.counted, text);
+  });
+
   test('blank line before nested items keeps the note closing', () {
     final read = traceNotesOf(
       '- A rule (RULE-5).\n\n  - nested',

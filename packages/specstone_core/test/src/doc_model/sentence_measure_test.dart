@@ -67,6 +67,16 @@ void main() {
     expect(measureSentence('漢字 ひら').language, 'ja');
   });
 
+  test('a sentence with kana takes the ja cap 60 and a han sentence the zh '
+      'cap 45', () {
+    final japanese = measureSentence('これは日本語です');
+    final chinese = measureSentence('中文句子');
+
+    expect(builtInSentenceChars.capFor(japanese.language), 60);
+    expect(builtInSentenceChars.capFor(chinese.language), 45);
+    expect(builtInSentenceChars.capFor(measureSentence('漢字 ひら').language), 60);
+  });
+
   test('korean with latin terms takes ko', () {
     final words = [...List.filled(17, '한국어'), 'API', 'CLI', 'SDK'];
     final measure = measureSentence(words.join(' '));
