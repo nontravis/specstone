@@ -1008,8 +1008,15 @@ void main() {
     test('a story target no doc carries exits 64 and moves nothing', () async {
       final root = await writeNestedProject();
       expect(
-        await refusal(root, ['user_story:shop/cart/nothing', '--under', 'x']),
-        containsPair('code', 'doc_not_found'),
+        await refusal(root, [
+          'user_story:shop/cart/nothing',
+          '--under',
+          'shop/pay',
+        ]),
+        {
+          'code': 'doc_not_found',
+          'message': 'no user_story doc carries the name shop/cart/nothing',
+        },
       );
       expect(exists(root, cartAdd), isTrue);
     });
