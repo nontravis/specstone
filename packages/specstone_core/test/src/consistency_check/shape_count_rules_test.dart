@@ -442,6 +442,30 @@ void main() {
     );
   });
 
+  test('a persona snapshot of one body line under min_lines 2 reports actual '
+      '1, the header line counting none', () async {
+    final project = await writeCheckProject(
+      extra: {
+        'docs/prds/personas/buyer/PERSONA.md':
+            '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n'
+            '# Buyer\n\n## Snapshot\nA buyer line.\n',
+      },
+    );
+    final found = [
+      for (final f in (await checkOf(project)).findings)
+        if (f.kind == FindingKind.linesUnderLimit) f,
+    ];
+    expect(found, hasLength(1));
+    expect(
+      found.single.toJson(),
+      allOf(
+        containsPair('section', 'snapshot'),
+        containsPair('limit', 2),
+        containsPair('actual', 1),
+      ),
+    );
+  });
+
   test(
     'a section of 2 body lines at its min_lines floor has no finding',
     () async {

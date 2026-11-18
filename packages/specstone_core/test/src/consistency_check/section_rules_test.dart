@@ -162,7 +162,7 @@ void main() {
     await writeCheckProject(
       extra: {
         '.specstone/templates/fr.yaml':
-            'sections:\n  - id: statement\n    lint:\n      max_lines: 39\n',
+            'sections:\n  - id: statement\n    lint:\n      max_lines: 40\n',
         ...fr(
           '$checkPasswordStatement\n',
           '$checkPasswordStatement\n\n${'### Head\ntext\n' * 3}${'filler\n' * fillerLines}',
@@ -171,19 +171,19 @@ void main() {
     ),
   );
 
-  test('39 body lines at max_lines 39, the blank lines format adds under '
+  test('40 body lines at max_lines 40, the blank lines format adds under '
       '### headings and the header line left out, have no finding', () async {
-    final report = await statementOf(32);
+    final report = await statementOf(33);
     expect(spots(report, FindingKind.linesOverLimit), isEmpty);
   });
 
-  test('40 body lines at max_lines 39 report limit 39 and actual 40', () async {
-    final report = await statementOf(33);
+  test('41 body lines at max_lines 40 report limit 40 and actual 41', () async {
+    final report = await statementOf(34);
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.linesOverLimit,
     );
-    expect(finding.toJson(), containsPair('limit', 39));
-    expect(finding.toJson(), containsPair('actual', 40));
+    expect(finding.toJson(), containsPair('limit', 40));
+    expect(finding.toJson(), containsPair('actual', 41));
   });
 
   test('a record whose 300 frontmatter lines and 40 body lines '
@@ -336,10 +336,40 @@ void main() {
     );
   });
 
-  test('a section of 5 body lines at max_lines 5, its header line counting '
-      'none, has no finding', () async {
-    final report = await fiveLineLimitOf(4);
-    expect(spots(report, FindingKind.linesOverLimit), isEmpty);
+  group('a persona snapshot at max_lines 4', () {
+    Future<CheckReport> snapshotOf(int bodyLines) async => await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/prds/personas/buyer/PERSONA.md':
+              '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n'
+              '# Buyer\n\n## Snapshot\n${'A buyer line.\n' * bodyLines}',
+        },
+      ),
+    );
+
+    test('of 4 non-blank body lines, its header line counting none, has no '
+        'finding', () async {
+      final report = await snapshotOf(4);
+      expect(spots(report, FindingKind.linesOverLimit), isEmpty);
+    });
+
+    test(
+      'of 5 body lines is lines_over_limit with limit 4 and actual 5',
+      () async {
+        final report = await snapshotOf(5);
+        final finding = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.linesOverLimit,
+        );
+        expect(
+          finding.toJson(),
+          allOf(
+            containsPair('section', 'snapshot'),
+            containsPair('limit', 4),
+            containsPair('actual', 5),
+          ),
+        );
+      },
+    );
   });
 
   test('a doc over its character limit, at line 1', () async {

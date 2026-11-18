@@ -322,7 +322,7 @@ final class LineFacts {
   /// The header line of each section, in the order of `Doc.sections`.
   final List<int> sectionLines;
 
-  /// The line and code point counts of each section's text, in the order of
+  /// The line and code point counts of each section's body, in the order of
   /// [sectionLines].
   ///
   /// The section rows store these, so [toJson] leaves them out.
