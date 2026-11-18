@@ -168,6 +168,43 @@ void main() {
     expect(found.single.waitsFor, WaitsFor.agent);
   });
 
+  test('a held required_when section with no body line while no item meets '
+      'its condition is unneeded at its header', () async {
+    final found = await _found(
+      edit(loginFr, [
+        ('A wrong password must not sign in.', _held),
+        ('## Rationale', '## Behavior\n\n## Rationale'),
+      ]),
+    );
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.sectionUnneeded);
+    expect(found.single.line, lineOfFirst(_project, loginFr, '## Behavior'));
+    expect(found.single.toJson(), containsPair('section', 'behavior'));
+  });
+
+  test('a top-level paragraph closes the item above it, so the field lines '
+      'after it leave that item with both fields missing', () async {
+    final found = await _found(
+      _withRationale(
+        '- **R1** Refuse it.\n\n'
+        'The parent section holds a rule too.\n\n'
+        '  - **Enforcer:** CheckRun\n'
+        '  - **Consistency:** immediate',
+      ),
+    );
+    expect(
+      found.map((f) => f.kind),
+      everyElement(FindingKind.itemFieldMissing),
+    );
+    expect(
+      found.map((f) => f.toJson()['field']),
+      unorderedEquals(['Enforcer', 'Consistency']),
+    );
+    expect(found.map((f) => f.line).toSet(), {
+      lineOfFirst(_project, loginFr, '- **R1**'),
+    });
+  });
+
   test('a required_when section held while an item meets its condition has no '
       'finding', () async {
     final found = await _found(

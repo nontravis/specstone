@@ -1321,4 +1321,33 @@ void main() {
       }
     });
   });
+
+  test('a Statement of one 165-character paragraph is chars_over_limit under a 160-character section limit, counted as 166', () async {
+    final paragraph = '${'word ' * 32}word1';
+    expect(paragraph.length, 165);
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...fr(
+            '## Statement\n\n$checkPasswordStatement\n\n',
+            '## Statement\n\n$paragraph\n\n',
+          ),
+          '.specstone/templates/fr.yaml':
+              'sections:\n  - id: statement\n    lint:\n      max_chars: 160\n',
+        },
+      ),
+    );
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.charsOverLimit,
+    );
+    expect(finding.path, loginFr);
+    expect(
+      finding.toJson(),
+      allOf(
+        containsPair('section', 'statement'),
+        containsPair('limit', 160),
+        containsPair('actual', 166),
+      ),
+    );
+  });
 }
