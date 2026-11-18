@@ -431,6 +431,24 @@ void main() {
       expect(view, contains('| new     | 1 sentence new |\n'));
     });
 
+    test('a committed approval is read from git, with its rename line, though its copy is saved', () async {
+      const renamed = 'prds/personas/shopper/PERSONA.md';
+      final root = await writeWriteProject();
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      _walkApproving(root, 'persona:buyer');
+      commitAll(root, 'approved');
+      _editAsDraft(root, persona, renamed);
+      commitAll(root, 'renamed and drafted');
+      expect(_copyFile(root, _markOf(root, renamed)).existsSync(), isTrue);
+
+      final view = _dryRunView(root, 'persona:shopper');
+
+      expect(view, contains('| old     | approved copy in commit `'));
+      expect(view, contains('renamed from `docs/$persona`'));
+      expect(view, isNot(contains('not yet committed')));
+    }, skip: skipGit);
+
     test('a copy whose hash does not match the doc is ignored, and git history is read', () async {
       String story(String mark, String useCase) =>
           '---\nstatus: planned\n$mark---\n\n# Sign out\n\n## Use Case\n\n'

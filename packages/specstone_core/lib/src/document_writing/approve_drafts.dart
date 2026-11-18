@@ -351,9 +351,10 @@ final class _RunReads {
     : _tree = _unionOf(_treeSentences.values),
       _runCopies = sentenceSetOf(_approved.values);
 
-  /// Reads the approved copy of each of [drafts], from the saved copy its
-  /// `approved:` mark names, else through [history] from git, then the text of
-  /// every doc the index lists, typed or not, as on disk.
+  /// Reads the approved copy of each of [drafts], through [history] from the
+  /// commit that holds the `approved:` mark the doc carries, else from the
+  /// saved copy that mark names, else as git reports it, then the text of every
+  /// doc the index lists, typed or not, as on disk.
   ///
   /// Throws `RenderFault` `output_not_writable` for a doc that cannot be read.
   factory read(
@@ -368,13 +369,14 @@ final class _RunReads {
       final type = session.index.typeOf(doc);
       final markOnDisk = ApprovalFields.of(Doc.parse(toLf(utf8.decode(bytes))))
           .approvedValue;
-      final lookup =
-          store.find(markOnDisk, type) ??
-          history.lastApproved(
-            session.project.projectRoot,
-            session.projectPathOf(doc.docPath),
-            docType: type,
-          );
+      final committed = history.lastApproved(
+        session.project.projectRoot,
+        session.projectPathOf(doc.docPath),
+        docType: type,
+      );
+      final lookup = _holdsMark(committed, markOnDisk)
+          ? committed
+          : store.find(markOnDisk, type) ?? committed;
       lookups[doc.docPath] = lookup;
       switch (lookup) {
         case ApprovedCopy(:final text) || SavedApprovedCopy(:final text):
@@ -424,6 +426,11 @@ final class _RunReads {
     );
   }
 }
+
+/// Whether [lookup] is a committed copy whose own `approved:` value is [mark].
+bool _holdsMark(ApprovalLookup lookup, Object? mark) =>
+    lookup is ApprovedCopy &&
+    ApprovalFields.of(Doc.parse(toLf(lookup.text))).approvedValue == mark;
 
 Set<String> _unionOf(Iterable<Set<String>> sets) => {
   for (final set in sets) ...set,
