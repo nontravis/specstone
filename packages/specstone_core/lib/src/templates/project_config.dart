@@ -21,7 +21,6 @@ const _targetsKey = 'targets';
 const _reservedTargetName = 'refs';
 const _agentFileRootsKey = 'agent_file_roots';
 const _agentFilesVersionKey = 'agent_files_version';
-const _cleanupKey = 'cleanup';
 
 /// The config key that turns on `check`'s coverage finding.
 const verificationCoverageKey = 'verification_coverage';
@@ -166,7 +165,7 @@ final class ProjectConfig {
         _agentFileRootsKey,
         _agentFilesVersionKey,
         verificationCoverageKey,
-        _cleanupKey,
+        cleanupKey,
       },
       file: projectConfigPath,
       format: 'config',

@@ -4,7 +4,8 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
 
-const _cleanupKey = 'cleanup';
+/// The config key of the `cleanup` bounds map.
+const cleanupKey = 'cleanup';
 const _bundlesMaxAgeHoursKey = 'bundles_max_age_hours';
 const _bundlesMaxMbKey = 'bundles_max_mb';
 const _reportsMaxAgeDaysKey = 'reports_max_age_days';
@@ -61,14 +62,14 @@ final class CleanupBounds {
   /// three bounds. An age too long for `DateTime.subtract`, and a size too
   /// large for an `int`, clamp to the largest that fits.
   static CleanupBounds fromConfig(YamlMap map, {required String file}) {
-    final bounds = optionalValue<YamlMap>(map, _cleanupKey, file: file);
+    final bounds = optionalValue<YamlMap>(map, cleanupKey, file: file);
     if (bounds == null) return defaults;
     checkKeys(
       bounds,
       {_bundlesMaxAgeHoursKey, _bundlesMaxMbKey, _reportsMaxAgeDaysKey},
       file: file,
       format: 'config',
-      prefix: '$_cleanupKey.',
+      prefix: '$cleanupKey.',
     );
     return _build((key) => _readBound(bounds, key, file: file));
   }
@@ -79,7 +80,7 @@ final class CleanupBounds {
   /// Never throws; a `cleanup` that is not a map, and every key beside the
   /// three bounds, change nothing.
   static CleanupBounds fromConfigLeniently(YamlMap map) {
-    final bounds = map[_cleanupKey];
+    final bounds = map[cleanupKey];
     if (bounds is! YamlMap) return defaults;
     return _build((key) {
       try {
@@ -124,7 +125,7 @@ int? _readBound(YamlMap bounds, String key, {required String file}) {
     bounds,
     key,
     file: file,
-    prefix: '$_cleanupKey.',
+    prefix: '$cleanupKey.',
   );
   if (value == null) return null;
   if (value > 0) return value;
@@ -132,6 +133,6 @@ int? _readBound(YamlMap bounds, String key, {required String file}) {
     FaultCode.unknownValue,
     'the key $key must be a positive whole number',
     file: file,
-    key: '$_cleanupKey.$key',
+    key: '$cleanupKey.$key',
   );
 }
