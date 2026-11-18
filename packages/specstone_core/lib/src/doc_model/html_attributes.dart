@@ -1,12 +1,4 @@
-/// An attribute of a start tag in html: its name in ASCII lower case, the
-/// span of its value, and the tag holding it.
-typedef HtmlAttribute = ({
-  String name,
-  int start,
-  int end,
-  String value,
-  String tag,
-});
+import 'package:specstone_core/src/doc_model/models/html_attribute.dart';
 
 /// Returns the `id`, `href`, and `name` attributes of every start tag in
 /// [html], in document order.
@@ -116,13 +108,15 @@ int _scanStartTag(String html, int from, List<HtmlAttribute> found) {
     }
     final isFirstOfName = seen.add(name);
     if (isFirstOfName && (name == 'id' || name == 'href' || name == 'name')) {
-      found.add((
-        name: name,
-        start: start,
-        end: end,
-        value: html.substring(start, end),
-        tag: tag,
-      ));
+      found.add(
+        HtmlAttribute(
+          name: name,
+          start: start,
+          end: end,
+          value: html.substring(start, end),
+          tag: tag,
+        ),
+      );
     }
   }
   return i;
