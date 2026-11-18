@@ -20,6 +20,7 @@ import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
+import 'package:specstone_core/src/document_writing/restamp_pass.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -382,23 +383,56 @@ String? rewriteDocRefs(
   return result == lfText ? null : result;
 }
 
-/// Returns the sorted journal writes that keep every link, `doc_ref`, and
-/// doc-name mention true in docs.
+/// The journal steps of one restructure write: the sorted writes of existing
+/// docs, and the records it creates.
+final class PlannedRewrites {
+  const new({required this.rewrites, required this.creates});
+
+  final List<WriteStep> rewrites;
+  final List<CreateStep> creates;
+}
+
+/// One candidate doc as its rewrite leaves it, laid out, before any stamp.
+final class _Rewritten {
+  const new({
+    required this.docPath,
+    required this.bytes,
+    required this.lfText,
+    required this.laidOut,
+  });
+
+  /// Where the doc sits before the moves.
+  final String docPath;
+
+  /// The file as the step reads it under the lock.
+  final List<int> bytes;
+  final String lfText;
+  final String laidOut;
+}
+
+/// Returns the journal writes that keep every link, `doc_ref`, and doc-name
+/// mention true in docs, and [creates] with their rows re-stamped.
 ///
-/// A doc whose hash matched its `approved:` value is re-stamped. Draft marks
-/// stay untouched. A code file or an agent file is never written: its
-/// mentions are listed by `staleMentions`.
+/// One re-stamp pass ([RestampPass]) then sets each matched `confirmed` or
+/// `overrides` entry and Verification matrix row whose block the call
+/// rewrites to the block's fingerprint after it; a doc only it changes is
+/// written too. A doc whose hash matched its `approved:` value is stamped
+/// again after the pass. Draft marks stay untouched. A code file or an agent
+/// file is never written: its mentions are listed by `staleMentions`.
 ///
 /// [docEdits] maps a DocPath to one edit of that doc, such as a record's
 /// entries or a moved FR's traces; the doc is a candidate, indexed or not, and
-/// the edit runs after the other rewrites of its step.
+/// the edit runs after the other rewrites of its step. [blocks] gives where a
+/// moved block sits after the call.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
-List<WriteStep> planRewrites(
+PlannedRewrites planRewrites(
   WriteSession session,
   List<PathMove> moves, {
   RenamedNames renamed = const RenamedNames({}),
   Map<String, TextEdit> docEdits = const {},
+  List<CreateStep> creates = const [],
+  BlockMoves blocks = const BlockMoves.none(),
 }) {
   final index = session.index;
   final renamedDocs = _renamedDocsOf(index, moves, renamed);
@@ -427,9 +461,9 @@ List<WriteStep> planRewrites(
       () => index.at(docPath) ?? _unindexedDoc(session, docPath),
     );
   }
-  final steps = [
+  final rewritten = [
     for (final doc in candidates.values)
-      ?_stepFor(
+      ?_rewrittenOf(
         session,
         doc,
         moves,
@@ -437,8 +471,33 @@ List<WriteStep> planRewrites(
         renamedDocs,
         docEdits[doc.docPath],
       ),
+  ];
+  final pass = RestampPass.plan(
+    session,
+    before: {for (final doc in rewritten) doc.docPath: doc.lfText},
+    after: {for (final doc in rewritten) doc.docPath: doc.laidOut},
+    moves: moves,
+    blocks: blocks,
+  );
+  final steps = [
+    for (final doc in rewritten)
+      _stampedStep(session, doc, moves, pass.apply(doc.docPath, doc.laidOut)),
+    for (final docPath in pass.onlyRestamped)
+      ?_restampedStep(session, docPath, moves, pass),
   ]..sort((a, b) => a.path.compareTo(b.path));
-  return steps;
+  return PlannedRewrites(
+    rewrites: steps,
+    creates: [
+      for (final create in creates)
+        CreateStep(
+          create.path,
+          pass.apply(
+            session.docPathOf(create.path) ?? create.path,
+            create.text,
+          ),
+        ),
+    ],
+  );
 }
 
 /// Returns the docs of [index] whose Name [renamed] changes under [moves], by
@@ -547,7 +606,9 @@ IndexedDoc _unindexedDoc(WriteSession session, String docPath) => IndexedDoc(
   tokens: 0,
 );
 
-WriteStep? _stepFor(
+/// Returns [doc] with its links, mentions, `doc_ref` values, labels, and
+/// [docEdit] rewritten and laid out, or null when its bytes would not change.
+_Rewritten? _rewrittenOf(
   WriteSession session,
   IndexedDoc doc,
   List<PathMove> moves,
@@ -592,20 +653,71 @@ WriteStep? _stepFor(
   final entries = docEdit?.call(text ?? lfText) ?? text;
   if (entries == null) return null;
   session.requireWritable(doc.docPath);
+  return _Rewritten(
+    docPath: doc.docPath,
+    bytes: bytes,
+    lfText: lfText,
+    laidOut: layOutDoc(
+      entries,
+      session.docTypeAt(movedPath(doc.docPath, moves)),
+    ),
+  );
+}
+
+/// Returns the step that writes the doc at [docPath], which only [pass]
+/// changes, or null when the file is gone.
+WriteStep? _restampedStep(
+  WriteSession session,
+  String docPath,
+  List<PathMove> moves,
+  RestampPass pass,
+) {
+  final bytes = session.readDocBytes(docPath);
+  if (bytes == null) return null;
+  session.requireWritable(docPath);
+  final lfText = toLf(utf8.decode(bytes));
+  final laidOut = layOutDoc(
+    lfText,
+    session.docTypeAt(movedPath(docPath, moves)),
+  );
+  return _stampedStep(
+    session,
+    _Rewritten(
+      docPath: docPath,
+      bytes: bytes,
+      lfText: lfText,
+      laidOut: laidOut,
+    ),
+    moves,
+    pass.apply(docPath, laidOut),
+  );
+}
+
+/// Returns the step that writes [text], [doc] as the re-stamp pass leaves
+/// it, at its path after [moves], with the approval hash stamped again when
+/// it matched before the call.
+WriteStep _stampedStep(
+  WriteSession session,
+  _Rewritten doc,
+  List<PathMove> moves,
+  String text,
+) {
   final writtenPath = movedPath(doc.docPath, moves);
-  final writtenType = session.docTypeAt(writtenPath);
-  final laidOut = layOutDoc(entries, writtenType);
   final statusesOutside = session.project.statusesOutsideApproval;
   final wasApproved = _wasApproved(
-    lfText,
+    doc.lfText,
     session.docTypeAt(doc.docPath),
     statusesOutside: statusesOutside,
   );
   // An edit that marked the doc draft, as an item move does, takes no stamp.
-  final stamped = wasApproved && !Doc.parse(laidOut).isDraft
-      ? withApprovalHash(laidOut, writtenType, statusesOutside: statusesOutside)
-      : laidOut;
-  return session.docWriteStep(writtenPath, stamped, bytes);
+  final stamped = wasApproved && !Doc.parse(text).isDraft
+      ? withApprovalHash(
+          text,
+          session.docTypeAt(writtenPath),
+          statusesOutside: statusesOutside,
+        )
+      : text;
+  return session.docWriteStep(writtenPath, stamped, doc.bytes);
 }
 
 /// Whether [lfText], the doc as the step reads it under the lock, is no draft

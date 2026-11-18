@@ -99,16 +99,16 @@ ReadAnswer answerReorder(
       return _answerFor(session, moves, const [], dryRun: dryRun);
     }
     session.journalTarget.requireTrusted();
-    final rewrites = planRewrites(session, moves);
+    final planned = planRewrites(session, moves);
     final mentions = staleMentions(session, moves, namesChange: false);
     if (!dryRun) {
-      MoveJournal([..._stageSteps(session, moves), ...rewrites])
+      MoveJournal([..._stageSteps(session, moves), ...planned.rewrites])
           .run(session.journalTarget);
     }
     return _answerFor(
       session,
       moves,
-      rewrites,
+      planned.rewrites,
       mentions: mentions,
       dryRun: dryRun,
     );
@@ -171,29 +171,32 @@ ReadAnswer answerRename(
     session.journalTarget.requireTrusted();
     final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
-    final rewrites = planRewrites(
+    final planned = planRewrites(
       session,
       moves,
       renamed: renamed,
       docEdits: records.edits,
+      creates: records.creates,
     );
     final mentions = staleMentions(
       session,
       moves,
       namesChange: true,
-      docWrites: rewrites,
+      docWrites: planned.rewrites,
     );
     if (!dryRun) {
       MoveJournal([
         for (final move in moves)
           MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
-        ...rewrites,
+        ...planned.rewrites,
+        ...planned.creates,
       ]).run(session.journalTarget);
     }
     return _answerFor(
       session,
       moves,
-      rewrites,
+      planned.rewrites,
+      created: planned.creates,
       mentions: mentions,
       dryRun: dryRun,
     );
@@ -271,7 +274,7 @@ ReadAnswer answerMove(
     session.journalTarget.requireTrusted();
     final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
-    final rewrites = planRewrites(
+    final planned = planRewrites(
       session,
       moves,
       renamed: renamed,
@@ -279,26 +282,27 @@ ReadAnswer answerMove(
         ...records.edits,
         if (docType.id == frType) ..._movedFrEdits(session, moving, newParent),
       },
+      creates: records.creates,
     );
     final mentions = staleMentions(
       session,
       moves,
       namesChange: true,
-      docWrites: rewrites,
+      docWrites: planned.rewrites,
     );
     if (!dryRun) {
       MoveJournal([
         for (final move in moves)
           MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
-        ...rewrites,
-        ...records.creates,
+        ...planned.rewrites,
+        ...planned.creates,
       ]).run(session.journalTarget);
     }
     return _answerFor(
       session,
       moves,
-      rewrites,
-      created: records.creates,
+      planned.rewrites,
+      created: planned.creates,
       mentions: mentions,
       dryRun: dryRun,
     );
@@ -329,30 +333,31 @@ ReadAnswer _answerFeatureMove(
     session.journalTarget.requireTrusted();
     final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
-    final rewrites = planRewrites(
+    final planned = planRewrites(
       session,
       moves,
       renamed: renamed,
       docEdits: records.edits,
+      creates: records.creates,
     );
     final mentions = staleMentions(
       session,
       moves,
       namesChange: true,
-      docWrites: rewrites,
+      docWrites: planned.rewrites,
     );
     if (!dryRun) {
       MoveJournal([
         ..._stageSteps(session, moves),
-        ...rewrites,
-        ...records.creates,
+        ...planned.rewrites,
+        ...planned.creates,
       ]).run(session.journalTarget);
     }
     return _answerFor(
       session,
       moves,
-      rewrites,
-      created: records.creates,
+      planned.rewrites,
+      created: planned.creates,
       mentions: mentions,
       dryRun: dryRun,
     );
@@ -468,7 +473,11 @@ ReadAnswer answerItemMove(
       edits: _chained(planned.edits, records.edits),
       listed: planned.listed,
     );
-    final rewrites = planRewrites(session, const [], docEdits: refs.edits);
+    final rewrites = planRewrites(
+      session,
+      const [],
+      docEdits: refs.edits,
+    ).rewrites;
     final mentions = itemMentions(session, landings, refs: refs);
     if (!dryRun) {
       MoveJournal([...rewrites, ...records.creates]).run(session.journalTarget);
