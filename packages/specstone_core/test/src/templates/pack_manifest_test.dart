@@ -13,6 +13,18 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key, int? line}) =>
         .having((f) => f.key, 'key', key)
         .having((f) => f.line, 'line', line);
 
+const _personalFile = '~/.specstone/packs/x/pack.yaml';
+
+/// Returns the fault a personal pack's `pack.yaml` of [text] raises.
+TemplateFault _faultOf(String text) {
+  try {
+    PackManifest.parse(text, file: _personalFile);
+  } on TemplateFault catch (fault) {
+    return fault;
+  }
+  fail('expected a TemplateFault');
+}
+
 void main() {
   group('PackManifest.parse', () {
     test('reads name, version, and file', () {
@@ -91,6 +103,45 @@ void main() {
         () => _parse('owner: me\n'),
         throwsA(_fault(FaultCode.unknownKey, key: 'owner')),
       );
+    });
+
+    test('a personal pack.yaml with no name or no version refuses with '
+        'status 78', () {
+      for (final (text, key) in [
+        ('version: 1.0.0\n', 'name'),
+        ('name: x\n', 'version'),
+      ]) {
+        final fault = _faultOf(text);
+        expect(fault.code, FaultCode.missingKey, reason: text);
+        expect(fault.key, key, reason: text);
+        expect(fault.file, _personalFile, reason: text);
+        expect(fault.exitStatus, 78, reason: text);
+      }
+    });
+
+    test('a personal pack.yaml version with a pre-release or build suffix '
+        'refuses with status 78', () {
+      for (final version in ['1.0.0-beta.1', '1.0.0+build5']) {
+        final fault = _faultOf('name: x\nversion: $version\n');
+        expect(fault.code, FaultCode.packVersionInvalid, reason: version);
+        expect(fault.key, 'version', reason: version);
+        expect(fault.file, _personalFile, reason: version);
+        expect(fault.exitStatus, 78, reason: version);
+      }
+    });
+
+    test('a personal pack.yaml that is no YAML or holds an unknown key '
+        'refuses with status 78', () {
+      final syntax = _faultOf('name: [\n');
+      expect(syntax.code, FaultCode.yamlSyntax);
+      expect(syntax.line, isNotNull);
+      expect(syntax.exitStatus, 78);
+
+      final unknown = _faultOf('name: x\nversion: 1.0.0\nowner: me\n');
+      expect(unknown.code, FaultCode.unknownKey);
+      expect(unknown.key, 'owner');
+      expect(unknown.file, _personalFile);
+      expect(unknown.exitStatus, 78);
     });
 
     test('a pack.yaml with no migrations key has none', () {
