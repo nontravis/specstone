@@ -366,12 +366,15 @@ void main() {
       );
     });
 
-    test('an unquoted digits hash is no hash', () {
-      expect(
-        countsAsApprovedCopy('---\napproved: 123456789012\n---\n$base', null),
-        isFalse,
-      );
-    });
+    test(
+      'an unquoted digits approved value does not count as an approved copy',
+      () {
+        expect(
+          countsAsApprovedCopy('---\napproved: 123456789012\n---\n$base', null),
+          isFalse,
+        );
+      },
+    );
   });
 
   test(
@@ -799,6 +802,66 @@ void main() {
     File('${repo.path}/docs/$signupFeature')
         .writeAsStringSync(_approvedText.replaceFirst('Approved', 'Edited'));
     commitAll(repo, 'edited in an editor');
+
+    expect(
+      ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
+      isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+    );
+  }, skip: skipGit);
+
+  test(
+    'an edit a merge brings in with its old hash counts as no approval',
+    () async {
+      final repo = await _repo({'docs/$signupFeature': _approvedText});
+      commitAll(repo, 'approved');
+      expect(git(repo, ['switch', '-q', '-c', 'editor']).exitCode, 0);
+      File('${repo.path}/docs/$signupFeature')
+          .writeAsStringSync(_approvedText.replaceFirst('Approved', 'Edited'));
+      commitAll(repo, 'edited in an editor');
+      expect(git(repo, ['switch', '-q', '-']).exitCode, 0);
+      File('${repo.path}/other.txt').writeAsStringSync('elsewhere\n');
+      commitAll(repo, 'work on the other branch');
+      expect(
+        git(repo, [
+          'merge',
+          '-q',
+          '--no-ff',
+          '-m',
+          'merge editor',
+          'editor',
+        ]).exitCode,
+        0,
+      );
+      expect(
+        File('${repo.path}/docs/$signupFeature').readAsStringSync(),
+        contains('Edited'),
+      );
+
+      expect(
+        ApprovalHistory().lastApproved(
+          repo,
+          'docs/$signupFeature',
+          docType: _docType,
+        ),
+        isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
+      );
+    },
+    skip: skipGit,
+  );
+
+  test('the lookup goes on past a non-string approved value to an older approved copy', () async {
+    final repo = await _repo({'docs/$signupFeature': _approvedText});
+    commitAll(repo, 'approved');
+    for (final value in ['123456789012', '[a, b]']) {
+      File('${repo.path}/docs/$signupFeature').writeAsStringSync(
+        '---\napproved: $value\n---\n# Signup\n\nNewer body $value.\n',
+      );
+      commitAll(repo, 'approved as $value');
+    }
 
     expect(
       ApprovalHistory().lastApproved(
