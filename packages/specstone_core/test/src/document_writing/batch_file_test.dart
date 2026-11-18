@@ -340,6 +340,63 @@ void main() {
       }
     });
 
+    test('a shaped line that reads as none is argument_invalid, exit 64', () {
+      final parsed = parseBatchFile(
+        _batch,
+        '${_head(_storyPath)}\nbody\n'
+        '==> b (t) · specs/b.md · base abcdef123456<==\n',
+      );
+      final entry = parsed.lineFaults.single;
+      expect(entry.code, 'argument_invalid');
+      expect(entry.line, 3);
+      final fault = BatchFault(parsed.lineFaults);
+      expect(fault.exitStatus, 64);
+      final error = fault.toJson()['error']! as Map<String, Object?>;
+      expect(error['code'], 'argument_invalid');
+      expect(error['line'], 3);
+      expect(error, isNot(contains('key')));
+    });
+
+    test('a bundle line with a summary part and a guide line give the '
+        'missing-base message', () {
+      const message =
+          'the naming line holds no base of 12 lowercase hex characters';
+      final parsed = parseBatchFile(
+        _batch,
+        '${_head(_storyPath)}\nbody\n'
+        '==> login (feature) · $_storyPath · summary <==\n'
+        '==> feature <==\n',
+      );
+      expect(parsed.lineFaults.map((entry) => entry.message), [
+        message,
+        message,
+      ]);
+      expect(BatchFault(parsed.lineFaults).toText().split('\n'), [
+        '$_batch:3: $message',
+        '$_batch:4: $message',
+      ]);
+    });
+
+    test('a malformed hash and a reply unchanged line give the '
+        'missing-base message', () {
+      const message =
+          'the naming line holds no base of 12 lowercase hex characters';
+      final parsed = parseBatchFile(
+        _batch,
+        '${_head(_storyPath)}\nbody\n'
+        '${_head(_storyPath, 'ABC123ABC123')}\n'
+        '==> login (feature) · $_storyPath · base $_hash · unchanged <==\n',
+      );
+      expect(parsed.lineFaults.map((entry) => entry.message), [
+        message,
+        message,
+      ]);
+      expect(BatchFault(parsed.lineFaults).toText().split('\n'), [
+        '$_batch:3: $message',
+        '$_batch:4: $message',
+      ]);
+    });
+
     test('text before the first naming line is one fault, shaped or not', () {
       final parsed = parseBatchFile(
         _batch,
