@@ -6,6 +6,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:test/test.dart';
 
 /// The line facts of [text], as refresh computes them.

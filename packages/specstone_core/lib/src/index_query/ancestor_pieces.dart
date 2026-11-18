@@ -12,6 +12,7 @@ import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/models/ancestor_piece.dart';
+import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
