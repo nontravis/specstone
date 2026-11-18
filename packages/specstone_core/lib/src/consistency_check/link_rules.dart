@@ -15,6 +15,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show SectionTarget, anchorTargetOf, classifyLink;
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/models/written_path.dart';
 import 'package:specstone_core/src/portable_path.dart';
@@ -267,7 +268,7 @@ Iterable<Finding> _missingItems(CheckContext context, IndexedDoc doc) sync* {
     final cite = classifyLink(
       link,
       target: anchorTarget,
-      sectionAt: (_) => (
+      sectionAt: (_) => CitedSection(
         key: template?.id ?? content.sections[at].key,
         prefixId: template?.prefixId,
         isAcceptanceCriteria: template?.id == acceptanceSectionId,

@@ -14,6 +14,9 @@ import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show linkSourcesOf;
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
+import 'package:specstone_core/src/index_query/models/item_range.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
@@ -239,7 +242,8 @@ final class _Walk {
     ];
     final itemLinks = [
       for (final (:link, :cited) in classified)
-        if (link.shaped && cited != null) (link: link.text, cite: cited.cite),
+        if (link.shaped && cited != null)
+          ClassifiedLink(link: link.text, cite: cited.cite),
     ];
     final rangeFrom = {
       if (itemLinks.where((link) => link.cite is ItemCite).length > 1)

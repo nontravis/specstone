@@ -5,6 +5,8 @@ import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
@@ -107,8 +109,12 @@ void main() {
     final facts = _factsOf('---\nx: 1\n---\n\n$doc');
 
     CitedSection? sectionAt(int index) => switch (index) {
-      0 => (key: 'invariants', prefixId: 'INV-', isAcceptanceCriteria: false),
-      1 => (
+      0 => const CitedSection(
+        key: 'invariants',
+        prefixId: 'INV-',
+        isAcceptanceCriteria: false,
+      ),
+      1 => const CitedSection(
         key: 'acceptance_criteria',
         prefixId: null,
         isAcceptanceCriteria: true,
@@ -245,7 +251,7 @@ void main() {
     List<String> rangesIn(String line, List<(String, String)> links) => [
       for (final r in itemRangesOn(line, [
         for (final (text, anchor) in links)
-          (
+          ClassifiedLink(
             link: _linkIn(line, text, anchor),
             cite: text.startsWith('RULE-')
                 ? ItemCite(sectionKey: anchor, itemId: text)
@@ -321,13 +327,13 @@ void main() {
         shown: 'other.md#rules',
       );
       final ranges = itemRangesOn(line, [
-        (
+        ClassifiedLink(
           link: _linkIn(line, 'RULE-14', 'rules'),
           cite: const ItemCite(sectionKey: 'rules', itemId: 'RULE-14'),
         ),
-        (
+        const ClassifiedLink(
           link: second,
-          cite: const ItemCite(sectionKey: 'rules', itemId: 'RULE-19'),
+          cite: ItemCite(sectionKey: 'rules', itemId: 'RULE-19'),
         ),
       ]);
       expect(ranges, isEmpty);

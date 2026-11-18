@@ -5,8 +5,9 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/html_comments.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
-    show CitedSection, citedSectionsOf;
+    show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';

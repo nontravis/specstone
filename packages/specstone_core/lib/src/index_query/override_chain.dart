@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';

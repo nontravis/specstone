@@ -12,6 +12,9 @@ import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/models/ancestor_piece.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
+import 'package:specstone_core/src/index_query/models/item_range.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
@@ -131,9 +134,10 @@ List<AncestorPiece> _outboundFrom(
 /// Returns the pieces [cited], the links of one line [text], cite; an item
 /// range gives each item of the range a piece of its own.
 List<AncestorPiece> _outboundOnLine(String text, List<_Cited> cited) {
-  final itemLinks = <ItemLink>[
+  final itemLinks = <ClassifiedLink>[
     for (final one in cited)
-      if (one.cite case final ItemCite item) (link: one.link, cite: item),
+      if (one.cite case final ItemCite item)
+        ClassifiedLink(link: one.link, cite: item),
   ]..sort((a, b) => a.link.column.compareTo(b.link.column));
   final rangeFrom = {
     for (final range in itemRangesOn(text, itemLinks)) range.first.link: range,

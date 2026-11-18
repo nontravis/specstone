@@ -16,17 +16,14 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show ItemFact, itemKeyOfHead;
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/classified_link.dart';
+import 'package:specstone_core/src/index_query/models/item_link.dart';
+import 'package:specstone_core/src/index_query/models/item_range.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-/// What a classifier needs of the `##` section a link names.
-typedef CitedSection = ({
-  String key,
-  String? prefixId,
-  bool isAcceptanceCriteria,
-});
 
 /// Classifies [link] as a cite reads it, by the [target] that
 /// [anchorTargetOf] gave its anchor, so no reader maps anchors but that
@@ -61,7 +58,7 @@ List<CitedSection> citedSectionsOf(DocContent content, MergedDocType? type) {
   final templates = heldTemplatesOf(content.sections, type);
   return [
     for (final (at, section) in content.sections.indexed)
-      (
+      CitedSection(
         key: templates[at]?.id ?? section.key,
         prefixId: templates[at]?.prefixId,
         isAcceptanceCriteria: templates[at]?.id == acceptanceSectionId,
@@ -141,12 +138,6 @@ AnchorTarget? anchorTargetOf(LineFacts facts, String anchor) {
   return HeadingBlockTarget(headingLine: line);
 }
 
-/// A link a reader classified as an item link.
-typedef ItemLink = ({LinkText link, ItemCite cite});
-
-/// Two item links of one section joined by ` to `.
-typedef ItemRange = ({ItemLink first, ItemLink last});
-
 /// Returns each pair of adjacent item links on [line], the text of the
 /// line they sit on, joined by ` to `, in source order.
 ///
@@ -154,14 +145,11 @@ typedef ItemRange = ({ItemLink first, ItemLink last});
 /// [classifyLink] cite, in source order; only two [ItemCite]s of one
 /// target, anchor, and section pair. A link that spans lines pairs with
 /// none, so a range never joins two lines.
-List<ItemRange> itemRangesOn(
-  String line,
-  List<({LinkText link, LinkCite cite})> links,
-) {
+List<ItemRange> itemRangesOn(String line, List<ClassifiedLink> links) {
   final ranges = <ItemRange>[];
   for (var i = 0; i + 1 < links.length; i++) {
-    final (link: first, cite: firstCite) = links[i];
-    final (link: last, cite: lastCite) = links[i + 1];
+    final ClassifiedLink(link: first, cite: firstCite) = links[i];
+    final ClassifiedLink(link: last, cite: lastCite) = links[i + 1];
     if (firstCite is! ItemCite || lastCite is! ItemCite) continue;
     if (first.line != last.line ||
         first.endLine != first.line ||
@@ -174,10 +162,12 @@ List<ItemRange> itemRangesOn(
       continue;
     }
     if (line.substring(first.endColumn, last.column) == ' to ') {
-      ranges.add((
-        first: (link: first, cite: firstCite),
-        last: (link: last, cite: lastCite),
-      ));
+      ranges.add(
+        ItemRange(
+          first: ItemLink(link: first, cite: firstCite),
+          last: ItemLink(link: last, cite: lastCite),
+        ),
+      );
     }
   }
   return ranges;

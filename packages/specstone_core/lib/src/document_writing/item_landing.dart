@@ -20,7 +20,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show sectionItemsAt;
 import 'package:specstone_core/src/index_query/item_links.dart'
-    show CitedSection, citedSectionsOf;
+    show citedSectionsOf;
+import 'package:specstone_core/src/index_query/models/cited_section.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
     show withTemplateSection;
