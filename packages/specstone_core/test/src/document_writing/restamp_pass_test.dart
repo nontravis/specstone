@@ -204,6 +204,33 @@ void main() {
       expect(answer.text, contains('rewrites $cartRecord\n'));
       expect(answer.json['rewritten'], contains(cartRecord));
       expect(files(), before);
+      expect(await _suspects(root), ['add_item/check_stock#E02']);
+    });
+
+    test('an entry the pass never judged keeps its bytes, and so does the matched entry sharing its fingerprint', () async {
+      final scenario = _scenario(
+        'Add an item',
+        given: 'a shopper, as [drop]($_dropLink) shows',
+      );
+      final recorded = fingerprintFor(scenario);
+      final root = await writeNestedProject(
+        extra: {
+          'docs/$cartAdd': _story('Agent adds an item', scenario),
+          'docs/$cartAddFr': _fr('Check the stock', scenario: scenario)
+              .replaceFirst(
+                '  - S1 $recorded\n',
+                '  - S1 $recorded\n  - S2 $recorded\n',
+              ),
+        },
+      );
+      _reorderDrop(root);
+      const movedFr =
+          'prds/features/f02_shop/f01_cart/us02_add_item/fr01_check_stock.md';
+      expect(
+        readDoc(root, movedFr),
+        contains('confirmed:\n  - S1 $recorded\n  - S2 $recorded\n'),
+      );
+      expect(await _suspects(root), ['S1']);
     });
   });
 

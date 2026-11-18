@@ -45,7 +45,12 @@ enum TrackedBlockKind { scenario, item, frStatement, nfrStatement, edgeCase }
 
 /// The upstream block a tracked entry records a fingerprint of.
 final class TrackedBlock {
-  const new({required this.kind, required this.upstream, required this.key});
+  const new({
+    required this.kind,
+    required this.upstream,
+    required this.key,
+    this.section,
+  });
 
   final TrackedBlockKind kind;
 
@@ -56,17 +61,22 @@ final class TrackedBlock {
   /// edge case ID, an NFR id, or `Statement` for an FR's Statement.
   final String key;
 
+  /// The key of the section an item sits in, as a cited section reads it;
+  /// null for any other kind.
+  final String? section;
+
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
   bool operator ==(Object other) =>
       other is TrackedBlock &&
       other.kind == kind &&
       other.upstream == upstream &&
-      other.key == key;
+      other.key == key &&
+      other.section == section;
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
-  int get hashCode => Object.hash(kind, upstream, key);
+  int get hashCode => Object.hash(kind, upstream, key, section);
 }
 
 /// One recorded fingerprint of a downstream doc: a `confirmed` or `overrides`
@@ -149,8 +159,8 @@ final class TrackedLink {
 /// the block is missing.
 ///
 /// The one reader of a tracked block's text, for the check and for the
-/// re-stamp of a restructure write. An item is the first of its ID in any
-/// held section of its doc.
+/// re-stamp of a restructure write. An item is the first of its ID in the
+/// first held section of its section key, its own text, nested items aside.
 String? trackedBlockTextOf(CheckContext context, TrackedBlock block) {
   final doc = context.index.at(block.upstream);
   if (doc == null) return null;
@@ -160,22 +170,23 @@ String? trackedBlockTextOf(CheckContext context, TrackedBlock block) {
     TrackedBlockKind.frStatement =>
       context.heldSection(doc, _statementSection)?.body ?? '',
     TrackedBlockKind.nfrStatement => context.nfrStatements()[block.key]?.text,
-    TrackedBlockKind.item => _itemTextOf(context, doc, block.key),
+    TrackedBlockKind.item => _itemTextOf(context, doc, block),
   };
 }
 
-String? _itemTextOf(CheckContext context, IndexedDoc doc, String itemId) {
+String? _itemTextOf(CheckContext context, IndexedDoc doc, TrackedBlock block) {
   final sections = citedSectionsOf(context.contentOf(doc), context.typeOf(doc));
-  for (final (at, section) in sections.indexed) {
-    for (final item in context.itemsIn(doc, at)) {
-      final key = itemKeyOfHead(
-        item.head,
-        isHeading: item.kind == SectionItemKind.heading,
-        prefixId: section.prefixId,
-        isAcceptanceCriteria: section.isAcceptanceCriteria,
-      );
-      if (key == itemId) return item.text;
-    }
+  final at = sections.indexWhere((section) => section.key == block.section);
+  if (at < 0) return null;
+  final section = sections[at];
+  for (final item in context.itemsIn(doc, at)) {
+    final key = itemKeyOfHead(
+      item.head,
+      isHeading: item.kind == SectionItemKind.heading,
+      prefixId: section.prefixId,
+      isAcceptanceCriteria: section.isAcceptanceCriteria,
+    );
+    if (key == block.key) return item.text;
   }
   return null;
 }
@@ -256,9 +267,19 @@ Iterable<TrackedLink> _overrideLineLinks(
   IndexedDoc doc,
 ) sync* {
   for (final line in overrideLinesOf(context, doc)) {
-    if (line case OverrideLine(:final address?, :final upstream?)) {
-      final itemId = line.itemId;
-      final text = line.itemText;
+    if (line case OverrideLine(
+      :final address?,
+      :final upstream?,
+      :final itemId?,
+      :final section?,
+    )) {
+      final tracked = TrackedBlock(
+        kind: TrackedBlockKind.item,
+        upstream: upstream,
+        key: itemId,
+        section: section,
+      );
+      final text = trackedBlockTextOf(context, tracked);
       yield text == null
           ? TrackedLink(
               label: address,
@@ -272,13 +293,7 @@ Iterable<TrackedLink> _overrideLineLinks(
               block: itemId,
               source: text,
               fingerprint: fingerprintOf(text),
-              tracked: itemId == null
-                  ? null
-                  : TrackedBlock(
-                      kind: TrackedBlockKind.item,
-                      upstream: upstream,
-                      key: itemId,
-                    ),
+              tracked: tracked,
               entryKey: _overrideEntriesKey,
             );
     }

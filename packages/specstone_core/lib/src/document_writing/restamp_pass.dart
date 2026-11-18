@@ -64,6 +64,7 @@ final class RestampPass {
     );
     final values = <_Locator, Set<String>>{};
     final holders = <_Locator, Set<String>>{};
+    final judged = <_Locator, int>{};
     for (final doc in session.index.docs) {
       for (final entry in trackedEntriesOf(judge.beforeContext, doc)) {
         final recorded = entry.recorded;
@@ -71,12 +72,21 @@ final class RestampPass {
         final locator = _Locator(entry.entryKey, recorded, entry.literal);
         (values[locator] ??= {}).add(judge.valueAfter(entry, recorded));
         (holders[locator] ??= {}).add(entry.docPath);
+        judged[locator] = (judged[locator] ?? 0) + 1;
       }
     }
+    final found = {
+      for (final MapEntry(key: locator, value: afters) in values.entries)
+        if (afters.length == 1 && afters.single != locator.recorded)
+          locator: afters.single,
+    };
+    final probe = RestampPass._(session, const {}, const []);
+    final held = _heldCounts(session, probe, found.keys.toSet(), before);
+    // An entry the pass never judged that shares a locator, such as an entry
+    // naming no traced link, would take the stamp too, so the locator stays.
     final stamps = {
-      for (final MapEntry(key: locator, value: found) in values.entries)
-        if (found.length == 1 && found.single != locator.recorded)
-          locator: found.single,
+      for (final MapEntry(key: locator, value: stamp) in found.entries)
+        if (held[locator] == judged[locator]) locator: stamp,
     };
     final pass = RestampPass._(session, stamps, const []);
     return RestampPass._(session, stamps, [
@@ -95,17 +105,9 @@ final class RestampPass {
 
   /// Returns [lfText], the text of the doc at [docPath] before the call, with
   /// each entry the pass re-stamps set to its new fingerprint.
-  String apply(String docPath, String lfText) {
-    if (_stamps.isEmpty) return lfText;
-    var text = lfText;
-    for (final key in _entryKeys) {
-      text = _entriesRestamped(text, key);
-    }
-    final recordType = _session.index.set.recordDocType;
-    final isRecord =
-        recordType != null && _session.docTypeAt(docPath)?.id == recordType.id;
-    return isRecord ? _rowsRestamped(text, recordType) : text;
-  }
+  String apply(String docPath, String lfText) => _stamps.isEmpty
+      ? lfText
+      : _withStamps(docPath, lfText, (locator) => _stamps[locator]);
 
   bool _changes(String docPath) {
     final bytes = _session.readDocBytes(docPath);
@@ -114,19 +116,44 @@ final class RestampPass {
     return apply(docPath, lfText) != lfText;
   }
 
-  String _entriesRestamped(String lfText, String key) {
+  /// Returns [lfText] with each `confirmed` or `overrides` entry, and each
+  /// row of a record, set to the value [stampOf] gives its locator.
+  String _withStamps(
+    String docPath,
+    String lfText,
+    String? Function(_Locator locator) stampOf,
+  ) {
+    var text = lfText;
+    for (final key in _entryKeys) {
+      text = _entriesStamped(text, key, stampOf);
+    }
+    final recordType = _session.index.set.recordDocType;
+    final isRecord =
+        recordType != null && _session.docTypeAt(docPath)?.id == recordType.id;
+    return isRecord ? _rowsStamped(text, recordType, stampOf) : text;
+  }
+
+  String _entriesStamped(
+    String lfText,
+    String key,
+    String? Function(_Locator locator) stampOf,
+  ) {
     String? stamp;
     return withEntriesRestamped(
       lfText,
       key,
       // `after` runs right after `matched` returns true for the same entry.
       matched: (_, _, fingerprint) =>
-          (stamp = _stamps[_Locator(key, fingerprint, null)]) != null,
+          (stamp = stampOf(_Locator(key, fingerprint, null))) != null,
       after: (_) => stamp,
     ).lfText;
   }
 
-  String _rowsRestamped(String lfText, MergedDocType recordType) {
+  String _rowsStamped(
+    String lfText,
+    MergedDocType recordType,
+    String? Function(_Locator locator) stampOf,
+  ) {
     final lines = lfText.split('\n');
     for (final row in matrixLinesIn(
       lfText,
@@ -139,7 +166,7 @@ final class RestampPass {
         recorded,
         matrixRowLiteralOf(row),
       );
-      final stamp = _stamps[locator];
+      final stamp = stampOf(locator);
       if (stamp == null) continue;
       final line = lines[row.line - 1];
       final at = line.lastIndexOf(recorded);
@@ -210,6 +237,43 @@ final class _Locator {
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
   int get hashCode => Object.hash(entryKey, recorded, literal);
+}
+
+/// Returns how many entries and rows of each of [locators] every doc holds
+/// before the call: each indexed doc, and each doc of [before] the index
+/// lacks.
+///
+/// A doc's text is its [before] text, else its indexed text; a doc whose text
+/// holds none of the locators' fingerprints is not parsed.
+Map<_Locator, int> _heldCounts(
+  WriteSession session,
+  RestampPass probe,
+  Set<_Locator> locators,
+  Map<String, String> before,
+) {
+  final counts = <_Locator, int>{};
+  if (locators.isEmpty) return counts;
+  final fingerprints = {for (final locator in locators) locator.recorded};
+  void count(String docPath, String lfText) {
+    if (!fingerprints.any(lfText.contains)) return;
+    probe._withStamps(docPath, lfText, (locator) {
+      if (locators.contains(locator)) {
+        counts[locator] = (counts[locator] ?? 0) + 1;
+      }
+      return null;
+    });
+  }
+
+  for (final doc in session.index.docs) {
+    count(
+      doc.docPath,
+      before[doc.docPath] ?? toLf(session.index.contentOf(doc).text),
+    );
+  }
+  for (final MapEntry(key: docPath, value: lfText) in before.entries) {
+    if (session.index.at(docPath) == null) count(docPath, lfText);
+  }
+  return counts;
 }
 
 /// Returns the content of each of [texts], parsed as the doc at its DocPath.
