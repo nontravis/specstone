@@ -28,6 +28,7 @@ class MigrateCommand extends SpecstoneCommand {
       ..addMultiOption(
         'add',
         valueHelp: 'pack',
+        splitCommas: false,
         help: 'Pin a shipped or personal pack the project does not pin yet.',
       )
       ..addFlag(

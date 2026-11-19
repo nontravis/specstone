@@ -145,7 +145,12 @@ Future<int> _migrate(MigrateRequest request) async {
   _warnOldPlugin(request, root);
   final trust = _trustOf(root, linkFolder, request);
   requireSpecstoneFolder(root);
+  final added = _sortedUnique(request.addedPacks);
   if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
+    // The name checks come before the replay and the git checks.
+    if (added.isNotEmpty) {
+      _checkAddedPacks(request, root, _chooseRun(request, root, added), added);
+    }
     final target = _targetOf(root, request, trust)..requireTrusted();
     if (request.dryRun) {
       // Reads the journal and its cursor only, so a dry run refuses one that
@@ -163,13 +168,7 @@ Future<int> _migrate(MigrateRequest request) async {
     requireGitWorkTree(root, request.runGit);
     if (!request.dryRun) requireCleanWorkTree(root, request.runGit);
   }
-  final added = _sortedUnique(request.addedPacks);
-  final kind = chooseRun(
-    root,
-    templates: request.templates,
-    homeDirectory: request.homeDirectory,
-    hasAdds: added.isNotEmpty,
-  );
+  final kind = _chooseRun(request, root, added);
   _checkAddedPacks(request, root, kind, added);
   switch (kind) {
     case RunKind.none:
@@ -182,6 +181,17 @@ Future<int> _migrate(MigrateRequest request) async {
       return await _resume(request, root, trust);
   }
 }
+
+RunKind _chooseRun(
+  MigrateRequest request,
+  Directory root,
+  List<String> added,
+) => chooseRun(
+  root,
+  templates: request.templates,
+  homeDirectory: request.homeDirectory,
+  hasAdds: added.isNotEmpty,
+);
 
 List<String> _sortedUnique(List<String> names) =>
     {...names}.toList()..sort(compareCodePoints);

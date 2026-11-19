@@ -291,6 +291,22 @@ void main() {
       );
     });
 
+    test('an add no pack holds refuses before a pending document-writing '
+        'journal is replayed', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      writeJournal(root, [const WriteStep.unguarded('notes.md', 'new\n')]);
+
+      await expectLater(
+        _run(root, StringBuffer(), addedPacks: ['nope']),
+        packNotFound('nope'),
+      );
+
+      expect(File('${root.path}/notes.md').existsSync(), isFalse);
+      expect(MoveJournal.pending(root), isTrue);
+    });
+
     test('the first failing added name refuses alone, in name '
         'order', () async {
       final root = await gitFixture({

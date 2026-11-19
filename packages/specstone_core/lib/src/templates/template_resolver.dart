@@ -95,7 +95,7 @@ final class TemplateResolver {
   /// Reads no manifest, so a personal pack's faults surface when it loads.
   bool carriesPack(String name, {required Directory? homeDirectory}) =>
       _shippedPackNames().contains(name) ||
-      (homeDirectory != null && _hasPersonalFolder(name, homeDirectory));
+      _hasPersonalFolder(name, homeDirectory);
 
   /// Resolves the doc types of [packNames] at their available versions.
   ///

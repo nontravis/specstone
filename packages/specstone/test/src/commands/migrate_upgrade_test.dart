@@ -3321,12 +3321,33 @@ agent_file_roots:
       );
     });
 
+    test(
+      'an add value holding a comma exits 64 as outside kebab-case',
+      () async {
+        final bare = await writeTree({'keep.txt': ''});
+
+        final result = await migrate(bare, ['--add', 'a,b']);
+
+        expect(
+          result.exitCode,
+          64,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect(
+          result.stderr,
+          startsWith('--add takes a pack name in kebab-case\n'),
+        );
+      },
+    );
+
     test('a personal pack in the home folder passes the name '
         'checks', () async {
       final project = await gitFixture({
         '.specstone/config.yaml': shippedPinsConfig(),
       });
-      final home = await writeTree({'.specstone/packs/mine/keep.txt': ''});
+      final home = await writeTree({
+        '.specstone/packs/mine/pack.yaml': 'name: mine\nversion: 1.0.0\n',
+      });
 
       final result = await migrate(project, [
         '--dry-run',
@@ -3334,11 +3355,8 @@ agent_file_roots:
         'mine',
       ], home: home);
 
-      expect(
-        result.stderr,
-        isNot(contains('no shipped or personal pack named mine')),
-      );
-      expect(result.exitCode, isNot(64));
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(result.stdout, contains('dry run: nothing written'));
     });
   });
 }
