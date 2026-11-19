@@ -21,10 +21,7 @@ final class CodePath {
     required this.projectPath,
     required this.isFolder,
     required this.target,
-  }) : assert(
-         path != null || projectPath != null,
-         'a code path lies in a code root or the project root',
-       );
+  });
 
   /// The path relative to [target]'s code root, `/`-separated; `.` for the
   /// root; null when no code root holds the path.
@@ -35,7 +32,7 @@ final class CodePath {
   final String? projectPath;
 
   /// The path as a message names it: [path], else [projectPath].
-  String get label => path ?? projectPath ?? '.';
+  String get label => path ?? projectPath!;
 
   /// Whether the path is a folder.
   final bool isFolder;
@@ -182,8 +179,8 @@ void _addImplement(
 /// Returns the docs whose `root: project` entry is the longest that reaches
 /// [projectPath], a path from the project root, by whole segment.
 ///
-/// Docs of any target and of none compete: such an entry belongs to the
-/// project root, not to a code target.
+/// Docs of any target and of none compete, and each one picked joins: such an
+/// entry belongs to the project root, not to a code target.
 List<IndexedDoc> projectRootMatch(DocIndex index, String projectPath) =>
     _longestCover(index, index.docs, projectPath, fromProject: true);
 
@@ -198,7 +195,7 @@ void _addProjectRootMatch(
 ) {
   for (final doc in docs) {
     for (final picked in [doc, ...referencedDocsOf(index, doc, featureType)]) {
-      if (bundle.keepsTarget(picked)) bundle.docPaths.add(picked.docPath);
+      bundle.docPaths.add(picked.docPath);
     }
   }
 }
@@ -285,8 +282,8 @@ bool _tracesEntry(DocIndex index, IndexedDoc doc, CodePath code, String path) {
   }
   final entry = index.recordEntryOf(doc, codeTarget: code.target.name);
   if (entry == null) return false;
-  return entry.codePaths.any((entry) => _traces(entry, code, path)) ||
-      entry.testPaths.any((entry) => _traces(entry, code, path));
+  return entry.codePaths.any((codePath) => _traces(codePath, code, path)) ||
+      entry.testPaths.any((testPath) => _traces(testPath, code, path));
 }
 
 bool _traces(String entry, CodePath code, String path) {

@@ -832,10 +832,14 @@ void main() {
     });
     test('a skill doc that names a feature brings that feature doc', () async {
       final skill = skillDocFile(['.claude/skills/review/']);
+      final agent = agentDocFile(['.claude/skills/review/']);
       final project = await openSkillProject(
         files: {
-          ...skill,
           'docs/$skillDoc': skill['docs/$skillDoc']!.replaceFirst(
+            'covers:',
+            'feature: login\ncovers:',
+          ),
+          'docs/$agentDoc': agent['docs/$agentDoc']!.replaceFirst(
             'covers:',
             'feature: login\ncovers:',
           ),
@@ -848,11 +852,39 @@ void main() {
 
         expect(
           bundle.docPaths,
-          containsAll([skillDoc, featureDoc]),
+          containsAll([skillDoc, agentDoc, featureDoc]),
           reason: '$mode',
         );
       }
     });
+    test(
+      'a skill doc owned by another target is bundled for the first target',
+      () async {
+        final skill = skillDocFile(['.claude/skills/review/']);
+        final root = await writeLoginProject(
+          extra: {
+            '.specstone/config.yaml':
+                '${skillPinsConfig()}targets:\n'
+                '  flutter:\n    code_root: flutter_lib\n'
+                '  jaspr:\n    code_root: jaspr_lib\n',
+            '.specstone/templates/skill.yaml': 'id: skill\nper_target: true\n',
+            'docs/specs/jaspr/skills/review.md': skill['docs/$skillDoc']!,
+            skillFile: skillText,
+            'flutter_lib/.keep': '',
+            'jaspr_lib/.keep': '',
+          },
+        );
+        final opened = openSession(root);
+        addTearDown(opened.close);
+        final project = _SkillProject(opened, root);
+
+        final bundle = project.pick(skillFile);
+
+        expect(project.resolve(skillFile).target.name, 'flutter');
+        expect(bundle.docPaths, contains('specs/jaspr/skills/review.md'));
+        expect(bundle.warnings, isEmpty);
+      },
+    );
     test('a project-root entry needs whole segments to match', () async {
       final project = await openSkillProject(
         files: {
