@@ -799,6 +799,39 @@ exec /bin/cp "$@"''');
     },
   );
 
+  // A teardown ends a waiting build stub by a release file or by deleting
+  // the sandbox; either way the stub must exit and write no build output.
+  for (final (trigger, end) in <(String, void Function(Directory))>[
+    ('a release file', (logs) => File('${logs.path}/release').createSync()),
+    ('a deleted logs folder', (logs) => logs.deleteSync(recursive: true)),
+  ]) {
+    test('a waiting build stub exits, writing nothing, on $trigger', () async {
+      final logs = repo.sandbox.logs;
+      final out = Directory('${logs.path}/out');
+      final stub = await Process.start(
+        '${repo.sandbox.stubs.path}/dart',
+        ['build', 'cli', '-o', out.path],
+        workingDirectory: repo.work.path,
+        environment: repo.sandbox.env({'STUB_DART_BUILD': 'wait'}),
+        includeParentEnvironment: false,
+      );
+      addTearDown(() => stub.kill(ProcessSignal.sigkill));
+      final output = stub.stdout.drain<void>();
+      final errors = stub.stderr.drain<void>();
+      await waitFor(File('${logs.path}/building').existsSync);
+
+      end(logs);
+
+      final exitCode = await stub.exitCode.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => fail('the stub did not exit within 5 s'),
+      );
+      await Future.wait([output, errors]);
+      expect(exitCode, 1);
+      expect(out.existsSync(), isFalse);
+    });
+  }
+
   Future<void> expectSignalEndsBuildAtOnce(ProcessSignal signal) async {
     final release = File('${repo.sandbox.logs.path}/release');
     final process = await repo.start(tool, env: {'STUB_DART_BUILD': 'wait'});
