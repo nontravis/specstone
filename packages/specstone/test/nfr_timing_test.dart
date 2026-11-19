@@ -28,7 +28,10 @@ const _busyLoop = r'i=0; while [ $i -lt 100000 ]; do i=$((i+1)); done';
 
 /// Clock granularity: one shell thread cannot spend more CPU than wall.
 const _tick = Duration(milliseconds: 20);
-const _selfCpuSpin = Duration(milliseconds: 200);
+// A fixed amount of work (301M steps, over 200 ms CPU), never a wall span.
+const _selfCpuLoopCount = 301000000;
+const _residueModulus = 7;
+const _residueCycleSum = 21;
 
 /// Returns a doc body of the first [keep] of [_sentencesPerDoc] sentences, 5 KB
 /// in all.
@@ -662,9 +665,10 @@ void main() {
   test('selfCpuTime counts in-process work', () {
     final watch = Stopwatch()..start();
     final before = selfCpuTime();
-    _spinFor(_selfCpuSpin);
+    final sum = _residueSum(_selfCpuLoopCount);
     final cpu = selfCpuTime() - before;
     watch.stop();
+    expect(sum, _selfCpuLoopCount ~/ _residueModulus * _residueCycleSum);
     expect(cpu, greaterThan(const Duration(milliseconds: 50)));
     expect(
       cpu,
@@ -673,7 +677,10 @@ void main() {
   }, testOn: 'mac-os || linux');
 }
 
-void _spinFor(Duration span) {
-  final watch = Stopwatch()..start();
-  while (watch.elapsed < span) {}
+int _residueSum(int count) {
+  var sum = 0;
+  for (var i = 0; i < count; i++) {
+    sum += i % _residueModulus;
+  }
+  return sum;
 }
