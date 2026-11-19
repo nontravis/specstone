@@ -34,7 +34,10 @@ batch's findings into drafts.
 - **`guide`** (author, required in each pass after the first): `<txt path>, <json path>`, the run's saved guide files;
   run `guide` only for a type they lack, saved the same way, and name it in your `Guide:` line.
 - **`stage`** (audit, optional): `drafts`, or none, for the drafts audit; `design` for the design check.
-- **`amend`** (audit with `stage: design`, optional): `<N>`, the amend whose decisions the design check reads.
+- **`amend`** (audit with `stage: design`, optional): `<N>[,<N> ...]`, the amends whose decisions the design check
+  reads; an `<N>` the design holds no amend of stops the whole check.
+- **`bundles`** (audit with `stage: design`, optional): the paths of main's saved bundle files of the same target and
+  mode, read in place of your own `context` call for their target.
 - **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
   docs to read.
 - **`check`** (audit with no `stage: design`, optional): the last author pass's `Check:` file, passed while no `Move:`
@@ -52,7 +55,7 @@ batch's findings into drafts.
 - **`report`** (every mode, optional): the file for your whole report,
   `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
 - **Missing input**: an input this contract requires of your mode is absent, or a value lies outside the set your
-  mode gives that input, such as `stage: uncovered` in audit or an `amend` the design holds no `Amend <N>` of: write
+  mode gives that input, such as `stage: uncovered` in audit or an `amend` `<N>` the design holds no `Amend <N>` of: write
   `OPEN QUESTIONS:`, one line per gap naming its input and, for a set, the set's values, as the report and its relay
   block; overwrite no other file; stop.
 - **No `mode`**: a message that names no `mode`, a later round included, gets the missing-input stop: write only
