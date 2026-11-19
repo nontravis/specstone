@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/models/root_match.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 
 /// The legacy SDD context doc, relative to the project root.
@@ -29,7 +30,7 @@ const legacyContextPath = 'docs/prds/d01_context.md';
       '${MoveJournal.journalPath}',
     );
   }
-  final (:folder, :root) = match;
+  final RootMatch(:folder, :root) = match;
   return (root: root, linkFolder: folder.path == root.path ? null : folder);
 }
 

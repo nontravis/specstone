@@ -106,6 +106,7 @@ export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
 export 'src/templates/models/checklist_item.dart';
+export 'src/templates/models/root_match.dart';
 export 'src/templates/project_config.dart'
     show matchProjectRoot, readCleanupBounds, requireSpecstoneFolder;
 export 'src/templates/template_fault.dart';
