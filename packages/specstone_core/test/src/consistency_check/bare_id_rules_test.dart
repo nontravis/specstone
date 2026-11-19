@@ -50,10 +50,11 @@ Future<Directory> _featureWith(String text) =>
 Future<Directory> _frWith(String text) =>
     _projectWith(doc(loginFr, _frLine, text));
 
-List<(String, String)> _itemsOf(List<Finding> findings) => [
+/// The owner DocPath each finding names, by the item ID it names.
+Map<String, String> _targetsOf(List<Finding> findings) => {
   for (final finding in findings)
-    (finding.keys['item']! as String, finding.keys['target']! as String),
-];
+    finding.keys['item']! as String: finding.keys['target']! as String,
+};
 
 void main() {
   test('a bare ID its own doc lacks is item_mention_missing with item and '
@@ -89,7 +90,7 @@ void main() {
         '$_featureLine [domain:login]($_domainFromFeature) INV-6 and INV-9.',
       ),
     );
-    expect(_itemsOf(findings), [('INV-9', _domain)]);
+    expect(_targetsOf(findings), {'INV-9': _domain});
   });
 
   test('an ID after a section link is judged against the whole doc', () async {
@@ -101,7 +102,7 @@ void main() {
     final missing = await _featureWith(
       '$_featureLine [entities]($_domainFromFeature#entities) INV-9.',
     );
-    expect(_itemsOf(await _judgedIn(missing)), [('INV-9', _domain)]);
+    expect(_targetsOf(await _judgedIn(missing)), {'INV-9': _domain});
   });
 
   test('an ID whose cited doc type lacks its prefix is judged in its own '
@@ -109,7 +110,7 @@ void main() {
     final project = await _frWith(
       '$_frLine [domain:login]($_domainFromFr) E01 and E07.',
     );
-    expect(_itemsOf(await _judgedIn(project)), [('E07', loginFr)]);
+    expect(_targetsOf(await _judgedIn(project)), {'E07': loginFr});
   });
 
   test("a bare ID its owner doc holds gives no finding, an item's own "
@@ -126,7 +127,7 @@ void main() {
   });
 
   test('a range in a run judges its two ends', () async {
-    Future<List<(String, String)>> itemsOf(String run) async => _itemsOf(
+    Future<Map<String, String>> targetsOf(String run) async => _targetsOf(
       await _judgedIn(
         await _featureWith(
           '$_featureLine [domain:login]($_domainFromFeature) $run.',
@@ -134,11 +135,11 @@ void main() {
       ),
     );
 
-    expect(await itemsOf('INV-6 to INV-9'), [('INV-9', _domain)]);
-    expect(await itemsOf('INV-8 to INV-9'), [
-      ('INV-8', _domain),
-      ('INV-9', _domain),
-    ]);
+    expect(await targetsOf('INV-6 to INV-9'), {'INV-9': _domain});
+    expect(await targetsOf('INV-8 to INV-9'), {
+      'INV-8': _domain,
+      'INV-9': _domain,
+    });
   });
 
   test('a run after a link to no doc gives link_unresolved and no '
@@ -166,6 +167,15 @@ void main() {
       expect(await _judgedIn(project), isEmpty);
     },
   );
+
+  test('a run after a link to an existing untyped doc gives no '
+      'item_mention_missing', () async {
+    final project = await _projectWith({
+      ...doc(loginFr, _frLine, '$_frLine [notes](../../../../NOTES.md) E07.'),
+      'docs/NOTES.md': '# Notes\n\nA doc of no type.\n',
+    });
+    expect(await _judgedIn(project), isEmpty);
+  });
 
   test('an ID in a code span gives no finding', () async {
     final project = await _frWith('$_frLine Write `E07` as an example.');
@@ -202,9 +212,9 @@ void main() {
       {for (final finding in findings) finding.path: finding.keys['target']},
       {flutterDomain: flutterDomain, jasprDomain: jasprDomain},
     );
-    expect(_itemsOf(findings), [
-      ('INV-8', flutterDomain),
-      ('INV-9', jasprDomain),
-    ]);
+    expect(_targetsOf(findings), {
+      'INV-8': flutterDomain,
+      'INV-9': jasprDomain,
+    });
   });
 }
