@@ -1,11 +1,11 @@
 import 'package:specstone_core/src/doc_model/markdown_lines.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show withoutTrailingLinkGroup;
 
 const _entityColumn = 'Entity';
 const _kindColumn = 'Kind';
 const _aggregateRootKind = 'Aggregate root';
 const _serviceKind = 'Service';
-
-final _trailingLinkGroup = RegExp(r'\s*\(\[[^\]]*\]\([^)]*\)\)\s*$');
 
 /// One row of a domain doc's entities table.
 final class EntityRow {
@@ -88,4 +88,4 @@ List<String> _entitiesOfKind(List<EntityRow> rows, String kind) => [
 ];
 
 String _normalized(String text) =>
-    text.replaceFirst(_trailingLinkGroup, '').replaceAll('`', '').trim();
+    withoutTrailingLinkGroup(text).replaceAll('`', '').trim();
