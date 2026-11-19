@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/models/git_floor.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 
 // `git log` prints these control characters for `%x01` and `%x02`; neither
@@ -10,7 +11,7 @@ const _fieldSeparator = '\x02';
 
 /// The oldest git whose `add` and `commit` take `--pathspec-from-file`, which
 /// a migrate commit passes its paths through.
-const ({int major, int minor}) _gitFloor = (major: 2, minor: 25);
+const _gitFloor = GitFloor(major: 2, minor: 25);
 
 /// Refuses a [root] outside a git work tree with no first commit, or a git
 /// older than 2.25.

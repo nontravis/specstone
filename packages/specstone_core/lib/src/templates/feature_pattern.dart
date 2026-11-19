@@ -2,17 +2,18 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
+import 'package:specstone_core/src/templates/models/checklist_item.dart';
+import 'package:specstone_core/src/templates/models/ranked_fault_files.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-/// One merged checklist item.
-///
-/// `origin` is the id of the feature pattern whose layers last wrote the
-/// item's text, so two patterns that share an item agree on all three fields.
-typedef ChecklistItem = ({String id, String text, String origin});
-
 /// One layer of a feature pattern and the pack it comes from, if any.
-typedef WrittenPatternLayer = ({String? pack, FeaturePatternLayer layer});
+final class WrittenPatternLayer {
+  const new({required this.pack, required this.layer});
+
+  final String? pack;
+  final FeaturePatternLayer layer;
+}
 
 /// One feature pattern after its layers merge.
 final class FeaturePattern {
@@ -120,7 +121,7 @@ final class _PatternMerge {
     final base = _baseOf(id, path);
     var items = base?.items ?? const <ChecklistItem>[];
     var reference = base == null ? null : _written[base.id];
-    for (final (:layer, pack: _) in layers) {
+    for (final WrittenPatternLayer(:layer) in layers) {
       items = _applyItems(items, layer);
       reference = mergeList<ReferenceEntry>(
         reference,
@@ -190,7 +191,7 @@ final class _PatternMerge {
   /// Throws `extends_cycle` for [cycle], naming files as the doc-type fault
   /// does: `file` the later-loaded layer file, `relatedFiles` the rest.
   Never _throwCycle(List<String> cycle) {
-    final (:file, :related) = rankFaultFiles([
+    final RankedFaultFiles(:file, :related) = rankFaultFiles([
       for (final id in cycle) _extendsWriter(id)!.file,
     ], _loadIndex);
     final walkedPath = [...cycle, cycle.first].join(', ');
@@ -219,11 +220,15 @@ final class _PatternMerge {
             key: 'items',
           );
         }
-        items.add((id: entry.id, text: text, origin: layer.id));
+        items.add(ChecklistItem(id: entry.id, text: text, origin: layer.id));
       } else if (entry.disabled) {
         items.removeAt(index);
       } else if (text != null && text != items[index].text) {
-        items[index] = (id: entry.id, text: text, origin: layer.id);
+        items[index] = ChecklistItem(
+          id: entry.id,
+          text: text,
+          origin: layer.id,
+        );
       }
     }
     return items;

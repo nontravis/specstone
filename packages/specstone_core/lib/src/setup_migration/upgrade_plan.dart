@@ -52,6 +52,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/pattern_move.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart'
     show movePatternsAtEveryDepth;
 import 'package:specstone_core/src/templates/pack_manifest.dart'
@@ -1174,10 +1175,10 @@ bool _isPerTargetStep(MoveFile step, MergedSet set, String? firstTarget) =>
 
 /// Returns the patterns [step] moves by: its `from` and `to`, repeated once per
 /// nesting depth when its doc type nests in [set].
-List<({String from, String to})> _movePatternsOf(MoveFile step, MergedSet set) {
+List<PatternMove> _movePatternsOf(MoveFile step, MergedSet set) {
   final nesting = set.nestingType;
   if (nesting == null || set.lookup(step.docType)?.nestedPaths == null) {
-    return [(from: step.from, to: step.to)];
+    return [PatternMove(from: step.from, to: step.to)];
   }
   return movePatternsAtEveryDepth(step.from, step.to, nesting);
 }

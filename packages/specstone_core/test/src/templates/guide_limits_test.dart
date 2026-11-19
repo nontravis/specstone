@@ -94,8 +94,8 @@ void main() {
         _section(
           itemCount: const ItemCountLint(
             prefixes: [
-              (linePrefix: '- **When**', count: 1),
-              (linePrefix: '- **Then**', count: 2),
+              LinePrefixCount(linePrefix: '- **When**', count: 1),
+              LinePrefixCount(linePrefix: '- **Then**', count: 2),
             ],
           ),
         ),
@@ -107,7 +107,7 @@ void main() {
             min: 3,
             max: 5,
             perSubsection: true,
-            prefixes: [(linePrefix: '- **When**', count: 1)],
+            prefixes: [LinePrefixCount(linePrefix: '- **When**', count: 1)],
           ),
         ),
         '3 to 5 items in each subsection; '

@@ -1345,7 +1345,7 @@ WhenField? _parseWhenField(
       key: '${keyPrefix}values',
     );
   }
-  return (field: field, values: List.unmodifiable(values));
+  return WhenField(field: field, values: List.unmodifiable(values));
 }
 
 /// Reads `lint.required_field_groups` as a list of non-empty field id lists.
@@ -1754,7 +1754,7 @@ ItemCountLint? _parseItemCount(
   );
 }
 
-({String linePrefix, int count}) _parsePrefixCount(
+LinePrefixCount _parsePrefixCount(
   YamlMap entry, {
   required String file,
   required String key,
@@ -1767,7 +1767,7 @@ ItemCountLint? _parseItemCount(
     format: 'doc-type',
     prefix: keyPrefix,
   );
-  return (
+  return LinePrefixCount(
     linePrefix: requireValue<String>(
       entry,
       'line_prefix',

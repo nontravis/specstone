@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/journeys/models/step_edge.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 
 // MARK: - Constants
@@ -132,14 +133,14 @@ final class JourneySteps {
   ];
 
   /// One `(followed, follower)` pair per on-path follower, in follower order.
-  List<(int from, int to)> get edges => [
+  List<StepEdge> get edges => [
     for (var i = 1; i < steps.length; i++)
-      if (_onPath[i]) (_followed[i]!, i),
+      if (_onPath[i]) StepEdge(from: _followed[i]!, to: i),
   ];
 
   /// Root-to-leaf step indexes, ordered by the written position of the leaf.
   List<List<int>> get paths {
-    final hasFollower = {for (final (from, _) in edges) from};
+    final hasFollower = {for (final StepEdge(:from) in edges) from};
     return [
       for (var i = 0; i < steps.length; i++)
         if (_onPath[i] && !hasFollower.contains(i)) _chainTo(i),

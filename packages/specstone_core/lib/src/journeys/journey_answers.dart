@@ -15,11 +15,14 @@ const _pathsOption = '--paths';
 const _codeOption = '--code';
 const _noPathLabel = 'no path';
 
-typedef _JourneyPart = ({
-  List<String> lines,
-  Map<String, Object?> json,
-  List<String> warnings,
-});
+/// The lines, JSON, and warnings one journey adds to an answer.
+final class _JourneyPart {
+  const new({required this.lines, required this.json, required this.warnings});
+
+  final List<String> lines;
+  final Map<String, Object?> json;
+  final List<String> warnings;
+}
 
 typedef _JourneyBody = _JourneyPart Function(
   DocIndex index,
@@ -137,7 +140,11 @@ _JourneyPart _pathsOf(
     for (final number in duplicates)
       '${journey.name}: step number $number is written twice',
   ];
-  return (lines: lines, json: {'paths': pathsJson}, warnings: warnings);
+  return _JourneyPart(
+    lines: lines,
+    json: {'paths': pathsJson},
+    warnings: warnings,
+  );
 }
 
 String _offPathWarning(IndexedDoc journey, JourneySteps steps, int i) {
@@ -225,11 +232,21 @@ _JourneyPart _codeOf(
       'frs': [for (final fr in frs) _codeJson(index, fr, codeTarget)],
     });
   }
-  return (lines: lines, json: {'steps': stepsJson}, warnings: warnings);
+  return _JourneyPart(
+    lines: lines,
+    json: {'steps': stepsJson},
+    warnings: warnings,
+  );
 }
 
 /// One code target's record paths for a doc, and whether its record skips it.
-typedef _TargetCode = ({String? target, List<String> paths, bool skipped});
+final class _TargetCode {
+  const new({required this.target, required this.paths, required this.skipped});
+
+  final String? target;
+  final List<String> paths;
+  final bool skipped;
+}
 
 /// Returns the code of [doc] per code target: every target in `targets:`
 /// order with two or more and no [codeTarget], else the one.
@@ -259,7 +276,7 @@ _TargetCode _targetCodeFor(
       hasRecords &&
       index.itemStatus(doc, codeTarget: target) == RecordStatus.skipped;
   final entry = index.recordEntryOf(doc, codeTarget: target);
-  return (
+  return _TargetCode(
     target: target,
     paths: skipped ? const [] : entry?.codePaths ?? const [],
     skipped: skipped,
