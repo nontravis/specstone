@@ -235,6 +235,18 @@ void main() {
 
       expect(set.lines, isEmpty);
       expect(set.linesNaming('anything'), isEmpty);
+      expect(set.disabledLineIds, {'tone'});
+    });
+
+    test('a line added again no longer counts as disabled', () {
+      final set = _merge({
+        'base': _pack('shared_lines:\n  - id: tone\n    text: base\n'),
+        'top': _pack(
+          'extends: base\nshared_lines:\n  - id: tone\n    disabled: true\n',
+        ),
+      }, project: 'shared_lines:\n  - id: tone\n    text: back\n');
+
+      expect(set.disabledLineIds, isEmpty);
     });
 
     test('a disabled field reaches no doc type', () {

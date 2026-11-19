@@ -23,6 +23,7 @@ migrations:
 const _sharedEntry = '''
 shared_lines:
   - {id: be_brief, text: Be brief., for_doc_types: [runbook]}
+  - {id: old_tone, text: Old.}
 ''';
 
 const _packFiles = {
@@ -42,18 +43,19 @@ sections:
 };
 
 class _Case {
-  new(this.project, this.home);
+  new(this.project, this.home, this.packs);
 
+  final List<String> packs;
   final Directory project;
   final Directory home;
 
   void run() {
     final resolver = TemplateResolver();
     final target = resolver.resolveCarried(
-      packNames: _packs,
+      packNames: packs,
       homeDirectory: home,
     );
-    final available = resolver.availableManifests(_packs, homeDirectory: home);
+    final available = resolver.availableManifests(packs, homeDirectory: home);
     final pins = {
       for (final entry in available.entries)
         entry.key: entry.key == 'acme'
@@ -75,13 +77,14 @@ class _Case {
 Future<_Case> _case(
   Map<String, String> overrides, {
   Map<String, String> packFiles = _packFiles,
+  List<String> packs = _packs,
 }) async {
   final project = await writeTree({
     for (final entry in overrides.entries)
       '.specstone/templates/${entry.key}.yaml': entry.value,
   });
   final home = await writeTree(packFiles);
-  return _Case(project, home);
+  return _Case(project, home, packs);
 }
 
 const Map<String, String> _recordPackFiles = {
@@ -246,6 +249,36 @@ void main() {
       );
 
       expect(fault.key, 'shared_lines.ghost');
+    });
+
+    test('an entry that disables a line a pack declared and a higher pack '
+        'disabled does not refuse', () async {
+      final fixture = await _case(
+        {'shared': 'shared_lines: [{id: old_tone, disabled: true}]'},
+        packs: [..._packs, 'acme_top'],
+        packFiles: {
+          ..._packFiles,
+          '.specstone/packs/acme_top/pack.yaml':
+              'name: acme_top\nversion: 1.0.0\nextends: acme\n'
+              'shared_lines:\n  - {id: old_tone, disabled: true}\n',
+        },
+      );
+
+      expect(fixture.run, returnsNormally);
+    });
+
+    test('a line that dangles on its id and on a doc type lists the id '
+        'first', () async {
+      final fault = _refusal(
+        await _case({
+          'shared': 'shared_lines: [{id: ghost, for_doc_types: [gone_a]}]',
+        }),
+      );
+
+      expect(fault.key, 'shared_lines.ghost');
+      expect(fault.more.map((more) => more.key), [
+        'shared_lines.ghost.for_doc_types',
+      ]);
     });
 
     test('a complete new entry, and an entry that changes a line the '

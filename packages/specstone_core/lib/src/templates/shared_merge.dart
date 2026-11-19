@@ -60,13 +60,20 @@ final class MergedSharedField {
 /// The shared lines and fields of one resolve, disabled entries absent, in
 /// print order.
 final class SharedSet {
-  const new({required this.lines, required this.fields});
+  const new({
+    required this.lines,
+    required this.fields,
+    this.disabledLineIds = const {},
+  });
 
   /// No shared entries.
   static const SharedSet empty = SharedSet(lines: [], fields: []);
 
   /// The merged lines.
   final List<MergedSharedLine> lines;
+
+  /// The ids of lines a layer declared and a later layer disabled.
+  final Set<String> disabledLineIds;
 
   /// The merged fields.
   final List<MergedSharedField> fields;
@@ -259,6 +266,7 @@ final class _SharedMerge {
   SharedSet build() => SharedSet(
     lines: List.unmodifiable(_lines.values),
     fields: List.unmodifiable(_fields.values),
+    disabledLineIds: Set.unmodifiable(_disabledLineIds),
   );
 
   /// Records [pack] as a declarer of [id], or throws `unknown_value` when a

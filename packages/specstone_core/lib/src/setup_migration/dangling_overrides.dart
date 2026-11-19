@@ -2,6 +2,8 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/layer_source.dart'
+    show projectSharedFileName;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
@@ -60,9 +62,9 @@ void refuseDanglingOverrides(
         if (layer.path != null) layer.docTypeId,
     },
   );
-  final sharedFile = sharedLines.firstOrNull?.file;
+  const sharedFile = '.specstone/templates/$projectSharedFileName';
   bool followsShared(DocTypeLayer layer) =>
-      sharedFile != null && compareCodePoints(layer.file, sharedFile) > 0;
+      compareCodePoints(layer.file, sharedFile) > 0;
   List<MigrateFault> danglingOf(DocTypeLayer layer) =>
       target.lookup(layer.docTypeId) != null || layer.path == null
       ? _danglingOf(
@@ -149,7 +151,10 @@ List<MigrateFault> _sharedDanglingOf(
   required MergedSet target,
   required Set<String> layerDefined,
 }) {
-  final definedIds = {for (final line in target.shared.lines) line.id};
+  final definedIds = {
+    for (final line in target.shared.lines) line.id,
+    ...target.shared.disabledLineIds,
+  };
   MigrateFault fault(SharedLine line, String key, String message) =>
       MigrateFault(
         MigrateFaultCode.overrideDangling,
