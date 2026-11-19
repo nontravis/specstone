@@ -320,14 +320,14 @@ void main() {
         TestRow(
           item: 'show_toast/queue_toasts',
           edgeCase: 'E01',
-          literal: 'queues a second toast',
+          literals: ['queues a second toast'],
           fingerprint: '3f9a1c0b7e2d',
           line: firstRowLine,
         ),
         TestRow(
           item: 'show_toast/queue_toasts',
           edgeCase: 'E02',
-          literal: 'drops a toast past the limit',
+          literals: ['drops a toast past the limit'],
           line: firstRowLine + 1,
         ),
       ]);
@@ -423,7 +423,7 @@ void main() {
         TestRow(
           item: 'show_toast',
           edgeCase: 'E01',
-          literal: 'queues a toast',
+          literals: ['queues a toast'],
           line: firstRowLine,
         ),
       ];
@@ -483,7 +483,7 @@ void main() {
           TestRow(
             item: 'show_toast',
             edgeCase: 'E01',
-            literal: literal,
+            literals: [literal],
             fingerprint: '3f9a1c0b7e2d',
             line: firstRowLine,
             written: 'show_toast E01: $written',
@@ -517,7 +517,7 @@ void main() {
         TestRow(
           item: 'show_toast',
           edgeCase: 'E01',
-          literal: 'queues a toast',
+          literals: ['queues a toast'],
           line: firstRowLine,
         ),
         MalformedRow(line: firstRowLine + 2, text: 'stray'),
@@ -575,7 +575,7 @@ void main() {
             TestRow(
               item: 'show_toast/queue_toasts',
               edgeCase: 'E01',
-              literal: 'queues a toast',
+              literals: ['queues a toast'],
               fingerprint: '3f9a1c0b7e2d',
               line: firstRowLine,
             ),
@@ -588,8 +588,37 @@ void main() {
             TestRow(
               item: 'show_toast/queue_toasts',
               edgeCase: 'E03',
-              literal: 'drops a toast',
+              literals: ['drops a toast'],
               line: firstRowLine + 3,
+            ),
+          ],
+        ),
+      ]);
+    });
+
+    test('groups a per-FR row under its item', () {
+      final text = _matrixRecord([
+        '- show_toast/queue_toasts: `queues a toast`, `drops a toast` 3f9a1c0b7e2d',
+        '- show_toast/queue_toasts E02 skipped: no clock on CI',
+      ]);
+      final doc = _record(_matrixPath, text, type: _matrixRecordType);
+
+      expect(recordEntriesOf(doc, _matrixRecordType), const [
+        RecordEntry(
+          item: 'show_toast/queue_toasts',
+          status: RecordStatus.implemented,
+          matrixRows: [
+            TestRow(
+              item: 'show_toast/queue_toasts',
+              literals: ['queues a toast', 'drops a toast'],
+              fingerprint: '3f9a1c0b7e2d',
+              line: firstRowLine,
+            ),
+            SkipRow(
+              item: 'show_toast/queue_toasts',
+              edgeCase: 'E02',
+              reason: 'no clock on CI',
+              line: firstRowLine + 1,
             ),
           ],
         ),
@@ -611,7 +640,7 @@ void main() {
             TestRow(
               item: 'show_toast/pin_toast',
               edgeCase: 'E01',
-              literal: 'pins',
+              literals: ['pins'],
               line: firstRowLine,
             ),
           ],
@@ -651,7 +680,7 @@ void main() {
       const base = TestRow(
         item: 'show_toast',
         edgeCase: 'E01',
-        literal: 'queues',
+        literals: ['queues'],
         line: 11,
       );
 
@@ -661,20 +690,20 @@ void main() {
         TestRow(
           item: 'show_toast',
           edgeCase: 'E01',
-          literal: 'drops',
+          literals: ['drops'],
           line: 11,
         ),
         TestRow(
           item: 'show_toast',
           edgeCase: 'E01',
-          literal: 'queues',
+          literals: ['queues'],
           fingerprint: '3f9a1c0b7e2d',
           line: 11,
         ),
         TestRow(
           item: 'show_toast',
           edgeCase: 'E01',
-          literal: 'queues',
+          literals: ['queues'],
           line: 12,
         ),
         SkipRow(

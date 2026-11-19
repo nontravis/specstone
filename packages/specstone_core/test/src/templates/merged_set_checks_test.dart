@@ -5,6 +5,7 @@ import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
@@ -58,7 +59,7 @@ MergedDocType mergeLayers(MergedDocType base, DocTypeLayers layers) {
 void check(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layers, {
-  bool verificationCoverage = false,
+  MatrixMode matrixMode = MatrixMode.off,
 }) => checkMergedSet(
   docTypes,
   layers,
@@ -66,7 +67,7 @@ void check(
     for (final list in layers.values)
       for (final entry in list) entry.layer,
   ]),
-  verificationCoverage: verificationCoverage,
+  matrixMode: matrixMode,
 );
 
 void main() {
@@ -1059,74 +1060,95 @@ void main() {
             .having((f) => f.key, 'key', 'verification_coverage')
             .having((f) => f.message, 'message', contains(messagePart));
 
-    test('coverage on with an enabled matrix section is accepted', () {
-      expect(
-        () => check(
-          [
-            record(sections: [enabledMatrix]),
-          ],
-          {
-            'runbook': [layerOf('runbook', matrixOn)],
-          },
-          verificationCoverage: true,
-        ),
-        returnsNormally,
-      );
-    });
+    const onModes = [MatrixMode.fr, MatrixMode.edgeCase];
+
+    for (final mode in onModes) {
+      test('coverage ${mode.name} with an enabled matrix section is '
+          'accepted', () {
+        expect(
+          () => check(
+            [
+              record(sections: [enabledMatrix]),
+            ],
+            {
+              'runbook': [layerOf('runbook', matrixOn)],
+            },
+            matrixMode: mode,
+          ),
+          returnsNormally,
+        );
+      });
+    }
 
     /// The runbook merged over [layers], as the resolver folds them.
     MergedDocType mergedRunbook(DocTypeLayers layers) =>
         mergeLayers(const DocTypeMerger().builtInBase('runbook'), layers);
 
-    test('coverage on after a layer disables the matrix section is refused '
-        'naming the pack version', () {
-      final shipped = [layerOf('runbook', matrixOn, file: _epicFile)];
-      final layers = [
-        ...shipped,
-        layerOf(
-          'runbook',
-          'sections:\n  - {id: verification_matrix, disabled: true}\n',
-        ),
-      ];
-      // The section was there and the project layer took it away.
-      expect(verificationMatrixOf(mergedRunbook(shipped)), isNotNull);
-      final disabled = mergedRunbook(layers);
+    final shippedWithMatrix = [layerOf('runbook', matrixOn, file: _epicFile)];
+    final disablingLayers = [
+      ...shippedWithMatrix,
+      layerOf(
+        'runbook',
+        'sections:\n  - {id: verification_matrix, disabled: true}\n',
+      ),
+    ];
+
+    for (final mode in onModes) {
+      test('coverage ${mode.name} after a layer disables the matrix section '
+          'is refused naming the pack version', () {
+        // The section was there and the project layer took it away.
+        expect(
+          verificationMatrixOf(mergedRunbook(shippedWithMatrix)),
+          isNotNull,
+        );
+        final disabled = mergedRunbook(disablingLayers);
+        expect(verificationMatrixOf(disabled), isNull);
+
+        expect(
+          () =>
+              check([disabled], {'runbook': disablingLayers}, matrixMode: mode),
+          throwsA(refusedInConfig('software-tech 1.13.0')),
+        );
+      });
+
+      test('coverage ${mode.name} with a record doc type that never had the '
+          'matrix section is refused naming the pack version', () {
+        final layers = [layerOf('runbook', recordKeys, file: personalFile)];
+        final lacking = mergedRunbook(layers);
+        expect(lacking.sections, isEmpty);
+
+        expect(
+          () => check([lacking], {'runbook': layers}, matrixMode: mode),
+          throwsA(refusedInConfig('software-tech 1.13.0')),
+        );
+      });
+
+      test('coverage ${mode.name} with no record doc type is refused', () {
+        expect(
+          () => check(
+            [builtIn('feature').copyWith(path: 'prds/features/F.md')],
+            {
+              'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+            },
+            matrixMode: mode,
+          ),
+          throwsA(
+            refusedInConfig(
+              'verification coverage reads a record, and this merged set '
+              'holds no record doc type',
+            ),
+          ),
+        );
+      });
+    }
+
+    test('accepts a disabled matrix section with coverage off', () {
+      final disabled = mergedRunbook(disablingLayers);
       expect(verificationMatrixOf(disabled), isNull);
 
       expect(
-        () =>
-            check([disabled], {'runbook': layers}, verificationCoverage: true),
-        throwsA(refusedInConfig('software-tech 1.13.0')),
-      );
-    });
-
-    test('coverage on with a record doc type that never had the matrix '
-        'section is refused naming the pack version', () {
-      final layers = [layerOf('runbook', recordKeys, file: personalFile)];
-      final lacking = mergedRunbook(layers);
-      expect(lacking.sections, isEmpty);
-
-      expect(
-        () => check([lacking], {'runbook': layers}, verificationCoverage: true),
-        throwsA(refusedInConfig('software-tech 1.13.0')),
-      );
-    });
-
-    test('coverage on with no record doc type is refused', () {
-      expect(
-        () => check(
-          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
-          {
-            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
-          },
-          verificationCoverage: true,
-        ),
-        throwsA(
-          refusedInConfig(
-            'verification coverage reads a record, and this merged set holds '
-            'no record doc type',
-          ),
-        ),
+        () => check([disabled], {'runbook': disablingLayers}),
+        returnsNormally,
       );
     });
 
@@ -1147,7 +1169,7 @@ void main() {
       ]) {
         expect(() => check(docTypes, layers), returnsNormally);
         expect(
-          () => check(docTypes, layers, verificationCoverage: false),
+          () => check(docTypes, layers, matrixMode: MatrixMode.off),
           returnsNormally,
         );
       }

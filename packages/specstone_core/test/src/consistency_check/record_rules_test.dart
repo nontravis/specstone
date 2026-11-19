@@ -542,13 +542,30 @@ void main() {
       );
     });
 
+    /// Checks [record] under the matrix mode `verification_coverage:` names.
+    Future<CheckReport> checkUnder(String mode, String record) => _check(
+      record,
+      extra: {
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: app\n'
+            'verification_coverage: $mode\n',
+      },
+    );
+
+    /// The record findings at the rows of [record].
+    List<String> rowFindings(CheckReport report, String record) => [
+      for (final f in report.findings)
+        if (f.path == _recordPath && f.line >= rowLine(record, 0))
+          '${f.line} ${f.kind.wire}',
+    ];
+
     test('a row of a skipped item is skip_with_code, once per row', () async {
       final record = withRows(
         _record(statuses: ['$_fr:skipped:no toast host']),
         ['- $_fr E01: `shows a toast`', '- $_fr E02 skipped: no host'],
       );
 
-      final report = await _check(record);
+      final report = await checkUnder('edge_case', record);
 
       expect(_found(report), [
         '${rowLine(record, 0)} skip_with_code',
@@ -568,7 +585,7 @@ void main() {
         '- $_fr E01: `shows a toast`',
       ]);
 
-      final report = await _check(record);
+      final report = await checkUnder('edge_case', record);
 
       expect(_found(report), ['${rowLine(record, 0)} entry_under_skip']);
       expect(
@@ -608,7 +625,7 @@ void main() {
           '- $_fr E01 skipped: no host',
         ]);
 
-        final report = await _check(record);
+        final report = await checkUnder('edge_case', record);
 
         final kinds = [
           for (final f in report.findings)
@@ -633,9 +650,81 @@ void main() {
         ['- $_fr E01: `shows a toast`', '- $_story E01: `shows a toast`'],
       );
 
-      final report = await _check(record);
+      final report = await checkUnder('edge_case', record);
 
       expect(_found(report), isEmpty);
+    });
+
+    for (final mode in ['true', 'fr']) {
+      test(
+        'reads a per-FR row item as a tests line item under $mode',
+        () async {
+          final skipped = withRows(
+            _record(statuses: ['$_fr:skipped:no toast host']),
+            [
+              '- $_fr: `shows a toast`, `hides a toast`',
+              '- $_fr skipped: no host',
+              '- signup/create: `signs up`',
+            ],
+          );
+          final underSkip = withRows(
+            _record(statuses: [':skipped:no web view']),
+            ['- $_fr: `shows a toast`'],
+          );
+
+          expect(rowFindings(await checkUnder(mode, skipped), skipped), [
+            '${rowLine(skipped, 0)} skip_with_code',
+            '${rowLine(skipped, 1)} skip_with_code',
+            '${rowLine(skipped, 2)} record_entry_unresolved',
+          ]);
+          expect(rowFindings(await checkUnder(mode, underSkip), underSkip), [
+            '${rowLine(underSkip, 0)} entry_under_skip',
+          ]);
+        },
+      );
+    }
+
+    test('gives a refused-form row no record entry finding', () async {
+      final skipped = withRows(
+        _record(statuses: ['$_fr:skipped:no toast host']),
+        ['- $_fr E01: `shows a toast`', '- $_fr E02 skipped: no host'],
+      );
+      final underSkip = withRows(_record(statuses: [':skipped:no web view']), [
+        '- $_fr E01: `shows a toast`',
+      ]);
+      final perFr = withRows(
+        _record(statuses: ['$_fr:skipped:no toast host']),
+        ['- $_fr: `shows a toast`', '- $_fr skipped: no host'],
+      );
+
+      for (final (mode, record) in [
+        ('true', skipped),
+        ('fr', underSkip),
+        ('edge_case', perFr),
+      ]) {
+        final report = await checkUnder(mode, record);
+
+        expect(
+          [
+            for (final f in report.findings)
+              if (f.path == _recordPath && f.line >= rowLine(record, 0)) f.kind,
+          ],
+          everyElement(FindingKind.matrixRowMalformed),
+          reason: mode,
+        );
+        expect(_found(report), isEmpty, reason: mode);
+      }
+    });
+
+    test('gives a per-FR row naming no FR under edge_case the record entry '
+        'finding alone', () async {
+      final record = withRows(_record(), ['- no_such_fr: `shows a toast`']);
+
+      final report = await checkUnder('edge_case', record);
+
+      expect(rowFindings(report, record), [
+        '${rowLine(record, 0)} record_entry_unresolved',
+      ]);
     });
 
     test('a row naming an item outside the feature gives one finding in '

@@ -1019,6 +1019,28 @@ void main() {
     });
 
     test(
+      'prints a per-FR row as one verifies line less its fingerprint',
+      () async {
+        const fingerprint = '5d1e0c4b7a92';
+        const written =
+            '$item: `refuses a wrong password`, `refuses no password`';
+        final stamped = await recordWith(
+          '## Verification matrix\n\n- $written $fingerprint\n',
+        );
+
+        final answer = answerRefs(stamped, 'implementation:login');
+
+        expect(answer.text, contains('- verifies: $written\n'));
+        expect(answer.text, isNot(contains(fingerprint)));
+        final verifies = [
+          for (final ref in recordOf(stamped)['outbound']! as List)
+            if ((ref as Map)['kind'] == 'verifies') ref['pointer'],
+        ];
+        expect(verifies, [written]);
+      },
+    );
+
+    test(
       'prints a code span as written, whatever its fence and padding',
       () async {
         const spans = [
