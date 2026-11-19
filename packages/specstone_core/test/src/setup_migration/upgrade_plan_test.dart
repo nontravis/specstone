@@ -5229,11 +5229,6 @@ const _bareInvariant = '- **INV-1** An email is unique.';
 final String _loginDoc = _domainText(_accountRow, _statedDefaults);
 final String _loginDropped = _domainText(_accountRow, _bareInvariant);
 
-Future<({Directory project, Directory home})> _dropFixture(
-  Map<String, String> docs, {
-  String packYaml = _dropPackYaml,
-}) => _fixture(packYaml: packYaml, docs: docs, overrides: const {});
-
 void _dropDefaultLinesTests() {
   group('drop_default_lines step', () {
     test('the step line counts the rewritten domain docs', () async {
@@ -5244,16 +5239,20 @@ void _dropDefaultLinesTests() {
             '  - **Consistency:** eventual',
       );
       final plan = _plan(
-        await _dropFixture({
-          _loginPath: _loginDoc,
-          _resetPath: _domainText(
-            '',
-            '- **INV-2** A link expires.\n'
-                '  - **Enforcer:** `Account` ([domain:login](../DOMAIN.md))\n'
-                '  - **Consistency:** immediate',
-          ),
-          _payPath: nonDefaults,
-        }),
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {
+            _loginPath: _loginDoc,
+            _resetPath: _domainText(
+              '',
+              '- **INV-2** A link expires.\n'
+                  '  - **Enforcer:** `Account` ([domain:login](../DOMAIN.md))\n'
+                  '  - **Consistency:** immediate',
+            ),
+            _payPath: nonDefaults,
+          },
+        ),
       );
 
       expect(_rewriteAt(plan, 'docs/$_loginPath').text, _loginDropped);
@@ -5285,13 +5284,17 @@ void _dropDefaultLinesTests() {
             '  - **Consistency:** immediate',
       );
       final plan = _plan(
-        await _dropFixture({
-          _projectDomainPath: _domainText(
-            '| Project | Aggregate root | its name | carts |',
-            _bareInvariant,
-          ),
-          _payPath: text,
-        }),
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {
+            _projectDomainPath: _domainText(
+              '| Project | Aggregate root | its name | carts |',
+              _bareInvariant,
+            ),
+            _payPath: text,
+          },
+        ),
       );
 
       expect(
@@ -5305,7 +5308,11 @@ void _dropDefaultLinesTests() {
 
     test('a draft doc is left unapproved by the step', () async {
       final plan = _plan(
-        await _dropFixture({_loginPath: '---\ndraft: true\n---\n$_loginDoc'}),
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: '---\ndraft: true\n---\n$_loginDoc'},
+        ),
       );
 
       expect(
@@ -5316,7 +5323,11 @@ void _dropDefaultLinesTests() {
     });
 
     test('an approved doc takes a fresh approval hash', () async {
-      final seed = await _dropFixture({_loginPath: _loginDoc});
+      final seed = await _fixture(
+        packYaml: _dropPackYaml,
+        overrides: const {},
+        docs: {_loginPath: _loginDoc},
+      );
       final set = TemplateResolver().resolveCarried(
         packNames: ProjectConfig.read(seed.project).pins.keys,
         homeDirectory: seed.home,
@@ -5330,7 +5341,13 @@ void _dropDefaultLinesTests() {
       };
       final approved = _stampedBefore(_loginDoc, type);
 
-      final plan = _plan(await _dropFixture({_loginPath: approved}));
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: approved},
+        ),
+      );
 
       final written = _rewriteAt(plan, 'docs/$_loginPath').text;
       expect(written, isNot(contains('Consistency')));
@@ -5353,9 +5370,10 @@ void _dropDefaultLinesTests() {
         '$rule\n  - **Enforcer:** Cart\n  - **Consistency:** immediate',
       );
       final plan = _plan(
-        await _dropFixture(
-          {_projectDomainPath: upstream},
+        await _fixture(
           packYaml: _dropPackYaml.replaceFirst('[domain]', '[project_domain]'),
+          overrides: const {},
+          docs: {_projectDomainPath: upstream},
         ),
       );
       final rewritten = _rewriteAt(plan, 'docs/$_projectDomainPath').text;
@@ -5389,7 +5407,13 @@ void _dropDefaultLinesTests() {
           '  - **Corrective policy:** Trim it.';
       final doc = _domainText(_accountRow, body);
 
-      final plan = _plan(await _dropFixture({_loginPath: doc}));
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: doc},
+        ),
+      );
 
       final written = _rewriteAt(plan, 'docs/$_loginPath').text;
       expect(
@@ -5405,7 +5429,13 @@ void _dropDefaultLinesTests() {
           '  - **Corrective policy:** Trim it.',
         ),
       );
-      final again = _plan(await _dropFixture({_loginPath: written}));
+      final again = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: written},
+        ),
+      );
       expect(_docRewrites(again), isEmpty);
       expect(
         again.toText(),

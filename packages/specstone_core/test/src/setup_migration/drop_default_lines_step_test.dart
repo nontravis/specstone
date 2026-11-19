@@ -236,6 +236,19 @@ void main() {
       );
     });
 
+    test('two aggregate roots in the doc give no default, though its parent '
+        'holds one root', () {
+      final own = doc(
+        '| Account | Aggregate root |\n| Cart | Aggregate root |',
+      );
+      final parent = doc('| Engine | Aggregate root |');
+
+      expect(
+        defaultEnforcerAmong([own, parent], entitiesHeader: 'Entities'),
+        isNull,
+      );
+    });
+
     test('no text with a root or service gives no default', () {
       expect(
         defaultEnforcerAmong([
