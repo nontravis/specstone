@@ -2,9 +2,14 @@ import 'dart:math';
 
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/guide_limits.dart';
+import 'package:specstone_core/src/templates/models/line_prefix_count.dart';
+import 'package:specstone_core/src/templates/models/when_field.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/summary_rows.dart';
+
+export 'package:specstone_core/src/templates/models/line_prefix_count.dart';
+export 'package:specstone_core/src/templates/models/when_field.dart';
 
 /// The five fields every doc type carries below its lowest layer.
 const builtInFields = <MergedField>[
@@ -310,7 +315,7 @@ final class ItemCountLint {
   final bool perSubsection;
 
   /// The item counts required per line prefix.
-  final List<({String linePrefix, int count})> prefixes;
+  final List<LinePrefixCount> prefixes;
 
   /// Whether an out-of-range count waits for the Owner, not the agent.
   final bool waitsForOwner;
@@ -321,14 +326,11 @@ final class ItemCountLint {
     'max': ?max,
     'perSubsection': perSubsection,
     'prefixes': [
-      for (final (:linePrefix, :count) in prefixes)
+      for (final LinePrefixCount(:linePrefix, :count) in prefixes)
         {'linePrefix': linePrefix, 'count': count},
     ],
   };
 }
-
-/// The doc field and values that bind a section's `required`.
-typedef WhenField = ({String field, List<String> values});
 
 /// One enabled guide section of a merged doc type.
 final class MergedSection {
@@ -571,7 +573,7 @@ final class MergedSection {
       'summary': ?summary,
       'summaryRows': ?summaryRows?.toJson(),
       if (isOutputRef) 'outputRef': true,
-      if (whenField case (:final field, :final values))
+      if (whenField case WhenField(:final field, :final values))
         'whenField': {'field': field, 'values': values},
     };
   }

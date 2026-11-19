@@ -303,7 +303,7 @@ sections:
       expect(kept.whenField?.field, 'kind');
       final replaced = section.copyWith(
         maxSubsections: 9,
-        whenField: (field: 'other', values: ['z']),
+        whenField: const WhenField(field: 'other', values: ['z']),
       );
       expect(replaced.maxSubsections, 9);
       expect(replaced.whenField?.values, ['z']);
