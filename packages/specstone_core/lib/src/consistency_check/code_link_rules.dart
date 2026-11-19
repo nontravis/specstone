@@ -6,6 +6,7 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
@@ -323,13 +324,13 @@ String? currentCodeFingerprint(
       onUnlistable(folder);
     },
   );
-  final files = <({String path, String fingerprint})>[];
+  final files = <FileFingerprint>[];
   for (final file in listed) {
     final bytes = bytesOf(file);
     if (bytes == null) {
       isReadable = false;
     } else {
-      files.add((path: file, fingerprint: hashOf(bytes, file)));
+      files.add(FileFingerprint(path: file, fingerprint: hashOf(bytes, file)));
     }
   }
   return isReadable ? folderCodeFingerprint(files) : null;
