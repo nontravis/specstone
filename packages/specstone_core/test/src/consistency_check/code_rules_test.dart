@@ -110,7 +110,7 @@ Future<Directory> _outsideRootProject({
           !without.contains(key))
         'project/$key': value,
     'project/.specstone/config.yaml':
-        '${shippedPinsConfig()}code_root: ../stratum_ui/example\n',
+        config ?? '${shippedPinsConfig()}code_root: ../stratum_ui/example\n',
     for (final MapEntry(:key, :value) in outside.entries)
       'stratum_ui/example/$key': value,
   });
@@ -1058,6 +1058,34 @@ void main() {
       expect(_of(report, FindingKind.codeUncovered), [
         '$techStack: $skillUnderRoot',
       ]);
+    });
+
+    test('a code root below the project root is reached by the entry written '
+        'from the project root only', () async {
+      const reached = 'code/skills/x/a.md';
+      Future<List<String>> uncovered(String entry) async {
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: {
+              '.specstone/config.yaml': '${skillPinsConfig()}code_root: code\n',
+              'code/app/lib/login.dart':
+                  checkProjectFiles()['app/lib/login.dart']!,
+              ...doc(
+                techStack,
+                '  - app/lib/\n',
+                '  - app/lib/\n  - skills/\n',
+              ),
+              ...skillDocFile([entry]),
+              reached: skillText,
+            },
+            without: {'app/lib/login.dart'},
+          ),
+        );
+        return _of(report, FindingKind.codeUncovered);
+      }
+
+      expect(await uncovered('code/skills/x/'), isEmpty);
+      expect(await uncovered('skills/x/'), ['$techStack: skills/x/a.md']);
     });
 
     test('a project-root entry needs whole segments to match', () async {
