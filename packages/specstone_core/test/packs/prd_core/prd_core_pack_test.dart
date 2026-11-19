@@ -94,7 +94,7 @@ const _barFragments = [
 
 void main() {
   group('prd-core manifest', () {
-    test('prd-core ships at 1.19.0 with no extends', () {
+    test('prd-core ships at 1.20.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -102,27 +102,31 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.19.0');
+      expect(manifest.version.toString(), '1.20.0');
       expect(manifest.extendsPack, isNull);
       final upgrade = _upgradeFrom('1.7.0', manifest);
-      expect(upgrade.target.toString(), '1.19.0');
+      expect(upgrade.target.toString(), '1.20.0');
+    });
+
+    test('the pack lists a mark_retrim entry for fr edge cases and '
+        'verification after the strip entry', () {
+      final migrations = _prdCoreManifest().migrations;
+      expect(migrations.map((e) => e.from.toString()), ['1.7.0', '1.19.0']);
+      expect(migrations.first.steps.single, isA<StripSharedCopies>());
+      final mark = migrations[1].steps.single as MarkRetrim;
+      expect(mark.docTypes, ['fr']);
+      expect(mark.sections, ['edge_cases', 'verification']);
+      final upgrade = _upgradeFrom('1.7.0', _prdCoreManifest());
       expect(
         [for (final s in upgrade.steps) (s.from.toString(), s.step.kind)],
-        [('1.7.0', 'strip_shared_copies')],
+        [('1.7.0', 'strip_shared_copies'), ('1.19.0', 'mark_retrim')],
       );
     });
 
-    test('a pin past the strip entry gets the pin change only', () {
-      final upgrade = _upgradeFrom('1.18.0', _prdCoreManifest());
-      expect(upgrade.target.toString(), '1.19.0');
+    test('a pin past both entries gets the pin change only', () {
+      final upgrade = _upgradeFrom('1.19.1', _prdCoreManifest());
+      expect(upgrade.target.toString(), '1.20.0');
       expect(upgrade.steps, isEmpty);
-    });
-
-    test('prd-core lists one migration entry, from 1.7.0, holding the one '
-        'strip step', () {
-      final migrations = _prdCoreManifest().migrations;
-      expect(migrations.map((e) => e.from.toString()), ['1.7.0']);
-      expect(migrations.single.steps.single, isA<StripSharedCopies>());
     });
 
     test('prd-core ships its shared lines in order with their reach and no '

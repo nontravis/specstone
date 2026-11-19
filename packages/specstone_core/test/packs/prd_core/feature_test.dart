@@ -110,6 +110,15 @@ void main() {
     );
   });
 
+  test('the feature size line keeps fr edge cases out of its no-cut rule', () {
+    expect(
+      feature.description!.split('\n'),
+      contains(
+        'Cut no text to pass a size, but edge cases the `fr` rules leave out.',
+      ),
+    );
+  });
+
   test('feature joins no bundle and marks problem and '
       'out_of_scope query', () {
     expect(feature.bundle, isNull);
