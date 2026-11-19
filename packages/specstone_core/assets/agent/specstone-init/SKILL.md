@@ -65,11 +65,11 @@ then, and for every later feature, follow the `specstone-brainstorming-sdd` skil
 
 ## Red flags
 
-| Thought                                          | Do instead                                                              |
-|--------------------------------------------------|-------------------------------------------------------------------------|
-| "Check for a project first, as other skills do." | Run `specstone init` first; it refuses on its own.                      |
-| "Already a project: I'll migrate it."            | Say it is a project already, and stop.                                  |
-| "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.                                 |
-| "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.                                |
-| "The Owner named a feature: `specstone new`."    | Note it; the `specstone-brainstorming-sdd` skill takes it.              |
-| "I'll run `specstone approve` without an `ok`."  | Follow "Get the drafts approved", with `--no-audit`.                    |
+| Thought                                          | Do instead                                                                    |
+|--------------------------------------------------|-------------------------------------------------------------------------------|
+| "Check for a project first, as other skills do." | Run `specstone init` first; it refuses on its own.                            |
+| "Already a project: I'll migrate it."            | Say it is a project already, and stop.                                        |
+| "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.                                       |
+| "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.                                      |
+| "The Owner named a feature: `specstone new`."    | Note it; the `specstone-brainstorming-sdd` skill takes it.                    |
+| "I'll run `specstone approve` without an `ok`."  | Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`. |

@@ -1468,22 +1468,40 @@ const _runnerFlags = {
 
 const _reportFlags = ['--audit', '--author', '--no-audit'];
 
+/// The runner skills whose red flags hold an approve row.
+const _runnersWithApproveRedFlag = {
+  'specstone-update-sdd/SKILL.md',
+  'specstone-init/SKILL.md',
+};
+
+/// Words of the auto approve section's steps that no runner restates.
+const _approveStepWords = [
+  '--auto',
+  '--dry-run',
+  '`docPath`',
+  '`asked`',
+  '`Why:`',
+  'approve-mode',
+];
+
 /// One problem per way runner skill [file] fails to point to expert-sdd's
-/// auto approve section with exactly its [flags].
+/// auto approve section with exactly its [flags], holding no copy of it.
 List<String> _runnerPointerProblems(String file, List<String> flags) {
   final text = _pluginText(file);
   final body = _oneLine(
     text.split('\n').where((line) => !line.startsWith('#')).join('\n'),
   );
   final title = _approveHeading.substring('## '.length);
+  bool isPointer(String span) =>
+      span.contains(title) && span.contains('specstone-expert-sdd');
   final pointers = body
       .split(RegExp(r'(?<=[.;])\s'))
-      .where(
-        (sentence) =>
-            sentence.contains(title) &&
-            sentence.contains('specstone-expert-sdd'),
-      )
+      .where(isPointer)
       .join(' ');
+  final redFlagRows = text
+      .split('\n')
+      .skipWhile((line) => line != '## Red flags')
+      .where((line) => line.startsWith('|') && line.contains(title));
   return [
     if (pointers.isEmpty) '$file: no pointer to "$title"',
     for (final flag in _reportFlags)
@@ -1491,7 +1509,11 @@ List<String> _runnerPointerProblems(String file, List<String> flags) {
         '$file: pointer lacks $flag'
       else if (!flags.contains(flag) && body.contains(flag))
         '$file: names $flag',
-    if (text.contains('approve-mode')) '$file: names approve-mode',
+    if (_runnersWithApproveRedFlag.contains(file) &&
+        !redFlagRows.any((row) => isPointer(row) && flags.every(row.contains)))
+      '$file: red flag lacks the pointer',
+    for (final word in _approveStepWords)
+      if (text.contains(word)) '$file: copies $word',
   ];
 }
 

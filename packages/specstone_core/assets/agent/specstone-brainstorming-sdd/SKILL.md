@@ -84,7 +84,7 @@ do not ground is an open question.
 
 ## 5. Hand the approved drafts to the plan skill
 
-After the Owner approves the drafts, follow the `specstone-plan-sdd` skill with the approved drafts list, whole, and the
+Once every draft is approved, follow the `specstone-plan-sdd` skill with the approved drafts list, whole, and the
 document's path.
 
 ## Without a dispatch

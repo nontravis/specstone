@@ -93,15 +93,15 @@ field; `specstone-expert-sdd` says how to record it.
 
 Write no design document. Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`.
 
-When that doc holds others, as a feature holds its stories and a story its FRs, say so: at the terminal the approve
-call also walks every draft under that doc; in the chat, the dry run prints and you send each one.
+When the edited doc holds drafts, as a feature holds its stories and a story its FRs, say so: a name approves only
+the draft it names, so those stay drafts.
 
 ## Red flags
 
-| Thought                                            | Do instead                                                  |
-|----------------------------------------------------|-------------------------------------------------------------|
-| "Two docs, but each change is one line."           | Follow the `specstone-brainstorming-sdd` skill.             |
-| "The new FR is short; one `set` fits it."          | Follow the `specstone-brainstorming-sdd` skill.             |
-| "A quick design document first, to be safe."       | A small edit has none; name the change.                     |
-| "Base mismatch: rerun with my text."               | Merge into the current text first.                          |
-| "I'll run `specstone approve` without an `ok`."    | Follow "Get the drafts approved", with `--no-audit`.        |
+| Thought                                            | Do instead                                                                    |
+|----------------------------------------------------|-------------------------------------------------------------------------------|
+| "Two docs, but each change is one line."           | Follow the `specstone-brainstorming-sdd` skill.                               |
+| "The new FR is short; one `set` fits it."          | Follow the `specstone-brainstorming-sdd` skill.                               |
+| "A quick design document first, to be safe."       | A small edit has none; name the change.                                       |
+| "Base mismatch: rerun with my text."               | Merge into the current text first.                                            |
+| "I'll run `specstone approve` without an `ok`."    | Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`. |
