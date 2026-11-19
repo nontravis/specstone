@@ -7,12 +7,13 @@ and fix only that target's record and `covers:` entries, and each `root: project
 
 Your gate file gives it: each `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
 `implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row
-finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that takes a state instead, a waiting code target's left
-out.
+finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that
+takes a state instead, a waiting code target's left out.
 
 ## 3. Find the covering docs
 
-A finding's `path` is from its target's code root (`code_root:` per `targets:` entry; default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
+A finding's `path` is from its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`;
+default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
 
 For each listed code path but a `tests_unresolved` line's or a matrix row's (steps 4.4, 4.5), run
 `specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
@@ -41,7 +42,7 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
    - **Match:** `set <doc> --stamp <entry>=<fingerprint>` (the finding's, no `get`), then by `--field` any pointer
      fix and for a `planned` entry `implemented` in its `statuses`; never `skipped` or `deprecated`. `task-refs.md`
      removes closed tasks' refs.
-   - **Refused stamp:** `stamp_stale`: judge again on the current code, with a fresh `check` fingerprint; stamp a
+   - **Refused stamp:** `stamp_stale`: judge again on the current code, fresh `check` fingerprint; stamp a
      match, else report a mismatch. `stamp_entry_unresolved`: `file_unreadable` is unread code, reported; else
      step 4.3.
    - **A `planned` entry's code lacking its behavior yet** is no mismatch, no question: stamp it, still
@@ -49,7 +50,7 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
    - **Mismatch**, code behavior the approved text contradicts: nothing for the link; report each point under
      `Mismatches:`: doc and section, what the spec states, what the code does. On a fix-the-spec pick, draft
      each stale section (step 5); its fingerprint awaits approval.
-3. Fix each record code-path or `covers:` finding of a covering doc: pipe the corrected list to
+3. Fix each record code-path or `covers:` finding: pipe the corrected list to
    `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (hash:
    `bases.fields.<field>` of `get --json`; or `--field covers` on the spec doc), then rerun
    `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"`, searching its file, until those docs hold none:
@@ -58,7 +59,7 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
      `git log -1 -M --diff-filter=R --name-status --format= -- <old path>`, or `git diff -M --name-status HEAD` while
      uncommitted; write no fingerprint;
    - deleted file: drop the entry, or point it at the code doing that work;
-   - `root: project` entry: fingerprint alone, never moved; its `covers_path_missing` is reported as
+   - `root: project` entry: fingerprint alone, never moved; its `covers_path_missing` is only reported as
      `<doc>: covers path missing: <path>`, ending its loop.
 4. A `tests_unresolved` line: repoint it with
    `specstone set implementation:<feature> --field tests --target <name> --base <hash>` to the moved file of step 4.3
@@ -74,8 +75,9 @@ Follow `spec-drafts.md` on the Owner's write-a-spec or fix-the-spec pick sent to
 
 ## Report to the Owner
 
-After your last write, run one `specstone approve --dry-run --json`, the source of every count.
+After your last write, run one `specstone approve --dry-run --json`, for every count.
 Your drafts are the docs your own list names: list them with their count, each one's dropped and new sentence counts,
 and one sentence on why it changed, never its text; name each other draft it lists, never counted; one of yours it
-shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, each pointer or row fixed, each
-covers path missing line, each task removed, each behavior handed to `specstone-brainstorming-sdd`, and each waiting pointer or row: its code target, and its doc and code path, or its tasks.
+shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, each pointer or row fixed,
+each covers path missing line, each task removed, each behavior handed to `specstone-brainstorming-sdd`, and each
+waiting pointer or row: its code target, and its doc and code path, or its tasks.

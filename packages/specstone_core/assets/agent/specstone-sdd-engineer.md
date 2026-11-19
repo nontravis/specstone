@@ -46,8 +46,8 @@ batch's findings into drafts.
   passed with no doc write since it and no split since the last audit; search it per target; absent, run one bare
   `check --out`. Bootstrap: main's latest check file, never a `--repeats` one, passed with no doc write since; take
   `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1). Sync: the gate's file, passed on
-  the first route alone with no doc write since, bar writes by main's small route and other feature engineers to their own scopes; take your work list from it
-  and run no gate; absent, run your gate.
+  the first route alone with no doc write since, bar writes by main's small route and other feature engineers to
+  their own scopes; take your work list from it and run no gate; absent, run your gate.
 - **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; its code links are your
   work list, taking their states from the `check:` file, else your gate `check`; absent, that file or gate `check`
   gives the work list.
@@ -135,13 +135,13 @@ finding.
   `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Lenses:` and `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
   one sentence on why it changed, never their text; each other draft; under `Pointers:`, each pointer or matrix row
-  fixed, each code fingerprint written, and each helper file joined to a caller doc's `covers`; each task whose refs
-  the sync removed; each `Mismatches:` point and each `Uncovered:` file; each behavior handed to
-  `specstone-brainstorming-sdd`; each pointer, row, or fingerprint that waits on an approval or its implementer;
-  open questions; then `Findings:`.
+  fixed, each code fingerprint written, each helper file joined to a caller doc's `covers`, and each pointer, row,
+  fingerprint, or helper that waits on an approval or its implementer; each task whose refs the sync removed; each
+  `Mismatches:` point and each `Uncovered:` file; each behavior handed to `specstone-brainstorming-sdd`; open
+  questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
-  under `Pointers:`, each helper file joined or waiting; each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`, and each
-  untyped referrer outside it with the file it names; `Waits on the Owner:`, each `item_over_limit` finding on a
+  under `Pointers:`, each helper file joined or waiting; each `Uncovered:` file; one `specstone delete …` line; each
+  repeat group kept; findings outside `batch`, and each untyped referrer outside it with the file it names; `Waits on the Owner:`, each `item_over_limit` finding on a
   `batch` path when `batch` does not name `item_over_limit`; then `Findings:`, each finding left in `batch` or added
   by your writes, or `none`.
 

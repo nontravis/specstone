@@ -8,9 +8,9 @@ with `specstone context --code <code root>/<path> --for implement --out`.
 | No caller, callers under two or more docs, callers under a record's `implements` alone, callers in another code target, or a behavior of its own | No helper: report it under `Uncovered:` |
 
 A helper whose caller doc prints no `draft: true`: add its path to that doc's `covers` as a bare entry, written as
-`procedure.md` step 4.3 gives (`--field covers`, `--base`, `--target`); rerun `check`; its `code_unconfirmed`
-finding gives the fingerprint, which `specstone set <doc> --stamp <entry>=<fingerprint>` writes. Report it under
+step 4.3 of the sync `procedure.md` gives (`--field covers`, `--base`, `--target`), then that step's `check --out`
+rerun; its `code_unconfirmed` finding gives the fingerprint, which `specstone set <doc> --stamp <entry>=<fingerprint>` writes. Report it under
 `Pointers:`; write no spec draft; ask the Owner nothing.
 
-A helper whose caller doc is a pending draft: write nothing; list it under `Pointers:` as waiting, written once that
-draft is approved.
+A helper whose caller doc is a pending draft: write nothing; list it under `Pointers:` as waiting. Once that draft is
+approved, write the bare entry, rerun `check` as above, and stamp.

@@ -42,8 +42,7 @@ under no feature, such as a topic, goes to that doc's own group; a `code_uncover
 group. A finding with no code link, such as a `tests_unresolved` line or a matrix-row finding, goes by the doc that
 holds the finding.
 
-Then route each group as `references/routes.md` gives: feature groups' engineers at once, small groups by yourself
-beside them, then each other group to one engineer at a time.
+Then route each group as `references/routes.md` gives.
 
 To dispatch `specstone-sdd-engineer`, follow `../specstone-expert-sdd/references/dispatch.md` with `mode: sync`,
 `report:` `<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the group's input: `scope: feature:<name>`,
@@ -77,7 +76,7 @@ every group. A group you judged or followed stands in for item 1 by its own chan
    `specstone set implementation:<feature> --field implements --base <hash>` (or
    `specstone set <type>:<name> --field covers --base <hash>`), the hash from `bases.fields.implements` (or
    `bases.fields.covers`) of `specstone get <doc> --json`, same `--target`. A waiting match then takes
-   `specstone set <doc> --stamp <entry>=<fingerprint>` (the finding's, no base), and a `planned` entry's
+   `specstone set <doc> --stamp <entry>=<fingerprint>` (the finding's, no base; a waiting helper's from a `check` run after its write), and a `planned` entry's
    `implemented` goes to `statuses` by `--field statuses` with `bases.fields.statuses`. A refused stamp writes
    nothing more for its entry: report it, its finding left for the next sync. For each waiting removal, once approved,
    run `specstone set --remove-task <task> ...` (`--target <name>` when two or more), then name
