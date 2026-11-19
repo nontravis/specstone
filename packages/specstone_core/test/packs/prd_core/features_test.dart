@@ -1,7 +1,12 @@
+import 'package:specstone_core/src/templates/layer_source.dart'
+    show packManifestName;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
+
+const prdCorePack = 'prd-core';
 
 void main() {
   late MergedDocType features;
@@ -41,7 +46,14 @@ void main() {
   test('every prd-core doc type sets the shared 400-line and 20000-char '
       'lint caps', () async {
     final set = await resolvePrdCore();
-    expect(set.docTypes, hasLength(14));
+    final shipped = [
+      for (final key in shippedPackFiles.keys)
+        if (key.split('/') case [prdCorePack, final file]
+            when file != packManifestName && file.endsWith('.yaml'))
+          key,
+    ];
+    expect(shipped, isNotEmpty);
+    expect(set.docTypes, hasLength(shipped.length));
     for (final docType in set.docTypes) {
       expect(docType.lint.maxLines, 400, reason: docType.id);
       expect(docType.lint.maxChars, 20000, reason: docType.id);

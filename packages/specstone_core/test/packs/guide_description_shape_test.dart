@@ -33,6 +33,9 @@ const _guideLabels = ['Limits:', 'Banned words:', 'Fields (frontmatter):'];
 final _titleLine = RegExp(r'^Title it\b');
 final _itemShapeLine = RegExp(r'^Write one rule per\b');
 
+/// The doc types, as `<pack>/<id>`, whose shipped file holds no description.
+const _untitledTypes = {'personal-branding/voice'};
+
 /// One line of a description and where it sits in its doc type.
 final class _DescribedLine {
   const new(this.where, this.text);
@@ -105,6 +108,8 @@ String _normalized(String text) => text.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 bool _isShapeLine(String line) =>
     _titleLine.hasMatch(line) || _itemShapeLine.hasMatch(line);
+
+bool _isItemShape(String line) => line.contains('one rule per');
 
 List<String> _chainOf(TemplateResolver resolver, String pack) {
   final chain = <String>[];
@@ -227,8 +232,12 @@ List<String> _sharedByTwoPacks(_Pack pack, Map<String, _Pack> packs) {
       }
     }
     for (final mine in pack.manifests[pack.name]!.shared.lines) {
+      final mineText = mine.text;
+      if (mineText == null) continue;
       for (final theirs in pack.manifests[ancestor]!.shared.lines) {
-        if (_normalized(mine.text ?? '') != _normalized(theirs.text ?? '')) {
+        final theirText = theirs.text;
+        if (theirText == null ||
+            _normalized(mineText) != _normalized(theirText)) {
           continue;
         }
         final mineIds = mine.forDocTypes ?? const <String>[];
@@ -258,16 +267,27 @@ List<String> _shapeStays(_Pack pack, Map<String, _Pack> packs) {
         'shared line ${line.id} is a shape line',
   ];
   for (final type in pack.ownTypes) {
+    final lines = _linesOf(type.description);
+    if (!_untitledTypes.contains('${pack.name}/${type.id}') &&
+        !lines.any(_titleLine.hasMatch)) {
+      found.add('${type.id}: no title line in the description');
+    }
     final guide = type.renderGuide();
-    final shapeAt = [
-      for (final line in _linesOf(type.description))
-        if (line.contains('one rule per')) guide.indexOf(line),
+    final shapeLines = [
+      for (final line in lines)
+        if (_isItemShape(line)) line,
     ];
-    if (shapeAt.isEmpty) continue;
+    if (shapeLines.any((line) => !guide.contains(line))) {
+      found.add('${type.id}: an item-shape line is missing from the guide');
+      continue;
+    }
+    if (shapeLines.isEmpty) continue;
+    final shapeAt = guide.indexOf(shapeLines.first);
     for (final id in _barIds) {
       final line = type.sharedLines.where((l) => l.id == id).firstOrNull;
       if (line == null) continue;
-      if (guide.indexOf(line.text) < shapeAt.first) {
+      final lineAt = guide.indexOf(line.text);
+      if (lineAt < 0 || lineAt < shapeAt) {
         found.add('${type.id}: $id prints before the item shape');
       }
     }
@@ -331,9 +351,30 @@ void main() {
     for (final pack in packs.values) {
       expect(pack.ownIds, isNotEmpty, reason: pack.name);
       expect(pack.ownTypes, isNotEmpty, reason: pack.name);
+      expect(
+        [for (final type in pack.ownTypes) ..._descriptionLines(type)],
+        isNotEmpty,
+        reason: '${pack.name} has no description line to check',
+      );
     }
-    expect([
-      for (final pack in packs.values) ...pack.set.shared.lines,
-    ], isNotEmpty);
+    final sharedIds = {
+      for (final pack in packs.values)
+        for (final line in pack.set.shared.lines) line.id,
+    };
+    expect(sharedIds, isNotEmpty);
+    expect(
+      _barIds.where((id) => !sharedIds.contains(id)),
+      isEmpty,
+      reason: 'a readability bar id no pack ships',
+    );
+    expect(
+      [
+        for (final pack in packs.values)
+          for (final type in pack.ownTypes)
+            ..._linesOf(type.description).where(_isItemShape),
+      ],
+      isNotEmpty,
+      reason: 'no description holds an item-shape line',
+    );
   });
 }

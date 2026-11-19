@@ -324,9 +324,10 @@ void main() {
           ((jsonDecode(get.stdout as String) as Map)['docs']! as List).single
               as Map;
       final bases = doc['bases'] as Map;
-      expect(bases['title'], isNot(emptyHash));
-      expect((bases['fields'] as Map)['status'], isNot(emptyHash));
-      expect((bases['sections'] as Map)['statement'], isNot(emptyHash));
+      final realHash = allOf(isA<String>(), isNotEmpty, isNot(emptyHash));
+      expect(bases['title'], realHash);
+      expect((bases['fields'] as Map)['status'], realHash);
+      expect((bases['sections'] as Map)['statement'], realHash);
       expect((jsonDecode(get.stdout as String) as Map)['warnings'], [
         unparsedWarning,
       ]);

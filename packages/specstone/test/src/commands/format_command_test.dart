@@ -469,6 +469,7 @@ sections:
 
         final written = read(project, notePath);
         expect(written, contains('$toc\ntoc\n$end\n'));
+        expect(written, contains('## Contents'));
         expect(written.indexOf('## Contents'), lessThan(written.indexOf(toc)));
       });
 
