@@ -128,7 +128,7 @@ void main() {
       references.description?.split('\n'),
       contains(
         'List each design or ADR whose decisions this doc still states, one '
-        'link per line, with the decision IDs the doc still relies on and no '
+        'link per line. Add the decision IDs the doc still relies on and no '
         'summary.',
       ),
     );

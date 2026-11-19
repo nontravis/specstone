@@ -68,6 +68,7 @@ void main() {
       allOf(
         contains('`**Errors:** <codes>; see <links>`'),
         contains('every code the operation returns as a code span'),
+        contains("hand off to no other operation's list"),
         contains('`**Errors:** none`'),
       ),
     );

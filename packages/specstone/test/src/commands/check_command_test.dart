@@ -39,9 +39,9 @@ Map<String, String> _architectureWith() => {
       '## Component diagram\n\n```mermaid\n$_parsingDiagram\n```\n\n'
       '```mermaid\n$_refusedDiagram\n```\n\n## Components\n\n'
       '| Component | Responsibility |\n|---|---|\n| Sign-in page | Takes the form |\n\n'
-      '## Concerns\n\n- Integration: N/A — no outside call\n- Errors: see Components\n'
-      '- Auth: N/A — one local user\n- Lifecycle: N/A — no states\n- Events: N/A — no events\n'
-      '- Rollout: N/A — one release\n- Observability: N/A — no telemetry\n',
+      '## Concerns\n\n- Integration: see Components\n- Errors: see Components\n'
+      '- Auth: see Components\n- Lifecycle: see Components\n- Events: see Components\n'
+      '- Rollout: see Components\n- Observability: see Components\n',
 };
 
 /// Reports whether a `node` starts on this machine's `PATH`.

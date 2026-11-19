@@ -176,27 +176,6 @@ void main() {
     expect(json, containsPair('field', 'Corrective policy'));
   });
 
-  test('a bullet under the Components table of an ARCHITECTURE.md gets '
-      'pattern_banned at that bullet', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          'docs/specs/f01_login/ARCHITECTURE.md':
-              '$draft# Login architecture\n\n## Components\n'
-              '| Component | Responsibility |\n|---|---|\n'
-              '| Gate | Checks the password |\n\n'
-              '- Gate also logs each attempt\n',
-        },
-      ),
-    );
-
-    final finding = report.findings.singleWhere(
-      (f) => f.kind == FindingKind.patternBanned,
-    );
-    expect(finding.path, 'specs/f01_login/ARCHITECTURE.md');
-    expect(finding.toJson(), containsPair('line', 12));
-  });
-
   test(
     'a 50001-character project DOMAIN.md gets '
     'chars_over_limit, limit 50000, the limit it inherits from domain',

@@ -119,7 +119,7 @@ sections:
   - id: design_references
     header: Design references
     description: |-
-      List each design or ADR whose decisions this doc still states, one link per line, with the decision IDs the doc still relies on and no summary.
+      List each design or ADR whose decisions this doc still states, one link per line. Add the decision IDs the doc still relies on and no summary.
       Drop a link once no section relies on it.
       This section is the only home for rationale.
     lint:
