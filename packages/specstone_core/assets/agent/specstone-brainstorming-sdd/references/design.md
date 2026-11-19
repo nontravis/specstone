@@ -74,9 +74,7 @@ Then the skill's step 3 runs the design check. Fix each finding in the document:
 `[behavior]` one by deciding it, or asking the Owner if only they can, then naming its owner doc and terms.
 
 Ask for approval only once no design-check line is left naming a reader or a wording a decision supersedes outside the
-Docs to change rows, a removed decision's text included: each such line gets a row (a stub row for removed text). Each term
-and wording is searched in every written form: with and without a trailing `/`, in backticks or not, singular and
-plural, and a short form. This document is outside the sweep: it quotes that wording.
+Docs to change rows, a removed decision's text included: each such line gets a row (a stub row for removed text). This document is outside the sweep: it quotes that wording.
 
 ## 5. Tell the Owner
 

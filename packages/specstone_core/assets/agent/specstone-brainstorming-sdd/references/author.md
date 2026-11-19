@@ -4,8 +4,8 @@ Ask the Owner nothing; list gaps in the report.
 
 - **Design document**: read it whole; list each decision, ruling, and Docs to change row.
 - **Drafts** (each pass after the first): the drafts list, the first report's drafts plus added docs;
-  in a fix round, the audit's `Findings:` lines not tagged `[behavior]` (`[style]` too) and untagged design-check
-  lines naming a draft; in a fill pass, the split proposal's lines, each new FR whole, the old FR's `edge_cases`. In
+  in a fix round, the audit's `Findings:` lines not tagged `[behavior]` (`[style]` too); in the pass after an
+  amend, untagged design-check lines naming a draft; in a fill pass, the split proposal's lines, each new FR whole, the old FR's `edge_cases`. In
   steps 2 to 4, write an amended design and fix those findings in the drafts; list each outside them under `Findings:`,
   unfixed.
 
@@ -23,7 +23,7 @@ one it lacks under `Findings:`.
 - **New doc**: pipe it to `specstone new <type>` (`--parent`, `--slug`), parents first.
 - **Section or field**: pipe it to `specstone set <type>:<name>#<key> --base <hash>` (a field: `--field <id>` for
   `#<key>`; a passage: `--replace` with `==> old <==`, the passage, `==> new <==`, the new one), its hash in
-  `bases` of `specstone get <type>:<name> --json`.
+  `base` of `specstone get <type>:<name>#<key> --json`.
 - **A removed decision's stub row**: follow `removal.md` section 2.
 - **Several docs**: one name list, step 1's names too: `#input--output` as `input_output`; item or note: its section
   key; whole or new doc: its bare name; a finding naming a doc with no key: its bare name, the gap under `Findings:`;
@@ -37,12 +37,12 @@ one it lacks under `Findings:`.
 
 ## 3. Sweep each changed rule
 
-Run `specstone search "<term>"`, `--limit` above its hit count, per term in each written form that section 4 of
-`design.md` lists, the short form the key noun alone:
+Run `specstone search "<term>"`, `--limit` above its hit count, per term in each written form that item 1 of section 2 of
+`design-check.md` lists, the short form the key noun alone:
 
 - **First pass, or after an amend** (its decisions only): each added term, key, or literal; each ruling's superseded
   wording; each changed rule's owner item's words and every key or literal of the set the new one joins.
-- **Fix round**: each taken finding's rule and terms.
+- **Fix round**, or any taken finding after an amend: each taken finding's rule and terms.
 
 A hit stating the rule without the decision's new text is a reader. One in a draft or a Docs to change row's doc: its
 section goes in a second name list with its own `get … --out` and `set --batch`; link the owner's item for a restated

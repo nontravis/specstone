@@ -13,7 +13,7 @@ nothing but the agent's `report:` file; never edit the design document. Ask the 
    the stub's decision. When no heading lists an `<N>`, make the missing-input stop for the whole check, its
    `OPEN QUESTIONS:` line naming `amend`. With no `amend`, keep every decision, a stub too.
 3. **Targets**: each doc that exists among the Docs to change rows; with `amend`, only the rows of the decisions
-   step 2 kept, a stub's rows included. A row for a doc still to be created is no target.
+   step 1.2 kept, a stub's rows included. A row for a doc still to be created is no target.
 4. **Bundles**: run one `specstone context <feature> --for design --out` per feature the targets fall under; a target
    whose files `bundles` passes takes no call, so read those files in place; a doc step 2.3 reaches takes its own
    `specstone context <doc> --for design --out`. Run no `get`.
@@ -31,7 +31,7 @@ Before any lens, sweep each decision step 1.2 kept, in list order:
    for the whole sweep, reusing its file for later decisions; search it for the item's doc
    path. With no cited-by line, the repeat groups and the term search carry the decision.
 3. **Reach**: ground each doc a cited-by line or repeat group names outside the grounded features by
-   `specstone context <doc> --for design --out`, then run step 1 on its files. Run no `--repeats` on it and follow none
+   `specstone context <doc> --for design --out`, then run step 2.1 on its files. Run no `--repeats` on it and follow none
    of its cited-by lines: the reach stops one hop out.
 4. **Gaps**: an item that reads or writes a swept term with no Docs to change row, or a superseded wording left
    outside the rows, is a `D<n>: <gap>` line. A doc written before its rule, restating it instead of citing its owner,

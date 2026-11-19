@@ -16,7 +16,8 @@ words or records one.
   amend unless it edits a decision an author pass read. An untagged line takes no check; a `[behavior]` fix takes one
   second check, the first's scope plus any amend the fix opened, never a third. Decide a `[behavior]` line of either
   check only when its answer stays inside the Owner's goals, rulings, and picked approach; any other line is the
-  Owner's, and an Owner answer that adds behavior takes a numbered amend and its check. List a second check's
+  Owner's. The Owner's answer to a first check's line is fixed and takes the same-scope second check; to a second
+  check's line, when it adds behavior, a numbered amend and its check. List a second check's
   `[behavior]` line, decided or the Owner's, with the ask or before the author pass; only the Owner's line waits
   for the Owner there.
 - **Before the author**: after an append, or an amend and its check, ask for the approval again. When the design
@@ -37,7 +38,7 @@ The drafts list is the first author report's drafts plus each doc a fix round or
   first author's `Guide:` files; a fix round adds the audit's `Findings:` lines not tagged `[behavior]`
   (`[style]` too), and the pass after an amend each untagged line of its design check naming a draft by
   `<type>:<name>#<key>`, a sibling too; a line naming a doc outside the list is a Docs to change row. The author
-  re-reads those drafts before its first write, then fixes those findings and each same-class hit, `[style]` hits
+  reads those findings' sections before its first write, then fixes those findings and each same-class hit, `[style]` hits
   included, as `author.md`'s Sweep each changed rule gives.
 - **A `[behavior]` line**, or an Owner decision adding behavior, never goes to a fix round: take it to
   an amend and its own check (section 1). The one fresh author pass after, counted toward the cap, takes the amended
@@ -45,7 +46,7 @@ The drafts list is the first author report's drafts plus each doc a fix round or
 - **A `[style]`-only audit** spends no round and gets no re-audit: fix each line in place by `specstone set --replace`.
   Run `specstone approve <drafts list> --dry-run --json`, then append to that audit's report file one
   `Styled: <type>:<name>@<hash>` line per fixed draft, `hash` as that call prints it.
-- **A split proposal** the Owner okays: run its `specstone move` commands as an author's `Move:` lines. The new FRs
+- **A split proposal** the Owner okays: run its `new` and `move` commands, in order, as an author's `Move:` lines. The new FRs
   join the drafts list, and a fresh author pass, the fill pass, fills them before any audit. It takes the proposal's
   lines and joins the next round when one is due; else it is no round and carries no findings. Past both rounds it
   still runs, and its re-audit's findings reach the Owner with the drafts, with no further round. Then the amend
