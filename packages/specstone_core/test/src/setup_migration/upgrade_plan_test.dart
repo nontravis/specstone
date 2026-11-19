@@ -5269,6 +5269,24 @@ void _matrixFoldTests() {
       expect(plan.lists.toJson(), isNot(contains('matrixRows')));
     });
 
+    test('plans no fold for a record already folded, under a pin below '
+        'shipped', () async {
+      final project = await _foldProject(
+        {
+          _foldFlutterRecord: _foldRecord([_foldedRow]),
+        },
+        config:
+            '${shippedPinsOneMinorBelow('software-tech')}'
+            'verification_coverage: fr\n',
+      );
+
+      final plan = _planAt(project);
+
+      expect(_foldedPaths(plan), isEmpty);
+      expect(plan.toText(), isNot(contains('matrix rows:')));
+      expect(plan.lists.toJson(), isNot(contains('matrixRows')));
+    });
+
     test(
       'does not run when only story or feature rows are per-edge-case',
       () async {

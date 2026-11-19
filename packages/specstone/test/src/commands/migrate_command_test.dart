@@ -1154,7 +1154,7 @@ void main() {
       expect(_bytesUnder(root), before);
     });
 
-    test('plans no fold on a rerun after a fold', () async {
+    test('the apply writes the folded row and no per-edge-case row', () async {
       final root = await foldRoot();
       final hash = await _dryRunPlanHash(root);
       final applied = writeRunner(root);
@@ -1163,16 +1163,9 @@ void main() {
         0,
         reason: applied.err.toString(),
       );
-      expect(
-        File('${root.path}/$recordPath').readAsStringSync(),
-        contains('$foldedRow\n'),
-      );
-
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(await runner.run(['migrate', '--dry-run', '--json']), 0);
-
-      expect(out.toString(), isNot(contains('matrix rows:')));
-      expect(out.toString(), isNot(contains('matrixRows')));
+      final written = File('${root.path}/$recordPath').readAsStringSync();
+      expect(written, contains('$foldedRow\n'));
+      expect(written, isNot(contains(' E01:')));
     });
   }, skip: hasGit ? null : 'git is not available');
 }
