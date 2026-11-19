@@ -27,10 +27,14 @@ List<SharedLine> _project(String yaml) => parseSharedEntries(
 
 /// One pack: the `pack.yaml` keys after `name` and `version`, and the doc type
 /// ids the pack defines.
-typedef _Pack = ({String yaml, Set<String> types});
+final class _Pack {
+  const new(this.yaml, this.types);
 
-_Pack _pack(String yaml, {Set<String> types = const {}}) =>
-    (yaml: yaml, types: types);
+  final String yaml;
+  final Set<String> types;
+}
+
+_Pack _pack(String yaml, {Set<String> types = const {}}) => _Pack(yaml, types);
 
 /// Merges the shared entries of [packs] and [project] in layer order.
 SharedSet _merge(
@@ -88,7 +92,7 @@ String _text(SharedSet set, String id) =>
     set.lines.singleWhere((line) => line.id == id).text;
 
 void main() {
-  group('layer order (merge_layers_by_id E13)', () {
+  group('layers merge by id in layer order', () {
     test('chain, then a personal pack, then shared.yaml, the top wins', () {
       final set = _merge({
         'base': _pack('shared_lines:\n  - id: tone\n    text: base\n'),
@@ -130,7 +134,7 @@ void main() {
     });
   });
 
-  group('for_doc_types replaces whole (E14)', () {
+  group('an upper for_doc_types list replaces the lower one', () {
     test('an upper list replaces the lower list', () {
       final set = _merge({
         'base': _pack(
@@ -150,7 +154,7 @@ void main() {
     });
   });
 
-  group('print rank (E15)', () {
+  group('an entry keeps the print place of its first defining layer', () {
     test('an upper change keeps the rank of the first defining layer', () {
       final set = _merge({
         'base': _pack(
@@ -220,7 +224,7 @@ void main() {
     );
   });
 
-  group('disabled entries (E16)', () {
+  group('a disabled entry reaches no doc type', () {
     test('a disabled line reaches no doc type', () {
       final set = _merge({
         'base': _pack('shared_lines:\n  - id: tone\n    text: base\n'),
@@ -250,22 +254,21 @@ void main() {
     });
   });
 
-  group('reach (E17)', () {
-    test('a new line with no for_doc_types reaches every merged type', () {
-      final set = _merge(
-        {
+  group('the doc types a shared line reaches', () {
+    test(
+      'a new line with no for_doc_types names no list, so it reaches all',
+      () {
+        final set = _merge({
           'base': _pack(
             'shared_lines:\n  - id: tone\n    text: base\n',
             types: {'story'},
           ),
-        },
-        projectTypes: {'my_type'},
-      );
+        });
 
-      expect(set.lines.single.forDocTypes, isNull);
-      expect(_ids(set.linesNaming('story')), ['tone']);
-      expect(_ids(set.linesNaming('my_type')), ['tone']);
-    });
+        expect(set.lines.single.forDocTypes, isNull);
+        expect(_ids(set.linesNaming('story')), ['tone']);
+      },
+    );
 
     test('a line with for_doc_types reaches only the types it names', () {
       final set = _merge({
@@ -307,7 +310,7 @@ void main() {
     });
   });
 
-  group('two packs outside one chain (E19, E20 of load_listed)', () {
+  group('two packs outside one extends chain declaring one id', () {
     test('a line id declared twice is refused at the later pack by name', () {
       expect(
         _fault({
@@ -365,7 +368,7 @@ void main() {
     });
   });
 
-  group('shared.yaml reach (E25)', () {
+  group('a shared.yaml line names only doc types of the merged set', () {
     test('a line naming a type the merged set lacks is unknown_value', () {
       expect(
         _fault(
@@ -403,7 +406,7 @@ void main() {
     });
   });
 
-  group('incomplete and undefined entries (E13 with E01, E02)', () {
+  group('an entry that can neither change nor add', () {
     test('a new line with no text is override_id_not_found', () {
       expect(
         _fault({'base': _pack('shared_lines:\n  - id: tone\n')}),
@@ -477,7 +480,7 @@ void main() {
     });
   });
 
-  group('for_doc_types of a pack entry (load_listed_personal_packs E15)', () {
+  group('a pack entry names only doc types of its pack chain', () {
     test('a line naming a type outside its chain is unknown_value', () {
       expect(
         _fault({
@@ -529,43 +532,63 @@ void main() {
     });
   });
 
-  group(
-    'a new shared field with no for_doc_types (load_listed_personal_packs E21)',
-    () {
-      test('is missing_key before any doc type merges', () {
+  group('a new shared field with no for_doc_types', () {
+    test('is missing_key before any doc type merges', () {
+      expect(
+        _fault({
+          'base': _pack('shared_fields:\n  - id: owner\n    type: string\n'),
+        }),
+        _is(
+          FaultCode.missingKey,
+          file: 'packs/base/pack.yaml',
+          key: 'shared_fields[0].for_doc_types',
+          message: 'a new shared field requires for_doc_types',
+        ),
+      );
+    });
+
+    for (final (name, lower) in [
+      ('an E19 fault', 'shared_lines:\n  - id: tone\n    text: a\n'),
+      ('an E01 fault', 'shared_lines:\n  - id: tone\n'),
+    ]) {
+      test('is reported before a lower layer holding $name', () {
         expect(
           _fault({
-            'base': _pack('shared_fields:\n  - id: owner\n    type: string\n'),
+            'alpha': _pack(lower),
+            'beta': _pack(
+              'shared_lines:\n  - id: tone\n    text: b\n'
+              'shared_fields:\n  - id: owner\n    type: string\n',
+            ),
           }),
           _is(
             FaultCode.missingKey,
-            file: 'packs/base/pack.yaml',
+            file: 'packs/beta/pack.yaml',
             key: 'shared_fields[0].for_doc_types',
             message: 'a new shared field requires for_doc_types',
           ),
         );
       });
+    }
 
-      test('a change or disable of a lower field needs none', () {
-        final set = _merge({
-          'base': _pack(
-            'shared_fields:\n  - id: owner\n    type: string\n'
-            '    for_doc_types: [story]\n'
-            '  - id: gone\n    type: string\n    for_doc_types: [story]\n',
-            types: {'story'},
-          ),
-          'top': _pack(
-            'extends: base\nshared_fields:\n  - id: owner\n    required: true\n'
-            '  - id: gone\n    disabled: true\n',
-          ),
-        });
-
-        expect(set.fields.single.id, 'owner');
-        expect(set.fields.single.entry.required, isTrue);
-        expect(set.fields.single.forDocTypes, ['story']);
+    test('a change or disable of a lower field needs none', () {
+      final set = _merge({
+        'base': _pack(
+          'shared_fields:\n  - id: owner\n    type: string\n'
+          '    for_doc_types: [story]\n'
+          '  - id: gone\n    type: string\n    for_doc_types: [story]\n',
+          types: {'story'},
+        ),
+        'top': _pack(
+          'extends: base\nshared_fields:\n  - id: owner\n    required: true\n'
+          '  - id: gone\n    disabled: true\n',
+        ),
       });
-    },
-  );
+
+      expect(set.fields.single.id, 'owner');
+      expect(set.fields.single.entry.required, isTrue);
+      expect(set.fields.single.forDocTypes, ['story']);
+    });
+  });
 
   group('TemplateResolver', () {
     Map<String, Uint8List> shipped() => {

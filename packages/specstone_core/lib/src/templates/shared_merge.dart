@@ -107,11 +107,45 @@ SharedSet mergeSharedEntries({
     _checkPackReach(pack, ordered, docTypeIdsByPack, extendsOf);
   }
   _checkProjectReach(projectLines, mergedDocTypeIds);
+  _checkNewFieldReach(ordered);
   final merge = _SharedMerge(extendsOf);
   ordered.forEach(merge.addPack);
   merge.addProjectLines(projectLines);
   return merge.build();
 }
+
+/// Throws `missing_key` for the first complete new shared field, one no lower
+/// pack declares, that writes no `for_doc_types`.
+///
+/// Runs before the merge pass, so it precedes any merge fault. A field a
+/// layer disabled and a later layer adds again is checked in the merge pass.
+void _checkNewFieldReach(List<LoadedPack> ordered) {
+  final declared = <String>{};
+  for (final pack in ordered) {
+    final fields = pack.manifest.shared.fields;
+    for (final field in fields) {
+      final entry = field.entry;
+      final isNew = !declared.contains(entry.id);
+      if (isNew &&
+          !entry.disabled &&
+          entry.type != null &&
+          field.forDocTypes == null) {
+        throw _missingFieldReach(field);
+      }
+    }
+    declared.addAll(fields.map((field) => field.id));
+  }
+}
+
+TemplateFault _missingFieldReach(SharedField field) => TemplateFault(
+  FaultCode.missingKey,
+  'a new shared field requires $_forDocTypesKey',
+  file: field.file,
+  key: '$_fieldsKey[${field.index}].$_forDocTypesKey',
+);
+
+List<String>? _frozen(List<String>? list) =>
+    list == null ? null : List.unmodifiable(list);
 
 /// Throws `unknown_value` for the first `for_doc_types` id of [pack]'s shared
 /// entries outside the doc types of [pack] and the packs it reaches.
@@ -274,7 +308,7 @@ final class _SharedMerge {
       _lines[line.id] = MergedSharedLine(
         id: held.id,
         text: line.text ?? held.text,
-        forDocTypes: line.forDocTypes ?? held.forDocTypes,
+        forDocTypes: _frozen(line.forDocTypes) ?? held.forDocTypes,
         printRank: held.printRank,
       );
       return;
@@ -295,7 +329,7 @@ final class _SharedMerge {
     _lines[line.id] = MergedSharedLine(
       id: line.id,
       text: text,
-      forDocTypes: line.forDocTypes,
+      forDocTypes: _frozen(line.forDocTypes),
       printRank: _nextPlace++,
     );
   }
@@ -311,7 +345,7 @@ final class _SharedMerge {
       }
       _fields[entry.id] = MergedSharedField(
         entry: _overlay(held.entry, entry),
-        forDocTypes: field.forDocTypes ?? held.forDocTypes,
+        forDocTypes: _frozen(field.forDocTypes) ?? held.forDocTypes,
         declaringPack: held.declaringPack,
         order: held.order,
       );
@@ -329,14 +363,7 @@ final class _SharedMerge {
       );
     }
     final reach = field.forDocTypes;
-    if (reach == null) {
-      throw TemplateFault(
-        FaultCode.missingKey,
-        'a new shared field requires $_forDocTypesKey',
-        file: field.file,
-        key: '$_fieldsKey[${field.index}].$_forDocTypesKey',
-      );
-    }
+    if (reach == null) throw _missingFieldReach(field);
     _disabledFieldIds.remove(entry.id);
     _fields[entry.id] = MergedSharedField(
       entry: entry,
