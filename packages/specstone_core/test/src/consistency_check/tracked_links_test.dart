@@ -19,7 +19,12 @@ import '../../helpers/matrix_record_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/override_link_fixture.dart';
 import '../../helpers/record_fixture.dart' show recordText;
+import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
 import '../../helpers/write_fixture.dart' show getDoc, readDoc, writeIn;
+
+/// The config that sets `verification_coverage:` to [mode].
+String _coverageConfig(String mode) =>
+    '${shippedPinsConfig()}verification_coverage: $mode\n';
 
 void main() {
   const fp = fingerprintOf;
@@ -1719,7 +1724,11 @@ void main() {
       Map<String, String> extra = const {},
     }) async {
       final project = await writeCheckProject(
-        extra: {loginRecord: record, ...extra},
+        extra: {
+          '.specstone/config.yaml': _coverageConfig('edge_case'),
+          loginRecord: record,
+          ...extra,
+        },
         // A stamp would add an `approved:` line and move every line below it.
         unstamped: {loginRecord},
       );
@@ -1735,22 +1744,6 @@ void main() {
     test("a row stamped with the edge case's fingerprint is clean", () async {
       expect(await findingsOf(record([testRow(current)])), isEmpty);
     });
-
-    test(
-      'a per-FR row names no edge case, so it takes no link state',
-      () async {
-        final project = await writeMatrixRecordProject(row: frMatrixRow);
-
-        final findings = (await checkOf(project)).findings.where(
-          (f) =>
-              f.path == loginRecord &&
-              (f.kind == FindingKind.suspect ||
-                  f.kind == FindingKind.unconfirmed),
-        );
-
-        expect(findings, isEmpty);
-      },
-    );
 
     test('a test row gives its literals joined by a comma and a space', () {
       final row = parseMatrixLine(
@@ -2024,7 +2017,10 @@ void main() {
 
     test('a set that writes a row fingerprint keeps the record draft and clears the row', () async {
       const target = 'implementation:login#verification_matrix';
-      final project = await writeMatrixRecordProject(isDraft: true);
+      final project = await writeMatrixRecordProject(
+        isDraft: true,
+        config: _coverageConfig('edge_case'),
+      );
       final sectionBase = getDoc(project, target)['base']! as String;
 
       final answer = writeIn(
@@ -2092,6 +2088,7 @@ void main() {
       Future<bool> isSuspectRecord(List<String> statuses) async {
         final project = await writeCheckProject(
           extra: {
+            '.specstone/config.yaml': _coverageConfig('edge_case'),
             loginRecord: record([testRow(older)], statuses: statuses),
           },
           unstamped: {loginRecord},
@@ -2107,6 +2104,281 @@ void main() {
       expect(await isSuspectRecord(const ['$item:implemented']), isTrue);
       expect(await isSuspectRecord(const ['$item:skipped:no clock']), isFalse);
       expect(await isSuspectRecord(const [':skipped:no web view']), isFalse);
+    });
+  });
+
+  group('per-FR matrix row links', () {
+    const item = 'email_login/check_password';
+    const edgeCase = '1. E01 — An empty password → refused.';
+    const contract =
+        '## Statement\n\n$checkPasswordStatement\n\n## Edge cases\n\n$edgeCase';
+    const headings = 'Statement, Edge cases';
+    const inputOutput = '## Input / Output\n\nA password text.\n\n';
+    final current = fp(contract);
+    const older = '3f9a1c0b7e2d';
+    const draftFr = (
+      'verify_method: test\n',
+      'verify_method: test\ndraft: true\n',
+    );
+    const read =
+        'read the contract block of $loginFr below, then record $item with '
+        'the fingerprint after it';
+
+    String row([String? fingerprint, String name = 'refuses a wrong one']) =>
+        '- $item: `$name`${fingerprint == null ? '' : ' $fingerprint'}';
+
+    String record(List<String> rows, {String front = ''}) =>
+        '${recordText(front: front, statuses: const ['$item:implemented'])}'
+        '\n## Verification matrix\n\n${rows.join('\n')}\n';
+
+    int rowLine(String record, int i) =>
+        record.split('\n').indexOf('## Verification matrix') + 3 + i;
+
+    Future<Directory> projectOf(
+      String record,
+      String mode,
+      Map<String, String> extra,
+    ) => writeCheckProject(
+      extra: {
+        '.specstone/config.yaml': _coverageConfig(mode),
+        loginRecord: record,
+        ...extra,
+      },
+      // A stamp would add an `approved:` line and move every line below it.
+      unstamped: {loginRecord},
+    );
+
+    Future<List<Finding>> findingsOf(
+      String record, {
+      String mode = 'fr',
+      Map<String, String> extra = const {},
+    }) async {
+      final project = await projectOf(record, mode, extra);
+      return [
+        for (final f in (await checkOf(project)).findings)
+          if (f.path == loginRecord &&
+              (f.kind == FindingKind.suspect ||
+                  f.kind == FindingKind.unconfirmed))
+            f,
+      ];
+    }
+
+    Future<bool> isSuspectRecord(String record, String mode) async {
+      final project = await projectOf(record, mode, const {});
+      final session = openSession(project);
+      addTearDown(session.close);
+      return hasSuspectLink(
+        CheckContext(session),
+        session.index.at(loginRecord)!,
+      );
+    }
+
+    test(
+      'flags a per-FR row suspect when its contract block changes',
+      () async {
+        const changed = '1. E01 — An empty password → refused at once.';
+        final block = contract.replaceFirst(edgeCase, changed);
+        final text = record([row(current)]);
+
+        final finding = (await findingsOf(
+          text,
+          extra: fr(edgeCase, changed),
+        )).single;
+
+        expect(finding.kind, FindingKind.suspect);
+        expect(finding.line, rowLine(text, 0));
+        expect(finding.waitsFor, WaitsFor.agent);
+        expect(
+          finding.message,
+          '$item changed after it was confirmed, recorded $current; $read',
+        );
+        expect(finding.keys, {
+          'link': item,
+          'recorded': current,
+          'upstream': loginFr,
+          'block': headings,
+          'text': block,
+          'fingerprint': fp(block),
+        });
+        expect(finding.keys.keys, [
+          'link',
+          'recorded',
+          'upstream',
+          'block',
+          'text',
+          'fingerprint',
+        ]);
+        expect(finding.textLines, [
+          finding.textLine,
+          for (final line in block.split('\n')) '    $line',
+          '    fingerprint ${fp(block)}',
+        ]);
+      },
+    );
+
+    test("tracks a per-FR row whatever its record's flag", () async {
+      const changed = '1. E01 — An empty password → refused at once.';
+      final rows = [row(older)];
+
+      for (final front in ['', 'draft: true\n']) {
+        final text = record(rows, front: front);
+
+        final finding = (await findingsOf(
+          text,
+          extra: fr(edgeCase, changed),
+        )).single;
+
+        expect(finding.kind, FindingKind.suspect, reason: front);
+        expect(finding.waitsFor, WaitsFor.agent, reason: front);
+      }
+      final clean = await findingsOf(
+        record([row(current)], front: 'draft: true\n'),
+      );
+      expect(clean, isEmpty);
+    });
+
+    test('flags a per-FR row on a nested edge case edit', () async {
+      const changed = '$edgeCase\n   - A form of spaces';
+      final text = record([row(current)]);
+
+      final finding = (await findingsOf(
+        text,
+        extra: fr(edgeCase, changed),
+      )).single;
+
+      expect(finding.kind, FindingKind.suspect);
+      expect(finding.keys['text'], contract.replaceFirst(edgeCase, changed));
+    });
+
+    test('keeps a per-FR row clean on a title, frontmatter, behavior, rationale, or verification edit', () async {
+      final text = record([row(current)]);
+      final extra = edit(loginFr, [
+        ('# Check the password', '# Check a password'),
+        ('verify_method: test\n', 'verify_method: review\n'),
+        ('## Rationale\n\n', '## Behavior\n\nA flow.\n\n## Rationale\n\n'),
+        (
+          'A wrong password must not sign in.',
+          'A wrong password never signs in.',
+        ),
+        (
+          'Test: a wrong password is refused.',
+          'Test: an empty one is refused.',
+        ),
+      ]);
+
+      expect(await findingsOf(text, extra: extra), isEmpty);
+    });
+
+    test(
+      'names the headings present when the FR has no input and output',
+      () async {
+        final text = record([row()]);
+
+        final without = (await findingsOf(text)).single;
+        final withBoth = (await findingsOf(
+          text,
+          extra: fr('## Edge cases\n', '$inputOutput## Edge cases\n'),
+        )).single;
+
+        expect(without.keys['block'], headings);
+        expect(withBoth.keys['block'], 'Statement, Input / Output, Edge cases');
+        expect(
+          withBoth.keys['text'],
+          '## Statement\n\n$checkPasswordStatement\n\n$inputOutput'
+          '## Edge cases\n\n$edgeCase',
+        );
+      },
+    );
+
+    test('waits for the Owner while the FR is a draft', () async {
+      for (final fingerprint in [older, null]) {
+        final text = record([row(fingerprint)]);
+
+        final finding = (await findingsOf(
+          text,
+          extra: edit(loginFr, [draftFr]),
+        )).single;
+
+        expect(finding.waitsFor, WaitsFor.owner, reason: '$fingerprint');
+        expect(
+          finding.message,
+          fingerprint == null
+              ? "$item waits for the Owner's approve of $loginFr"
+              : '$item changed after it was confirmed, recorded $older; it '
+                    "waits for the Owner's approve of $loginFr",
+        );
+        expect(finding.keys['block'], headings);
+        expect(finding.keys.containsKey('text'), fingerprint != null);
+        expect(finding.keys['fingerprint'], current);
+      }
+    });
+
+    test('reports an unstamped per-FR row unconfirmed for the agent', () async {
+      final text = record([row()]);
+
+      final finding = (await findingsOf(text)).single;
+
+      expect(finding.kind, FindingKind.unconfirmed);
+      expect(finding.line, rowLine(text, 0));
+      expect(finding.waitsFor, WaitsFor.agent);
+      expect(finding.message, '$item records no fingerprint; $read');
+      expect(finding.keys.keys, [
+        'link',
+        'upstream',
+        'block',
+        'text',
+        'fingerprint',
+      ]);
+      expect(finding.keys['text'], contract);
+      expect(finding.textLines, [
+        finding.textLine,
+        for (final line in contract.split('\n')) '    $line',
+        '    fingerprint $current',
+      ]);
+    });
+
+    test('tracks no row under off and ignores its fingerprint', () async {
+      for (final rows in [
+        [row()],
+        [row(older)],
+      ]) {
+        final text = record(rows);
+
+        expect(await findingsOf(text, mode: 'false'), isEmpty);
+        expect(await isSuspectRecord(text, 'false'), isFalse);
+      }
+    });
+
+    test('tracks no refused-form row in any mode', () async {
+      const perEdgeCase = '- $item E01: `refuses an empty one` $older';
+      final perFr = row(older);
+      for (final (mode, rows) in [
+        ('false', [perEdgeCase]),
+        ('fr', [perEdgeCase]),
+        ('edge_case', [perFr]),
+      ]) {
+        final text = record(rows);
+
+        expect(await findingsOf(text, mode: mode), isEmpty, reason: mode);
+        expect(await isSuspectRecord(text, mode), isFalse, reason: mode);
+      }
+    });
+
+    test('keeps edge_case rows tracked against their edge case', () async {
+      final text = record(['- $item E01: `refuses an empty one` $older']);
+
+      final finding = (await findingsOf(text, mode: 'edge_case')).single;
+
+      expect(finding.kind, FindingKind.suspect);
+      expect(finding.keys['link'], '$item#E01');
+      expect(finding.keys['block'], 'E01');
+      expect(finding.keys['text'], edgeCase);
+    });
+
+    test('counts a suspect per-FR row for the suspect doc list', () async {
+      expect(await isSuspectRecord(record([row(older)]), 'fr'), isTrue);
+      expect(await isSuspectRecord(record([row(current)]), 'fr'), isFalse);
+      expect(await isSuspectRecord(record([row()]), 'fr'), isFalse);
     });
   });
 }

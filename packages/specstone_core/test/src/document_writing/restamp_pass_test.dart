@@ -16,7 +16,8 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart'
     show checkOf, checkProjectFiles, docTypeMatcherOf, fingerprintFor;
 import '../../helpers/nested_fixture.dart';
-import '../../helpers/shipped_pins.dart' show shippedStatusesOutside;
+import '../../helpers/shipped_pins.dart'
+    show shippedPinsConfig, shippedStatusesOutside;
 import '../../helpers/write_fixture.dart'
     show getDoc, readDoc, treeBytes, writeIn;
 
@@ -54,6 +55,10 @@ String _domain(String title, List<String> invariants, {String? overrides}) =>
     '# $title domain\n\n## Entities\n| Entity | Kind | Identity | Owns | Notes |\n'
     '|--------|------|----------|------|-------|\n| Order | Aggregate root | id | lines | — |\n\n'
     '## Invariants\n${invariants.join('\n')}\n';
+
+/// The config that reads the per-edge-case rows the projects below hold.
+String _edgeCaseConfig() =>
+    '${shippedPinsConfig()}verification_coverage: edge_case\n';
 
 String _record(String record, List<String> rows) =>
     '${nestedRecords()[record]}$_matrix${rows.join('\n')}\n';
@@ -128,6 +133,7 @@ void main() {
           edgeCases: [soldOut, missing],
         ),
         ...nestedRecords(),
+        '.specstone/config.yaml': _edgeCaseConfig(),
         cartRecord: _record(cartRecord, [
           _row(
             'add_item/check_stock',
@@ -268,6 +274,7 @@ void main() {
             edgeCases: [sharedCase],
           ),
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row('add_item/check_stock', 'E01', 'refuses an item', shared),
             _row('drop_item/keep_stock', 'E01', 'refuses an item', shared),
@@ -306,6 +313,7 @@ void main() {
             edgeCases: [soldOut],
           ),
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row(
               'add_item/check_stock',
@@ -356,6 +364,7 @@ void main() {
             edgeCases: [soldOut],
           ),
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row(
               'add_item/check_stock',
@@ -451,6 +460,7 @@ void main() {
             edgeCases: [spanCase, nodeCase],
           ),
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row(
               'add_item/check_stock',
@@ -489,6 +499,7 @@ void main() {
       final root = await writeNestedProject(
         extra: {
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row(
               'add_item/check_stock',

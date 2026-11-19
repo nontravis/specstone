@@ -14,11 +14,12 @@ const frMatrixRow =
 /// returns its folder.
 ///
 /// The record reads approved, or a draft when [isDraft]; its matrix section
-/// holds [row].
+/// holds [row]. A [config] replaces the project's `config.yaml`.
 Future<Directory> writeMatrixRecordProject({
   bool isDraft = false,
   bool hasMatrix = true,
   String row = matrixRow,
+  String? config,
 }) {
   final frontmatter =
       "---\n${isDraft ? 'draft: true\n' : ''}"
@@ -31,6 +32,7 @@ Future<Directory> writeMatrixRecordProject({
           '## Notes\n\nSee the rows.\n',
       '.specstone/templates/implementation.yaml':
           'sections:\n  - id: notes\n    header: Notes\n',
+      '.specstone/config.yaml': ?config,
     },
     unstamped: {if (isDraft) loginRecord},
   );

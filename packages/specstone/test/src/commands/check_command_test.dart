@@ -1540,6 +1540,8 @@ void main() {
         Map<String, String> extra = const {},
       }) => writeCheckProject(
         extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}verification_coverage: edge_case\n',
           loginRecord:
               "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
               '# Login implementation\n\n## Verification matrix\n\n'

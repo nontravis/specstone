@@ -82,7 +82,9 @@ final class BlockMoves {
         landing.sectionKey == edgeCasesSectionKey ? landing : null,
       TrackedBlockKind.item =>
         landing.sectionKey == block.section ? landing : null,
-      TrackedBlockKind.frStatement || TrackedBlockKind.nfrStatement => null,
+      TrackedBlockKind.frStatement ||
+      TrackedBlockKind.nfrStatement ||
+      TrackedBlockKind.frContract => null,
     };
   }
 }

@@ -832,7 +832,7 @@ void main() {
     }
 
     test('with the coverage key absent or false, a stale row fingerprint '
-        'still turns suspect', () async {
+        'turns no suspect', () async {
       final record = _record(
         rows: ['- $_fr E01: `refuses an empty password` 3f9a1c0b7e2d'],
       );
@@ -854,7 +854,7 @@ void main() {
               if (f.path == loginRecord && f.kind == FindingKind.suspect)
                 f.line,
           ],
-          [_rowLine(record, 0)],
+          isEmpty,
           reason: name,
         );
       }
