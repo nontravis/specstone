@@ -323,6 +323,62 @@ void main() {
       expect(fixture.run, returnsNormally);
     });
 
+    Map<String, String> dropFiles(String from) => {
+      ..._packFiles,
+      '.specstone/packs/acme/pack.yaml':
+          'name: acme\nversion: 1.2.0\nextends: software-tech\n'
+          'migrations:\n  - from: $from\n    steps:\n'
+          '      - drop_shared_lines: {ids: [ghost]}\n',
+    };
+
+    for (final (entry, from) in [
+      ('{id: ghost, text: Mine.}', '1.0.0'),
+      ('{id: ghost, text: Mine., for_doc_types: [runbook]}', '1.0.0'),
+      ('{id: ghost, text: Mine.}', '1.1.0'),
+    ]) {
+      test('an entry a selected drop step names refuses, any keys: '
+          '$entry from $from', () async {
+        final fault = _refusal(
+          await _case({
+            'shared': 'shared_lines: [$entry]',
+          }, packFiles: dropFiles(from)),
+        );
+
+        expect(fault.code, MigrateFaultCode.overrideDangling);
+        expect(fault.exitStatus, 78);
+        expect(fault.file, file);
+        expect(fault.key, 'shared_lines.ghost');
+        expect(
+          fault.toText(),
+          '$file: shared_lines.ghost: no pack defines the shared line ghost; '
+          '$tail',
+        );
+      });
+    }
+
+    test('a drop step below the pin spares a complete line', () async {
+      final fixture = await _case({
+        'shared': 'shared_lines: [{id: ghost, text: Mine.}]',
+      }, packFiles: dropFiles('0.9.0'));
+
+      expect(fixture.run, returnsNormally);
+    });
+
+    test('a dropped id another pack declares spares the entry', () async {
+      final fixture = await _case(
+        {'shared': 'shared_lines: [{id: ghost, text: Mine.}]'},
+        packs: [..._packs, 'acme_top'],
+        packFiles: {
+          ...dropFiles('1.0.0'),
+          '.specstone/packs/acme_top/pack.yaml':
+              'name: acme_top\nversion: 1.0.0\nextends: acme\n'
+              'shared_lines:\n  - {id: ghost, text: Declared.}\n',
+        },
+      );
+
+      expect(fixture.run, returnsNormally);
+    });
+
     test('the entries join the override faults in file order', () async {
       final fault = _refusal(
         await _case({
