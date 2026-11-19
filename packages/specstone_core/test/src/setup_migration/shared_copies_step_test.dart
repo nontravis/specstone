@@ -6,10 +6,14 @@ import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show parseOverrides;
 import 'package:specstone_core/src/setup_migration/shared_copies_step.dart';
+import 'package:specstone_core/src/templates/layer_source.dart'
+    show loadProjectTemplates;
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/shared_entry.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+
+import '../../helpers/temp_tree.dart';
 
 const _templates = '.specstone/templates';
 const _personal = '~/.specstone/packs/mine';
@@ -50,20 +54,20 @@ id: runbook
 description: Describes one routine.
 path: runbooks/{slug}.md
 '''),
+  'mine/pack.yaml': _bytes('name: mine\nversion: 1.0.0\nextends: acme\n'),
+  'mine/api.yaml': _bytes('fields:\n  - {id: overrides, description: Mine.}\n'),
 };
 
-/// The merged set of the pack, the project layers [project] holds, and the
-/// project shared lines [lines].
-MergedSet _set(
-  Map<String, String> project, {
-  List<SharedLine> lines = const [],
-}) => TemplateResolver(shippedFiles: _shipped()).resolveCarried(
-  packNames: const ['acme'],
+/// The merged set of [packs], the project layers [texts] holds by path, and
+/// the project shared lines [lines].
+MergedSet _resolve(
+  Map<String, String> texts,
+  List<String> packs,
+  List<SharedLine> lines,
+) => TemplateResolver(shippedFiles: _shipped()).resolveCarried(
+  packNames: packs,
   homeDirectory: null,
-  projectLayers: parseOverrides({
-    for (final MapEntry(:key, :value) in project.entries)
-      '$_templates/$key': value,
-  }),
+  projectLayers: parseOverrides(texts),
   projectSharedLines: lines,
 );
 
@@ -71,17 +75,25 @@ SharedCopiesStep _step(
   Map<String, String> project, {
   Map<String, String> personal = const {},
   List<SharedLine> lines = const [],
-}) => planSharedCopies(
-  projectFiles: [
+  List<String> packs = const ['acme'],
+}) {
+  final texts = {
     for (final MapEntry(:key, :value) in project.entries)
-      ProjectLayerFile(path: '$_templates/$key', lf: value),
-  ],
-  target: _set(project, lines: lines),
-  personalFiles: [
-    for (final MapEntry(:key, :value) in personal.entries)
-      PersonalPackFile(path: '$_personal/$key', lf: value),
-  ],
-);
+      '$_templates/$key': value,
+  };
+  return planSharedCopies(
+    projectFiles: [
+      for (final MapEntry(:key, :value) in texts.entries)
+        ProjectLayerFile(path: key, lf: value),
+    ],
+    target: _resolve(texts, packs, lines),
+    personalFiles: [
+      for (final MapEntry(:key, :value) in personal.entries)
+        PersonalPackFile(path: '$_personal/$key', lf: value),
+    ],
+    resolveWith: (changed) => _resolve(changed, packs, lines),
+  );
+}
 
 String _written(SharedCopiesStep step, String file) =>
     step.rewrites['$_templates/$file']!;
@@ -382,6 +394,21 @@ void main() {
       }
     });
 
+    test('whose removal changes the merged field, since a layer between the '
+        'shared field and the project writes it, stays and counts as left', () {
+      const copy =
+          'fields:\n'
+          '  - {id: overrides, type: string, list: true, '
+          'description: Shared overrides.}\n';
+
+      final step = _step({'api.yaml': copy}, packs: const ['acme', 'mine']);
+
+      expect(step.rewrites, isEmpty);
+      expect(step.stripped, isEmpty);
+      expect(step.left, ['$_templates/api.yaml:2 overrides']);
+      expect(_step({'api.yaml': copy}).stripped, hasLength(1));
+    });
+
     test('equal to a shared field the doc type is not reached by is no '
         'copy and stays', () {
       final step = _step({
@@ -436,15 +463,21 @@ void main() {
     expect(step.leftLine, isNull);
   });
 
-  test('a path entry holds no backslash', () {
-    final step = _step({
-      'api.yaml': 'description: |-\n  $_apiLine\n  $_statusLine\n',
-    });
+  test(
+    'an entry reads the path the project loader gives, `/`-separated',
+    () async {
+      const text = 'description: |-\n  $_apiLine\n  $_statusLine\n';
+      final root = await writeTree({'$_templates/api.yaml': text});
+      final layer = loadProjectTemplates(root).single;
 
-    expect(step.stripped.single, isNot(contains(r'\')));
-    expect(
-      step.stripped.single,
-      matches(RegExp(r'^\.specstone/templates/api\.yaml:\d+ no_status$')),
-    );
-  });
+      final step = planSharedCopies(
+        projectFiles: [ProjectLayerFile(path: layer.file, lf: text)],
+        target: _resolve({layer.file: text}, const ['acme'], const []),
+        personalFiles: const [],
+        resolveWith: (changed) => _resolve(changed, const ['acme'], const []),
+      );
+
+      expect(step.stripped, ['.specstone/templates/api.yaml:3 no_status']);
+    },
+  );
 }

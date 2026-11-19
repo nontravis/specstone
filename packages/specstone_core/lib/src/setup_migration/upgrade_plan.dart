@@ -163,15 +163,19 @@ RunPlan _upgradeRunOf(
         case RecordPathOverride(:final file, path: final path?))
       PlannedCreate(path: file, text: 'path: $path\n'),
   ];
-  final finalSet = templates.resolveCarried(
-    packNames: pins.keys,
-    homeDirectory: homeDirectory,
-    projectLayers: parseOverrides({
-      for (final file in overrideFiles) file.path: file.lf,
-      for (final create in overrideCreates) create.path: create.text,
-    }),
-    projectSharedLines: projectSharedLines,
-  );
+  MergedSet resolveWith(Map<String, String> overrideTexts) =>
+      templates.resolveCarried(
+        packNames: pins.keys,
+        homeDirectory: homeDirectory,
+        projectLayers: parseOverrides({
+          ...overrideTexts,
+          for (final create in overrideCreates) create.path: create.text,
+        }),
+        projectSharedLines: projectSharedLines,
+      );
+  final finalSet = resolveWith({
+    for (final file in overrideFiles) file.path: file.lf,
+  });
   final stripIndex = stepKinds.indexWhere((step) => step is StripSharedCopies);
   final sharedCopies = stripIndex < 0
       ? null
@@ -180,6 +184,7 @@ RunPlan _upgradeRunOf(
           stripIndex: stripIndex,
           target: finalSet,
           personalFiles: _personalFilesOf(available.values, homeDirectory),
+          resolveWith: resolveWith,
         );
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
@@ -879,6 +884,7 @@ SharedCopiesStep _sharedCopiesOf(
   required int stripIndex,
   required MergedSet target,
   required List<PersonalPackFile> personalFiles,
+  required MergedSet Function(Map<String, String> overrideTexts) resolveWith,
 }) {
   final step = planSharedCopies(
     projectFiles: [
@@ -886,6 +892,7 @@ SharedCopiesStep _sharedCopiesOf(
     ],
     target: target,
     personalFiles: personalFiles,
+    resolveWith: resolveWith,
   );
   for (final file in files) {
     if (step.rewrites[file.path] case final text?) {

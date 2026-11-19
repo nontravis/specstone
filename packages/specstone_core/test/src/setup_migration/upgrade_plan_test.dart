@@ -5235,22 +5235,39 @@ const Map<String, String> _stripOverrides = {
       '  Be brief.\n',
 };
 
-Future<({Directory project, Directory home})> _stripFixture({
+/// A project and the personal pack home a strip test plans over.
+final class _StripFixture {
+  const new(this.project, this.home);
+
+  final Directory project;
+  final Directory home;
+}
+
+Future<_StripFixture> _stripFixture({
   String packYaml = _stripPackYaml,
   String? types,
   Map<String, String> overrides = _stripOverrides,
-}) => _fixture(
-  packYaml: packYaml,
-  runbookType: types ?? _stripTypes(),
-  docs: const {},
-  overrides: overrides,
+}) async {
+  final fixture = await _fixture(
+    packYaml: packYaml,
+    runbookType: types ?? _stripTypes(),
+    docs: const {},
+    overrides: overrides,
+  );
+  return _StripFixture(fixture.project, fixture.home);
+}
+
+RunPlan _planStrip(_StripFixture fixture) => planUpgradeRun(
+  fixture.project,
+  templates: TemplateResolver(),
+  homeDirectory: fixture.home,
 );
 
 void _sharedCopiesTests() {
   group('strip_shared_copies step', () {
     test('three stripped files and two kept copies print the step line, '
         'then the left line, and list both under sharedCopies', () async {
-      final plan = _plan(
+      final plan = _planStrip(
         await _stripFixture(
           types: _stripTypes(
             runbookDescription:
@@ -5300,7 +5317,7 @@ void _sharedCopiesTests() {
 
     test('a step that keeps no copy prints no left line and lists left as '
         'empty', () async {
-      final plan = _plan(await _stripFixture());
+      final plan = _planStrip(await _stripFixture());
 
       expect(
         plan.toText(),
@@ -5321,7 +5338,7 @@ void _sharedCopiesTests() {
 
     test('a line equal to a pack line and a shared.yaml line is listed '
         'under the pack line printed first', () async {
-      final plan = _plan(
+      final plan = _planStrip(
         await _stripFixture(
           overrides: {
             _stripRunbookPath: _statusCopyOverride,
@@ -5340,7 +5357,7 @@ void _sharedCopiesTests() {
     test('the removals sit in commit 2 beside the pins, and commit 1 is '
         'absent', () async {
       final fixture = await _stripFixture();
-      final plan = _plan(fixture);
+      final plan = _planStrip(fixture);
 
       final steps = plan.journalSteps(
         base: 'abc',
@@ -5367,7 +5384,7 @@ void _sharedCopiesTests() {
         },
       );
 
-      final plan = _plan(fixture);
+      final plan = _planStrip(fixture);
 
       expect(
         _rewriteAt(plan, _stripGuidePath).text,
@@ -5390,7 +5407,7 @@ migrations:
     steps:
       - strip_shared_copies: {}
 ''';
-      final plan = _plan(
+      final plan = _planStrip(
         await _stripFixture(
           packYaml: packYaml,
           overrides: {
@@ -5417,7 +5434,7 @@ migrations:
     });
 
     test('a line shared.yaml disabled is never stripped', () async {
-      final plan = _plan(
+      final plan = _planStrip(
         await _stripFixture(
           overrides: {
             _stripRunbookPath: _statusCopyOverride,
@@ -5437,6 +5454,36 @@ migrations:
       );
     });
 
+    test('a file a rename step and the strip both change gets one rewrite '
+        'holding both changes', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          packYaml: _stripPackYaml.replaceFirst(
+            '      - strip_shared_copies: {}',
+            '      - rename_field: {doc_type: runbook, from: owner, '
+                'to: on_call}\n'
+                '      - strip_shared_copies: {}',
+          ),
+          overrides: {
+            _stripRunbookPath:
+                'description: |-\n  A runbook.\n  Never write a status field.\n'
+                'fields:\n  - {id: owner, type: string}\n',
+          },
+        ),
+      );
+
+      final rewrite = _rewriteAt(plan, _stripRunbookPath);
+      expect(
+        rewrite.text,
+        'description: |-\n  A runbook.\n'
+        'fields:\n  - {id: on_call, type: string}\n',
+      );
+      expect(rewrite.changes, [
+        'rename_field runbook owner -> on_call',
+        'strip_shared_copies',
+      ]);
+    });
+
     test('the plan hash changes when a stripped copy moves to another line, '
         'though the printed count stays', () async {
       final fixture = await _stripFixture(
@@ -5445,12 +5492,12 @@ migrations:
               'description: |-\n  A guide.\n  Never write a status field.\n',
         },
       );
-      final first = _plan(fixture);
+      final first = _planStrip(fixture);
 
       File('${fixture.project.path}/$_stripGuidePath').writeAsStringSync(
         'description: |-\n  A guide.\n  More.\n  Never write a status field.\n',
       );
-      final second = _plan(fixture);
+      final second = _planStrip(fixture);
 
       expect(second.toText(), first.toText());
       expect(

@@ -63,31 +63,58 @@ final class SharedCopiesStep {
       left.isEmpty ? null : 'shared copies left: ${left.length}';
 }
 
-/// Plans the removal of each copy of a merged shared entry from [projectFiles].
+/// Plans the removal of each copy of a shared entry from [projectFiles].
 ///
-/// A copy is a description line equal, word for word, to a shared line that
-/// reaches the file's doc type, or a field entry equal in every property to a
-/// shared field that reaches it. [target] holds the shared entries, the
-/// project layers included. A copy is found in the text, so every other byte
-/// and comment of a file stays, and a removal is checked against the text
-/// re-read. A copy the step cannot remove safely, one whose removal would leave
-/// a doc type no lower layer defines without a description, or any copy in
-/// [personalFiles], which the step never writes, is kept and listed in `left`.
+/// A copy is a description line or a field entry that equals, in every
+/// property, an entry of [target] reaching its doc type. Every other byte of a
+/// file stays. A copy stays, listed in `left`, when its removal cannot be
+/// checked, would empty a description no lower layer defines, or changes a
+/// merged field, which [resolveWith] re-resolves from the project texts by
+/// path. Any copy in [personalFiles] stays.
 SharedCopiesStep planSharedCopies({
   required List<ProjectLayerFile> projectFiles,
   required MergedSet target,
   required List<PersonalPackFile> personalFiles,
+  required MergedSet Function(Map<String, String> projectTexts) resolveWith,
 }) {
+  final scans = {
+    for (final file in projectFiles)
+      file.path: _Scan.of(file.path, file.lf, target),
+  };
+  final keptFields = <String, Set<int>>{};
+  while (true) {
+    final removals = {
+      for (final MapEntry(:key, :value) in scans.entries)
+        if (value != null) key: value.removal(keptFields[key] ?? const {}),
+    };
+    final changed = _changedFieldCopies(
+      removals,
+      scans,
+      target: target,
+      resolveWith: () => resolveWith({
+        for (final file in projectFiles)
+          file.path: removals[file.path]?.text ?? file.lf,
+      }),
+    );
+    if (changed.isEmpty) return _stepOf(removals, personalFiles, target);
+    for (final MapEntry(:key, :value) in changed.entries) {
+      (keptFields[key] ??= {}).addAll(value);
+    }
+  }
+}
+
+SharedCopiesStep _stepOf(
+  Map<String, _Removal> removals,
+  List<PersonalPackFile> personalFiles,
+  MergedSet target,
+) {
   final rewrites = <String, String>{};
   final stripped = <String>[];
   final left = <String>[];
-  for (final file in projectFiles) {
-    final scan = _Scan.of(file.path, file.lf, target);
-    if (scan == null) continue;
-    final removal = scan.removal;
-    if (removal.text case final text?) rewrites[file.path] = text;
-    stripped.addAll(removal.stripped.map((copy) => copy.entry(file.path)));
-    left.addAll(removal.left.map((copy) => copy.entry(file.path)));
+  for (final MapEntry(:key, :value) in removals.entries) {
+    if (value.text case final text?) rewrites[key] = text;
+    stripped.addAll(value.stripped.map((copy) => copy.entry(key)));
+    left.addAll(value.left.map((copy) => copy.entry(key)));
   }
   for (final file in personalFiles) {
     final scan = _Scan.of(file.path, file.lf, target);
@@ -97,12 +124,53 @@ SharedCopiesStep planSharedCopies({
   return SharedCopiesStep(rewrites: rewrites, stripped: stripped, left: left);
 }
 
-/// One copy: its 1-based [line] and the [id] of the shared entry it equals.
+/// Returns, by path, the lines of the field copies in [removals] whose removal
+/// changes the merged field of their doc type.
+///
+/// An intermediate layer that writes the same field id makes the shared
+/// field's text stop printing once the project copy is gone. [resolveWith] is
+/// called only when a field copy is stripped.
+Map<String, Set<int>> _changedFieldCopies(
+  Map<String, _Removal> removals,
+  Map<String, _Scan?> scans, {
+  required MergedSet target,
+  required MergedSet Function() resolveWith,
+}) {
+  final hasFieldCopy = removals.values.any(
+    (removal) => removal.stripped.any((copy) => copy.isField),
+  );
+  if (!hasFieldCopy) return const {};
+  final after = resolveWith();
+  return {
+    for (final MapEntry(:key, :value) in removals.entries)
+      key: {
+        for (final copy in value.stripped)
+          if (copy.isField &&
+              _mergedFieldOf(target, scans[key]!.type.id, copy.id) !=
+                  _mergedFieldOf(after, scans[key]!.type.id, copy.id))
+            copy.line,
+      },
+  }..removeWhere((_, lines) => lines.isEmpty);
+}
+
+/// Returns the merged field [fieldId] of [typeId] as comparable text, or null.
+String? _mergedFieldOf(MergedSet set, String typeId, String fieldId) {
+  final field = set
+      .lookup(typeId)
+      ?.fields
+      .where((field) => field.id == fieldId)
+      .firstOrNull;
+  return field == null ? null : _canonical(field.toJson());
+}
+
+/// One copy: its 1-based [line], the [id] of the shared entry it equals, and
+/// whether it is a field entry.
 final class _Copy {
-  const new(this.line, this.id);
+  const new(this.line, this.id, {this.isField = false});
 
   final int line;
   final String id;
+  final bool isField;
 
   String entry(String path) => '$path:$line $id';
 }
@@ -230,18 +298,19 @@ final class _Scan {
 
   /// Plans which copies the file loses and the text it takes.
   ///
-  /// Every copy stays when its lines cannot be located or the text with the
-  /// removals no longer reads as the file less the copies.
-  _Removal get removal {
-    final plan = _plan();
+  /// The field copies at [keptFieldLines] stay. Every copy stays when its lines
+  /// cannot be located or the text with the removals no longer reads as the
+  /// file less the copies.
+  _Removal removal(Set<int> keptFieldLines) {
+    final plan = _plan(keptFieldLines);
     final text = plan.text;
     if (text == null || _isRemovalSafe(text, plan)) return plan;
     return _Removal.keeping(copies);
   }
 
-  _Removal _plan() {
+  _Removal _plan(Set<int> keptFieldLines) {
     final lines = lf.split('\n');
-    final drops = _Drops.of(this);
+    final drops = _Drops.of(this, keptFieldLines);
     final ranges = drops.ranges(lines);
     if (ranges == null) return _Removal.keeping(copies);
     if (ranges.isEmpty) {
@@ -272,12 +341,12 @@ final class _Scan {
         for (final (i, line) in scan.valueLines.indexed)
           if (!strippedLines.contains(scan.textLineOf(i))) line,
       ];
-      if (kept.length == scan.valueLines.length) {
-        // No description line removed.
-      } else if (kept.where((l) => l.trim().isNotEmpty).isEmpty) {
-        expected.remove(_descriptionKey);
-      } else {
-        expected[_descriptionKey] = kept.join('\n');
+      if (kept.length < scan.valueLines.length) {
+        if (kept.any((line) => line.trim().isNotEmpty)) {
+          expected[_descriptionKey] = kept.join('\n');
+        } else {
+          expected.remove(_descriptionKey);
+        }
       }
     }
     final dropped = {
@@ -305,19 +374,27 @@ final class _Drops {
   const new _({
     required this.scan,
     required this.dropsKey,
+    required this.strippedFields,
     required this.stripped,
     required this.left,
   });
 
   /// Decides, for each copy of [scan], whether the step strips or keeps it.
   ///
-  /// A description whose every line is a copy loses its key when a lower layer
-  /// defines the doc type, whose own description then shows; else its last
-  /// copy stays, so the type keeps one.
-  static _Drops of(_Scan scan) {
+  /// The field copies at [keptFieldLines] stay. A description whose every line
+  /// is a copy loses its key when a lower layer defines the doc type, whose own
+  /// description then shows; else its last copy stays, so the type keeps one.
+  static _Drops of(_Scan scan, Set<int> keptFieldLines) {
     final description = scan.description;
-    final stripped = <_Copy>[for (final field in scan.fieldCopies) field.copy];
-    final left = <_Copy>[];
+    final strippedFields = [
+      for (final field in scan.fieldCopies)
+        if (!keptFieldLines.contains(field.copy.line)) field,
+    ];
+    final stripped = <_Copy>[for (final field in strippedFields) field.copy];
+    final left = <_Copy>[
+      for (final field in scan.fieldCopies)
+        if (keptFieldLines.contains(field.copy.line)) field.copy,
+    ];
     var dropsKey = false;
     if (description != null && description.copyIds.isNotEmpty) {
       final copies = description.copies;
@@ -332,6 +409,7 @@ final class _Drops {
     return _Drops._(
       scan: scan,
       dropsKey: dropsKey,
+      strippedFields: strippedFields,
       stripped: stripped,
       left: left,
     );
@@ -339,6 +417,7 @@ final class _Drops {
 
   final _Scan scan;
   final bool dropsKey;
+  final List<_FieldCopy> strippedFields;
   final List<_Copy> stripped;
   final List<_Copy> left;
 
@@ -358,14 +437,14 @@ final class _Drops {
         }
       }
     }
-    if (scan.fieldCopies.isEmpty) return result;
+    if (strippedFields.isEmpty) return result;
     final fieldRanges = _fieldRanges(lines);
     return fieldRanges == null ? null : [...result, ...fieldRanges];
   }
 
   List<_LineRange>? _fieldRanges(List<String> lines) {
     final result = <_LineRange>[];
-    for (final field in scan.fieldCopies) {
+    for (final field in strippedFields) {
       final start = field.node.span.start;
       if (!_listMarker.hasMatch(lines[start.line].substring(0, start.column))) {
         return null;
@@ -373,7 +452,7 @@ final class _Drops {
       result.add(_LineRange(start.line, _lastLineOf(field.node)));
     }
     final list = scan.root.nodes[_fieldsKey]! as YamlList;
-    if (list.length > scan.fieldCopies.length) return result;
+    if (list.length > strippedFields.length) return result;
     final keyLine = _keyNodeOf(scan.root, _fieldsKey)!.span.start.line;
     if (!_fieldsKeyLine.hasMatch(lines[keyLine])) return null;
     return [...result, _LineRange(keyLine, keyLine)];
@@ -512,7 +591,11 @@ List<_FieldCopy> _scanFields(
           _FieldCopy(
             node: entry,
             index: i,
-            copy: _Copy(entry.nodes['id']!.span.start.line + 1, field.id),
+            copy: _Copy(
+              entry.nodes['id']!.span.start.line + 1,
+              field.id,
+              isField: true,
+            ),
           ),
   ];
 }
