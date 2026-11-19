@@ -582,8 +582,11 @@ void main() {
       'software-tech',
     });
     for (final type in types) {
-      final lines = type.description!.split('\n');
-      expect(lines, contains(citeNoteGuideLine), reason: type.id);
+      expect(
+        type.renderGuide().split('\n'),
+        contains(citeNoteGuideLine),
+        reason: type.id,
+      );
     }
   });
 }
