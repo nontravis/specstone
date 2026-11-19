@@ -171,6 +171,21 @@ final class BulletLines extends MigrationStep {
   String get kind => 'bullet_lines';
 }
 
+/// A `strip_shared_copies` step: `migrate` removes each project layer line and
+/// field that equals a merged shared entry reaching its doc type; the step
+/// takes no keys.
+///
+/// It reaches no doc: the plan strips the project layer files as a whole.
+final class StripSharedCopies extends MigrationStep {
+  const new();
+
+  @override
+  bool touches(String docTypeId) => false;
+
+  @override
+  String get kind => 'strip_shared_copies';
+}
+
 /// Parses a `migrations:` [node] of a `pack.yaml` read from [file].
 ///
 /// A null node gives no entries; entries keep file order. A bad `from:` is
@@ -289,6 +304,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'bullet_lines' => _parseBulletLines(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
+    'strip_shared_copies' => _parseStripSharedCopies(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -459,6 +480,22 @@ RestampCodeFingerprints _parseRestampCodeFingerprints(
     prefix: 'migrations[$i].steps[$j].restamp_code_fingerprints.',
   );
   return const RestampCodeFingerprints();
+}
+
+StripSharedCopies _parseStripSharedCopies(
+  YamlMap map,
+  int i,
+  int j, {
+  required String file,
+}) {
+  checkKeys(
+    map,
+    const <String>{},
+    file: file,
+    format: 'strip_shared_copies step',
+    prefix: 'migrations[$i].steps[$j].strip_shared_copies.',
+  );
+  return const StripSharedCopies();
 }
 
 BulletLines _parseBulletLines(

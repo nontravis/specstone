@@ -19,6 +19,9 @@ const projectSharedFileName = '$reservedDocTypeId.yaml';
 
 const _projectSharedKeys = {'shared_lines'};
 
+/// The personal packs folder as faults and plans print it.
+const _personalPacksFolder = '~/.specstone/packs';
+
 /// A pack whose manifest is read and checked but whose files are not parsed.
 ///
 /// The parse step runs later, after every listed pack's manifest check, so no
@@ -66,6 +69,15 @@ final class LoadedPack {
         kind: kind,
         files: _files,
       ),
+  };
+
+  /// Returns the text of each doc-type file, keyed by layer-relative path, in
+  /// code point order, with CRLF read as LF.
+  ///
+  /// Throws a [TemplateFault] `yaml_syntax` for a file that is not UTF-8.
+  Map<String, String> docTypeTexts() => {
+    for (final path in _docTypeNames(_paths))
+      path: decodeYamlBytes(_read(path), file: '$displayFolder/$path'),
   };
 
   /// Returns the pack's feature pattern layers, keyed by id, in code point
@@ -134,7 +146,7 @@ LoadedPack loadShippedPackManifest(String name, Map<String, Uint8List> files) {
 /// path with `/` separators. Call [LoadedPack.parseDocTypes] later to parse
 /// its doc-type files.
 LoadedPack loadPersonalPackManifest(String name, Directory home) {
-  final displayFolder = '~/.specstone/packs/$name';
+  final displayFolder = '$_personalPacksFolder/$name';
   final folder = Directory.fromUri(home.uri.resolve('.specstone/packs/$name/'));
   return LoadedPack._(
     manifest: _packManifest(displayFolder, _manifestBytes(folder)),
@@ -145,6 +157,20 @@ LoadedPack loadPersonalPackManifest(String name, Directory home) {
     read: (path) => readPlanInput(File.fromUri(folder.uri.resolve(path))),
   );
 }
+
+/// Loads the personal packs among [manifests] from [home], in the order of
+/// [manifests].
+///
+/// A manifest read from a shipped pack is skipped. [home] is null only when
+/// [manifests] holds no personal pack.
+List<LoadedPack> loadPersonalPacks(
+  Iterable<PackManifest> manifests, {
+  required Directory? home,
+}) => [
+  for (final manifest in manifests)
+    if (manifest.file.startsWith('$_personalPacksFolder/'))
+      loadPersonalPackManifest(manifest.name, home!),
+];
 
 /// Loads the project templates under [root], in code point order.
 ///
