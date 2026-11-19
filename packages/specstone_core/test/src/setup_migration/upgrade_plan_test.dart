@@ -5555,6 +5555,45 @@ void _dropDefaultLinesTests() {
       );
     });
   });
+
+  group('drop_shared_lines step', () {
+    test('a drop_shared_lines step plans a 0 docs line, no writes', () async {
+      const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - drop_shared_lines: {ids: [ghost]}
+''';
+      final plan = _plan(
+        await _fixture(
+          packYaml: packYaml,
+          overrides: const {
+            _overridePath: 'sections: [{id: procedure, description: Kept.}]\n',
+          },
+        ),
+      );
+
+      expect(
+        plan.toText(),
+        contains(
+          'commit 2, rewrites:\n'
+          '  from 1.0.0: drop_shared_lines: 0 docs\n',
+        ),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {'from': '1.0.0', 'step': 'drop_shared_lines', 'paths': <String>[]},
+      ]);
+      final rewritten = plan.rewrites.map((rewrite) => rewrite.path);
+      expect(
+        rewritten,
+        isNot(contains('docs/prds/runbooks/deploy/RUNBOOK.md')),
+      );
+      expect(rewritten, isNot(contains(_overridePath)));
+    });
+  });
 }
 
 const _stripPackYaml = '''
