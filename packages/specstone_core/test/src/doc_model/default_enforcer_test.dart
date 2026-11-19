@@ -30,6 +30,19 @@ void main() {
       expect(rows.single.kind, 'Service');
     });
 
+    test('a second table in the section adds no row', () {
+      final rows = entityRowsOf(const [
+        '| Entity | Kind |',
+        '|---|---|',
+        '| CheckRun | Aggregate root |',
+        '',
+        '| Entity | Kind |',
+        '|---|---|',
+        '| Other | Aggregate root |',
+      ]);
+      expect(rows.map((row) => row.entity), ['CheckRun']);
+    });
+
     test('a section with no table gives no rows', () {
       expect(entityRowsOf(const ['None of its own.']), isEmpty);
     });

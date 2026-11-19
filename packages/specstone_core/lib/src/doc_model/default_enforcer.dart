@@ -1,11 +1,10 @@
-import 'package:specstone_core/src/doc_model/table_cell.dart';
+import 'package:specstone_core/src/doc_model/markdown_lines.dart';
 
 const _entityColumn = 'Entity';
 const _kindColumn = 'Kind';
 const _aggregateRootKind = 'Aggregate root';
 const _serviceKind = 'Service';
 
-final _separatorCell = RegExp(r'^:?-+:?$');
 final _trailingLinkGroup = RegExp(r'\s*\(\[[^\]]*\]\([^)]*\)\)\s*$');
 
 /// One row of a domain doc's entities table.
@@ -16,23 +15,22 @@ final class EntityRow {
   final String kind;
 }
 
-/// Returns the rows of the first table in [sectionLines] with an Entity and a
-/// Kind column, read by header name.
+/// Returns the rows of the first table in [sectionLines], read by its Entity
+/// and Kind header names; gives none when it lacks either column.
 List<EntityRow> entityRowsOf(Iterable<String> sectionLines) {
-  final lines = sectionLines
-      .map((line) => line.trim())
-      .where((line) => line.startsWith('|'))
-      .toList();
-  if (lines.isEmpty) return const [];
-  final header = _cellsOf(lines.first);
+  final lines = sectionLines.toList();
+  final head = _firstTableHead(lines);
+  if (head == null) return const [];
+  final header = _cellsOf(lines[head]);
   final entityIndex = header.indexOf(_entityColumn);
   final kindIndex = header.indexOf(_kindColumn);
   if (entityIndex < 0 || kindIndex < 0) return const [];
   final width = entityIndex > kindIndex ? entityIndex : kindIndex;
   final rows = <EntityRow>[];
-  for (final line in lines.skip(1)) {
+  for (final line in lines.skip(head + 2)) {
+    if (line.trim().isEmpty || !line.contains('|')) break;
     final cells = _cellsOf(line);
-    if (cells.length <= width || _isSeparator(cells)) continue;
+    if (cells.length <= width) continue;
     rows.add(EntityRow(entity: cells[entityIndex], kind: cells[kindIndex]));
   }
   return rows;
@@ -72,16 +70,17 @@ Iterable<String> ancestorTwinPaths(String docPath) sync* {
   }
 }
 
-List<String> _cellsOf(String row) {
-  var inner = row.trim();
-  if (inner.startsWith('|')) inner = inner.substring(1);
-  if (inner.endsWith('|') && !inner.endsWith(r'\|')) {
-    inner = inner.substring(0, inner.length - 1);
+int? _firstTableHead(List<String> lines) {
+  for (var i = 0; i + 1 < lines.length; i++) {
+    if (startsTable(lines[i], lines[i + 1])) return i;
   }
-  return inner.split(tableCellPipe).map((cell) => cell.trim()).toList();
+  return null;
 }
 
-bool _isSeparator(List<String> cells) => cells.every(_separatorCell.hasMatch);
+List<String> _cellsOf(String row) => [
+  for (final cell in tableCellRanges(row))
+    row.substring(cell.start, cell.end).trim(),
+];
 
 List<String> _entitiesOfKind(List<EntityRow> rows, String kind) => [
   for (final row in rows)
