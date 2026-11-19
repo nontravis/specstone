@@ -4,7 +4,6 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/pattern_entry.dart';
 
 /// One `banned_patterns` match on a line of a held section or on a prose field
 /// value.

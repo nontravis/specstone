@@ -3,13 +3,17 @@ import 'dart:math';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/guide_limits.dart';
 import 'package:specstone_core/src/templates/models/line_prefix_count.dart';
+import 'package:specstone_core/src/templates/models/pattern_entry.dart';
+import 'package:specstone_core/src/templates/models/reference_entry.dart';
+import 'package:specstone_core/src/templates/models/summary_rows.dart';
 import 'package:specstone_core/src/templates/models/when_field.dart';
-import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/shared_merge.dart';
-import 'package:specstone_core/src/templates/summary_rows.dart';
 
 export 'package:specstone_core/src/templates/models/line_prefix_count.dart';
+export 'package:specstone_core/src/templates/models/pattern_entry.dart';
+export 'package:specstone_core/src/templates/models/reference_entry.dart';
+export 'package:specstone_core/src/templates/models/summary_rows.dart';
 export 'package:specstone_core/src/templates/models/when_field.dart';
 
 /// The five fields every doc type carries below its lowest layer.

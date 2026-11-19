@@ -3,7 +3,6 @@ import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
-import 'package:specstone_core/src/templates/summary_rows.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
@@ -639,7 +638,7 @@ ListWrite<ReferenceEntry>? parseReferenceList(
     null => null,
     final YamlList list => PlainList<ReferenceEntry>([
       for (var i = 0; i < list.length; i++)
-        ReferenceEntry.parse(
+        parseReferenceEntry(
           _entryMap(list[i], 'reference[$i]', file: file),
           file: file,
           key: 'reference[$i]',
@@ -695,7 +694,7 @@ ListChange<ReferenceEntry> _referenceChange(
         ? <ReferenceEntry>[]
         : [
             for (var i = 0; i < add.length; i++)
-              ReferenceEntry.parse(
+              parseReferenceEntry(
                 _entryMap(add[i], 'reference.add[$i]', file: file),
                 file: file,
                 key: 'reference.add[$i]',
@@ -1383,7 +1382,7 @@ ListWrite<PatternEntry>? _patternWrite(
   key,
   file: file,
   prefix: prefix,
-  parseEntry: (entry, keyPath) => PatternEntry.parse(
+  parseEntry: (entry, keyPath) => parsePatternEntry(
     entry,
     file: file,
     key: keyPath,

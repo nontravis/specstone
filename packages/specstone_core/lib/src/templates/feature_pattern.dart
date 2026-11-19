@@ -4,6 +4,7 @@ import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/models/checklist_item.dart';
 import 'package:specstone_core/src/templates/models/ranked_fault_files.dart';
+import 'package:specstone_core/src/templates/models/reference_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 

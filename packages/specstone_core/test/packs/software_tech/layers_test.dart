@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:specstone_core/src/templates/reference_entry.dart';
+import 'package:specstone_core/src/templates/models/reference_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
