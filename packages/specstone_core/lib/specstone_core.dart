@@ -104,11 +104,12 @@ export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
 export 'src/templates/cleanup_bounds.dart' show CleanupBounds;
 export 'src/templates/component_catalog.dart'
     show componentCatalogBlocks, componentCatalogKind;
-export 'src/templates/feature_pattern.dart' show FeaturePattern;
+export 'src/templates/feature_pattern.dart' show FeaturePatternBody;
 export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
 export 'src/templates/models/checklist_item.dart';
+export 'src/templates/models/feature_pattern.dart';
 export 'src/templates/models/root_match.dart';
 export 'src/templates/project_config.dart'
     show matchProjectRoot, readCleanupBounds, requireSpecstoneFolder;

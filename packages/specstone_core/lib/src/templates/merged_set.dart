@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
-import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/feature_pattern.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
 import 'package:specstone_core/src/templates/shared_merge.dart';
 
