@@ -3396,6 +3396,23 @@ agent_file_roots:
       expect(_bytesUnder(project), before);
     });
 
+    test('a json dry run with an add carries addedPins', () async {
+      final project = await pinProject();
+
+      final result = await migrate(project, [
+        '--dry-run',
+        '--json',
+        '--add',
+        'agent-skills',
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      final plan = jsonDecode(result.stdout as String) as Map<String, Object?>;
+      expect(plan['addedPins'], [
+        {'pack': 'agent-skills', 'version': skills},
+      ]);
+    });
+
     test('the apply with the same adds pins agent-skills at the shipped '
         'version', () async {
       final project = await pinProject();

@@ -5193,13 +5193,12 @@ void _bulletLinesTests() {
 const _configPath = '.specstone/config.yaml';
 
 /// Plans the upgrade of [project] with [adds] as the added packs.
-RunPlan _planAdding(Directory project, List<String> adds, {Directory? home}) =>
-    planUpgradeRun(
-      _canonical(project),
-      templates: TemplateResolver(),
-      homeDirectory: home,
-      addedPacks: adds,
-    );
+RunPlan _planAdding(Directory project, List<String> adds) => planUpgradeRun(
+  _canonical(project),
+  templates: TemplateResolver(),
+  homeDirectory: null,
+  addedPacks: adds,
+);
 
 /// The `config.yaml` text [plan] writes, less the `agent_files_version` line
 /// every run that writes the config sets.
@@ -5346,19 +5345,68 @@ void _addedPinsTests() {
       }
     });
 
+    group('a one-line flow map takes the pin after its last value', () {
+      for (final (:label, :config, :expected) in [
+        (
+          label: 'with no inner space',
+          config: 'packs: {prd-core: $core}\n',
+          expected: 'packs: {prd-core: $core, agent-skills: $skills}\n',
+        ),
+        (
+          label: 'with a space inside the braces',
+          config: 'packs: { prd-core: $core }\n',
+          expected: 'packs: { prd-core: $core, agent-skills: $skills }\n',
+        ),
+      ]) {
+        test(label, () async {
+          final root = await project(config);
+
+          final plan = _planAdding(root, const ['agent-skills']);
+
+          expect(_configWrittenBy(plan), expected);
+        });
+      }
+    });
+
     test(
-      'a one-line flow map takes the pin before its closing brace',
+      'an added pack leads the header ahead of the spec tree move',
       () async {
-        final root = await project('packs: {prd-core: $core}\n');
+        final root = await _treeProject({
+          'specs/TECH_STACK.md': _draftDoc('Tech stack'),
+        });
 
         final plan = _planAdding(root, const ['agent-skills']);
 
         expect(
-          _configWrittenBy(plan),
-          'packs: {prd-core: $core, agent-skills: $skills}\n',
+          plan.header,
+          'pack upgrade: agent-skills $skills (added), spec tree to flutter',
         );
       },
     );
+
+    test('a dangling override of an added pack names its version', () async {
+      final root = await _treeProject(
+        const {},
+        config: shippedPinsConfig(),
+        extra: {
+          '.specstone/templates/skill.yaml':
+              'sections: [{id: nosuch, required: true}]\n',
+        },
+      );
+
+      expect(
+        () => _planAdding(root, const ['agent-skills']),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.overrideDangling)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('pack agent-skills $skills defines no section '),
+              ),
+        ),
+      );
+    });
 
     test('an empty one-line flow map takes the pins with no leading '
         'comma', () {

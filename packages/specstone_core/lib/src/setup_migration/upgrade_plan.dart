@@ -164,6 +164,7 @@ RunPlan _upgradeRunOf(
     target: targetSet,
     targetVersions: {
       for (final entry in available.entries) entry.key: entry.value.version,
+      for (final pin in addedPins) pin.pack: pin.version,
     },
     upgrades: upgrades,
   );
@@ -1081,7 +1082,11 @@ String withPinsAppended(String lf, List<AddedPin> pins) {
       final at = packs.span.start.offset + 1;
       return lf.replaceRange(at, at, entries.join(', '));
     case _PacksForm.flow:
-      final at = packs.nodes.entries.last.value.span.end.offset;
+      // A plain scalar's span runs through the spaces before the next token.
+      var at = packs.nodes.entries.last.value.span.end.offset;
+      while (lf[at - 1] == ' ') {
+        at -= 1;
+      }
       return lf.replaceRange(at, at, ', ${entries.join(', ')}');
     case null:
       throw ArgumentError.value(lf, 'lf', 'packs is not a writable map');
