@@ -2,8 +2,8 @@ import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/banned_match.dart';
+import 'package:specstone_core/src/index_query/models/line_facts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// Returns the banned entries of a held section: [type]'s, then [template]'s.

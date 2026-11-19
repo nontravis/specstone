@@ -879,7 +879,7 @@ final class IndexStore {
       links: [
         for (final row in _linksSql.select([docPath])) row['target'] as String,
       ],
-      lineFacts: LineFacts.fromJson(
+      lineFacts: lineFactsFromJson(
         jsonDecode(doc['line_facts'] as String) as Map<String, Object?>,
         sectionCounts: [
           for (final row in rows)

@@ -397,7 +397,7 @@ void main() {
       final facts = itemFactsOf(
         doc: doc,
         lfText: text,
-        lineFacts: LineFacts.structureOf(lfText: text, doc: doc),
+        lineFacts: lineStructureOf(lfText: text, doc: doc),
         laid: null,
         type: null,
       );
@@ -414,7 +414,7 @@ void main() {
       final facts = itemFactsOf(
         doc: doc,
         lfText: text,
-        lineFacts: LineFacts.structureOf(lfText: text, doc: doc),
+        lineFacts: lineStructureOf(lfText: text, doc: doc),
         laid: null,
         type: typeOf(_frPath),
       );

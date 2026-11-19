@@ -20,6 +20,7 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/field_fact.dart';
 import 'package:specstone_core/src/index_query/models/item_fact.dart';
 import 'package:specstone_core/src/index_query/models/item_facts.dart';
+import 'package:specstone_core/src/index_query/models/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/readability_facts.dart';
 import 'package:specstone_core/src/index_query/models/rule_item_words.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
@@ -54,7 +55,7 @@ ItemFacts itemFactsOf({
   final countedText = laid?.text ?? lfText;
   final lines = countedText == lfText
       ? lineFacts
-      : LineFacts.structureOf(lfText: countedText, doc: counted);
+      : lineStructureOf(lfText: countedText, doc: counted);
   final reads = _Reads(
     isTyped: type != null,
     idPrefixes: idPrefixes,
