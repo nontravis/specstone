@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -90,6 +91,26 @@ fields:
 '''),
 };
 
+/// Resolves a project that pins prd-core and [packs], over [shipped].
+Future<MergedSet> _resolvePacks(
+  Map<String, Uint8List> shipped,
+  List<String> packs,
+) async {
+  final project = await writeTree({
+    _configPath: [
+      'packs:',
+      '  prd-core: 1.0.0',
+      for (final pack in packs) '  $pack: 1.0.0',
+      '',
+    ].join('\n'),
+  });
+  return TemplateResolver(shippedFiles: shipped)
+      .resolve(workingDirectory: project, homeDirectory: await writeTree({}));
+}
+
+MergedField _field(MergedDocType type, String id) =>
+    type.fields.singleWhere((field) => field.id == id);
+
 MergedDocType _type(MergedSet set, String id) => set.lookup(id)!;
 
 /// The ids of the fields of [type] that are not built in, in order.
@@ -132,6 +153,71 @@ void main() {
       expect(_fieldIds(_type(set, 'api')), ['base_url', 'overrides', 'tasks']);
       expect(_description(_type(set, 'api'), 'tasks'), 'Project tasks.');
       expect(_description(_type(set, 'runbook'), 'tasks'), 'Shared tasks.');
+      final shared = _field(_type(set, 'runbook'), 'tasks');
+      final overridden = _field(_type(set, 'api'), 'tasks');
+      expect(overridden.type, shared.type);
+      expect(overridden.list, shared.list);
+    });
+
+    test('of an extending pack naming its own new doc type applies after the '
+        'last pack layer', () async {
+      final set = await _resolvePacks(
+        {
+          ..._shipped(),
+          'software-over/pack.yaml': _bytes('''
+name: software-over
+version: 1.0.0
+extends: software-tech
+shared_fields:
+  - id: tasks
+    for_doc_types: [gadget]
+'''),
+          'software-over/gadget.yaml': _bytes('''
+id: gadget
+description: Describes one gadget.
+path: gadgets/{slug}.md
+fields:
+  - id: gadget_name
+    type: string
+'''),
+        },
+        ['software-over', 'software-tech'],
+      );
+
+      expect(_fieldIds(_type(set, 'gadget')), ['gadget_name', 'tasks']);
+      expect(_field(_type(set, 'gadget'), 'tasks').list, isTrue);
+    });
+
+    test('that cannot apply is refused naming the pack file that declares '
+        'it', () async {
+      final shipped = {
+        ..._shipped(),
+        'software-bad/pack.yaml': _bytes('''
+name: software-bad
+version: 1.0.0
+shared_fields:
+  - id: artifact
+    type: output_ref
+    pointer: bogus
+    for_doc_types: [gizmo]
+'''),
+        'software-bad/gizmo.yaml': _bytes('''
+id: gizmo
+description: Describes one gizmo.
+path: gizmos/{slug}.md
+'''),
+      };
+
+      await expectLater(
+        _resolvePacks(shipped, ['software-bad']),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.file,
+            'file',
+            'packs/software-bad/pack.yaml',
+          ),
+        ),
+      );
     });
 
     test(

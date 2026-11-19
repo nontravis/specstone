@@ -769,21 +769,24 @@ final class _SharedReach {
   ///
   /// A field applies after the last pack layer written by its declaring pack
   /// or a pack the declaring pack extends: the layer the declaring pack's own
-  /// file would sit in.
+  /// file would sit in. When no such layer exists, as when an extending pack
+  /// names its own new doc type in an override, it applies after the last
+  /// pack layer.
   Map<int, List<MergedSharedField>> placeFields(
     String id,
     DocTypeLayers layers,
   ) {
     final placed = <int, List<MergedSharedField>>{};
+    final lastPackLayer = layers.lastIndexWhere((layer) => layer.pack != null);
     for (final field in _shared.fieldsNaming(id)) {
       final declaring = _packsByName[field.declaringPack]!;
-      final index = layers.lastIndexWhere((layer) {
+      final atOrUnder = layers.lastIndexWhere((layer) {
         final pack = layer.pack;
         return pack != null &&
             (pack.manifest.name == field.declaringPack ||
                 reaches(declaring, pack, extendsOf: _extendsOf));
       });
-      assert(index != -1, 'no layer of $id sits at or under its field pack');
+      final index = atOrUnder == -1 ? lastPackLayer : atOrUnder;
       placed.putIfAbsent(index, () => []).add(field);
     }
     return placed;
