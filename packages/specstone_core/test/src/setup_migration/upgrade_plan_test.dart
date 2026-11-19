@@ -5444,5 +5444,27 @@ void _dropDefaultLinesTests() {
         contains('  from 1.0.0: drop_default_lines: 0 docs\n'),
       );
     });
+
+    test('a drop_default_lines step the pack load refuses plans '
+        'nothing', () async {
+      final fixture = await _fixture(
+        packYaml: _dropPackYaml.replaceFirst('[domain]', '[domian]'),
+        overrides: const {},
+        docs: {_loginPath: _loginDoc},
+      );
+
+      expect(
+        () => _plan(fixture),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having(
+                (f) => f.key,
+                'key',
+                'migrations[0].steps[0].drop_default_lines.doc_types',
+              ),
+        ),
+      );
+    });
   });
 }
