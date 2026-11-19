@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/id_at.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show opensHeadingItem;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
@@ -15,18 +16,6 @@ const _itemIdForm = 'item_id';
 // Unlike doc_items, an item that carries an ID starts at a top-level marker
 // with text after it.
 final _listMarker = RegExp(r'^(?:[-*+]|\d+[.)])\s+');
-
-/// One item of a doc, or one story scenario heading, in document order.
-///
-/// `line` and `endLine` are the 1-based first and last non-blank file lines
-/// of the item, nested lines and fenced code included.
-typedef IdAt = ({
-  String sectionKey,
-  String prefix,
-  int line,
-  int endLine,
-  IdRead? id,
-});
 
 typedef _Start = ({int index, String text});
 
@@ -198,7 +187,7 @@ IdAt _idAt(
   while (last > index && body[last].text.trim().isEmpty) {
     last--;
   }
-  return (
+  return IdAt(
     sectionKey: sectionKey,
     prefix: prefix,
     line: body[index].line,
