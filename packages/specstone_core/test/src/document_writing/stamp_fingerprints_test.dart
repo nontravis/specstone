@@ -1,0 +1,340 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/src/consistency_check/check_run.dart';
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
+import 'package:specstone_core/src/document_writing/stamp_fault.dart';
+import 'package:specstone_core/src/document_writing/stamp_fingerprints.dart';
+import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/check_fixture.dart';
+import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/target_fixture.dart';
+import '../../helpers/write_fixture.dart' hide loginFeature;
+
+const _archAddress = 'architecture:login';
+const _recordAddress = 'implementation:login';
+const _login = 'app/lib/login.dart';
+const _old = '0123456789ab';
+const _checkPassword = 'email_login/check_password';
+
+final String _loginText = checkProjectFiles()[_login]!;
+
+String _fileFingerprint(String text, String path) =>
+    fileCodeFingerprint(utf8.encode(text), path: path);
+
+String _folderFingerprint(Map<String, String> files) => folderCodeFingerprint([
+  for (final MapEntry(:key, :value) in files.entries)
+    FileFingerprint(path: key, fingerprint: _fileFingerprint(value, key)),
+]);
+
+/// Returns the record: one `implemented` story, one `planned` FR, and the
+/// `implements` [code] lines.
+String _record(List<String> code) =>
+    "---\nstatuses:\n  - 'email_login:implemented'\n"
+    "  - '$_checkPassword:planned'\nimplements:\n"
+    '${[for (final line in code) "  - '$line'\n"].join()}'
+    '---\n\n# Login implementation\n';
+
+const _defaultCode = [
+  'email_login:$_login:SignInPage',
+  '$_checkPassword:$_login:checkPassword',
+];
+
+/// Returns the check fixture, its architecture doc covering [covers] and its
+/// record holding [code], both with no fingerprint but as written.
+Future<Directory> _project({
+  List<String> covers = const [_login, 'app/lib/ $_old'],
+  List<String> code = _defaultCode,
+  Map<String, String> extra = const {},
+}) => writeCheckProject(
+  extra: {
+    ...doc(
+      loginArchitecture,
+      '  - app/lib/\n',
+      [for (final entry in covers) '  - $entry\n'].join(),
+    ),
+    loginRecord: _record(code),
+    ...extra,
+  },
+  unstamped: {loginRecord},
+  unfingerprinted: {'docs/$loginArchitecture', loginRecord},
+);
+
+ReadAnswer _stamp(
+  Directory root,
+  String address,
+  List<String> args, {
+  String? codeTarget,
+}) => writeIn(
+  root,
+  (session) => answerStamp(
+    session,
+    StampRequest.parse(address, args, codeTarget: codeTarget),
+  ),
+);
+
+StampFault _refused(Directory root, String address, List<String> args) {
+  try {
+    _stamp(root, address, args);
+  } on StampFault catch (fault) {
+    return fault;
+  }
+  fail('the stamp was not refused');
+}
+
+void main() {
+  final loginFingerprint = _fileFingerprint(_loginText, _login);
+
+  test('a stamp of two entries ends each with its fingerprint in one write '
+      'and leaves the draft mark alone', () async {
+    final root = await _project();
+    final before = readDoc(root, loginArchitecture);
+    final folder = _folderFingerprint({_login: _loginText});
+
+    final answer = _stamp(root, _archAddress, [
+      '$_login=$loginFingerprint',
+      'app/lib/=$folder',
+    ]);
+
+    expect(
+      readDoc(root, loginArchitecture),
+      before
+          .replaceFirst('  - $_login\n', '  - $_login $loginFingerprint\n')
+          .replaceFirst('  - app/lib/ $_old\n', '  - app/lib/ $folder\n'),
+    );
+    expect(answer.text, '$_archAddress: 2 stamped\n');
+    expect(answer.json, {
+      'doc': _archAddress,
+      'stamped': [_login, 'app/lib/'],
+    });
+    final session = openSession(root);
+    final report = await runCheck(session);
+    session.close();
+    expect([
+      for (final finding in report.findings)
+        if (finding.path == loginArchitecture &&
+            (finding.kind == FindingKind.codeSuspect ||
+                finding.kind == FindingKind.codeUnconfirmed))
+          finding.textLine,
+    ], isEmpty);
+  });
+
+  test(
+    'a stamp naming no entry of the doc refuses stamp_entry_unknown',
+    () async {
+      final root = await _project();
+      final before = readDoc(root, loginArchitecture);
+
+      final fault = _refused(root, _archAddress, ['app/lib/none.dart=$_old']);
+
+      expect(fault.exitStatus, 64);
+      expect(fault.refusals.single.code, WriteFaultCode.stampEntryUnknown);
+      expect(
+        fault.refusals.single.message,
+        'no entry of $_archAddress reads app/lib/none.dart',
+      );
+      expect(readDoc(root, loginArchitecture), before);
+    },
+  );
+
+  test(
+    'a fingerprint that differs from the code refuses stamp_stale',
+    () async {
+      final root = await _project();
+      final before = readDoc(root, loginArchitecture);
+
+      final fault = _refused(root, _archAddress, ['$_login=$_old']);
+
+      expect(fault.exitStatus, 75);
+      expect(fault.refusals.single.code, WriteFaultCode.stampStale);
+      expect(
+        fault.refusals.single.message,
+        '$_login changed after $_old; judge it again',
+      );
+      expect(fault.refusals.single.message, isNot(contains(loginFingerprint)));
+      expect(readDoc(root, loginArchitecture), before);
+    },
+  );
+
+  test('a stamp on a planned record entry writes its fingerprint and keeps it '
+      'planned', () async {
+    final root = await _project();
+    final before = readDoc(root, loginRecord);
+    const entry = '$_checkPassword:$_login:checkPassword';
+
+    _stamp(root, _recordAddress, ['$entry=$loginFingerprint']);
+
+    expect(
+      readDoc(root, loginRecord),
+      before.replaceFirst("'$entry'", "'$entry $loginFingerprint'"),
+    );
+    expect(readDoc(root, loginRecord), contains("'$_checkPassword:planned'"));
+  });
+
+  group('an entry whose path, Symbol, or implements folder does not resolve '
+      'refuses stamp_entry_unresolved', () {
+    final cases = {
+      'a covers path gone': (
+        covers: ['app/lib/gone.dart'],
+        code: _defaultCode,
+        address: _archAddress,
+        entry: 'app/lib/gone.dart',
+        finding: 'covers_path_missing',
+      ),
+      'an implements path gone': (
+        covers: [_login],
+        code: ['email_login:app/lib/gone.dart:Thing'],
+        address: _recordAddress,
+        entry: 'email_login:app/lib/gone.dart:Thing',
+        finding: 'implements_path_unresolved',
+      ),
+      'an implements folder': (
+        covers: [_login],
+        code: ['email_login:app/lib/'],
+        address: _recordAddress,
+        entry: 'email_login:app/lib/',
+        finding: 'implements_path_unresolved',
+      ),
+      'an implements Symbol gone': (
+        covers: [_login],
+        code: ['email_login:$_login:Gone'],
+        address: _recordAddress,
+        entry: 'email_login:$_login:Gone',
+        finding: 'implements_symbol_unresolved',
+      ),
+    };
+    for (final MapEntry(:key, :value) in cases.entries) {
+      test(key, () async {
+        final root = await _project(covers: value.covers, code: value.code);
+        final docPath = value.address == _archAddress
+            ? loginArchitecture
+            : loginRecord;
+        final before = readDoc(root, docPath);
+
+        final fault = _refused(root, value.address, ['${value.entry}=$_old']);
+
+        expect(fault.exitStatus, 64);
+        expect(fault.refusals.single.code, WriteFaultCode.stampEntryUnresolved);
+        expect(
+          fault.refusals.single.message,
+          '${value.entry} does not resolve: ${value.finding}',
+        );
+        expect(readDoc(root, docPath), before);
+      });
+    }
+  });
+
+  test('several refused stamps write nothing and list each entry with its '
+      'code', () async {
+    final root = await _project();
+    final before = readDoc(root, loginArchitecture);
+
+    final fault = _refused(root, _archAddress, [
+      'app/lib/none.dart=$_old',
+      'app/lib/=$_old',
+      '$_login=$loginFingerprint',
+    ]);
+
+    expect(fault.exitStatus, 64);
+    expect(fault.toJson()['error'], {
+      'code': 'stamp_entry_unknown',
+      'message': 'no entry of $_archAddress reads app/lib/none.dart',
+      'refusals': [
+        {'entry': 'app/lib/none.dart', 'code': 'stamp_entry_unknown'},
+        {'entry': 'app/lib/', 'code': 'stamp_stale'},
+      ],
+    });
+    expect(readDoc(root, loginArchitecture), before);
+  });
+
+  test('an entry holding = and : splits on its last =', () async {
+    const path = 'app/lib/a=b.dart';
+    const text = 'class Thing {}\n';
+    const entry = 'email_login:$path:Thing';
+    final root = await _project(code: const [entry], extra: const {path: text});
+    final fingerprint = _fileFingerprint(text, path);
+
+    _stamp(root, _recordAddress, ['$entry=$fingerprint']);
+
+    expect(readDoc(root, loginRecord), contains("'$entry $fingerprint'"));
+  });
+
+  test('a folder stamp takes the fingerprint check reads, nested roots left '
+      'out', () async {
+    final project = await writeTwinProject(
+      extra: {
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_ws\n'
+            '  jaspr:\n    code_root: flutter_ws/app/lib/jaspr\n',
+        'docs/$flutterArchitecture':
+            '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n',
+        'flutter_ws/app/lib/extra.dart': 'int extra;\n',
+        'flutter_ws/app/lib/jaspr/app/lib/login.dart': 'int nested;\n',
+      },
+      unfingerprinted: {'docs/$flutterArchitecture'},
+    );
+    final flutterLogin = File('${project.path}/flutter_ws/app/lib/login.dart')
+        .readAsStringSync();
+    final folder = _folderFingerprint({
+      'app/lib/extra.dart': 'int extra;\n',
+      'app/lib/login.dart': flutterLogin,
+    });
+
+    _stamp(project, _archAddress, ['app/lib/=$folder'], codeTarget: 'flutter');
+
+    expect(
+      readDoc(project, flutterArchitecture),
+      contains('- app/lib/ $folder'),
+    );
+  });
+
+  test('a root: project entry resolves from the project root', () async {
+    const tool = 'tools/run.sh';
+    const toolText = 'echo run\n';
+    final root = await writeCheckProject(
+      extra: {
+        '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+        'code/$_login': _loginText,
+        '.specstone/templates/toolset.yaml':
+            'id: toolset\ndescription: Tools.\npath: ops/{slug}.md\n'
+            'fields:\n  - id: covers\n    type: output_ref\n'
+            '    list: true\n    pointer: prefix\n    root: project\n',
+        'docs/ops/build.md': '---\ncovers:\n  - tools/\n---\n\n# Build\n',
+        tool: toolText,
+      },
+      without: {_login, loginRecord},
+      unfingerprinted: {'docs/ops/build.md'},
+    );
+    final fingerprint = _folderFingerprint({tool: toolText});
+
+    final answer = _stamp(root, 'toolset:build', ['tools/=$fingerprint']);
+
+    expect(answer.text, 'toolset:build: 1 stamped\n');
+    expect(readDoc(root, 'ops/build.md'), contains('- tools/ $fingerprint'));
+  });
+
+  test('a --stamp argument with no = or a fingerprint that is not 12 '
+      'lowercase hex characters is argument_invalid', () {
+    for (final arg in ['app/lib/login.dart', 'a=0123456789AB', 'a=abc', 'a=']) {
+      expect(
+        () => StampRequest.parse(_archAddress, [arg]),
+        throwsA(
+          isA<IndexFault>().having(
+            (fault) => fault.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+        reason: arg,
+      );
+    }
+  });
+}
