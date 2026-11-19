@@ -797,10 +797,15 @@ final class MergedDocType {
   /// holds text.
   ///
   /// The guide and the JSON schema both print it.
-  String? get descriptionWithSharedLines {
+  String? get descriptionWithSharedLines => _descriptionWithout(const {});
+
+  /// Returns [descriptionWithSharedLines] without the lines whose ids are in
+  /// [sharedOut].
+  String? _descriptionWithout(Set<String> sharedOut) {
     final lines = [
       ?_trimmedOrNull(description),
-      for (final line in sharedLines) line.text,
+      for (final line in sharedLines)
+        if (!sharedOut.contains(line.id)) line.text,
     ];
     return lines.isEmpty ? null : lines.join('\n');
   }
@@ -996,11 +1001,14 @@ final class MergedDocType {
   /// [reference]. A banned word list drops the allowed words that apply
   /// there, as `check` does; a description, word list, template, field set,
   /// or [reference] list left empty adds no block.
-  String renderGuide() {
+  ///
+  /// A shared line whose id is in [sharedOut] is left out, since the caller
+  /// prints it once in a block shared by every guide of the call.
+  String renderGuide({Set<String> sharedOut = const {}}) {
     final docAllowed = lint.allowedWords ?? const <String>[];
     final sources = reference ?? const <ReferenceEntry>[];
     final blocks = <String>[
-      ?descriptionWithSharedLines,
+      ?_descriptionWithout(sharedOut),
       ?_bannedWordsLine(lint.bannedWords, allowed: docAllowed),
       ?_fieldsBlock(),
       docLimitsLine(lint),
