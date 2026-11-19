@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:test/test.dart';
 
 import 'helpers/best_of.dart';
+import 'helpers/timing_metric.dart';
 
 void main() {
   test('bestOf makes every run, prints each '
@@ -18,7 +19,7 @@ void main() {
     Duration run() => times[calls++];
     final lines = <String>[];
     final best = runZoned(
-      () => bestOf(5, run, label: 'full index runs'),
+      () => bestOf(5, run, label: 'full index runs', metric: TimingMetric.cpu),
       zoneSpecification: ZoneSpecification(
         print: (_, _, _, line) {
           lines.add(line);
@@ -27,7 +28,9 @@ void main() {
     );
     expect(calls, 5);
     expect(best, const Duration(milliseconds: 400));
-    expect(lines, ['diagnostic: full index runs 1200, 400, 900, 700, 1100 ms']);
+    expect(lines, [
+      'diagnostic: full index runs cpu 1200, 400, 900, 700, 1100 ms',
+    ]);
   });
 
   test('bestOf prints the finished runs '
@@ -41,7 +44,8 @@ void main() {
 
     await expectLater(
       () => runZoned(
-        () => bestOf(3, run, label: 'full index runs'),
+        () =>
+            bestOf(3, run, label: 'full index runs', metric: TimingMetric.cpu),
         zoneSpecification: ZoneSpecification(
           print: (_, _, _, line) {
             lines.add(line);
@@ -51,6 +55,6 @@ void main() {
       throwsStateError,
     );
 
-    expect(lines, ['diagnostic: full index runs 1200, 400 ms']);
+    expect(lines, ['diagnostic: full index runs cpu 1200, 400 ms']);
   });
 }
