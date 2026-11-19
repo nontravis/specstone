@@ -793,6 +793,18 @@ final class MergedDocType {
   /// They stay out of [description], which holds the type's own text.
   final List<MergedSharedLine> sharedLines;
 
+  /// The own description, then each shared line, one per line; null when none
+  /// holds text.
+  ///
+  /// The guide and the JSON schema both print it.
+  String? get descriptionWithSharedLines {
+    final lines = [
+      ?_trimmedOrNull(description),
+      for (final line in sharedLines) line.text,
+    ];
+    return lines.isEmpty ? null : lines.join('\n');
+  }
+
   /// The ids of fields a lower layer defined and a layer then disabled.
   ///
   /// A later `disabled: true` on one of them leaves the doc type as it is.
@@ -956,7 +968,7 @@ final class MergedDocType {
     final lintJson = lint.toJson();
     return {
       'id': id,
-      'description': ?description,
+      'description': ?descriptionWithSharedLines,
       'parent': ?parent,
       'extends': ?extendsId,
       'path': ?path,
@@ -976,7 +988,8 @@ final class MergedDocType {
 
   /// Returns the writing guide, each block set off by a blank line.
   ///
-  /// The description and the doc-level banned words come first, then the
+  /// The description with the shared lines under it, and the doc-level banned
+  /// words, come first, then the
   /// `Fields:` block of the declared non-built-in [fields], then the doc
   /// `Limits:` line, then each section's header, required, optional, or
   /// condition line with its `Limits:`, description, own banned words, and
@@ -988,7 +1001,7 @@ final class MergedDocType {
     final docAllowed = lint.allowedWords ?? const <String>[];
     final sources = reference ?? const <ReferenceEntry>[];
     final blocks = <String>[
-      ?_trimmedOrNull(description),
+      ?descriptionWithSharedLines,
       ?_bannedWordsLine(lint.bannedWords, allowed: docAllowed),
       ?_fieldsBlock(),
       docLimitsLine(lint),

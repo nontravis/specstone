@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show parseOverrides;
@@ -10,6 +11,8 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/summary_rows.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+
+import '../../helpers/temp_tree.dart';
 
 const _shippedFile = 'packs/prd-core/feature.yaml';
 const _projectFile = '.specstone/templates/feature.yaml';
@@ -1490,6 +1493,149 @@ fields:
       final edge = resolved().lookup('edge_architecture')!;
 
       expect(edge.copyWith(description: 'x').extendsChain, edge.extendsChain);
+    });
+  });
+
+  group('shared lines and fields in the guide and the schema', () {
+    const ownText = 'Describes one HTTP operation.';
+
+    Uint8List bytes(String text) => Uint8List.fromList(utf8.encode(text));
+
+    final shipped = <String, Uint8List>{
+      'prd-core/pack.yaml': bytes('name: prd-core\nversion: 1.0.0\n'),
+      'software-tech/pack.yaml': bytes('''
+name: software-tech
+version: 1.0.0
+shared_lines:
+  - id: first
+    text: Say each thing once.
+  - id: second
+    text: Name the status code.
+    for_doc_types: [api]
+  - id: runbook_only
+    text: List the steps.
+    for_doc_types: [runbook]
+shared_fields:
+  - id: overrides
+    type: string
+    description: Shared overrides.
+    for_doc_types: [api]
+'''),
+      'software-tech/api.yaml': bytes('''
+id: api
+description: $ownText
+path: api/{slug}.md
+fields:
+  - id: base_url
+    type: string
+lint:
+  banned_words: [fast]
+'''),
+      'software-tech/runbook.yaml': bytes('''
+id: runbook
+description: Describes one operating routine.
+path: runbooks/{slug}.md
+'''),
+    };
+
+    Future<MergedDocType> resolveApi([Map<String, String>? templates]) async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+        for (final MapEntry(:key, :value) in (templates ?? {}).entries)
+          '.specstone/templates/$key': value,
+      });
+      final set = TemplateResolver(
+        shippedFiles: shipped,
+      ).resolve(workingDirectory: project, homeDirectory: await writeTree({}));
+      return set.lookup('api')!;
+    }
+
+    const projectLayer = {
+      'shared.yaml': '''
+shared_lines:
+  - id: first
+    text: Say each thing once, short.
+  - id: added
+    text: Cite by link.
+    for_doc_types: [api]
+''',
+      'api.yaml': 'fields:\n  - id: project_added\n    type: string\n',
+    };
+
+    test('the guide prints the shared lines after the own text and before '
+        'the banned words, in print order', () async {
+      final guide = (await resolveApi(projectLayer)).renderGuide();
+
+      expect(
+        guide,
+        startsWith(
+          '$ownText\n'
+          'Say each thing once, short.\n'
+          'Name the status code.\n'
+          'Cite by link.\n\n'
+          'Banned words: `fast`\n\n',
+        ),
+      );
+    });
+
+    test('the guide prints a reached shared field in Fields at its merged '
+        'place', () async {
+      final guide = (await resolveApi(projectLayer)).renderGuide();
+
+      expect(
+        guide,
+        contains(
+          'Fields:\n'
+          '- `base_url` (optional, string)\n'
+          '- `overrides` (optional, string) — Shared overrides.\n'
+          '- `project_added` (optional, string)\n',
+        ),
+      );
+    });
+
+    test('a disabled or non-reaching shared line is not printed', () async {
+      final api = await resolveApi({
+        'shared.yaml': 'shared_lines:\n  - id: second\n    disabled: true\n',
+      });
+
+      final guide = api.renderGuide();
+
+      expect(guide, contains('Say each thing once.'));
+      expect(guide, isNot(contains('Name the status code.')));
+      expect(guide, isNot(contains('List the steps.')));
+    });
+
+    test('toJson holds the own text then each shared line, and the shared '
+        'field at its place', () async {
+      final json = (await resolveApi(projectLayer)).toJson();
+
+      expect(
+        json['description'],
+        '$ownText\nSay each thing once, short.\nName the status code.\n'
+        'Cite by link.',
+      );
+      final fieldIds = [
+        for (final field in json['fields']! as List<Object?>)
+          (field! as Map<String, Object?>)['id'],
+      ];
+      expect(fieldIds.sublist(fieldIds.length - 3), [
+        'base_url',
+        'overrides',
+        'project_added',
+      ]);
+    });
+
+    test('a type with no shared line prints its own text alone', () async {
+      final api = await resolveApi({
+        'shared.yaml':
+            'shared_lines:\n'
+            '  - id: first\n    disabled: true\n'
+            '  - id: second\n    disabled: true\n',
+      });
+
+      expect(api.toJson()['description'], ownText);
+      expect(api.renderGuide(), startsWith('$ownText\n\nBanned words:'));
     });
   });
 }
