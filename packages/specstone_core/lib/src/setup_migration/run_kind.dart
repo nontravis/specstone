@@ -1,16 +1,23 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show fileOfDocPath;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
+    show readDocFile;
+import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -26,13 +33,13 @@ enum RunKind {
   /// At least one pin is older than its available pack version, or every pin
   /// is equal and a typed doc is off the layout `format` writes, an agent
   /// file or `specstone-*` skill or agent file drifts from what the CLI
-  /// writes, or a per-target doc sits at a one-target path under two or more
-  /// code targets.
+  /// writes, a per-target doc sits at a one-target path under two or more
+  /// code targets, or a record holds a row the matrix fold pass folds.
   upgrade,
 
   /// Every pin equals its available pack version, every typed doc is laid
-  /// out, no agent, skill, or agent-folder file drifts, and no per-target doc
-  /// needs the tree move.
+  /// out, no agent, skill, or agent-folder file drifts, no per-target doc
+  /// needs the tree move, and no record holds a foldable row.
   none,
 }
 
@@ -49,7 +56,8 @@ enum RunKind {
 /// drift (`agentFileDrifts`, the predicate `check` uses, a malformed marker
 /// included) or skill and agent file drift (`skillAndAgentFileDrifts`), then
 /// two or more code targets over a per-target doc at a one-target path
-/// (`treeMovesOf`), gives [RunKind.upgrade], otherwise [RunKind.none].
+/// (`treeMovesOf`), then a row the matrix fold pass folds, gives
+/// [RunKind.upgrade], otherwise [RunKind.none].
 /// [homeDirectory] is the personal pack home, or null. With [hasAdds], a
 /// run that would be [RunKind.none] or [RunKind.upgrade] is [RunKind.upgrade]
 /// whatever the pins and files hold; the refusals above still apply.
@@ -86,9 +94,47 @@ RunKind chooseRun(
   if (_hasAgentFileDrift(root, templates, homeDirectory)) {
     return RunKind.upgrade;
   }
-  return _hasTreeMove(root, templates, homeDirectory)
+  if (_hasTreeMove(root, templates, homeDirectory)) return RunKind.upgrade;
+  return _hasFoldableRow(root, templates, homeDirectory)
       ? RunKind.upgrade
       : RunKind.none;
+}
+
+/// Whether the matrix fold pass has a row to fold in the docs as they lie,
+/// the same decision the upgrade plan makes.
+bool _hasFoldableRow(
+  Directory root,
+  TemplateResolver templates,
+  Directory? homeDirectory,
+) {
+  final project = DocsProject.open(
+    templates: templates,
+    workingDirectory: root,
+    homeDirectory: homeDirectory,
+  );
+  if (project.matrixMode == MatrixMode.edgeCase) return false;
+  final docs = <MatrixFoldDoc>[];
+  for (final docPath in docPathsOf(project.docsRoot, project.projectRoot)) {
+    final match = project.matcher.match(docPath);
+    final text = readDocFile(
+      fileOfDocPath(
+        docPath,
+        docsRoot: project.docsRoot,
+        projectRoot: project.projectRoot,
+      ),
+      docPath: docPath,
+    );
+    if (match is! MatchedDocType || text == null) continue;
+    docs.add(
+      MatrixFoldDoc(
+        plannedPath: docPath,
+        type: match.docType,
+        target: match.target,
+        lf: text.lf,
+      ),
+    );
+  }
+  return MatrixFoldPass.plan(project.matrixMode, project.set, docs) != null;
 }
 
 /// Returns the `agent_files_newer` fault for a [stamp] above the running

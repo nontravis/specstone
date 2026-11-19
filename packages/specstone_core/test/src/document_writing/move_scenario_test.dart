@@ -163,6 +163,25 @@ String _fr(String title, List<String> traced, List<String> confirmed) =>
     '## Rationale\nCarts matter.\n\n'
     '## Verification\nTest: it holds.\n';
 
+/// A domain doc whose invariants carry [texts], one invariant each.
+String _domainOf(List<String> texts) =>
+    '# Cart domain\n\n## Entities\n'
+    '| Entity | Kind | Identity | Owns | Notes |\n'
+    '|--------|------|----------|------|-------|\n'
+    '| Order | Aggregate root | id | lines | — |\n\n'
+    '## Invariants\n'
+    '${[for (final (n, text) in texts.indexed) '- **INV-${n + 1}** $text'].join('\n')}\n';
+
+/// The `mentions` lines of [answer].
+List<String> _mentionLines(ReadAnswer answer) => [
+  for (final line in answer.text.split('\n'))
+    if (line.startsWith('mentions ')) line,
+];
+
+/// The one-based line of the first line of [text] holding [needle].
+int _lineOf(String text, String needle) =>
+    text.split('\n').indexWhere((line) => line.contains(needle)) + 1;
+
 /// A project whose docs name scenarios of `add_item` in every reference form.
 Future<Directory> _citedProject() => _project(
   addClosing: 'Error cases: see S2.',
@@ -1068,6 +1087,48 @@ void main() {
         contains('as S3 gives'),
       );
     });
+
+    test('a bare S number after a cite of the source story with a section key prints one mentions line', () async {
+      final root = await _project(
+        extra: {
+          'docs/$cartDomain': _domainOf([
+            'See `$_addItem#acceptance_criteria` S2 here.',
+          ]),
+        },
+      );
+      final answer = _move(root, ['$_addItem#S2']);
+      expect(_mentionLines(answer), [
+        'mentions $cartDomain:${_lineOf(readDoc(root, cartDomain), 'See')} S2',
+      ]);
+    });
+
+    test('a bare S number after a link lists only when the link names the source story', () async {
+      final root = await _project(
+        extra: {
+          'docs/$cartDomain': _domainOf([
+            'See [add]($_toAddItem/USER_STORY.md) S2 here.',
+            'See [drop]($_toDropItem/USER_STORY.md) S2 here.',
+          ]),
+        },
+      );
+      final answer = _move(root, ['$_addItem#S2']);
+      expect(_mentionLines(answer), [
+        'mentions $cartDomain:${_lineOf(readDoc(root, cartDomain), 'See [add]')} S2',
+      ]);
+    });
+
+    test(
+      'a bare S number after a link in an untyped doc prints no mentions line',
+      () async {
+        final root = await _project(
+          extra: {
+            'docs/notes.md': '# Notes\n\nSee [add](prds/features/f02_shop/f01_cart/us01_add_item/USER_STORY.md) S2 here.\n',
+          },
+        );
+        final answer = _move(root, ['$_addItem#S2']);
+        expect(_mentionLines(answer), isEmpty);
+      },
+    );
 
     test(
       'only the two stories gain a draft mark among the rewritten docs',

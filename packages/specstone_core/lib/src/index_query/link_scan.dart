@@ -81,6 +81,7 @@ LinkScan linkScanOf(String lfBody, {required int firstLine}) {
   return LinkScan(
     sources: sources,
     prose: String.fromCharCodes(prose),
+    definitionLabels: leaf.definitionLabels,
     destinations: [
       for (final _InlineDestination(:start, :end, :angle)
           in reader.destinations)

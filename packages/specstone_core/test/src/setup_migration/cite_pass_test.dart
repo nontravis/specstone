@@ -440,7 +440,10 @@ void main() {
             'docs/$key': value,
           'docs/$citing': text,
         });
-        final candidates = citeCandidatesOf(text, idPrefixes: _idPrefixes);
+        final candidates = [
+          for (final form in citeFormsOf(text, idPrefixes: _idPrefixes))
+            form.candidate,
+        ];
         final checked = [
           for (final candidate in candidates)
             resolveCite(IndexCiteTree(index), citing, candidate),

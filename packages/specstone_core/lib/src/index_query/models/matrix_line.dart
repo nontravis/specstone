@@ -11,15 +11,15 @@ sealed class MatrixLine {
     return switch (json['kind']) {
       'test' => TestRow(
         item: json['item']! as String,
-        edgeCase: json['edgeCase']! as String,
-        literal: json['literal']! as String,
+        edgeCase: json['edgeCase'] as String?,
+        literals: List<String>.from(json['literals']! as List<Object?>),
         fingerprint: json['fingerprint'] as String?,
         line: line,
         written: json['written']! as String,
       ),
       'skip' => SkipRow(
         item: json['item']! as String,
-        edgeCase: json['edgeCase']! as String,
+        edgeCase: json['edgeCase'] as String?,
         reason: json['reason']! as String,
         fingerprint: json['fingerprint'] as String?,
         line: line,
@@ -64,48 +64,82 @@ final class MalformedRow extends MatrixLine {
   String toString() => 'MalformedRow(line: $line, text: $text)';
 }
 
-/// A row of the Verification matrix: the FR edge case it names, a test or a
-/// skip.
+/// Which of the two shapes a row of the Verification matrix has.
+enum RowForm {
+  /// A row that names an FR: `<item>`.
+  perFr,
+
+  /// A row that names an FR edge case: `<item> <edge case>`.
+  perEdgeCase,
+}
+
+/// A row of the Verification matrix: the FR, or the FR edge case, it names, a
+/// test or a skip.
 sealed class MatrixRow extends MatrixLine {
   const new({
     required this.item,
-    required this.edgeCase,
     required super.line,
-    required this.written,
+    this.edgeCase,
     this.fingerprint,
-  });
+    String? written,
+  }) : _written = written;
 
   /// The FR the row names, relative to the record's feature.
   final String item;
 
-  /// The edge case ID the row names, as the FR writes it.
-  final String edgeCase;
+  /// The edge case ID the row names, as the FR writes it; null on a per-FR row.
+  final String? edgeCase;
 
   /// The 12 lowercase hex characters that end the row; null with none.
   final String? fingerprint;
 
+  final String? _written;
+
   /// The row as the file writes it: its text less the leading `- `, and less
   /// its fingerprint with the spaces before it. A row built with no value takes
-  /// the form with one space and one backtick around [TestRow.literal].
-  final String written;
+  /// the form with one space and one backtick around each literal.
+  String get written => _written ?? _defaultWritten;
 
-  /// The row's link label: the item, `#`, and the edge case.
-  String get label => '$item#$edgeCase';
+  /// The shape the row has.
+  RowForm get form => edgeCase == null ? RowForm.perFr : RowForm.perEdgeCase;
+
+  /// The row's link label: the item, then `#` and the edge case on a
+  /// per-edge-case row.
+  String get label => switch (edgeCase) {
+    final edgeCase? => '$item#$edgeCase',
+    null => item,
+  };
+
+  /// The item, then the edge case when the row names one.
+  String get _head => switch (edgeCase) {
+    final edgeCase? => '$item $edgeCase',
+    null => item,
+  };
+
+  String get _defaultWritten;
 }
 
-/// A row that names one string literal of a test's name.
+/// A row that names the string literals of a test's names.
 final class TestRow extends MatrixRow {
   const new({
     required super.item,
-    required super.edgeCase,
-    required this.literal,
+    required this.literals,
     required super.line,
+    super.edgeCase,
     super.fingerprint,
-    String? written,
-  }) : super(written: written ?? '$item $edgeCase: `$literal`');
+    super.written,
+  });
 
-  /// The content of the row's code span, as the test file writes the name.
-  final String literal;
+  /// The content of each code span of the row, as the test file writes the
+  /// name, in file order; one on a per-edge-case row.
+  final List<String> literals;
+
+  /// The first of [literals].
+  String get firstLiteral => literals.first;
+
+  @override
+  String get _defaultWritten =>
+      '$_head: ${[for (final literal in literals) '`$literal`'].join(', ')}';
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
@@ -113,22 +147,28 @@ final class TestRow extends MatrixRow {
       other is TestRow &&
       other.item == item &&
       other.edgeCase == edgeCase &&
-      other.literal == literal &&
+      _sameStrings(other.literals, literals) &&
       other.fingerprint == fingerprint &&
       other.written == written &&
       other.line == line;
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
-  int get hashCode =>
-      Object.hash(item, edgeCase, literal, fingerprint, written, line);
+  int get hashCode => Object.hash(
+    item,
+    edgeCase,
+    Object.hashAll(literals),
+    fingerprint,
+    written,
+    line,
+  );
 
   @override
   Map<String, Object?> toJson() => {
     'kind': 'test',
     'item': item,
     'edgeCase': edgeCase,
-    'literal': literal,
+    'literals': literals,
     'fingerprint': fingerprint,
     'written': written,
     'line': line,
@@ -136,20 +176,31 @@ final class TestRow extends MatrixRow {
 
   @override
   String toString() =>
-      'TestRow(item: $item, edgeCase: $edgeCase, literal: $literal, '
+      'TestRow(item: $item, edgeCase: $edgeCase, literals: $literals, '
       'fingerprint: $fingerprint, written: $written, line: $line)';
 }
 
-/// A row that gives the reason no test proves its edge case.
+bool _sameStrings(List<String> a, List<String> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// A row that gives the reason no test proves its FR or edge case.
 final class SkipRow extends MatrixRow {
   const new({
     required super.item,
-    required super.edgeCase,
     required this.reason,
     required super.line,
+    super.edgeCase,
     super.fingerprint,
-    String? written,
-  }) : super(written: written ?? '$item $edgeCase skipped: $reason');
+    super.written,
+  });
+
+  @override
+  String get _defaultWritten => '$_head skipped: $reason';
 
   /// The text after `skipped: `, its fingerprint left off.
   final String reason;

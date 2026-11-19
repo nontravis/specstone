@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -330,50 +331,72 @@ void main() {
     });
 
     group('verification_coverage', () {
-      test('verification coverage defaults to off', () async {
-        final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+      Future<MatrixMode> modeOf(String lines) async {
+        final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$lines');
+        return ProjectConfig.read(root).matrixMode;
+      }
 
-        expect(ProjectConfig.read(root).verificationCoverage, isFalse);
-      });
-
-      for (final (text, expected) in [
-        ('', false),
-        (' ~', false),
-        (' false', false),
-        (' true', true),
+      for (final (name, lines) in [
+        ('an absent key', ''),
+        ('a bare key', 'verification_coverage:\n'),
+        ('a null', 'verification_coverage: ~\n'),
+        ('false', 'verification_coverage: false\n'),
       ]) {
-        test('`verification_coverage:$text` reads as $expected', () async {
-          final root = await _withConfig(
-            'packs:\n  prd-core: 1.0.0\nverification_coverage:$text\n',
-          );
+        test(
+          'reads an absent, null, or false coverage as off ($name)',
+          () async {
+            expect(await modeOf(lines), MatrixMode.off);
+          },
+        );
+      }
 
-          expect(ProjectConfig.read(root).verificationCoverage, expected);
+      for (final value in ['true', 'fr', "'fr'", '"fr"']) {
+        test('reads true and fr alike (`$value`)', () async {
+          expect(
+            await modeOf('verification_coverage: $value\n'),
+            MatrixMode.fr,
+          );
+        });
+      }
+
+      for (final value in ['edge_case', "'edge_case'", '"edge_case"']) {
+        test('reads edge_case plain or quoted (`$value`)', () async {
+          expect(
+            await modeOf('verification_coverage: $value\n'),
+            MatrixMode.edgeCase,
+          );
         });
       }
 
       for (final (name, line) in [
         ('a number', 'verification_coverage: 3'),
-        ('a quoted word', "verification_coverage: 'yes'"),
+        ('a quoted true', "verification_coverage: 'true'"),
+        ('a quoted false', "verification_coverage: 'false'"),
+        ('another letter case', 'verification_coverage: FR'),
+        (
+          'another letter case of edge_case',
+          'verification_coverage: Edge_Case',
+        ),
+        ('another word', "verification_coverage: 'yes'"),
         ('a list', 'verification_coverage: [true]'),
       ]) {
-        test(
-          'a non-boolean verification coverage ($name) is refused',
-          () async {
-            final root = await _withConfig(
-              'packs:\n  prd-core: 1.0.0\n$line\n',
-            );
+        test('refuses a coverage value outside the four ($name)', () async {
+          final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
 
-            expect(
-              () => ProjectConfig.read(root),
-              throwsA(
-                _fault(
-                  FaultCode.unknownValue,
-                  key: 'verification_coverage',
-                ).having((f) => f.code.exitStatus, 'exitStatus', 78),
-              ),
-            );
-          },
-        );
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(FaultCode.unknownValue, key: 'verification_coverage')
+                  .having((f) => f.file, 'file', '.specstone/config.yaml')
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'verification_coverage takes false, true, fr, or edge_case',
+                  )
+                  .having((f) => f.code.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        });
       }
     });
 

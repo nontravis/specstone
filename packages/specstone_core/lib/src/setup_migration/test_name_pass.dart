@@ -22,6 +22,7 @@ import 'package:specstone_core/src/index_query/record_entries.dart'
     show RecordLines, recordTestFieldOf, recordTestLineOf;
 import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/setup_migration/feature_relative.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
     show DocText, readDocText, writtenText;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -707,14 +708,14 @@ final class _ItemTree {
     final parents = resolveParents(indexed.values, _set).parents;
     for (final doc in indexed.values) {
       if (doc.docTypeId != storyType && doc.docTypeId != frType) continue;
-      final feature = _featureOf(doc, indexed, parents);
-      if (feature == null) continue;
+      final landing = featureRelativeOf(doc, indexed, parents);
+      if (landing == null) continue;
       final item = (
         name: doc.name,
         docPath: doc.docPath,
         title: Doc.parse(_docs[doc.docPath]!.lf).title ?? '',
-        feature: feature,
-        relative: doc.name.substring(feature.name.length + 1),
+        feature: landing.feature,
+        relative: landing.relative,
       );
       _byPath[doc.docPath] = item;
       _byName[doc.name] = item;
@@ -766,20 +767,6 @@ final class _ItemTree {
       lines: const RecordLines(),
       target: target,
     );
-  }
-
-  static IndexedDoc? _featureOf(
-    IndexedDoc doc,
-    Map<String, IndexedDoc> indexed,
-    Map<String, String> parents,
-  ) {
-    var at = doc;
-    while (at.docTypeId != featureType) {
-      final parent = indexed[parents[at.docPath]];
-      if (parent == null) return null;
-      at = parent;
-    }
-    return at;
   }
 }
 

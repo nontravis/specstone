@@ -159,6 +159,7 @@ void main() {
   _citeTests();
   _bulletLinesTests();
   _addedPinsTests();
+  _matrixFoldTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -5625,6 +5626,176 @@ void _addedPinsTests() {
           ),
         ),
       );
+    });
+  });
+}
+
+// MARK: - Matrix fold pass
+
+const _foldFr = 'email_login/validate_credentials';
+const _foldFlutterRecord =
+    '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _foldJasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+const _foldEdgeRows = [
+  '- $_foldFr E01: `rejects a wrong key`',
+  '- $_foldFr E02: `rejects an empty key`',
+];
+const _foldedRow = '- $_foldFr: `rejects a wrong key`, `rejects an empty key`';
+
+/// A record of the login feature whose Verification matrix holds [rows].
+String _foldRecord(List<String> rows, {String front = ''}) =>
+    "---\n${front}statuses:\n  - 'email_login:implemented'\n---\n\n"
+    '# Login implementation\n\n## Verification matrix\n\n${rows.join('\n')}\n';
+
+/// A project pinned to the shipped packs under [coverage] (omitted for off),
+/// holding the plain login docs and each of [records] by project path.
+Future<Directory> _foldProject(
+  Map<String, String> records, {
+  String? coverage,
+  String? config,
+}) => writeTree({
+  '.specstone/config.yaml':
+      config ??
+      '${shippedPinsConfig()}'
+          '${coverage == null ? '' : 'verification_coverage: $coverage\n'}',
+  for (final MapEntry(:key, :value) in _plainLoginDocs.entries)
+    'docs/$key': value,
+  ...records,
+});
+
+/// The project path of each record [plan] rewrites.
+List<String> _foldedPaths(RunPlan plan) => [
+  for (final rewrite in plan.rewrites)
+    if (rewrite.path.startsWith('.specstone/records/')) rewrite.path,
+];
+
+void _matrixFoldTests() {
+  group('matrix fold pass', () {
+    const twinFold = [_foldFlutterRecord, _foldJasprRecord];
+
+    for (final coverage in <String?>[null, 'fr']) {
+      test("folds every target's records under "
+          '${coverage ?? 'off'}', () async {
+        final project = await _foldProject(
+          {for (final path in twinFold) path: _foldRecord(_foldEdgeRows)},
+          config:
+              '${twinConfig()}'
+              '${coverage == null ? '' : 'verification_coverage: $coverage\n'}',
+        );
+
+        final plan = _planAt(project);
+
+        expect(_foldedPaths(plan), twinFold);
+        for (final path in twinFold) {
+          expect(_rewriteAt(plan, path).text, _foldRecord([_foldedRow]));
+        }
+        expect(
+          plan.toText(),
+          contains('  matrix rows: 4 rows folded into 2 rows in 2 records\n'),
+        );
+        expect(plan.lists.toJson()['matrixRows'], {'folded': twinFold});
+      });
+    }
+
+    test('does not run under edge_case', () async {
+      final project = await _foldProject({
+        _foldFlutterRecord: _foldRecord(_foldEdgeRows),
+      }, coverage: 'edge_case');
+
+      final plan = _planAt(project);
+
+      expect(_foldedPaths(plan), isEmpty);
+      expect(plan.toText(), isNot(contains('matrix rows:')));
+      expect(plan.lists.toJson(), isNot(contains('matrixRows')));
+    });
+
+    test('plans no fold for a record already folded, under a pin below '
+        'shipped', () async {
+      final project = await _foldProject(
+        {
+          _foldFlutterRecord: _foldRecord([_foldedRow]),
+        },
+        config:
+            '${shippedPinsOneMinorBelow('software-tech')}'
+            'verification_coverage: fr\n',
+      );
+
+      final plan = _planAt(project);
+
+      expect(_foldedPaths(plan), isEmpty);
+      expect(plan.toText(), isNot(contains('matrix rows:')));
+      expect(plan.lists.toJson(), isNot(contains('matrixRows')));
+    });
+
+    test(
+      'does not run when only story or feature rows are per-edge-case',
+      () async {
+        final project = await _foldProject({
+          _foldFlutterRecord: _foldRecord([
+            '- email_login E01: `signs in`',
+            '- login E01: `loads the feature`',
+            '- no_such_doc E01: `names no doc`',
+          ]),
+        }, coverage: 'fr');
+
+        final plan = _planAt(project);
+
+        expect(_foldedPaths(plan), isEmpty);
+        expect(plan.toText(), isNot(contains('matrix rows:')));
+        expect(plan.lists.toJson(), isNot(contains('matrixRows')));
+      },
+    );
+
+    test('lists the matrix rows line after the tests line and before the '
+        'cites line', () async {
+      final project = await _testNameProject(
+        docs: {
+          ..._plainLoginDocs,
+          _citeTopicPath: '# Cites\n\n## Rules\n\n`feature:login`\n',
+        },
+        files: {
+          _testFile: _testSource('f01/us01/fr01 rejects'),
+          _testRecordPath: _foldRecord(_foldEdgeRows),
+        },
+      );
+
+      final text = _planTestNames(project).toText();
+
+      final tests = text.indexOf('  tests: ');
+      final matrix = text.indexOf(
+        '  matrix rows: 2 rows folded into 1 rows in 1 records\n',
+      );
+      final cites = text.indexOf('  cites: ');
+      expect(tests, isNonNegative);
+      expect(matrix, greaterThan(tests));
+      expect(cites, greaterThan(matrix));
+    });
+
+    test('leaves approval fields as they were when it folds', () async {
+      final type = TemplateResolver()
+          .resolveCarried(
+            packNames: const ['prd-core', 'software-tech'],
+            homeDirectory: null,
+          )
+          .recordDocType;
+      final approved = _stampedBefore(_foldRecord(_foldEdgeRows), type);
+      final project = await _foldProject({
+        _foldFlutterRecord: approved,
+        _foldJasprRecord: _foldRecord(_foldEdgeRows, front: 'draft: true\n'),
+      }, config: twinConfig());
+
+      final plan = _planAt(project);
+
+      final stamp = RegExp(r'^approved: .*$', multiLine: true);
+      final folded = _rewriteAt(plan, _foldFlutterRecord).text;
+      expect(
+        stamp.firstMatch(folded)?.group(0),
+        stamp.firstMatch(approved)![0],
+      );
+      expect(folded, contains(_foldedRow));
+      final draft = _rewriteAt(plan, _foldJasprRecord).text;
+      expect(draft, startsWith('---\ndraft: true\n'));
+      expect(draft, contains(_foldedRow));
     });
   });
 }

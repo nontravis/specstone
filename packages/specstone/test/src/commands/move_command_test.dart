@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart'
+    show fingerprintFor;
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
@@ -842,6 +844,51 @@ void main() {
         expect(readDoc(root, cartAdd), isNot(contains('Case 2')));
       },
     );
+
+    test('moves an edge case under fr with the record unchanged', () async {
+      const dropFr =
+          'prds/features/f02_shop/f01_cart/us01_add_item/fr02_drop_stock.md';
+      String edgeCase(int n) => '$n. E0$n — Case $n → refused.';
+      String contractOf(List<int> edgeCases) =>
+          '## Statement\n\n$checkStockStatement\n\n## Edge cases\n\n'
+          '${edgeCases.map(edgeCase).join('\n')}\n';
+      String fr(List<int> edgeCases) =>
+          '---\ntraced_from:\n  - S1\nverify_method: test\n---\n\n'
+          '# Requirement\n\n${contractOf(edgeCases)}\n'
+          '## Rationale\n\nStock is finite.\n\n'
+          '## Verification\n\nTest: a case is refused.\n';
+      String row(String item, List<int> edgeCases) =>
+          '- add_item/$item: `refuses a case` '
+          '${fingerprintFor(contractOf(edgeCases))}';
+      final rows = '${row('check_stock', [1, 2])}\n${row('drop_stock', [1])}\n';
+      final root = await writeNestedProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}verification_coverage: fr\n',
+          ...nestedRecords(),
+          'docs/$cartAddFr': fr([1, 2]),
+          'docs/$dropFr': fr([1]),
+          cartRecord:
+              '${nestedRecords()[cartRecord]}\n## Verification matrix\n\n$rows',
+        },
+      );
+      final record = readDoc(root, cartRecord);
+      final result = await move(root, [
+        'fr:shop/cart/add_item/check_stock#E01',
+        '--under',
+        'fr:shop/cart/add_item/drop_stock',
+      ]);
+      expect(result.exitCode, 0);
+      expect(result.stderr, isEmpty);
+      expect(
+        result.stdout,
+        'moved $cartAddFr#E01 to $dropFr#E02\n'
+        'renumbered $dropFr E01 to E02\n'
+        'rewrote $cartAddFr\n'
+        'rewrote $dropFr\n',
+      );
+      expect(readDoc(root, cartRecord), record);
+    });
 
     test('a story move given --target is argument_invalid, exit 64', () async {
       final root = await writeNestedProject();

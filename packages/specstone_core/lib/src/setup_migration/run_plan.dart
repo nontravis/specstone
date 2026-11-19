@@ -130,6 +130,7 @@ final class PlanLists {
     this.addedPins = const [],
     this.typedByAdd = const [],
     this.tests,
+    this.matrixRows,
   });
 
   /// The DocPath of each doc the layout pass rewrites, in code point order.
@@ -175,6 +176,10 @@ final class PlanLists {
   /// null when the run holds no such pass.
   final Map<String, Object?>? tests;
 
+  /// The matrix fold pass's `matrixRows` object (`folded`), or null when the
+  /// pass folds no record.
+  final Map<String, Object?>? matrixRows;
+
   /// The lists as the keys of the JSON plan.
   Map<String, Object> toJson() => {
     'formatLayout': formatLayout,
@@ -192,6 +197,7 @@ final class PlanLists {
       'addedPins': [for (final pin in addedPins) pin.toJson()],
     if (typedByAdd.isNotEmpty) 'typedByAdd': typedByAdd,
     'tests': ?tests,
+    'matrixRows': ?matrixRows,
   };
 }
 

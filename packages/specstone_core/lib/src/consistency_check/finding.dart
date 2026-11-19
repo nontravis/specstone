@@ -13,6 +13,12 @@ enum WaitsFor {
   final String wire;
 }
 
+/// Returns who clears a refused-form matrix row: the Owner when the mode
+/// reads per-FR rows, since only `migrate` folds a per-edge-case row, else the
+/// Agent.
+WaitsFor refusedFormRowWait({required bool modeReadsFr}) =>
+    modeReadsFr ? WaitsFor.owner : WaitsFor.agent;
+
 /// Returns [WaitsFor.owner] for an `item_count` lint's owner flag, else null.
 WaitsFor? itemCountWait({required bool waitsForOwner}) =>
     waitsForOwner ? WaitsFor.owner : null;
@@ -91,6 +97,7 @@ enum FindingKind {
   linkUnresolved('link_unresolved'),
   linkAnchorMissing('link_anchor_missing'),
   linkItemMissing('link_item_missing'),
+  itemMentionMissing('item_mention_missing'),
   linkSelf('link_self'),
   referenceMalformed('reference_malformed'),
   linkTargetMissing('link_target_missing'),
