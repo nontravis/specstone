@@ -17,6 +17,7 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
@@ -192,6 +193,7 @@ Future<int> _run(
   String? planHash,
   List<String>? warnings,
   RunGit runGit = runMigrateGit,
+  List<String> addedPacks = const [],
 }) async {
   var call = 0;
   return await runMigrate(
@@ -204,6 +206,7 @@ Future<int> _run(
       confirmation: confirmation,
       planHash: planHash,
       runGit: runGit,
+      addedPacks: addedPacks,
       readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
       warn: (warnings ?? <String>[]).add,
@@ -212,6 +215,95 @@ Future<int> _run(
 }
 
 void main() {
+  group('the names an add checks before the trust and git checks', () {
+    Matcher usageError(String message) => throwsA(
+      isA<MigrateUsageError>().having((e) => e.message, 'message', message),
+    );
+
+    Matcher packNotFound(String name) => throwsA(
+      isA<TemplateFault>()
+          .having((f) => f.code, 'code', FaultCode.packNotFound)
+          .having((f) => f.file, 'file', '.specstone/config.yaml')
+          .having((f) => f.key, 'key', 'packs.$name')
+          .having(
+            (f) => f.message,
+            'message',
+            'no shipped or personal pack named $name',
+          ),
+    );
+
+    test('an add on a pending journal is a usage error', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      writeJournal(root, [
+        CommitStep(message: 'move', paths: const ['a'], base: headOf(root)),
+      ]);
+
+      await expectLater(
+        _run(root, StringBuffer(), addedPacks: ['agent-skills']),
+        usageError(
+          'finish the pending migrate run first: run specstone migrate',
+        ),
+      );
+    });
+
+    test('an add on a legacy tree is a usage error', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        legacyContextPath: '# D-01\n',
+      });
+
+      await expectLater(
+        _run(root, StringBuffer(), addedPacks: ['agent-skills']),
+        usageError(
+          '--add needs a project on the new format; run specstone migrate '
+          'first',
+        ),
+      );
+    });
+
+    test('an add of a pinned pack is a usage error naming its pin', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}  agent-skills: 0.9.0\n',
+      });
+
+      await expectLater(
+        _run(root, StringBuffer(), addedPacks: ['agent-skills']),
+        usageError(
+          'agent-skills is already pinned at 0.9.0; run specstone migrate to '
+          'upgrade it',
+        ),
+      );
+    });
+
+    test('an add no pack holds is pack_not_found before the git '
+        'checks', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      File('${root.path}/stray.txt').writeAsStringSync('dirty\n');
+
+      await expectLater(
+        _run(root, StringBuffer(), addedPacks: ['nope']),
+        packNotFound('nope'),
+      );
+    });
+
+    test('the first failing added name refuses alone, in name '
+        'order', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+
+      await expectLater(
+        _run(root, StringBuffer(), addedPacks: ['zeta', 'beta']),
+        packNotFound('beta'),
+      );
+    });
+  });
+
   test('y makes two commits, the first pure renames', () async {
     final root = await _spacedFixture(acmeLegacy);
     final out = StringBuffer();

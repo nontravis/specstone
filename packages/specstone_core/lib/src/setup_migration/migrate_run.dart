@@ -18,6 +18,7 @@ import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -37,6 +38,7 @@ final class MigrateRequest {
     required this.out,
     this.asJson = false,
     this.planHash,
+    this.addedPacks = const [],
     this.runGit = runMigrateGit,
     this.warn = warnOnStderr,
     this.environment = const {},
@@ -71,6 +73,10 @@ final class MigrateRequest {
   /// `--yes` the run applies only a plan with this hash.
   final String? planHash;
 
+  /// The pack names `--add` gave, in any order and with repeats; the run
+  /// reads them deduplicated, in code point order.
+  final List<String> addedPacks;
+
   /// Starts `git`; replaced in tests.
   final RunGit runGit;
 
@@ -94,6 +100,12 @@ final class MigrateRequest {
 /// second `y`. A dry run replays nothing: it refuses a document-writing
 /// journal the replay would refuse, and refuses `working_tree_dirty` while one
 /// has a step left; a journal with none left goes on to the git checks.
+///
+/// With [MigrateRequest.addedPacks], the run is an upgrade, and the names are
+/// checked after the run kind and before the trust and git checks: a pending
+/// journal or a legacy tree throws [MigrateUsageError], then, per name in
+/// code point order, an already pinned pack throws it and a pack no shipped
+/// pack or home folder carries throws `pack_not_found`.
 ///
 /// Throws a `SpecstoneFault` for a run refused by the root, the git checks, or
 /// the plan, before anything prints. The terminal refusal, the git checks
@@ -151,11 +163,14 @@ Future<int> _migrate(MigrateRequest request) async {
     requireGitWorkTree(root, request.runGit);
     if (!request.dryRun) requireCleanWorkTree(root, request.runGit);
   }
+  final added = _sortedUnique(request.addedPacks);
   final kind = chooseRun(
     root,
     templates: request.templates,
     homeDirectory: request.homeDirectory,
+    hasAdds: added.isNotEmpty,
   );
+  _checkAddedPacks(request, root, kind, added);
   switch (kind) {
     case RunKind.none:
       request.out.writeln('nothing to migrate');
@@ -165,6 +180,53 @@ Future<int> _migrate(MigrateRequest request) async {
       return await _plannedRun(request, root, kind, linkFolder: linkFolder);
     case RunKind.resume:
       return await _resume(request, root, trust);
+  }
+}
+
+List<String> _sortedUnique(List<String> names) =>
+    {...names}.toList()..sort(compareCodePoints);
+
+/// Refuses the [added] names a run cannot take, before any trust or git check.
+///
+/// A [RunKind.resume] or [RunKind.legacy] [kind] throws [MigrateUsageError];
+/// then, per name, a pinned pack throws it and a pack that nothing carries
+/// throws `pack_not_found`.
+void _checkAddedPacks(
+  MigrateRequest request,
+  Directory root,
+  RunKind kind,
+  List<String> added,
+) {
+  if (added.isEmpty) return;
+  if (kind == RunKind.resume) {
+    throw MigrateUsageError(
+      'finish the pending migrate run first: run specstone migrate',
+    );
+  }
+  if (kind == RunKind.legacy) {
+    throw MigrateUsageError(
+      '--add needs a project on the new format; run specstone migrate first',
+    );
+  }
+  final pins = ProjectConfig.read(root).pins;
+  for (final name in added) {
+    final pin = pins[name];
+    if (pin != null) {
+      throw MigrateUsageError(
+        '$name is already pinned at $pin; run specstone migrate to upgrade it',
+      );
+    }
+    if (!request.templates.carriesPack(
+      name,
+      homeDirectory: request.homeDirectory,
+    )) {
+      throw TemplateFault(
+        FaultCode.packNotFound,
+        'no shipped or personal pack named $name',
+        file: projectConfigPath,
+        key: 'packs.$name',
+      );
+    }
   }
 }
 

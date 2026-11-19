@@ -93,7 +93,7 @@ export 'src/rendering/page_setup.dart' show PageSetup, Paper;
 export 'src/rendering/render_fault.dart';
 export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
 export 'src/setup_migration/migrate_fault.dart'
-    show MigrateFault, MigrateFaultCode;
+    show MigrateFault, MigrateFaultCode, MigrateUsageError;
 export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
 export 'src/setup_migration/stale_project.dart' show staleProjectLine;
 export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
@@ -105,7 +105,11 @@ export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
 export 'src/templates/project_config.dart'
-    show matchProjectRoot, readCleanupBounds, requireSpecstoneFolder;
+    show
+        isPackName,
+        matchProjectRoot,
+        readCleanupBounds,
+        requireSpecstoneFolder;
 export 'src/templates/template_fault.dart';
 export 'src/templates/template_resolver.dart';
 export 'src/version.dart';

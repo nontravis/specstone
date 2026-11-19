@@ -89,6 +89,14 @@ final class TemplateResolver {
       pack.manifest.name: pack.manifest,
   };
 
+  /// Whether a shipped pack or a `~/.specstone/packs/<name>/` folder under
+  /// [homeDirectory] carries [name].
+  ///
+  /// Reads no manifest, so a personal pack's faults surface when it loads.
+  bool carriesPack(String name, {required Directory? homeDirectory}) =>
+      _shippedPackNames().contains(name) ||
+      (homeDirectory != null && _hasPersonalFolder(name, homeDirectory));
+
   /// Resolves the doc types of [packNames] at their available versions.
   ///
   /// The packs merge with [projectLayers] and nothing else: no
@@ -225,14 +233,17 @@ final class TemplateResolver {
     return pack;
   }
 
+  bool _hasPersonalFolder(String name, Directory? home) =>
+      home != null &&
+      Directory.fromUri(home.uri.resolve('.specstone/packs/$name/'))
+          .existsSync();
+
   /// Loads the personal pack [name] from [home], with no pin check.
   ///
   /// Throws `pack_not_found` when [home] holds no folder for it and
   /// `pack_name_mismatch` when its `pack.yaml` names another pack.
   LoadedPack _personalPack(String name, Directory? home) {
-    if (home == null ||
-        !Directory.fromUri(home.uri.resolve('.specstone/packs/$name/'))
-            .existsSync()) {
+    if (home == null || !_hasPersonalFolder(name, home)) {
       throw TemplateFault(
         FaultCode.packNotFound,
         'Pack $name is pinned but no shipped pack has that name and '

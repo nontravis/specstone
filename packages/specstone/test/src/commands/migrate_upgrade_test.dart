@@ -30,6 +30,9 @@ import '../../../../specstone_core/test/helpers/record_fixture.dart'
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/skill_files.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
+import '../../../../specstone_core/test/helpers/write_fixture.dart'
+    show testHome;
+import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 const _gitignore = '.specstone/.gitignore';
@@ -3281,4 +3284,61 @@ agent_file_roots:
       });
     });
   }, skip: hasGit ? null : 'git is not available');
+
+  group('the names --add takes, in the built CLI', () {
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    Future<ProcessResult> migrate(
+      Directory workingDirectory,
+      List<String> args, {
+      Directory? home,
+    }) => Process.run(
+      binary,
+      ['migrate', ...args],
+      workingDirectory: workingDirectory.path,
+      environment: {
+        'HOME': (home ?? testHome()).path,
+        'USERPROFILE': (home ?? testHome()).path,
+      },
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
+
+    test('an add value outside kebab-case exits 64 before any project is '
+        'found', () async {
+      final bare = await writeTree({'keep.txt': ''});
+
+      final result = await migrate(bare, ['--add', 'My_Pack']);
+
+      expect(result.exitCode, 64, reason: '${result.stdout}\n${result.stderr}');
+      expect(
+        result.stderr,
+        startsWith('--add takes a pack name in kebab-case\n'),
+      );
+    });
+
+    test('a personal pack in the home folder passes the name '
+        'checks', () async {
+      final project = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      final home = await writeTree({'.specstone/packs/mine/keep.txt': ''});
+
+      final result = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'mine',
+      ], home: home);
+
+      expect(
+        result.stderr,
+        isNot(contains('no shipped or personal pack named mine')),
+      );
+      expect(result.exitCode, isNot(64));
+    });
+  });
 }

@@ -26,8 +26,13 @@ final String _journal = jsonEncode(
 const _laidOutFeature = '## Problem\n\nn\n\n## Benefit hypothesis\n\ng\n';
 const _offLayoutFeature = '## Benefit hypothesis\n\ng\n\n\n## Problem\n\nn\n';
 
-RunKind _choose(Directory root, {Directory? home}) =>
-    chooseRun(root, templates: TemplateResolver(), homeDirectory: home);
+RunKind _choose(Directory root, {Directory? home, bool hasAdds = false}) =>
+    chooseRun(
+      root,
+      templates: TemplateResolver(),
+      homeDirectory: home,
+      hasAdds: hasAdds,
+    );
 
 Matcher _pinNewer() => throwsA(
   isA<TemplateFault>()
@@ -87,6 +92,29 @@ void main() {
     });
 
     expect(_choose(root), RunKind.none);
+  });
+
+  test('an add makes the run an upgrade with every pin equal', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+    });
+
+    expect(_choose(root, hasAdds: true), RunKind.upgrade);
+  });
+
+  test('an add leaves a pending journal and a legacy tree as they '
+      'are', () async {
+    final journal = await writeTree({
+      MoveJournal.journalPath: _journal,
+      '.specstone/config.yaml': shippedPinsConfig(),
+    });
+    final legacy = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      legacyContextPath: '# D-01\n',
+    });
+
+    expect(_choose(journal, hasAdds: true), RunKind.resume);
+    expect(_choose(legacy, hasAdds: true), RunKind.legacy);
   });
 
   test('pins equal and every typed doc laid out is none', () async {
