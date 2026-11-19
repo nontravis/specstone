@@ -9,8 +9,8 @@ import 'package:yaml/yaml.dart'
 final class FrontmatterYaml {
   const new({required this.map, required this.errorLine});
 
-  /// Reads [source], the frontmatter lines between the `---` delimiters, as a
-  /// mapping or the line that makes it invalid.
+  /// Returns [source], the frontmatter lines between the `---` delimiters, as
+  /// a mapping or the line that makes it invalid.
   ///
   /// File line numbers are the node line plus 2, since [source] starts on
   /// line 2.

@@ -17,6 +17,7 @@ final class WrittenPatternLayer {
   final FeaturePatternLayer layer;
 }
 
+/// Renders the body of a [FeaturePattern].
 extension FeaturePatternBody on FeaturePattern {
   /// Returns the description, one line per item, then the sources block.
   ///
