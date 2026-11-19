@@ -7,20 +7,27 @@ import 'package:test/test.dart';
 
 const _file = 'packs/x/pack.yaml';
 
-SharedEntries _parse(String text) => parseSharedEntries(
-  readYamlMap(text, file: _file),
-  file: _file,
-  format: 'pack',
+const _sharedFile = '.specstone/templates/shared.yaml';
+
+SharedEntries _parse(
+  String text, {
+  String file = _file,
+  String format = 'pack',
+}) => parseSharedEntries(
+  readYamlMap(text, file: file),
+  file: file,
+  format: format,
 );
 
 TypeMatcher<TemplateFault> _fault(
   FaultCode code, {
   required String key,
   String? message,
+  String file = _file,
 }) {
   final matcher = isA<TemplateFault>()
       .having((f) => f.code, 'code', code)
-      .having((f) => f.file, 'file', _file)
+      .having((f) => f.file, 'file', file)
       .having((f) => f.key, 'key', key);
   return message == null
       ? matcher
@@ -146,6 +153,60 @@ shared_fields:
 
         expect(shared.lines.single.id, 'a');
         expect(shared.fields.single.id, 'a');
+      });
+    });
+
+    group('line id form', () {
+      const message = 'the key id must be a slug: [a-z][a-z0-9_]*';
+
+      test('a non-slug line id is unknown_value at its id', () {
+        const ids = ['noStatus', 'no-status', '_no_status', '2nd_line', 'ñame'];
+        for (final id in ids) {
+          expect(
+            () => _parse('shared_lines:\n  - id: $id\n    text: x\n'),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'shared_lines[0].id',
+                message: message,
+              ),
+            ),
+            reason: id,
+          );
+        }
+        expect(
+          () => _parse(
+            'shared_lines:\n  - id: no-status\n    text: x\n',
+            file: _sharedFile,
+            format: 'shared',
+          ),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'shared_lines[0].id',
+              message: message,
+              file: _sharedFile,
+            ),
+          ),
+        );
+      });
+
+      test('slug line ids with odd underscores or a digit load', () {
+        final shared = _parse(
+          'shared_lines:\n'
+          '  - id: no__status\n'
+          '    text: x\n'
+          '  - id: no_status_\n'
+          '    text: x\n'
+          '  - id: step_2\n'
+          '    text: x\n',
+        );
+
+        expect(shared.lines.map((l) => l.id), [
+          'no__status',
+          'no_status_',
+          'step_2',
+        ]);
       });
     });
 
