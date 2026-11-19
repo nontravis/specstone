@@ -1,4 +1,3 @@
-`specstone-sdd-engineer` and the `specstone-brainstorming-sdd` runner run it in `mode: author`.
 Ask the Owner nothing; list gaps in the report.
 
 ## 1. Read
@@ -26,13 +25,14 @@ one it lacks under `Findings:`.
   `#<key>`; a passage: `--replace` with `==> old <==`, the passage, `==> new <==`, the new one), its hash in
   `bases` of `specstone get <type>:<name> --json`.
 - **A removed decision's stub row**: follow `removal.md` section 2.
-- **Several docs**: one name list: `<type>:<name>#<key>` per `write_drafts_with_coverage` Name forms row, step 1's too;
-  `specstone get <list> --out "<file>"`, `<file>`
-  `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`.
-  `section_not_found`: rerun with its doc's bare name, the key under `Findings:`; `doc_not_found`: rerun without it,
-  under `Findings:`, or `Not landed:` if never created. Read a block only when you edit it; keep naming lines, one write
-  per block; one `specstone set --batch "<file>"`. A ` · unchanged` block is no draft. A later-found section: its
-  own `get … --out` and `set --batch`; one no row names: a row gap under `Findings:`.
+- **Several docs**: one name list, step 1's names too: `#input--output` as `input_output`; item or note: its section
+  key; whole, new, or no-key doc: its bare name (gap under `Findings:`); key the doc lacks: its naming line, the section
+  written under it. `specstone get <list> --out "<file>"`, `<file>`
+  `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`. `section_not_found`: rerun with its doc's bare name, the
+  key under `Findings:`; `doc_not_found`: rerun without it, under `Findings:`, or `Not landed:` if never created. Find
+  each block by text search; read a block only when you edit it, never the whole file; keep naming lines, one write per
+  block; one `specstone set --batch "<file>"`. A ` · unchanged` block is no draft. A section found mid-write: its own
+  `get … --out` and `set --batch`; one no row names: a row gap under `Findings:`.
 - **A refused batch**: follow `refused-batch.md`.
 
 ## 3. Sweep each changed rule
@@ -44,23 +44,25 @@ lists, the short form the key noun alone:
   wording; each changed rule's owner item's words and every key or literal of the set the new one joins.
 - **Fix round**: each taken finding's rule and terms.
 
-A hit stating the rule without the decision's new text is a reader; add its section to the name list. In a draft or a
-Docs to change row's doc, link the owner's item for a restated copy; rewrite a reader owning a rule. List any other
-under `Findings:`.
+A hit stating the rule without the decision's new text is a reader; its section goes in a second name list with its
+own `get … --out` and `set --batch`. In a draft or a Docs to change row's doc, link the owner's item for
+a restated copy; rewrite a reader owning a rule. List any other under `Findings:`.
 
 ## 4. Check
 
-Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your
-drafts, searching each for your drafts. Before the second, walk each item you wrote against the saved guide's description lines (doc part, held sections, `Fields:`) and each type's `==> shared <==` lines, not
-templates or `Banned words:`, `Required …`, `Optional …`, or `Limits:` lines. List a line you cannot meet under
-`Findings:`. Run `specstone check <feature> --repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per
-feature of your drafts: link, never repeat, another doc's item.
+Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your drafts.
+Before the second, walk each item you wrote against the saved guide's description lines (doc part, held sections,
+`Fields:`) and each type's `==> shared <==` lines, not templates or `Banned words:`, `Required …`, `Optional …`, or
+`Limits:` lines. List a line you cannot meet under `Findings:`. Run `specstone check <feature> --repeats --out
+"<folder>/reports/check.author.<XXXXXX>.txt"` per feature of your drafts: link, never repeat, another doc's item.
 
-Fix each second-run finding, even a first-run one, in a section you wrote; list others under `Findings:`, unfixed. Two kinds:
+Fix each second-run finding in a section you wrote; list others under `Findings:`,
+unfixed. Two kinds:
 
 - **A `suspect` link in another doc:** confirm it again per `specstone-expert-sdd`, that doc joining your drafts, else
   list it.
-- **A finding whose `waitsFor` is `owner`**: leave and list it; never write around it. An `item_count_out_of_range` on an FR's edge cases you wrote takes
+- **A finding whose `waitsFor` is `owner`**, tagged `(waits for the Owner)` in the text file: leave and list it; never
+  write around it. An `item_count_out_of_range` on an FR's edge cases you wrote takes
   `../../specstone-expert-sdd/references/size-fix.md`'s split proposal; run none of its commands.
 
 After any write of this step, run the bare check again; list each finding it adds under
@@ -86,9 +88,8 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 
 - **Design**: `<N>`, the last amend or `0`; the relay block's first line too.
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, step 1's list less dropped names, plus docs
-  added; names only, no `--target`. Moved docs and their children go by new names.
+  added; names only, no `--target`.
 - **Counts**: take each count from one `specstone approve --dry-run --json` after your last write, for your
-  list's docs; it names a moved one by its old name until its `Move:` line runs. Name each other draft it lists
-  under `Other drafts:`, never counted; one of yours it shows as no draft goes under `Findings:`.
-- **Move**: only for a moved doc, item, or scenario: one line per target parent or `--top`, copied to the relay
-  block. Run no `move`.
+  list's docs. Name each other draft it lists under `Other drafts:`, never counted; one of yours it shows as no
+  draft goes under `Findings:`.
+- **Move**: only for a moved doc, item, or scenario, copied to the relay block. Run no `move`.

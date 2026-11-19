@@ -6,8 +6,7 @@ After exit 73, first run a write or `get` to end its journal. Fix each fault; re
 
 - Stale block: merge your edit into the reply's block; run no `get`.
 - Gone block, its doc deleted or moved: re-read it by its name and the block's section key, a moved doc's new block
-  taking the edit. Drop a block naming no doc or
-  typeless, its doc under `Findings:`.
+  taking the edit. Drop a block naming no doc or typeless, its doc under `Findings:`.
 - Part twice, or a whole-doc block beside another of its doc: join them, a field or title block into the whole-doc
   one.
 - Removed required section, or a field only the Owner or Specstone sets: restore it; open fence: close it.
