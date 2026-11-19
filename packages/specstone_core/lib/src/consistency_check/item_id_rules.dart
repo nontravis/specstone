@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/id_at.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show opensHeadingItem;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
@@ -16,19 +17,13 @@ const _itemIdForm = 'item_id';
 // with text after it.
 final _listMarker = RegExp(r'^(?:[-*+]|\d+[.)])\s+');
 
-/// One item of a doc, or one story scenario heading, in document order.
-///
-/// `line` and `endLine` are the 1-based first and last non-blank file lines
-/// of the item, nested lines and fenced code included.
-typedef IdAt = ({
-  String sectionKey,
-  String prefix,
-  int line,
-  int endLine,
-  IdRead? id,
-});
+/// An item start: its body index, and its text with the marker stripped.
+final class _Start {
+  const new({required this.index, required this.text});
 
-typedef _Start = ({int index, String text});
+  final int index;
+  final String text;
+}
 
 /// Returns the items of each held section of [content] whose template sets
 /// `prefix_id` (a null `id` for an item with no ID), and, for a doc whose
@@ -198,7 +193,7 @@ IdAt _idAt(
   while (last > index && body[last].text.trim().isEmpty) {
     last--;
   }
-  return (
+  return IdAt(
     sectionKey: sectionKey,
     prefix: prefix,
     line: body[index].line,
@@ -215,12 +210,11 @@ List<_Start> _itemStartsOf(List<BodyLine> body) {
   for (final (i, line) in body.indexed) {
     if (line.fenced) continue;
     if (line.text.startsWith(itemHeadingMarker)) {
-      headings.add((
-        index: i,
-        text: line.text.substring(itemHeadingMarker.length),
-      ));
+      headings.add(
+        _Start(index: i, text: line.text.substring(itemHeadingMarker.length)),
+      );
     } else if (_listMarker.firstMatch(line.text) case final marker?) {
-      listItems.add((index: i, text: line.text.substring(marker.end)));
+      listItems.add(_Start(index: i, text: line.text.substring(marker.end)));
     }
   }
   return headings.isNotEmpty ? headings : listItems;

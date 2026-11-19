@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 
 import '../../../specstone_core/test/helpers/shipped_pins.dart';
 import 'temp_tree.dart';
@@ -118,7 +119,8 @@ String _folderFingerprint(String folder) {
   final paths = _codeFiles.keys.where((p) => p.startsWith(folder)).toList()
     ..sort();
   return folderCodeFingerprint([
-    for (final path in paths) (path: path, fingerprint: _fileFingerprint(path)),
+    for (final path in paths)
+      FileFingerprint(path: path, fingerprint: _fileFingerprint(path)),
   ]);
 }
 

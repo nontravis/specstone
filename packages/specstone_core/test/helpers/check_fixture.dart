@@ -10,6 +10,7 @@ import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart'
@@ -336,7 +337,8 @@ String? _folderFingerprint(String folder, Map<String, String> code) {
   final names = code.keys.where((k) => k.startsWith(folder)).toList()..sort();
   if (names.isEmpty) return null;
   return folderCodeFingerprint([
-    for (final name in names) (path: name, fingerprint: code[name]!),
+    for (final name in names)
+      FileFingerprint(path: name, fingerprint: code[name]!),
   ]);
 }
 

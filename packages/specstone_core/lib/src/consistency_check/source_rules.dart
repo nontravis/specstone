@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show namesFileOrFolderFrom;
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show isRootedOrDrivePath, isWebLink;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
@@ -28,7 +29,7 @@ Iterable<Finding> checkDesignSources(
   final lines = context.linesOf(doc);
   for (final field in type.fields) {
     if (field.type != FieldType.sourceRef) continue;
-    for (final (:value, :line, text: _) in lines.entriesOf(field.id)) {
+    for (final YamlEntry(:value, :line) in lines.entriesOf(field.id)) {
       if (value is! String || isWebLink(value)) continue;
       yield* _entryFindings(context, doc, value, line);
     }

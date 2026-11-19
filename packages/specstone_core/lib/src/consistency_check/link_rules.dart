@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart'
     show isSkipSpan, skipLinesOf;
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
@@ -26,7 +27,13 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _emptyTarget = '(empty)';
 
 /// One string `doc_ref` value of a doc, with its field and its file line.
-typedef _DocRefValue = ({MergedField field, String value, int line});
+final class _DocRefValue {
+  const new({required this.field, required this.value, required this.line});
+
+  final MergedField field;
+  final String value;
+  final int line;
+}
 
 /// Returns the link findings of [doc]'s `doc_ref` values and
 /// links.
@@ -85,10 +92,12 @@ List<IndexedDoc> _reachable(
 /// The docs a doc-name mention can name, by Name and by `<doc type>:<Name>`,
 /// and the top-level features: one read per index, since an index is one read
 /// snapshot.
-typedef _NameSets = ({
-  Map<String, List<IndexedDoc>> docsNamed,
-  Set<String> topLevelFeatures,
-});
+final class _NameSets {
+  const new({required this.docsNamed, required this.topLevelFeatures});
+
+  final Map<String, List<IndexedDoc>> docsNamed;
+  final Set<String> topLevelFeatures;
+}
 
 final _nameSetsOf = Expando<_NameSets>();
 
@@ -103,7 +112,7 @@ _NameSets _readNameSets(DocIndex index) {
       (docsNamed['${doc.docTypeId}:${doc.name}'] ??= []).add(doc);
     }
   }
-  return (
+  return _NameSets(
     docsNamed: docsNamed,
     topLevelFeatures: {
       for (final doc in index.docs)
@@ -143,9 +152,10 @@ Iterable<Finding> _unresolvedNames(CheckContext context, IndexedDoc doc) sync* {
 List<_DocRefValue> _docRefValuesOf(CheckContext context, IndexedDoc doc) => [
   for (final field in context.typeOf(doc)?.fields ?? const <MergedField>[])
     if (field.type == FieldType.docRef)
-      for (final (:value, :line, text: _)
+      for (final YamlEntry(:value, :line)
           in context.linesOf(doc).entriesOf(field.id))
-        if (value is String) (field: field, value: value, line: line),
+        if (value is String)
+          _DocRefValue(field: field, value: value, line: line),
 ];
 
 /// Whether [value] of [field] names [target]: [target] carries it as its Name
@@ -170,7 +180,7 @@ Iterable<Finding> _unresolvedDocRefs(
   IndexedDoc doc,
   List<_DocRefValue> values,
 ) sync* {
-  for (final (:field, :value, :line) in values) {
+  for (final _DocRefValue(:field, :value, :line) in values) {
     final named = _docsNamedBy(context, field, value);
     if (_reachable(context, doc, named).isNotEmpty) continue;
     yield context.finding(
@@ -190,7 +200,7 @@ Iterable<Finding> _repeatedDocRefs(
   List<_DocRefValue> values,
 ) sync* {
   final seen = <(String, String)>{};
-  for (final (:field, :value, :line) in values) {
+  for (final _DocRefValue(:field, :value, :line) in values) {
     if (seen.add((field.id, value))) continue;
     yield context.finding(
       doc,
@@ -208,7 +218,7 @@ Iterable<Finding> _selfDocRefs(
   IndexedDoc doc,
   List<_DocRefValue> values,
 ) sync* {
-  for (final (:field, :value, :line) in values) {
+  for (final _DocRefValue(:field, :value, :line) in values) {
     if (!_names(field, value, doc)) continue;
     yield context.finding(
       doc,
@@ -395,7 +405,7 @@ Iterable<Finding> _perTargetReferences(
 ) sync* {
   final sets = _nameSets(context.index);
   final facts = context.contentOf(doc).lineFacts;
-  for (final (:field, :value, :line) in values) {
+  for (final _DocRefValue(:field, :value, :line) in values) {
     final named = _docsNamedBy(context, field, value);
     yield* _perTargetFinding(context, doc, named, line, value);
   }

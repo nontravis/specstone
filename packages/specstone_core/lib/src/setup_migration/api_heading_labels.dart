@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
@@ -115,7 +116,7 @@ Map<String, _Frs> _frsByOperation(Doc doc, FrOfCell frOf) {
   ];
   final byLine = {for (final line in lines) line.line: line.text};
   final frs = <String, _Frs>{};
-  for (final (:cell, :line) in readFrTraceRows(lines)) {
+  for (final FrTraceRow(:cell, :line) in readFrTraceRows(lines)) {
     final operation = _secondCell(byLine[line]!);
     final fr = frOf(cell);
     if (operation != null && fr != null) {

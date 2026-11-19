@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:test/test.dart';
@@ -187,8 +188,14 @@ void main() {
   });
 
   group('folderCodeFingerprint', () {
-    const one = (path: 'lib/a.dart', fingerprint: 'aaaaaaaaaaaa');
-    const two = (path: 'lib/b.dart', fingerprint: 'bbbbbbbbbbbb');
+    const one = FileFingerprint(
+      path: 'lib/a.dart',
+      fingerprint: 'aaaaaaaaaaaa',
+    );
+    const two = FileFingerprint(
+      path: 'lib/b.dart',
+      fingerprint: 'bbbbbbbbbbbb',
+    );
 
     test('hashes a folder with no listed file to the empty base', () {
       expect(folderCodeFingerprint(const []), emptyBaseHash);
@@ -213,8 +220,14 @@ void main() {
     });
 
     test('changes when a file is renamed or its fingerprint changes', () {
-      const renamed = (path: 'lib/c.dart', fingerprint: 'aaaaaaaaaaaa');
-      const edited = (path: 'lib/a.dart', fingerprint: 'cccccccccccc');
+      const renamed = FileFingerprint(
+        path: 'lib/c.dart',
+        fingerprint: 'aaaaaaaaaaaa',
+      );
+      const edited = FileFingerprint(
+        path: 'lib/a.dart',
+        fingerprint: 'cccccccccccc',
+      );
       final base = folderCodeFingerprint(const [one]);
       expect(folderCodeFingerprint(const [renamed]), isNot(base));
       expect(folderCodeFingerprint(const [edited]), isNot(base));

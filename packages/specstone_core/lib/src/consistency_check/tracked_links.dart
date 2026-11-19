@@ -3,6 +3,7 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/consistency_check/override_lines.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
@@ -370,7 +371,7 @@ Iterable<TrackedLink> _overrideLinks(
 Iterable<TrackedLink> _frRowLinks(CheckContext context, IndexedDoc api) sync* {
   final feature = context.index.parentOf(api);
   if (feature == null) return;
-  for (final (:cell, :line) in context.frTraceRowsOf(api)) {
+  for (final FrTraceRow(:cell, :line) in context.frTraceRowsOf(api)) {
     final fr = context.frNamed('${feature.name}/$cell');
     yield fr == null
         ? TrackedLink(label: cell, traceLine: line)
@@ -438,17 +439,28 @@ Iterable<TrackedLink> _stepLinks(
   }
 }
 
-typedef _Entry = ({String fingerprint, int line});
+/// The fingerprint a link's entry records, and the entry's file line.
+final class _Entry {
+  const new({required this.fingerprint, required this.line});
+
+  final String fingerprint;
+  final int line;
+}
+
+/// An entry's link label and fingerprint as written.
+final class _ReadEntry {
+  const new({required this.label, required this.fingerprint});
+
+  final String label;
+  final String fingerprint;
+}
 
 // Reads [value] of the field [entryKey] as `<LinkLabel> <12 lowercase hex
 // characters>`, one space between; the label goes through the doc model
 // reference grammar, where a lettered scenario number names no scenario. An
 // override address is a label of `overrides` entries alone, and `overrides`
 // takes no other label.
-({String label, String fingerprint})? _readEntry(
-  Object? value,
-  String entryKey,
-) {
+_ReadEntry? _readEntry(Object? value, String entryKey) {
   if (value is! String) return null;
   final space = value.indexOf(' ');
   if (space < 0) return null;
@@ -459,7 +471,7 @@ typedef _Entry = ({String fingerprint, int line});
   if ((label is OverrideLabel) != (entryKey == _overrideEntriesKey)) {
     return null;
   }
-  return (label: label.written, fingerprint: fingerprint);
+  return _ReadEntry(label: label.written, fingerprint: fingerprint);
 }
 
 // Whether [value] opens with an override address, whatever follows it.
@@ -472,7 +484,7 @@ _Entry? _entryOf(DocLines lines, TrackedLink link) {
   for (final item in lines.entriesOf(link.entryKey)) {
     final entry = _readEntry(item.value, link.entryKey);
     if (entry != null && linkIdentityOf(entry.label) == identity) {
-      return (fingerprint: entry.fingerprint, line: item.line);
+      return _Entry(fingerprint: entry.fingerprint, line: item.line);
     }
   }
   return null;

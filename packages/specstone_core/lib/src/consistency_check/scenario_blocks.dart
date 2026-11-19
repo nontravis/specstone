@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/consistency_check/models/heading_block.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show headingItemTextOf, opensHeadingItem;
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
@@ -65,15 +66,17 @@ String nfrStatementOf(Iterable<BodyLine> block) =>
 /// A block runs from its heading line to the next [opensHeadingItem] line
 /// outside fenced code, or the end of [body]. [keyOf] names a block from its
 /// heading line; null opens no block and closes the one above.
-List<({String key, List<BodyLine> lines})> headingBlocksOf(
+List<HeadingBlock> headingBlocksOf(
   List<BodyLine> body,
   String? Function(String heading) keyOf,
 ) {
-  final blocks = <({String key, List<BodyLine> lines})>[];
+  final blocks = <HeadingBlock>[];
   String? key;
   var lines = <BodyLine>[];
   void close() {
-    if (key case final closed?) blocks.add((key: closed, lines: lines));
+    if (key case final closed?) {
+      blocks.add(HeadingBlock(key: closed, lines: lines));
+    }
   }
 
   for (final line in body) {
@@ -103,7 +106,10 @@ String? scenarioKeyOf(ScenarioRef ref) => switch (ref.scenario) {
 /// letter follows keys no block and ends the one above.
 Map<String, String> scenarioBlocksIn(List<BodyLine> body) {
   final blocks = <String, String>{};
-  for (final (:key, :lines) in headingBlocksOf(body, _scenarioKeyOf)) {
+  for (final HeadingBlock(:key, :lines) in headingBlocksOf(
+    body,
+    _scenarioKeyOf,
+  )) {
     blocks.putIfAbsent(key, () => _blockText(lines));
   }
   return blocks;

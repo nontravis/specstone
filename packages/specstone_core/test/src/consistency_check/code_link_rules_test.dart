@@ -9,6 +9,7 @@ import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:test/test.dart';
 
@@ -41,7 +42,7 @@ String _fingerprintOf(String text, String path) =>
 String _folderFingerprintOf(Map<String, String> files) =>
     folderCodeFingerprint([
       for (final MapEntry(:key, :value) in files.entries)
-        (path: key, fingerprint: _fingerprintOf(value, key)),
+        FileFingerprint(path: key, fingerprint: _fingerprintOf(value, key)),
     ]);
 
 final String _loginText = checkProjectFiles()[_login]!;
@@ -652,8 +653,8 @@ void main() {
     test('reads a file that is not UTF-8 over its raw bytes', () async {
       const bytes = [0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF];
       final recorded = folderCodeFingerprint([
-        (path: _login, fingerprint: _loginFingerprint),
-        (
+        FileFingerprint(path: _login, fingerprint: _loginFingerprint),
+        FileFingerprint(
           path: 'app/lib/logo.png',
           fingerprint: fileCodeFingerprint(bytes, path: 'app/lib/logo.png'),
         ),
@@ -1248,15 +1249,27 @@ void main() {
       expect(
         fingerprint(),
         folderCodeFingerprint([
-          (path: 'lib/a.dart', fingerprint: of('int a;\n', 'lib/a.dart')),
-          (path: 'lib/b.dart', fingerprint: of('int b;\n', 'lib/b.dart')),
+          FileFingerprint(
+            path: 'lib/a.dart',
+            fingerprint: of('int a;\n', 'lib/a.dart'),
+          ),
+          FileFingerprint(
+            path: 'lib/b.dart',
+            fingerprint: of('int b;\n', 'lib/b.dart'),
+          ),
         ]),
       );
       expect(
         fingerprint(fileHash: (bytes, _) => legacyFileCodeFingerprint(bytes)),
         folderCodeFingerprint([
-          (path: 'lib/a.dart', fingerprint: legacyOf('// note\nint a;\n')),
-          (path: 'lib/b.dart', fingerprint: legacyOf('int b;\n')),
+          FileFingerprint(
+            path: 'lib/a.dart',
+            fingerprint: legacyOf('// note\nint a;\n'),
+          ),
+          FileFingerprint(
+            path: 'lib/b.dart',
+            fingerprint: legacyOf('int b;\n'),
+          ),
         ]),
       );
     });

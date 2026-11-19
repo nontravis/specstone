@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/skip_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 const _patternsFieldId = 'patterns';
@@ -7,12 +8,6 @@ const _outOfScopeSectionId = 'out_of_scope';
 
 /// A bullet that opens with the code span `<pattern>/<item>`, then ` — `.
 final _skipLine = RegExp('^[-*] `([^`/]+)/([^`/]+)` — ');
-
-/// One skip line of an `out_of_scope` section: the item a doc leaves out of
-/// the feature pattern it lists.
-///
-/// `span` is the code span's text as written, without its backticks.
-typedef SkipLine = ({int line, String pattern, String item, String span});
 
 /// Returns the skip lines of [doc]'s `out_of_scope` section, keyed by file
 /// line.
@@ -31,7 +26,7 @@ Map<int, SkipLine> skipLinesOf(CheckContext context, IndexedDoc doc) {
       if (!line.fenced)
         if (_skipLine.firstMatch(line.text) case final match?)
           if (listed.contains(match.group(1)))
-            line.line: (
+            line.line: SkipLine(
               line: line.line,
               pattern: match.group(1)!,
               item: match.group(2)!,
@@ -52,7 +47,7 @@ Iterable<Finding> checkFeaturePatterns(
 ) sync* {
   if (!context.typeHoldsField(context.typeOf(doc), _patternsFieldId)) return;
   final set = context.index.set;
-  for (final (:id, :line) in _patternEntries(context, doc)) {
+  for (final _PatternEntry(:id, :line) in _patternEntries(context, doc)) {
     if (set.featurePattern(id) != null) continue;
     yield context.finding(
       doc,
@@ -79,12 +74,18 @@ Iterable<Finding> checkFeaturePatterns(
   }
 }
 
+/// One string value of `patterns:`, and its file line.
+final class _PatternEntry {
+  const new({required this.id, required this.line});
+
+  final String id;
+  final int line;
+}
+
 /// Returns each string value of [doc]'s `patterns:` with its line; a value of
 /// any other type is the field check's to report.
-List<({String id, int line})> _patternEntries(
-  CheckContext context,
-  IndexedDoc doc,
-) => [
+List<_PatternEntry> _patternEntries(CheckContext context, IndexedDoc doc) => [
   for (final entry in context.linesOf(doc).entriesOf(_patternsFieldId))
-    if (entry.value case final String id) (id: id, line: entry.line),
+    if (entry.value case final String id)
+      _PatternEntry(id: id, line: entry.line),
 ];

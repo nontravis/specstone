@@ -1,5 +1,8 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/catalog_doc.dart';
+import 'package:specstone_core/src/consistency_check/models/code_at.dart';
+import 'package:specstone_core/src/consistency_check/models/raised_code.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -41,13 +44,6 @@ Iterable<Finding> checkErrorCatalogs(
   }
 }
 
-/// One code catalog: its doc, the doc it hangs under, and its body rows.
-typedef CatalogDoc = ({
-  IndexedDoc doc,
-  IndexedDoc owner,
-  List<({String code, int line})> rows,
-});
-
 /// Returns each catalog doc of every target, a shared doc once; empty when no
 /// layer sets `catalog`.
 List<CatalogDoc> _catalogsOf(CheckContext context) {
@@ -65,7 +61,7 @@ List<CatalogDoc> _catalogsOf(CheckContext context) {
         catalog.column,
       );
       if (rows.isNotEmpty) {
-        catalogs.add((doc: doc, owner: owner, rows: rows));
+        catalogs.add(CatalogDoc(doc: doc, owner: owner, rows: rows));
       }
     }
   }
@@ -74,11 +70,8 @@ List<CatalogDoc> _catalogsOf(CheckContext context) {
 
 /// Returns each body row's code span under [column]; header and separator
 /// rows hold none.
-List<({String code, int line})> _catalogRowsOf(
-  List<BodyLine> body,
-  String column,
-) {
-  final rows = <({String code, int line})>[];
+List<CodeAt> _catalogRowsOf(List<BodyLine> body, String column) {
+  final rows = <CodeAt>[];
   int? codeColumn;
   for (final line in body) {
     final text = line.text.trim();
@@ -89,7 +82,7 @@ List<({String code, int line})> _catalogRowsOf(
     if (codeColumn >= cells.length) continue;
     final span = codeSpansOf(cells[codeColumn]).firstOrNull;
     if (span == null) continue;
-    rows.add((code: _spanText(cells[codeColumn], span), line: line.line));
+    rows.add(CodeAt(code: _spanText(cells[codeColumn], span), line: line.line));
   }
   return rows;
 }
@@ -130,9 +123,6 @@ Iterable<Finding> _duplicateFindings(
   }
 }
 
-/// One code an unskipped requirement names: where.
-typedef RaisedCode = ({IndexedDoc doc, String code, int line});
-
 /// Returns the catalog findings of one target [name]: each catalog row no
 /// unskipped requirement under its owner names, and each code a requirement
 /// names while its nearest owner's catalogs here lack it.
@@ -161,7 +151,8 @@ Iterable<Finding> _targetFindings(
         .firstOrNull;
     if (owner == null) continue;
     (raised[owner.docPath] ??= []).addAll([
-      for (final (:code, :line) in named) (doc: doc, code: code, line: line),
+      for (final CodeAt(:code, :line) in named)
+        RaisedCode(doc: doc, code: code, line: line),
     ]);
   }
   for (final MapEntry(key: ownerPath, value: owned) in byOwner.entries) {
@@ -208,13 +199,13 @@ final String _skipped = RecordStatus.skipped.wire;
 /// Returns each cataloged code a `names_codes` section of [doc] names as a
 /// code span, with its line, in source order; a span whose text no catalog
 /// of the project holds names nothing.
-List<({String code, int line})> _namedCodesOf(
+List<CodeAt> _namedCodesOf(
   CheckContext context,
   IndexedDoc doc,
   Set<String> catalogedCodes,
 ) {
   final content = context.contentOf(doc);
-  final named = <({String code, int line})>[];
+  final named = <CodeAt>[];
   for (var i = 0; i < content.sections.length; i++) {
     if (!(context.templateSectionAt(doc, i)?.namesCodes ?? false)) continue;
     for (final line in sectionBodyLines(
@@ -225,7 +216,7 @@ List<({String code, int line})> _namedCodesOf(
       for (final span in codeSpansOf(line.text)) {
         final code = _spanText(line.text, span);
         if (catalogedCodes.contains(code)) {
-          named.add((code: code, line: line.line));
+          named.add(CodeAt(code: code, line: line.line));
         }
       }
     }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show extensionOfCodePath, isCommentLine;
@@ -75,11 +76,12 @@ bool _startsWithBom(List<int> bytes) =>
 ///
 /// Each file adds one `<path> <fingerprint>` line, each path relative to
 /// the code target's code root. An empty list hashes as empty text.
-String folderCodeFingerprint(List<({String path, String fingerprint})> files) =>
-    baseHashOf(
-      [for (final (:path, :fingerprint) in files) '$path $fingerprint\n']
-          .join(),
-    );
+String folderCodeFingerprint(List<FileFingerprint> files) => baseHashOf(
+  [
+    for (final FileFingerprint(:path, :fingerprint) in files)
+      '$path $fingerprint\n',
+  ].join(),
+);
 
 /// Returns the files a code link [path] names, as paths from [codeRoot],
 /// sorted by code point.
