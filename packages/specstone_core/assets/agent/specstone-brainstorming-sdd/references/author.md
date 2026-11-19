@@ -50,13 +50,14 @@ a restated copy; rewrite a reader owning a rule. List any other under `Findings:
 
 ## 4. Check
 
-Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your drafts.
-Before the second, walk each item you wrote against the saved guide's description lines (doc part, held sections,
-`Fields:`) and each type's `==> shared <==` lines, not templates or `Banned words:`, `Required …`, `Optional …`, or
-`Limits:` lines. List a line you cannot meet under `Findings:`. Run `specstone check <feature> --repeats --out
-"<folder>/reports/check.author.<XXXXXX>.txt"` per feature of your drafts: link, never repeat, another doc's item.
+Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your drafts,
+searching each for your drafts. Before the second, walk each item you wrote against the saved guide's description lines
+(doc part, held sections, `Fields:`) and each type's `==> shared <==` lines, not templates or `Banned words:`, `Required
+…`, `Optional …`, or `Limits:` lines. List a line you cannot meet under `Findings:`. Run `specstone check <feature>
+--repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per feature of your drafts: link, never repeat, another
+doc's item.
 
-Fix each second-run finding in a section you wrote; list others under `Findings:`,
+Fix each second-run finding, even a first-run one, in a section you wrote; list others under `Findings:`,
 unfixed. Two kinds:
 
 - **A `suspect` link in another doc:** confirm it again per `specstone-expert-sdd`, that doc joining your drafts, else
@@ -70,26 +71,4 @@ After any write of this step, run the bare check again; list each finding it add
 
 ## 5. Report
 
-```
-Design: <path>, amend <N>
-Not landed: <decision>: <why no doc took it>
-Not landed: <type>:<name>: listed and never created, or <why no doc took this row>
-| Decision or row | Doc that took it |
-|---|---|
-| <ID or label, or a row's <type>:<name>> | <type>:<name>#<key>, or NOT LANDED |
-Drafts for the Owner's specstone approve <type>:<name>: <type>:<name>, ...
-Counts: <count> drafts; <type>:<name>: <d> dropped, <n> new; ...
-Other drafts: <type>:<name>, ..., or none
-Move: specstone move <target> … --under <parent>, or … --top
-Check: <path>
-Guide: <txt path>, <json path>
-Findings: <each finding left after step 4, each finding or hit outside the drafts, or none>
-```
-
-- **Design**: `<N>`, the last amend or `0`; the relay block's first line too.
-- **Drafts**: every doc you wrote or confirmed again; in a later pass, step 1's list less dropped names, plus docs
-  added; names only, no `--target`.
-- **Counts**: take each count from one `specstone approve --dry-run --json` after your last write, for your
-  list's docs. Name each other draft it lists under `Other drafts:`, never counted; one of yours it shows as no
-  draft goes under `Findings:`.
-- **Move**: only for a moved doc, item, or scenario, copied to the relay block. Run no `move`.
+Follow `author-report.md`.

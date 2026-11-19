@@ -47,6 +47,7 @@ const _procedures = <String>[
   'specstone-bootstrap-spec/references/procedure.md',
   _goalMove,
   'specstone-brainstorming-sdd/references/author.md',
+  'specstone-brainstorming-sdd/references/author-report.md',
   'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/design-check.md',
