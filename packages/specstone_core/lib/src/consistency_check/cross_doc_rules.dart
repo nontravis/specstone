@@ -8,8 +8,6 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show tableCellRanges, tableHeadCells;
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
-import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -229,7 +227,7 @@ Iterable<Finding> _scopePathFindings(
   final covers = [
     for (final YamlEntry(:value)
         in context.linesOf(topic).entriesOf(_coversField))
-      if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
+      if (value is String) ?reachablePathOf(value),
   ];
   final index = context.heldIndexOf(topic, _scopeSection);
   if (index == null) return;
@@ -238,7 +236,7 @@ Iterable<Finding> _scopePathFindings(
     for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line.text)) {
       final path = line.text.substring(start + ticks, end - ticks).trim();
       if (!path.contains('/') || !isPortableCodeEntry(path)) continue;
-      if (covers.any((entry) => _reaches(entry, path))) continue;
+      if (covers.any((entry) => entryReaches(entry, path))) continue;
       yield context.finding(
         topic,
         FindingKind.scopePathUncovered,
@@ -249,11 +247,6 @@ Iterable<Finding> _scopePathFindings(
     }
   }
 }
-
-/// Whether [entry] equals [path] or names a folder that holds it, by path
-/// segment.
-bool _reaches(String entry, String path) =>
-    entry.isEmpty || path == entry || path.startsWith('$entry/');
 
 /// Returns each table of [body]: its header cells and body rows.
 List<_Table> _tablesOf(List<BodyLine> body) {
