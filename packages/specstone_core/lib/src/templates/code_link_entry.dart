@@ -58,8 +58,8 @@ bool readsFromProjectRoot(MergedField field) =>
 /// Returns the path [entry] names, in `normalCodeEntry`'s form; null when it
 /// is empty, so it names no path of its own.
 ///
-/// The one reader of a `covers` entry as a path: coverage and `context --code`
-/// take it, so an empty entry reaches nothing in either.
+/// The one reader of a `covers` entry as a path: coverage, `context --code`,
+/// and the topic scope rule take it, so an empty entry reaches nothing in any.
 String? reachablePathOf(String entry) {
   final pointer = CodeLinkEntry(entry).pointer;
   return isEmptyCodeEntry(pointer) ? null : normalCodeEntry(pointer);
