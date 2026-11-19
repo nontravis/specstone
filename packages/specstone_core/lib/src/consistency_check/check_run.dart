@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/agent_block_rules.dart';
 import 'package:specstone_core/src/consistency_check/approval_rules.dart';
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
+import 'package:specstone_core/src/consistency_check/bare_id_rules.dart';
 import 'package:specstone_core/src/consistency_check/bundle_size_rule.dart';
 import 'package:specstone_core/src/consistency_check/catalog_rules.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
@@ -128,6 +129,7 @@ Future<CheckReport> runCheck(
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))
       ..addAll(checkOldCites(context, doc))
+      ..addAll(checkBareItemIds(context, doc))
       ..addAll(checkOpenTbrs(context, doc))
       ..addAll(checkReferenceEntries(context, doc))
       ..addAll(checkDiagrams(context, doc));

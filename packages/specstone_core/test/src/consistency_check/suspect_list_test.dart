@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
 
 void main() {
   final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
@@ -51,6 +52,8 @@ void main() {
       final session = openSession(
         await writeCheckProject(
           extra: {
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}verification_coverage: edge_case\n',
             loginRecord:
                 "---\nstatuses:\n  - '$item:implemented'\n---\n\n# Record\n\n"
                 '## Verification matrix\n\n$row\n',

@@ -26,6 +26,7 @@ import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
+import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
@@ -78,6 +79,7 @@ const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
 const _testsChange = 'add test lines';
+const _matrixRowsChange = 'fold matrix rows';
 const _codeStampChange = 'stamp code fingerprints';
 const _codeRestampChange = 'restamp code fingerprints';
 const _citeChange = 'convert cites';
@@ -423,12 +425,30 @@ RunPlan _upgradeRunOf(
           isTaken: (docPath) => taken(projectPathOfDocPath(docPath)),
         )
       : null;
-  final recorded = <String>[];
+  final tested = <String>[];
   for (final (index, work) in works.indexed) {
     var text = converted[index];
     if (tests?.recordEdits[work.plannedPath] case final edited?) {
       text = edited;
       work.changes.add(_testsChange);
+    }
+    tested.add(text);
+  }
+  final matrixFold = MatrixFoldPass.plan(config.matrixMode, finalSet, [
+    for (final (index, work) in works.indexed)
+      MatrixFoldDoc(
+        plannedPath: work.plannedPath,
+        type: work.docType,
+        target: work.target,
+        lf: tested[index],
+      ),
+  ]);
+  final recorded = <String>[];
+  for (final (index, work) in works.indexed) {
+    var text = tested[index];
+    if (matrixFold?.recordEdits[work.plannedPath] case final edited?) {
+      text = edited;
+      work.changes.add(_matrixRowsChange);
     }
     recorded.add(text);
   }
@@ -605,6 +625,7 @@ RunPlan _upgradeRunOf(
       ?renumber?.planLine,
       ?labels?.planLine,
       ?tests?.planLine,
+      ?matrixFold?.planLine,
       ?cites?.planLine,
       ?formatLayoutLine(laidOutPaths),
       ?stamps.planLine,
@@ -625,6 +646,7 @@ RunPlan _upgradeRunOf(
       steps: stepLines,
       mentions: mentions,
       tests: tests?.json,
+      matrixRows: matrixFold?.json,
     ),
   );
   return plan;

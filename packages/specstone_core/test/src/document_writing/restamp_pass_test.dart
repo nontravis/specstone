@@ -16,7 +16,9 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart'
     show checkOf, checkProjectFiles, docTypeMatcherOf, fingerprintFor;
 import '../../helpers/nested_fixture.dart';
-import '../../helpers/shipped_pins.dart' show shippedStatusesOutside;
+import '../../helpers/per_fr_row_fixture.dart';
+import '../../helpers/shipped_pins.dart'
+    show shippedPinsConfig, shippedStatusesOutside;
 import '../../helpers/write_fixture.dart'
     show getDoc, readDoc, treeBytes, writeIn;
 
@@ -54,6 +56,10 @@ String _domain(String title, List<String> invariants, {String? overrides}) =>
     '# $title domain\n\n## Entities\n| Entity | Kind | Identity | Owns | Notes |\n'
     '|--------|------|----------|------|-------|\n| Order | Aggregate root | id | lines | — |\n\n'
     '## Invariants\n${invariants.join('\n')}\n';
+
+/// The config that reads the per-edge-case rows the projects below hold.
+String _edgeCaseConfig() =>
+    '${shippedPinsConfig()}verification_coverage: edge_case\n';
 
 String _record(String record, List<String> rows) =>
     '${nestedRecords()[record]}$_matrix${rows.join('\n')}\n';
@@ -128,6 +134,7 @@ void main() {
           edgeCases: [soldOut, missing],
         ),
         ...nestedRecords(),
+        '.specstone/config.yaml': _edgeCaseConfig(),
         cartRecord: _record(cartRecord, [
           _row(
             'add_item/check_stock',
@@ -268,6 +275,7 @@ void main() {
             edgeCases: [sharedCase],
           ),
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row('add_item/check_stock', 'E01', 'refuses an item', shared),
             _row('drop_item/keep_stock', 'E01', 'refuses an item', shared),
@@ -306,6 +314,7 @@ void main() {
             edgeCases: [soldOut],
           ),
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row(
               'add_item/check_stock',
@@ -356,6 +365,7 @@ void main() {
             edgeCases: [soldOut],
           ),
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row(
               'add_item/check_stock',
@@ -451,6 +461,7 @@ void main() {
             edgeCases: [spanCase, nodeCase],
           ),
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row(
               'add_item/check_stock',
@@ -489,6 +500,7 @@ void main() {
       final root = await writeNestedProject(
         extra: {
           ...nestedRecords(),
+          '.specstone/config.yaml': _edgeCaseConfig(),
           cartRecord: _record(cartRecord, [
             _row(
               'add_item/check_stock',
@@ -563,4 +575,128 @@ void main() {
       expect(await _suspects(root), ['cart/add_item/check_stock']);
     });
   });
+
+  group('a per-FR row', () {
+    const dropEdge = perFrDropEdge;
+    const addEdge =
+        '1. E01 — A sold-out item, as [add](../us01_add_item/USER_STORY.md) shows → refused.';
+    const literals = '`refuses a sold-out item`, `refuses a missing item`';
+    final stale = fingerprintFor('1. E01 — An old text → refused.');
+
+    String frRow(String item, String fingerprint) =>
+        '- $item: $literals $fingerprint';
+
+    String edgeCaseRow(String item, String fingerprint) =>
+        '- $item E01: `refuses a sold-out item` $fingerprint';
+
+    Future<Directory> project({
+      required String coverage,
+      required String edgeCase,
+      required String row,
+    }) => writeNestedProject(
+      extra: {
+        'docs/$cartAddFr': _fr(
+          'Check the stock',
+          scenario: _scenario('Add an item'),
+          edgeCases: [edgeCase],
+        ),
+        ...nestedRecords(),
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}verification_coverage: $coverage\n',
+        cartRecord: _record(cartRecord, [row]),
+      },
+    );
+
+    String renamedDrop(String text) =>
+        text.replaceAll('drop_item', 'remove_item');
+
+    test('re-stamps a matched per-FR row when a rename changes a name in its contract', () async {
+      final root = await project(
+        coverage: 'fr',
+        edgeCase: dropEdge,
+        row: frRow(
+          'add_item/check_stock',
+          fingerprintFor(perFrContractOf(dropEdge)),
+        ),
+      );
+      _renameDrop(root);
+      expect(
+        readDoc(root, cartRecord),
+        endsWith(
+          '$_matrix${frRow('add_item/check_stock', fingerprintFor(perFrContractOf(renamedDrop(dropEdge))))}\n',
+        ),
+      );
+      expect(await _suspects(root), isEmpty);
+    });
+
+    test('keeps a stale per-FR row stamp after a rename', () async {
+      final root = await project(
+        coverage: 'fr',
+        edgeCase: dropEdge,
+        row: frRow('add_item/check_stock', stale),
+      );
+      _renameDrop(root);
+      expect(
+        readDoc(root, cartRecord),
+        endsWith('$_matrix${frRow('add_item/check_stock', stale)}\n'),
+      );
+      expect(await _suspects(root), ['add_item/check_stock']);
+    });
+
+    test(
+      'rewrites the item of a stamped row under off and keeps its text',
+      () async {
+        final recorded = fingerprintFor(perFrContractOf(addEdge));
+        final root = await project(
+          coverage: 'false',
+          edgeCase: addEdge,
+          row: frRow('add_item/check_stock', recorded),
+        );
+        _renameAdd(root);
+        expect(
+          readDoc(root, cartRecord),
+          endsWith('$_matrix${frRow('put_item/check_stock', recorded)}\n'),
+        );
+        expect(
+          readDoc(
+            root,
+            'prds/features/f02_shop/f01_cart/us01_put_item/fr01_check_stock.md',
+          ),
+          contains('as [add](USER_STORY.md) shows'),
+        );
+      },
+    );
+
+    test(
+      'rewrites the item of a refused-form row and writes no stamp',
+      () async {
+        final recorded = fingerprintFor(addEdge);
+        final root = await project(
+          coverage: 'fr',
+          edgeCase: addEdge,
+          row: edgeCaseRow('add_item/check_stock', recorded),
+        );
+        _renameAdd(root);
+        expect(
+          readDoc(
+            root,
+            'prds/features/f02_shop/f01_cart/us01_put_item/fr01_check_stock.md',
+          ),
+          contains('as [add](USER_STORY.md) shows'),
+        );
+        expect(
+          readDoc(root, cartRecord),
+          endsWith(
+            '$_matrix${edgeCaseRow('put_item/check_stock', recorded)}\n',
+          ),
+        );
+      },
+    );
+  });
 }
+
+ReadAnswer _renameAdd(Directory root) => writeIn(
+  root,
+  (session) =>
+      answerRename(session, 'user_story:shop/cart/add_item', slug: 'put_item'),
+);

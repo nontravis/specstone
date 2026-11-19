@@ -8,33 +8,44 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _skipMark = ' skipped: ';
+const _literalSeparator = ', ';
 
 /// Returns the line [text], file line [line] of a record, as a row, or as a
 /// [MalformedRow] when it is neither shape.
 ///
-/// A test row is ``- <item> <edge case>: `<literal>`[ <fingerprint>]``; a
-/// skip row is `- <item> <edge case> skipped: <reason>[ <fingerprint>]`. A
-/// fingerprint is 12 lowercase hex characters. A skip row with no reason is
-/// malformed. Trailing whitespace after a row is no part of it.
+/// A per-FR test row is one or more code spans, each set off by exactly `, `
+/// and none written twice, after `- item: `; a per-edge-case test row is one
+/// span after `- item E01: `. A skip row is `- item skipped: reason` or
+/// `- item E01 skipped: reason`. Each row may end in a space and a fingerprint
+/// of 12 lowercase hex characters. A skip row with no reason is malformed.
+/// Trailing whitespace after a row is no part of it.
+///
+/// The form is read from the line alone, never from a mode.
 MatrixLine parseMatrixLine(String text, int line) =>
     _testRowOf(text, line) ??
     _skipRowOf(text, line) ??
     MalformedRow(line: line, text: text);
 
-/// The item and edge case that open a row, and the text after them.
+/// The item, and the edge case when the row names one, that open a row, and
+/// the text after them.
 final class _RowHead {
   const new(this.item, this.edgeCase, this.rest);
 
   final String item;
-  final String edgeCase;
+  final String? edgeCase;
   final String rest;
 }
 
-/// Returns the `- <item> <edge case>` that opens [text] and what follows it,
-/// or null when [text] does not open so. The item holds no space; the edge
-/// case is `E` and digits.
+/// Returns the `- <item> <edge case>` or `- <item>` that opens [text] and what
+/// follows it, or null when [text] does not open so. The item holds no space;
+/// the edge case is `E` and digits, and is tried first, so an item followed by
+/// one keeps the per-edge-case reading.
 _RowHead? _headOf(String text) {
   if (!text.startsWith('- ')) return null;
+  return _edgeCaseHeadOf(text) ?? _frHeadOf(text);
+}
+
+_RowHead? _edgeCaseHeadOf(String text) {
   final itemEnd = text.indexOf(' ', 2);
   if (itemEnd <= 2) return null;
   var edgeEnd = itemEnd + 1;
@@ -52,6 +63,17 @@ _RowHead? _headOf(String text) {
   );
 }
 
+_RowHead? _frHeadOf(String text) {
+  var itemEnd = 2;
+  while (itemEnd < text.length &&
+      text[itemEnd] != ' ' &&
+      text[itemEnd] != ':') {
+    itemEnd++;
+  }
+  if (itemEnd == 2) return null;
+  return _RowHead(text.substring(2, itemEnd), null, text.substring(itemEnd));
+}
+
 bool _isEdgeCase(String text) =>
     text.length > 1 &&
     text.startsWith('E') &&
@@ -61,16 +83,35 @@ TestRow? _testRowOf(String text, int line) {
   final head = _headOf(text);
   if (head == null || !head.rest.startsWith(': ')) return null;
   final rest = head.rest.substring(2).trimRight();
-  final span = codeSpansOf(rest).firstOrNull;
-  if (span == null || span.start != 0) return null;
-  final tail = rest.substring(span.end);
+  final literals = <String>[];
+  var at = 0;
+  var awaitsSpan = false;
+  for (final span in codeSpansOf(rest)) {
+    if (span.start != at) break;
+    literals.add(
+      _spanContentOf(
+        rest.substring(span.start + span.ticks, span.end - span.ticks),
+      ),
+    );
+    at = span.end;
+    awaitsSpan = rest.startsWith(_literalSeparator, at);
+    if (!awaitsSpan) break;
+    at += _literalSeparator.length;
+  }
+  if (awaitsSpan ||
+      literals.isEmpty ||
+      literals.toSet().length != literals.length) {
+    return null;
+  }
+  if (head.edgeCase != null && literals.length > 1) return null;
+  final tail = rest.substring(at);
   if (tail.isNotEmpty && !tail.startsWith(' ')) return null;
   final fingerprint = tail.isEmpty ? null : tail.substring(1);
   if (fingerprint != null && !isFingerprint(fingerprint)) return null;
   return TestRow(
     item: head.item,
     edgeCase: head.edgeCase,
-    literal: _spanContentOf(rest.substring(span.ticks, span.end - span.ticks)),
+    literals: literals,
     fingerprint: fingerprint,
     line: line,
     written: _writtenOf(text, fingerprint),

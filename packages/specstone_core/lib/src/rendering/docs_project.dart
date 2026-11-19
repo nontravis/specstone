@@ -12,6 +12,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
@@ -48,7 +49,7 @@ final class DocsProject {
     required Map<CodeTarget, List<String>> nestedRoots,
     required this.stampsHaveRun,
     required this.statusesOutsideApproval,
-    required this.verificationCoverage,
+    required this.matrixMode,
     required this.cleanup,
     required this.matcher,
     required this.set,
@@ -89,7 +90,7 @@ final class DocsProject {
       ),
       stampsHaveRun: approval.stampsHaveRun(config.pins),
       statusesOutsideApproval: approval.statusesOutsideApproval(config.pins),
-      verificationCoverage: config.verificationCoverage,
+      matrixMode: config.matrixMode,
       cleanup: config.cleanup,
       matcher: DocTypeMatcher(set, targetNames: config.targetNames),
       set: set,
@@ -109,9 +110,8 @@ final class DocsProject {
   /// version the stamp holds fixes it.
   final bool statusesOutsideApproval;
 
-  /// Whether the config turns on `check`'s coverage finding; read once at
-  /// open.
-  final bool verificationCoverage;
+  /// The Verification matrix mode the config names; read once at open.
+  final MatrixMode matrixMode;
 
   /// The bounds that keep the saved bundles and reports small; read once at
   /// open.

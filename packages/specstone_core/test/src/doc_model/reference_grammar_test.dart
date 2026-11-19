@@ -774,4 +774,25 @@ void main() {
       expect(itemKeyOf(heading, isScenario: true), 'Scenario 6a');
     });
   });
+
+  group('proseTrimmedPath', () {
+    const cases = {
+      'a.md': 'a.md',
+      'a.md.': 'a.md',
+      'a.md;': 'a.md',
+      'a.md:': 'a.md',
+      'a.md:12': 'a.md',
+      'a.md:12:5': 'a.md',
+      'a.md:12.': 'a.md',
+      'a.md:x': 'a.md:x',
+      'a.md::1': 'a.md:',
+      ':1': '',
+      '': '',
+    };
+    for (final MapEntry(key: written, value: trimmed) in cases.entries) {
+      test('trims "$written" to "$trimmed"', () {
+        expect(proseTrimmedPath(written), trimmed);
+      });
+    }
+  });
 }

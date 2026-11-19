@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
+import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -26,10 +27,21 @@ final Set<String> _idPrefixes = itemIdPrefixesOf(
       .docTypes,
 );
 
+/// The cite candidates of [lf], one per cite form.
+List<CiteCandidate> _candidatesOf(String lf, {Set<int> skipLines = const {}}) =>
+    [
+      for (final form in citeFormsOf(
+        lf,
+        idPrefixes: _idPrefixes,
+        skipLines: skipLines,
+      ))
+        form.candidate,
+    ];
+
 /// Each candidate of [lf] as `(line, written, sectionKey, item IDs)`, the IDs
 /// joined by a space, so a record compares by value.
 List<(int, String, String?, String)> _readAll(String lf) => [
-  for (final c in citeCandidatesOf(lf, idPrefixes: _idPrefixes))
+  for (final c in _candidatesOf(lf))
     (c.line, c.written, c.sectionKey, c.itemIds.join(' ')),
 ];
 
@@ -60,7 +72,7 @@ ParsedDoc _record(String lf, {MergedDocType? type}) => parseIndexedDoc(
 );
 
 void main() {
-  group('citeCandidatesOf', () {
+  group('citeFormsOf', () {
     test('a prefixed address and a path are candidates, a lone-word span is '
         'not', () {
       final read = _readAll(
@@ -231,11 +243,7 @@ void main() {
 
     test('a line in skipLines gives no candidate, any other line does', () {
       final lf = _doc('`domain:login`\n`topic:doc_model`\n`feature:login`\n');
-      final read = citeCandidatesOf(
-        lf,
-        idPrefixes: _idPrefixes,
-        skipLines: const {6, 8},
-      );
+      final read = _candidatesOf(lf, skipLines: const {6, 8});
       expect([for (final c in read) c.written], ['topic:doc_model']);
     });
   });
@@ -253,6 +261,16 @@ void main() {
         _matrixRecord(
           '- show_toast E01: `login/email_login`\n'
           '- show_toast E02: `domain:login`\n',
+        ),
+      );
+      expect(read, isEmpty);
+    });
+
+    test('reads no cite candidate in any span of a per-FR test row', () {
+      final read = candidatesOf(
+        _matrixRecord(
+          '- show_toast: `login/email_login`, `domain:login`\n'
+          '- show_toast/pin_toast: `topic:doc_model`\n',
         ),
       );
       expect(read, isEmpty);

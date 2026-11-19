@@ -87,16 +87,6 @@ final _allowed = <_Allowed>[
     """.indexOf('#'""",
     'Mention reader: cuts a prose path token at its `#`.',
   ),
-  _core(
-    'document_writing/rewrite_mentions.dart',
-    r"""RegExp(r'[.,;:]$'""",
-    'Mention reader: trailing sentence mark of a prose path.',
-  ),
-  _core(
-    'document_writing/rewrite_mentions.dart',
-    r"""RegExp(r'(?::\d+)+$'""",
-    'Mention reader: `:12:5` line suffix of a prose path.',
-  ),
   // A file-system path segment, not a doc reference.
   _core(
     'document_writing/journal_bounds.dart',
