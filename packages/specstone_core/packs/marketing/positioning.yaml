@@ -3,8 +3,6 @@ description: |-
   The positioning doc: the competitive alternatives, unique attributes, value, best-fit customers, and market category of the project's product.
   Title it `# Positioning`, with no number.
   Start from the competitive alternatives; each other section depends on them.
-  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
-  A learning edits the doc it corrects.
 path: specs/marketing/POSITIONING.md
 sections:
   - id: competitive_alternatives
@@ -14,7 +12,7 @@ sections:
   - id: unique_attributes
     header: Unique attributes
     description: |-
-      List what the product has that the competitive alternatives lack.
+      List what the product has and the competitive alternatives lack.
   - id: value
     header: Value
     description: |-
