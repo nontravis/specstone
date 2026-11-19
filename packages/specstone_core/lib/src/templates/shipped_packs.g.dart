@@ -3633,7 +3633,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'dmVudHMvc3BlYy5tZAogICAgbG9jYXRvcjogUkVRVUlSRUQgQXR0cmlidXRlcyAo'
       'aWQsIHNvdXJjZSwgdHlwZSkK',
   'software-tech/pack.yaml':
-      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjEzLjAKZXh0ZW5kczogcHJk'
+      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjE0LjAKZXh0ZW5kczogcHJk'
       'LWNvcmUKbWlncmF0aW9uczoKICAtIGZyb206IDEuNC4wCiAgICBzdGVwczoKICAg'
       'ICAgLSBtb3ZlX3RvX3JlY29yZDoKICAgICAgICAgIGRvY190eXBlczogW3VzZXJf'
       'c3RvcnksIGZyXQogICAgICAgICAgZmllbGRzOiBbc3RhdHVzLCBpbXBsZW1lbnRz'
@@ -3643,7 +3643,9 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ICAgICAgZG9jX3R5cGU6IGltcGxlbWVudGF0aW9uCiAgICAgICAgICBmcm9tOiBz'
       'cGVjcy9me25ufV97c2x1Z30vSU1QTEVNRU5UQVRJT04ubWQKICAgICAgICAgIHRv'
       'OiAuc3BlY3N0b25lL3JlY29yZHMvZntubn1fe3NsdWd9L0lNUExFTUVOVEFUSU9O'
-      'Lm1kCiAgICAgIC0gcmVzdGFtcF9jb2RlX2ZpbmdlcnByaW50czoge30K',
+      'Lm1kCiAgICAgIC0gcmVzdGFtcF9jb2RlX2ZpbmdlcnByaW50czoge30KICAtIGZy'
+      'b206IDEuMTMuMAogICAgc3RlcHM6CiAgICAgIC0gZHJvcF9kZWZhdWx0X2xpbmVz'
+      'OgogICAgICAgICAgZG9jX3R5cGVzOiBbZG9tYWluLCBwcm9qZWN0X2RvbWFpbl0K',
   'software-tech/patterns/audit_log.yaml':
       'aWQ6IGF1ZGl0X2xvZwpkZXNjcmlwdGlvbjogV2hvIGRpZCB3aGF0IGFuZCB3aGVu'
       'LCBrZXB0IGFuZCBwcm90ZWN0ZWQuCml0ZW1zOgogIC0gaWQ6IHNpZ25faW5fZXZl'

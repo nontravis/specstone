@@ -3558,6 +3558,7 @@ void _moveToRecordTests() {
             'paths': [newRecord],
             'unreadable': <String>[],
           },
+          {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
         ]);
       });
 
@@ -4696,6 +4697,7 @@ void _codeStampTests() {
           'paths': <String>[],
           'unreadable': <String>[],
         },
+        {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
       ]);
     });
 

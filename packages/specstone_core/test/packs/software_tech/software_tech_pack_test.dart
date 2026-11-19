@@ -81,7 +81,7 @@ const _itemShapeLines = <String, String>{
 
 void main() {
   group('software-tech manifest', () {
-    test('software-tech ships at 1.13.0 and extends prd-core', () {
+    test('software-tech ships at 1.14.0 and extends prd-core', () {
       final bytes = shippedPackFiles['software-tech/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -89,12 +89,28 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.13.0');
+      expect(manifest.version.toString(), '1.14.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 
+    test('the 1.13.0 entry holds one drop_default_lines step for the '
+        'domain doc types', () {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+        file: 'packs/software-tech/pack.yaml',
+      );
+
+      final entry = manifest.migrations.singleWhere(
+        (m) => m.from.toString() == '1.13.0',
+      );
+
+      expect(entry.steps, hasLength(1));
+      final step = entry.steps.single as DropDefaultLines;
+      expect(step.docTypes, ['domain', 'project_domain']);
+    });
+
     test('an upgrade to the shipped version carries the ten feature patterns '
-        'and runs no migration step for them', () {
+        'and runs no migration step that touches them', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
         file: 'packs/software-tech/pack.yaml',
@@ -112,7 +128,7 @@ void main() {
       );
 
       expect(upgrades.single.target, shipped);
-      expect(upgrades.single.steps, isEmpty);
+      expect(upgrades.single.steps.single.step, isA<DropDefaultLines>());
       expect(
         shippedPackFiles.keys.where(
           (k) => k.startsWith('software-tech/patterns/'),

@@ -2161,8 +2161,8 @@ agent_file_roots:
             '| --- | --- | --- | --- | --- |\n'
             '| Account | Aggregate root | id | balance | - |\n\n'
             '## Invariants\n\n$invariant\n'
-            '  - **Enforcer:** Account\n'
-            '  - **Consistency:** immediate\n';
+            '  - **Enforcer:** Ledger\n'
+            '  - **Consistency:** eventual\n';
         Future<List<Map<String, Object?>>> overLimit(
           Directory root,
           Directory home,
@@ -2194,8 +2194,8 @@ agent_file_roots:
         );
         final lines = _read(root, domainPath).split('\n');
         expect(lines.where((line) => line.startsWith('- **INV-')), [invariant]);
-        expect(lines, contains('  - **Enforcer:** Account'));
-        expect(lines, contains('  - **Consistency:** immediate'));
+        expect(lines, contains('  - **Enforcer:** Ledger'));
+        expect(lines, contains('  - **Consistency:** eventual'));
         final after = await overLimit(root, home);
         expect(after, hasLength(1));
         expect(after.single, containsPair('section', 'invariants'));
