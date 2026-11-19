@@ -239,7 +239,10 @@ void main() {
           AgentFolder.codexAgents,
           'specstone-looker.toml',
         );
-        expect(codex.text, isNot(contains('skills:')));
+        expect(
+          codex.text,
+          isNot(contains(RegExp(r'^skills\b', multiLine: true))),
+        );
       },
     );
 
