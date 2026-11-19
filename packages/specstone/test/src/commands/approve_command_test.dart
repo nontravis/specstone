@@ -94,6 +94,31 @@ void main() {
     expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
     expect(text, isNot(contains('draft: true')));
   });
+  test(
+    '--yes deletes the saved copy no doc carries and keeps the copy it saves',
+    () async {
+      final root = await writeWriteProject();
+      final orphan = File('${root.path}/.specstone/approved/ba9876543210.md')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('an approval no doc carries');
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run(['approve', _seen(root, 'feature:signup'), '--yes']),
+        0,
+      );
+
+      final mark = RegExp(r'\napproved: "([0-9a-f]{12})"\n').firstMatch(
+        File('${root.path}/docs/$signupFeature').readAsStringSync(),
+      )!;
+      expect(orphan.existsSync(), isFalse);
+      expect(
+        File('${root.path}/.specstone/approved/${mark.group(1)}.md')
+            .existsSync(),
+        isTrue,
+      );
+    },
+  );
   test('--yes approves a draft that lacks required and optional sections and adds none of them', () async {
     final root = await writeWriteProject();
     List<String> headersOf(String docPath) => RegExp(

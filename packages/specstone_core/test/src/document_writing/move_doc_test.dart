@@ -3734,6 +3734,25 @@ void main() {
       expect(approvedValue(stale, shopApi), kept);
       expect(await staleDocs(stale), contains(shopApi));
     });
+
+    test(
+      'a move saves the approved copy of the api doc it re-stamps',
+      () async {
+        final root = await writeNestedProject();
+        writeIn(
+          root,
+          (s) => answerMove(s, [
+            'user_story:shop/cart/add_item',
+          ], under: 'shop/pay'),
+        );
+
+        final mark = approvedValue(root, shopApi)!;
+        expect(
+          File('${root.path}/.specstone/approved/$mark.md').readAsStringSync(),
+          readDoc(root, shopApi),
+        );
+      },
+    );
   });
   group('doc-name mentions in docs and code files', () {
     String codeText(Directory root, String path) =>
