@@ -47,7 +47,7 @@ doc; list any other under `Findings:`.
 
 Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your
 drafts, searching each for your drafts. Before the second, walk each item you wrote against the
-saved guide's description lines (doc part, held sections, `Fields:`) and each type's `==> shared <==` lines, not
+saved guide's description lines (doc part, held sections, `Fields (frontmatter):`) and each type's `==> shared <==` lines, not
 templates or `Banned words:`, `Required …`, `Optional …`, or `Limits:` lines. List a line you cannot meet under
 `Findings:`. Then run `specstone check <feature> --repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per
 feature of your drafts: new draft text repeating another doc's item links it instead.

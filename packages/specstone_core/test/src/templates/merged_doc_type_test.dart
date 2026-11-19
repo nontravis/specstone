@@ -169,7 +169,7 @@ A feature groups the stories that serve one goal.
 
 Banned words: `fast`, `robust`
 
-Fields:
+Fields (frontmatter):
 - `summary` (required, string) — One line on what the feature does.
 
 Limits: at most 300 lines; at most 12,000 characters; at most 600 characters per item; at most 25 words per sentence (ko 17); at most 100 characters per sentence in a script with no spaces (th 100, ja 60, zh 45).
@@ -1102,7 +1102,7 @@ sections:
       expect(
         withFields,
         'A.\n\nBanned words: `fast`\n\n'
-        'Fields:\n- `note` (optional, string)\n\n'
+        'Fields (frontmatter):\n- `note` (optional, string)\n\n'
         'Limits: at most 300 lines; $_builtInClauses\n\n'
         '## S\n\nOptional section.\n\n'
         'Guide sources:\n- T\n',
@@ -1235,7 +1235,7 @@ fields:
       expect(
         guide,
         contains(
-          'Fields:\n'
+          'Fields (frontmatter):\n'
           '- `persona` (required, doc_ref list → persona) — '
           'Who the feature serves.\n'
           '- `owner` (optional, doc_ref → persona, anti_persona)\n'
@@ -1342,9 +1342,21 @@ fields:
 
       expect(
         guide,
-        'A.\n\nFields:\n- `summary` (required, string) — One line.\n\n'
+        'A.\n\nFields (frontmatter):\n'
+        '- `summary` (required, string) — One line.\n\n'
         '$_defaultLimits\n\n## S\n\nOptional section.\n',
       );
+    });
+
+    test('the field block heading tells the writer the fields go in '
+        'frontmatter', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'fields: [{id: note, type: string}]',
+      ).renderGuide();
+
+      expect(guide, contains('\n\nFields (frontmatter):\n- `note` '));
+      expect(guide, isNot(contains('Fields:')));
     });
 
     test('a list field adds list after its type, and a description of two '
@@ -1363,7 +1375,7 @@ fields:
 
       expect(
         guide,
-        'A.\n\nFields:\n'
+        'A.\n\nFields (frontmatter):\n'
         '- `traced_from` (required, string list) — First line.\n'
         '  Second line.\n\n$_defaultLimits\n',
       );
@@ -1376,7 +1388,8 @@ fields:
 
       expect(
         guide,
-        'A.\n\nFields:\n- `note` (optional, string)\n\n$_defaultLimits\n',
+        'A.\n\nFields (frontmatter):\n- `note` (optional, string)\n\n'
+        '$_defaultLimits\n',
       );
     });
 
@@ -1404,7 +1417,7 @@ fields:
       ).renderGuide();
 
       expect(guide, isNot(contains('status')));
-      expect(guide, isNot(contains('Fields:')));
+      expect(guide, isNot(contains('Fields')));
     });
 
     test('a type that declares only built-ins prints no field block', () {
@@ -1412,7 +1425,7 @@ fields:
         'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
       ).renderGuide();
 
-      expect(guide, isNot(contains('Fields:')));
+      expect(guide, isNot(contains('Fields')));
     });
 
     test('a required and an optional section each carry their mark under '
@@ -1696,7 +1709,7 @@ shared_lines:
       expect(
         guide,
         contains(
-          'Fields:\n'
+          'Fields (frontmatter):\n'
           '- `base_url` (optional, string)\n'
           '- `overrides` (optional, string) — Shared overrides.\n'
           '- `project_added` (optional, string)\n',
