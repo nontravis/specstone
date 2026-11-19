@@ -25,24 +25,26 @@ sections:
     header: Value objects
     description: |-
       Write a table of VO, Backed by, Validation.
-      Make each value object immutable.
+      Make each value object immutable; state its shape in Validation, and link an invariant for any rule on it.
   - id: invariants
     header: Invariants
     required: true
     prefix_id: INV-
     description: |-
       Write each invariant as `- **INV-<N>** <rule>`, never a numbered item; IDs are append-only, never reused.
-      Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
-      Under an eventual invariant, nest `- **Corrective policy:** <how the system restores the rule>` too.
       Keep a bound (`timeout 10 s`) in the invariant it bounds; mechanics to ARCHITECTURE, unhandled cases to `known_limits`.
+      Nest a field as `- **<field>:** <text>`. The default enforcer is the one Aggregate root of the entities table, else the one Service; nest `- **Enforcer:** <entity>` only off it, and under every invariant when there is none.
+      Nest `- **Consistency:** eventual` and `- **Corrective policy:** <how the system restores the rule>` only for an eventual rule; no Consistency line means immediate.
       Write no trace tag, since `reference` holds the trace; a cite or ownership note may close an invariant.
     lint:
       max_sentences:
         - count: 1
       item_fields:
         - field: Enforcer
+          default_from: entities
         - field: Consistency
-          values: [immediate, eventual]
+          values: [eventual]
+          optional: true
         - field: Corrective policy
           when:
             field: Consistency
@@ -60,7 +62,7 @@ sections:
   - id: lifecycle
     header: Lifecycle
     description: |-
-      Draw a Mermaid `stateDiagram-v2` only for a status with 4 or more states.
+      Write a Mermaid `stateDiagram-v2` alone, no prose, only when an entity has a status with 4 or more states.
   - id: data_touch
     header: Data touch
     description: |-

@@ -33,9 +33,9 @@ sections:
     required: true
     description: |-
       Write one `###` per operation, headed `` `<operation>` `` alone with no FR label, holding a Request example.
-      Write a success and an error Response example, both required and valid against the source of truth when one exists.
-      Write Errors as the codes and a pointer to the error doc, Auth as a scope or `none`.
-      Write Idempotent on every mutating operation: `yes` with the key, or `no`.
+      Write a success and an error Response example, valid against the source of truth, only in a doc that holds that section.
+      Write one Errors line, `**Errors:** <codes>; see <links>`. List every code the operation returns as a code span, then one link per error doc that owns them. Hold no per-code text, and hand off to no other operation's list. Write `**Errors:** none` when the operation returns no code.
+      Write Auth as a scope or `none`, and Idempotent on every mutating operation: `yes` with the key, or `no`.
       Write no Why line; a legacy Why's reason goes to the traced FR's `Rationale`.
     lint:
       banned_patterns:
@@ -43,15 +43,6 @@ sections:
           pattern: '^### `[^`]+`\s*\S'
           message: 'operation heading has text after its code span; guide line: alone with no FR label'
           in: all
-      required_patterns:
-        - id: response_success
-          pattern: '^\*\*Response example — success\*\*'
-          message: 'operation has no success Response example; guide line: Write a success and an error Response example, both required and valid against the source of truth when one exists'
-          per_subsection: true
-        - id: response_error
-          pattern: '^\*\*Response example — error\*\*'
-          message: 'operation has no error Response example; guide line: Write a success and an error Response example, both required and valid against the source of truth when one exists'
-          per_subsection: true
   - id: compatibility
     header: Compatibility
     description: |-

@@ -1,6 +1,6 @@
 id: elevation
 description: |-
-  The elevation doc: the elevation levels and their tokens.
+  The elevation doc: the elevation levels and their usage; it links the tokens doc and writes no token value.
   Title it `# Elevation`, with no number.
 path: specs/design_system/foundations/ELEVATION.md
 sections:
@@ -8,4 +8,4 @@ sections:
     header: Elevation levels
     required: true
     description: |-
-      Write one row per level: its name, its use, and the token that holds it.
+      Write one row per level: its name, its use, and a link to its row in the tokens doc.

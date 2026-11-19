@@ -1,5 +1,5 @@
 name: software-tech
-version: 1.13.0
+version: 1.14.0
 extends: prd-core
 migrations:
   - from: 1.4.0
@@ -18,6 +18,10 @@ migrations:
           from: specs/f{nn}_{slug}/IMPLEMENTATION.md
           to: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
       - restamp_code_fingerprints: {}
+  - from: 1.13.0
+    steps:
+      - drop_default_lines:
+          doc_types: [domain, project_domain]
 shared_lines:
   - id: cite_spec_docs
     text: Cite a project or ancestor-feature spec doc's rule by a link to its item, never restate it.

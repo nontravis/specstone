@@ -19,8 +19,10 @@ sections:
       A feature's `error_envelope` departs from it only with its reason.
   - id: error_catalog
     description: |-
-      Write a table with the columns Code, Exit/HTTP, Category, Triggered by, Implemented by, Client guidance.
+      Write a table with the columns Code, Exit/HTTP, Category, Triggered by, Client guidance.
       Add an optional Details column holding machine fields per code, such as `file`, `key`, `retry_after`.
       Keep codes stable, never reused for a different error.
       Write Triggered by as the general condition that raises the code in the project, such as a flag out of range.
       List no raising site there. Write Client guidance as one line: the action the client takes, not user copy.
+  - id: retry_policy
+    required: false

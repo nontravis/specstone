@@ -18,7 +18,7 @@ sections:
     header: Error catalog
     required: true
     description: |-
-      Write a table with the columns Code, Exit/HTTP, Category, Triggered by, Implemented by, Client guidance.
+      Write a table with the columns Code, Exit/HTTP, Category, Triggered by, Client guidance.
       Add an optional Details column holding machine fields per code, such as `file`, `key`, `retry_after`.
       Keep codes stable, never reused for a different error.
       Write Triggered by as the general condition that raises the code in that feature, such as a flag out of range.
@@ -33,8 +33,8 @@ sections:
           column: Client guidance
   - id: retry_policy
     header: Retry policy
-    required: true
     description: |-
+      Write this section only when some call retries.
       Write a table with the columns Category, Retry?, Backoff, Max attempts.
       Write the default rows by category first, then the per-code override rows.
       Never retry a non-idempotent call: write Retry? as no for it, whatever its category.

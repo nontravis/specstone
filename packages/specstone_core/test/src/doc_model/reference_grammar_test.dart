@@ -444,6 +444,22 @@ void main() {
     });
   });
 
+  group('withoutTrailingLinkGroup', () {
+    test('drops the link group that closes the text and the space before', () {
+      expect(
+        withoutTrailingLinkGroup('`Account` ([domain:a](../DOMAIN.md)) '),
+        '`Account`',
+      );
+    });
+
+    test('keeps a link group that does not close the text', () {
+      expect(
+        withoutTrailingLinkGroup('Account ([a](b.md)) and more'),
+        'Account ([a](b.md)) and more',
+      );
+    });
+  });
+
   group('readLinkLabel', () {
     test('reads S<N>', () {
       final label = readLinkLabel('S1');

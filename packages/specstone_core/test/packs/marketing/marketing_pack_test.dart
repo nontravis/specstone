@@ -131,7 +131,7 @@ void main() {
   setUpAll(() async => set = await resolveMarketing());
 
   group('manifest', () {
-    test('marketing ships at 1.0.0 and extends prd-core', () {
+    test('marketing ships at 1.1.0 and extends prd-core', () {
       final bytes = shippedPackFiles['marketing/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -139,7 +139,7 @@ void main() {
         file: 'packs/marketing/pack.yaml',
       );
       expect(manifest.name, 'marketing');
-      expect(manifest.version.toString(), '1.0.0');
+      expect(manifest.version.toString(), '1.1.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 
@@ -213,8 +213,7 @@ void main() {
       );
     });
 
-    test('a pin one version below fails as pack_pin_older naming the shipped '
-        'version', () async {
+    test('an older marketing pin points at the shipped version', () async {
       final project = await writeTree({
         '.specstone/config.yaml':
             'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
@@ -229,7 +228,7 @@ void main() {
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.packPinOlder)
-              .having((f) => f.message, 'message', contains('1.0.0')),
+              .having((f) => f.message, 'message', contains('1.1.0')),
         ),
       );
     });

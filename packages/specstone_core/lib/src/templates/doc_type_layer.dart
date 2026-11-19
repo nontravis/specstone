@@ -1470,6 +1470,9 @@ CatalogLint? _parseCatalog(
   );
 }
 
+const _exclusiveItemFieldKeys = ['when', 'optional', 'default_from'];
+const _defaultFromSection = 'entities';
+
 ItemFieldLint _parseItemField(
   YamlMap entry, {
   required String file,
@@ -1478,11 +1481,20 @@ ItemFieldLint _parseItemField(
   final keyPrefix = '$key.';
   checkKeys(
     entry,
-    const {'field', 'values', 'when'},
+    const {'field', 'values', 'when', 'optional', 'default_from'},
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
   );
+  if (_exclusiveItemFieldKeys.where(entry.containsKey).length > 1) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'an item_fields entry takes one of '
+      '${_exclusiveItemFieldKeys.join(', ')}',
+      file: file,
+      key: key,
+    );
+  }
   final values = optionalValue<YamlList>(
     entry,
     'values',
@@ -1497,6 +1509,30 @@ ItemFieldLint _parseItemField(
             stringsOf(values, 'values', file: file, prefix: keyPrefix),
           ),
     when: _parseItemFieldWhen(entry, file: file, prefix: keyPrefix),
+    optional:
+        optionalValue<bool>(entry, 'optional', file: file, prefix: keyPrefix) ??
+        false,
+    defaultFrom: _parseDefaultFrom(entry, file: file, prefix: keyPrefix),
+  );
+}
+
+String? _parseDefaultFrom(
+  YamlMap entry, {
+  required String file,
+  required String prefix,
+}) {
+  final value = optionalValue<String>(
+    entry,
+    'default_from',
+    file: file,
+    prefix: prefix,
+  );
+  if (value == null || value == _defaultFromSection) return value;
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'the key default_from must be $_defaultFromSection',
+    file: file,
+    key: '${prefix}default_from',
   );
 }
 

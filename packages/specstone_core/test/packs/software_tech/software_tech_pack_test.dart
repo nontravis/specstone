@@ -127,7 +127,7 @@ const _itemShapeLines = <String, String>{
 
 void main() {
   group('software-tech manifest', () {
-    test('software-tech ships at 1.13.0 and extends prd-core', () {
+    test('software-tech ships at 1.14.0 and extends prd-core', () {
       final bytes = shippedPackFiles['software-tech/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -135,8 +135,24 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.13.0');
+      expect(manifest.version.toString(), '1.14.0');
       expect(manifest.extendsPack, 'prd-core');
+    });
+
+    test('the 1.13.0 entry holds one drop_default_lines step for the '
+        'domain doc types', () {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+        file: 'packs/software-tech/pack.yaml',
+      );
+
+      final entry = manifest.migrations.singleWhere(
+        (m) => m.from.toString() == '1.13.0',
+      );
+
+      expect(entry.steps, hasLength(1));
+      final step = entry.steps.single as DropDefaultLines;
+      expect(step.docTypes, ['domain', 'project_domain']);
     });
 
     test('software-tech ships its shared lines in table order with their '
@@ -162,7 +178,7 @@ void main() {
       );
     });
 
-    test('software-tech keeps its three migration entries and adds none for '
+    test('software-tech keeps its four migration entries and adds none for '
         'the shared entries', () {
       final migrations = _softwareTechManifest().migrations;
       expect(
@@ -174,12 +190,13 @@ void main() {
           '1.4.0: move_to_record',
           '1.6.0: stamp_code_fingerprints',
           '1.7.0: move_file, restamp_code_fingerprints',
+          '1.13.0: drop_default_lines',
         ],
       );
     });
 
     test('an upgrade to the shipped version carries the ten feature patterns '
-        'and runs no migration step for them', () {
+        'and runs no migration step that touches them', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
         file: 'packs/software-tech/pack.yaml',
@@ -197,7 +214,7 @@ void main() {
       );
 
       expect(upgrades.single.target, shipped);
-      expect(upgrades.single.steps, isEmpty);
+      expect(upgrades.single.steps.single.step, isA<DropDefaultLines>());
       expect(
         shippedPackFiles.keys.where(
           (k) => k.startsWith('software-tech/patterns/'),

@@ -30,12 +30,12 @@ String _error(String title, List<String> codes) {
   const rowEnd = 'Enter the password again |';
   final rows = [
     for (final code in codes)
-      '| `$code` | 400 | invalid_argument | the password is wrong | SignIn | $rowEnd',
+      '| `$code` | 400 | invalid_argument | the password is wrong | $rowEnd',
   ];
   return '---\n---\n# $title\n\n## Error envelope\n\nThe envelope.\n\n'
       '## Error catalog\n\n'
-      '| Code | Exit/HTTP | Category | Triggered by | Implemented by | Client guidance |\n'
-      '|---|---|---|---|---|---|\n'
+      '| Code | Exit/HTTP | Category | Triggered by | Client guidance |\n'
+      '|---|---|---|---|---|\n'
       '${rows.join('\n')}\n\n'
       '## Retry policy\n\n| Category | Retry? |\n|---|---|\n| invalid_argument | no |\n';
 }

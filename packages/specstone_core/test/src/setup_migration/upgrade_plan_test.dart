@@ -50,9 +50,19 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show withApprovalHashes;
+import '../../helpers/check_fixture.dart'
+    show checkOf, withApprovalHashes, writeCheckProject;
 import '../../helpers/git_repo.dart' show commitAll, git, hasGit;
 import '../../helpers/legacy_fixture.dart' show commitRepo;
+import '../../helpers/override_link_fixture.dart'
+    show
+        domainDoc,
+        linkKinds,
+        loginDomain,
+        overrideOfRoot,
+        rootAddress,
+        rootDomain,
+        rootFingerprint;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart'
     show oneTargetConfig, recordLayer, recordText, twinConfig;
@@ -158,6 +168,7 @@ void main() {
   _codeStampTests();
   _citeTests();
   _bulletLinesTests();
+  _dropDefaultLinesTests();
   _sharedCopiesTests();
   _matrixFoldTests();
 
@@ -3549,6 +3560,7 @@ void _moveToRecordTests() {
             'paths': [newRecord],
             'unreadable': <String>[],
           },
+          {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
         ]);
       });
 
@@ -4687,6 +4699,7 @@ void _codeStampTests() {
           'paths': <String>[],
           'unreadable': <String>[],
         },
+        {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
       ]);
     });
 
@@ -5184,6 +5197,359 @@ void _bulletLinesTests() {
                 (f) => f.key,
                 'key',
                 'migrations[0].steps[0].bullet_lines.section',
+              ),
+        ),
+      );
+    });
+  });
+}
+
+const _dropPackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - drop_default_lines: {doc_types: [domain]}
+''';
+
+const _domainOverridePath = '.specstone/templates/domain.yaml';
+
+String _domainOverride(String lint) =>
+    'sections: [{id: invariants, lint: $lint}]\n';
+
+const _loginPath = 'specs/f01_login/DOMAIN.md';
+const _resetPath = 'specs/f01_login/f01_reset/DOMAIN.md';
+const _payPath = 'specs/f02_pay/DOMAIN.md';
+const _projectDomainPath = 'specs/DOMAIN.md';
+
+String _domainText(String rows, String invariants) =>
+    '# Domain\n\n## Entities\n\n| Entity | Kind | Identity | Owns |\n'
+    '|---|---|---|---|\n${rows.isEmpty ? '' : '$rows\n'}\n'
+    '## Invariants\n\n$invariants\n';
+
+const _accountRow = '| Account | Aggregate root | its email | a name |';
+const _statedDefaults =
+    '- **INV-1** An email is unique.\n'
+    '  - **Enforcer:** Account\n'
+    '  - **Consistency:** immediate';
+const _bareInvariant = '- **INV-1** An email is unique.';
+final String _loginDoc = _domainText(_accountRow, _statedDefaults);
+final String _loginDropped = _domainText(_accountRow, _bareInvariant);
+
+void _dropDefaultLinesTests() {
+  group('drop_default_lines step', () {
+    test('the step line counts the rewritten domain docs', () async {
+      final nonDefaults = _domainText(
+        '| Pay | Aggregate root | its id | a ledger |',
+        '- **INV-1** A charge posts once.\n'
+            '  - **Enforcer:** Ledger\n'
+            '  - **Consistency:** eventual',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {
+            _loginPath: _loginDoc,
+            _resetPath: _domainText(
+              '',
+              '- **INV-2** A link expires.\n'
+                  '  - **Enforcer:** `Account` ([domain:login](../DOMAIN.md))\n'
+                  '  - **Consistency:** immediate',
+            ),
+            _payPath: nonDefaults,
+          },
+        ),
+      );
+
+      expect(_rewriteAt(plan, 'docs/$_loginPath').text, _loginDropped);
+      expect(
+        _rewriteAt(plan, 'docs/$_resetPath').text,
+        _domainText('', '- **INV-2** A link expires.'),
+      );
+      expect(
+        plan.toText(),
+        contains(
+          'commit 2, rewrites:\n'
+          '  from 1.0.0: drop_default_lines: 2 docs\n',
+        ),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'drop_default_lines',
+          'paths': [_loginPath, _resetPath],
+        },
+      ]);
+    });
+
+    test('a project domain row never feeds a feature domain', () async {
+      final text = _domainText(
+        '',
+        '- **INV-1** A cart expires.\n'
+            '  - **Enforcer:** Project\n'
+            '  - **Consistency:** immediate',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {
+            _projectDomainPath: _domainText(
+              '| Project | Aggregate root | its name | carts |',
+              _bareInvariant,
+            ),
+            _payPath: text,
+          },
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_payPath').text,
+        _domainText(
+          '',
+          '- **INV-1** A cart expires.\n  - **Enforcer:** Project',
+        ),
+      );
+    });
+
+    test('a layer whose Enforcer entry has no default source keeps every '
+        'Enforcer line', () async {
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: {
+            _domainOverridePath: _domainOverride(
+              '{item_fields: {add: [{field: Enforcer}]}}',
+            ),
+          },
+          docs: {_loginPath: _loginDoc},
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        _domainText(
+          _accountRow,
+          '- **INV-1** An email is unique.\n  - **Enforcer:** Account',
+        ),
+      );
+    });
+
+    test('a layer with no Consistency entry keeps every Consistency line, and '
+        'an optional entry with no values drops them', () async {
+      final cases = {
+        '{item_fields: {remove: [Consistency]}}':
+            '  - **Consistency:** '
+            'immediate',
+        '{item_fields: {add: [{field: Consistency, optional: true}]}}': '',
+      };
+      for (final MapEntry(key: lint, value: kept) in cases.entries) {
+        final plan = _plan(
+          await _fixture(
+            packYaml: _dropPackYaml,
+            overrides: {_domainOverridePath: _domainOverride(lint)},
+            docs: {_loginPath: _loginDoc},
+          ),
+        );
+
+        expect(
+          _rewriteAt(plan, 'docs/$_loginPath').text,
+          _domainText(
+            _accountRow,
+            '- **INV-1** An email is unique.${kept.isEmpty ? '' : '\n$kept'}',
+          ),
+          reason: lint,
+        );
+      }
+    });
+
+    test('a layer whose Consistency entry allows immediate or requires the '
+        'field keeps every Consistency line', () async {
+      for (final entry in const [
+        '{field: Consistency, values: [eventual, immediate], optional: true}',
+        '{field: Consistency, values: [eventual]}',
+      ]) {
+        final plan = _plan(
+          await _fixture(
+            packYaml: _dropPackYaml,
+            overrides: {
+              _domainOverridePath: _domainOverride(
+                '{item_fields: {add: [$entry]}}',
+              ),
+            },
+            docs: {_loginPath: _loginDoc},
+          ),
+        );
+
+        expect(
+          _rewriteAt(plan, 'docs/$_loginPath').text,
+          _domainText(
+            _accountRow,
+            '- **INV-1** An email is unique.\n'
+            '  - **Consistency:** immediate',
+          ),
+          reason: entry,
+        );
+      }
+    });
+
+    test('a draft doc is left unapproved by the step', () async {
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: '---\ndraft: true\n---\n$_loginDoc'},
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        '---\ndraft: true\n---\n$_loginDropped',
+      );
+      expect(plan.toText(), isNot(contains('stamps:')));
+    });
+
+    test('an approved doc takes a fresh approval hash', () async {
+      final seed = await _fixture(
+        packYaml: _dropPackYaml,
+        overrides: const {},
+        docs: {_loginPath: _loginDoc},
+      );
+      final set = TemplateResolver().resolveCarried(
+        packNames: ProjectConfig.read(seed.project).pins.keys,
+        homeDirectory: seed.home,
+      );
+      final type = switch (DocTypeMatcher(
+        set,
+        targetNames: const [],
+      ).match(_loginPath)) {
+        MatchedDocType(:final docType) => docType,
+        _ => null,
+      };
+      final approved = _stampedBefore(_loginDoc, type);
+
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: approved},
+        ),
+      );
+
+      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
+      expect(written, isNot(contains('Consistency')));
+      final hash = RegExp(
+        r'^approved: "(\w+)"$',
+        multiLine: true,
+      ).firstMatch(written)!.group(1);
+      expect(hash, _approvalHashBefore(written, type));
+      expect(hash, isNot(_approvalHashBefore(approved, type)));
+      expect(
+        plan.toText(),
+        contains('  stamps: 1 approval hashes, 0 fingerprints\n'),
+      );
+    });
+
+    test('an overrides entry on a rewritten item stays unsuspect', () async {
+      const rule = '- **INV-3** A cart expires after 7 days.';
+      final upstream = _domainText(
+        '| Cart | Aggregate root | its id | items |',
+        '$rule\n  - **Enforcer:** Cart\n  - **Consistency:** immediate',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml.replaceFirst('[domain]', '[project_domain]'),
+          overrides: const {},
+          docs: {_projectDomainPath: upstream},
+        ),
+      );
+      final rewritten = _rewriteAt(plan, 'docs/$_projectDomainPath').text;
+      expect(rewritten, isNot(contains('Consistency')));
+      final files = {
+        'docs/$rootDomain': rewritten,
+        'docs/$loginDomain': domainDoc(
+          [overrideOfRoot],
+          entries: ['$rootAddress $rootFingerprint'],
+        ),
+      };
+
+      final report = await checkOf(
+        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+        docPath: loginDomain,
+      );
+
+      expect(report.findings.where((f) => linkKinds.contains(f.kind)), isEmpty);
+    });
+
+    test('the step touches no line beyond the defaults, and a second run '
+        'drops nothing', () async {
+      const body =
+          '- **INV-1** An email is unique.\n'
+          '  - a condition\n'
+          '  - **Enforcer:** Setup engine\n'
+          '  - **Consistency:** Immediate\n'
+          '- **INV-2** A name is short.\n'
+          '  - **Enforcer:** Account\n'
+          '  - **Consistency:** eventual\n'
+          '  - **Corrective policy:** Trim it.';
+      final doc = _domainText(_accountRow, body);
+
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: doc},
+        ),
+      );
+
+      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
+      expect(
+        written,
+        _domainText(
+          _accountRow,
+          '- **INV-1** An email is unique.\n'
+          '  - a condition\n'
+          '  - **Enforcer:** Setup engine\n'
+          '  - **Consistency:** Immediate\n'
+          '- **INV-2** A name is short.\n'
+          '  - **Consistency:** eventual\n'
+          '  - **Corrective policy:** Trim it.',
+        ),
+      );
+      final again = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: written},
+        ),
+      );
+      expect(_docRewrites(again), isEmpty);
+      expect(
+        again.toText(),
+        contains('  from 1.0.0: drop_default_lines: 0 docs\n'),
+      );
+    });
+
+    test('a drop_default_lines step the pack load refuses plans '
+        'nothing', () async {
+      final fixture = await _fixture(
+        packYaml: _dropPackYaml.replaceFirst('[domain]', '[domian]'),
+        overrides: const {},
+        docs: {_loginPath: _loginDoc},
+      );
+
+      expect(
+        () => _plan(fixture),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having(
+                (f) => f.key,
+                'key',
+                'migrations[0].steps[0].drop_default_lines.doc_types',
               ),
         ),
       );

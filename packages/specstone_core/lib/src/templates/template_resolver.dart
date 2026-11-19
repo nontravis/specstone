@@ -311,6 +311,7 @@ final class TemplateResolver {
     _checkGeneratorKinds(loadOrder);
     _checkRecordTargets(packs);
     _checkBulletLineTargets(packs, layerLists);
+    _checkDropDefaultLineTargets(packs, layerLists);
     _checkExtendsInOverride(loadOrder, layerLists);
     final shared = mergeSharedEntries(
       ordered: [for (final ParsedPack(:pack) in packs) pack],
@@ -370,6 +371,17 @@ final class TemplateResolver {
   ) {
     for (final ParsedPack(:pack) in packs) {
       pack.manifest.checkBulletLineTargets(layerLists);
+    }
+  }
+
+  /// Throws `unknown_value` for the first `drop_default_lines` doc type whose
+  /// layers, `extends` chain included, define no `entities` or `invariants`.
+  void _checkDropDefaultLineTargets(
+    List<ParsedPack> packs,
+    Map<String, DocTypeLayers> layerLists,
+  ) {
+    for (final ParsedPack(:pack) in packs) {
+      pack.manifest.checkDropDefaultLineTargets(layerLists);
     }
   }
 

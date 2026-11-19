@@ -124,6 +124,22 @@ void main() {
     expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
   });
 
+  test('an N/A line that still ends with see resolves its target', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginArchitecture,
+          '- Errors: see Components\n',
+          '- Errors: see Components\n- Events: N/A — none, see MISSING.md\n',
+        ),
+      ),
+    );
+    expect(spots(report, FindingKind.concernsTargetUnresolved), [
+      '$loginArchitecture:23: concerns_target_unresolved',
+    ]);
+    expect(report.findings.last.toJson()['target'], 'MISSING.md');
+  });
+
   test(
     'a see target reads through the link grammar, trailing punctuation dropped',
     () async {

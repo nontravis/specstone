@@ -152,12 +152,17 @@ void main() {
     expect(sectionOf(type, 'conventions').description, isNotEmpty);
   });
 
-  test('project_error requires error_envelope', () {
+  test('project error requires its envelope and frees its retry section', () {
     final type = prdCoreDocType(set, 'project_error');
     final base = prdCoreDocType(set, 'error');
     expect(sectionOf(type, 'error_envelope').required, isTrue);
     expect(sectionOf(base, 'error_envelope').required, isFalse);
     expect(sectionOf(type, 'error_envelope').description, isNotEmpty);
+    expect(sectionOf(type, 'retry_policy').required, isFalse);
+    expect(
+      sectionOf(type, 'error_catalog').description,
+      isNot(contains('Implemented by')),
+    );
     expect(
       [for (final s in type.sections) s.id],
       [for (final s in base.sections) s.id],
@@ -254,7 +259,7 @@ void main() {
     );
   });
 
-  test('project_domain invariants take the corrective policy of domain', () {
+  test('project_domain inherits the invariant entries', () {
     final domain = prdCoreDocType(set, 'domain');
     final projectDomain = prdCoreDocType(set, 'project_domain');
     List<Map<String, Object>> fieldsOf(MergedDocType type) => [
@@ -263,6 +268,18 @@ void main() {
         f.toJson(),
     ];
     expect(fieldsOf(projectDomain), fieldsOf(domain));
+    expect(fieldsOf(projectDomain), [
+      containsPair('default_from', 'entities'),
+      allOf(
+        containsPair('optional', true),
+        containsPair('values', ['eventual']),
+      ),
+      containsPair('when', isNotNull),
+    ]);
+    expect(
+      sectionOf(projectDomain, 'invariants').description,
+      isNot(contains('- **Consistency:** immediate')),
+    );
     expect(
       projectDomain.sections.map((s) => s.id),
       isNot(contains('corrective_policies')),
