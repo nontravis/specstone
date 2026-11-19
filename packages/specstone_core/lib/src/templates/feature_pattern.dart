@@ -2,14 +2,9 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
+import 'package:specstone_core/src/templates/models/checklist_item.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
-
-/// One merged checklist item.
-///
-/// `origin` is the id of the feature pattern whose layers last wrote the
-/// item's text, so two patterns that share an item agree on all three fields.
-typedef ChecklistItem = ({String id, String text, String origin});
 
 /// One layer of a feature pattern and the pack it comes from, if any.
 typedef WrittenPatternLayer = ({String? pack, FeaturePatternLayer layer});
@@ -219,11 +214,15 @@ final class _PatternMerge {
             key: 'items',
           );
         }
-        items.add((id: entry.id, text: text, origin: layer.id));
+        items.add(ChecklistItem(id: entry.id, text: text, origin: layer.id));
       } else if (entry.disabled) {
         items.removeAt(index);
       } else if (text != null && text != items[index].text) {
-        items[index] = (id: entry.id, text: text, origin: layer.id);
+        items[index] = ChecklistItem(
+          id: entry.id,
+          text: text,
+          origin: layer.id,
+        );
       }
     }
     return items;
