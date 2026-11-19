@@ -14,6 +14,8 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
+const _guideLineMarker = 'guide line: ';
+
 void main() {
   test('decodes base64 constants back to bytes', () {
     final files = decodeShippedPacks({
@@ -542,6 +544,27 @@ void main() {
         for (final category in _gnfrCategories)
           'gnfr.$category': ['second_shall', 'statement_number'],
       });
+    });
+
+    test('each section pattern message that names a guide line names one the '
+        'doc type guide prints', () {
+      var named = 0;
+      for (final docType in set.docTypes) {
+        final guide = docType.renderGuide();
+        for (final s in docType.sections) {
+          for (final p in s.bannedPatterns ?? const <PatternEntry>[]) {
+            final at = p.message.indexOf(_guideLineMarker);
+            if (at < 0) continue;
+            named++;
+            expect(
+              guide,
+              contains(p.message.substring(at + _guideLineMarker.length)),
+              reason: '${docType.id}.${s.id} ${p.id}',
+            );
+          }
+        }
+      }
+      expect(named, greaterThan(0));
     });
 
     for (final rule in _guideRules) {
