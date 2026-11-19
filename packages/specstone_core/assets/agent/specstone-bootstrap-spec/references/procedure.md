@@ -40,7 +40,9 @@ the Owner only when no text bears on a whole section.
   with `specstone set implementation:<feature> --field implements --base <hash>`, then drop the key.
 - **`architecture_missing`:** run `specstone new architecture --parent <feature>`, fill it, and list in `covers` the
   code its record entries name.
-- **`code_uncovered`:** read the file and write nothing for it; report it under `Uncovered:` in the form of step 3 of
+- **`code_uncovered`:** apply `../../specstone-sync-sdd/references/helpers.md` first: a helper is joined or waits,
+  never reported under `Uncovered:` or asked, and a waiting one is written by a later round once its draft is
+  approved. For any other, read the file and write nothing; report it under `Uncovered:` in the form of step 3 of
   `../../specstone-sync-sdd/references/procedure.md`. On a write-a-spec pick sent to you, with its file:
   add the file or its folder to `covers` on the architecture or topic doc describing it; with none,
   `specstone new topic --slug <slug>`.

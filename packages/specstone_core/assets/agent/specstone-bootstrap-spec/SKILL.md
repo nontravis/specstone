@@ -22,7 +22,7 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 
 - **78, `project_not_found`:** tell the Owner `specstone migrate` moves the project to the new format, or they keep
   the old skills. Stop: run, read, and write nothing more.
-- **0 or 1:** go on. Never look for `.specstone/` yourself.
+- **0 or 1:** go on. Never look for `.specstone/`.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 2. Hand off in batches
@@ -60,7 +60,7 @@ in for item 4.
    proposal, then run each of its commands in run order
    (`../specstone-expert-sdd/references/size-fix.md`).
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
-   for the batch with them. Ask once per batch, every file under its `Uncovered:` in one question: write a spec for it,
+   for the batch with them. Ask once per batch, every file under its `Uncovered:`, no helper, in one question: write a spec for it,
    or change or remove the code. Change or remove writes nothing. A write-a-spec pick whose behavior needs a new story
    or FR hands over by following the `specstone-brainstorming-sdd` skill; any other goes with its file to the next round's agent of that batch
    as `picks:`, which writes the draft and does not report the file. Keep each answered file, whatever the pick, for

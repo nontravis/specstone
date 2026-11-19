@@ -134,12 +134,13 @@ finding.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
   `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Lenses:` and `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
-  one sentence on why it changed, never their text; each other draft; each pointer or matrix row fixed and code
-  fingerprint written; each task whose refs the sync removed; each `Mismatches:` point and
-  each `Uncovered:` file; each behavior handed to `specstone-brainstorming-sdd`; each pointer, row, or fingerprint
-  that waits on an approval or its implementer; open questions; then `Findings:`.
+  one sentence on why it changed, never their text; each other draft; under `Pointers:`, each pointer or matrix row
+  fixed, each code fingerprint written, and each helper file joined to a caller doc's `covers`; each task whose refs
+  the sync removed; each `Mismatches:` point and each `Uncovered:` file; each behavior handed to
+  `specstone-brainstorming-sdd`; each pointer, row, or fingerprint that waits on an approval or its implementer;
+  open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
-  each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`, and each
+  under `Pointers:`, each helper file joined or waiting; each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`, and each
   untyped referrer outside it with the file it names; `Waits on the Owner:`, each `item_over_limit` finding on a
   `batch` path when `batch` does not name `item_over_limit`; then `Findings:`, each finding left in `batch` or added
   by your writes, or `none`.

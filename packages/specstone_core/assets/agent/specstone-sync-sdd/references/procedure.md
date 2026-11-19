@@ -20,9 +20,9 @@ For each listed code path but a `tests_unresolved` line's or a matrix row's (ste
 `root` in `specstone guide <type> --json`, once per type) takes none: its path is from the project root, its
 covering doc the doc its finding names: `specstone context <doc> --for implement --out`.
 
-- **Warning `no doc covers or implements <path>`:** A rename pair's new side: step 4.3. Else read it,
-  write nothing; report under `Uncovered:` its path, the observable behavior it adds that no spec
-  states, and whether that needs a new story or FR.
+- **Warning `no doc covers or implements <path>`:** A rename pair's new side: step 4.3. Else `helpers.md`
+  first; what it leaves: read it, write nothing; report under `Uncovered:` its path, the observable behavior it adds
+  that no spec states, and whether that needs a new story or FR.
 - **64, `code_path_not_found`:** the file moved or is gone; step 4.3.
 - **75, `index_busy`:** run it again.
 - **Any other exit:** report the CLI's error and stop.
@@ -30,7 +30,7 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
 ## 4. Compare, then write
 
 1. Compare the approved text of every covering doc with each link's code file; a doc printing `draft: true` is a
-   pending draft. A `code_suspect` folder's code is the files changed under it since its stamp:
+   pending draft. A `code_suspect` folder's code is its files changed since the stamp:
    `git log -1 --format=%H -S '<recorded>' -- docs/<DocPath>` gives `<base>`, then
    `git diff --name-only <base> -- <prefix>` and `git ls-files --others --exclude-standard -- <prefix>`; with no such
    commit, or on a `code_unconfirmed` folder, every file under the prefix.
@@ -44,8 +44,8 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
    - **Refused stamp:** `stamp_stale`: judge again on the current code, with a fresh `check` fingerprint; stamp a
      match, else report a mismatch. `stamp_entry_unresolved`: `file_unreadable` is unread code, reported; else
      step 4.3.
-   - **A `planned` entry's code lacking its behavior yet** is no mismatch, no question: the fingerprint
-     alone, still `planned`.
+   - **A `planned` entry's code lacking its behavior yet** is no mismatch, no question: stamp it, still
+     `planned`.
    - **Mismatch**, code behavior the approved text contradicts: nothing for the link; report each point under
      `Mismatches:`: doc and section, what the spec states, what the code does. On a fix-the-spec pick sent to you, draft
      each stale section (step 5); its fingerprint awaits approval.
@@ -62,7 +62,7 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
      `<doc>: covers path missing: <path>`, ending its loop.
 4. A `tests_unresolved` line: repoint it with
    `specstone set implementation:<feature> --field tests --target <name> --base <hash>` to the moved file of step 4.3
-   or the test's current name in it; one you cannot place stays, a waiting pointer. Write no `tests` line for a
+   or the test's current name in it; one you cannot place stays waiting. Write no `tests` line for a
    test a change adds or moves.
 5. A matrix-row finding: follow `matrix-rows.md`.
 6. Report under `Mismatches:`, by file and line, each bare item ID (`E21`) or number label in changed code or a test
