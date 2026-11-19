@@ -11,7 +11,9 @@ under `ask`, every draft takes Owner confirmation, and the rest is for `auto` on
    a draft another session wrote.
 2. Read `approveMode`, and each draft's `name`, `docPath`, and `hash`.
 3. `ask`: take every draft through Owner confirmation, and stop here.
-4. `auto`: run one bare `specstone check --json` after your last write, and judge each draft by the tests below.
+4. `auto`: after your last write, run one `specstone check --json --out "<folder>/reports/check.done.<XXXXXX>.txt"`,
+   `<folder>` and `XXXXXX` as the project gate gives, and judge each draft by the tests below, searching that file for
+   its `docPath`.
 
 ## Clean-draft tests
 

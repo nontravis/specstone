@@ -1,6 +1,6 @@
 # Rewrite a readability finding
 
-This covers the five readability findings `specstone check` raises: `words_over_limit`, `sentence_chars_over_limit`,
+This covers the five readability findings `check` raises: `words_over_limit`, `sentence_chars_over_limit`,
 `trace_note_not_last`, `sentences_over_limit`, and `item_lines_over_limit`. Each write leaves a draft.
 
 ## An item

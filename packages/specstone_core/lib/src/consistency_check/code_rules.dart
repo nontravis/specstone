@@ -57,11 +57,7 @@ final class ImplementedWork {
   /// A per-target doc belongs to the target it names; any other doc to the
   /// project's one target, and to none when the project has several.
   CodeTarget? targetOf(IndexedDoc doc) {
-    final all = _allTargets;
-    final owner = switch (doc.target) {
-      final name? => all.where((target) => target.name == name).firstOrNull,
-      null => all.length == 1 ? all.single : null,
-    };
+    final owner = ownerTargetOf(doc, _allTargets);
     return targets.contains(owner) ? owner : null;
   }
 
@@ -82,6 +78,19 @@ final class ImplementedWork {
     };
   }
 }
+
+/// Returns the target [doc] belongs to among [allTargets], every code target
+/// of the project; null when it belongs to none.
+///
+/// A per-target doc belongs to the target it names; any other doc to the
+/// project's one target, and to none when the project has several. The one
+/// owner rule `check` and `set --stamp` read a doc's code by.
+CodeTarget? ownerTargetOf(IndexedDoc doc, List<CodeTarget> allTargets) =>
+    switch (doc.target) {
+      final name? =>
+        allTargets.where((target) => target.name == name).firstOrNull,
+      null => allTargets.length == 1 ? allTargets.single : null,
+    };
 
 /// Returns whether [target] holds an implemented story or FR, and the name
 /// of each feature that holds one in its subtree.

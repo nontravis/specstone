@@ -30,20 +30,23 @@ run no `specstone set`.
 
 ## 2. Gate on the target, then read it
 
-Make this your first CLI call, before any other command or file read. It is the `specstone-expert-sdd` gate, run on
-the one doc you will write:
+Make these your first CLI calls, before any other command or file read. They are the `specstone-expert-sdd` gate, run
+on the one doc you will write:
 
 ```
-specstone check <type>:<name>
+specstone folder
+specstone check <type>:<name> --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 ```
 
-- **0 or 1:** go on. Keep its findings on the target as the baseline for step 3.
+`<folder>` is the path `folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file exists.
+
+- **0 or 1:** go on. Its file's findings on the target are the baseline for step 3.
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
-That call is the gate. Never check for `.specstone/` yourself first: the CLI looks in each folder upward, so a run
-from a project's subfolder goes on, while a look at the working directory alone would stop there by mistake.
+Never check for `.specstone/` first: the CLI looks in each folder upward, and a look at the working directory alone
+stops a subfolder run by mistake.
 
 Then read the target:
 
@@ -59,9 +62,7 @@ specstone get <type>:<name> --json
 The text between the title and the first `##` section is `#_lead`.
 
 A name that matches docs in two or more code targets: ask the Owner which one, as `specstone-plan-sdd` does, then run
-`get` and `set` on that doc's DocPath, the one `get`'s doc header prints, such as
-`specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md`. A name that matches one doc asks
-nothing.
+`get` and `set` on that doc's DocPath, the one `get`'s doc header prints.
 
 If the text shows the change reaches past this one target, go to step 1's hand-over with nothing written. A non-zero
 exit: report the CLI's error and stop.
@@ -81,10 +82,11 @@ specstone set <type>:<name> --field <id> --base <hash>
   write your old text over it.
 - **Any other exit:** stop, and report the refusal the CLI printed.
 
-After the write, run `specstone check <type>:<name>` again. Fix, as `specstone-expert-sdd` says, only the findings
-on that target that step 2's baseline lacks; leave every other one alone.
+After the write, run `specstone check <type>:<name> --out "<folder>/reports/check.update.<XXXXXX>.txt"`
+again. Fix, as `specstone-expert-sdd` says, only the findings on that target that step 2's baseline lacks; leave
+every other one alone.
 
-Confirming a requirement again after `specstone check` marks a link `suspect` is a small edit of its `confirmed`
+Confirming a requirement again after `check` marks a link `suspect` is a small edit of its `confirmed`
 field; `specstone-expert-sdd` says how to record it.
 
 ## 4. Name the change for the Owner

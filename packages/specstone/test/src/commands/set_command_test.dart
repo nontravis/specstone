@@ -6,10 +6,15 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart'
+    as check
+    show checkProjectFiles, doc, loginArchitecture, writeCheckProject;
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
@@ -616,6 +621,227 @@ void main() {
       expect(text, contains('specstone set --remove-task <task id>'));
       expect(text, contains('--remove-task'));
       expect(text, contains('Removes every entry of the task'));
+    });
+  });
+
+  group('--stamp', () {
+    const address = 'architecture:login';
+    const covered = 'app/lib/login.dart';
+
+    final fingerprint = fileCodeFingerprint(
+      utf8.encode(check.checkProjectFiles()[covered]!),
+      path: covered,
+    );
+
+    Future<Directory> project() => check.writeCheckProject(
+      extra: check.doc(
+        check.loginArchitecture,
+        '  - app/lib/\n',
+        '  - $covered\n',
+      ),
+      unfingerprinted: {'docs/${check.loginArchitecture}'},
+    );
+
+    String archText(Directory root) =>
+        File('${root.path}/docs/${check.loginArchitecture}').readAsStringSync();
+
+    test(
+      'set --stamp prints the stamped count and leaves the doc approved',
+      () async {
+        final root = await project();
+        final before = archText(root);
+        final (:runner, :out, :err) = writeRunner(root);
+
+        expect(
+          await runner.run([
+            'set',
+            address,
+            '--stamp',
+            '$covered=$fingerprint',
+          ]),
+          0,
+          reason: err.toString(),
+        );
+
+        expect(out.toString(), '$address: 1 stamped\n');
+        expect(err.toString(), isEmpty);
+        expect(
+          archText(root),
+          before.replaceFirst('  - $covered\n', '  - $covered $fingerprint\n'),
+        );
+        expect(archText(root), isNot(contains('draft: true')));
+      },
+    );
+
+    test('set --stamp beside --base, --field, --title, --batch, --remove-task, --replace, or a section key is argument_conflict, reads no stdin', () async {
+      final root = await project();
+      final before = archText(root);
+      for (final (:input, :beside) in [
+        (input: '--base', beside: ['--base', 'e3b0c44298fc']),
+        (input: '--field', beside: ['--field', 'covers']),
+        (input: '--title', beside: ['--title']),
+        (input: '--batch', beside: ['--batch', '${root.path}/batch.md']),
+        (input: '--remove-task', beside: ['--remove-task', 'ENG-42']),
+        (input: '--replace', beside: ['--replace']),
+        (input: 'a section key', beside: <String>[]),
+      ]) {
+        final console = _RecordingConsole();
+        final (:runner, :out, :err) = writeRunner(root, console: console);
+        final target = input == 'a section key' ? '$address#concerns' : address;
+
+        expect(
+          await runner.run([
+            'set',
+            target,
+            '--stamp',
+            '$covered=$fingerprint',
+            ...beside,
+          ]),
+          64,
+          reason: input,
+        );
+
+        expect(err.toString(), '--stamp takes no $input\n', reason: input);
+        expect(out.toString(), isEmpty, reason: input);
+        expect(console.reads, 0, reason: input);
+      }
+      expect(archText(root), before);
+    });
+
+    test('set --stamp --json lists each refused entry with its code', () async {
+      final root = await project();
+      final before = archText(root);
+
+      final run = await _set(root, [
+        address,
+        '--stamp',
+        '$covered=0123456789ab',
+        '--json',
+      ]);
+
+      expect(run.status, 75);
+      expect(run.out, isEmpty);
+      expect(_error(run), {
+        'code': 'stamp_stale',
+        'message': '$covered changed after 0123456789ab; judge it again',
+        'refusals': [
+          {'entry': covered, 'code': 'stamp_stale'},
+        ],
+      });
+      expect(archText(root), before);
+    });
+
+    test('set --stamp prints one stderr line per refused entry', () async {
+      final root = await project();
+
+      final run = await _set(root, [
+        address,
+        '--stamp',
+        'app/lib/none.dart=0123456789ab',
+        '--stamp',
+        '$covered=0123456789ab',
+      ]);
+
+      expect(run.status, 64);
+      expect(
+        run.err,
+        'stamp_entry_unknown: no entry of $address reads app/lib/none.dart\n'
+        'stamp_stale: $covered changed after 0123456789ab; judge it again\n',
+      );
+    });
+
+    test('a comma in a --stamp path stays one entry', () async {
+      final root = await project();
+
+      final run = await _set(root, [
+        address,
+        '--stamp',
+        'app/lib/a,b.dart=0123456789ab',
+      ]);
+
+      expect(
+        run.err,
+        'stamp_entry_unknown: no entry of $address reads app/lib/a,b.dart\n',
+      );
+    });
+
+    test('set --stamp --json prints the doc and the stamped entries', () async {
+      final root = await project();
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run([
+          'set',
+          address,
+          '--stamp',
+          '$covered=$fingerprint',
+          '--json',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      expect(jsonDecode(out.toString()), {
+        'doc': address,
+        'stamped': [covered],
+        'warnings': <Object?>[],
+      });
+      expect(err.toString(), isEmpty);
+    });
+
+    test('the help and the invocation show the stamp form', () async {
+      final (:runner, :out, :err) = writeRunner(await project());
+
+      expect(await runner.run(['set', '--help']), 0);
+
+      final text = out.toString().replaceAll(RegExp(r'\s+'), ' ');
+      expect(
+        text,
+        contains('specstone set <doc address> --stamp <entry>=<fingerprint>'),
+      );
+      expect(text, contains('Ends a covers or implements entry'));
+    });
+
+    test('--target keeps the stamp to one code target', () async {
+      const folder = 'app/lib/';
+      const jasprFile = 'app/lib/login.dart';
+      final root = await writeTwinProject(
+        unfingerprinted: {
+          'docs/$flutterArchitecture',
+          'docs/$jasprArchitecture',
+        },
+      );
+      final flutterBefore = readDoc(root, flutterArchitecture);
+      final jasprFingerprint = folderCodeFingerprint([
+        FileFingerprint(
+          path: jasprFile,
+          fingerprint: fileCodeFingerprint(
+            File('${root.path}/jaspr_ws/$jasprFile').readAsBytesSync(),
+            path: jasprFile,
+          ),
+        ),
+      ]);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run([
+          'set',
+          address,
+          '--stamp',
+          '$folder=$jasprFingerprint',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      expect(out.toString(), '$jasprArchitecture: 1 stamped\n');
+      expect(
+        readDoc(root, jasprArchitecture),
+        contains('  - $folder $jasprFingerprint\n'),
+      );
+      expect(readDoc(root, flutterArchitecture), flutterBefore);
     });
   });
 
