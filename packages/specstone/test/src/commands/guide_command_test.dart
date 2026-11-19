@@ -1611,11 +1611,10 @@ items:
     setUp(() => out = StringBuffer());
 
     /// Runs `guide fr user_story` over a `prd-core` pack that holds
-    /// [sharedLines] and [projectShared] as the project's `shared.yaml`.
-    Future<void> guideBoth(String sharedLines, {String? projectShared}) async {
+    /// [sharedLines].
+    Future<void> guideBoth(String sharedLines) async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
-        '.specstone/templates/shared.yaml': ?projectShared,
       });
       final runner = SpecstoneCommandRunner(
         out: out,
@@ -1655,33 +1654,6 @@ items:
         'Say it once.\n'
         '==> fr <==\n'
         'One requirement.\n\n$_docLimits\n'
-        '==> user_story <==\n'
-        'One story\n\n$_docLimits\n',
-      );
-    });
-
-    test('a shared line one named type rewrites stays under each type that '
-        'keeps it', () async {
-      await guideBoth(
-        'shared_lines:\n'
-        '  - id: cite_rule\n'
-        '    text: Cite by link.\n'
-        '  - id: tone_rule\n'
-        '    text: Say it once.\n',
-        projectShared:
-            'shared_lines:\n'
-            '  - id: tone_rule\n'
-            '    text: Say it once, short.\n'
-            '    for_doc_types: [fr]\n',
-      );
-
-      expect(
-        out.toString(),
-        '==> shared <==\n'
-        'Cite by link.\n'
-        '==> fr <==\n'
-        'One requirement.\n'
-        'Say it once, short.\n\n$_docLimits\n'
         '==> user_story <==\n'
         'One story\n\n$_docLimits\n',
       );

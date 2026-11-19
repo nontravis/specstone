@@ -1776,17 +1776,12 @@ shared_lines:
       expect(guide, isNot(contains('Say each thing once')));
       expect(guide, isNot(contains('Cite by link.')));
       expect(api.toJson()['description'], contains('Say each thing once'));
-    });
-
-    test('renderGuide with every shared line left out prints the own text '
-        'alone', () async {
-      final api = await resolveApi(projectLayer);
-
-      final guide = api.renderGuide(
-        sharedOut: {for (final line in api.sharedLines) line.id},
+      expect(
+        api.renderGuide(
+          sharedOut: {for (final line in api.sharedLines) line.id},
+        ),
+        startsWith('$ownText\n\nBanned words:'),
       );
-
-      expect(guide, startsWith('$ownText\n\nBanned words:'));
     });
 
     test('a type with no shared line prints its own text alone', () async {
