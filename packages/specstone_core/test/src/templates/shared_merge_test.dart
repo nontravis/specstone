@@ -548,8 +548,11 @@ void main() {
     });
 
     for (final (name, lower) in [
-      ('an E19 fault', 'shared_lines:\n  - id: tone\n    text: a\n'),
-      ('an E01 fault', 'shared_lines:\n  - id: tone\n'),
+      (
+        'two packs declaring one id',
+        'shared_lines:\n  - id: tone\n    text: a\n',
+      ),
+      ('an id the merged base lacks', 'shared_lines:\n  - id: tone\n'),
     ]) {
       test('is reported before a lower layer holding $name', () {
         expect(
@@ -569,6 +572,32 @@ void main() {
         );
       });
     }
+
+    test('a field a lower layer disabled needs it when added again', () {
+      expect(
+        _fault({
+          'base': _pack(
+            'shared_lines:\n  - id: tone\n'
+            'shared_fields:\n  - id: owner\n    type: string\n'
+            '    for_doc_types: [story]\n',
+            types: {'story'},
+          ),
+          'mid': _pack(
+            'extends: base\nshared_fields:\n'
+            '  - id: owner\n    disabled: true\n',
+          ),
+          'top': _pack(
+            'extends: mid\nshared_fields:\n  - id: owner\n    type: string\n',
+          ),
+        }),
+        _is(
+          FaultCode.missingKey,
+          file: 'packs/top/pack.yaml',
+          key: 'shared_fields[0].for_doc_types',
+          message: 'a new shared field requires for_doc_types',
+        ),
+      );
+    });
 
     test('a change or disable of a lower field needs none', () {
       final set = _merge({

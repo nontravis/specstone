@@ -115,25 +115,22 @@ SharedSet mergeSharedEntries({
 }
 
 /// Throws `missing_key` for the first complete new shared field, one no lower
-/// pack declares, that writes no `for_doc_types`.
+/// pack holds, that writes no `for_doc_types`.
 ///
 /// Runs before the merge pass, so it precedes any merge fault. A field a
-/// layer disabled and a later layer adds again is checked in the merge pass.
+/// lower layer disabled counts as new when a later layer adds it again.
 void _checkNewFieldReach(List<LoadedPack> ordered) {
-  final declared = <String>{};
+  final held = <String>{};
   for (final pack in ordered) {
-    final fields = pack.manifest.shared.fields;
-    for (final field in fields) {
+    for (final field in pack.manifest.shared.fields) {
       final entry = field.entry;
-      final isNew = !declared.contains(entry.id);
-      if (isNew &&
-          !entry.disabled &&
-          entry.type != null &&
-          field.forDocTypes == null) {
-        throw _missingFieldReach(field);
+      if (entry.disabled) {
+        held.remove(entry.id);
+      } else if (!held.contains(entry.id) && entry.type != null) {
+        if (field.forDocTypes == null) throw _missingFieldReach(field);
+        held.add(entry.id);
       }
     }
-    declared.addAll(fields.map((field) => field.id));
   }
 }
 
