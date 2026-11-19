@@ -114,10 +114,6 @@ void main() {
       expect(covers.pointer, PointerKind.prefix);
       expect(covers.root, PointerRoot.project);
       expect(covers.required, isTrue);
-
-      for (final id in ['feature', 'covers']) {
-        expect(fieldOf(skill, id).description, isNotEmpty, reason: id);
-      }
     });
 
     test('the skill sections come in order with inputs alone optional', () {
@@ -229,6 +225,21 @@ void main() {
         SectionSpec('acceptance', 'Acceptance', required: true),
       ]);
       expect(sectionOf(agent, 'role').summary, isTrue);
+    });
+  });
+
+  group('skill and agent fields', () {
+    test('each carries a description on feature and covers', () async {
+      final set = await resolveAgentSkills();
+      for (final type in ['skill', 'agent']) {
+        for (final id in ['feature', 'covers']) {
+          expect(
+            fieldOf(prdCoreDocType(set, type), id).description,
+            isNotEmpty,
+            reason: '$type.$id',
+          );
+        }
+      }
     });
   });
 
