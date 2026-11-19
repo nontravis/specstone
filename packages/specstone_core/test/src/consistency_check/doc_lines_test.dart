@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -12,10 +13,12 @@ void main() {
     expect(lines.keyLine('status'), 2);
     expect(lines.keyLine('missing'), isNull);
     expect(lines.entriesOf('traced_from'), [
-      (value: 'S1', line: 4, text: 'S1'),
-      (value: 'S2', line: 5, text: 'S2'),
+      const YamlEntry(value: 'S1', line: 4, text: 'S1'),
+      const YamlEntry(value: 'S2', line: 5, text: 'S2'),
     ]);
-    expect(lines.entriesOf('owner'), [(value: 'x', line: 6, text: 'x')]);
+    expect(lines.entriesOf('owner'), [
+      const YamlEntry(value: 'x', line: 6, text: 'x'),
+    ]);
     expect(lines.sectionLines, [11]);
     expect(lines.lines, hasLength(12));
     expect(lines.frontmatterErrorLine, isNull);

@@ -68,7 +68,13 @@ Iterable<Finding> checkOverrideLines(
   }
 }
 
-typedef _Read = ({OverrideLine line, Finding? finding});
+/// One override line read, and its finding; null when it holds none.
+final class _Read {
+  const new({required this.line, required this.finding});
+
+  final OverrideLine line;
+  final Finding? finding;
+}
 
 Iterable<_Read> _readLines(CheckContext context, IndexedDoc doc) sync* {
   if (!holdsOverrideLines(context.index, doc)) return;
@@ -98,7 +104,9 @@ _Read _readLine(
   final link = overrideLinkAt(context.contentOf(doc), line, textStart);
   if (link == null) return _malformed(context, doc, line, shown);
   final read = readOverrideLink(context.index, link);
-  if (read == null) return (line: OverrideLine(line: line), finding: null);
+  if (read == null) {
+    return _Read(line: OverrideLine(line: line), finding: null);
+  }
   if (!chain.contains(read.target.docPath)) {
     return _outOfChain(context, doc, line, shown, read.target);
   }
@@ -117,7 +125,7 @@ _Read _malformed(
   IndexedDoc doc,
   int line,
   String target,
-) => (
+) => _Read(
   line: OverrideLine(line: line),
   finding: context.finding(
     doc,
@@ -136,7 +144,7 @@ _Read _outOfChain(
   int line,
   String shown,
   IndexedDoc target,
-) => (
+) => _Read(
   line: OverrideLine(line: line),
   finding: context.finding(
     doc,
@@ -163,7 +171,7 @@ _Read _tracked(
   final cite = read.cite;
   final anchorTarget = read.anchorTarget;
   if (cite is UnresolvedCite) {
-    return (line: OverrideLine(line: line), finding: null);
+    return _Read(line: OverrideLine(line: line), finding: null);
   }
   if (cite is! ItemCite || anchorTarget is! SectionTarget) {
     return _malformed(context, doc, line, shown);
@@ -183,7 +191,7 @@ _Read _tracked(
             cite.itemId,
       )
       .firstOrNull;
-  return (
+  return _Read(
     line: OverrideLine(
       line: line,
       address: '${target.docTypeId}:${target.name}#${cite.itemId}',

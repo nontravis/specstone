@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show baseHashOf, withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -43,7 +44,7 @@ String _legacyOf(String text) => legacyFileCodeFingerprint(utf8.encode(text));
 final String _loginText = checkProjectFiles()[_login]!;
 final String _loginFingerprint = _fingerprintOf(_loginText, _login);
 final String _appLibFingerprint = folderCodeFingerprint([
-  (path: _login, fingerprint: _loginFingerprint),
+  FileFingerprint(path: _login, fingerprint: _loginFingerprint),
 ]);
 
 /// Returns a record of [statuses] and [code], one quoted line each, approved
@@ -681,12 +682,15 @@ void main() {
 
     test('restamps a folder link and leaves a suspect sibling', () async {
       final legacyFolder = folderCodeFingerprint([
-        (path: _login, fingerprint: legacyLogin),
-        (path: other, fingerprint: _legacyOf(otherText)),
+        FileFingerprint(path: _login, fingerprint: legacyLogin),
+        FileFingerprint(path: other, fingerprint: _legacyOf(otherText)),
       ]);
       final newFolder = folderCodeFingerprint([
-        (path: _login, fingerprint: _loginFingerprint),
-        (path: other, fingerprint: _fingerprintOf(otherText, other)),
+        FileFingerprint(path: _login, fingerprint: _loginFingerprint),
+        FileFingerprint(
+          path: other,
+          fingerprint: _fingerprintOf(otherText, other),
+        ),
       ]);
       final project = await restampProject(
         covers: ['app/lib/ $legacyFolder', '$other $_stale'],

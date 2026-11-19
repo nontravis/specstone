@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, KeyBlock;
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -483,7 +484,7 @@ String _codeRootNoteOf(CodeRootChoice? inferred) =>
 
 /// Returns the string entries of the frontmatter field [field] of [lf].
 List<String> _entriesOf(String lf, String field) => [
-  for (final (:value, line: _, text: _) in DocLines.of(lf).entriesOf(field))
+  for (final YamlEntry(:value) in DocLines.of(lf).entriesOf(field))
     if (value is String) value,
 ];
 

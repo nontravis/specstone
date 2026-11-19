@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -8,11 +9,6 @@ import 'package:specstone_core/src/index_query/models/link_place.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:yaml/yaml.dart';
-
-/// One frontmatter list item or scalar with its source line.
-///
-/// `text` is the item's source text, its span.
-typedef YamlEntry = ({Object? value, int line, String text});
 
 /// The 1-based file lines of a doc's links, sections, and frontmatter items.
 ///
@@ -116,7 +112,11 @@ final class DocLines {
     return [
       for (final item in items)
         if (item.value != null)
-          (value: item.value, line: _lineOf(item), text: item.span.text),
+          YamlEntry(
+            value: item.value,
+            line: _lineOf(item),
+            text: item.span.text,
+          ),
     ];
   }
 

@@ -38,10 +38,18 @@ String _valueMessage(String value) {
 /// that section's or bullet's one finding.
 Iterable<Finding> checkOpenTbrs(CheckContext context, IndexedDoc doc) sync* {
   final claimed = <int>{};
-  for (final (:line, :message, :form) in _sectionsOf(context, doc, claimed)) {
+  for (final _Open(:line, :message, :form) in _sectionsOf(
+    context,
+    doc,
+    claimed,
+  )) {
     yield _finding(context, doc, line, message, form);
   }
-  for (final (:line, :message, :form) in _bulletsOf(context, doc, claimed)) {
+  for (final _Open(:line, :message, :form) in _bulletsOf(
+    context,
+    doc,
+    claimed,
+  )) {
     yield _finding(context, doc, line, message, form);
   }
   for (final TbrMarkerPlace(:line, :rest)
@@ -51,7 +59,14 @@ Iterable<Finding> checkOpenTbrs(CheckContext context, IndexedDoc doc) sync* {
   }
 }
 
-typedef _Open = ({int line, String message, String form});
+/// One open TBR: its file line, its message, and the form that holds it.
+final class _Open {
+  const new({required this.line, required this.message, required this.form});
+
+  final int line;
+  final String message;
+  final String form;
+}
 
 Finding _finding(
   CheckContext context,
@@ -82,7 +97,7 @@ Iterable<_Open> _sectionsOf(
     claimed
       ..add(header)
       ..addAll([for (final line in context.bodyLinesOf(doc, i)) line.line]);
-    yield (line: header, message: _openSection, form: _sectionForm);
+    yield _Open(line: header, message: _openSection, form: _sectionForm);
   }
 }
 
@@ -101,7 +116,7 @@ Iterable<_Open> _bulletsOf(
       claimed.add(line);
       final value = bullet.substring(_bulletLabel.length).trim();
       if (value == _noValue) continue;
-      yield (line: line, message: _valueMessage(value), form: _bulletForm);
+      yield _Open(line: line, message: _valueMessage(value), form: _bulletForm);
     }
   }
 }

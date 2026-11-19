@@ -194,14 +194,44 @@ List<String>? _candidatesOf(CheckContext context, IndexedDoc doc) {
 
 /// The siblings a doc's order number must not repeat among: one doc type,
 /// one parent doc, and one `folder`, the path segments before its `{nn}`.
-typedef _SiblingKey = ({
-  String typeId,
-  String? parentPath,
-  String folder,
-  int number,
-});
+final class _SiblingKey {
+  const new({
+    required this.typeId,
+    required this.parentPath,
+    required this.folder,
+    required this.number,
+  });
 
-final _siblingGroups = Expando<Map<_SiblingKey, List<IndexedDoc>>>();
+  final String typeId;
+  final String? parentPath;
+  final String folder;
+  final int number;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _SiblingKey &&
+      other.typeId == typeId &&
+      other.parentPath == parentPath &&
+      other.folder == folder &&
+      other.number == number;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(typeId, parentPath, folder, number);
+}
+
+/// The typed docs of one run grouped by sibling key.
+final class _SiblingGroups {
+  const new(this._groups);
+
+  final Map<_SiblingKey, List<IndexedDoc>> _groups;
+
+  /// Returns the docs that share [key]; empty for a key it lacks.
+  List<IndexedDoc> siblingsOf(_SiblingKey key) => _groups[key] ?? const [];
+}
+
+final _siblingGroups = Expando<_SiblingGroups>();
 
 final _pathPatterns = Expando<Map<String, PathPattern>>();
 
@@ -212,7 +242,7 @@ Iterable<Finding> _orderNumberDuplicate(
   final key = _keyOf(context, doc);
   if (key == null) return;
   final groups = _siblingGroups[context] ??= _groupSiblings(context);
-  final siblings = groups[key] ?? const <IndexedDoc>[];
+  final siblings = groups.siblingsOf(key);
   if (siblings.length < 2) return;
   yield context.finding(
     doc,
@@ -228,13 +258,13 @@ Iterable<Finding> _orderNumberDuplicate(
   );
 }
 
-Map<_SiblingKey, List<IndexedDoc>> _groupSiblings(CheckContext context) {
+_SiblingGroups _groupSiblings(CheckContext context) {
   final groups = <_SiblingKey, List<IndexedDoc>>{};
   for (final doc in context.index.docs) {
     final key = _keyOf(context, doc);
     if (key != null) (groups[key] ??= []).add(doc);
   }
-  return groups;
+  return _SiblingGroups(groups);
 }
 
 /// Returns the sibling group of [doc]; null when it joins none.
@@ -254,7 +284,7 @@ _SiblingKey? _keyOf(CheckContext context, IndexedDoc doc) {
     for (var depth = segments.length; depth > 0; depth--) {
       final number = pattern.numberAt(segments.sublist(0, depth));
       if (number == null) continue;
-      return (
+      return _SiblingKey(
         typeId: type.id,
         parentPath: doc.parentPath,
         folder: segments.take(depth - 1).join(_pathSeparator),

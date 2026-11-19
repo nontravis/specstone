@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show pathFromProjectRoot, requireNotUnderGit, requireWritableTarget;
@@ -48,8 +49,12 @@ String outFileName({
     for (final flag in [...flags]..sort()) '-$flag',
   ].join();
   final argPart = args.isEmpty ? 'all' : args.map(_written).join('.');
+  final head = '$command$flagPart.$argPart';
   final targetPart = codeTarget == null ? '' : '.$codeTarget';
-  return '$command$flagPart.$argPart$targetPart.${asJson ? 'json' : 'txt'}';
+  final tail = '$targetPart.${asJson ? 'json' : 'txt'}';
+  final full = '$head$tail';
+  if (byteCountOf(full) <= fileNameByteCap) return full;
+  return cutFileName(head, tail, byteCap: fileNameByteCap);
 }
 
 String _written(String arg) {
@@ -59,6 +64,37 @@ String _written(String arg) {
   }
   return named;
 }
+
+/// The most UTF-8 bytes a file name may hold.
+const fileNameByteCap = 255;
+
+/// The hex characters of a cut name's hash.
+const _nameHashLength = 8;
+
+/// Returns `[head][tail]` cut to [byteCap] UTF-8 bytes: the leading code points
+/// of [head] that fit, then `-`, the first 8 hex characters of the SHA-256 of
+/// the whole name, and [tail].
+String cutFileName(String head, String tail, {required int byteCap}) {
+  final room = byteCap - byteCountOf(tail) - _nameHashLength - 1;
+  final hash = sha256.convert(utf8.encode('$head$tail')).toString();
+  return '${_leadingBytes(head, room)}-'
+      '${hash.substring(0, _nameHashLength)}$tail';
+}
+
+/// Returns the leading code points of [text] that fit [limit] UTF-8 bytes.
+String _leadingBytes(String text, int limit) {
+  final kept = StringBuffer();
+  var used = 0;
+  for (final rune in text.runes) {
+    used += byteCountOf(String.fromCharCode(rune));
+    if (used > limit) break;
+    kept.writeCharCode(rune);
+  }
+  return kept.toString();
+}
+
+/// Returns the UTF-8 byte length of [text].
+int byteCountOf(String text) => utf8.encode(text).length;
 
 /// Returns the file a bare `--out` writes: [name] under the project root's
 /// `.specstone/reports/`.

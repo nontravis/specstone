@@ -50,6 +50,7 @@ final _fixtureAssets = <AgentAsset>[
         'name: specstone-planner\n'
         'description: Plans\n'
         'disallowedTools: Agent, NotebookEdit\n'
+        'memory: project\n'
         '---\n'
         '\n'
         'Plan body.\n',
@@ -218,6 +219,7 @@ void main() {
         'name': 'specstone-planner',
         'description': 'Plans',
         'disallowedTools': 'Agent, NotebookEdit',
+        'memory': 'project',
       });
     });
 
@@ -242,6 +244,7 @@ void main() {
           );
           expect(_frontmatterOf(other.text), isNot(contains('readonly')));
           expect(_frontmatterOf(other.text), isNot(contains('tools')));
+          expect(_frontmatterOf(other.text), isNot(contains('memory')));
         }
       },
     );
@@ -508,6 +511,19 @@ void main() {
             file.entry,
       ];
       expect(readonly, ['specstone-sdd-reader.md']);
+    });
+
+    test('gives Claude Code project memory to the two engineers alone', () {
+      final withMemory = [
+        for (final file in files)
+          if (file.folder == AgentFolder.claudeAgents &&
+              _frontmatterOf(file.text)['memory'] == 'project')
+            file.entry,
+      ]..sort();
+      expect(withMemory, [
+        'specstone-plan-engineer.md',
+        'specstone-sdd-engineer.md',
+      ]);
     });
 
     test('renders text that is valid UTF-8 with LF lines', () {

@@ -5,6 +5,10 @@ import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
+import 'package:specstone_core/src/consistency_check/models/goal_block.dart';
+import 'package:specstone_core/src/consistency_check/models/heading_block.dart';
+import 'package:specstone_core/src/consistency_check/models/nfr_statement.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
@@ -50,9 +54,7 @@ final class CheckContext {
   final ReadSession _session;
   final Map<String, DocContent> _contents;
   final Map<String, DocLines> _lines = {};
-  // A null target keys a read from the project root.
-  final Map<(CodeTarget?, String), List<int>?> _codeBytes = {};
-  final Map<(CodeTarget?, String), CodeRead> _unreadable = {};
+  final _codeReads = _CodeReads();
   final Set<String> _codeWarnings = {};
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
@@ -141,8 +143,10 @@ final class CheckContext {
   List<int>? _bytesOf(CodeTarget? target, String path, CodeRead reason) {
     final bytes = _readBytes(target, path);
     if (bytes == null) {
-      final key = (target, normalCodeEntry(path));
-      if (_unreadable[key] != CodeRead.symbols) _unreadable[key] = reason;
+      _codeReads.markUnreadable(
+        _CodeFile(target: target, path: normalCodeEntry(path)),
+        reason,
+      );
     }
     return bytes;
   }
@@ -158,16 +162,15 @@ final class CheckContext {
   /// Reads [path] from [target]'s code root, or from the project root when
   /// [target] is null, once per run.
   List<int>? _readBytes(CodeTarget? target, String path) {
-    final key = (target, normalCodeEntry(path));
-    if (_codeBytes.containsKey(key)) return _codeBytes[key];
-    final root = target == null ? projectRoot : codeRootOf(target);
-    List<int>? bytes;
-    try {
-      bytes = File('${root.path}/${key.$2}').readAsBytesSync();
-    } on FileSystemException {
-      bytes = null;
-    }
-    return _codeBytes[key] = bytes;
+    final file = _CodeFile(target: target, path: normalCodeEntry(path));
+    return _codeReads.bytesOf(file, () {
+      final root = target == null ? projectRoot : codeRootOf(target);
+      try {
+        return File('${root.path}/${file.path}').readAsBytesSync();
+      } on FileSystemException {
+        return null;
+      }
+    });
   }
 
   /// Adds [warning], which no finding states; a text already added is kept
@@ -175,7 +178,7 @@ final class CheckContext {
   void warn(String warning) => _codeWarnings.add(warning);
 
   /// How many code files this run has read.
-  int get codeFilesRead => _codeBytes.length;
+  int get codeFilesRead => _codeReads.count;
 
   /// Returns the merged doc type of [doc], or null for an untyped doc.
   MergedDocType? typeOf(IndexedDoc doc) => index.typeOf(doc);
@@ -365,7 +368,7 @@ final class CheckContext {
 
   late final Set<String> _projectHeadingIds = {
     for (final doc in _projectDocs)
-      for (final (:key, lines: _) in _itemHeadingBlocksOf(doc))
+      for (final HeadingBlock(:key) in _itemHeadingBlocksOf(doc))
         if (key.startsWith(_visionIdPrefix)) key,
   };
 
@@ -382,11 +385,16 @@ final class CheckContext {
       if (doc.docTypeId == _goalType)
         for (final (i, template) in _heldTemplatesOf(doc).indexed)
           if (_goalHorizons[template?.id] case final horizon?)
-            for (final (:key, :lines) in headingBlocksOf(
+            for (final HeadingBlock(:key, :lines) in headingBlocksOf(
               bodyLinesOf(doc, i),
               goalKeyOf,
             ))
-              (docPath: doc.docPath, key: key, horizon: horizon, lines: lines),
+              GoalBlock(
+                docPath: doc.docPath,
+                key: key,
+                horizon: horizon,
+                lines: lines,
+              ),
   ];
 
   /// Returns the goal blocks of every goal doc, in doc order.
@@ -411,9 +419,7 @@ final class CheckContext {
   /// A section reads its `prefix_id`. A gnfr section with none reads the
   /// letters and hyphens before the heading's first digit as the prefix; any
   /// other doc skips a section with none.
-  Iterable<({String key, List<BodyLine> lines})> _itemHeadingBlocksOf(
-    IndexedDoc doc,
-  ) sync* {
+  Iterable<HeadingBlock> _itemHeadingBlocksOf(IndexedDoc doc) sync* {
     final isGnfr = doc.docTypeId == _gnfrType;
     for (final (i, template) in _heldTemplatesOf(doc).indexed) {
       if (template == null) continue;
@@ -432,20 +438,19 @@ final class CheckContext {
   /// Maps each NFR id of the gnfr docs to its DocPath and Statement line.
   ///
   /// The text is empty when the block has no `- **Statement:**` line.
-  late final Map<String, ({String path, String text})> _nfrStatements =
-      _readNfrStatements();
+  late final Map<String, NfrStatement> _nfrStatements = _readNfrStatements();
 
   /// Returns the NFR ids of the gnfr docs with their Statement lines.
-  Map<String, ({String path, String text})> nfrStatements() => _nfrStatements;
+  Map<String, NfrStatement> nfrStatements() => _nfrStatements;
 
-  Map<String, ({String path, String text})> _readNfrStatements() {
-    final statements = <String, ({String path, String text})>{};
+  Map<String, NfrStatement> _readNfrStatements() {
+    final statements = <String, NfrStatement>{};
     for (final doc in index.docs) {
       if (doc.docTypeId != _gnfrType) continue;
-      for (final (:key, :lines) in _itemHeadingBlocksOf(doc)) {
+      for (final HeadingBlock(:key, :lines) in _itemHeadingBlocksOf(doc)) {
         statements.putIfAbsent(
           key,
-          () => (path: doc.docPath, text: nfrStatementOf(lines)),
+          () => NfrStatement(path: doc.docPath, text: nfrStatementOf(lines)),
         );
       }
     }
@@ -464,21 +469,21 @@ final class CheckContext {
   /// Returns the doc of type `fr` named [name], or null.
   IndexedDoc? frNamed(String name) => _frsByName[name];
 
-  final Map<String, List<({String cell, int line})>> _frTraceRows = {};
+  final Map<String, List<FrTraceRow>> _frTraceRows = {};
 
   /// Returns the FR cell and file line of each row of the `fr_trace` table
   /// of [api].
   ///
   /// A cell is the row's first cell, trimmed, with one pair of backticks
   /// dropped. The header row and the separator row are skipped.
-  List<({String cell, int line})> frTraceRowsOf(IndexedDoc api) =>
+  List<FrTraceRow> frTraceRowsOf(IndexedDoc api) =>
       _frTraceRows.putIfAbsent(api.docPath, () => _readFrTraceRows(api));
 
-  List<({String cell, int line})> _readFrTraceRows(IndexedDoc api) {
+  List<FrTraceRow> _readFrTraceRows(IndexedDoc api) {
     final held = contentOf(api).sections;
     final type = typeOf(api);
     if (type == null) return const [];
-    final rows = <({String cell, int line})>[];
+    final rows = <FrTraceRow>[];
     for (var i = 0; i < held.length; i++) {
       if (templateSectionAt(api, i)?.id != _frTraceSection) continue;
       rows.addAll(readFrTraceRows(bodyLinesOf(api, i)));
@@ -500,8 +505,8 @@ final class CheckContext {
     for (final warning in _session.warnings)
       if (!_stated.contains(warning)) warning,
     ...{
-      for (final MapEntry(key: (target, path), value: reason)
-          in _unreadable.entries)
+      for (final MapEntry(key: _CodeFile(:target, :path), value: reason)
+          in _codeReads.unreadable)
         _unreadableWarning(target, path, reason),
     },
     ..._codeWarnings,
@@ -529,10 +534,46 @@ const _frTraceSection = 'fr_trace';
 /// The horizon of each goal doc section that holds goals.
 const _goalHorizons = {'long_term': 3, 'mid_term': 2, 'short_term': 1};
 
-/// A `### PG-` block of a goal doc: its doc, ID, horizon, and lines.
-typedef GoalBlock = ({
-  String docPath,
-  String key,
-  int horizon,
-  List<BodyLine> lines,
-});
+/// A code file one run reads: its target, null for a read from the project
+/// root, and its path in `normalCodeEntry`'s form.
+final class _CodeFile {
+  const new({required this.target, required this.path});
+
+  final CodeTarget? target;
+  final String path;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _CodeFile && other.target == target && other.path == path;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(target, path);
+}
+
+/// The code files one run has read, each once, and the reason each unreadable
+/// one leaves code unchecked.
+final class _CodeReads {
+  final _bytes = <_CodeFile, List<int>?>{};
+  final _unreadable = <_CodeFile, CodeRead>{};
+
+  /// How many distinct code files this run has read.
+  int get count => _bytes.length;
+
+  /// Returns the bytes of [file], calling [read] once and caching its result,
+  /// null included.
+  List<int>? bytesOf(_CodeFile file, List<int>? Function() read) {
+    if (_bytes.containsKey(file)) return _bytes[file];
+    return _bytes[file] = read();
+  }
+
+  /// Records that [file] is unreadable for [reason]; a [CodeRead.symbols]
+  /// reason is never replaced.
+  void markUnreadable(_CodeFile file, CodeRead reason) {
+    if (_unreadable[file] != CodeRead.symbols) _unreadable[file] = reason;
+  }
+
+  /// The unreadable files with their reasons, in the order first marked.
+  Iterable<MapEntry<_CodeFile, CodeRead>> get unreadable => _unreadable.entries;
+}

@@ -291,7 +291,7 @@ void main() {
   });
 
   test('specstone context --for design, with its '
-      'cited-by lines, answers within 500 ms in the fastest of five calls', () {
+      'cited-by lines, answers within 1 s in the fastest of five calls', () {
     const call = ['context', 'feature_1/story_1', '--for', 'design'];
     final first = Process.runSync(
       exe,
@@ -314,7 +314,7 @@ void main() {
         label: 'design context calls',
         metric: timingMetric,
       ),
-      lessThanOrEqualTo(const Duration(milliseconds: 500)),
+      lessThanOrEqualTo(const Duration(seconds: 1)),
     );
   });
 

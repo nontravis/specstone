@@ -147,7 +147,7 @@ List<_Held> _heldItemsIn(CheckContext context, IndexedDoc doc, int index) {
   }
   return [
     for (var k = 0; k < items.length; k++)
-      (item: items[k], facts: facts[k].readability),
+      _Held(item: items[k], facts: facts[k].readability),
   ];
 }
 
@@ -157,7 +157,7 @@ Iterable<Finding> _sentenceFindings(
   _Block section,
   SentenceLimit limit,
 ) sync* {
-  for (final (:line, :actual) in _countsToLimit(section, limit)) {
+  for (final _SentenceCount(:line, :actual) in _countsToLimit(section, limit)) {
     if (actual <= limit.count) continue;
     yield context.finding(
       doc,
@@ -173,22 +173,25 @@ Iterable<Finding> _sentenceFindings(
 /// file line.
 ///
 /// A `###` heading's sentence adds none to the count.
-Iterable<({int line, int actual})> _countsToLimit(
+Iterable<_SentenceCount> _countsToLimit(
   _Block section,
   SentenceLimit limit,
 ) sync* {
   if (limit.column case final column?) {
-    for (final (:item, :facts) in section.rows) {
+    for (final _Held(:item, :facts) in section.rows) {
       final at = item.header!.indexOf(column);
       if (at < 0 || at >= facts.cells.length) continue;
-      yield (line: item.line, actual: _sentenceCountOf(facts.cells[at]));
+      yield _SentenceCount(
+        line: item.line,
+        actual: _sentenceCountOf(facts.cells[at]),
+      );
     }
     return;
   }
   final prefix = limit.linePrefix;
-  for (final (:item, :facts) in section.readable) {
+  for (final _Held(:item, :facts) in section.readable) {
     if (prefix == null || item.firstLine.startsWith(prefix)) {
-      yield (
+      yield _SentenceCount(
         line: item.line,
         actual: _sentenceCountOf(facts.cells.expand((cell) => cell)),
       );
@@ -211,7 +214,7 @@ Iterable<Finding> _countFindings(
     yield* _countIn(context, doc, section, headerLine, lint, skipMin: skipMin);
     return;
   }
-  for (final (:line, :block) in section.subsections) {
+  for (final _Subsection(:line, :block) in section.subsections) {
     yield* _countIn(context, doc, block, line, lint, skipMin: skipMin);
   }
 }
@@ -264,7 +267,28 @@ Iterable<Finding> _countIn(
 }
 
 /// An item and the readability facts stored for it.
-typedef _Held = ({SectionItem item, ReadabilityFacts facts});
+final class _Held {
+  const new({required this.item, required this.facts});
+
+  final SectionItem item;
+  final ReadabilityFacts facts;
+}
+
+/// The sentence count of one item or cell, and its file line.
+final class _SentenceCount {
+  const new({required this.line, required this.actual});
+
+  final int line;
+  final int actual;
+}
+
+/// A `###` subsection: its heading's file line and the items under it.
+final class _Subsection {
+  const new({required this.line, required this.block});
+
+  final int line;
+  final _Block block;
+}
 
 /// A section's top-level items, grouped for the rules.
 final class _Block {
@@ -291,12 +315,10 @@ final class _Block {
 
   /// The `###` subsections, each with its heading's file line and the items
   /// under it.
-  late final List<({int line, _Block block})> subsections = _subsectionsOf(
-    readable,
-  );
+  late final List<_Subsection> subsections = _subsectionsOf(readable);
 }
 
-List<({int line, _Block block})> _subsectionsOf(List<_Held> all) {
+List<_Subsection> _subsectionsOf(List<_Held> all) {
   final subsections = <({int line, List<_Held> under})>[];
   for (final held in all) {
     if (held.item.kind == SectionItemKind.heading) {
@@ -307,6 +329,6 @@ List<({int line, _Block block})> _subsectionsOf(List<_Held> all) {
   }
   return [
     for (final (:line, :under) in subsections)
-      (line: line, block: _Block(under)),
+      _Subsection(line: line, block: _Block(under)),
   ];
 }

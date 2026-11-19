@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
+import 'package:specstone_core/src/consistency_check/models/heading_block.dart';
+import 'package:specstone_core/src/consistency_check/models/id_at.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
@@ -151,7 +153,7 @@ final class RenumberDoc {
     ).indexed) {
       if (template == null || template.prefixId != null) continue;
       final body = sectionBodyLines(content.sections, content.lineFacts, i);
-      for (final (:key, :lines) in headingBlocksOf(
+      for (final HeadingBlock(:key, :lines) in headingBlocksOf(
         body,
         (heading) => itemHeadingKeyOf(heading, null),
       )) {
