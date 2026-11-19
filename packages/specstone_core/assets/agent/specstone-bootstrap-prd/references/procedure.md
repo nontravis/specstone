@@ -1,4 +1,4 @@
-Step 1, the gate, ran.
+Your batch's findings are in the gate's `check:` file; run no gate.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
 Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming canonicalization
@@ -10,7 +10,7 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 
 ## 2. One finding at a time
 
-Fix the first unhandled finding under `prds/` or `measurements/`, then rerun
+Fix the first unhandled finding of your batch, then rerun
 `specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` and search its file. Stop when each finding left
 goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an unanswered
 size finding.
@@ -18,7 +18,7 @@ size finding.
 Write each fix as `../../specstone-expert-sdd/references/writes.md` says.
 
 Move every old statement to a home. Where the old text lacks a value the guide needs,
-write `TBR — <why>` in its field or sub-field, never a value you propose. Ask the Owner only when no text bears on a
+write `TBR — <why>` in its place, never a value you propose. Ask the Owner only when no text bears on a
 whole section.
 
 | Finding | Fix |
@@ -67,7 +67,7 @@ its new doc. Name in step 6 each waiver and each mention in a section kept uncha
 3. Name the set in one line, `specstone delete <path> …`, quoting each path with a space.
 
 On a batch, delete nothing: hand that line to `specstone-bootstrap-prd`'s step 3.4.
-Else, run it through `specstone-expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
+Else, run it through `specstone-expert-sdd`'s Owner confirmation. Never run `git rm`.
 Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval

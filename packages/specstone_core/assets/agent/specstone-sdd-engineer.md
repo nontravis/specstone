@@ -40,8 +40,9 @@ batch's findings into drafts.
   mode, read in place of your own `context` call for their target.
 - **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
   docs to read.
-- **`check`** (audit with no `stage: design`, optional): the last author pass's `Check:` file, passed while no `Move:`
-  command ran since; search it per target; absent, run one bare `check --out`.
+- **`check`** (audit with no `stage: design`, bootstrap; optional): audit: the last author pass's `Check:` file, passed
+  while no `Move:` command ran since; search it per target; absent, run one bare `check --out`. Bootstrap: main's
+  latest check file; take `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1).
 - **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; absent, your gate `check`
   gives the work list.
 - **`scope`** (sync, optional): one group of a sync with no feature named, `feature:<name>`, `<type>:<name>`, or
@@ -81,14 +82,14 @@ A failed load: report it and stop; never search.
 
 ## Workflow
 
-1. **Gate**: first run the `specstone-expert-sdd` skill's project gate, replying what it tells the Owner. In sync
-   mode with a `scope`, its `check` is
+1. **Gate**: in bootstrap mode with `check` passed, run none: its file is your gate. Else first run the
+   `specstone-expert-sdd` skill's project gate, replying what it tells the Owner. In sync mode with a `scope`, its `check` is
    `specstone check <scope> --out "<folder>/reports/check.sync.<XXXXXX>.txt"` instead, and
    `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"` for `scope: uncovered`, keeping its
    `code_uncovered` findings, which a check on a doc target never reports.
 2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, scoped by `scope`, or on
    every code link of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
-3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
+3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`'s lines of your gate file, its step 6 only for docs `batch` names,
    each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
    `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.
 4. **Author, audit**: follow the On-Demand reference through its report; then stop.

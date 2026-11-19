@@ -33,21 +33,22 @@ as PROJECT's Tech stack.
 With a subagent, split the gate file's findings this skill takes by doc path: one batch per feature folder, each
 `architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included except a file
 the Owner answered in this run. In the first round the rest batch always runs, even with no finding, and names each
-target's tech stack doc, the doc the procedure's step 6 fills; no feature batch fills it. In a later round it runs only
+target's tech stack doc, which the procedure's step 6 fills; no feature batch does. In a later round it runs only
 when findings it owns remain or a write-a-spec pick awaits. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:`
-the batch's paths, `picks:` each write-a-spec pick of step 3 for the batch's files, and `report:`
-`<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches may run at once. Send no doc
+the batch's paths, `check:` the latest check file, `picks:` step 3's write-a-spec picks
+for the batch's files, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch;
+batches may run at once. Send no doc
 text, and work no step of the procedure yourself while a dispatch can run.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
 
 An `item_over_limit` finding joins its doc's batch only when the Owner named `item_over_limit` when starting the run;
-that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item. In any other
+that batch's `batch:` then names it, and its agent reshapes the item. In any other
 run the finding waits for the Owner.
 
-The procedure for the main session is `references/procedure.md` beside this file: with no subagent at all, over every
+The main session's procedure is `references/procedure.md` beside this file: with no subagent at all, over every
 finding this skill takes; after a failed dispatch, over that dispatch's one batch.
 
 ## 3. After the reports
