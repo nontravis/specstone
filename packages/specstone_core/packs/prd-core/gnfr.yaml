@@ -3,7 +3,7 @@ description: |-
   The project-wide non-functional requirements; every item applies to every story.
   Title it `# Project-wide non-functional requirements`, with no number.
   A category holds one `### NFR-<cat><NN> — <name>` block per target, or `N/A — <reason>` when none applies.
-  Write each statement with one "shall" and a quantified value; avoid other -ly and -ize words.
+  Write each statement with one "shall" and a quantified value; avoid -ly and -ize words beyond the banned list.
   Write one rule per `NFR-*` ID, keep its bound in its Statement, and leave mechanics to the spec docs.
   Keep the trace in the entry's `**Traced from:**` bullet, never in the Statement.
   A project adds a missing category, such as Availability, as a project-layer section that keeps its IDs.
@@ -17,7 +17,8 @@ sections:
     required: true
     description: |-
       Cover timing, throughput, storage size, latency, accuracy, and precision, each with its margin.
-      Give every value a unit and a tolerance, such as `< 200 ms` or `± 0.5 %`.    template: |-
+      Give every value a unit and a tolerance, such as `< 200 ms` or `± 0.5 %`.
+    template: |-
       ### NFR-P01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>
@@ -72,7 +73,8 @@ sections:
     required: true
     description: |-
       Cover who may read or change what, and how the product resists misuse, each with a measurable limit.
-      Name the data or function each target protects, so a test or inspection can check it.    template: |-
+      Name the data or function each target protects, so a test or inspection can check it.
+    template: |-
       ### NFR-Sec01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>
@@ -127,7 +129,8 @@ sections:
     required: true
     description: |-
       Give a measurable target for detecting a fault and for recovering from it.
-      Add the target for surviving a software or hardware fault, with the allowed loss or downtime.    template: |-
+      Add the target for surviving a software or hardware fault, with the allowed loss or downtime.
+    template: |-
       ### NFR-R01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>
@@ -182,7 +185,8 @@ sections:
     required: true
     description: |-
       Give a measurable, verifiable target for the cost and time to change, inspect, and repair the product.
-      Name the unit of change, such as one module or one release, that the target measures.    template: |-
+      Name the unit of change, such as one module or one release, that the target measures.
+    template: |-
       ### NFR-M01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>
@@ -237,7 +241,8 @@ sections:
     required: true
     description: |-
       Cover each external interface: data standard, protocol, message timing, and error handling.
-      Name the system or device on the other side, and give each value a unit and a tolerance.    template: |-
+      Name the system or device on the other side, and give each value a unit and a tolerance.
+    template: |-
       ### NFR-I01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>
@@ -292,7 +297,8 @@ sections:
     required: true
     description: |-
       For each condition, say whether the product shall operate, operate degraded, or only survive.
-      Cover the conditions met in development, test, transport, storage, and operations.    template: |-
+      Cover the conditions met in development, test, transport, storage, and operations.
+    template: |-
       ### NFR-E01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>
@@ -347,7 +353,8 @@ sections:
     required: true
     description: |-
       Cover the harm to people, property, or data that the product shall prevent or limit.
-      Give each limit as a measurable value, and name the hazard it answers.    template: |-
+      Give each limit as a measurable value, and name the hazard it answers.
+    template: |-
       ### NFR-Sa01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>
@@ -402,7 +409,8 @@ sections:
     required: true
     description: |-
       Cover human factors, training, and the personnel the product expects, each as a measurable target.
-      Keep the steps an operator takes in the story; state here the result, such as time to learn.    template: |-
+      Keep the steps an operator takes in the story; state here the result, such as time to learn.
+    template: |-
       ### NFR-O01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>
@@ -457,7 +465,8 @@ sections:
     required: true
     description: |-
       Name each standard, code, or constraint that the design shall follow.
-      State the check that proves the design follows it, such as an audit or an inspection.    template: |-
+      State the check that proves the design follows it, such as an audit or an inspection.
+    template: |-
       ### NFR-DS01 — <name>
       - **Statement:** The <product> shall <verb> <object> <value ± tolerance> <condition>.
       - **Rationale:** <reason and assumptions>

@@ -3,7 +3,7 @@ description: |-
   A functional requirement: one testable statement of what the product shall do, traced to a story scenario.
   Title it `# <Name>`, with no number.
   Write the Statement with one "shall" and its quantified value, such as `within 2 s`.
-  Avoid other -ly and -ize words.
+  Avoid -ly and -ize words beyond the banned list.
   State what the product does, never how; leave mechanics to the spec docs, and assign no task to a person.
   Keep the trace in `traced_from` alone, never in the Statement or an edge case.
   Keep one behavior per FR; split joined behaviors into separate FRs.

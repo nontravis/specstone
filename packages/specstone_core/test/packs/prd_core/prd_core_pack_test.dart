@@ -10,6 +10,7 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
@@ -170,6 +171,36 @@ void main() {
   });
 
   group('prd-core doc types', () {
+    test('each section the pack file gives a template keeps it, and no '
+        'description holds a YAML key', () async {
+      final set = await resolvePrdCore();
+      final blockKey = RegExp(r'\b[a-z_]+: \|');
+      for (final docType in set.docTypes) {
+        final file = loadYaml(
+          utf8.decode(shippedPackFiles['prd-core/${docType.id}.yaml']!),
+        ) as YamlMap;
+        final sections = (file['sections'] as YamlList?)?.nodes ?? [];
+        for (final node in sections) {
+          final raw = node as YamlMap;
+          if (!raw.containsKey('template')) continue;
+          final id = raw['id'] as String;
+          expect(
+            sectionOf(docType, id).template,
+            isNotNull,
+            reason: '${docType.id} $id',
+          );
+        }
+        final texts = [
+          docType.description,
+          for (final field in docType.fields) field.description,
+          for (final section in docType.sections) section.description,
+        ];
+        for (final text in texts) {
+          expect(text ?? '', isNot(contains(blockKey)), reason: docType.id);
+        }
+      }
+    });
+
     test('only project, glossary, gnfr, and goal set bundle_refs', () async {
       final set = await resolvePrdCore();
       expect(
@@ -541,7 +572,7 @@ void main() {
       for (final id in ['gnfr', 'fr', 'nf']) {
         expect(
           prdCoreDocType(set, id).description,
-          contains('other -ly and -ize words'),
+          contains('-ly and -ize words beyond the banned list'),
           reason: id,
         );
       }
