@@ -42,7 +42,7 @@ ReadAnswer answerListUnwalked(
         index,
         doc,
       ).entries)
-        if (!walked.contains((doc.docPath, key))) (label: key, block: value),
+        if (!walked.holds(doc.docPath, key)) (label: key, block: value),
     ];
     if (unwalked.isEmpty) continue;
     text.writeln(docLine(index, doc));
@@ -57,16 +57,15 @@ ReadAnswer answerListUnwalked(
   return ReadAnswer(text: text.toString(), json: {'docs': docs});
 }
 
-// The (story DocPath, `S<N>`) pairs a step of any journey names.
-Set<(String, String)> _walkedScenarios(DocIndex index) {
-  final walked = <(String, String)>{};
+_WalkedScenarios _walkedScenarios(DocIndex index) {
+  final walked = _WalkedScenarios();
   for (final journey in index.docs) {
     if (journey.docTypeId != journeyTypeId) continue;
     for (final step in stepsOfIndexed(index, journey).steps) {
       final target = step.target;
       if (target == null) continue;
       final story = storyNamed(index, target.identity);
-      if (story != null) walked.add((story.docPath, target.scenarioLabel));
+      if (story != null) walked.add(story.docPath, target.scenarioLabel);
     }
   }
   return walked;
@@ -83,4 +82,35 @@ String _headingText(String block) {
     title = title.substring(_titleDash.length).trimLeft();
   }
   return title;
+}
+
+/// The (story DocPath, `S<N>`) pairs a step of any journey names.
+final class _WalkedScenarios {
+  final _scenarios = <_WalkedScenario>{};
+
+  void add(String storyPath, String label) {
+    _scenarios.add(_WalkedScenario(storyPath: storyPath, label: label));
+  }
+
+  bool holds(String storyPath, String label) =>
+      _scenarios.contains(_WalkedScenario(storyPath: storyPath, label: label));
+}
+
+/// A story DocPath and an `S<N>` label a journey step names.
+final class _WalkedScenario {
+  const new({required this.storyPath, required this.label});
+
+  final String storyPath;
+  final String label;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _WalkedScenario &&
+      other.storyPath == storyPath &&
+      other.label == label;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(storyPath, label);
 }
