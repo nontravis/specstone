@@ -21,7 +21,7 @@ WrittenPatternLayer layerOf(
   String dir = _shipped,
   String? pack = 'software',
   LayerKind kind = LayerKind.shipped,
-}) => (
+}) => WrittenPatternLayer(
   pack: pack,
   layer: FeaturePatternLayer.parse(
     yaml,
