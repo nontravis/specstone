@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show tableCellRanges, tableHeadCells;
@@ -66,7 +67,7 @@ Iterable<Finding> _systemFindings(CheckContext context, IndexedDoc doc) sync* {
           name,
   };
   final lines = context.linesOf(doc);
-  for (final (:value, :line, text: _) in lines.entriesOf(_systemField)) {
+  for (final YamlEntry(:value, :line) in lines.entriesOf(_systemField)) {
     if (value is! String || rows.contains(value)) continue;
     yield context.finding(
       doc,
@@ -222,7 +223,7 @@ Iterable<Finding> _scopePathFindings(
   IndexedDoc topic,
 ) sync* {
   final covers = [
-    for (final (:value, line: _, text: _)
+    for (final YamlEntry(:value)
         in context.linesOf(topic).entriesOf(_coversField))
       if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
   ];

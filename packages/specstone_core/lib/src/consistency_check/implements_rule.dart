@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
@@ -26,7 +27,7 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
       .firstOrNull;
   if (fieldId == null || target == null) return;
   final items = recordItemsOf(feature, context.index.childrenOf);
-  for (final (:value, :line, text: _) in lines.entriesOf(fieldId)) {
+  for (final YamlEntry(:value, :line) in lines.entriesOf(fieldId)) {
     if (value is! String) continue;
     final parsed = recordCodeLineOf(value);
     final item = items[parsed?.item];

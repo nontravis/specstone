@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
@@ -72,7 +73,7 @@ Set<String> _codeEntriesOf(
   for (final doc in context.index.docs)
     if (work.targetOf(doc) == target &&
         context.typeHoldsField(context.typeOf(doc), _codeField))
-      for (final (:value, line: _, text: _)
+      for (final YamlEntry(:value)
           in context.linesOf(doc).entriesOf(_codeField))
         if (value is String) value,
 };
@@ -82,7 +83,7 @@ Set<String> _codeEntriesOf(
 Set<String> _skillReferenceFoldersOf(CheckContext context) => {
   for (final doc in context.index.docs)
     if (context.typeOf(doc)?.id == skillDocTypeId)
-      for (final (:value, line: _, text: _)
+      for (final YamlEntry(:value)
           in context.linesOf(doc).entriesOf(skillOutputFieldId))
         if (value is String) ?skillReferencesPrefixOf(value),
 };

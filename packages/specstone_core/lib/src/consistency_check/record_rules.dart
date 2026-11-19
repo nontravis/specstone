@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
@@ -116,7 +117,7 @@ final class _RecordWalk {
   }
 
   Iterable<Finding> _lineFindings(String fieldId, String noun) sync* {
-    for (final (:value, :line, text: _) in _lines.entriesOf(fieldId)) {
+    for (final YamlEntry(:value, :line) in _lines.entriesOf(fieldId)) {
       if (value is! String) continue;
       final parsed = recordCodeLineOf(value);
       if (parsed == null) {

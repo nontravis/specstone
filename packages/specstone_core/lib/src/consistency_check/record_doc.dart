@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart'
     show recordStatusLineOf;
@@ -74,7 +75,7 @@ final class StatusLine {
 /// Returns each string entry of the [statusFieldId] list of [lines], in file
 /// order, repeated items included.
 List<StatusLine> statusLinesOf(DocLines lines, String statusFieldId) => [
-  for (final (:value, :line, text: _) in lines.entriesOf(statusFieldId))
+  for (final YamlEntry(:value, :line) in lines.entriesOf(statusFieldId))
     if (value is String) _statusLineOf(value, line),
 ];
 

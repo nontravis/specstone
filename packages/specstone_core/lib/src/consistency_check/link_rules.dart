@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart'
     show isSkipSpan, skipLinesOf;
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
@@ -143,7 +144,7 @@ Iterable<Finding> _unresolvedNames(CheckContext context, IndexedDoc doc) sync* {
 List<_DocRefValue> _docRefValuesOf(CheckContext context, IndexedDoc doc) => [
   for (final field in context.typeOf(doc)?.fields ?? const <MergedField>[])
     if (field.type == FieldType.docRef)
-      for (final (:value, :line, text: _)
+      for (final YamlEntry(:value, :line)
           in context.linesOf(doc).entriesOf(field.id))
         if (value is String) (field: field, value: value, line: line),
 ];

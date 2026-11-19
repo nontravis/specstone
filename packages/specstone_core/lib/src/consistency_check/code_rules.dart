@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId;
 import 'package:specstone_core/src/index_query/code_root_files.dart';
@@ -172,7 +173,7 @@ Iterable<Finding> _missingPaths(
   FindingKind kind, {
   required String Function(String value) pathOf,
 }) sync* {
-  for (final (:value, :line, text: _)
+  for (final YamlEntry(:value, :line)
       in context.linesOf(doc).entriesOf(fieldId)) {
     if (value is! String) continue;
     final entry = pathOf(value);
@@ -241,7 +242,7 @@ Iterable<Finding> uncoveredCode(
     final reported = <String>{};
     for (final doc in docs) {
       if (!context.typeHoldsField(context.typeOf(doc), _codeField)) continue;
-      for (final (:value, :line, text: _)
+      for (final YamlEntry(:value, :line)
           in context.linesOf(doc).entriesOf(_codeField)) {
         if (value is! String) continue;
         final paths = filesUnderCodeRoot(
@@ -278,7 +279,7 @@ List<String> _coversOf(CheckContext context, List<IndexedDoc> docs) => [
   for (final doc in docs)
     for (final field in coversFieldsOf(context.typeOf(doc)))
       if (!readsFromProjectRoot(field))
-        for (final (:value, line: _, text: _)
+        for (final YamlEntry(:value)
             in context.linesOf(doc).entriesOf(field.id))
           if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
 ];

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
@@ -89,7 +90,7 @@ Iterable<Finding> _missingListedFiles(
   IndexedDoc doc,
 ) sync* {
   final folder = _folderOf(context, doc);
-  for (final (:value, :line, text: _)
+  for (final YamlEntry(:value, :line)
       in context.linesOf(doc).entriesOf(_filesField)) {
     if (value is! String || _namesFileBeside(folder, value)) continue;
     yield context.finding(

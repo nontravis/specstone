@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
@@ -30,7 +31,7 @@ Iterable<_TaskRefEntry> _taskRefEntriesOf(
   final lines = context.linesOf(doc);
   for (final field in type.fields) {
     if (field.type != FieldType.taskRef) continue;
-    for (final (:value, :line, text: _) in lines.entriesOf(field.id)) {
+    for (final YamlEntry(:value, :line) in lines.entriesOf(field.id)) {
       final ref = value is String ? TaskRef.parse(value) : null;
       if (ref != null) yield (field: field.id, ref: ref, line: line);
     }

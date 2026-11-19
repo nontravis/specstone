@@ -6,6 +6,7 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show normalCodeEntry;
@@ -232,7 +233,7 @@ Iterable<CodeLink> _entryLinks(
   final fieldId = read == null ? null : recordCodeFieldOf(read.type)?.id;
   if (read == null || fieldId == null) return;
   final items = recordItemsOf(read.feature, tree.childrenOf);
-  for (final (:value, :line, text: _) in read.lines.entriesOf(fieldId)) {
+  for (final YamlEntry(:value, :line) in read.lines.entriesOf(fieldId)) {
     if (value is! String) continue;
     final parsed = recordCodeLineOf(value);
     final item = items[parsed?.item];
@@ -264,7 +265,7 @@ Iterable<CodeLink> _coversLinks(
   CodeTarget? target, {
   required bool endsWait,
 }) sync* {
-  for (final (:value, :line, text: _) in lines.entriesOf(field.id)) {
+  for (final YamlEntry(:value, :line) in lines.entriesOf(field.id)) {
     if (value is! String) continue;
     final entry = CodeLinkEntry(value);
     if (!readsCoversCode(root, entry.pointer, endsWait: endsWait)) continue;
