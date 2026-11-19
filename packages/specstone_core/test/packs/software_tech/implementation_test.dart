@@ -1,10 +1,48 @@
+import 'dart:convert';
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
+
+const _matrixGuideLines = <String>[
+  _matrixMapsLine,
+  _matrixRowLine,
+  _matrixNameLine,
+  _matrixLiteralLine,
+  _matrixFingerprintLine,
+  _matrixSkipLine,
+];
+
+const _matrixMapsLine =
+    '`## Verification matrix` maps each FR to the tests that prove it, one '
+    'line per FR; under `verification_coverage: edge_case`, one line per edge '
+    'case and test.';
+
+const _matrixRowLine =
+    'Write a test row as ``- <fr>: `<literal>`, `<literal>` ``, one literal '
+    'per test, joined by `, `; under `edge_case`, '
+    '``- <fr> E<nn>: `<literal>` ``.';
+
+const _matrixNameLine =
+    'Name a test by one string literal of its name, in a code span, as the '
+    'test file writes it; take its first literal.';
+
+const _matrixLiteralLine =
+    "Each literal must occur in a file that one of the item's `tests` lines "
+    'names.';
+
+const _matrixFingerprintLine =
+    'Copy each fingerprint from `specstone check`; never compute one.';
+
+const _matrixSkipLine =
+    'Write a skip row, `- <fr> skipped: <reason>`, for an FR that no test can '
+    'prove; under `edge_case`, one per edge case.';
 
 void main() {
   test(
@@ -42,6 +80,33 @@ void main() {
     expect(matrix.template, isNull);
     expect(matrix.isOutputRef, isTrue);
     expect(record.sections.map((s) => s.id), ['verification_matrix']);
+  });
+
+  test('ships the per-FR matrix guide lines', () async {
+    final record = prdCoreDocType(
+      await resolveSoftwareTech(),
+      'implementation',
+    );
+
+    expect(
+      verificationMatrixOf(record)!.description?.split('\n'),
+      _matrixGuideLines,
+    );
+  });
+
+  test('adds no migrations entry for the matrix guide lines', () {
+    final manifest = PackManifest.parse(
+      utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+      file: 'packs/software-tech/pack.yaml',
+    );
+
+    expect(manifest.version.toString(), '1.14.0');
+    expect(manifest.migrations.map((m) => m.from.toString()), [
+      '1.4.0',
+      '1.6.0',
+      '1.7.0',
+      '1.13.0',
+    ]);
   });
 
   test(

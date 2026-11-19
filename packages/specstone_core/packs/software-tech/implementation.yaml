@@ -52,12 +52,12 @@ sections:
     header: Verification matrix
     output_ref: true
     description: |-
-      `## Verification matrix` maps each FR edge case to the tests that prove it, one line per edge case and test.
-      Name a test by one string literal of its name, in a code span, as the test file writes it.
-      Take the first literal of the test's name.
-      The literal must occur in a file that one of the item's `tests` lines names.
+      `## Verification matrix` maps each FR to the tests that prove it, one line per FR; under `verification_coverage: edge_case`, one line per edge case and test.
+      Write a test row as ``- <fr>: `<literal>`, `<literal>` ``, one literal per test, joined by `, `; under `edge_case`, ``- <fr> E<nn>: `<literal>` ``.
+      Name a test by one string literal of its name, in a code span, as the test file writes it; take its first literal.
+      Each literal must occur in a file that one of the item's `tests` lines names.
       Copy each fingerprint from `specstone check`; never compute one.
-      Write a skip row with a reason for an edge case that no test can prove.
+      Write a skip row, `- <fr> skipped: <reason>`, for an FR that no test can prove; under `edge_case`, one per edge case.
 lint:
   max_chars: 60000
   max_lines: 400
