@@ -13,13 +13,14 @@ takes a state instead, a waiting code target's left out.
 ## 3. Find the covering docs
 
 A finding's `path` is from its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`;
-default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
+default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`; a `root: project`
+entry's path (its field's `root` in `specstone guide <type> --json`, once per type) is from the project root already
+and takes no prefix.
 
 For each listed code path but a `tests_unresolved` line's or a matrix row's (steps 4.4, 4.5), run
-`specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
-`--target`; read parts of its read-first and refs files per `specstone-read-sdd`. A `root: project` entry (its field's
-`root` in `specstone guide <type> --json`, once per type) takes none: its path is from the project root, its
-covering doc the doc its finding names: `specstone context <doc> --for implement --out`.
+`specstone context --code <code root>/<path> --for implement --out`, or `--code <path>` for a `root: project`
+entry's, which takes its path's target and no `--target`; read parts of its read-first and refs files per
+`specstone-read-sdd`. The bundle of a `root: project` entry holds the doc that names it.
 
 - **Warning `no doc covers or implements <path>`:** A rename pair's new side: step 4.3. Else `helpers.md`
   first; what it leaves: read it, write nothing; report under `Uncovered:` its path, the observable behavior it adds
