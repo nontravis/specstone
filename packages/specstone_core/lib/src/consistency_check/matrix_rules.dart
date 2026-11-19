@@ -3,6 +3,7 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
+import 'package:specstone_core/src/consistency_check/matrix_form.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart'
@@ -20,8 +21,9 @@ import 'package:specstone_core/src/templates/models/record_status.dart';
 /// Returns the findings of the Verification matrix rows of a record [doc]; any
 /// other doc has none.
 ///
-/// A row is checked against the code root of the record's own target. A row
-/// naming no story or FR of the feature, or an item under a skip, is the
+/// A row is checked against the code root of the record's own target. A row of
+/// the form the mode does not read, naming an FR, gets the form finding alone.
+/// A row naming no story or FR of the feature, or an item under a skip, is the
 /// record entry rule's, so this rule checks the literal of an FR that is
 /// neither skipped nor `planned` and no row of any other item. A test file is
 /// read at most once per run, by the reader of the `tests` lines.
@@ -128,12 +130,10 @@ final class _MatrixWalk {
       switch (line) {
         case MalformedRow(:final text):
           yield _malformed(line.line, text);
-        case final MatrixRow row when row.edgeCase == null:
-          // Reads as no row until the per-FR form is a mode of its own.
-          yield _malformed(row.line, _lineOf(row));
-        case final MatrixRow row && MatrixRow(edgeCase: final edgeCase?)
-            when !_isRecordRules(row):
-          yield* _resolved(row, edgeCase);
+        case final MatrixRow row when isRefusedFormRow(_context, _record, row):
+          yield _refusedForm(row);
+        case final MatrixRow row when !_isRecordRules(row):
+          yield* _resolved(row);
           yield* _related(row);
         case MatrixRow():
           break;
@@ -144,10 +144,35 @@ final class _MatrixWalk {
   Finding _malformed(int line, String text) => _finding(
     FindingKind.matrixRowMalformed,
     line,
-    '$text is no matrix row; write "- <item> <edge case>: '
-    '`<test name>`" or "- <item> <edge case> skipped: <reason>"',
+    '$text is no matrix row; write ${_shapeOfReadForm()}',
     {'row': text},
   );
+
+  String _shapeOfReadForm() => switch (_context.matrixMode.readsForm) {
+    RowForm.perFr =>
+      '"- <item>: `<test name>`" or "- <item> skipped: <reason>"',
+    RowForm.perEdgeCase =>
+      '"- <item> <edge case>: `<test name>`" or '
+          '"- <item> <edge case> skipped: <reason>"',
+  };
+
+  // Only the Owner's `migrate` clears a per-edge-case row under off or `fr`;
+  // the sync rewrites a per-FR row under `edge_case`.
+  Finding _refusedForm(MatrixRow row) {
+    final readsFr = _context.matrixMode.readsForm == RowForm.perFr;
+    return _context.finding(
+      _record,
+      FindingKind.matrixRowMalformed,
+      line: row.line,
+      message: readsFr
+          ? 'per-edge-case row; run specstone migrate to fold it into one '
+                'row per FR'
+          : 'per-FR row under verification_coverage edge_case; write one row '
+                'per edge case',
+      waitsFor: readsFr ? WaitsFor.owner : WaitsFor.agent,
+      keys: {'row': _lineOf(row)},
+    );
+  }
 
   String _lineOf(MatrixRow row) => switch (row.fingerprint) {
     final fingerprint? => '- ${row.written} $fingerprint',
@@ -162,7 +187,7 @@ final class _MatrixWalk {
     return item.docTypeId == frType && isSkippedIn(_context, _record, item);
   }
 
-  Iterable<Finding> _resolved(MatrixRow row, String edgeCase) sync* {
+  Iterable<Finding> _resolved(MatrixRow row) sync* {
     final item = _items[row.item]!;
     if (item.docTypeId != frType) {
       yield _finding(
@@ -173,7 +198,8 @@ final class _MatrixWalk {
       );
       return;
     }
-    if (!_edgeCasesOf(item).containsKey(edgeCase)) {
+    final edgeCase = row.edgeCase;
+    if (edgeCase != null && !_edgeCasesOf(item).containsKey(edgeCase)) {
       yield _finding(
         FindingKind.matrixRowUnresolved,
         row.line,
@@ -192,43 +218,62 @@ final class _MatrixWalk {
     final status = _context.index.itemStatus(fr, codeTarget: _record.target);
     if (target == null || !status.isBuilt) return;
     final paths = _testPaths[row.item] ?? const <String>{};
-    var unreadable = false;
+    if (paths.isEmpty) {
+      yield _unresolvedLiteral(
+        row,
+        row.firstLiteral,
+        '${row.item} has no tests line to hold ${row.firstLiteral}',
+      );
+      return;
+    }
+    final texts = <String>[];
     for (final path in paths) {
       // A path naming no file is the `tests` line rule's.
       if (!ImplementsEntry(path).namesFileFrom(_context.codeRootOf(target))) {
         continue;
       }
       final text = testFileTextOf(_context, target, path);
-      if (text == null) {
-        unreadable = true;
-      } else if (text.contains(row.firstLiteral)) {
-        return;
-      }
+      // An unreadable file is warned about once; its names are not checked.
+      if (text == null) return;
+      texts.add(text);
     }
-    if (unreadable) return;
-    yield _finding(
-      FindingKind.matrixTestUnresolved,
-      row.line,
-      paths.isEmpty
-          ? '${row.item} has no tests line to hold ${row.firstLiteral}'
-          : '${row.firstLiteral} occurs in no test file of ${row.item}',
-      {'item': row.item, 'name': row.firstLiteral},
-    );
+    for (final literal in row.literals) {
+      if (texts.any((text) => text.contains(literal))) continue;
+      yield _unresolvedLiteral(
+        row,
+        literal,
+        '$literal occurs in no test file of ${row.item}',
+      );
+    }
   }
+
+  Finding _unresolvedLiteral(TestRow row, String literal, String message) =>
+      _finding(FindingKind.matrixTestUnresolved, row.line, message, {
+        'item': row.item,
+        'name': literal,
+      });
 
   Iterable<Finding> _related(MatrixRow row) sync* {
     final earlier = _earlierRows.putIfAbsent(row.label, () => []);
     if (row is TestRow) {
+      // A per-FR row is the one test row of its FR, whatever its literals.
       final repeated = earlier
           .whereType<TestRow>()
-          .where((other) => other.firstLiteral == row.firstLiteral)
+          .where(
+            (other) =>
+                row.form == RowForm.perFr ||
+                other.firstLiteral == row.firstLiteral,
+          )
           .firstOrNull;
       if (repeated != null) {
         yield _finding(
           FindingKind.matrixRowRepeated,
           row.line,
-          '${row.label} names ${row.firstLiteral} again; line ${repeated.line} '
-          'holds it, keep one row',
+          row.form == RowForm.perFr
+              ? '${row.label} has a second test row; line ${repeated.line} '
+                    'holds the first, keep one row'
+              : '${row.label} names ${row.firstLiteral} again; line '
+                    '${repeated.line} holds it, keep one row',
           {'first': repeated.line},
         );
       }
