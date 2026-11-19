@@ -33,10 +33,11 @@ batch's findings into drafts.
 - **Design document** (author: required; audit: required with `stage: design`, else optional): its path. Author, and
   audit with no `stage: design`: the Owner-approved document. `stage: design`: the document awaiting the Owner's
   approval, or approved and amended.
-- **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, or the
-  pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
+- **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, a fill pass, or
+  the pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
   round or pass added; in a fix round, the audit's `Findings:` lines not tagged `[behavior]` (`[style]` too) and each
-  untagged design-check line naming a draft.
+  untagged design-check line naming a draft; in a fill pass, the split proposal's lines, each new FR whole and the old
+  FR's `edge_cases`.
 - **`guide`** (author, required in each pass after the first): `<txt path>, <json path>`, the run's saved guide files;
   run `guide` only for a type they lack, saved the same way, and name it in your `Guide:` line.
 - **`stage`** (audit, optional): `drafts`, or none, for the drafts audit; `design` for the design check.
