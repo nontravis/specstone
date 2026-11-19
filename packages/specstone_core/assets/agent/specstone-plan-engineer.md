@@ -134,7 +134,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      proves, in that record's `verification_matrix` section (`specstone set implementation:<feature>#verification_matrix`,
      with the same `--target`), as ``- <item> <edge case>: `<literal>` ``: the FR named relative to its feature, its
      edge case ID, and the first literal of the test's name, with no fingerprint. A later step stamps each row with the
-     fingerprint `specstone check` prints for it once the test passes, never one you compute. A row whose edge case sits
+     fingerprint `check` prints for it once the test passes, never one you compute. A row whose edge case sits
      in an FR carrying `draft: true` stays unstamped: the task names it as waiting on that FR's approval. A task that
      writes a new test for a row the sync reported, because its test proves none of its edge case, also rewrites that
      old row to the new test's literal and stamps it the same way, or removes it when a row of that literal already
@@ -203,7 +203,7 @@ Findings: <items, or none>
 **DO:**
 
 - Run `specstone context` for the Ground, `specstone get` only after searching its saved files with `Grep`, one
-  `specstone check --out`, read through its exit status and its `approval_stale` lines (Workflow step 3),
+  `check` saved with `--out`, read through its exit status and its `approval_stale` lines (Workflow step 3),
   `specstone folder` once (Workflow step 3), and no other specstone command.
 - Read code, instruction files, and library docs read-only; follow the plan skill.
 - Beyond the `report:` file, write only the one plan file, at the path Workflow step 8 picks, a given

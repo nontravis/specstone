@@ -1,4 +1,4 @@
-`specstone-sdd-engineer` and the `specstone-brainstorming-sdd` runner run it in `mode: author`, the gate passed.
+`specstone-sdd-engineer` and the `specstone-brainstorming-sdd` runner run it in `mode: author`.
 Ask the Owner nothing: list each gap in the report.
 
 ## 1. Read
@@ -19,7 +19,7 @@ one it lacks under `Findings:`.
 - **Guide**: before writing, run `specstone guide <type> … --out` per type you write.
 - **Code target** (two or more `targets:`): pass a per-target spec doc's `new`, `get`, and `set` the
   `--target <name>` its design row names, or use an existing doc's DocPath.
-- **New doc**: pipe it to `specstone new <type>` (`--parent`, `--slug` as it takes them), parents first.
+- **New doc**: pipe it to `specstone new <type>` (`--parent`, `--slug`), parents first.
 - **Section or field**: pipe it to `specstone set <type>:<name>#<key> --base <hash>` (a field: `--field <id>` for
   `#<key>`; a passage: `--replace` with `==> old <==`, the passage, `==> new <==`, its replacement), its hash in
   `bases` of `specstone get <type>:<name> --json`.
@@ -50,15 +50,15 @@ doc; list any other under `Findings:`.
 
 ## 4. Check
 
-Run a bare `specstone check` before your first write and after your last. Before the second, walk each item you
-wrote against the saved guide's description lines (doc part, held sections, `Fields:`), not templates or
-`Banned words:`, `Required …`, `Optional …`, or any `Limits:` line; two edge cases of one response break `fr`'s
-distinct-response line. List a line you cannot meet under `Findings:`. Then run
-`specstone check <feature> --repeats` per feature of your drafts: new draft text repeating another doc's item links
-it instead. Save each `check` by `--out`, no redirect.
+Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your last,
+searching each file for your drafts. Before the second, walk each item you wrote against the saved guide's
+description lines (doc part, held sections, `Fields:`), not templates or `Banned words:`, `Required …`, `Optional …`,
+or `Limits:` lines; two edge cases of one response break `fr`'s distinct-response line. List a line you cannot meet
+under `Findings:`. Then run `specstone check <feature> --repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per
+feature of your drafts: new draft text repeating another doc's item links it instead.
 
-Fix each second-run finding, even a first-run one, in a section you wrote; list others, such as in a doc you only
-confirmed again, under `Findings:`, unfixed. Two kinds differ:
+Fix each second-run finding, even a first-run one, in a section you wrote; list others under `Findings:`, unfixed.
+Two kinds:
 
 - **A `suspect` link in another doc:** confirm it again per `specstone-expert-sdd`, that doc joining your drafts, else
   list it.

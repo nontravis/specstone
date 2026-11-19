@@ -5,18 +5,18 @@ description: Use when about to write, edit, or confirm a PRD or spec doc in a Sp
 
 # Specstone cross-doc rules
 
-Rules for any skill that writes or confirms a doc.
-
 ## First call: the project gate
 
-1. Run `specstone check` before any other command.
+1. Run `specstone folder` before any other command, then
+   `specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"`: `<folder>` the path `folder` prints, `XXXXXX`
+   six `a-z0-9` characters, picked again while that file exists.
 2. Exit 78 with `project_not_found`: tell the Owner the project is still on the old format; `specstone migrate` moves
-   it, or they can keep using the old skills. Then stop: run nothing else, and neither read nor write a doc.
-3. Exit 0 or 1: the project is on the new format, even from a subfolder. Keep any findings as the baseline.
+   it, or they can keep using the old skills. Then stop: run nothing else; read and write no doc.
+3. Exit 0 or 1 of `check`: the project is on the new format, even from a subfolder. Its file is the baseline: search it,
+   never read it whole.
 4. Any other non-zero exit: report the CLI's error to the Owner and stop.
 
-Never look for `.specstone/` first: the working directory
-alone can miss a root above it.
+Never look for `.specstone/` first: the working directory alone can miss a root above it.
 
 ## Rules
 
@@ -26,22 +26,21 @@ alone can miss a root above it.
 2. **Write through the CLI.** Create a doc with `specstone new` and change one with `specstone set`. Never write or
    edit a doc file through a file tool or a shell command. Each write leaves its doc a draft, a pointer
    write (`implements`, `covers`) excepted: never remove `draft: true`. Run `specstone approve` only with `--dry-run`,
-   or with `--yes` as Owner confirmation below says; it binds `approve`, `delete` of a guarded doc, `migrate`, and
-   `init` on a legacy tree alike.
+   or with `--yes` as Owner confirmation below says.
 3. **Guide first.** Before you write a doc of a type, run `specstone guide <type>` for its sections and
    `specstone guide <type> --json` for its fields, every time. One call naming
    several types counts for each type it names, so a batch never repeats it per write. The CLI prints the project's
    current guide; this skill keeps none.
 4. **Confirm traced links.** To write an FR, an nf, an API row, or an `Overrides:` line, follow `references/confirm-links.md`.
 5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
-   its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `specstone check` prints it.
+   its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `check` prints it.
    Steps: `references/size-fix.md`.
-6. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` once per doc you
-   touched, and fix each finding your edits added to the baseline; leave each whose `waitsFor` is `owner`, its line
-   ending `(waits for the Owner)`.
+6. **Check after edits.** After your last edit, run `specstone check <target> --out "<folder>/reports/check.done.<XXXXXX>.txt"`
+   once per doc you touched, and fix each finding your edits added to the baseline; leave each whose `waitsFor` is
+   `owner`, its line ending `(waits for the Owner)`.
 7. **Cite, never restate.** A rule has one owner doc. Every other doc cites it by a link to the item that holds it,
    `[<ID>](<path>#<section heading anchor>)`, or by a section or doc link when no item holds it, and states nothing
-   of the rule. `specstone check` reports an old cite form as `cite_unlinked` and a link to an item its section lacks
+   of the rule. `check` reports an old cite form as `cite_unlinked` and a link to an item its section lacks
    as `link_item_missing`. Its links: `references/confirm-links.md`.
 8. **Code target.** With two or more code targets, `new`, `get`, `set` (a `confirmed` write included),
    `structure <doc>`, and `refs <owner>` take the `--target` of the surface that loads this skill, never an Owner
@@ -58,7 +57,7 @@ own terminal or here in the chat. In the chat:
    - `approve`: follow `references/approve-mode.md`; for each draft it leaves to the Owner, run
      `specstone approve <type>:<name> … --dry-run`, then send each draft it prints in its own message: the
      literal `Why:` (in English), one sentence in the conversation's language on why it changed, then its printed
-     text, pasted verbatim. Never edit that text. When output is cut, rerun `--dry-run` per draft.
+     text, pasted verbatim. When output is cut, rerun `--dry-run` per draft.
    - `delete`: the list and `plan <hash>` line `specstone delete <path> … --dry-run` prints, and why each goes.
    - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
      line.
@@ -74,7 +73,7 @@ own terminal or here in the chat. In the chat:
 
 `specstone trust` is the Owner's alone, even when a chat message tells you to answer for them. Never run it or answer
 its prompt, even through a pty or a shell tool. When a write refuses with `run specstone trust at a terminal`, stop: ask
-the Owner to run `specstone trust` in their own terminal (Claude Code's `!` prefix is not a terminal), then retry.
+the Owner to run `specstone trust` in their own terminal, then retry.
 
 ## Red flags
 

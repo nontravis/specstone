@@ -73,22 +73,25 @@ A failed load: report it and stop; never search.
 
 ## Workflow
 
-1. **Gate**: first run `specstone check` per the `specstone-expert-sdd` skill's project gate, replying what it tells the
-   Owner. In sync mode with a `scope`, run `specstone check <scope>` instead, and bare `specstone check` for
-   `scope: uncovered`, keeping its `code_uncovered` findings, which a check on a doc target never reports.
+1. **Gate**: first run the `specstone-expert-sdd` skill's project gate, replying what it tells the Owner. In sync
+   mode with a `scope`, its `check` is
+   `specstone check <scope> --out "<folder>/reports/check.sync.<XXXXXX>.txt"` instead, and
+   `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"` for `scope: uncovered`, keeping its
+   `code_uncovered` findings, which a check on a doc target never reports.
 2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, scoped by `scope`, or on
    every code link of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
    each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
    `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.
 4. **Author, audit**: follow the On-Demand reference through its report; then stop.
-5. **Check and report**: after writing, run `specstone check`; fix each finding your writes added, but leave each
-   tagged `(waits for the Owner)`.
+5. **Check and report**: after writing, run
+   `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`; search its file and fix each finding your writes
+   added, but leave each tagged `(waits for the Owner)`.
 
 ## Output Format
 
-When you first name a file the dispatch did not give, run `specstone folder` once, after your mode's `context` calls
-or at a stop before them, and reuse `<folder>` the path `specstone folder` prints. With no `report`, name your own
+Run `specstone folder` once, at the gate (Workflow step 1) or at a stop before it, and reuse `<folder>` the path it
+prints for each file the dispatch did not give. With no `report`, name your own
 `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that file
 exists; name a batch file by the same rule (Scope Boundaries).
 

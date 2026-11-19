@@ -5,7 +5,7 @@ description: Use when the spec docs of a Specstone project lag behind its format
 
 # Bring the spec docs up to the new format
 
-This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
+This skill takes `check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
 Findings under `prds/` or `measurements/` go to `specstone-bootstrap-prd`, except those on PROJECT's Tech stack and
 Naming canonicalization sections, which this skill moves.
 Follow the `specstone-expert-sdd` skill for every write: each leaves a draft, a pointer write (`implements`,
@@ -14,8 +14,11 @@ Follow the `specstone-expert-sdd` skill for every write: each leaves a draft, a 
 ## 1. Gate: the first call
 
 ```
-specstone check
+specstone folder
+specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 ```
+
+`<folder>` is the path `folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file exists.
 
 - **78, `project_not_found`:** tell the Owner `specstone migrate` moves the project to the new format, or they keep
   the old skills. Stop: run, read, and write nothing more.
@@ -24,10 +27,10 @@ specstone check
 
 ## 2. Hand off in batches
 
-Dispatch only once no `specstone-bootstrap-prd` batch is still running: this skill takes PRD sections, such as
-PROJECT's Tech stack, that `specstone-bootstrap-prd` leaves for it.
+Dispatch only once no `specstone-bootstrap-prd` batch is running: this skill takes the PRD sections it leaves, such
+as PROJECT's Tech stack.
 
-With a subagent, split the gate's findings this skill takes by doc path: one batch per feature folder, each
+With a subagent, split the gate file's findings this skill takes by doc path: one batch per feature folder, each
 `architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included except a file
 the Owner answered in this run. In the first round the rest batch always runs, even with no finding, and names each
 target's tech stack doc, the doc the procedure's step 6 fills; no feature batch fills it. In a later round it runs only
@@ -35,9 +38,7 @@ when findings it owns remain or a write-a-spec pick awaits. Dispatch one `specst
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:`
 the batch's paths, `picks:` each write-a-spec pick of step 3 for the batch's files, and `report:`
 `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches may run at once. Send no doc
-text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` the path
-`specstone folder` prints, run once after the gate; `XXXXXX` is six `a-z0-9` characters, picked again while that file
-exists.
+text, and work no step of the procedure yourself while a dispatch can run.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
@@ -68,15 +69,14 @@ in for item 4.
    one command naming each path once, each still quoted, with each path `specstone-bootstrap-prd` left waiting on a
    file this round merged, and get the Owner's word on it per `specstone-expert-sdd`. On exit 64, dispatch again each
    batch whose file a listed referrer names, with those referrers.
-5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
-   `(waits for the Owner)`, the last reports name it as one that clears with no write, it is an answered
-   `code_uncovered` file, which starts a round only through a write-a-spec pick, or it waits on
-   `specstone-bootstrap-prd`, such as a finding on a file that a `prds/` untyped doc it left still names. With none
-   left, go to item 6.
-6. Once per run, after the last round and `specstone-bootstrap-prd`'s repeats batch, run `specstone check --repeats`,
-   then dispatch the repeats batch (`../specstone-expert-sdd/references/repeats.md`) as in step 2
-   with `batch: repeats` and each group with an item under `specs/`, if any; work items 1 and 2 on its report. A
-   group it keeps stays listed and never starts a round. Then stop; first, name once each answered `code_uncovered`
-   file the last `check` still lists, with what it waits on: the code change, the brainstorm, or the approval of its
-   draft, and, in a run that did not name `item_over_limit`, list under `Waits on the Owner:` each `item_over_limit`
-   finding no report's `Waits on the Owner:` line named.
+5. Run `specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again. A finding this skill takes starts
+   another round at step 2 unless it is tagged `(waits for the Owner)`, the last reports name it as one that clears with
+   no write, it is an answered `code_uncovered` file, which starts a round only through a write-a-spec pick, or it waits
+   on `specstone-bootstrap-prd`. With none left, go to item 6.
+6. Once per run, after the last round and `specstone-bootstrap-prd`'s repeats batch, run
+   `specstone check --repeats --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"`, then dispatch the repeats batch
+   (`../specstone-expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each group with an item
+   under `specs/`, if any; work items 1 and 2 on its report. A group it keeps stays listed and never starts a round.
+   Then stop; first, name once each answered `code_uncovered` file the last `check` still lists, with what it waits on:
+   the code change, the brainstorm, or the approval of its draft, and, in a run that did not name `item_over_limit`,
+   list under `Waits on the Owner:` each `item_over_limit` finding no report's `Waits on the Owner:` line named.

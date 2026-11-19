@@ -86,14 +86,18 @@ const _agentFileNames = <String, List<String>>{
 
 const _reportsFolder = '<folder>/reports/';
 
-const _agentFilePath =
+final _agentFilePath =
     r'<folder>/reports/(?:(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
-    r'(?:(?:batch|source)\.)?|check\.[a-z]+\.)<XXXXXX>\.(?:md|txt)';
+    r'(?:(?:batch|source)\.)?<XXXXXX>\.(?:md|txt)|check\.'
+    '(?:${checkRoles.join('|')}|<role>)'
+    r'\.<XXXXXX>\.txt)';
 
 /// A code span naming an agent file by its AgentFileName under
-/// [_reportsFolder], bare or as the quoted `--out` of a `specstone check`.
+/// [_reportsFolder], bare or as the quoted `--out` of a `specstone check`; the
+/// file is group 1 or 2.
 final _agentFileSpan = RegExp(
-  '^(?:$_agentFilePath|specstone check --out "$_agentFilePath")\$',
+  '^(?:($_agentFilePath)|'
+  'specstone check(?: [^\\s"]+)* --out "($_agentFilePath)")\$',
 );
 
 /// A code line run in a shell: a `specstone` call or a redirect.
@@ -526,16 +530,12 @@ void _referencesResolveTests() {
     for (final file in files) {
       for (final code in _inlineSpans(_pluginText(file))) {
         if (!code.contains('reports/')) continue;
-        if (_agentFileSpan.hasMatch(code)) {
+        final match = _agentFileSpan.firstMatch(code);
+        if (match != null) {
+          final path = (match.group(1) ?? match.group(2))!;
           named
               .putIfAbsent(file, () => [])
-              .add(
-                code
-                    .substring(
-                      code.indexOf(_reportsFolder) + _reportsFolder.length,
-                    )
-                    .replaceFirst('"', ''),
-              );
+              .add(path.substring(_reportsFolder.length));
         } else {
           problems.add('$file: $code');
         }
@@ -1006,6 +1006,43 @@ void _cliCallsExistTests() {
     final files = contentFiles();
     expect([for (final file in files) ...cliCommands(file.body)], isNotEmpty);
     expect(unknownCliNames(files, SpecstoneCommandRunner()), isEmpty);
+  });
+
+  test('every shipped check call saves to a check role file under reports', () {
+    final files = contentFilesOf(agentAssetsRoot());
+    expect(files, isNotEmpty);
+    expect(checkCallsWithoutSavedFile(files), isEmpty);
+  });
+
+  test('a skill naming a bare specstone check fails naming its file and '
+      'call', () async {
+    const skill = 'specstone-a/SKILL.md';
+    const reference = 'specstone-a/references/b.md';
+    const saved = '<folder>/reports/check.sync.<XXXXXX>.txt';
+    final root = await writeTree({
+      skill:
+          '---\ndescription: Run `specstone check` first.\n---\n'
+          'Run `specstone check <doc>` now.\n\n'
+          '```\nspecstone check --json\n```\n\n'
+          '~~~\nspecstone check --out "<folder>/reports/check.sync.txt"\n~~~\n\n'
+          'Wrapped `specstone check\n--out $saved\n--repeats` is fine, and so '
+          'is `specstone check --out "$saved"`.\n',
+      reference:
+          'Run `specstone check <doc> --out <folder>/reports/check.<role>.<XXXXXX>.txt`, '
+          '`specstone check --out "$saved"`, not '
+          '`specstone check --out "<folder>/reports/check.sync.<XXXXXX>.md"` '
+          'nor `specstone check --out "<folder>/reports/check.audit.<XXXXXX>.txt` '
+          'nor `specstone check --out <folder>/reports/check.other.<XXXXXX>.txt`.\n',
+    });
+
+    expect(checkCallsWithoutSavedFile(contentFilesOf(root)), [
+      '$skill: specstone check --json',
+      '$skill: specstone check --out "<folder>/reports/check.sync.txt"',
+      '$skill: specstone check <doc>',
+      '$reference: specstone check --out "<folder>/reports/check.audit.<XXXXXX>.txt',
+      '$reference: specstone check --out "<folder>/reports/check.sync.<XXXXXX>.md"',
+      '$reference: specstone check --out <folder>/reports/check.other.<XXXXXX>.txt',
+    ]);
   });
 }
 

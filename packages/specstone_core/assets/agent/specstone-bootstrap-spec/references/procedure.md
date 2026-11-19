@@ -1,4 +1,4 @@
-Step 1, the gate, ran before you were sent here.
+Step 1, the gate, ran.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
 Findings under `prds/` or `measurements/` go to `specstone-bootstrap-prd`, except the PRD sections step 6 moves.
@@ -10,7 +10,8 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 
 ## 2. One finding at a time
 
-Fix this skill's first unhandled finding, then run `specstone check` again.
+Fix this skill's first unhandled finding, then run
+`specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again.
 Stop when each left is under `prds/` or `measurements/`, clears with no write, is a reported
 `code_uncovered`, or is tagged `(waits for the Owner)`, except an unanswered size finding.
 
@@ -68,10 +69,10 @@ retire set.
    A batch's set holds only files it merged; list each untyped referrer outside it, with the file it names, for its
    owner to merge. Leave any other untyped file as history. Repoint each other link or mention to the doc holding the
    content, or drop one nothing replaces.
-3. Name the set in one line, `specstone delete <path> <path> …`, quoting each path with a space.
+3. Name the set in one line, `specstone delete <path> …`, quoting each path with a space.
 
 On a batch, delete nothing: hand that line to `specstone-bootstrap-spec`'s step 3.4.
-Else, run it through `specstone-expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
+Else, run it through `specstone-expert-sdd`'s Owner confirmation. Never run `git rm`.
 Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the tech stack, then ask for approval

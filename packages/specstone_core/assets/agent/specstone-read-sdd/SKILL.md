@@ -50,9 +50,8 @@ exit status:
    `query`, the parts of its one file. Once the index lists docs only, find a section by searching the files for its
    `## ` header; an `implement` refs head keeps its sections. The files are the task's docs: open no doc file. Where a
    plan words a requirement differently, the files win.
-2. **78 with `project_not_found`:** no folder from here upward holds a Specstone project. Tell the Owner the project
-   is still on the old format: `specstone migrate` moves it, or they can keep using the old skills. Then stop: run no
-   second command, and neither read nor write a doc.
+2. **78 with `project_not_found`:** tell the Owner the project is still on the old format: `specstone migrate` moves it,
+   or they can keep using the old skills. Then stop: run no second command, and neither read nor write a doc.
 3. **Any other non-zero exit:** report the CLI's error to the Owner and stop.
 
 That call is also the project gate: never look for `.specstone/` first. The CLI searches each folder upward; to read
@@ -64,8 +63,9 @@ target and flags replaces the files: read by the newest index.
 When the index does not show a fact the task needs, search the saved files with the host's text search before any
 `specstone get`. Never `get` a doc the files hold; in design work, ground a doc they lack with its own
 `specstone context <doc> --for design --out`, never `get`. A `get` only for a write's base hash before `set` is fine.
-Save a long `check`, `guide`, or `get` output you read in parts with bare `--out`, then search its file. Change one
-passage with `set --replace`. Write no file by shell redirect, `sed -i`, `perl -pi`, or `tee`; hand edit no doc file.
+Save a long `guide` or `get` output you read in parts with bare `--out`, a `check` one with `--out`
+`<folder>/reports/check.<role>.<XXXXXX>.txt`, `<role>` your caller's, then search its file. Change one passage with
+`set --replace`. Write no file by shell redirect, `sed -i`, `perl -pi`, or `tee`; hand edit no doc file.
 
 ## Count the calls
 
@@ -79,7 +79,7 @@ takes a call of its own. Part reads after that action fall outside the bound.
 You may dispatch `specstone-sdd-reader` for whole sections, each cited by doc and section, as
 `../specstone-expert-sdd/references/dispatch.md` gives.
 Hand it each saved file's path exactly as its header printed it, the mode, and the task: no doc text, no index lines,
-and no path you join yourself. It reads those files and runs no `context` of its own. No bundle size calls for it.
+and no path you join yourself. It reads those files and runs no `context` of its own.
 
 ## Red flags
 

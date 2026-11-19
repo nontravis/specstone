@@ -7,21 +7,21 @@ agent's `report:` file, no fix. Ask the Owner nothing.
 1. **Targets**: the dispatch's `targets`: the drafts list, a later audit's targets, each read whole and audited
    again, or the feature or doc the Owner named.
 2. **Hashes**: run one `specstone get <targets> --json` on every target, the drafts list's names with no `--target`.
-   On `doc_not_found` (a target never created, moved, or deleted), drop each name it names and list it under
+   On `doc_not_found` (never created, moved, or deleted), drop each name it names and list it under
    `Outside the drafts:`, with no `Audited:` line; any other refusal, such as `doc_type_unknown`, is a finding and
-   drops its names too. Rerun on the rest; with no target left, skip it and the steps below. A dropped
-   name gets no bundle or `check`.
+   drops its names too. Rerun on the rest; with no target left, skip it and the steps below.
 3. **Bundles**: run `specstone context <feature> --for design --out` once per feature the targets fall under (the
    project doc for a project-level one), with no `--budget` or `--target`, so it takes every code target's spec docs.
    Read the saved files per `specstone-read-sdd`, the read-first one whole; ground a doc they lack with its own
    `specstone context <doc> --for design --out`, never `get`. On a non-zero exit, report the CLI's error as a
    finding and go on.
 4. **Design document**, when given: read it whole; list each decision and ruling by its ID or label. Then run
-   `specstone list user_story --draft`, `specstone list fr --draft`, and `specstone list nf --draft`: the drafts
-   among the targets are this change's.
-5. **Check**: run `specstone check <target>` once per target. A finding whose `waitsFor` is `owner` is no gap.
-6. **Repeats**: run `specstone check <feature> --repeats --out` once per feature holding a draft; the Rule restated
-   lens reads its saved file.
+   `specstone list <type> --draft` for `user_story`, `fr`, and `nf`: the drafts among the targets are this
+   change's.
+5. **Check**: run `specstone check <target> --out "<folder>/reports/check.audit.<XXXXXX>.txt"`
+   once per target. A finding whose `waitsFor` is `owner` is no gap.
+6. **Repeats**: run `specstone check <feature> --repeats --out "<folder>/reports/check.audit.<XXXXXX>.txt"`
+   once per feature holding a draft; the Rule restated lens reads its saved file.
 
 ## 2. Compare
 
@@ -38,7 +38,7 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each lens:
 - **Docs contradict:** two docs that state different values or behavior for one thing; name both.
 - **Edge case admission:** an edge case a draft adds or changes that breaks one of the first four edge case lines of
   `specstone guide fr`'s doc description; name that line; its fix is the drop, nested trigger, or move to the owner
-  it gives. Unchanged edge cases are outside it.
+  it gives.
 - **Rule restated:** a draft stating in any words a rule another doc owns instead of citing it, a story rule
   included; name the owner doc and the item; its fix is an item link in the draft. Judge each step 1.6 group holding
   a draft's new text beside another doc's item; a group of drafts alone is no gap, nor is any group by itself.

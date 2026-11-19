@@ -5,7 +5,7 @@ description: Use when the PRD docs of a Specstone project lag behind its format 
 
 # Bring the PRD docs up to the new format
 
-This skill takes `specstone check` findings under `prds/` or `measurements/`. Findings under `specs/`,
+This skill takes `check` findings under `prds/` or `measurements/`. Findings under `specs/`,
 `architecture_missing`, `code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go
 to `specstone-bootstrap-spec`. Follow the `specstone-expert-sdd` skill for every write: each leaves a draft, a pointer
 write (`implements`, `covers`) excepted.
@@ -13,17 +13,21 @@ write (`implements`, `covers`) excepted.
 ## 1. Gate: the first call
 
 ```
-specstone check
+specstone folder
+specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 ```
+
+`<folder>` is the path `folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file exists.
 
 - **78, `project_not_found`:** tell the Owner the project stays on the old format until `specstone migrate` moves
   it. Stop: run, read, and write nothing more.
-- **0 or 1:** go on, even from a subfolder. Never look for `.specstone/` yourself.
+- **0 or 1:** go on, even from a subfolder. Never look for `.specstone/` yourself. Search the file for this skill's
+  findings.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 2. Hand off in batches
 
-With a subagent, split the gate's findings this skill takes by doc path: one batch per feature folder, and one for
+With a subagent, split the gate file's findings this skill takes by doc path: one batch per feature folder, and one for
 the rest. In the first round the rest batch always runs, even with no finding, and names the project, goal, glossary,
 features, and gnfr docs, the skeletons the procedure's step 6 fills; no feature batch fills them. In a later round it
 runs only when findings it owns remain. When it holds the `section_undeclared` on PROJECT's goals section, first ask the
@@ -32,8 +36,7 @@ answers with the batch; its glossary section asks the Owner nothing. Dispatch on
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-prd`, `batch:`
 the batch's paths, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches
 may run at once. Send no doc text, and work no step of the procedure yourself while a dispatch can run. Take
-`<folder>` the path `specstone folder` prints, run once after the gate; `XXXXXX` is six `a-z0-9` characters, picked
-again while that file exists.
+`<folder>` and `XXXXXX` as the gate does.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
@@ -62,14 +65,16 @@ in for item 4.
    referrer under `specs/` names: they wait for `specstone-bootstrap-spec`'s delete. Then get the Owner's word on the
    command per `specstone-expert-sdd`. On exit 64, dispatch again each batch whose file a listed referrer names, with
    those referrers.
-5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
-   `(waits for the Owner)`, the last reports name it as one that clears with no write, it is the `section_undeclared`
-   on PROJECT's goals section after a goal move kept a goal there, the one on its glossary section after a glossary
-   move kept an entry there, or it waits on `specstone-bootstrap-spec`, such as a finding on a path item 4 left out for
-   it. For the rest of the run, no batch holds that goals finding, no batch holds that glossary finding, and no
-   question, item 3's included, asks a kept goal's horizon again. With none left, go to item 6.
-6. Once per run, after the last round, run `specstone check --repeats`, then dispatch the repeats batch
-   (`../specstone-expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each
-   group with an item under `prds/` or `measurements/`, if any; work items 1 and 2 on its report. A group it keeps
-   stays listed and never starts a round. Then stop; first, in a run that did not name `item_over_limit`, list
-   under `Waits on the Owner:` each `item_over_limit` finding no report's `Waits on the Owner:` line named.
+5. Run `specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again. A finding this skill takes starts
+   another round at step 2 unless it is tagged `(waits for the Owner)`, the last reports name it as one that clears with
+   no write, it is the `section_undeclared` on PROJECT's goals section after a goal move kept a goal there, the one on
+   its glossary section after a glossary move kept an entry there, or it waits on `specstone-bootstrap-spec`, such as a
+   finding on a path item 4 left out for it. For the rest of the run, no batch holds that goals finding, no batch holds
+   that glossary finding, and no question, item 3's included, asks a kept goal's horizon again. With none left, go to
+   item 6.
+6. Once per run, after the last round, run
+   `specstone check --repeats --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"`, then dispatch the repeats batch
+   (`../specstone-expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each group with an item
+   under `prds/` or `measurements/`, if any; work items 1 and 2 on its report. A group it keeps stays listed and never
+   starts a round. Then stop; first, in a run that did not name `item_over_limit`, list under `Waits on the Owner:` each
+   `item_over_limit` finding no report's `Waits on the Owner:` line named.
