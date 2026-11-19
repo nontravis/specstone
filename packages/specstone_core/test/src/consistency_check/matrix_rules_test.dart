@@ -964,4 +964,146 @@ void main() {
       expect(_missing(await _run(project, codeTarget: 'jaspr')), isEmpty);
     });
   });
+
+  group('matrix_row_missing per mode', () {
+    const statusesLine = 3;
+
+    test('reports an implemented test-verified FR no per-FR row names under '
+        'fr', () async {
+      final project = await _project(
+        _record(),
+        extra: _frWithTwoEdgeCases(),
+        mode: MatrixMode.fr,
+      );
+
+      final finding = _missing(await _run(project)).single;
+
+      expect(finding.path, loginRecord);
+      expect(finding.line, statusesLine);
+      expect(finding.waitsFor, WaitsFor.agent);
+      expect(finding.keys, {'item': _fr});
+      expect(finding.message, '$_fr is implemented and no matrix row names it');
+    });
+
+    test('reports nothing under off', () async {
+      final project = await _project(
+        _record(),
+        extra: _frWithTwoEdgeCases(),
+        mode: MatrixMode.off,
+      );
+
+      expect(_missing(await _run(project)), isEmpty);
+    });
+
+    test('counts a skip row and an unresolved test row as covering', () async {
+      for (final row in [
+        '- $_fr skipped: no clock on CI',
+        '- $_fr: `refuses a blank password`',
+      ]) {
+        final project = await _project(
+          _record(rows: [row]),
+          extra: _frWithTwoEdgeCases(),
+          mode: MatrixMode.fr,
+        );
+
+        expect(_missing(await _run(project)), isEmpty, reason: row);
+      }
+    });
+
+    for (final (name, statuses, verifyMethod) in [
+      ('planned', const ['$_fr:planned'], 'test'),
+      ('deprecated', const ['$_fr:deprecated'], 'test'),
+      ('skipped', const ['$_fr:skipped:not in this client'], 'test'),
+      (
+        'under a story skip',
+        const ['$_story:skipped:not in this client', '$_fr:implemented'],
+        'test',
+      ),
+      ('verified by inspection', const ['$_fr:implemented'], 'inspection'),
+    ]) {
+      test(
+        'skips planned, deprecated, skipped, and non-test FRs: $name',
+        () async {
+          final project = await _project(
+            _record(statuses: statuses),
+            extra: {
+              ...edit(loginFr, [
+                ('verify_method: test', 'verify_method: $verifyMethod'),
+              ]),
+            },
+            mode: MatrixMode.fr,
+          );
+
+          expect(_missing(await _run(project)), isEmpty);
+        },
+      );
+    }
+
+    test('reports only the target the FR is implemented in', () async {
+      final project = await writeTwinProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}verification_coverage: fr\n'
+              'targets:\n  flutter:\n    code_root: flutter_ws\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          'flutter_ws/$_testFile': _testBody,
+          _flutterRecord: _record(),
+          _jasprRecord: _record(statuses: const ['$_fr:planned']),
+        },
+      );
+
+      final finding = _missing(await _run(project)).single;
+
+      expect(finding.path, _flutterRecord);
+      expect(finding.keys, {'item': _fr});
+      expect(
+        finding.message,
+        '$_fr is implemented in target flutter and no matrix row names it',
+      );
+      expect(_missing(await _run(project, codeTarget: 'jaspr')), isEmpty);
+    });
+
+    test('gives no missing row for a split edge case under fr', () async {
+      final project = await _project(
+        _record(rows: ['- $_fr: `refuses an empty password`']),
+        extra: _frWithThreeEdgeCases(),
+        mode: MatrixMode.fr,
+      );
+
+      expect(_missing(await _run(project)), isEmpty);
+    });
+
+    test('reports an unnamed edge case under edge_case', () async {
+      final project = await _project(
+        _record(rows: ['- $_fr E01: `refuses an empty password`']),
+        extra: _frWithThreeEdgeCases(),
+      );
+
+      final report = await _run(project);
+
+      expect(_missingEdgeCases(report), [
+        ['E02', statusesLine],
+        ['E03', statusesLine],
+      ]);
+      expect(_missing(report).first.keys, {'item': _fr, 'edge_case': 'E02'});
+    });
+
+    test('lets no refused-form row cover its FR', () async {
+      final perEdgeCase = await _project(
+        _record(rows: ['- $_fr E01: `refuses an empty password`']),
+        extra: _frWithTwoEdgeCases(),
+        mode: MatrixMode.fr,
+      );
+      final perFr = await _project(
+        _record(rows: ['- $_fr: `refuses an empty password`']),
+        extra: _frWithTwoEdgeCases(),
+      );
+
+      expect(_missing(await _run(perEdgeCase)).single.keys, {'item': _fr});
+      expect(_missingEdgeCases(await _run(perFr)), [
+        ['E01', statusesLine],
+        ['E02', statusesLine],
+      ]);
+    });
+  });
 }

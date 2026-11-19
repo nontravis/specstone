@@ -38,31 +38,41 @@ Iterable<Finding> checkMatrixRows(CheckContext context, IndexedDoc doc) sync* {
   ).findings();
 }
 
-/// Returns `matrix_row_missing` for each edge case of an `implemented`,
-/// test-verified FR that no row of record [doc] names, when the config turns
-/// `verification_coverage` on; otherwise none.
+/// Returns `matrix_row_missing` for each `implemented`, test-verified FR of
+/// record [doc] that no row names, or under `edge_case` each of its edge cases
+/// that no row names; none when the config leaves `verification_coverage` off.
 ///
-/// A row of either kind covers its edge case. The finding sits at the FR's
-/// `statuses` line and names the target when the project holds twins.
+/// A skip row or a test row covers what it names; a row of the form the mode
+/// does not read covers nothing. The finding sits at the FR's `statuses` line
+/// and names the target when the project holds twins.
 Iterable<Finding> checkUnprovenEdgeCases(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  if (context.matrixMode == MatrixMode.off) return;
+  final mode = context.matrixMode;
+  if (mode == MatrixMode.off) return;
   final read = recordDocOf(context, doc);
   final statusField = read == null ? null : recordStatusFieldOf(read.type);
   if (read == null || statusField == null) return;
   final items = recordItemsOf(read.feature, context.index.childrenOf);
   final covered = {
-    for (final row in doc.matrixLines.whereType<MatrixRow>()) row.label,
+    for (final row in doc.matrixLines.whereType<MatrixRow>())
+      if (!isRefusedFormRow(context, doc, row)) row.label,
   };
   final lines = _lastStatusLines(read.lines, statusField.id);
   for (final MapEntry(key: name, value: line) in lines.entries) {
     final fr = items[name];
     if (fr == null || !_needsRows(context, doc, fr)) continue;
-    for (final edgeCase in edgeCaseBlocksOf(context, fr).keys) {
-      if (covered.contains('$name#$edgeCase')) continue;
-      yield _missingRow(context, doc, name, edgeCase, line);
+    switch (mode.readsForm) {
+      case RowForm.perFr:
+        if (!covered.contains(name)) {
+          yield _missingRow(context, doc, name, null, line);
+        }
+      case RowForm.perEdgeCase:
+        for (final edgeCase in edgeCaseBlocksOf(context, fr).keys) {
+          if (covered.contains('$name#$edgeCase')) continue;
+          yield _missingRow(context, doc, name, edgeCase, line);
+        }
     }
   }
 }
@@ -84,18 +94,18 @@ Finding _missingRow(
   CheckContext context,
   IndexedDoc record,
   String item,
-  String edgeCase,
+  String? edgeCase,
   int line,
 ) {
   final target = shownTargetName(context, record.target);
   final inTarget = target == null ? '' : ' in target $target';
+  final named = edgeCase == null ? item : '$item#$edgeCase';
   return context.finding(
     record,
     FindingKind.matrixRowMissing,
     line: line,
-    message:
-        '$item#$edgeCase is implemented$inTarget and no matrix row names it',
-    keys: {'item': item, 'edge_case': edgeCase},
+    message: '$named is implemented$inTarget and no matrix row names it',
+    keys: {'item': item, 'edge_case': ?edgeCase},
   );
 }
 
