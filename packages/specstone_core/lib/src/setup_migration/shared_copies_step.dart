@@ -65,12 +65,11 @@ final class SharedCopiesStep {
 
 /// Plans the removal of each copy of a shared entry from [projectFiles].
 ///
-/// A copy is a description line or a field entry that equals, in every
-/// property, an entry of [target] reaching its doc type. Every other byte of a
-/// file stays. A copy stays, listed in `left`, when its removal cannot be
-/// checked, would empty a description no lower layer defines, or changes a
-/// merged field, which [resolveWith] re-resolves from the project texts by
-/// path. Any copy in [personalFiles] stays.
+/// A copy equals, in every property, a shared entry of [target] reaching its
+/// doc type; every other byte of a file stays.
+/// A copy stays in `left` when its removal cannot be checked, would empty a
+/// description no lower layer defines, or changes a merged field that
+/// [resolveWith] re-resolves; every copy in [personalFiles] stays.
 SharedCopiesStep planSharedCopies({
   required List<ProjectLayerFile> projectFiles,
   required MergedSet target,
@@ -314,7 +313,11 @@ final class _Scan {
     final ranges = drops.ranges(lines);
     if (ranges == null) return _Removal.keeping(copies);
     if (ranges.isEmpty) {
-      return _Removal(text: null, stripped: const [], left: drops.left);
+      return _Removal(
+        text: null,
+        stripped: const [],
+        left: _inLineOrder(drops.left),
+      );
     }
     for (final range in ranges..sort((a, b) => b.start.compareTo(a.start))) {
       lines.removeRange(range.start, range.end + 1);
