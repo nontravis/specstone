@@ -27,6 +27,19 @@ enum MigrateFaultCode {
   final int exitStatus;
 }
 
+/// A refusal of `migrate --add` that the CLI prints as a usage error.
+///
+/// It carries no wire code: the run stops with exit status 64 and [message].
+final class MigrateUsageError implements Exception {
+  new(this.message);
+
+  /// Plain human text with no location prefix.
+  final String message;
+
+  @override
+  String toString() => 'MigrateUsageError: $message';
+}
+
 /// The one fault `specstone migrate` and `specstone setup` raise for a refused
 /// run.
 ///

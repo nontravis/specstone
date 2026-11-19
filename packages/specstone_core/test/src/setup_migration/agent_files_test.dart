@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 const _agentMd =
     '# Specstone\n'
     '\n'
-    'The PRD and spec are Specstone docs.\n'
+    'PRD and spec are Specstone docs.\n'
     '\n'
     '## Rules\n'
     '- code ⊆ spec ⊆ PRD over observable behavior: specify each behavior '
@@ -17,24 +17,27 @@ const _agentMd =
     'search saved files before any `specstone get`; in design work ground a '
     'doc they lack with `specstone context <doc> --for design --out`, never '
     '`get`; never open doc files.\n'
-    '- With 2+ code targets, add `--target <code target>`.\n'
+    '- With 2+ code targets, add `--target <code target>` (not with '
+    '`context --code`).\n'
     '- Change docs only with `specstone set`, `new`, `move`, `rename`; '
     "drafts await Owner's `specstone approve` (main session's when clean "
     'under `auto`).\n'
-    '- Before writing a doc, have its `specstone guide <type>` or this '
+    '- Before writing a doc, have `specstone guide <type>` or this '
     "run's saved guide; write items in its shape,\n"
     '  once, short, complete.\n'
     "- Before a story's plan, tickets, or tests, run "
-    '`specstone context <story> --for implement --out`.\n'
+    '`specstone context <story> --for implement --out`; before editing a '
+    'covered skill/agent file, run '
+    '`specstone context --code <path> --for implement --out`.\n'
     '- Cite by markdown link, never a number label '
     '(`F-<nn> US-<nn>`).\n'
     '- Before reporting done, run `specstone check <doc> --out '
     '<folder>/reports/check.done.<XXXXXX>.txt` per changed doc until every '
     'finding ends `(waits for the Owner)` (`--json`: `waitsFor` `owner`).\n'
-    '- Without specstone on PATH, run `~/.specstone/bin/specstone`.\n';
+    '- Off PATH, run `~/.specstone/bin/specstone`.\n';
 
-const _agentMdWordBound = 200;
-const _targetClauseWordBound = 9;
+const _agentMdWordBound = 215;
+const _targetClauseWordBound = 13;
 const _targetFlag = '--target <code target>';
 
 final _asciiSpace = RegExp(r'[ \t\n\r\f\v]+');
@@ -149,7 +152,7 @@ void main() {
     test('the PATH rule names the home binary', () {
       for (final text in [agentMdText, _inlineBlock()]) {
         final rule = _rules(text)
-            .singleWhere((r) => r.startsWith('- Without specstone on PATH'));
+            .singleWhere((r) => r.startsWith('- Off PATH'));
 
         expect(rule, contains('`~/.specstone/bin/specstone`'));
       }
@@ -224,6 +227,18 @@ void main() {
         }
       },
     );
+
+    test('the plan rule also grounds a covered file by its code path', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text)
+            .singleWhere((r) => r.contains('<story> --for implement'));
+
+        expect(
+          rule,
+          endsWith('`specstone context --code <path> --for implement --out`.'),
+        );
+      }
+    });
 
     test('the citation rule names a markdown link', () {
       for (final text in [agentMdText, _inlineBlock()]) {

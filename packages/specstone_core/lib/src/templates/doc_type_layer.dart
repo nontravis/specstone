@@ -43,7 +43,6 @@ final class FieldEntry {
     this.docTypes,
     this.pointer,
     this.root,
-    this.export,
     this.description,
     this.lint,
     required this.disabled,
@@ -78,9 +77,6 @@ final class FieldEntry {
   /// Unchecked here like [pointer]: only an `output_ref` field reads it, and a
   /// layer that writes no type is checked once the merge knows the type.
   final Object? root;
-
-  /// Whether the field joins an export, when written.
-  final bool? export;
 
   /// What the field holds, when written.
   final String? description;
@@ -309,7 +305,6 @@ final class DocTypeLayer {
     required this.path,
     required this.maxDepth,
     required this.perTarget,
-    required this.export,
     required this.fields,
     required this.sections,
     required this.lint,
@@ -374,7 +369,6 @@ final class DocTypeLayer {
       path: optionalValue<String>(map, 'path', file: file),
       maxDepth: _parseMaxDepth(map, file: file),
       perTarget: optionalValue<bool>(map, 'per_target', file: file),
-      export: optionalValue<bool>(map, 'export', file: file),
       fields: _parseFields(map, file: file),
       sections: _parseSections(map, file: file),
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
@@ -425,9 +419,6 @@ final class DocTypeLayer {
   /// Whether the doc type reads its patterns once per target, when written.
   final bool? perTarget;
 
-  /// Whether the doc type joins an export, when written.
-  final bool? export;
-
   /// The fields this layer writes, in file order.
   final List<FieldEntry> fields;
 
@@ -457,6 +448,15 @@ final class DocTypeLayer {
   /// Each entry is checked as a string only; `TemplateResolver` checks the
   /// kind names against the registered kinds.
   final ListWrite<String>? generators;
+
+  /// The first key a layer defining a new doc type lacks, or null when it
+  /// holds them all: `id`, `path`, and `description` unless it extends a type.
+  String? get missingNewDocTypeKey {
+    if (id == null) return 'id';
+    if (path == null) return 'path';
+    if (extendsId == null && description == null) return 'description';
+    return null;
+  }
 }
 
 /// Reads the `summary_for` key of [map] as a list of strings, or null.
@@ -629,7 +629,6 @@ const _topKeys = {
   'path',
   'max_depth',
   'per_target',
-  'export',
   'parent',
   'extends',
   'fields',
@@ -650,7 +649,6 @@ const _fieldKeys = {
   'doc_types',
   'pointer',
   'root',
-  'export',
   'required',
   'description',
   'lint',
@@ -807,7 +805,6 @@ FieldEntry parseFieldEntry(
         : stringsOf(docTypesList, 'doc_types', file: file, prefix: prefix),
     pointer: pointer,
     root: root,
-    export: optionalValue<bool>(entry, 'export', file: file, prefix: prefix),
     description: optionalValue<String>(
       entry,
       'description',

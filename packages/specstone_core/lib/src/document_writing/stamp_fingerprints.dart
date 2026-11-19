@@ -21,7 +21,7 @@ import 'package:specstone_core/src/document_writing/stamp_fault.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show normalCodeEntry;
+    show isEmptyCodeEntry, normalCodeEntry;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart'
@@ -305,6 +305,7 @@ final class _CodeJudge {
     Directory root,
   ) {
     if (!field.isRecord) {
+      if (isEmptyCodeEntry(entry)) return FindingKind.coversEntryEmpty;
       return namesFileOrFolderFrom(root, entry) ? null : field.pathFinding;
     }
     final code = ImplementsEntry(field.codeOf(entry));

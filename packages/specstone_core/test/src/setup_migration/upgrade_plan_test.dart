@@ -168,6 +168,7 @@ void main() {
   _codeStampTests();
   _citeTests();
   _bulletLinesTests();
+  _addedPinsTests();
   _dropDefaultLinesTests();
   _dropSharedLinesTests();
   _sharedCopiesTests();
@@ -5205,353 +5206,460 @@ void _bulletLinesTests() {
   });
 }
 
-const _dropPackYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-migrations:
-  - from: 1.0.0
-    steps:
-      - drop_default_lines: {doc_types: [domain]}
-''';
+const _configPath = '.specstone/config.yaml';
 
-const _domainOverridePath = '.specstone/templates/domain.yaml';
+/// Plans the upgrade of [project] with [adds] as the added packs.
+RunPlan _planAdding(Directory project, List<String> adds) => planUpgradeRun(
+  _canonical(project),
+  templates: TemplateResolver(),
+  homeDirectory: null,
+  addedPacks: adds,
+);
 
-String _domainOverride(String lint) =>
-    'sections: [{id: invariants, lint: $lint}]\n';
+/// The `config.yaml` text [plan] writes, less the `agent_files_version` line
+/// every run that writes the config sets.
+String _configWrittenBy(RunPlan plan) => _rewriteAt(
+  plan,
+  _configPath,
+).text.replaceAll(RegExp(r'agent_files_version: [^\r\n]*\r?\n'), '');
 
-const _loginPath = 'specs/f01_login/DOMAIN.md';
-const _resetPath = 'specs/f01_login/f01_reset/DOMAIN.md';
-const _payPath = 'specs/f02_pay/DOMAIN.md';
-const _projectDomainPath = 'specs/DOMAIN.md';
+PackVersion _version(String text) =>
+    PackVersion.parse(text, file: _configPath, key: 'packs');
 
-String _domainText(String rows, String invariants) =>
-    '# Domain\n\n## Entities\n\n| Entity | Kind | Identity | Owns |\n'
-    '|---|---|---|---|\n${rows.isEmpty ? '' : '$rows\n'}\n'
-    '## Invariants\n\n$invariants\n';
+void _addedPinsTests() {
+  group('added pins', () {
+    final versions = shippedPackVersions();
+    final core = versions['prd-core']!;
+    final tech = versions['software-tech']!;
+    final skills = versions['agent-skills']!;
+    final marketing = versions['marketing']!;
 
-const _accountRow = '| Account | Aggregate root | its email | a name |';
-const _statedDefaults =
-    '- **INV-1** An email is unique.\n'
-    '  - **Enforcer:** Account\n'
-    '  - **Consistency:** immediate';
-const _bareInvariant = '- **INV-1** An email is unique.';
-final String _loginDoc = _domainText(_accountRow, _statedDefaults);
-final String _loginDropped = _domainText(_accountRow, _bareInvariant);
+    Future<Directory> project(String config) =>
+        writeTree({_configPath: config});
 
-void _dropDefaultLinesTests() {
-  group('drop_default_lines step', () {
-    test('the step line counts the rewritten domain docs', () async {
-      final nonDefaults = _domainText(
-        '| Pay | Aggregate root | its id | a ledger |',
-        '- **INV-1** A charge posts once.\n'
-            '  - **Enforcer:** Ledger\n'
-            '  - **Consistency:** eventual',
+    test('an added pin prints its line before upgraded pins', () async {
+      final fixture = await _fixture();
+
+      final plan = planUpgradeRun(
+        fixture.project,
+        templates: TemplateResolver(),
+        homeDirectory: fixture.home,
+        addedPacks: const ['agent-skills'],
       );
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          overrides: const {},
-          docs: {
-            _loginPath: _loginDoc,
-            _resetPath: _domainText(
-              '',
-              '- **INV-2** A link expires.\n'
-                  '  - **Enforcer:** `Account` ([domain:login](../DOMAIN.md))\n'
-                  '  - **Consistency:** immediate',
-            ),
-            _payPath: nonDefaults,
-          },
+
+      expect(
+        plan.toText(),
+        contains(
+          '  $_configPath: agent-skills $skills (added)\n'
+          '  $_configPath: acme 1.2.0\n',
         ),
       );
+    });
 
-      expect(_rewriteAt(plan, 'docs/$_loginPath').text, _loginDropped);
+    test('the header names added pins before upgraded ones and never says '
+        'pins unchanged', () async {
+      final fixture = await _fixture();
+      final alone = await project(shippedPinsConfig());
+
+      final withUpgrade = planUpgradeRun(
+        fixture.project,
+        templates: TemplateResolver(),
+        homeDirectory: fixture.home,
+        addedPacks: const ['agent-skills'],
+      );
+      final addOnly = _planAdding(alone, const ['agent-skills']);
+
       expect(
-        _rewriteAt(plan, 'docs/$_resetPath').text,
-        _domainText('', '- **INV-2** A link expires.'),
+        withUpgrade.header,
+        'pack upgrade: agent-skills $skills (added), acme 1.0.0 -> 1.2.0',
+      );
+      expect(addOnly.header, 'pack upgrade: agent-skills $skills (added)');
+      expect(addOnly.toText(), isNot(contains('pins unchanged')));
+    });
+
+    test('two added pins list in the order given in the config, lines, '
+        'header, and json', () async {
+      final root = await project(shippedPinsConfig());
+
+      final plan = _planAdding(root, const ['agent-skills', 'marketing']);
+
+      expect(
+        plan.header,
+        'pack upgrade: agent-skills $skills (added), marketing $marketing '
+        '(added)',
       );
       expect(
         plan.toText(),
         contains(
-          'commit 2, rewrites:\n'
-          '  from 1.0.0: drop_default_lines: 2 docs\n',
+          '  $_configPath: agent-skills $skills (added)\n'
+          '  $_configPath: marketing $marketing (added)\n',
         ),
       );
-      expect(plan.lists.toJson()['steps'], [
-        {
-          'from': '1.0.0',
-          'step': 'drop_default_lines',
-          'paths': [_loginPath, _resetPath],
-        },
+      expect(
+        _configWrittenBy(plan),
+        'packs:\n'
+        '  prd-core: $core\n'
+        '  software-tech: $tech\n'
+        '  agent-skills: $skills\n'
+        '  marketing: $marketing\n',
+      );
+      expect(plan.lists.toJson()['addedPins'], [
+        {'pack': 'agent-skills', 'version': skills},
+        {'pack': 'marketing', 'version': marketing},
       ]);
     });
 
-    test('a project domain row never feeds a feature domain', () async {
-      final text = _domainText(
-        '',
-        '- **INV-1** A cart expires.\n'
-            '  - **Enforcer:** Project\n'
-            '  - **Consistency:** immediate',
-      );
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          overrides: const {},
-          docs: {
-            _projectDomainPath: _domainText(
-              '| Project | Aggregate root | its name | carts |',
-              _bareInvariant,
-            ),
-            _payPath: text,
-          },
-        ),
-      );
+    test('a run with no add holds no addedPins key', () async {
+      final root = await project(shippedPinsConfig());
 
-      expect(
-        _rewriteAt(plan, 'docs/$_payPath').text,
-        _domainText(
-          '',
-          '- **INV-1** A cart expires.\n  - **Enforcer:** Project',
-        ),
-      );
+      expect(_planAt(root).lists.toJson(), isNot(contains('addedPins')));
     });
 
-    test('a layer whose Enforcer entry has no default source keeps every '
-        'Enforcer line', () async {
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          overrides: {
-            _domainOverridePath: _domainOverride(
-              '{item_fields: {add: [{field: Enforcer}]}}',
-            ),
-          },
-          docs: {_loginPath: _loginDoc},
+    group('a block map takes the pin after its last entry line with that '
+        'indent', () {
+      for (final (:label, :config, :expected) in [
+        (
+          label: 'a trailing comment on the last entry',
+          config: 'packs:\n  prd-core: $core\n  software-tech: $tech # keep\n',
+          expected:
+              'packs:\n  prd-core: $core\n  software-tech: $tech # keep\n'
+              '  agent-skills: $skills\n',
         ),
-      );
-
-      expect(
-        _rewriteAt(plan, 'docs/$_loginPath').text,
-        _domainText(
-          _accountRow,
-          '- **INV-1** An email is unique.\n  - **Enforcer:** Account',
+        (
+          label: 'blank lines then another key',
+          config:
+              'packs:\n  prd-core: $core\n  software-tech: $tech\n\n\n'
+              'verification_coverage: false\n',
+          expected:
+              'packs:\n  prd-core: $core\n  software-tech: $tech\n'
+              '  agent-skills: $skills\n\n\nverification_coverage: false\n',
         ),
-      );
-    });
-
-    test('a layer with no Consistency entry keeps every Consistency line, and '
-        'an optional entry with no values drops them', () async {
-      final cases = {
-        '{item_fields: {remove: [Consistency]}}':
-            '  - **Consistency:** '
-            'immediate',
-        '{item_fields: {add: [{field: Consistency, optional: true}]}}': '',
-      };
-      for (final MapEntry(key: lint, value: kept) in cases.entries) {
-        final plan = _plan(
-          await _fixture(
-            packYaml: _dropPackYaml,
-            overrides: {_domainOverridePath: _domainOverride(lint)},
-            docs: {_loginPath: _loginDoc},
-          ),
-        );
-
-        expect(
-          _rewriteAt(plan, 'docs/$_loginPath').text,
-          _domainText(
-            _accountRow,
-            '- **INV-1** An email is unique.${kept.isEmpty ? '' : '\n$kept'}',
-          ),
-          reason: lint,
-        );
-      }
-    });
-
-    test('a layer whose Consistency entry allows immediate or requires the '
-        'field keeps every Consistency line', () async {
-      for (final entry in const [
-        '{field: Consistency, values: [eventual, immediate], optional: true}',
-        '{field: Consistency, values: [eventual]}',
+        (
+          label: 'a four-space indent',
+          config: 'packs:\n    prd-core: $core\n    software-tech: $tech\n',
+          expected:
+              'packs:\n    prd-core: $core\n    software-tech: $tech\n'
+              '    agent-skills: $skills\n',
+        ),
+        (
+          label: 'CRLF line endings',
+          config:
+              'packs:\r\n  prd-core: $core\r\n  software-tech: $tech\r\n'
+              'verification_coverage: false\r\n',
+          expected:
+              'packs:\r\n  prd-core: $core\r\n  software-tech: $tech\r\n'
+              '  agent-skills: $skills\r\nverification_coverage: false\r\n',
+        ),
       ]) {
-        final plan = _plan(
-          await _fixture(
-            packYaml: _dropPackYaml,
-            overrides: {
-              _domainOverridePath: _domainOverride(
-                '{item_fields: {add: [$entry]}}',
-              ),
-            },
-            docs: {_loginPath: _loginDoc},
-          ),
-        );
+        test(label, () async {
+          final root = await project(config);
 
-        expect(
-          _rewriteAt(plan, 'docs/$_loginPath').text,
-          _domainText(
-            _accountRow,
-            '- **INV-1** An email is unique.\n'
-            '  - **Consistency:** immediate',
-          ),
-          reason: entry,
-        );
+          final plan = _planAdding(root, const ['agent-skills']);
+
+          expect(_configWrittenBy(plan), expected);
+        });
       }
     });
 
-    test('a draft doc is left unapproved by the step', () async {
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          overrides: const {},
-          docs: {_loginPath: '---\ndraft: true\n---\n$_loginDoc'},
+    group('a one-line flow map takes the pin after its last value', () {
+      for (final (:label, :config, :expected) in [
+        (
+          label: 'with no inner space',
+          config: 'packs: {prd-core: $core}\n',
+          expected: 'packs: {prd-core: $core, agent-skills: $skills}\n',
         ),
-      );
+        (
+          label: 'with a space inside the braces',
+          config: 'packs: { prd-core: $core }\n',
+          expected: 'packs: { prd-core: $core, agent-skills: $skills }\n',
+        ),
+      ]) {
+        test(label, () async {
+          final root = await project(config);
 
-      expect(
-        _rewriteAt(plan, 'docs/$_loginPath').text,
-        '---\ndraft: true\n---\n$_loginDropped',
-      );
-      expect(plan.toText(), isNot(contains('stamps:')));
+          final plan = _planAdding(root, const ['agent-skills']);
+
+          expect(_configWrittenBy(plan), expected);
+        });
+      }
     });
 
-    test('an approved doc takes a fresh approval hash', () async {
-      final seed = await _fixture(
-        packYaml: _dropPackYaml,
-        overrides: const {},
-        docs: {_loginPath: _loginDoc},
-      );
-      final set = TemplateResolver().resolveCarried(
-        packNames: ProjectConfig.read(seed.project).pins.keys,
-        homeDirectory: seed.home,
-      );
-      final type = switch (DocTypeMatcher(
-        set,
-        targetNames: const [],
-      ).match(_loginPath)) {
-        MatchedDocType(:final docType) => docType,
-        _ => null,
-      };
-      final approved = _stampedBefore(_loginDoc, type);
+    test(
+      'an added pack leads the header ahead of the spec tree move',
+      () async {
+        final root = await _treeProject({
+          'specs/TECH_STACK.md': _draftDoc('Tech stack'),
+        });
 
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          overrides: const {},
-          docs: {_loginPath: approved},
-        ),
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(
+          plan.header,
+          'pack upgrade: agent-skills $skills (added), spec tree to flutter',
+        );
+      },
+    );
+
+    test('a dangling override of an added pack names its version', () async {
+      final root = await _treeProject(
+        const {},
+        config: shippedPinsConfig(),
+        extra: {
+          '.specstone/templates/skill.yaml':
+              'sections: [{id: nosuch, required: true}]\n',
+        },
       );
 
-      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
-      expect(written, isNot(contains('Consistency')));
-      final hash = RegExp(
-        r'^approved: "(\w+)"$',
-        multiLine: true,
-      ).firstMatch(written)!.group(1);
-      expect(hash, _approvalHashBefore(written, type));
-      expect(hash, isNot(_approvalHashBefore(approved, type)));
       expect(
-        plan.toText(),
-        contains('  stamps: 1 approval hashes, 0 fingerprints\n'),
-      );
-    });
-
-    test('an overrides entry on a rewritten item stays unsuspect', () async {
-      const rule = '- **INV-3** A cart expires after 7 days.';
-      final upstream = _domainText(
-        '| Cart | Aggregate root | its id | items |',
-        '$rule\n  - **Enforcer:** Cart\n  - **Consistency:** immediate',
-      );
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml.replaceFirst('[domain]', '[project_domain]'),
-          overrides: const {},
-          docs: {_projectDomainPath: upstream},
+        () => _planAdding(root, const ['agent-skills']),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.overrideDangling)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith('pack agent-skills $skills defines no section '),
+              ),
         ),
-      );
-      final rewritten = _rewriteAt(plan, 'docs/$_projectDomainPath').text;
-      expect(rewritten, isNot(contains('Consistency')));
-      final files = {
-        'docs/$rootDomain': rewritten,
-        'docs/$loginDomain': domainDoc(
-          [overrideOfRoot],
-          entries: ['$rootAddress $rootFingerprint'],
-        ),
-      };
-
-      final report = await checkOf(
-        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
-        docPath: loginDomain,
-      );
-
-      expect(report.findings.where((f) => linkKinds.contains(f.kind)), isEmpty);
-    });
-
-    test('the step touches no line beyond the defaults, and a second run '
-        'drops nothing', () async {
-      const body =
-          '- **INV-1** An email is unique.\n'
-          '  - a condition\n'
-          '  - **Enforcer:** Setup engine\n'
-          '  - **Consistency:** Immediate\n'
-          '- **INV-2** A name is short.\n'
-          '  - **Enforcer:** Account\n'
-          '  - **Consistency:** eventual\n'
-          '  - **Corrective policy:** Trim it.';
-      final doc = _domainText(_accountRow, body);
-
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          overrides: const {},
-          docs: {_loginPath: doc},
-        ),
-      );
-
-      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
-      expect(
-        written,
-        _domainText(
-          _accountRow,
-          '- **INV-1** An email is unique.\n'
-          '  - a condition\n'
-          '  - **Enforcer:** Setup engine\n'
-          '  - **Consistency:** Immediate\n'
-          '- **INV-2** A name is short.\n'
-          '  - **Consistency:** eventual\n'
-          '  - **Corrective policy:** Trim it.',
-        ),
-      );
-      final again = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          overrides: const {},
-          docs: {_loginPath: written},
-        ),
-      );
-      expect(_docRewrites(again), isEmpty);
-      expect(
-        again.toText(),
-        contains('  from 1.0.0: drop_default_lines: 0 docs\n'),
       );
     });
 
-    test('a drop_default_lines step the pack load refuses plans '
-        'nothing', () async {
-      final fixture = await _fixture(
-        packYaml: _dropPackYaml.replaceFirst('[domain]', '[domian]'),
-        overrides: const {},
-        docs: {_loginPath: _loginDoc},
+    test('an empty one-line flow map takes the pins with no leading '
+        'comma', () {
+      final pins = [
+        AddedPin(pack: 'agent-skills', version: _version(skills)),
+        AddedPin(pack: 'marketing', version: _version(marketing)),
+      ];
+
+      expect(
+        withPinsAppended('packs: {}\n', pins),
+        'packs: {agent-skills: $skills, marketing: $marketing}\n',
+      );
+    });
+
+    test('a multi-line flow map refuses unknown_value at packs', () async {
+      final root = await project(
+        'packs: {\n  prd-core: $core,\n  software-tech: $tech\n}\n',
       );
 
       expect(
-        () => _plan(fixture),
+        () => _planAdding(root, const ['agent-skills']),
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.file, 'file', _configPath)
+              .having((f) => f.key, 'key', 'packs')
               .having(
-                (f) => f.key,
-                'key',
-                'migrations[0].steps[0].drop_default_lines.doc_types',
+                (f) => f.message,
+                'message',
+                'migrate --add writes a packs block map or a one-line flow '
+                    'map; add the pin by hand',
               ),
+        ),
+      );
+    });
+
+    test('an added pack whose base is neither pinned nor added raises the '
+        'load fault before the plan', () async {
+      final root = await project('packs:\n  prd-core: $core\n');
+
+      expect(
+        () => _planAdding(root, const ['software-design-system']),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.extendsTargetUnknown,
+          ),
+        ),
+      );
+      expect(
+        _planAdding(root, const ['software-design-system', 'software-tech']),
+        isA<RunPlan>(),
+      );
+    });
+
+    group('docs the add newly types', () {
+      const skillPath = 'docs/specs/skills/review.md';
+      const skillDoc = '# Review\n\n\n\n## Purpose\n\nReviews.\n';
+
+      Future<Directory> withDocs(Map<String, String> docs) => writeTree({
+        _configPath: shippedPinsConfig(),
+        for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+      });
+
+      test('a file only the added pack types gets a draft flag and is '
+          'laid out', () async {
+        final root = await withDocs({'specs/skills/review.md': skillDoc});
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        final text = _rewriteAt(plan, skillPath).text;
+        expect(text, startsWith('---\ndraft: true\n---\n'));
+        expect(text, isNot(contains('approved:')));
+        expect(text, contains('# Review\n\n## Purpose\n'));
+        expect(plan.lists.formatLayout, ['specs/skills/review.md']);
+      });
+
+      test('the plan counts newly typed docs before the layout line and '
+          'lists them in json', () async {
+        final root = await withDocs({
+          'specs/skills/review.md': skillDoc,
+          'specs/skills/deploy.md': skillDoc,
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        final lines = plan.toText().split('\n');
+        final counted = lines.indexOf('  typed by the add: 2 docs');
+        expect(counted, isNonNegative);
+        expect(lines[counted + 1], startsWith('  format layout: '));
+        expect(plan.lists.toJson()['typedByAdd'], [
+          'specs/skills/deploy.md',
+          'specs/skills/review.md',
+        ]);
+      });
+
+      test('an add that types nothing prints no count line and no json '
+          'key', () async {
+        final root = await withDocs({'specs/skills/review.md': skillDoc});
+
+        final plan = _planAdding(root, const ['marketing']);
+
+        expect(plan.toText(), isNot(contains('typed by the add')));
+        expect(plan.lists.toJson(), isNot(contains('typedByAdd')));
+        expect(plan.rewrites.map((rewrite) => rewrite.path), [_configPath]);
+      });
+
+      test('a doc already typed gets no draft flag and is still laid '
+          'out', () async {
+        final root = await withDocs({
+          'specs/TECH_STACK.md': '# Tech stack\n\n\n\n## Stack\n\nDart.\n',
+          'specs/skills/review.md': skillDoc,
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(plan.lists.toJson()['typedByAdd'], ['specs/skills/review.md']);
+        expect(plan.lists.formatLayout, contains('specs/TECH_STACK.md'));
+        expect(
+          _rewriteAt(plan, 'docs/specs/TECH_STACK.md').text,
+          isNot(contains('draft: true')),
+        );
+      });
+
+      test('a file with frontmatter takes the flag once, an existing draft '
+          'keeps its line', () async {
+        final root = await withDocs({
+          'specs/skills/review.md':
+              '---\noutput: .claude/skills/review/\n---\n# Review\n\n'
+              '## Purpose\n\nReviews.\n',
+          'specs/skills/deploy.md':
+              '---\ndraft: true # note\n---\n# Deploy\n\n## Purpose\n\nx\n',
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(
+          _rewriteAt(plan, skillPath).text,
+          '---\ndraft: true\noutput: .claude/skills/review/\n---\n'
+          '# Review\n\n## Purpose\n\nReviews.\n',
+        );
+        expect(
+          plan.rewrites.map((rewrite) => rewrite.path),
+          isNot(contains('docs/specs/skills/deploy.md')),
+        );
+      });
+
+      test('an override of a type only the added pack defines still '
+          'plans', () async {
+        final root = await writeTree({
+          _configPath: shippedPinsConfig(const ['prd-core']),
+          '.specstone/templates/skill.yaml':
+              'fields:\n  - {id: extra, type: string}\n',
+          'docs/specs/skills/review.md': skillDoc,
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(plan.lists.toJson()['typedByAdd'], ['specs/skills/review.md']);
+      });
+
+      test('a path-only override of a type only the added pack defines '
+          'still plans', () async {
+        final root = await writeTree({
+          _configPath: shippedPinsConfig(const ['prd-core']),
+          '.specstone/templates/skill.yaml':
+              'path: specs/agent-skills/{slug}.md\n',
+          'docs/specs/agent-skills/review.md': skillDoc,
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(plan.lists.toJson()['typedByAdd'], [
+          'specs/agent-skills/review.md',
+        ]);
+      });
+
+      test('a project type extending a project type extending a pinned type '
+          'stands without the add, so its docs are neither drafted nor '
+          'newly typed', () async {
+        final root = await writeTree({
+          _configPath: shippedPinsConfig(const ['prd-core']),
+          '.specstone/templates/a.yaml':
+              'id: a\nextends: glossary\npath: prds/as/{slug}.md\n',
+          '.specstone/templates/b.yaml':
+              'id: b\nextends: a\npath: prds/bs/{slug}.md\n',
+          'docs/prds/bs/one.md': '# One\n\n\n\nText.\n',
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(plan.lists.toJson(), isNot(contains('typedByAdd')));
+        expect(
+          _rewriteAt(plan, 'docs/prds/bs/one.md').text,
+          isNot(contains('draft: true')),
+        );
+      });
+
+      test('a newly typed doc the run also moves is listed at its planned '
+          'path', () async {
+        final home = await writeTree({
+          '.specstone/packs/mine/pack.yaml': 'name: mine\nversion: 1.0.0\n',
+          '.specstone/packs/mine/memo.yaml':
+              'id: memo\ndescription: A memo.\npath: specs/MEMO.md\n'
+              'per_target: true\n',
+        });
+        final root = await _treeProject({
+          'specs/MEMO.md': '# Memo\n\n\n\nText.\n',
+        });
+
+        final plan = planUpgradeRun(
+          _canonical(root),
+          templates: TemplateResolver(),
+          homeDirectory: home,
+          addedPacks: const ['mine'],
+        );
+
+        expect(plan.lists.toJson()['typedByAdd'], ['specs/flutter/MEMO.md']);
+        expect(
+          _rewriteAt(plan, 'docs/specs/flutter/MEMO.md').text,
+          startsWith('---\ndraft: true\n---\n'),
+        );
+      });
+    });
+
+    test('the form check refuses before the load fault', () async {
+      final root = await project('packs: {\n  prd-core: $core\n}\n');
+
+      expect(
+        () => _planAdding(root, const ['software-design-system']),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.unknownValue,
+          ),
         ),
       );
     });
@@ -6085,6 +6193,359 @@ void _matrixFoldTests() {
       final draft = _rewriteAt(plan, _foldJasprRecord).text;
       expect(draft, startsWith('---\ndraft: true\n'));
       expect(draft, contains(_foldedRow));
+    });
+  });
+}
+
+const _dropPackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - drop_default_lines: {doc_types: [domain]}
+''';
+
+const _domainOverridePath = '.specstone/templates/domain.yaml';
+
+String _domainOverride(String lint) =>
+    'sections: [{id: invariants, lint: $lint}]\n';
+
+const _loginPath = 'specs/f01_login/DOMAIN.md';
+const _resetPath = 'specs/f01_login/f01_reset/DOMAIN.md';
+const _payPath = 'specs/f02_pay/DOMAIN.md';
+const _projectDomainPath = 'specs/DOMAIN.md';
+
+String _domainText(String rows, String invariants) =>
+    '# Domain\n\n## Entities\n\n| Entity | Kind | Identity | Owns |\n'
+    '|---|---|---|---|\n${rows.isEmpty ? '' : '$rows\n'}\n'
+    '## Invariants\n\n$invariants\n';
+
+const _accountRow = '| Account | Aggregate root | its email | a name |';
+const _statedDefaults =
+    '- **INV-1** An email is unique.\n'
+    '  - **Enforcer:** Account\n'
+    '  - **Consistency:** immediate';
+const _bareInvariant = '- **INV-1** An email is unique.';
+final String _loginDoc = _domainText(_accountRow, _statedDefaults);
+final String _loginDropped = _domainText(_accountRow, _bareInvariant);
+
+void _dropDefaultLinesTests() {
+  group('drop_default_lines step', () {
+    test('the step line counts the rewritten domain docs', () async {
+      final nonDefaults = _domainText(
+        '| Pay | Aggregate root | its id | a ledger |',
+        '- **INV-1** A charge posts once.\n'
+            '  - **Enforcer:** Ledger\n'
+            '  - **Consistency:** eventual',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {
+            _loginPath: _loginDoc,
+            _resetPath: _domainText(
+              '',
+              '- **INV-2** A link expires.\n'
+                  '  - **Enforcer:** `Account` ([domain:login](../DOMAIN.md))\n'
+                  '  - **Consistency:** immediate',
+            ),
+            _payPath: nonDefaults,
+          },
+        ),
+      );
+
+      expect(_rewriteAt(plan, 'docs/$_loginPath').text, _loginDropped);
+      expect(
+        _rewriteAt(plan, 'docs/$_resetPath').text,
+        _domainText('', '- **INV-2** A link expires.'),
+      );
+      expect(
+        plan.toText(),
+        contains(
+          'commit 2, rewrites:\n'
+          '  from 1.0.0: drop_default_lines: 2 docs\n',
+        ),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'drop_default_lines',
+          'paths': [_loginPath, _resetPath],
+        },
+      ]);
+    });
+
+    test('a project domain row never feeds a feature domain', () async {
+      final text = _domainText(
+        '',
+        '- **INV-1** A cart expires.\n'
+            '  - **Enforcer:** Project\n'
+            '  - **Consistency:** immediate',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {
+            _projectDomainPath: _domainText(
+              '| Project | Aggregate root | its name | carts |',
+              _bareInvariant,
+            ),
+            _payPath: text,
+          },
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_payPath').text,
+        _domainText(
+          '',
+          '- **INV-1** A cart expires.\n  - **Enforcer:** Project',
+        ),
+      );
+    });
+
+    test('a layer whose Enforcer entry has no default source keeps every '
+        'Enforcer line', () async {
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: {
+            _domainOverridePath: _domainOverride(
+              '{item_fields: {add: [{field: Enforcer}]}}',
+            ),
+          },
+          docs: {_loginPath: _loginDoc},
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        _domainText(
+          _accountRow,
+          '- **INV-1** An email is unique.\n  - **Enforcer:** Account',
+        ),
+      );
+    });
+
+    test('a layer with no Consistency entry keeps every Consistency line, and '
+        'an optional entry with no values drops them', () async {
+      final cases = {
+        '{item_fields: {remove: [Consistency]}}':
+            '  - **Consistency:** '
+            'immediate',
+        '{item_fields: {add: [{field: Consistency, optional: true}]}}': '',
+      };
+      for (final MapEntry(key: lint, value: kept) in cases.entries) {
+        final plan = _plan(
+          await _fixture(
+            packYaml: _dropPackYaml,
+            overrides: {_domainOverridePath: _domainOverride(lint)},
+            docs: {_loginPath: _loginDoc},
+          ),
+        );
+
+        expect(
+          _rewriteAt(plan, 'docs/$_loginPath').text,
+          _domainText(
+            _accountRow,
+            '- **INV-1** An email is unique.${kept.isEmpty ? '' : '\n$kept'}',
+          ),
+          reason: lint,
+        );
+      }
+    });
+
+    test('a layer whose Consistency entry allows immediate or requires the '
+        'field keeps every Consistency line', () async {
+      for (final entry in const [
+        '{field: Consistency, values: [eventual, immediate], optional: true}',
+        '{field: Consistency, values: [eventual]}',
+      ]) {
+        final plan = _plan(
+          await _fixture(
+            packYaml: _dropPackYaml,
+            overrides: {
+              _domainOverridePath: _domainOverride(
+                '{item_fields: {add: [$entry]}}',
+              ),
+            },
+            docs: {_loginPath: _loginDoc},
+          ),
+        );
+
+        expect(
+          _rewriteAt(plan, 'docs/$_loginPath').text,
+          _domainText(
+            _accountRow,
+            '- **INV-1** An email is unique.\n'
+            '  - **Consistency:** immediate',
+          ),
+          reason: entry,
+        );
+      }
+    });
+
+    test('a draft doc is left unapproved by the step', () async {
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: '---\ndraft: true\n---\n$_loginDoc'},
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        '---\ndraft: true\n---\n$_loginDropped',
+      );
+      expect(plan.toText(), isNot(contains('stamps:')));
+    });
+
+    test('an approved doc takes a fresh approval hash', () async {
+      final seed = await _fixture(
+        packYaml: _dropPackYaml,
+        overrides: const {},
+        docs: {_loginPath: _loginDoc},
+      );
+      final set = TemplateResolver().resolveCarried(
+        packNames: ProjectConfig.read(seed.project).pins.keys,
+        homeDirectory: seed.home,
+      );
+      final type = switch (DocTypeMatcher(
+        set,
+        targetNames: const [],
+      ).match(_loginPath)) {
+        MatchedDocType(:final docType) => docType,
+        _ => null,
+      };
+      final approved = _stampedBefore(_loginDoc, type);
+
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: approved},
+        ),
+      );
+
+      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
+      expect(written, isNot(contains('Consistency')));
+      final hash = RegExp(
+        r'^approved: "(\w+)"$',
+        multiLine: true,
+      ).firstMatch(written)!.group(1);
+      expect(hash, _approvalHashBefore(written, type));
+      expect(hash, isNot(_approvalHashBefore(approved, type)));
+      expect(
+        plan.toText(),
+        contains('  stamps: 1 approval hashes, 0 fingerprints\n'),
+      );
+    });
+
+    test('an overrides entry on a rewritten item stays unsuspect', () async {
+      const rule = '- **INV-3** A cart expires after 7 days.';
+      final upstream = _domainText(
+        '| Cart | Aggregate root | its id | items |',
+        '$rule\n  - **Enforcer:** Cart\n  - **Consistency:** immediate',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml.replaceFirst('[domain]', '[project_domain]'),
+          overrides: const {},
+          docs: {_projectDomainPath: upstream},
+        ),
+      );
+      final rewritten = _rewriteAt(plan, 'docs/$_projectDomainPath').text;
+      expect(rewritten, isNot(contains('Consistency')));
+      final files = {
+        'docs/$rootDomain': rewritten,
+        'docs/$loginDomain': domainDoc(
+          [overrideOfRoot],
+          entries: ['$rootAddress $rootFingerprint'],
+        ),
+      };
+
+      final report = await checkOf(
+        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+        docPath: loginDomain,
+      );
+
+      expect(report.findings.where((f) => linkKinds.contains(f.kind)), isEmpty);
+    });
+
+    test('the step touches no line beyond the defaults, and a second run '
+        'drops nothing', () async {
+      const body =
+          '- **INV-1** An email is unique.\n'
+          '  - a condition\n'
+          '  - **Enforcer:** Setup engine\n'
+          '  - **Consistency:** Immediate\n'
+          '- **INV-2** A name is short.\n'
+          '  - **Enforcer:** Account\n'
+          '  - **Consistency:** eventual\n'
+          '  - **Corrective policy:** Trim it.';
+      final doc = _domainText(_accountRow, body);
+
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: doc},
+        ),
+      );
+
+      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
+      expect(
+        written,
+        _domainText(
+          _accountRow,
+          '- **INV-1** An email is unique.\n'
+          '  - a condition\n'
+          '  - **Enforcer:** Setup engine\n'
+          '  - **Consistency:** Immediate\n'
+          '- **INV-2** A name is short.\n'
+          '  - **Consistency:** eventual\n'
+          '  - **Corrective policy:** Trim it.',
+        ),
+      );
+      final again = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: written},
+        ),
+      );
+      expect(_docRewrites(again), isEmpty);
+      expect(
+        again.toText(),
+        contains('  from 1.0.0: drop_default_lines: 0 docs\n'),
+      );
+    });
+
+    test('a drop_default_lines step the pack load refuses plans '
+        'nothing', () async {
+      final fixture = await _fixture(
+        packYaml: _dropPackYaml.replaceFirst('[domain]', '[domian]'),
+        overrides: const {},
+        docs: {_loginPath: _loginDoc},
+      );
+
+      expect(
+        () => _plan(fixture),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having(
+                (f) => f.key,
+                'key',
+                'migrations[0].steps[0].drop_default_lines.doc_types',
+              ),
+        ),
+      );
     });
   });
 }

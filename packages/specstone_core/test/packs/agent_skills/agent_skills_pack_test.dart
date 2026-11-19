@@ -19,15 +19,19 @@ import '../../helpers/temp_tree.dart';
 import '../../helpers/yaml_key_line.dart';
 
 const _skillDoc = 'specs/skills/review.md';
-const _skillFile = '.claude/skills/review/SKILL.md';
+const _skillFolder = '.claude/skills/review/';
+const _skillFile = '${_skillFolder}SKILL.md';
 
 /// A skill doc whose `covers:` and body the caller picks.
 String _skillText({
-  String covers = '  - $_skillFile\n',
-  String body = '## Sources\n\n- [Login API](../f01_login/API.md)\n',
+  String covers = '  - $_skillFolder\n',
+  String body =
+      '## Purpose\n\nReviews a diff.\n\n'
+      '## When to use\n\n- A diff to review.\n\n'
+      '## Boundaries\n\n- Never edits the diff.\n\n'
+      '## Acceptance\n\n- A diff with one fault: the report names it.\n',
 }) =>
-    '---\noutput: .claude/skills/review/\n'
-    '${covers.isEmpty ? '' : 'covers:\n$covers'}---\n\n# Review\n\n$body';
+    '---\n${covers.isEmpty ? '' : 'covers:\n$covers'}---\n\n# Review\n\n$body';
 
 Future<List<String>> _skillFindings(
   String text, {
@@ -96,11 +100,8 @@ void main() {
       expect(skill.parent, isNull);
     });
 
-    test('carries the output, feature, and covers fields', () {
-      final output = fieldOf(skill, 'output');
-      expect(output.type, FieldType.string);
-      expect(output.list, isFalse);
-      expect(output.required, isTrue);
+    test('the skill type carries covers and feature and no output', () {
+      expect(skill.fields.map((f) => f.id), isNot(contains('output')));
 
       final feature = fieldOf(skill, 'feature');
       expect(feature.type, FieldType.docRef);
@@ -114,18 +115,15 @@ void main() {
       expect(covers.pointer, PointerKind.prefix);
       expect(covers.root, PointerRoot.project);
       expect(covers.required, isTrue);
-
-      for (final id in ['output', 'feature', 'covers']) {
-        expect(fieldOf(skill, id).description, isNotEmpty, reason: id);
-      }
     });
 
-    test('carries purpose, when_to_use, and sources in order, sources alone '
-        'required', () {
+    test('the skill sections come in order with inputs alone optional', () {
       expectSections(skill, const [
-        SectionSpec('purpose', 'Purpose'),
-        SectionSpec('when_to_use', 'When to use'),
-        SectionSpec('sources', 'Sources', required: true),
+        SectionSpec('purpose', 'Purpose', required: true),
+        SectionSpec('when_to_use', 'When to use', required: true),
+        SectionSpec('boundaries', 'Boundaries', required: true),
+        SectionSpec('acceptance', 'Acceptance', required: true),
+        SectionSpec('inputs', 'Inputs'),
       ]);
       expect(sectionOf(skill, 'purpose').summary, isTrue);
     });
@@ -133,8 +131,8 @@ void main() {
     test('the description holds one line for each skill rule', () {
       final lines = skill.description!.split('\n');
       const rulePhrases = [
-        'The Owner writes `SKILL.md` by hand',
-        'holds one entry, `<output>/SKILL.md`',
+        'the spec of one skill a project builds for other projects to use',
+        "The skill's own files hold its wording, steps, and host frontmatter",
         'read from the project root, never from a code root',
         'Specstone installs and distributes no project skill',
       ];
@@ -147,40 +145,31 @@ void main() {
       }
     });
 
-    test('no description restates a shared line the guide prints', () {
-      final texts = [for (final line in skill.sharedLines) line.text];
-      expect(texts, isNotEmpty);
-      for (final description in descriptionsOf(skill)) {
-        for (final text in texts) {
-          expect(description ?? '', isNot(contains(text)));
-        }
-      }
-    });
+    test(
+      'the merged set lists skill and agent beside the other packs',
+      () async {
+        expect(
+          set.docTypes.map((d) => d.id).toList(),
+          [...prdCoreIds, 'skill', 'agent']..sort(),
+        );
+        expect(set.docTypes, hasLength(prdCoreIds.length + 2));
 
-    test('no description or template holds a YAML key line', () {
-      [
-        ...descriptionsOf(skill),
-        for (final section in skill.sections) section.template,
-      ].forEach(expectNoYamlKeyLine);
-    });
-
-    test('lists beside the prd-core doc types', () {
-      expect(
-        set.docTypes.map((d) => d.id).toList(),
-        [...prdCoreIds, 'skill']..sort(),
-      );
-    });
-
-    test('lists beside the doc types of software-tech', () async {
-      final both = await resolveAgentSkills(extraPacks: ['software-tech']);
-      expect(
-        both.docTypes.map((d) => d.id).toList(),
-        [...prdCoreIds, ...softwareTechIds, 'skill']..sort(),
-      );
-    });
+        final both = await resolveAgentSkills(extraPacks: ['software-tech']);
+        expect(
+          both.docTypes.map((d) => d.id).toList(),
+          [...prdCoreIds, ...softwareTechIds, 'skill', 'agent']..sort(),
+        );
+        expect(
+          both.docTypes,
+          hasLength(prdCoreIds.length + softwareTechIds.length + 2),
+        );
+      },
+    );
 
     test('is absent from a project that lists prd-core alone', () async {
-      expect((await resolvePrdCore()).lookup('skill'), isNull);
+      final prdOnly = await resolvePrdCore();
+      expect(prdOnly.lookup('skill'), isNull);
+      expect(prdOnly.lookup('agent'), isNull);
     });
 
     test(
@@ -201,6 +190,85 @@ void main() {
     );
   });
 
+  group('agent doc type', () {
+    late MergedDocType agent;
+
+    setUpAll(() async {
+      agent = prdCoreDocType(await resolveAgentSkills(), 'agent');
+    });
+
+    test('the agent type loads at its path with covers and feature', () {
+      expect(agent.pack, 'agent-skills');
+      expect(agent.path, 'specs/agents/{slug}.md');
+      expect(agent.parent, isNull);
+
+      final feature = fieldOf(agent, 'feature');
+      expect(feature.type, FieldType.docRef);
+      expect(feature.required, isFalse);
+      expect(feature.docTypes, ['feature']);
+
+      final covers = fieldOf(agent, 'covers');
+      expect(covers.type, FieldType.outputRef);
+      expect(covers.list, isTrue);
+      expect(covers.pointer, PointerKind.prefix);
+      expect(covers.root, PointerRoot.project);
+      expect(covers.required, isTrue);
+      expect(agent.fields.map((f) => f.id), isNot(contains('output')));
+    });
+
+    test('the agent sections come in order and are all required', () {
+      expectSections(agent, const [
+        SectionSpec('role', 'Role', required: true),
+        SectionSpec('dispatch_trigger', 'Dispatch trigger', required: true),
+        SectionSpec('brief_inputs', 'Brief inputs', required: true),
+        SectionSpec('report_shape', 'Report shape', required: true),
+        SectionSpec('boundaries', 'Boundaries', required: true),
+        SectionSpec('acceptance', 'Acceptance', required: true),
+      ]);
+      expect(sectionOf(agent, 'role').summary, isTrue);
+    });
+  });
+
+  group('skill and agent fields', () {
+    test('each carries a description on feature and covers', () async {
+      final set = await resolveAgentSkills();
+      for (final type in ['skill', 'agent']) {
+        for (final id in ['feature', 'covers']) {
+          expect(
+            fieldOf(prdCoreDocType(set, type), id).description,
+            isNotEmpty,
+            reason: '$type.$id',
+          );
+        }
+      }
+    });
+
+    test('no description restates a shared line the guide prints', () async {
+      final set = await resolveAgentSkills();
+      for (final type in ['skill', 'agent']) {
+        final merged = prdCoreDocType(set, type);
+        final texts = [for (final line in merged.sharedLines) line.text];
+        expect(texts, isNotEmpty, reason: type);
+        for (final description in descriptionsOf(merged)) {
+          for (final text in texts) {
+            expect(description ?? '', isNot(contains(text)), reason: type);
+          }
+        }
+      }
+    });
+
+    test('no description or template holds a YAML key line', () async {
+      final set = await resolveAgentSkills();
+      for (final type in ['skill', 'agent']) {
+        final merged = prdCoreDocType(set, type);
+        [
+          ...descriptionsOf(merged),
+          for (final section in merged.sections) section.template,
+        ].forEach(expectNoYamlKeyLine);
+      }
+    });
+  });
+
   group('skill doc check', () {
     test('a skill doc with no covers is required_field_missing', () async {
       expect(
@@ -212,7 +280,12 @@ void main() {
       );
     });
 
-    test('a second covers entry gives no finding', () async {
+    test('one skill file or a second covers entry is tracked with no '
+        'finding', () async {
+      expect(
+        await _skillFindings(_skillText(covers: '  - $_skillFile\n')),
+        isEmpty,
+      );
       expect(
         await _skillFindings(
           _skillText(covers: '  - $_skillFile\n  - app/lib/login.dart\n'),
@@ -221,41 +294,8 @@ void main() {
       );
     });
 
-    test('a covers entry naming another path instead of SKILL.md gives no '
-        'finding', () async {
-      expect(
-        await _skillFindings(_skillText(covers: '  - app/lib/login.dart\n')),
-        isEmpty,
-      );
-    });
-
-    test('a skill doc with only Sources gives no finding, and a Sources link '
-        'to a doc of another pack is accepted', () async {
+    test('a skill doc without inputs gives no finding', () async {
       expect(await _skillFindings(_skillText()), isEmpty);
-    });
-
-    test('a Sources link to a design-system doc is accepted', () async {
-      expect(
-        await _skillFindings(
-          _skillText(
-            body:
-                '## Sources\n\n'
-                '- [Discovery](../design_system/DISCOVERY.md)\n',
-          ),
-          packs: const [
-            'prd-core',
-            'software-tech',
-            'software-design-system',
-            'agent-skills',
-          ],
-          extra: const {
-            'docs/specs/design_system/DISCOVERY.md':
-                '# Discovery\n\n## Finding a component\n\nLook in a group.\n\n'
-                '## Component catalog\n\nNone yet.\n',
-          },
-        ),
-        isEmpty,
-      );
     });
   });
 }

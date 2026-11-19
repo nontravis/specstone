@@ -18,13 +18,11 @@ fields:
     type: doc_ref
     doc_types: [feature]
     required: true
-    export: false
     description: |-
       Names the feature whose stories ask for the component.
   - id: design_source
     type: source_ref
     list: true
-    export: false
     description: |-
       Lists each design file or link the props were decided from.
 sections:

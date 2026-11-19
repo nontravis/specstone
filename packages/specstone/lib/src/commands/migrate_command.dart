@@ -25,6 +25,12 @@ class MigrateCommand extends SpecstoneCommand {
             'With --yes: the plan line --dry-run printed; a changed plan '
             'refuses.',
       )
+      ..addMultiOption(
+        'add',
+        valueHelp: 'pack',
+        splitCommas: false,
+        help: 'Pin a shipped or personal pack the project does not pin yet.',
+      )
       ..addFlag(
         'json',
         negatable: false,
@@ -41,7 +47,8 @@ class MigrateCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone migrate [--dry-run | --yes --plan <hash>] [--json]';
+      'specstone migrate [--add <pack>]... '
+      '[--dry-run | --yes --plan <hash>] [--json]';
 
   @override
   Future<int> run() async {
@@ -58,6 +65,10 @@ class MigrateCommand extends SpecstoneCommand {
       planCommand: 'specstone migrate',
       dryRun: dryRun,
     );
+    final added = args.multiOption('add');
+    if (!added.every(isPackName)) {
+      usageException('--add takes a pack name in kebab-case');
+    }
     final runner = specstoneRunner;
     final console = runner.console;
     try {
@@ -77,8 +88,11 @@ class MigrateCommand extends SpecstoneCommand {
           warn: runner.err.writeln,
           environment: runner.environment,
           planHash: planHash,
+          addedPacks: added,
         ),
       );
+    } on MigrateUsageError catch (error) {
+      usageException(error.message);
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: false);
     }

@@ -71,7 +71,6 @@ class FormatCommand extends SpecstoneCommand {
             );
           },
         ),
-        rewriteLinks: rewriteReferenceLinks,
       );
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson, warnings: sessionWarnings);

@@ -25,7 +25,6 @@ final class MergedField {
     this.docTypes,
     PointerKind? pointer,
     PointerRoot? root,
-    this.export,
     this.description,
     this.lint,
   }) : pointer = type == FieldType.outputRef ? pointer : null,
@@ -56,12 +55,6 @@ final class MergedField {
   /// layer sets it, which reads as `code`, and for any other type.
   final PointerRoot? root;
 
-  /// Whether the field joins an export; null when no layer sets it.
-  final bool? export;
-
-  /// Whether the field joins an export: [export], else `true`.
-  bool get exported => export ?? true;
-
   /// What the field holds.
   final String? description;
 
@@ -88,7 +81,6 @@ final class MergedField {
     List<String>? docTypes,
     PointerKind? pointer,
     PointerRoot? root,
-    bool? export,
     String? description,
     FieldCaps? lint,
   }) {
@@ -105,7 +97,6 @@ final class MergedField {
           docTypes ?? (newType == FieldType.docRef ? this.docTypes : null),
       pointer: pointer ?? this.pointer,
       root: root ?? this.root,
-      export: export ?? this.export,
       description: description ?? this.description,
       lint: lint ?? this.lint,
     );
@@ -113,8 +104,8 @@ final class MergedField {
 
   /// Returns the JSON object of this field with only the keys set.
   ///
-  /// `list` and `required` print only when true; `root` and `export` print
-  /// only when a layer writes them.
+  /// `list` and `required` print only when true; `root` prints only
+  /// when a layer writes it.
   Map<String, Object> toJson() => {
     'id': id,
     'type': type.wire,
@@ -124,7 +115,6 @@ final class MergedField {
     'docTypes': ?docTypes,
     'pointer': ?pointer?.wire,
     'root': ?root?.wire,
-    'export': ?export,
     'description': ?description,
     'lint': ?lint?.toJson(),
   };

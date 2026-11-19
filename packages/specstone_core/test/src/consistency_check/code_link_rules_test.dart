@@ -92,6 +92,18 @@ Future<Directory> _skillProject(List<String> covers) => writeCheckProject(
   unfingerprinted: {'docs/$skillDoc'},
 );
 
+/// The check fixture with no record, plus the agent doc covering [covers] as
+/// written and its agent file.
+Future<Directory> _agentProject(List<String> covers) => writeCheckProject(
+  extra: {
+    '.specstone/config.yaml': skillPinsConfig(),
+    ...agentDocFile(covers),
+    agentFile: agentText,
+  },
+  without: {_recordPath},
+  unfingerprinted: {'docs/$agentDoc'},
+);
+
 /// Returns the architecture doc of the fixture covering [covers].
 Map<String, String> _covering(String covers) =>
     doc(loginArchitecture, '  - app/lib/\n', covers);
@@ -723,6 +735,35 @@ void main() {
       expect(finding.textLines.last, '    fingerprint $folderFingerprint');
     });
 
+    test(
+      'an empty entry that records a fingerprint gives no code_suspect',
+      () async {
+        final report = await _run(
+          await writeCheckProject(extra: _covering('  - ./ $_stale\n')),
+        );
+
+        expect(_suspects(report), isEmpty);
+        expect(_unconfirmed(report), isEmpty);
+        expect(_ofKind(report, FindingKind.coversEntryEmpty), hasLength(1));
+      },
+    );
+
+    test(
+      'an empty entry with no fingerprint gives no code_unconfirmed',
+      () async {
+        final report = await _run(
+          await writeCheckProject(
+            extra: _covering('  - ./\n'),
+            unfingerprinted: {'docs/$loginArchitecture'},
+          ),
+        );
+
+        expect(_unconfirmed(report), isEmpty);
+        expect(_suspects(report), isEmpty);
+        expect(_ofKind(report, FindingKind.coversEntryEmpty), hasLength(1));
+      },
+    );
+
     test('that records no fingerprint and names a missing path gives '
         'covers_path_missing alone', () async {
       final report = await _run(
@@ -862,6 +903,22 @@ void main() {
         'fingerprint': skillFingerprint,
       });
     });
+
+    test(
+      'an agent file changed after its fingerprint gives code_suspect',
+      () async {
+        final report = await _run(await _agentProject(['$agentFile $_stale']));
+        final [finding] = _suspects(report);
+
+        expect(finding.path, agentDoc);
+        expect(finding.keys, {
+          'entry': agentFile,
+          'path': agentFile,
+          'recorded': _stale,
+          'fingerprint': _fingerprintOf(agentText, agentFile),
+        });
+      },
+    );
 
     test('that records no fingerprint gives code_unconfirmed in a project '
         'with no record', () async {

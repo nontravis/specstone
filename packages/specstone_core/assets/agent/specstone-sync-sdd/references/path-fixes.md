@@ -6,4 +6,6 @@
   uncommitted; write no fingerprint;
 - deleted file: drop the entry, or point it at the code doing that work;
 - `root: project` entry: fingerprint alone, never moved; its `covers_path_missing` is only reported as
-  `<doc>: covers path missing: <path>`, ending its loop.
+  `<doc>: covers path missing: <path>`, ending its loop;
+- `covers_entry_empty` (no code-pointer finding): write nothing for the entry, no pointer, no fingerprint; it is only
+  reported as `<doc>: covers entry empty: <entry>`, ending its loop; the Owner fixes it by `set`.

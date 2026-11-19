@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/stale_mentions.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 
 /// Returns whether a ProjectPath under [root] holds an entry once [moves], as
 /// DocPaths, ran: a move lands on it, or a file, folder, or link is there and
@@ -44,6 +45,13 @@ const specstoneGitignorePath = '.specstone/.gitignore';
 String? formatLayoutLine(Iterable<String> docPaths) {
   final count = docPaths.length;
   return count == 0 ? null : 'format layout: $count docs';
+}
+
+/// Returns the plan line counting the docs an add newly types, or null when
+/// [docPaths] is empty.
+String? typedByAddLine(Iterable<String> docPaths) {
+  final count = docPaths.length;
+  return count == 0 ? null : 'typed by the add: $count docs';
 }
 
 /// Returns the plan line counting the mentions in code and agent files that
@@ -95,6 +103,20 @@ final class UpgradeStepLine {
   };
 }
 
+/// A pack pin the run appends to `.specstone/config.yaml`.
+final class AddedPin {
+  const new({required this.pack, required this.version});
+
+  /// The pack name.
+  final String pack;
+
+  /// The version the pack carries.
+  final PackVersion version;
+
+  /// The pin as one object of the JSON plan's `addedPins`.
+  Map<String, Object> toJson() => {'pack': pack, 'version': '$version'};
+}
+
 /// The copies the `strip_shared_copies` step strips and keeps, each as
 /// `<path>:<line> <id>`.
 final class SharedCopiesLists {
@@ -124,6 +146,8 @@ final class PlanLists {
     this.stampsSkipped = const [],
     this.steps = const [],
     this.mentions = const [],
+    this.addedPins = const [],
+    this.typedByAdd = const [],
     this.tests,
     this.sharedCopies,
     this.matrixRows,
@@ -162,6 +186,12 @@ final class PlanLists {
   /// Each mention in a code or agent file the run's moves stop resolving.
   final List<StaleMention> mentions;
 
+  /// The pins the run adds, in name order.
+  final List<AddedPin> addedPins;
+
+  /// The DocPath of each doc only an added pack types, in code point order.
+  final List<String> typedByAdd;
+
   /// The test-name pass's `tests` object (`written`, `rewritten`, `left`), or
   /// null when the run holds no such pass.
   final Map<String, Object?>? tests;
@@ -187,6 +217,9 @@ final class PlanLists {
     'stamps': {'skipped': stampsSkipped},
     'steps': [for (final step in steps) step.toJson()],
     'mentions': mentionsJsonOf(mentions),
+    if (addedPins.isNotEmpty)
+      'addedPins': [for (final pin in addedPins) pin.toJson()],
+    if (typedByAdd.isNotEmpty) 'typedByAdd': typedByAdd,
     'tests': ?tests,
     'sharedCopies': ?sharedCopies?.toJson(),
     'matrixRows': ?matrixRows,

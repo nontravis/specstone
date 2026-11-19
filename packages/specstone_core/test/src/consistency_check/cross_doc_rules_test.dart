@@ -146,6 +146,20 @@ void main() {
     },
   );
 
+  test('an empty covers entry reaches no topic scope path', () async {
+    for (final form in ["''", '.', './', '/', 'lib/..', './ 5d1e0c4b7a92']) {
+      final found = await _found({
+        'docs/$_topicDoc': _topicDocText(
+          covers: '  - $form\n',
+          scope: 'The topic governs `lib/src/rendering/`.',
+        ),
+      });
+      expect(found.map((f) => f.kind), [
+        FindingKind.scopePathUncovered,
+      ], reason: form);
+    }
+  });
+
   test('a topic scope path a covers prefix reaches has no finding', () async {
     final found = await _found({
       'docs/$_topicDoc': _topicDocText(

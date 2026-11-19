@@ -30,8 +30,11 @@ const verificationCoverageKey = 'verification_coverage';
 /// One slug of lowercase letters, digits, and underscores.
 final _targetNamePattern = RegExp(r'^[a-z][a-z0-9_]*$');
 
-/// Lowercase letters and digits in hyphen-separated groups.
 final _kebabCase = RegExp(r'^[a-z0-9]+(-[a-z0-9]+)*$');
+
+/// Whether [name] is a pack name: lowercase letters and digits in
+/// hyphen-separated groups.
+bool isPackName(String name) => _kebabCase.hasMatch(name);
 
 final _driveLetter = RegExp('^[A-Za-z]:');
 
@@ -177,7 +180,7 @@ final class ProjectConfig {
     final pins = <String, PackVersion>{};
     for (final MapEntry(:key, :value) in packs.nodes.entries) {
       final name = '${(key as YamlNode).value}';
-      if (!_kebabCase.hasMatch(name)) {
+      if (!isPackName(name)) {
         throw TemplateFault(
           FaultCode.unknownKey,
           'pack names are kebab-case',

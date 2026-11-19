@@ -2,9 +2,7 @@ id: contributing
 description: |-
   The contributing doc: the definition of done for a component.
   Title it `# Contributing`, with no number.
-  No skill's references take this doc.
 path: specs/design_system/CONTRIBUTING.md
-export: false
 sections:
   - id: definition_of_done
     header: Definition of done

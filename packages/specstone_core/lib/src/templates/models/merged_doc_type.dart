@@ -19,7 +19,6 @@ final class MergedDocType {
     this.path,
     this.maxDepth,
     this.isPerTarget = false,
-    this.export,
     this.nestedPaths,
     this.bundle,
     this.bundleRefs,
@@ -95,12 +94,6 @@ final class MergedDocType {
   /// Whether the doc type reads its patterns once per target.
   final bool isPerTarget;
 
-  /// Whether the doc type joins an export; null when no layer sets it.
-  final bool? export;
-
-  /// Whether the doc type joins an export: [export], else `true`.
-  bool get exported => export ?? true;
-
   /// Whether the doc type's own folder segment may repeat.
   bool get nests => (maxDepth ?? 0) > 0;
 
@@ -172,7 +165,6 @@ final class MergedDocType {
     String? path,
     int? maxDepth,
     bool? isPerTarget,
-    bool? export,
     List<String>? nestedPaths,
     List<String>? bundle,
     bool? bundleRefs,
@@ -196,7 +188,6 @@ final class MergedDocType {
     path: path ?? this.path,
     maxDepth: maxDepth ?? this.maxDepth,
     isPerTarget: isPerTarget ?? this.isPerTarget,
-    export: export ?? this.export,
     nestedPaths: nestedPaths,
     bundle: bundle ?? this.bundle,
     bundleRefs: bundleRefs ?? this.bundleRefs,
@@ -227,7 +218,6 @@ final class MergedDocType {
       'path': ?path,
       'maxDepth': ?maxDepth,
       if (isPerTarget) 'perTarget': true,
-      'export': ?export,
       'bundle': ?bundle,
       'bundleRefs': ?bundleRefs,
       'summaryFor': ?summaryFor,

@@ -400,7 +400,6 @@ final class _SharedMerge {
     docTypes: upper.docTypes ?? lower.docTypes,
     pointer: upper.pointer ?? lower.pointer,
     root: upper.root ?? lower.root,
-    export: upper.export ?? lower.export,
     description: upper.description ?? lower.description,
     lint: upper.lint == null
         ? lower.lint

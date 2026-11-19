@@ -2,7 +2,7 @@ id: setup
 description: |-
   The setup doc: the install contract that the library's code meets.
   Title it `# Setup`, with no number.
-  The install contract is the source of the skill's install page.
+  The install contract is what a skill's install steps follow.
 path: specs/design_system/SETUP.md
 sections:
   - id: install_contract
