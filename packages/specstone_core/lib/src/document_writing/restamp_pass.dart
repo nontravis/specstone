@@ -44,6 +44,15 @@ final class BlockMoves {
   /// Whether the call moves any block.
   bool get movesBlocks => _moves != null;
 
+  /// Whether a landing moves an item out of or into the FR at [frDocPath].
+  bool changesFr(String frDocPath) =>
+      _moves?.landings.any(
+        (landing) =>
+            landing.from.doc.docPath == frDocPath ||
+            landing.to.docPath == frDocPath,
+      ) ??
+      false;
+
   /// Returns the moved block the entry [label] of [holder] names before the
   /// call, in any name form; null when it names none.
   TrackedBlock? namedBy(DocIndex index, IndexedDoc holder, String label) {
@@ -332,6 +341,10 @@ final class _Judge {
   /// call: its block's after the call when it matched the block before it.
   String valueAfter(TrackedEntry entry, String recorded) {
     final block = entry.block;
+    if (block.kind == TrackedBlockKind.frContract &&
+        _blocks.changesFr(block.upstream)) {
+      return recorded;
+    }
     final moved = _blocks.afterOf(block);
     if (!_changed.contains(block.upstream) &&
         !_changed.contains(moved.upstream)) {
