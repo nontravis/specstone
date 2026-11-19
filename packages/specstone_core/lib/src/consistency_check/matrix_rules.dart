@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedField;
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/models/record_status.dart';
 
 /// Returns the findings of the Verification matrix rows of a record [doc]; any
@@ -45,7 +46,7 @@ Iterable<Finding> checkUnprovenEdgeCases(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  if (!context.verificationCoverage) return;
+  if (context.matrixMode == MatrixMode.off) return;
   final read = recordDocOf(context, doc);
   final statusField = read == null ? null : recordStatusFieldOf(read.type);
   if (read == null || statusField == null) return;
