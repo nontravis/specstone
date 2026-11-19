@@ -47,6 +47,13 @@ String? formatLayoutLine(Iterable<String> docPaths) {
   return count == 0 ? null : 'format layout: $count docs';
 }
 
+/// Returns the plan line counting the docs an add newly types, or null when
+/// [docPaths] is empty.
+String? typedByAddLine(Iterable<String> docPaths) {
+  final count = docPaths.length;
+  return count == 0 ? null : 'typed by the add: $count docs';
+}
+
 /// Returns the plan line counting the mentions in code and agent files that
 /// the run's moves stop resolving, or null when [mentions] is empty.
 String? mentionsLine(List<StaleMention> mentions) =>
@@ -121,6 +128,7 @@ final class PlanLists {
     this.steps = const [],
     this.mentions = const [],
     this.addedPins = const [],
+    this.typedByAdd = const [],
     this.tests,
   });
 
@@ -160,6 +168,9 @@ final class PlanLists {
   /// The pins the run adds, in name order.
   final List<AddedPin> addedPins;
 
+  /// The DocPath of each doc only an added pack types, in code point order.
+  final List<String> typedByAdd;
+
   /// The test-name pass's `tests` object (`written`, `rewritten`, `left`), or
   /// null when the run holds no such pass.
   final Map<String, Object?>? tests;
@@ -179,6 +190,7 @@ final class PlanLists {
     'mentions': mentionsJsonOf(mentions),
     if (addedPins.isNotEmpty)
       'addedPins': [for (final pin in addedPins) pin.toJson()],
+    if (typedByAdd.isNotEmpty) 'typedByAdd': typedByAdd,
     'tests': ?tests,
   };
 }

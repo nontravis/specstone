@@ -5463,6 +5463,75 @@ void _addedPinsTests() {
       );
     });
 
+    group('docs the add newly types', () {
+      const skillPath = 'docs/specs/skills/review.md';
+      const skillDoc = '# Review\n\n\n\n## Purpose\n\nReviews.\n';
+
+      Future<Directory> withDocs(Map<String, String> docs) => writeTree({
+        _configPath: shippedPinsConfig(),
+        for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+      });
+
+      test('a file only the added pack types gets a draft flag and is '
+          'laid out', () async {
+        final root = await withDocs({'specs/skills/review.md': skillDoc});
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        final text = _rewriteAt(plan, skillPath).text;
+        expect(text, startsWith('---\ndraft: true\n---\n'));
+        expect(text, isNot(contains('approved:')));
+        expect(text, contains('# Review\n\n## Purpose\n'));
+        expect(plan.lists.formatLayout, ['specs/skills/review.md']);
+      });
+
+      test('the plan counts newly typed docs before the layout line and '
+          'lists them in json', () async {
+        final root = await withDocs({
+          'specs/skills/review.md': skillDoc,
+          'specs/skills/deploy.md': skillDoc,
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        final lines = plan.toText().split('\n');
+        final counted = lines.indexOf('  typed by the add: 2 docs');
+        expect(counted, isNonNegative);
+        expect(lines[counted + 1], startsWith('  format layout: '));
+        expect(plan.lists.toJson()['typedByAdd'], [
+          'specs/skills/deploy.md',
+          'specs/skills/review.md',
+        ]);
+      });
+
+      test('an add that types nothing prints no count line and no json '
+          'key', () async {
+        final root = await withDocs({'specs/skills/review.md': skillDoc});
+
+        final plan = _planAdding(root, const ['marketing']);
+
+        expect(plan.toText(), isNot(contains('typed by the add')));
+        expect(plan.lists.toJson(), isNot(contains('typedByAdd')));
+        expect(plan.rewrites.map((rewrite) => rewrite.path), [_configPath]);
+      });
+
+      test('a doc already typed keeps the upgrade passes', () async {
+        final root = await withDocs({
+          'specs/TECH_STACK.md': '# Tech stack\n\n\n\n## Stack\n\nDart.\n',
+          'specs/skills/review.md': skillDoc,
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(plan.lists.toJson()['typedByAdd'], ['specs/skills/review.md']);
+        expect(plan.lists.formatLayout, contains('specs/TECH_STACK.md'));
+        expect(
+          _rewriteAt(plan, 'docs/specs/TECH_STACK.md').text,
+          isNot(contains('draft: true')),
+        );
+      });
+    });
+
     test('the form check refuses before the load fault', () async {
       final root = await project('packs: {\n  prd-core: $core\n}\n');
 

@@ -76,6 +76,7 @@ const _agentFileRootsKey = 'agent_file_roots';
 const _agentFilesVersionKey = 'agent_files_version';
 const _renumberChange = 'renumber ids';
 const _labelChange = 'convert number labels';
+const _draftChange = 'draft flag';
 const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
 const _testsChange = 'add test lines';
@@ -222,6 +223,22 @@ RunPlan _upgradeRunOf(
   ]);
 
   final matcher = DocTypeMatcher(finalSet, targetNames: config.targetNames);
+  // Without the adds, a doc the matcher leaves untyped and `matcher` types is
+  // one the added packs newly type.
+  final withoutAdds = addedPins.isEmpty
+      ? null
+      : DocTypeMatcher(
+          templates.resolveCarried(
+            packNames: pins.keys,
+            homeDirectory: homeDirectory,
+            projectLayers: parseOverrides({
+              for (final file in overrideFiles) file.path: file.lf,
+              for (final create in overrideCreates) create.path: create.text,
+            }),
+          ),
+          targetNames: config.targetNames,
+        );
+  final typedByAdd = <String>[];
   final recordMoves = RecordMoves();
   final works = <_DocWork>[];
   final changedAt = <int, List<String>>{};
@@ -239,6 +256,13 @@ RunPlan _upgradeRunOf(
     final target = match is MatchedDocType ? match.target : null;
     var lf = original.lf;
     final changes = <String>[];
+    if (docType != null &&
+        withoutAdds != null &&
+        withoutAdds.match(plannedPath) is! MatchedDocType) {
+      typedByAdd.add(plannedPath);
+      lf = withKeyBlock(lf, 'draft', 'draft: true');
+      changes.add(_draftChange);
+    }
     for (final (index, (:step, from: _)) in steps.indexed) {
       if (docType == null || !step.touches(docType.id)) continue;
       final renamed = switch (step) {
@@ -506,6 +530,7 @@ RunPlan _upgradeRunOf(
     },
     restampsFingerprints: isOneTime,
     citedFrom: citedFrom,
+    typedByAdd: typedByAdd.toSet(),
   );
   final docRewrites = <PlannedRewrite>[];
   final writtenLf = <String, String>{};
@@ -636,6 +661,7 @@ RunPlan _upgradeRunOf(
       ?labels?.planLine,
       ?tests?.planLine,
       ?cites?.planLine,
+      ?typedByAddLine(typedByAdd),
       ?formatLayoutLine(laidOutPaths),
       ?stamps.planLine,
       if (agentFiles.line.isNotEmpty) agentFiles.line,
@@ -656,6 +682,7 @@ RunPlan _upgradeRunOf(
       steps: stepLines,
       mentions: mentions,
       addedPins: addedPins,
+      typedByAdd: [...typedByAdd]..sort(compareCodePoints),
       tests: tests?.json,
     ),
   );

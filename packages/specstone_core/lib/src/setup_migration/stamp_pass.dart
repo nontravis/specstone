@@ -59,7 +59,8 @@ final class StampPass {
   /// pass rewrote, its text before that pass; an entry whose block that
   /// rewrite changed is re-stamped too, and no other. A typed doc whose
   /// frontmatter is not valid YAML, before or after, is skipped and named on
-  /// the plan line.
+  /// the plan line. A doc of [typedByAdd], by DocPath, is left as written: the
+  /// add made it a draft awaiting approval.
   factory plan(
     List<StampDoc> before,
     List<StampDoc> after, {
@@ -67,6 +68,7 @@ final class StampPass {
     required Map<String, PackVersion> pinsAfter,
     required bool restampsFingerprints,
     Map<String, String> citedFrom = const {},
+    Set<String> typedByAdd = const {},
   }) {
     final ran = stampsHaveRun(pins);
     final statusesOutside = statusesOutsideApproval(pins);
@@ -89,6 +91,7 @@ final class StampPass {
       final type = doc.type;
       final old = beforeAt[doc.docPath];
       if (type == null || old == null) continue;
+      if (typedByAdd.contains(doc.docPath)) continue;
       final beforeHash = comparedApprovalHash(
         old.lf,
         old.type,

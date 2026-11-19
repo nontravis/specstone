@@ -3413,6 +3413,39 @@ agent_file_roots:
       ]);
     });
 
+    test('applying agent-skills over an untyped skill spec file leaves it a '
+        'draft', () async {
+      final project = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/specs/skills/review.md': '# Review\n\n## Purpose\n\nReviews.\n',
+        _gitignore: _ignoreFile,
+      });
+      final dry = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'agent-skills',
+      ]);
+      expect(dry.stdout, contains('  typed by the add: 1 docs\n'));
+      final hash = planLine.firstMatch(dry.stdout as String)!.group(1)!;
+
+      final applied = await migrate(project, [
+        '--yes',
+        '--plan',
+        hash,
+        '--add',
+        'agent-skills',
+      ]);
+
+      expect(
+        applied.exitCode,
+        0,
+        reason: '${applied.stdout}\n${applied.stderr}',
+      );
+      final text = _read(project, 'docs/specs/skills/review.md');
+      expect(text, startsWith('---\ndraft: true\n---\n'));
+      expect(text, isNot(contains('approved:')));
+    });
+
     test('the apply with the same adds pins agent-skills at the shipped '
         'version', () async {
       final project = await pinProject();
