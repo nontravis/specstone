@@ -434,7 +434,7 @@ final class DocTypeLayer {
   /// [files] answers whether the layer holds a file at a layer-relative path,
   /// for `reference` checks.
   /// Throws a [TemplateFault] for any format fault, `unknown_value` first when
-  /// [docTypeId] is no slug.
+  /// [docTypeId] is no slug or is the reserved `shared`.
   static DocTypeLayer parse(
     String text, {
     required String file,
@@ -446,6 +446,14 @@ final class DocTypeLayer {
       throw TemplateFault(
         FaultCode.unknownValue,
         'the file name without .yaml must be a slug: [a-z][a-z0-9_]*',
+        file: file,
+        key: 'id',
+      );
+    }
+    if (docTypeId == reservedDocTypeId) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'doc type id $reservedDocTypeId is reserved',
         file: file,
         key: 'id',
       );
@@ -726,6 +734,9 @@ int? _parseMaxDepth(YamlMap map, {required String file}) {
   };
 }
 
+/// The doc type id no file may take: `shared.yaml` holds shared lines.
+const reservedDocTypeId = 'shared';
+
 const _topKeys = {
   'id',
   'description',
@@ -821,33 +832,43 @@ List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
   if (entries == null) return <FieldEntry>[];
   return [
     for (var i = 0; i < entries.length; i++)
-      _parseField(
+      parseFieldEntry(
         _entryMap(entries[i], 'fields[$i]', file: file),
         index: i,
         file: file,
+        keyPrefix: 'fields',
       ),
   ];
 }
 
-FieldEntry _parseField(
+/// Parses one field entry of the list [keyPrefix] names, at [index].
+///
+/// The `id` fault key is `<keyPrefix>[<index>].id`. Every other key reads as
+/// `<keyPrefix>.<id>.<key>`, or `<keyPrefix>[<index>].<key>` when
+/// [keyByIndex] is true. [extraKeys] join the keys the field format defines,
+/// and the caller reads them.
+FieldEntry parseFieldEntry(
   YamlMap entry, {
   required int index,
   required String file,
+  required String keyPrefix,
+  bool keyByIndex = false,
+  Set<String> extraKeys = const {},
 }) {
   final id = requireValue<String>(
     entry,
     'id',
     file: file,
-    prefix: 'fields[$index].',
+    prefix: '$keyPrefix[$index].',
   );
+  final prefix = keyByIndex ? '$keyPrefix[$index].' : '$keyPrefix.$id.';
   checkKeys(
     entry,
-    _fieldKeys,
+    {..._fieldKeys, ...extraKeys},
     file: file,
     format: 'doc-type',
-    prefix: 'fields.$id.',
+    prefix: prefix,
   );
-  final prefix = 'fields.$id.';
   final type = _optionalFieldType(entry, file: file, prefix: prefix);
   if (type == FieldType.enumType) {
     requireValue<YamlList>(entry, 'enum', file: file, prefix: prefix);

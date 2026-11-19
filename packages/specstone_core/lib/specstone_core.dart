@@ -109,6 +109,10 @@ export 'src/templates/project_config.dart'
         matchProjectRoot,
         readCleanupBounds,
         requireSpecstoneFolder;
+export 'src/templates/shared_entry.dart'
+    show SharedEntries, SharedField, SharedLine;
+export 'src/templates/shared_merge.dart'
+    show MergedSharedField, MergedSharedLine, SharedSet;
 export 'src/templates/template_fault.dart';
 export 'src/templates/template_resolver.dart';
 export 'src/version.dart';

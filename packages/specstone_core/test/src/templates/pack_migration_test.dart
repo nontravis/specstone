@@ -344,6 +344,35 @@ void main() {
     );
   });
 
+  test('a strip_shared_copies step with no keys parses and touches no '
+      'doc type', () {
+    final step = parseMigrationsOf('''
+- from: 1.12.0
+  steps:
+    - strip_shared_copies: {}
+''').single.steps.single;
+
+    expect(step, isA<StripSharedCopies>());
+    expect(step.kind, 'strip_shared_copies');
+    expect(step.touches('api'), isFalse);
+  });
+
+  test('a strip_shared_copies step with a key is unknown_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.12.0\n'
+        '  steps:\n'
+        '    - strip_shared_copies: {note: x}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].strip_shared_copies.note',
+        ),
+      ),
+    );
+  });
+
   test('a bullet_lines step parses to BulletLines and touches its '
       'doc type', () {
     final step = parseMigrationsOf('''

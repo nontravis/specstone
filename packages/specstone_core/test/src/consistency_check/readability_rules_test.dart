@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/readability_rules.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -569,21 +570,21 @@ void main() {
   });
 
   test('the cite-note guide line matches every shipped guide', () async {
-    final project = await writeCheckProject();
+    final outside = await Directory.systemTemp.createTemp('no_project');
+    addTearDown(() => outside.delete(recursive: true));
     final types = TemplateResolver()
-        .resolve(workingDirectory: project, homeDirectory: null)
-        .docTypes
-        .where(
-          (type) => type.pack == 'prd-core' || type.pack == 'software-tech',
-        )
-        .toList();
+        .resolve(workingDirectory: outside, homeDirectory: null)
+        .docTypes;
     expect(types.map((type) => type.pack).toSet(), {
-      'prd-core',
-      'software-tech',
+      for (final key in shippedPackFiles.keys)
+        key.substring(0, key.indexOf('/')),
     });
     for (final type in types) {
-      final lines = type.description!.split('\n');
-      expect(lines, contains(citeNoteGuideLine), reason: type.id);
+      expect(
+        type.renderGuide().split('\n'),
+        contains(citeNoteGuideLine),
+        reason: type.id,
+      );
     }
   });
 }

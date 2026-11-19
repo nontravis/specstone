@@ -1,7 +1,6 @@
 id: color
 description: |-
   The color doc: the color roles and their tokens.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Color`, with no number.
 path: specs/design_system/foundations/COLOR.md
 sections:

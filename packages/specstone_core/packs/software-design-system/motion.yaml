@@ -1,7 +1,6 @@
 id: motion
 description: |-
   The motion doc: the durations, the easings, and their tokens.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Motion`, with no number.
 path: specs/design_system/foundations/MOTION.md
 sections:

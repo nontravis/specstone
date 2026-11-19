@@ -68,6 +68,7 @@ final class UpgradeStepLine {
     required this.paths,
     this.tail = '',
     this.unreadable,
+    this.nextLine,
   });
 
   /// The `from:` version of the migration entry holding the step.
@@ -86,6 +87,9 @@ final class UpgradeStepLine {
   /// Each file a step that reads code could not read; null for any other
   /// step.
   final List<String>? unreadable;
+
+  /// The line the plan prints right after this one, or null.
+  final String? nextLine;
 
   /// The plan line.
   String get text => 'from $from: $step: ${paths.length} docs$tail';
@@ -113,6 +117,21 @@ final class AddedPin {
   Map<String, Object> toJson() => {'pack': pack, 'version': '$version'};
 }
 
+/// The copies the `strip_shared_copies` step strips and keeps, each as
+/// `<path>:<line> <id>`.
+final class SharedCopiesLists {
+  const new({required this.stripped, required this.left});
+
+  /// Each copy the step removes.
+  final List<String> stripped;
+
+  /// Each copy the step keeps.
+  final List<String> left;
+
+  /// The lists as the `sharedCopies` object of the JSON plan.
+  Map<String, Object> toJson() => {'stripped': stripped, 'left': left};
+}
+
 /// The path lists the plan's count lines print as numbers, each kept whole
 /// for the JSON plan.
 final class PlanLists {
@@ -130,6 +149,7 @@ final class PlanLists {
     this.addedPins = const [],
     this.typedByAdd = const [],
     this.tests,
+    this.sharedCopies,
     this.matrixRows,
   });
 
@@ -176,6 +196,10 @@ final class PlanLists {
   /// null when the run holds no such pass.
   final Map<String, Object?>? tests;
 
+  /// The copies the `strip_shared_copies` step strips and keeps, or null when
+  /// the run holds no such step.
+  final SharedCopiesLists? sharedCopies;
+
   /// The matrix fold pass's `matrixRows` object (`folded`), or null when the
   /// pass folds no record.
   final Map<String, Object?>? matrixRows;
@@ -197,6 +221,7 @@ final class PlanLists {
       'addedPins': [for (final pin in addedPins) pin.toJson()],
     if (typedByAdd.isNotEmpty) 'typedByAdd': typedByAdd,
     'tests': ?tests,
+    'sharedCopies': ?sharedCopies?.toJson(),
     'matrixRows': ?matrixRows,
   };
 }

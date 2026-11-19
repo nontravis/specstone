@@ -1,7 +1,6 @@
 id: setup
 description: |-
   The setup doc: the install contract that the library's code meets.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Setup`, with no number.
   The install contract is what a skill's install steps follow.
 path: specs/design_system/SETUP.md

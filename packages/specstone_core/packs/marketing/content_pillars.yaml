@@ -1,15 +1,13 @@
 id: content_pillars
 description: |-
-  The content pillars doc: the themes all of the project's content draws from.
+  The content pillars doc: the themes all the project's content draws from.
   Title it `# Content pillars`, with no number.
-  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
-  A learning edits the doc it corrects.
 path: specs/marketing/CONTENT_PILLARS.md
 sections:
   - id: themes
     header: Themes
     description: |-
-      List each theme, with the audience need it serves.
+      List each theme and the audience need it serves.
 reference:
   - title: marketingskills, product-marketing
     url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

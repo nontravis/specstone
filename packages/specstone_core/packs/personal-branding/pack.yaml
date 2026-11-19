@@ -1,3 +1,10 @@
 name: personal-branding
 version: 1.0.0
 extends: marketing
+shared_lines:
+  - id: person_stable_facts
+    text: The docs hold the stable facts; the person's own skills write the content outside the docs.
+    for_doc_types: [offer, proof, relationships, story]
+  - id: person_learning_edits_doc
+    text: A learning edits the doc it corrects.
+    for_doc_types: [offer, proof, relationships, story]

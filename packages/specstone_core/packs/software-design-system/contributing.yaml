@@ -1,7 +1,6 @@
 id: contributing
 description: |-
   The contributing doc: the definition of done for a component.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Contributing`, with no number.
 path: specs/design_system/CONTRIBUTING.md
 sections:

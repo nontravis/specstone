@@ -1,7 +1,6 @@
 id: component
 description: |-
   A component: one component's contract, inside its component group.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# <Component name>`, with no number.
   The component doc holds no code, so it serves the library in any language.
   The Agent writes Props by hand. A design file from another tool, such as a Figma frame, is input for deciding them, and Specstone never generates props from it.
@@ -14,19 +13,18 @@ fields:
     enum: [beta, stable, deprecated]
     required: true
     description: |-
-      Names the component's lifecycle: `beta`, `stable`, or `deprecated`.
-      The built-in `status` never holds it.
+      The built-in `status` never holds the component's lifecycle.
   - id: feature
     type: doc_ref
     doc_types: [feature]
     required: true
     description: |-
-      Names the feature whose stories ask for the component; it must resolve to a feature.
+      Names the feature whose stories ask for the component.
   - id: design_source
     type: source_ref
     list: true
     description: |-
-      Lists each design file or link that the props were decided from.
+      Lists each design file or link the props were decided from.
 sections:
   - id: purpose
     header: Purpose

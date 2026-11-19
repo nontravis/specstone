@@ -60,6 +60,33 @@ void main() {
       });
     }
 
+    for (final kind in LayerKind.values) {
+      test('a doc type file named shared is unknown_value at id in a '
+          '${kind.name} layer', () {
+        const file = '.specstone/templates/shared.yaml';
+        expect(
+          () => DocTypeLayer.parse(
+            'description: x\n',
+            file: file,
+            docTypeId: 'shared',
+            kind: kind,
+            files: const _FakeFiles({}),
+          ),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.unknownValue)
+                .having((f) => f.file, 'file', file)
+                .having((f) => f.key, 'key', 'id')
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'doc type id shared is reserved',
+                ),
+          ),
+        );
+      });
+    }
+
     test('a slug file name '
         'loads', () {
       expect(_parse('max_depth: 1\n').docTypeId, 'feature');

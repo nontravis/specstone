@@ -13,9 +13,11 @@ import 'package:test/test.dart';
 import '../../helpers/agent_skills.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/yaml_key_line.dart';
 
 const _skillDoc = 'specs/skills/review.md';
 const _skillFolder = '.claude/skills/review/';
@@ -239,6 +241,31 @@ void main() {
             reason: '$type.$id',
           );
         }
+      }
+    });
+
+    test('no description restates a shared line the guide prints', () async {
+      final set = await resolveAgentSkills();
+      for (final type in ['skill', 'agent']) {
+        final merged = prdCoreDocType(set, type);
+        final texts = [for (final line in merged.sharedLines) line.text];
+        expect(texts, isNotEmpty, reason: type);
+        for (final description in descriptionsOf(merged)) {
+          for (final text in texts) {
+            expect(description ?? '', isNot(contains(text)), reason: type);
+          }
+        }
+      }
+    });
+
+    test('no description or template holds a YAML key line', () async {
+      final set = await resolveAgentSkills();
+      for (final type in ['skill', 'agent']) {
+        final merged = prdCoreDocType(set, type);
+        [
+          ...descriptionsOf(merged),
+          for (final section in merged.sections) section.template,
+        ].forEach(expectNoYamlKeyLine);
       }
     });
   });

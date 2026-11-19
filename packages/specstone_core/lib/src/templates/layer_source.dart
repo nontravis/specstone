@@ -7,11 +7,20 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/shared_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 
 /// The `pack.yaml` file name, relative to its pack folder.
 const packManifestName = 'pack.yaml';
+
+/// The project's shared-lines file name, relative to `.specstone/templates`.
+const projectSharedFileName = '$reservedDocTypeId.yaml';
+
+const _projectSharedKeys = {'shared_lines'};
+
+/// The personal packs folder as faults and plans print it.
+const _personalPacksFolder = '~/.specstone/packs';
 
 /// A pack whose manifest is read and checked but whose files are not parsed.
 ///
@@ -60,6 +69,15 @@ final class LoadedPack {
         kind: kind,
         files: _files,
       ),
+  };
+
+  /// Returns the text of each doc-type file, keyed by layer-relative path, in
+  /// code point order, with CRLF read as LF.
+  ///
+  /// Throws a [TemplateFault] `yaml_syntax` for a file that is not UTF-8.
+  Map<String, String> docTypeTexts() => {
+    for (final path in _docTypeNames(_paths))
+      path: decodeYamlBytes(_read(path), file: '$displayFolder/$path'),
   };
 
   /// Returns the pack's feature pattern layers, keyed by id, in code point
@@ -128,7 +146,7 @@ LoadedPack loadShippedPackManifest(String name, Map<String, Uint8List> files) {
 /// path with `/` separators. Call [LoadedPack.parseDocTypes] later to parse
 /// its doc-type files.
 LoadedPack loadPersonalPackManifest(String name, Directory home) {
-  final displayFolder = '~/.specstone/packs/$name';
+  final displayFolder = '$_personalPacksFolder/$name';
   final folder = Directory.fromUri(home.uri.resolve('.specstone/packs/$name/'));
   return LoadedPack._(
     manifest: _packManifest(displayFolder, _manifestBytes(folder)),
@@ -140,29 +158,62 @@ LoadedPack loadPersonalPackManifest(String name, Directory home) {
   );
 }
 
+/// Loads the personal packs among [manifests] from [home], in the order of
+/// [manifests].
+///
+/// A manifest read from a shipped pack is skipped. [home] is null only when
+/// [manifests] holds no personal pack.
+List<LoadedPack> loadPersonalPacks(
+  Iterable<PackManifest> manifests, {
+  required Directory? home,
+}) => [
+  for (final manifest in manifests)
+    if (manifest.file.startsWith('$_personalPacksFolder/'))
+      loadPersonalPackManifest(manifest.name, home!),
+];
+
 /// Loads the project templates under [root], in code point order.
 ///
 /// The template folder is `.specstone/templates`; faults print files relative
 /// to the project root with `/` separators. Only `<id>.yaml` files at the
-/// folder top level are doc types; other files are reference targets (Review
-/// Focus 1). Throws a [TemplateFault] for any format fault.
+/// folder top level are doc types, `shared.yaml` excepted; other files are
+/// reference targets (Review Focus 1). Throws a [TemplateFault] for any format
+/// fault.
 List<DocTypeLayer> loadProjectTemplates(Directory root) {
   const displayFolder = '.specstone/templates';
   final folder = Directory.fromUri(root.uri.resolve(displayFolder));
   if (!folder.existsSync()) return <DocTypeLayer>[];
   return [
     for (final path in _docTypeNames(_topLevelPaths(folder)))
-      DocTypeLayer.parse(
-        decodeYamlBytes(
-          readPlanInput(File.fromUri(folder.uri.resolve(path))),
+      if (path != projectSharedFileName)
+        DocTypeLayer.parse(
+          decodeYamlBytes(
+            readPlanInput(File.fromUri(folder.uri.resolve(path))),
+            file: '$displayFolder/$path',
+          ),
           file: '$displayFolder/$path',
+          docTypeId: path.substring(0, path.length - '.yaml'.length),
+          kind: LayerKind.project,
+          files: _DiskFiles(folder),
         ),
-        file: '$displayFolder/$path',
-        docTypeId: path.substring(0, path.length - '.yaml'.length),
-        kind: LayerKind.project,
-        files: _DiskFiles(folder),
-      ),
   ];
+}
+
+/// Loads the shared lines of `.specstone/templates/shared.yaml` under [root].
+///
+/// Returns none when the file is absent, holds no key, or holds `shared_lines:`
+/// with no value. Throws `unknown_key` for any other top-level key,
+/// `shared_fields` included, and a [TemplateFault] for any other format fault.
+List<SharedLine> loadProjectSharedLines(Directory root) {
+  const display = '.specstone/templates/$projectSharedFileName';
+  final file = File.fromUri(root.uri.resolve(display));
+  if (!file.existsSync()) return <SharedLine>[];
+  final map = readYamlMap(
+    decodeYamlBytes(readPlanInput(file), file: display),
+    file: display,
+  );
+  checkKeys(map, _projectSharedKeys, file: display, format: 'shared');
+  return parseSharedEntries(map, file: display, allowsFields: false).lines;
 }
 
 /// Loads the project feature patterns under [root], in code point order.
