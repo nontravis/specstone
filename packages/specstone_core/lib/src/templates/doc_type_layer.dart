@@ -855,7 +855,7 @@ FieldEntry parseFieldEntry(
   final prefix = keyByIndex ? '$keyPrefix[$index].' : '$keyPrefix.$id.';
   checkKeys(
     entry,
-    extraKeys.isEmpty ? _fieldKeys : {..._fieldKeys, ...extraKeys},
+    {..._fieldKeys, ...extraKeys},
     file: file,
     format: 'doc-type',
     prefix: prefix,

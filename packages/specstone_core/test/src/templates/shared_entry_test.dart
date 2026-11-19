@@ -186,6 +186,19 @@ shared_fields:
         );
       });
 
+      test('a line text ending in a lone CR is unknown_value', () {
+        expect(
+          () => _parse('shared_lines:\n  - id: a\n    text: "one\\r"\n'),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'shared_lines[0].text',
+              message: 'a shared line holds one line of text',
+            ),
+          ),
+        );
+      });
+
       test('a one-line text in a CRLF file is accepted', () {
         final shared = _parse(
           'shared_lines:\r\n  - id: a\r\n    text: |\r\n      One line.\r\n',

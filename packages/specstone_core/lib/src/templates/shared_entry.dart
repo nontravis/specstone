@@ -95,7 +95,7 @@ SharedEntries parseSharedEntries(
   if (!allowsFields && map.containsKey(_fieldsKey)) {
     throw TemplateFault(
       FaultCode.unknownKey,
-      'this file defines no key $_fieldsKey',
+      'the shared format defines no key $_fieldsKey',
       file: file,
       key: _fieldsKey,
     );
@@ -252,7 +252,7 @@ String _oneLine(String text, {required String file, required String key}) {
   final line = normalized.endsWith('\n')
       ? normalized.substring(0, normalized.length - 1)
       : normalized;
-  if (line.trim().isNotEmpty && !line.contains('\n')) return line;
+  if (line.trim().isNotEmpty && !line.contains(RegExp('[\r\n]'))) return line;
   throw TemplateFault(
     FaultCode.unknownValue,
     'a shared line holds one line of text',
