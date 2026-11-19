@@ -319,7 +319,15 @@ final class TemplateResolver {
       },
       mergedDocTypeIds: layerLists.keys.toSet(),
     );
-    final docTypes = _resolveInDependencyOrder(layerLists, merger, loadIndex);
+    final reach = _SharedReach(shared, [
+      for (final (:pack, layers: _) in packs) pack,
+    ]);
+    final docTypes = _resolveInDependencyOrder(
+      layerLists,
+      merger,
+      loadIndex,
+      reach,
+    );
     checkMergedSet(
       docTypes.values.toList(),
       layerLists,
@@ -410,10 +418,11 @@ final class TemplateResolver {
     Map<String, DocTypeLayers> layerLists,
     DocTypeMerger merger,
     LoadIndex loadIndex,
+    _SharedReach reach,
   ) {
     final docTypes = <String, MergedDocType>{};
     for (final id in _dependencyOrder(layerLists, loadIndex)) {
-      docTypes[id] = _mergeOne(id, layerLists[id]!, merger, docTypes);
+      docTypes[id] = _mergeOne(id, layerLists[id]!, merger, docTypes, reach);
     }
     return docTypes;
   }
@@ -523,11 +532,17 @@ final class TemplateResolver {
   /// merged target with every key kept but `id` and `path`; the
   /// base is frozen as merged. The defining layer must carry `id` and
   /// `path`, plus `description` without `extends`.
+  ///
+  /// The shared fields reaching the doc type apply right after the layer of
+  /// the pack declaring them, so a higher layer's own field of that id merges
+  /// over the shared one. A doc type with `extends` and no `description` of
+  /// its own also takes the shared lines reaching its target.
   MergedDocType _mergeOne(
     String id,
     DocTypeLayers layers,
     DocTypeMerger merger,
     Map<String, MergedDocType> merged,
+    _SharedReach reach,
   ) {
     final defining = layers.first.layer;
     final target = defining.extendsId;
@@ -535,13 +550,28 @@ final class TemplateResolver {
         ? merger.builtInBase(id)
         : _extendsBase(id, target, merged, defining);
     _checkNewDocTypeKeys(defining, target);
+    final sharedFields = reach.placeFields(id, layers);
     String? packName;
     var mergedType = base;
-    for (final (:layer, :pack) in layers) {
+    for (final (index, (:layer, :pack)) in layers.indexed) {
       mergedType = merger.apply(mergedType, layer);
       packName ??= pack?.manifest.name;
+      for (final field in sharedFields[index] ?? const <MergedSharedField>[]) {
+        mergedType = merger.applyFields(mergedType, [
+          field.entry,
+        ], file: reach.declaringFile(field));
+      }
     }
-    return mergedType.copyWith(pack: packName);
+    final writesDescription = layers.any((l) => l.layer.description != null);
+    return mergedType.copyWith(
+      pack: packName,
+      sharedLines: reach.linesFor(
+        id,
+        inheritedFrom: target == null || writesDescription
+            ? null
+            : merged[target],
+      ),
+    );
   }
 
   /// Throws `missing_key` when the defining layer of a new doc type misses
@@ -717,6 +747,67 @@ final class TemplateResolver {
       lists.putIfAbsent(layer.id, () => []).add((pack: null, layer: layer));
     }
     return lists;
+  }
+}
+
+/// Decides where the shared entries of one resolve land in each doc type.
+final class _SharedReach {
+  new(this._shared, List<LoadedPack> packs)
+    : _packsByName = {for (final pack in packs) pack.manifest.name: pack},
+      _extendsOf = extendsMapOf(packs);
+
+  final SharedSet _shared;
+  final Map<String, LoadedPack> _packsByName;
+  final Map<String, String?> _extendsOf;
+
+  /// The `pack.yaml` that declares [field].
+  String declaringFile(MergedSharedField field) =>
+      _packsByName[field.declaringPack]!.manifest.file;
+
+  /// Groups the shared fields naming [id] by the index of the layer in
+  /// [layers] each applies after, in shared order within a group.
+  ///
+  /// A field applies after the last pack layer written by its declaring pack
+  /// or a pack the declaring pack extends: the layer the declaring pack's own
+  /// file would sit in.
+  Map<int, List<MergedSharedField>> placeFields(
+    String id,
+    DocTypeLayers layers,
+  ) {
+    final placed = <int, List<MergedSharedField>>{};
+    for (final field in _shared.fieldsNaming(id)) {
+      final declaring = _packsByName[field.declaringPack]!;
+      final index = layers.lastIndexWhere((layer) {
+        final pack = layer.pack;
+        return pack != null &&
+            (pack.manifest.name == field.declaringPack ||
+                reaches(declaring, pack, extendsOf: _extendsOf));
+      });
+      assert(index != -1, 'no layer of $id sits at or under its field pack');
+      placed.putIfAbsent(index, () => []).add(field);
+    }
+    return placed;
+  }
+
+  /// The shared lines that reach [id], in print order, each id once.
+  ///
+  /// [inheritedFrom] is the merged target of a doc type that takes its
+  /// target's lines, null when the doc type takes only the lines naming it or
+  /// naming no doc type.
+  List<MergedSharedLine> linesFor(
+    String id, {
+    required MergedDocType? inheritedFrom,
+  }) {
+    final byId = {
+      for (final line in [
+        ...?inheritedFrom?.sharedLines,
+        ..._shared.linesNaming(id),
+      ])
+        line.id: line,
+    };
+    return List.unmodifiable(
+      byId.values.toList()..sort((a, b) => a.printRank.compareTo(b.printRank)),
+    );
   }
 }
 
