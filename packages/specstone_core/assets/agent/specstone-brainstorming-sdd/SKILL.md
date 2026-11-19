@@ -60,8 +60,8 @@ Dispatch nothing to write it.
 Before the approval ask, dispatch the design check as step 4 dispatches: a fresh `mode: audit` with `stage: design`,
 the document's path, and `bundles:` your saved bundle files with no doc write since, so never after an author pass.
 Amends adding or changing behavior before the ask share one check, `amend: <N>[,<N> ...]`; a later one gets its own,
-`amend: <N>`. Fix each finding by `references/design.md`; a `[behavior]` fix takes one second check, same scope. Then
-ask for approval, or, once an author pass has run, go on to the amend's author pass with no ask.
+`amend: <N>`. Fix each finding by `references/design.md`; a `[behavior]` fix follows `references/rounds.md` section 1.
+Then ask for approval, or, once an author pass has run, go on to the amend's author pass with no ask.
 
 Route each later Owner answer or change per `references/rounds.md`.
 
@@ -77,7 +77,7 @@ do not ground is an open question.
 1. After approval, dispatch `mode: author` with the document's path. Pass no doc or design text.
 2. Run the author's `Move:` commands, if any, then the amend compare of `references/rounds.md` section 2. Dispatch a
    fresh `mode: audit` with the document's path, the drafts list as its targets, and `check:` as
-   `references/rounds.md` section 3 item 4 gives.
+   `references/reaudit.md` item 4 gives.
 3. Run fix rounds on its `Findings:` lines per `references/rounds.md`.
 4. Show each author reply and the last audit's relay block; approve the drafts through the
    `specstone-expert-sdd` skill's Owner confirmation, testing both under `auto`.

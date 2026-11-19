@@ -107,11 +107,12 @@ class _Agent {
     required this.tools,
     required this.disallowedTools,
     required this.memory,
+    required this.skills,
     required this.body,
   });
 
   factory parse(AgentAsset asset) {
-    final text = asset.text;
+    final text = asset.text.replaceAll('\r\n', '\n');
     final end = text.indexOf(_frontmatterEnd);
     if (!text.startsWith(_frontmatterFence) || end < 0) {
       throw FormatException('No frontmatter in ${asset.path}');
@@ -129,12 +130,14 @@ class _Agent {
         'The name of ${asset.path} is not its file name: ${fields['name']}',
       );
     }
+    final skills = _toolsOf(fields['skills']);
     return _Agent(
       name: name,
       description: '${fields['description']}',
       tools: _toolsOf(fields['tools']),
       disallowedTools: _toolsOf(fields['disallowedTools']),
       memory: fields['memory'] as String?,
+      skills: skills == null || skills.isEmpty ? null : skills,
       body: text.substring(end + _frontmatterEnd.length),
     );
   }
@@ -146,6 +149,9 @@ class _Agent {
 
   /// The Claude Code memory scope, such as `project`; null for none.
   final String? memory;
+
+  /// The skills a Claude Code agent preloads; null for none.
+  final List<String>? skills;
   final String body;
 
   bool get isReadOnly => tools != null && !tools!.any(_writeToolNames.contains);
@@ -156,6 +162,7 @@ class _Agent {
     'tools': ?tools?.join(', '),
     'disallowedTools': ?disallowedTools?.join(', '),
     'memory': ?memory,
+    'skills': ?skills,
   }, body.replaceAll(_sourceSkillPrefix, _claudeSkillPrefix));
 
   String cursorText() => _markdown({
@@ -182,7 +189,11 @@ List<String>? _toolsOf(Object? value) => switch (value) {
 String _markdown(Map<String, Object> fields, String body) {
   final lines = [
     for (final MapEntry(:key, :value) in fields.entries)
-      '$key: ${_yamlScalar(value)}',
+      if (value is List<String>) ...[
+        '$key:',
+        for (final item in value) '  - ${_yamlScalar(item)}',
+      ] else
+        '$key: ${_yamlScalar(value)}',
   ];
   return '$_frontmatterFence${lines.join('\n')}$_frontmatterEnd$body';
 }

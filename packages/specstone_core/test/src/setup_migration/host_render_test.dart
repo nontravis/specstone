@@ -24,7 +24,7 @@ final _fixtureAssets = <AgentAsset>[
         'description: \'Looks: "only" at things\'\n'
         'tools: Bash, Read, Grep\n'
         'skills:\n'
-        '  - specstone:expert-sdd\n'
+        '  - specstone-demo\n'
         '---\n'
         '\n'
         '# Looker\n'
@@ -199,7 +199,7 @@ void main() {
       ]);
     });
 
-    test('gives the Claude Code render its keys and drops the preload', () {
+    test('gives the Claude Code render its keys and its skills list', () {
       final looker = _file(
         files,
         AgentFolder.claudeAgents,
@@ -209,6 +209,7 @@ void main() {
         'name': 'specstone-looker',
         'description': 'Looks: "only" at things',
         'tools': 'Bash, Read, Grep',
+        'skills': ['specstone-demo'],
       });
       final planner = _file(
         files,
@@ -221,6 +222,57 @@ void main() {
         'disallowedTools': 'Agent, NotebookEdit',
         'memory': 'project',
       });
+    });
+
+    test(
+      'renders no skills key on Cursor, Codex, or the host-neutral copy',
+      () {
+        for (final folder in [
+          AgentFolder.cursorAgents,
+          AgentFolder.agentsAgents,
+        ]) {
+          final looker = _file(files, folder, 'specstone-looker.md');
+          expect(_frontmatterOf(looker.text), isNot(contains('skills')));
+        }
+        final codex = _file(
+          files,
+          AgentFolder.codexAgents,
+          'specstone-looker.toml',
+        );
+        expect(
+          codex.text,
+          isNot(contains(RegExp(r'^skills\b', multiLine: true))),
+        );
+      },
+    );
+
+    test('renders no skills line for a source with an empty skills list', () {
+      final rendered = renderHostFilesOf([
+        (
+          path: 'specstone-empty.md',
+          text:
+              '---\nname: specstone-empty\ndescription: D\nskills: []\n'
+              '---\n\nBody.\n',
+        ),
+      ]);
+      for (final file in rendered) {
+        expect(file.text, isNot(contains('skills:')), reason: file.path);
+      }
+    });
+
+    test('parses a CRLF skills list', () {
+      final looker = _fixtureAssets.singleWhere(
+        (asset) => asset.path == 'specstone-looker.md',
+      );
+      final rendered = renderHostFilesOf([
+        (path: looker.path, text: looker.text.replaceAll('\n', '\r\n')),
+      ]);
+      final claude = _file(
+        rendered,
+        AgentFolder.claudeAgents,
+        'specstone-looker.md',
+      );
+      expect(_frontmatterOf(claude.text)['skills'], ['specstone-demo']);
     });
 
     test(

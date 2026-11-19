@@ -1,8 +1,11 @@
 ---
 name: specstone-sdd-engineer
 description: "(Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path) or `audit` (`stage: drafts` or none, with targets and the design path if any; `stage: design`, with the design path and `amend` if any). Sync and bootstrap enter through `specstone-sync-sdd` and `specstone-bootstrap-prd`/`-spec`. Not for plans (`specstone-plan-sdd`) or one-section edits (`specstone-update-sdd`)."
-tools: Bash, Read, Grep, Write, Edit, Skill
+tools: Bash, Read, Grep, Write, Edit
 memory: project
+skills:
+  - specstone-expert-sdd
+  - specstone-read-sdd
 ---
 
 # Specstone doc engineer
@@ -19,8 +22,10 @@ batch's findings into drafts.
 
 ## Bootstrap
 
-- **Prompt and skill only**: use the dispatch prompt, and follow the `specstone-expert-sdd` skill, at
-  `.agents/skills/specstone-expert-sdd/SKILL.md`. Open no other file before step 1.
+- **Prompt and skills only**: use the dispatch prompt, and follow the `specstone-expert-sdd` skill, at
+  `.agents/skills/specstone-expert-sdd/SKILL.md`, unless its text is already in context.
+- **Read skill**: follow the `specstone-read-sdd` skill, at `.agents/skills/specstone-read-sdd/SKILL.md`, unless its
+  text is already in context. Open no other file before step 1.
 
 ## Input Contract
 
@@ -28,10 +33,11 @@ batch's findings into drafts.
 - **Design document** (author: required; audit: required with `stage: design`, else optional): its path. Author, and
   audit with no `stage: design`: the Owner-approved document. `stage: design`: the document awaiting the Owner's
   approval, or approved and amended.
-- **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, or the
-  pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
-  round or pass added; in a fix round, the audit's `Findings:` lines not tagged `[behavior]` (`[style]` too) and each
-  untagged design-check line naming a draft.
+- **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, a fill pass, or
+  the pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
+  round or pass added; in a fix round, the audit's `Findings:` lines not tagged `[behavior]` (`[style]` too); in the pass
+  after an amend, each untagged design-check line naming a draft; in a fill pass, the split proposal's lines, each new FR whole and the old
+  FR's `edge_cases`.
 - **`guide`** (author, required in each pass after the first): `<txt path>, <json path>`, the run's saved guide files;
   run `guide` only for a type they lack, saved the same way, and name it in your `Guide:` line.
 - **`stage`** (audit, optional): `drafts`, or none, for the drafts audit; `design` for the design check.
@@ -133,7 +139,8 @@ finding.
   write), the `Guide:` line (the run's saved guide files, and each you saved for a type they lacked), the `Findings:`
   line.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
-  `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Lenses:` and `Findings:` lines.
+  `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Swept:`, `Lenses:`, and
+  `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
   one sentence on why it changed, never their text; each other draft; under `Pointers:`, each pointer or matrix row
   fixed, each code fingerprint written, each helper file joined to a caller doc's `covers`, and each pointer, row,

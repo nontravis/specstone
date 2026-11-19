@@ -2,7 +2,7 @@
 
 ## 1. Design: an amend that removes a decision
 
-`design.md` reads this for an amend that removes a decision, before the dependents steps run on its terms.
+`design.md` reads this for an amend that removes a decision, before the decision's owner doc and terms are named.
 
 - **Read first**: read each doc its rows name in the saved files; the doc's text, not its rows, shows what the
   decision wrote. A doc the removal empties (no other decision's text left, or a required section or field emptied)
