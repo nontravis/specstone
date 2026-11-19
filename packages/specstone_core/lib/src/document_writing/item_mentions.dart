@@ -340,7 +340,7 @@ OwnerDoc? _ownerOf(
   String holderDocPath,
   IndexedDoc ownDoc,
 ) {
-  if (readItemId(id.id, scenarioRefPrefix) is! ItemId) {
+  if (!_isScenarioRef(id.id)) {
     return ownerDocOf(index, id, holderDocPath: holderDocPath, ownDoc: ownDoc);
   }
   final citation = id.citation;
@@ -348,6 +348,9 @@ OwnerDoc? _ownerOf(
   final cited = citedDocOf(index, citation, holderDocPath);
   return cited == null ? null : OwnerDoc(doc: cited, isOwnDoc: false);
 }
+
+/// Whether [id] reads as a scenario ref, `S` and a number.
+bool _isScenarioRef(String id) => readItemId(id, scenarioRefPrefix) is ItemId;
 
 /// Whether the bare ID [id], owned by [owner], is one the move leaves a mention
 /// for; [span] is the moved item that holds it.
