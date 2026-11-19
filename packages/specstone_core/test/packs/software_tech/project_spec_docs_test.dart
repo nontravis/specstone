@@ -260,9 +260,16 @@ void main() {
     expect(fieldsOf(projectDomain), fieldsOf(domain));
     expect(fieldsOf(projectDomain), [
       containsPair('default_from', 'entities'),
-      containsPair('optional', true),
+      allOf(
+        containsPair('optional', true),
+        containsPair('values', ['eventual']),
+      ),
       containsPair('when', isNotNull),
     ]);
+    expect(
+      sectionOf(projectDomain, 'invariants').description,
+      isNot(contains('- **Consistency:** immediate')),
+    );
     expect(
       projectDomain.sections.map((s) => s.id),
       isNot(contains('corrective_policies')),

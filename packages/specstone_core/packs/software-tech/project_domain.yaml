@@ -25,14 +25,7 @@ sections:
     description: |-
       Write this section only when the project defines a value object.
       Write a table with the columns VO, Backed by, Validation.
-      Make each value object immutable.
-  - id: invariants
-    description: |-
-      Write each invariant as `- **INV-<N>** <rule>`, never a numbered item; IDs are append-only, never reused.
-      Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
-      Under an eventual invariant, nest `- **Corrective policy:** <how the system restores the rule>` too.
-      Keep a bound (`timeout 10 s`) in the invariant it bounds; mechanics to ARCHITECTURE, unhandled cases to `known_limits`.
-      Write no trace tag, since the `reference` field holds the trace; a cite or ownership note may close an invariant.
+      Make each value object immutable; state its shape in Validation, and link an invariant for any rule on it.
   - id: data_touch
     description: |-
       Write a table with the columns Table, Operation, Field / Change; write one row per table the project touches.
