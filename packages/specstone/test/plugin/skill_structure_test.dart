@@ -345,10 +345,19 @@ void _frontmatterTests() {
     expect(tools, isNot(anyOf(contains('Write'), contains('Edit'))));
   });
 
-  test('the engineer has no skills key', () {
+  test('the engineer source preloads expert-sdd and read-sdd and lists no '
+      'Skill tool', () {
     final text = _pluginText('specstone-sdd-engineer.md');
     final head = text.substring(0, text.indexOf('\n---\n', 4));
-    expect(head, isNot(contains('\nskills:')));
+    final skills = RegExp(r'^skills:\n((?:  - .+\n?)+)', multiLine: true)
+        .firstMatch(head)
+        ?.group(1)
+        ?.split('\n')
+        .where((line) => line.isNotEmpty)
+        .map((line) => line.replaceFirst('  - ', '').trim())
+        .toList();
+    expect(skills, ['specstone-expert-sdd', 'specstone-read-sdd']);
+    expect(_toolsOf(text, 'tools'), isNot(contains('Skill')));
   });
 }
 
@@ -1178,7 +1187,8 @@ void _runsOnEveryHostTests() {
   });
 
   test('each render of the sdd-engineer holds one line telling it to follow '
-      'specstone-expert-sdd, and no preload', () {
+      'specstone-expert-sdd, and a skills preload only in the Claude Code '
+      'render', () {
     final renders = contentFiles()
         .where((file) => file.path.contains('specstone-sdd-engineer.'))
         .toList();
@@ -1192,8 +1202,13 @@ void _runsOnEveryHostTests() {
         reason: render.path,
       );
       expect(
-        render.frontmatter,
-        isNot(contains('\nskills:')),
+        'specstone-read-sdd/SKILL.md'.allMatches(render.body),
+        hasLength(1),
+        reason: render.path,
+      );
+      expect(
+        (render.frontmatter ?? '').contains('\nskills:'),
+        !render.path.contains('/') || render.path.contains('.claude/agents/'),
         reason: render.path,
       );
     }

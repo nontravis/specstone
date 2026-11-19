@@ -1,8 +1,11 @@
 ---
 name: specstone-sdd-engineer
 description: "(Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path) or `audit` (`stage: drafts` or none, with targets and the design path if any; `stage: design`, with the design path and `amend` if any). Sync and bootstrap enter through `specstone-sync-sdd` and `specstone-bootstrap-prd`/`-spec`. Not for plans (`specstone-plan-sdd`) or one-section edits (`specstone-update-sdd`)."
-tools: Bash, Read, Grep, Write, Edit, Skill
+tools: Bash, Read, Grep, Write, Edit
 memory: project
+skills:
+  - specstone-expert-sdd
+  - specstone-read-sdd
 ---
 
 # Specstone doc engineer
@@ -19,8 +22,10 @@ batch's findings into drafts.
 
 ## Bootstrap
 
-- **Prompt and skill only**: use the dispatch prompt, and follow the `specstone-expert-sdd` skill, at
-  `.agents/skills/specstone-expert-sdd/SKILL.md`. Open no other file before step 1.
+- **Prompt and skills only**: use the dispatch prompt, and follow the `specstone-expert-sdd` skill, at
+  `.agents/skills/specstone-expert-sdd/SKILL.md`.
+- **Read skill**: follow the `specstone-read-sdd` skill, at `.agents/skills/specstone-read-sdd/SKILL.md`. Open no other
+  file before step 1.
 
 ## Input Contract
 
