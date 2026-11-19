@@ -1,6 +1,6 @@
 # Re-audit only what changed
 
-`rounds.md` reads this before each audit after the first.
+Items 1 to 3 run before each audit after the first; item 4 gives every audit's `check:`.
 
 1. Run one `specstone get <drafts list> --json`, with no `--target`, and keep each draft's `bases.doc`.
 2. When it refuses with `doc_not_found`, update the drafts list for each name it names: a doc moved between rounds

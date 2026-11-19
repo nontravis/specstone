@@ -17,7 +17,8 @@ words or records one.
   second check, the first's scope plus any amend the fix opened, never a third. Decide a `[behavior]` line of either
   check only when its answer stays inside the Owner's goals, rulings, and picked approach; any other line is the
   Owner's, and an Owner answer that adds behavior takes a numbered amend and its check. List a second check's
-  `[behavior]` line, decided or the Owner's, with the ask or before the author pass; the Owner answers it there.
+  `[behavior]` line, decided or the Owner's, with the ask or before the author pass; only the Owner's line waits
+  for the Owner there.
 - **Before the author**: after an append, or an amend and its check, ask for the approval again. When the design
   document holds open questions, gather the Owner's answers, append each that only words or records one, send the
   rest to one amend and its check, and ask for the approval only after it.
