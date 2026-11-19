@@ -162,6 +162,7 @@ void main() {
           ...softwareTechIds,
           ...softwareDesignSystemIds,
           'skill',
+          'agent',
           ...marketingIds,
           ...personalBrandingIds,
         ]..sort(),

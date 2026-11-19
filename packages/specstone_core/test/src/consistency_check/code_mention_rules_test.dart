@@ -11,11 +11,11 @@ import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/agent_skills.dart' show skillDocText;
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
-import '../../helpers/skill_doc_fixture.dart' show skillPinsConfig;
+import '../../helpers/skill_doc_fixture.dart'
+    show skillDocFile, skillPinsConfig;
 import '../../helpers/target_fixture.dart';
 
 const _fr = 'login/email_login/check_password';
@@ -31,12 +31,13 @@ List<String> _cited(CheckReport report) => [
 const _seededReference =
     'skills/review/references/specs/design_system/TOKENS.md';
 
-/// The files of a skill doc with [output], its skill file and reference file
-/// each naming a doc, beside two skills' files that are not its references.
-Map<String, String> _skillFiles(String output) => {
+/// The files of a skill doc covering `skills/review/`, its skill file and
+/// reference file each naming a doc, beside two skills' files that are not its
+/// references.
+Map<String, String> _skillFiles() => {
   '.specstone/config.yaml': skillPinsConfig(),
   ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
-  'docs/specs/skills/review.md': skillDocText(output: output),
+  ...skillDocFile(['skills/review/']),
   'skills/review/SKILL.md': 'Use `feature:login`.\n',
   _seededReference: 'Use `feature:login`.\n',
   'skills/review-x/references/NOTES.md': 'Use `feature:login`.\n',
@@ -235,7 +236,7 @@ void main() {
       'a markdown file in a skill folder is read like any code file',
       () async {
         final report = await checkOf(
-          await writeCheckProject(extra: _skillFiles('skills/review/')),
+          await writeCheckProject(extra: _skillFiles()),
         );
         expect(_cited(report), [
           'skills/other/references/NOTES.md:1 feature:login',

@@ -4,16 +4,6 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'shipped_pins.dart';
 import 'temp_tree.dart';
 
-/// Returns a skill doc with [output] whose Sources section lists [sources],
-/// each a markdown link.
-String skillDocText({
-  String output = '.claude/skills/review/',
-  List<String> sources = const [],
-}) =>
-    '---\noutput: $output\ncovers:\n  - ${output}SKILL.md\n---\n\n'
-    '# review\n\n## Purpose\n\nReviews the UI.\n\n'
-    '## Sources\n\n${[for (final source in sources) '- $source\n'].join()}';
-
 /// Resolves a temp project that pins the shipped `prd-core` and
 /// `agent-skills`, plus any other shipped pack in [extraPacks].
 ///

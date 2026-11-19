@@ -1510,6 +1510,30 @@ items:
     });
   });
 
+  group('specstone guide agent in the built CLI', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    test('guide agent refuses in a project without the pack', () async {
+      final project = await writeTree({
+        _configPath: shippedPinsConfig(['prd-core']),
+      });
+
+      final result = await Process.run(binary, [
+        'guide',
+        'agent',
+      ], workingDirectory: project.path);
+
+      expect(result.exitCode, 64);
+      expect(
+        result.stderr,
+        contains('Could not find a doc type named "agent".\n\n$_guideUsage'),
+      );
+      expect(result.stdout, isEmpty);
+    });
+  });
+
   group('specstone guide in the built CLI with a field lint', () {
     late String binary;
 
@@ -1864,6 +1888,7 @@ items:
             ...marketingIds,
             ...personalBrandingIds,
             'skill',
+            'agent',
           ]..sort(),
         );
         expect(err.toString(), isEmpty);
@@ -2078,17 +2103,17 @@ items:
       expect(await runner.run(['guide']), 0);
       expect(
         const LineSplitter().convert(out.toString()),
-        [...prdCoreIds, 'skill']..sort(),
+        [...prdCoreIds, 'skill', 'agent']..sort(),
       );
 
       out.clear();
       expect(await runner.run(['guide', 'skill']), 0);
-      expect(out.toString(), contains('## Sources\n\nRequired section.\n'));
+      expect(out.toString(), contains('## Acceptance\n\nRequired section.\n'));
       expect(err.toString(), isEmpty);
     });
 
-    test('guide skill --json prints its path, output, feature, and sources '
-        'section', () async {
+    test('guide skill --json prints its path, covers, feature, and five '
+        'sections', () async {
       final runner = await runnerFor(
         packs: shippedPinsConfig(['prd-core', 'agent-skills']),
       );
@@ -2097,7 +2122,8 @@ items:
       expect(schema['path'], 'specs/skills/{slug}.md');
       final fields = (schema['fields']! as List<Object?>)
           .cast<Map<String, Object?>>();
-      expect(fields.map((f) => f['id']), containsAll(['output', 'feature']));
+      expect(fields.map((f) => f['id']), containsAll(['covers', 'feature']));
+      expect(fields.map((f) => f['id']), isNot(contains('output')));
       final covers = fields.singleWhere((f) => f['id'] == 'covers');
       expect(covers['root'], 'project');
       final sections = (schema['sections']! as List<Object?>)
@@ -2105,7 +2131,9 @@ items:
       expect(sections.map((s) => s['id']), [
         'purpose',
         'when_to_use',
-        'sources',
+        'boundaries',
+        'acceptance',
+        'inputs',
       ]);
     });
 

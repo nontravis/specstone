@@ -92,6 +92,18 @@ Future<Directory> _skillProject(List<String> covers) => writeCheckProject(
   unfingerprinted: {'docs/$skillDoc'},
 );
 
+/// The check fixture with no record, plus the agent doc covering [covers] as
+/// written and its agent file.
+Future<Directory> _agentProject(List<String> covers) => writeCheckProject(
+  extra: {
+    '.specstone/config.yaml': skillPinsConfig(),
+    ...agentDocFile(covers),
+    agentFile: agentText,
+  },
+  without: {_recordPath},
+  unfingerprinted: {'docs/$agentDoc'},
+);
+
 /// Returns the architecture doc of the fixture covering [covers].
 Map<String, String> _covering(String covers) =>
     doc(loginArchitecture, '  - app/lib/\n', covers);
@@ -862,6 +874,22 @@ void main() {
         'fingerprint': skillFingerprint,
       });
     });
+
+    test(
+      'an agent file changed after its fingerprint gives code_suspect',
+      () async {
+        final report = await _run(await _agentProject(['$agentFile $_stale']));
+        final [finding] = _suspects(report);
+
+        expect(finding.path, agentDoc);
+        expect(finding.keys, {
+          'entry': agentFile,
+          'path': agentFile,
+          'recorded': _stale,
+          'fingerprint': _fingerprintOf(agentText, agentFile),
+        });
+      },
+    );
 
     test('that records no fingerprint gives code_unconfirmed in a project '
         'with no record', () async {

@@ -935,6 +935,26 @@ void main() {
       }
     });
 
+    test(
+      'an agent covers entry naming nothing is covers_path_missing',
+      () async {
+        const goneAgent = '.claude/agents/gone.md';
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: {
+              '.specstone/config.yaml': skillPinsConfig(),
+              ...agentDocFile([agentFile, goneAgent]),
+              agentFile: agentText,
+            },
+          ),
+        );
+
+        expect(_of(report, FindingKind.coversPathMissing), [
+          '$agentDoc: $goneAgent',
+        ]);
+      },
+    );
+
     test('with two targets gives no shared_doc_code_path, while a missing '
         'entry and a changed file of the same doc still report', () async {
       final project = await _twin(
