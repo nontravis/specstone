@@ -1626,6 +1626,30 @@ shared_lines:
       ]);
     });
 
+    test(
+      'a type with a blank own description starts with its shared line',
+      () async {
+        final api = await resolveApi(projectLayer);
+        final blank = MergedDocType(
+          id: api.id,
+          fields: api.fields,
+          sections: api.sections,
+          lint: api.lint,
+          files: api.files,
+          sharedLines: api.sharedLines,
+        );
+
+        expect(
+          blank.renderGuide(),
+          startsWith('Say each thing once, short.\n'),
+        );
+        expect(
+          blank.toJson()['description'],
+          'Say each thing once, short.\nName the status code.\nCite by link.',
+        );
+      },
+    );
+
     test('a type with no shared line prints its own text alone', () async {
       final api = await resolveApi({
         'shared.yaml':
