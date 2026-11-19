@@ -291,6 +291,19 @@ shared_fields:
         );
       });
 
+      test('a shared field with the id retrim is refused at its id', () {
+        expect(
+          () => _parse('shared_fields:\n  - id: retrim\n    type: string\n'),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'shared_fields[0].id',
+              message: 'a shared field takes no built-in field id: retrim',
+            ),
+          ),
+        );
+      });
+
       test('the field id patterns is unknown_value at its id', () {
         expect(
           () => _parse('shared_fields:\n  - id: patterns\n    type: string\n'),

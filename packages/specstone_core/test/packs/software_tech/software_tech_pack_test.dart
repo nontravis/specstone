@@ -103,7 +103,14 @@ const _fieldIds = <String, List<String>>{
   'topic': [..._builtIns, 'covers', 'overrides', 'tasks'],
 };
 
-const _builtIns = ['slug', 'status', 'draft', 'approved', 'reference'];
+const _builtIns = [
+  'slug',
+  'status',
+  'draft',
+  'approved',
+  'reference',
+  'retrim',
+];
 
 /// The file rule a doc type no shared one-file line reaches keeps on a line of
 /// its own, in place of a line target.

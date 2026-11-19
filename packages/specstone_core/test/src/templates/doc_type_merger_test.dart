@@ -95,7 +95,7 @@ List<String> ids(Iterable<Object> entries) => [
 
 void main() {
   group('DocTypeMerger.builtInBase', () {
-    test('a doc type with no fields still holds the five built-ins in '
+    test('a doc type with no fields still holds the six built-ins in '
         'order', () {
       final merged = merger.apply(
         merger.builtInBase('runbook'),
@@ -108,6 +108,7 @@ void main() {
         'draft',
         'approved',
         'reference',
+        'retrim',
       ]);
       expect(merged.fields.map((f) => f.type), [
         FieldType.string,
@@ -115,6 +116,7 @@ void main() {
         FieldType.boolean,
         FieldType.string,
         FieldType.docRef,
+        FieldType.string,
       ]);
       expect(merged.fields.map((f) => f.list), [
         true,
@@ -122,11 +124,40 @@ void main() {
         false,
         false,
         true,
+        true,
       ]);
       expect(merged.fields[1].enumValues, [
         'planned',
         'implemented',
         'deprecated',
+      ]);
+    });
+
+    test('every merged doc type carries retrim as a built-in string list', () {
+      final retrim = merger
+          .builtInBase('x')
+          .fields
+          .singleWhere((f) => f.id == 'retrim');
+
+      expect(retrim.type, FieldType.string);
+      expect(retrim.list, isTrue);
+      expect(retrim.isBuiltIn, isTrue);
+
+      final newProjectType = merger.apply(
+        merger.builtInBase('runbook'),
+        layer(
+          'description: Runbook\n',
+          kind: LayerKind.project,
+          docTypeId: 'runbook',
+        ),
+      );
+      expect(ids(newProjectType.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'retrim',
       ]);
     });
   });
@@ -226,6 +257,7 @@ void main() {
         'draft',
         'approved',
         'reference',
+        'retrim',
       ]);
     });
 
@@ -266,6 +298,7 @@ void main() {
         'draft',
         'approved',
         'reference',
+        'retrim',
       ]);
     });
 
@@ -384,6 +417,7 @@ void main() {
         'draft',
         'approved',
         'reference',
+        'retrim',
         'owner',
         'size',
       ]);
@@ -554,7 +588,14 @@ sections:
       expect(merged.path, 'docs/prds/{slug}/FEATURE.md');
     });
 
-    for (final id in ['slug', 'status', 'draft', 'approved', 'reference']) {
+    for (final id in [
+      'slug',
+      'status',
+      'draft',
+      'approved',
+      'reference',
+      'retrim',
+    ]) {
       test('disabling the built-in $id is '
           'locked_field_disabled', () {
         expect(
@@ -632,9 +673,16 @@ sections:
       );
     });
 
-    test('disabling any of the five built-in fields is locked_field_disabled '
+    test('disabling any of the six built-in fields is locked_field_disabled '
         'naming the file and the field, exit 78', () {
-      for (final id in ['slug', 'status', 'draft', 'approved', 'reference']) {
+      for (final id in [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'retrim',
+      ]) {
         expect(
           () => project(shipped(), 'fields: [{id: $id, disabled: true}]'),
           throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.$id')),
@@ -678,6 +726,43 @@ sections:
           reason: entry,
         );
       }
+    });
+
+    test('a layer that disables retrim, changes its type, or writes list or '
+        'enum on it is refused', () {
+      for (final entry in [
+        '{id: retrim, disabled: true}',
+        '{id: retrim, type: integer}',
+        '{id: retrim, list: true}',
+        '{id: retrim, enum: [a]}',
+      ]) {
+        expect(
+          () => project(shipped(), 'fields: [$entry]'),
+          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.retrim')),
+          reason: entry,
+        );
+      }
+    });
+
+    test('a layer that changes the description of retrim is accepted', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: retrim, description: Sections marked for a trim}]',
+      );
+
+      final retrim = merged.fields.singleWhere((f) => f.id == 'retrim');
+      expect(retrim.description, 'Sections marked for a trim');
+      expect(retrim.type, FieldType.string);
+      expect(retrim.list, isTrue);
+    });
+
+    test('a layer that declares retrim as a string field merges as an '
+        'override', () {
+      final merged = project(shipped(), 'fields: [{id: retrim, type: string}]');
+
+      final retrim = merged.fields.singleWhere((f) => f.id == 'retrim');
+      expect(retrim.type, FieldType.string);
+      expect(retrim.list, isTrue);
     });
 
     test('clearing a parent the base has is '

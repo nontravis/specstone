@@ -135,6 +135,7 @@ final s02FeatureJson = <String, Object>{
       'list': true,
       'description': 'Reference docs the doc cites.',
     },
+    {'id': 'retrim', 'type': 'string', 'list': true},
     {
       'id': 'summary',
       'type': 'string',
@@ -547,6 +548,7 @@ sections:
         'draft',
         'approved',
         'reference',
+        'retrim',
       ]);
     });
 

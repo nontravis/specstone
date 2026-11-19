@@ -2,7 +2,10 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-const _approvedId = 'approved';
+/// The built-in fields that take no `enum` or `list` from a layer: only
+/// `approve` and the stamps write `approved`, and a pack migration alone
+/// marks `retrim`.
+const _shapeLockedIds = {'approved', 'retrim'};
 
 /// Returns [base] with [write] applied, or [base] when [write] is null.
 ///
@@ -592,15 +595,14 @@ final class DocTypeMerger {
 
   void _checkLocked(MergedField current, FieldEntry entry, String file) {
     final changesType = entry.type != null && entry.type != current.type;
-    // Only `approve` and the stamps write `approved`, so it takes no shape.
-    final shapesApproved =
-        current.id == _approvedId &&
-        (entry.enumValues != null || entry.list != null);
-    if (!entry.disabled && !changesType && !shapesApproved) return;
+    final shapeLocked = _shapeLockedIds.contains(current.id);
+    final changesShape =
+        shapeLocked && (entry.enumValues != null || entry.list != null);
+    if (!entry.disabled && !changesType && !changesShape) return;
     throw TemplateFault(
       FaultCode.lockedFieldDisabled,
       'the built-in field ${entry.id} cannot be disabled or change its type'
-      '${shapesApproved ? '; approved takes no enum or list' : ''}',
+      '${changesShape ? '; ${entry.id} takes no enum or list' : ''}',
       file: file,
       key: 'fields.${entry.id}',
     );
