@@ -3,8 +3,12 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart'
+    show fingerprintFor;
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart'
+    show shippedPinsConfig;
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -13,6 +17,34 @@ Map<String, List<int>> _docsBytes(Directory root) => {
   for (final MapEntry(:key, :value) in treeBytes(root).entries)
     if (key.startsWith('docs/')) key: value,
 };
+
+const _dropLink = '../us02_drop_item/USER_STORY.md';
+const _dropEdge =
+    '1. E01 — A sold-out item, as [drop]($_dropLink) shows → refused.';
+const _rowLiteral = '`refuses a sold-out item`';
+
+String _perFrRow(String fingerprint) =>
+    '- add_item/check_stock: $_rowLiteral $fingerprint';
+
+String _contractOf(String edgeCase) =>
+    '## Statement\n\n$checkStockStatement\n\n## Edge cases\n\n$edgeCase';
+
+/// Writes the nested project whose FR holds a link to the drop story and whose
+/// record holds one per-FR row stamped with the FR's contract block.
+Future<Directory> _perFrProject() => writeNestedProject(
+  extra: {
+    'docs/$cartAddFr': nestedFiles()['docs/$cartAddFr']!.replaceFirst(
+      '1. E01 — A sold-out item → refused.',
+      _dropEdge,
+    ),
+    ...nestedRecords(),
+    '.specstone/config.yaml':
+        '${shippedPinsConfig()}verification_coverage: fr\n',
+    cartRecord:
+        '${nestedRecords()[cartRecord]}\n## Verification matrix\n\n'
+        '${_perFrRow(fingerprintFor(_contractOf(_dropEdge)))}\n',
+  },
+);
 
 void main() {
   test('reorder takes a bare name one doc carries', () async {
@@ -27,6 +59,26 @@ void main() {
       startsWith(
         'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us01_reset_password/\n',
       ),
+    );
+  });
+
+  test('re-stamps a matched per-FR row after a reorder link rewrite', () async {
+    final root = await _perFrProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:shop/cart/drop_item',
+        '--to',
+        '1',
+      ]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    final reordered = _dropEdge.replaceAll('us02_drop_item', 'us01_drop_item');
+    expect(
+      readDoc(root, cartRecord),
+      endsWith('${_perFrRow(fingerprintFor(_contractOf(reordered)))}\n'),
     );
   });
 

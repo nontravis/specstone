@@ -6,9 +6,17 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart'
     show fingerprintFor, writeCheckProject;
 import '../../../../specstone_core/test/helpers/nested_fixture.dart'
-    show writeNestedProject;
+    show
+        cartAddFr,
+        cartRecord,
+        checkStockStatement,
+        nestedFiles,
+        nestedRecords,
+        writeNestedProject;
 import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart'
+    show shippedPinsConfig;
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
@@ -16,6 +24,34 @@ import '../../helpers/write_runner.dart';
 /// Returns every file and folder under the docs of [root] by its bytes.
 Map<String, List<int>> _docsOf(Directory root) =>
     treeBytes(root)..removeWhere((path, _) => !path.startsWith('docs/'));
+
+const _dropLink = '../us02_drop_item/USER_STORY.md';
+const _dropEdge =
+    '1. E01 — A sold-out item, as [drop]($_dropLink) shows → refused.';
+const _rowLiteral = '`refuses a sold-out item`';
+
+String _perFrRow(String fingerprint) =>
+    '- add_item/check_stock: $_rowLiteral $fingerprint';
+
+String _contractOf(String edgeCase) =>
+    '## Statement\n\n$checkStockStatement\n\n## Edge cases\n\n$edgeCase';
+
+/// Writes the nested project whose FR holds a link to the drop story and whose
+/// record holds one per-FR row stamped with the FR's contract block.
+Future<Directory> _perFrProject() => writeNestedProject(
+  extra: {
+    'docs/$cartAddFr': nestedFiles()['docs/$cartAddFr']!.replaceFirst(
+      '1. E01 — A sold-out item → refused.',
+      _dropEdge,
+    ),
+    ...nestedRecords(),
+    '.specstone/config.yaml':
+        '${shippedPinsConfig()}verification_coverage: fr\n',
+    cartRecord:
+        '${nestedRecords()[cartRecord]}\n## Verification matrix\n\n'
+        '${_perFrRow(fingerprintFor(_contractOf(_dropEdge)))}\n',
+  },
+);
 
 void main() {
   test('rename takes a bare name one doc carries', () async {
@@ -529,6 +565,25 @@ void main() {
         expect(File('${root.path}/$note').readAsStringSync(), text);
       },
     );
+
+    test('prints a record the re-stamp alone changes under dry run', () async {
+      final root = await _perFrProject();
+      final before = readDoc(root, cartRecord);
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:shop/cart/drop_item',
+          '--to',
+          'remove_item',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), contains('rewrites $cartRecord\n'));
+      expect(readDoc(root, cartRecord), before);
+    });
 
     test('--json prints moved, rewritten, mentions, and dryRun true', () async {
       final (:runner, :out, :err) = writeRunner(await writeWriteProject());
