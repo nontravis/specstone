@@ -264,7 +264,7 @@ final class CleanDraftJudge {
     required AuditSequence? audit,
     required bool noAudit,
     required List<ReportFile> authors,
-    String? unreadableReason,
+    required String? unreadableReason,
   }) : _findings = findings,
        _audit = audit,
        _noAudit = noAudit,

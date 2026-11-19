@@ -23,8 +23,23 @@ String _notLandedIn(String file) => 'Not landed line in $file';
 String _unreadable(String path, String os) => 'report $path unreadable: $os';
 const _noAuditReason = 'no audit report names it';
 
+/// The line ending the report text of the running test is written with.
+String Function(String) _lineEnding = (text) => text;
+
+String _crlf(String text) =>
+    text.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
+
+/// Runs [body] with LF report text, then again with CRLF report text.
+void _reportTest(String name, void Function() body) => test(name, () {
+  addTearDown(() => _lineEnding = (text) => text);
+  for (final ending in <String Function(String)>[(text) => text, _crlf]) {
+    _lineEnding = ending;
+    body();
+  }
+});
+
 ReportFile _file(String text, {String path = 'reports/audit1.md'}) =>
-    ReportFile(path: path, text: text);
+    ReportFile(path: path, text: _lineEnding(text));
 
 AuditSequence _sequence(List<String> texts) => AuditSequence.parse([
   for (var i = 0; i < texts.length; i++)
@@ -45,22 +60,11 @@ CleanDraftJudge _judge({
   unreadableReason: unreadableReason,
 );
 
-String _crlf(String text) =>
-    text.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
-
-/// Judges [text] as LF and as CRLF, which must agree; returns the reason.
 String? _reasonForAudit(
   String text, {
   JudgedDraft? draft,
   List<String> later = const [],
-}) {
-  final lf = _judge(audit: _sequence([text, ...later]))
-      .reasonFor(draft ?? _draft);
-  final crlf = _judge(audit: _sequence([_crlf(text), ...later.map(_crlf)]))
-      .reasonFor(draft ?? _draft);
-  expect(crlf, lf, reason: 'CRLF text reads as its LF copy');
-  return lf;
-}
+}) => _judge(audit: _sequence([text, ...later])).reasonFor(draft ?? _draft);
 
 Finding _finding(
   FindingKind kind, {
@@ -71,7 +75,7 @@ Finding _finding(
 
 void main() {
   group('Report lines', () {
-    test('reads an Audited line per part', () {
+    _reportTest('reads an Audited line per part', () {
       final audit = _sequence([
         _audited(_name, _otherHash),
         _audited(_name, _hash),
@@ -88,7 +92,7 @@ void main() {
       );
     });
 
-    test('splits parts at every round heading line', () {
+    _reportTest('splits parts at every round heading line', () {
       final earlier = [
         '## Round 1',
         _audited(_name, _otherHash),
@@ -124,21 +128,29 @@ void main() {
       );
     });
 
-    test('keeps lines before the first round heading as their own part', () {
-      final preamble = [
-        _audited(_name, _hash),
-        'Findings:',
-        '- $_name is broken',
-        '## Round 1',
-        _audited('fr:other', _otherHash),
-      ].join('\n');
-      expect(_reasonForAudit(preamble), _namedIn('Findings', 'audit1.md'));
+    _reportTest(
+      'keeps lines before the first round heading as their own part',
+      () {
+        final preamble = [
+          _audited(_name, _hash),
+          'Findings:',
+          '- $_name is broken',
+          '## Round 1',
+          _audited('fr:other', _otherHash),
+        ].join('\n');
+        expect(_reasonForAudit(preamble), _namedIn('Findings', 'audit1.md'));
 
-      final blank = ['', '  ', '## Round 1', _audited(_name, _hash)].join('\n');
-      expect(_reasonForAudit(blank), isNull);
-    });
+        final blank = [
+          '',
+          '  ',
+          '## Round 1',
+          _audited(_name, _hash),
+        ].join('\n');
+        expect(_reasonForAudit(blank), isNull);
+      },
+    );
 
-    test('drops a byte order mark and carriage returns', () {
+    _reportTest('drops a byte order mark and carriage returns', () {
       final lf = [
         _audited(_name, _hash),
         'Findings:',
@@ -154,7 +166,7 @@ void main() {
       expect(_reasonForAudit(clean), isNull);
     });
 
-    test('continues an item on an indented raw line', () {
+    _reportTest('continues an item on an indented raw line', () {
       final named = [
         _audited(_name, _hash),
         'Findings:',
@@ -197,7 +209,7 @@ void main() {
       expect(_reasonForAudit(blankIndent), _namedIn('Findings', 'audit1.md'));
     });
 
-    test('reads an unknown line inside a section as an item', () {
+    _reportTest('reads an unknown line inside a section as an item', () {
       final plain = [
         _audited(_name, _hash),
         'Findings:',
@@ -224,7 +236,7 @@ void main() {
       expect(_reasonForAudit(outside), isNull);
     });
 
-    test('keeps a line led by a hash that is no heading as an item', () {
+    _reportTest('keeps a line led by a hash that is no heading as an item', () {
       for (final line in [
         '#1 $_name is wrong',
         '####### $_name',
@@ -248,30 +260,33 @@ void main() {
       }
     });
 
-    test('splits parts at a round heading line inside a fenced block', () {
-      final text = [
-        _audited(_name, _hash),
-        'Findings:',
-        '```',
-        '## Round 2',
-        '```',
-        '- $_name is broken',
-      ].join('\n');
-      // The heading splits the part, so no section is open after it.
-      expect(_reasonForAudit(text), isNull);
+    _reportTest(
+      'splits parts at a round heading line inside a fenced block',
+      () {
+        final text = [
+          _audited(_name, _hash),
+          'Findings:',
+          '```',
+          '## Round 2',
+          '```',
+          '- $_name is broken',
+        ].join('\n');
+        // The heading splits the part, so no section is open after it.
+        expect(_reasonForAudit(text), isNull);
 
-      final inFence = [
-        _audited(_name, _hash),
-        '```',
-        '## Round 2',
-        'Findings:',
-        '- $_name is broken',
-        '```',
-      ].join('\n');
-      expect(_reasonForAudit(inFence), _namedIn('Findings', 'audit1.md'));
-    });
+        final inFence = [
+          _audited(_name, _hash),
+          '```',
+          '## Round 2',
+          'Findings:',
+          '- $_name is broken',
+          '```',
+        ].join('\n');
+        expect(_reasonForAudit(inFence), _namedIn('Findings', 'audit1.md'));
+      },
+    );
 
-    test('closes a section at any other label line', () {
+    _reportTest('closes a section at any other label line', () {
       for (final closer in [
         'Waits on the Owner:',
         'Lenses: none',
@@ -293,7 +308,7 @@ void main() {
       }
     });
 
-    test('opens a section with its first item after the colon', () {
+    _reportTest('opens a section with its first item after the colon', () {
       final first = [
         _audited(_name, _hash),
         'Findings: $_name is broken',
@@ -323,7 +338,7 @@ void main() {
       expect(_reasonForAudit(trimmed), _namedIn('Findings', 'audit1.md'));
     });
 
-    test('reads a none item as naming nothing', () {
+    _reportTest('reads a none item as naming nothing', () {
       final text = [
         _audited(_name, _hash),
         'Findings:',
@@ -336,7 +351,7 @@ void main() {
   });
 
   group('Names', () {
-    test('matches a name and a docPath within their bounds', () {
+    _reportTest('matches a name and a docPath within their bounds', () {
       const items = [
         '$_name is broken',
         '- $_name',
@@ -371,7 +386,7 @@ void main() {
       }
     });
 
-    test('does not match a name inside a longer name', () {
+    _reportTest('does not match a name inside a longer name', () {
       const items = [
         '- fr:ab',
         '- xfr:a',
@@ -388,17 +403,20 @@ void main() {
       }
     });
 
-    test('names a draft by the typed address of its Audited line only', () {
-      final text = [
-        _audited('fr:ab', _hash),
-        _audited('fr:a ', _hash),
-      ].join('\n');
-      expect(_reasonForAudit(text), _noAuditReason);
-    });
+    _reportTest(
+      'names a draft by the typed address of its Audited line only',
+      () {
+        final text = [
+          _audited('fr:ab', _hash),
+          _audited('fr:a ', _hash),
+        ].join('\n');
+        expect(_reasonForAudit(text), _noAuditReason);
+      },
+    );
   });
 
   group('Clean-draft tests', () {
-    test('uses the last Styled hash at or after the audit part', () {
+    _reportTest('uses the last Styled hash at or after the audit part', () {
       final styledLater = _sequence([
         _audited(_name, _otherHash),
         _styled(_name, _hash),
@@ -440,54 +458,57 @@ void main() {
       expect(_judge(audit: otherDraft).reasonFor(_draft), isNull);
     });
 
-    test('skips a style item of a part with a Styled line for the draft', () {
-      final styled = [
-        _audited(_name, _otherHash),
-        _styled(_name, _hash),
-        'Findings:',
-        '- $_name wording [style]',
-        '- [style] $_docPath lead',
-      ].join('\n');
-      expect(_reasonForAudit(styled), isNull);
+    _reportTest(
+      'skips a style item of a part with a Styled line for the draft',
+      () {
+        final styled = [
+          _audited(_name, _otherHash),
+          _styled(_name, _hash),
+          'Findings:',
+          '- $_name wording [style]',
+          '- [style] $_docPath lead',
+        ].join('\n');
+        expect(_reasonForAudit(styled), isNull);
 
-      final unstyled = [
-        _audited(_name, _hash),
-        'Findings:',
-        '- $_name wording [style]',
-      ].join('\n');
-      expect(_reasonForAudit(unstyled), _namedIn('Findings', 'audit1.md'));
+        final unstyled = [
+          _audited(_name, _hash),
+          'Findings:',
+          '- $_name wording [style]',
+        ].join('\n');
+        expect(_reasonForAudit(unstyled), _namedIn('Findings', 'audit1.md'));
 
-      final mixed = [
-        _audited(_name, _otherHash),
-        _styled(_name, _hash),
-        'Findings:',
-        '- $_name wording [style]',
-        '- $_name is wrong',
-      ].join('\n');
-      expect(_reasonForAudit(mixed), _namedIn('Findings', 'audit1.md'));
+        final mixed = [
+          _audited(_name, _otherHash),
+          _styled(_name, _hash),
+          'Findings:',
+          '- $_name wording [style]',
+          '- $_name is wrong',
+        ].join('\n');
+        expect(_reasonForAudit(mixed), _namedIn('Findings', 'audit1.md'));
 
-      final otherDraftStyled = [
-        _audited(_name, _hash),
-        _styled('fr:other', _hash),
-        'Findings:',
-        '- $_name wording [style]',
-      ].join('\n');
-      expect(
-        _reasonForAudit(otherDraftStyled),
-        _namedIn('Findings', 'audit1.md'),
-      );
+        final otherDraftStyled = [
+          _audited(_name, _hash),
+          _styled('fr:other', _hash),
+          'Findings:',
+          '- $_name wording [style]',
+        ].join('\n');
+        expect(
+          _reasonForAudit(otherDraftStyled),
+          _namedIn('Findings', 'audit1.md'),
+        );
 
-      final laterStyledOnly = _sequence([
-        [_audited(_name, _hash), 'Findings:', '- $_name [style]'].join('\n'),
-        _styled(_name, _hash),
-      ]);
-      expect(
-        _judge(audit: laterStyledOnly).reasonFor(_draft),
-        _namedIn('Findings', 'audit1.md'),
-      );
-    });
+        final laterStyledOnly = _sequence([
+          [_audited(_name, _hash), 'Findings:', '- $_name [style]'].join('\n'),
+          _styled(_name, _hash),
+        ]);
+        expect(
+          _judge(audit: laterStyledOnly).reasonFor(_draft),
+          _namedIn('Findings', 'audit1.md'),
+        );
+      },
+    );
 
-    test(
+    _reportTest(
       'asks a draft whose audit names only its typed name by its DocPath',
       () {
         const shared = JudgedDraft(
@@ -503,7 +524,7 @@ void main() {
       },
     );
 
-    test('an unreadable report fails each draft', () {
+    _reportTest('an unreadable report fails each draft', () {
       final folder = Directory.systemTemp.createTempSync('clean_judge_');
       addTearDown(() => folder.deleteSync(recursive: true));
       File('${folder.path}${Platform.pathSeparator}audit.md')
@@ -586,7 +607,7 @@ void main() {
       );
     });
 
-    test('reads every report file when none is unreadable', () {
+    _reportTest('reads every report file when none is unreadable', () {
       final folder = Directory.systemTemp.createTempSync('clean_judge_');
       addTearDown(() => folder.deleteSync(recursive: true));
       final sub = Directory('${folder.path}${Platform.pathSeparator}sub')
@@ -608,7 +629,7 @@ void main() {
       expect(read.authors.single.path, absolute.path);
     });
 
-    test('fails every draft on a Not landed line', () {
+    _reportTest('fails every draft on a Not landed line', () {
       final audit = _sequence([_audited(_name, _hash)]);
       const other = JudgedDraft(
         name: 'fr:b',
@@ -650,7 +671,7 @@ void main() {
       expect(bare.reasonFor(_draft), _notLandedIn('audit1.md'));
     });
 
-    test('lets an owner-waiting unconfirmed finding pass', () {
+    _reportTest('lets an owner-waiting unconfirmed finding pass', () {
       final judge = _judge(
         noAudit: true,
         findings: [_finding(FindingKind.unconfirmed, waitsFor: WaitsFor.owner)],
@@ -658,7 +679,7 @@ void main() {
       expect(judge.reasonFor(_draft), isNull);
     });
 
-    test(
+    _reportTest(
       'asks a draft with an unconfirmed finding that waits for the agent',
       () {
         final judge = _judge(
@@ -701,7 +722,7 @@ void main() {
       },
     );
 
-    test('reads no Waits on the Owner item', () {
+    _reportTest('reads no Waits on the Owner item', () {
       final text = [
         _audited(_name, _hash),
         'Findings:',
@@ -713,7 +734,7 @@ void main() {
       expect(_reasonForAudit(text), isNull);
     });
 
-    test("gives the first failing test's reason", () {
+    _reportTest("gives the first failing test's reason", () {
       final everything = [
         _audited(_name, _otherHash),
         'Findings:',
@@ -756,7 +777,7 @@ void main() {
       expect(_judge(audit: noFindings).reasonFor(_draft), isNull);
     });
 
-    test('takes no audit test under no-audit', () {
+    _reportTest('takes no audit test under no-audit', () {
       final judge = _judge(
         noAudit: true,
         audit: _sequence([
