@@ -20,9 +20,16 @@ migrations:
       - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
 ''';
 
+const _sharedEntry = '''
+shared_lines:
+  - {id: be_brief, text: Be brief., for_doc_types: [runbook]}
+  - {id: old_tone, text: Old.}
+''';
+
 const _packFiles = {
   '.specstone/packs/acme/pack.yaml':
-      'name: acme\nversion: 1.2.0\nextends: software-tech\n$_renameEntry',
+      'name: acme\nversion: 1.2.0\nextends: software-tech\n$_sharedEntry'
+      '$_renameEntry',
   '.specstone/packs/acme/runbook.yaml': '''
 id: runbook
 description: A runbook.
@@ -36,18 +43,19 @@ sections:
 };
 
 class _Case {
-  new(this.project, this.home);
+  new(this.project, this.home, this.packs);
 
+  final List<String> packs;
   final Directory project;
   final Directory home;
 
   void run() {
     final resolver = TemplateResolver();
     final target = resolver.resolveCarried(
-      packNames: _packs,
+      packNames: packs,
       homeDirectory: home,
     );
-    final available = resolver.availableManifests(_packs, homeDirectory: home);
+    final available = resolver.availableManifests(packs, homeDirectory: home);
     final pins = {
       for (final entry in available.entries)
         entry.key: entry.key == 'acme'
@@ -61,6 +69,7 @@ class _Case {
         for (final entry in available.entries) entry.key: entry.value.version,
       },
       upgrades: selectUpgrades(pins, available),
+      sharedLines: loadProjectSharedLines(project),
     );
   }
 }
@@ -68,13 +77,14 @@ class _Case {
 Future<_Case> _case(
   Map<String, String> overrides, {
   Map<String, String> packFiles = _packFiles,
+  List<String> packs = _packs,
 }) async {
   final project = await writeTree({
     for (final entry in overrides.entries)
       '.specstone/templates/${entry.key}.yaml': entry.value,
   });
   final home = await writeTree(packFiles);
-  return _Case(project, home);
+  return _Case(project, home, packs);
 }
 
 const Map<String, String> _recordPackFiles = {
@@ -207,6 +217,126 @@ void main() {
     });
 
     expect(fixture.run, returnsNormally);
+  });
+
+  group('shared.yaml entries', () {
+    const file = '.specstone/templates/shared.yaml';
+    const tail = 'edit the override, then run specstone migrate again';
+
+    test('a line that is no complete new entry and whose id the new '
+        'version lacks refuses, naming the file and the id', () async {
+      final fault = _refusal(
+        await _case({
+          'shared': 'shared_lines: [{id: ghost, for_doc_types: [runbook]}]',
+        }),
+      );
+
+      expect(fault.code, MigrateFaultCode.overrideDangling);
+      expect(fault.exitStatus, 78);
+      expect(fault.file, file);
+      expect(fault.key, 'shared_lines.ghost');
+      expect(
+        fault.toText(),
+        '$file: shared_lines.ghost: no pack defines the shared line ghost; '
+        '$tail',
+      );
+    });
+
+    test('a disabling entry whose id the new version lacks '
+        'refuses', () async {
+      final fault = _refusal(
+        await _case({'shared': 'shared_lines: [{id: ghost, disabled: true}]'}),
+      );
+
+      expect(fault.key, 'shared_lines.ghost');
+    });
+
+    test('an entry that disables a line a pack declared and a higher pack '
+        'disabled does not refuse', () async {
+      final fixture = await _case(
+        {'shared': 'shared_lines: [{id: old_tone, disabled: true}]'},
+        packs: [..._packs, 'acme_top'],
+        packFiles: {
+          ..._packFiles,
+          '.specstone/packs/acme_top/pack.yaml':
+              'name: acme_top\nversion: 1.0.0\nextends: acme\n'
+              'shared_lines:\n  - {id: old_tone, disabled: true}\n',
+        },
+      );
+
+      expect(fixture.run, returnsNormally);
+    });
+
+    test('a line that dangles on its id and on a doc type lists the id '
+        'first', () async {
+      final fault = _refusal(
+        await _case({
+          'shared': 'shared_lines: [{id: ghost, for_doc_types: [gone_a]}]',
+        }),
+      );
+
+      expect(fault.key, 'shared_lines.ghost');
+      expect(fault.more.map((more) => more.key), [
+        'shared_lines.ghost.for_doc_types',
+      ]);
+    });
+
+    test('a complete new entry, and an entry that changes a line the '
+        'new version defines, do not refuse', () async {
+      final fixture = await _case({
+        'shared':
+            'shared_lines: [{id: fresh, text: Fresh.}, '
+            '{id: be_brief, text: Shorter.}]',
+      });
+
+      expect(fixture.run, returnsNormally);
+    });
+
+    test('a line naming two dropped doc types lists one entry for '
+        'each', () async {
+      final fault = _refusal(
+        await _case({
+          'shared':
+              'shared_lines: [{id: be_brief, for_doc_types: '
+              '[gone_a, runbook, gone_b]}]',
+        }),
+      );
+
+      expect(fault.key, 'shared_lines.be_brief.for_doc_types');
+      const head =
+          '$file: shared_lines.be_brief.for_doc_types: no pack defines';
+      expect(fault.toText().split('\n'), [
+        '$head the doc type gone_a that shared line be_brief names; $tail',
+        '$head the doc type gone_b that shared line be_brief names; $tail',
+      ]);
+    });
+
+    test('a doc type a project layer defines or a personal pack '
+        'defines is not dropped', () async {
+      final fixture = await _case({
+        'playbook': 'path: prds/playbooks/{slug}/PLAYBOOK.md\n',
+        'shared':
+            'shared_lines: [{id: fresh, text: Fresh., '
+            'for_doc_types: [playbook, runbook]}]',
+      });
+
+      expect(fixture.run, returnsNormally);
+    });
+
+    test('the entries join the override faults in file order', () async {
+      final fault = _refusal(
+        await _case({
+          'runbook': 'sections: [{id: checklist, required: true}]',
+          'shared': 'shared_lines: [{id: ghost, for_doc_types: [runbook]}]',
+          'user_story': 'fields: [{id: owner_team, required: true}]',
+        }),
+      );
+
+      expect(fault.more.map((more) => more.file), [
+        file,
+        '.specstone/templates/user_story.yaml',
+      ]);
+    });
   });
 
   group('move_to_record record override', () {

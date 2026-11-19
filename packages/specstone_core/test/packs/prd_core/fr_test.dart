@@ -75,8 +75,8 @@ void main() {
     expect(
       description,
       contains(
-        'Write the Statement with one "shall", stated positively, with a '
-        'quantified value kept in it, such as `within 2 s`.',
+        'Write the Statement with one "shall" and its quantified value, such '
+        'as `within 2 s`.',
       ),
     );
     expect(description, contains('leave mechanics to the spec docs'));
@@ -117,8 +117,8 @@ void main() {
     expect(
       verification.description,
       contains(
-        'Write `- **Pass criteria:** each edge case holds.`, and put each '
-        'condition no edge case states in one nested bullet under it.',
+        'Write `- **Pass criteria:** each edge case holds.`, with one nested '
+        'bullet per condition no edge case states.',
       ),
     );
     expect(verification.description, contains('Name no test file here'));
@@ -178,30 +178,28 @@ const _admissionLine =
     "a fallback, or a \"no finding\" boundary another FR's finding takes.";
 
 const _responseLine =
-    'Write one edge case per distinct response; inputs that get the same '
-    'response are nested triggers of one case, one sample each, in the '
-    'shape the Edge cases template shows.';
+    'Write one edge case per distinct response; inputs with the same '
+    'response are nested triggers of one case, one sample each.';
 
 const _leaveOutLine =
     'Leave out a case another FR or a spec rule owns, a case outside the '
     "Statement's condition, and implementation or test detail.";
 
 const _knownLimitsLine =
-    "Put a case the product has no designed response for in the domain's "
-    '`known_limits`, with what happens then; with no domain doc, put it in '
-    "the feature's Out-of-scope as `<case> — not planned`. A designed "
-    'response, even "the file is left as it is", is an edge case.';
+    "Put a case with no designed response in the domain's `known_limits`, "
+    "with what happens then, or with no domain doc in the feature's "
+    'Out-of-scope as `<case> — not planned`. A designed response, even "the '
+    'file is left as it is", is an edge case.';
 
 const _errorCodeLine =
     'In an error case, name the error code the person or caller sees and '
-    'whether the run stops. State no exit status: the error catalog '
-    'reaching the FR holds it, the one the nearest feature up its parent '
-    'chain holds in the target.';
+    'whether the run stops. State no exit status: the error catalog of the '
+    "nearest feature up the FR's parent chain in the target holds it.";
 
 const _messageLine =
-    'Quote an error message only when it is part of the contract, and then '
-    'once, in the Output row that defines it; with no catalog reaching the '
-    'FR, state in words what the person sees.';
+    'Quote an error message only when it is part of the contract, once, in '
+    'the Output row that defines it; with no catalog reaching the FR, state '
+    'in words what the person sees.';
 
 const _splitLine =
     'Split an FR that holds too many edge cases into new FRs in its story.';

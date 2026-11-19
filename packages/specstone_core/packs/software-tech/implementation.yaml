@@ -4,19 +4,12 @@ description: |-
   Title it `# <Feature name> implementation`, such as `# Rendering implementation`, with no number.
   Aim for one line per entry in `statuses`, one per code path in `implements`, and one per test file in `tests`.
   The line cap does not count these frontmatter lines, so the character cap bounds them.
-  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   The record is the one home of each story's and FR's status and code paths in its target; an item with no `statuses` line, outside every skip, is `planned`, code paths or not.
   A `skipped` entry carries a one-line reason and no code path; a skip on the feature or on a story covers everything below it.
   `tests` names one `<item>:<test file path>` line per item and test file that proves it.
   Add `:<test or group name>` after the path only to pin one test, written as a quoted YAML string when the name holds `: ` or ` #`.
   Code and tests never name this doc.
   Write one rule per ID: one entry per story and FR, each rule one sentence.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
 parent: feature
 per_target: true
@@ -25,28 +18,26 @@ fields:
     type: record_status
     list: true
     description: |-
-      Lists one line per entry: `<item>:<status>`, or `<item>:skipped:<reason>`; the item is a story or an FR named relative to the feature, such as `email_login` or `email_login/validate_credentials`.
-      The status is `planned`, `implemented`, `deprecated`, or `skipped`; write a leading `:` for the feature itself, and only to skip it.
-      An item with no line takes the status `planned`.
-      This field sits outside the approval hash, so a status change marks no draft.
+      Lists one line per entry, `<item>:<status>` or `<item>:skipped:<reason>`, the item a story or an FR named relative to the feature, such as `email_login` or `email_login/validate_credentials`.
+      The status is `planned`, `implemented`, `deprecated`, or `skipped`; write a leading `:` for the feature itself, only to skip it.
+      The field sits outside the approval hash, so a status change marks no draft.
   - id: implements
     type: output_ref
     list: true
     pointer: item_exact
     description: |-
-      Lists one line per code path: `<item>:path[:Symbol]`, the item named as in `statuses`, such as `show_toast:lib/toast.dart:showToast`.
+      Lists one line per code path, `<item>:path[:Symbol]`, the item named as in `statuses`, such as `show_toast:lib/toast.dart:showToast`.
       Write each path relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
       An entry may end in one space and its code fingerprint, which `check` compares with the code it names.
-      This field sits outside the approval hash, so a write of code paths alone marks no draft.
+      The field sits outside the approval hash, so writing code paths alone marks no draft.
   - id: tests
     type: output_ref
     list: true
     pointer: item_test
     description: |-
-      Lists one line per item and test file that proves it: `<item>:<test file path>[:<test or group name>]`, the item named as in `statuses`, such as `show_toast:test/toast_test.dart`.
-      Add `:<test or group name>` after the path only to pin one test, written as a quoted YAML string when the name holds `: ` or ` #`.
+      Lists one line per item and test file that proves it, `<item>:<test file path>[:<test or group name>]`, the item named as in `statuses`, such as `show_toast:test/toast_test.dart`.
       Write each path relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
-      This field sits outside the approval hash, so a write of test lines alone marks no draft.
+      The field sits outside the approval hash, so writing test lines alone marks no draft.
 sections:
   - id: verification_matrix
     header: Verification matrix

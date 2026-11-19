@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -12,56 +11,103 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/yaml_key_line.dart';
 
-/// The cite line and the four readability lines every description keeps.
-const _readabilityLines = <String>[
-  _citeLine,
-  _oneRuleLine,
-  citeNoteGuideLine,
-  _exampleLine,
-  _conditionLine,
+/// The six per-feature spec doc types the one-file line reaches.
+const _perFeatureIds = [
+  'api',
+  'architecture',
+  'auth',
+  'domain',
+  'error',
+  'integration',
 ];
 
-const _citeLine =
-    'Cite a rule another doc owns by a link to the item that holds it, never '
-    'restate it.';
+/// The six project spec doc types, in code point order.
+const _projectIds = [
+  'project_api',
+  'project_architecture',
+  'project_auth',
+  'project_domain',
+  'project_error',
+  'project_integration',
+];
 
-const _oneRuleLine =
-    'Keep one rule in each item, and put several conditions in a nested list. '
-    'A one-sentence paragraph with no ID moves its detail to the section of '
-    'the same doc that owns it, never into a sub-list.';
+/// The shared lines `software-tech` ships, by id, in file order.
+const _sharedLines = <String, String>{
+  'cite_spec_docs':
+      "Cite a project or ancestor-feature spec doc's rule by a link to its "
+      'item, never restate it.',
+  'no_status':
+      "Never write `status:`; only a target's `implementation` record says "
+      'whether its code exists.',
+  'project_rules_only':
+      'Hold only rules every feature uses; write any other rule in a '
+      'per-feature spec doc, or in a `topic` when two or more features share '
+      'it.',
+  'one_file_per_feature_folder': 'Keep one file per feature spec folder.',
+  'one_file_per_spec_folder': 'Keep one file per spec folder.',
+  'overrides_line':
+      'Right after an item departing from a rule above, write '
+      '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
+      '<why>` and record its `overrides` entry.',
+  'overrides_line_table':
+      'Right after an item departing from a rule above, or right under its '
+      'table for a table row, write '
+      '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
+      '<why>`, naming the row in the how-clause, and record its `overrides` '
+      'entry.',
+};
 
-const _exampleLine =
-    'Give a non-obvious rule one example inside its item, as a `such as` '
-    'clause or one "For example," sentence, within the sentence\'s cap.';
+/// The doc types each shared line names.
+const _lineReach = <String, List<String>>{
+  'cite_spec_docs': softwareTechIds,
+  'no_status': softwareTechIds,
+  'project_rules_only': _projectIds,
+  'one_file_per_feature_folder': _perFeatureIds,
+  'one_file_per_spec_folder': _projectIds,
+  'overrides_line': ['api', 'domain', 'integration'],
+  'overrides_line_table': ['architecture', 'auth', 'error'],
+};
 
-const _conditionLine =
-    'State the condition first, then the rule, one clause chain per sentence; '
-    'split a sentence whose clauses nest.';
+/// The doc types each shared field names, in file order.
+const _fieldReach = <String, List<String>>{
+  'overrides': [..._perFeatureIds, 'topic'],
+  'tasks': [..._perFeatureIds, 'tech_stack', 'topic'],
+};
 
-/// The file rule each doc type keeps on a line of its own, in place of a line
-/// target.
+/// The merged field ids of each doc type the shared fields reach, as they
+/// stood before the fields moved into `pack.yaml`.
+const _fieldIds = <String, List<String>>{
+  'api': [..._builtIns, 'confirmed', 'overrides', 'tasks'],
+  'architecture': [..._builtIns, 'covers', 'overrides', 'tasks'],
+  'auth': [..._builtIns, 'overrides', 'tasks'],
+  'domain': [..._builtIns, 'overrides', 'tasks'],
+  'error': [..._builtIns, 'overrides', 'tasks'],
+  'integration': [..._builtIns, 'overrides', 'tasks'],
+  'project_api': [..._builtIns, 'tasks'],
+  'project_architecture': [..._builtIns, 'tasks'],
+  'project_auth': [..._builtIns, 'tasks'],
+  'project_domain': [..._builtIns, 'tasks'],
+  'project_error': [..._builtIns, 'tasks'],
+  'project_integration': [..._builtIns, 'tasks'],
+  'tech_stack': [..._builtIns, 'code', 'tasks'],
+  'topic': [..._builtIns, 'covers', 'overrides', 'tasks'],
+};
+
+const _builtIns = ['slug', 'status', 'draft', 'approved', 'reference'];
+
+/// The file rule a doc type no shared one-file line reaches keeps on a line of
+/// its own, in place of a line target.
 const _fileRuleLines = <String, String>{
-  'api': 'Keep one file per feature spec folder.',
-  'architecture': 'Keep one file per feature spec folder.',
-  'auth': 'Keep one file per feature spec folder.',
-  'domain': 'Keep one file per feature spec folder.',
-  'error': 'Keep one file per feature spec folder.',
-  'integration': 'Keep one file per feature spec folder.',
-  'project_api': 'Keep one file per spec folder.',
-  'project_architecture': 'Keep one file per spec folder.',
-  'project_auth': 'Keep one file per spec folder.',
-  'project_domain': 'Keep one file per spec folder.',
-  'project_error': 'Keep one file per spec folder.',
-  'project_integration': 'Keep one file per spec folder.',
-  'tech_stack':
-      'Keep one fact per table cell and write rows that a reader can check.',
+  'tech_stack': 'Keep one fact per table cell and write checkable rows.',
   'topic': 'Keep one topic per file, named for the topic.',
 };
 
@@ -107,6 +153,46 @@ void main() {
       expect(entry.steps, hasLength(1));
       final step = entry.steps.single as DropDefaultLines;
       expect(step.docTypes, ['domain', 'project_domain']);
+    });
+
+    test('software-tech ships its shared lines in table order with their '
+        'reach', () {
+      final lines = _softwareTechManifest().shared.lines;
+      expect({for (final l in lines) l.id: l.text}, _sharedLines);
+      expect(lines.map((l) => l.id), _sharedLines.keys);
+      expect({for (final l in lines) l.id: l.forDocTypes}, _lineReach);
+      expect(lines.where((l) => l.disabled), isEmpty);
+    });
+
+    test('software-tech ships the shared fields overrides then tasks, each '
+        'naming the doc types of its Fields row', () {
+      final fields = _softwareTechManifest().shared.fields;
+      expect(fields.map((f) => f.id), ['overrides', 'tasks']);
+      expect({for (final f in fields) f.id: f.forDocTypes}, _fieldReach);
+      expect(
+        [
+          for (final f in fields)
+            (f.entry.type, f.entry.list, f.entry.required ?? false),
+        ],
+        [(FieldType.string, true, false), (FieldType.taskRef, true, false)],
+      );
+    });
+
+    test('software-tech keeps its four migration entries and adds none for '
+        'the shared entries', () {
+      final migrations = _softwareTechManifest().migrations;
+      expect(
+        [
+          for (final m in migrations)
+            '${m.from}: ${[for (final s in m.steps) s.kind].join(', ')}',
+        ],
+        [
+          '1.4.0: move_to_record',
+          '1.6.0: stamp_code_fingerprints',
+          '1.7.0: move_file, restamp_code_fingerprints',
+          '1.13.0: drop_default_lines',
+        ],
+      );
     });
 
     test('an upgrade to the shipped version carries the ten feature patterns '
@@ -318,14 +404,24 @@ void main() {
       }
     });
 
-    test('the description holds the shared readability lines', () {
-      for (final id in softwareTechIds) {
-        for (final line in _readabilityLines) {
-          expect(
-            prdCoreDocType(set, id).description,
-            contains(line),
-            reason: id,
-          );
+    test('each doc type a shared field reaches keeps its field ids in their '
+        'order before the move', () {
+      for (final MapEntry(:key, :value) in _fieldIds.entries) {
+        expect(
+          [for (final f in prdCoreDocType(set, key).fields) f.id],
+          value,
+          reason: key,
+        );
+      }
+    });
+
+    test('no description in the pack files holds a YAML key line', () {
+      for (final MapEntry(:key, :value) in shippedPackFiles.entries) {
+        if (!key.startsWith('software-tech/') || key.contains('/patterns/')) {
+          continue;
+        }
+        for (final text in _descriptionsIn(loadYaml(utf8.decode(value)))) {
+          expectNoYamlKeyLine(text, reason: key);
         }
       }
     });
@@ -426,4 +522,23 @@ void main() {
       ]);
     });
   });
+}
+
+PackManifest _softwareTechManifest() => PackManifest.parse(
+  utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+  file: 'packs/software-tech/pack.yaml',
+);
+
+/// Every `description` string anywhere in the YAML [node].
+Iterable<String> _descriptionsIn(Object? node) sync* {
+  if (node is YamlMap) {
+    for (final MapEntry(:key, :value) in node.entries) {
+      if (key == 'description' && value is String) yield value;
+      yield* _descriptionsIn(value);
+    }
+  } else if (node is YamlList) {
+    for (final item in node) {
+      yield* _descriptionsIn(item);
+    }
+  }
 }

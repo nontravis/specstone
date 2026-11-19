@@ -1,9 +1,7 @@
 id: channel
 description: |-
-  A channel: one place the project's marketing reaches its audience, with its audience, format, cadence, and measures.
+  A channel: one place the project's marketing reaches its audience, with its format, cadence, and measures.
   Title it `# <Channel name>`, with no number.
-  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
-  A learning edits the doc it corrects.
 path: specs/marketing/channels/{slug}.md
 sections:
   - id: audience

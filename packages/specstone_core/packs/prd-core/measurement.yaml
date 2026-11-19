@@ -2,7 +2,7 @@ id: measurement
 description: |-
   A measurement: the evidence for one project goal, kept as a log of runs.
   Title it `# <the goal's short name>`, with no number. The folder name, the goal's short name in `snake_case`, is its identity.
-  Put one markdown link in the head, the text between the title and the first section: to the measured goal's `### PG-` heading in the goal doc.
+  Put one markdown link in the head, the text between the title and the first section, to the measured goal's `### PG-` heading in GOAL.
   Make its text the goal's short name and its anchor the heading's, such as `#pg-01--grounding-cost-per-feature`.
   Measure one goal, never a vision; the goal's `**Metric:**` line links back to this doc.
   Results is a log: a run adds its row on top and never edits an older row.
@@ -10,12 +10,6 @@ description: |-
   Name no other goal's runs as this goal's own in the Metric, Results, or Open causes text.
   Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
   Keep a bound in the item it limits, never in the prose.
-  State the present truth; history lives in git.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: measurements/{slug}/MEASUREMENT.md
 summary_for: [project, goal]
 sections:
@@ -24,8 +18,7 @@ sections:
     required: true
     summary: true
     description: |-
-      State what is measured: the runs, projects, agents, or channels.
-      Write a table or a list.
+      State what is measured, the runs, projects, agents, or channels, as a table or a list.
     template: |-
       - <what is measured>
   - id: method
@@ -38,7 +31,6 @@ sections:
   - id: baseline
     header: Baseline
     description: |-
-      Optional. Write one table of the columns Metric, Run, Value, Date, and Source.
       Leave the section out when no figure from before the first run exists.
     template: |-
       | Metric | Run | Value | Date | Source |
@@ -49,9 +41,7 @@ sections:
     required: true
     summary_rows: 1
     description: |-
-      Write the line `Newest first. Met: <the goal's pass condition>.`, then one table.
-      Use the columns Date, the version or commit, Run, one column per metric, and Met.
-      Add a run's row on top; never edit an older row.
+      Put the version or commit in the Version column, and one column per metric.
       Leave the table with no body row for a goal not yet measured.
     template: |-
       Newest first. Met: <the goal's pass condition>.
@@ -62,7 +52,6 @@ sections:
     header: Open causes
     required: true
     description: |-
-      Write the causes of the latest run alone, rewritten each run.
       Write `N/A` when none.
     template: |-
       <the causes of the latest run, or N/A>

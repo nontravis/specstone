@@ -1,7 +1,6 @@
 id: theme
 description: |-
   The theme doc: the themes and how each maps the tokens.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Themes`, with no number.
 path: specs/design_system/foundations/THEME.md
 sections:

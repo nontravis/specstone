@@ -1,7 +1,6 @@
 id: elevation
 description: |-
   The elevation doc: the elevation levels and their usage; it links the tokens doc and writes no token value.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Elevation`, with no number.
 path: specs/design_system/foundations/ELEVATION.md
 sections:

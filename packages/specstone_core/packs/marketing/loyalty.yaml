@@ -2,8 +2,6 @@ id: loyalty
 description: |-
   The loyalty doc: how the project keeps and rewards loyal customers.
   Title it `# Loyalty`, with no number.
-  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
-  A learning edits the doc it corrects.
 path: specs/marketing/LOYALTY.md
 sections:
   - id: retention

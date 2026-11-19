@@ -1,7 +1,6 @@
 id: shape
 description: |-
   The shape doc: the corner and border shapes and their usage; it links the tokens doc and writes no token value.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Shape`, with no number.
 path: specs/design_system/foundations/SHAPE.md
 sections:

@@ -4,6 +4,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/guide_limits.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
+import 'package:specstone_core/src/templates/shared_merge.dart';
 import 'package:specstone_core/src/templates/summary_rows.dart';
 
 /// The five fields every doc type carries below its lowest layer.
@@ -794,12 +795,30 @@ final class MergedDocType {
     this.generators,
     this.reference,
     this.pack,
+    this.sharedLines = const [],
     this.disabledFieldIds = const {},
     this.disabledSectionIds = const {},
   });
 
   /// The doc type id.
   final String id;
+
+  /// The shared lines that reach this doc type, in print order.
+  ///
+  /// They stay out of [description], which holds the type's own text.
+  final List<MergedSharedLine> sharedLines;
+
+  /// The own description, then each shared line, one per line; null when none
+  /// holds text.
+  ///
+  /// The guide and the JSON schema both print it.
+  String? get descriptionWithSharedLines {
+    final lines = [
+      ?_trimmedOrNull(description),
+      for (final line in sharedLines) line.text,
+    ];
+    return lines.isEmpty ? null : lines.join('\n');
+  }
 
   /// The ids of fields a lower layer defined and a layer then disabled.
   ///
@@ -926,6 +945,7 @@ final class MergedDocType {
     MergedLint? lint,
     List<ReferenceEntry>? reference,
     String? pack,
+    List<MergedSharedLine>? sharedLines,
     List<String>? files,
     Set<String>? disabledFieldIds,
     Set<String>? disabledSectionIds,
@@ -949,6 +969,7 @@ final class MergedDocType {
     lint: lint ?? this.lint,
     reference: reference ?? this.reference,
     pack: pack ?? this.pack,
+    sharedLines: sharedLines ?? this.sharedLines,
     files: files ?? this.files,
     disabledFieldIds: disabledFieldIds ?? this.disabledFieldIds,
     disabledSectionIds: disabledSectionIds ?? this.disabledSectionIds,
@@ -962,7 +983,7 @@ final class MergedDocType {
     final lintJson = lint.toJson();
     return {
       'id': id,
-      'description': ?description,
+      'description': ?descriptionWithSharedLines,
       'parent': ?parent,
       'extends': ?extendsId,
       'path': ?path,
@@ -982,19 +1003,19 @@ final class MergedDocType {
 
   /// Returns the writing guide, each block set off by a blank line.
   ///
-  /// The description and the doc-level banned words come first, then the
-  /// `Fields:` block of the declared non-built-in [fields], then the doc
-  /// `Limits:` line, then each section's header, required, optional, or
-  /// condition line with its `Limits:`, description, own banned words, and
-  /// template, then the `Guide sources:` block of [reference]. A banned word
-  /// list drops the allowed words that apply there, as `check` does; a
-  /// description, word list, template, field set, or [reference] list left
-  /// empty adds no block.
+  /// The description with the shared lines under it, and the doc-level banned
+  /// words, come first, then the `Fields:` block of the declared non-built-in
+  /// [fields], then the doc `Limits:` line, then each section's header,
+  /// required, optional, or condition line with its `Limits:`, description,
+  /// own banned words, and template, then the `Guide sources:` block of
+  /// [reference]. A banned word list drops the allowed words that apply
+  /// there, as `check` does; a description, word list, template, field set,
+  /// or [reference] list left empty adds no block.
   String renderGuide() {
     final docAllowed = lint.allowedWords ?? const <String>[];
     final sources = reference ?? const <ReferenceEntry>[];
     final blocks = <String>[
-      ?_trimmedOrNull(description),
+      ?descriptionWithSharedLines,
       ?_bannedWordsLine(lint.bannedWords, allowed: docAllowed),
       ?_fieldsBlock(),
       docLimitsLine(lint),
