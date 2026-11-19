@@ -6,6 +6,8 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/set_doc.dart'
+    show markDraft;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
@@ -178,13 +180,14 @@ RunPlan _upgradeRunOf(
         case RecordPathOverride(:final file, path: final path?))
       PlannedCreate(path: file, text: 'path: $path\n'),
   ];
+  final projectLayers = parseOverrides({
+    for (final file in overrideFiles) file.path: file.lf,
+    for (final create in overrideCreates) create.path: create.text,
+  });
   final finalSet = templates.resolveCarried(
     packNames: packNames,
     homeDirectory: homeDirectory,
-    projectLayers: parseOverrides({
-      for (final file in overrideFiles) file.path: file.lf,
-      for (final create in overrideCreates) create.path: create.text,
-    }),
+    projectLayers: projectLayers,
   );
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
@@ -228,13 +231,11 @@ RunPlan _upgradeRunOf(
   final withoutAdds = addedPins.isEmpty
       ? null
       : DocTypeMatcher(
-          templates.resolveCarried(
-            packNames: pins.keys,
+          _setWithoutAdds(
+            templates,
+            pins.keys,
             homeDirectory: homeDirectory,
-            projectLayers: parseOverrides({
-              for (final file in overrideFiles) file.path: file.lf,
-              for (final create in overrideCreates) create.path: create.text,
-            }),
+            projectLayers: projectLayers,
           ),
           targetNames: config.targetNames,
         );
@@ -260,7 +261,7 @@ RunPlan _upgradeRunOf(
         withoutAdds != null &&
         withoutAdds.match(plannedPath) is! MatchedDocType) {
       typedByAdd.add(plannedPath);
-      lf = withKeyBlock(lf, 'draft', 'draft: true');
+      lf = markDraft(lf, docType);
       changes.add(_draftChange);
     }
     for (final (index, (:step, from: _)) in steps.indexed) {
@@ -687,6 +688,35 @@ RunPlan _upgradeRunOf(
     ),
   );
   return plan;
+}
+
+/// Resolves [pinned] with the [projectLayers] that stand without the added
+/// packs: a layer of a type no pinned pack defines is kept only when it
+/// defines the type itself, over a base the pins hold or none.
+MergedSet _setWithoutAdds(
+  TemplateResolver templates,
+  Iterable<String> pinned, {
+  required Directory? homeDirectory,
+  required List<DocTypeLayer> projectLayers,
+}) {
+  final ids = {
+    for (final type
+        in templates
+            .resolveCarried(packNames: pinned, homeDirectory: homeDirectory)
+            .docTypes)
+      type.id,
+  };
+  return templates.resolveCarried(
+    packNames: pinned,
+    homeDirectory: homeDirectory,
+    projectLayers: [
+      for (final layer in projectLayers)
+        if (ids.contains(layer.docTypeId) ||
+            (layer.path != null &&
+                (layer.extendsId == null || ids.contains(layer.extendsId))))
+          layer,
+    ],
+  );
 }
 
 /// Plans the `stamp_code_fingerprints` step, or with [restamp] the

@@ -5515,7 +5515,8 @@ void _addedPinsTests() {
         expect(plan.rewrites.map((rewrite) => rewrite.path), [_configPath]);
       });
 
-      test('a doc already typed keeps the upgrade passes', () async {
+      test('a doc already typed gets no draft flag and is still laid '
+          'out', () async {
         final root = await withDocs({
           'specs/TECH_STACK.md': '# Tech stack\n\n\n\n## Stack\n\nDart.\n',
           'specs/skills/review.md': skillDoc,
@@ -5528,6 +5529,69 @@ void _addedPinsTests() {
         expect(
           _rewriteAt(plan, 'docs/specs/TECH_STACK.md').text,
           isNot(contains('draft: true')),
+        );
+      });
+
+      test('a file with frontmatter takes the flag once, an existing draft '
+          'keeps its line', () async {
+        final root = await withDocs({
+          'specs/skills/review.md':
+              '---\noutput: .claude/skills/review/\n---\n# Review\n\n'
+              '## Purpose\n\nReviews.\n',
+          'specs/skills/deploy.md':
+              '---\ndraft: true # note\n---\n# Deploy\n\n## Purpose\n\nx\n',
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(
+          _rewriteAt(plan, skillPath).text,
+          '---\ndraft: true\noutput: .claude/skills/review/\n---\n'
+          '# Review\n\n## Purpose\n\nReviews.\n',
+        );
+        expect(
+          plan.rewrites.map((rewrite) => rewrite.path),
+          isNot(contains('docs/specs/skills/deploy.md')),
+        );
+      });
+
+      test('an override of a type only the added pack defines still '
+          'plans', () async {
+        final root = await writeTree({
+          _configPath: shippedPinsConfig(const ['prd-core']),
+          '.specstone/templates/skill.yaml':
+              'fields:\n  - {id: extra, type: string}\n',
+          'docs/specs/skills/review.md': skillDoc,
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(plan.lists.toJson()['typedByAdd'], ['specs/skills/review.md']);
+      });
+
+      test('a newly typed doc the run also moves is listed at its planned '
+          'path', () async {
+        final home = await writeTree({
+          '.specstone/packs/mine/pack.yaml': 'name: mine\nversion: 1.0.0\n',
+          '.specstone/packs/mine/memo.yaml':
+              'id: memo\ndescription: A memo.\npath: specs/MEMO.md\n'
+              'per_target: true\n',
+        });
+        final root = await _treeProject({
+          'specs/MEMO.md': '# Memo\n\n\n\nText.\n',
+        });
+
+        final plan = planUpgradeRun(
+          _canonical(root),
+          templates: TemplateResolver(),
+          homeDirectory: home,
+          addedPacks: const ['mine'],
+        );
+
+        expect(plan.lists.toJson()['typedByAdd'], ['specs/flutter/MEMO.md']);
+        expect(
+          _rewriteAt(plan, 'docs/specs/flutter/MEMO.md').text,
+          startsWith('---\ndraft: true\n---\n'),
         );
       });
     });
