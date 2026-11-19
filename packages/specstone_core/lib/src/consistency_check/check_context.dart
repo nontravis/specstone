@@ -5,6 +5,10 @@ import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
+import 'package:specstone_core/src/consistency_check/models/goal_block.dart';
+import 'package:specstone_core/src/consistency_check/models/heading_block.dart';
+import 'package:specstone_core/src/consistency_check/models/nfr_statement.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
@@ -365,7 +369,7 @@ final class CheckContext {
 
   late final Set<String> _projectHeadingIds = {
     for (final doc in _projectDocs)
-      for (final (:key, lines: _) in _itemHeadingBlocksOf(doc))
+      for (final HeadingBlock(:key) in _itemHeadingBlocksOf(doc))
         if (key.startsWith(_visionIdPrefix)) key,
   };
 
@@ -382,11 +386,16 @@ final class CheckContext {
       if (doc.docTypeId == _goalType)
         for (final (i, template) in _heldTemplatesOf(doc).indexed)
           if (_goalHorizons[template?.id] case final horizon?)
-            for (final (:key, :lines) in headingBlocksOf(
+            for (final HeadingBlock(:key, :lines) in headingBlocksOf(
               bodyLinesOf(doc, i),
               goalKeyOf,
             ))
-              (docPath: doc.docPath, key: key, horizon: horizon, lines: lines),
+              GoalBlock(
+                docPath: doc.docPath,
+                key: key,
+                horizon: horizon,
+                lines: lines,
+              ),
   ];
 
   /// Returns the goal blocks of every goal doc, in doc order.
@@ -411,9 +420,7 @@ final class CheckContext {
   /// A section reads its `prefix_id`. A gnfr section with none reads the
   /// letters and hyphens before the heading's first digit as the prefix; any
   /// other doc skips a section with none.
-  Iterable<({String key, List<BodyLine> lines})> _itemHeadingBlocksOf(
-    IndexedDoc doc,
-  ) sync* {
+  Iterable<HeadingBlock> _itemHeadingBlocksOf(IndexedDoc doc) sync* {
     final isGnfr = doc.docTypeId == _gnfrType;
     for (final (i, template) in _heldTemplatesOf(doc).indexed) {
       if (template == null) continue;
@@ -432,20 +439,19 @@ final class CheckContext {
   /// Maps each NFR id of the gnfr docs to its DocPath and Statement line.
   ///
   /// The text is empty when the block has no `- **Statement:**` line.
-  late final Map<String, ({String path, String text})> _nfrStatements =
-      _readNfrStatements();
+  late final Map<String, NfrStatement> _nfrStatements = _readNfrStatements();
 
   /// Returns the NFR ids of the gnfr docs with their Statement lines.
-  Map<String, ({String path, String text})> nfrStatements() => _nfrStatements;
+  Map<String, NfrStatement> nfrStatements() => _nfrStatements;
 
-  Map<String, ({String path, String text})> _readNfrStatements() {
-    final statements = <String, ({String path, String text})>{};
+  Map<String, NfrStatement> _readNfrStatements() {
+    final statements = <String, NfrStatement>{};
     for (final doc in index.docs) {
       if (doc.docTypeId != _gnfrType) continue;
-      for (final (:key, :lines) in _itemHeadingBlocksOf(doc)) {
+      for (final HeadingBlock(:key, :lines) in _itemHeadingBlocksOf(doc)) {
         statements.putIfAbsent(
           key,
-          () => (path: doc.docPath, text: nfrStatementOf(lines)),
+          () => NfrStatement(path: doc.docPath, text: nfrStatementOf(lines)),
         );
       }
     }
@@ -464,21 +470,21 @@ final class CheckContext {
   /// Returns the doc of type `fr` named [name], or null.
   IndexedDoc? frNamed(String name) => _frsByName[name];
 
-  final Map<String, List<({String cell, int line})>> _frTraceRows = {};
+  final Map<String, List<FrTraceRow>> _frTraceRows = {};
 
   /// Returns the FR cell and file line of each row of the `fr_trace` table
   /// of [api].
   ///
   /// A cell is the row's first cell, trimmed, with one pair of backticks
   /// dropped. The header row and the separator row are skipped.
-  List<({String cell, int line})> frTraceRowsOf(IndexedDoc api) =>
+  List<FrTraceRow> frTraceRowsOf(IndexedDoc api) =>
       _frTraceRows.putIfAbsent(api.docPath, () => _readFrTraceRows(api));
 
-  List<({String cell, int line})> _readFrTraceRows(IndexedDoc api) {
+  List<FrTraceRow> _readFrTraceRows(IndexedDoc api) {
     final held = contentOf(api).sections;
     final type = typeOf(api);
     if (type == null) return const [];
-    final rows = <({String cell, int line})>[];
+    final rows = <FrTraceRow>[];
     for (var i = 0; i < held.length; i++) {
       if (templateSectionAt(api, i)?.id != _frTraceSection) continue;
       rows.addAll(readFrTraceRows(bodyLinesOf(api, i)));
@@ -528,11 +534,3 @@ const _frTraceSection = 'fr_trace';
 
 /// The horizon of each goal doc section that holds goals.
 const _goalHorizons = {'long_term': 3, 'mid_term': 2, 'short_term': 1};
-
-/// A `### PG-` block of a goal doc: its doc, ID, horizon, and lines.
-typedef GoalBlock = ({
-  String docPath,
-  String key,
-  int horizon,
-  List<BodyLine> lines,
-});

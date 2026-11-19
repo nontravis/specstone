@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/goal_block.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart'
     show titleLineOf;
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
@@ -69,7 +70,7 @@ _GoalLinks _readGoalLinks(CheckContext context) {
 }
 
 Map<_Goal, List<BodyLine>> _goalsOf(CheckContext context) => {
-  for (final (:docPath, :key, horizon: _, :lines) in context.goalBlocks())
+  for (final GoalBlock(:docPath, :key, :lines) in context.goalBlocks())
     (docPath: docPath, line: lines.first.line, key: key): lines,
 };
 

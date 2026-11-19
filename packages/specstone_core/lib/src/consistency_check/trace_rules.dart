@@ -3,6 +3,8 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ImplementedWork;
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
+import 'package:specstone_core/src/consistency_check/models/goal_block.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
@@ -362,7 +364,7 @@ Iterable<Finding> _unresolvedFrRows(
 ) sync* {
   final feature = context.index.parentOf(api);
   if (feature == null) return;
-  for (final (:cell, :line) in context.frTraceRowsOf(api)) {
+  for (final FrTraceRow(:cell, :line) in context.frTraceRowsOf(api)) {
     if (context.frNamed('${feature.name}/$cell') != null) continue;
     yield context.finding(
       api,

@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
@@ -146,7 +147,7 @@ Iterable<({String operation, int line})> _traceOperations(
     if (context.templateSectionAt(api, i)?.id != _frTraceSection) continue;
     final body = context.bodyLinesOf(api, i);
     final textByLine = {for (final line in body) line.line: line.text};
-    for (final (:line, cell: _) in readFrTraceRows(body)) {
+    for (final FrTraceRow(:line) in readFrTraceRows(body)) {
       final operation = _secondCell(textByLine[line] ?? '');
       if (operation != null) yield (operation: operation, line: line);
     }

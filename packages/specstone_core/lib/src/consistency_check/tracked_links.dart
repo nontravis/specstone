@@ -3,6 +3,7 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/consistency_check/override_lines.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
@@ -370,7 +371,7 @@ Iterable<TrackedLink> _overrideLinks(
 Iterable<TrackedLink> _frRowLinks(CheckContext context, IndexedDoc api) sync* {
   final feature = context.index.parentOf(api);
   if (feature == null) return;
-  for (final (:cell, :line) in context.frTraceRowsOf(api)) {
+  for (final FrTraceRow(:cell, :line) in context.frTraceRowsOf(api)) {
     final fr = context.frNamed('${feature.name}/$cell');
     yield fr == null
         ? TrackedLink(label: cell, traceLine: line)
