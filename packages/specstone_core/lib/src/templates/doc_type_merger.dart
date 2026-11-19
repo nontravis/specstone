@@ -80,7 +80,14 @@ final class DocTypeMerger {
   /// `reference_title_not_found` for a removed title the base lacks,
   /// `bundle_mode_not_found` for a removed mode the base lacks, and
   /// `unknown_value` for a removed generator kind the base lacks.
-  MergedDocType apply(MergedDocType base, DocTypeLayer layer) {
+  ///
+  /// - [heldFieldIds]: field entries of [layer] left out, for the caller to
+  ///   apply later through [applyFields].
+  MergedDocType apply(
+    MergedDocType base,
+    DocTypeLayer layer, {
+    Set<String> heldFieldIds = const {},
+  }) {
     final parent = _mergeParent(base, layer);
     final disabledFields = {...base.disabledFieldIds};
     final disabledSections = {...base.disabledSectionIds};
@@ -111,7 +118,15 @@ final class DocTypeMerger {
       bundleRefs: layer.bundleRefs,
       summaryFor: layer.summaryFor,
       fields: List.unmodifiable(
-        _mergeFields(base.fields, layer.fields, layer.file, disabledFields),
+        _mergeFields(
+          base.fields,
+          [
+            for (final entry in layer.fields)
+              if (!heldFieldIds.contains(entry.id)) entry,
+          ],
+          layer.file,
+          disabledFields,
+        ),
       ),
       sections: List.unmodifiable(
         _mergeSections(base.sections, layer, disabledSections),
