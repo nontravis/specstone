@@ -89,6 +89,7 @@ enum FindingKind {
   implementsSymbolUnresolved('implements_symbol_unresolved'),
   docCitedInCode('doc_cited_in_code'),
   coversPathMissing('covers_path_missing'),
+  coversEntryEmpty('covers_entry_empty'),
   codeRootMissing('code_root_missing'),
   codeUncovered('code_uncovered'),
   docRefUnresolved('doc_ref_unresolved'),
@@ -180,6 +181,7 @@ enum FindingKind {
     approvalStale ||
     bundleOverLimit ||
     charsOverLimit ||
+    coversEntryEmpty ||
     itemOverLimit ||
     linesOverLimit ||
     tbrOpen => WaitsFor.owner,

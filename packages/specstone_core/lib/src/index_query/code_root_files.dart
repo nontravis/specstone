@@ -32,6 +32,14 @@ String normalCodeEntry(String entry) {
   return segments.join(_separator);
 }
 
+/// Whether [entry], a `code:` or `covers:` entry read without the code
+/// fingerprint it may end in, names the whole root and no path of its own.
+///
+/// The one predicate every code-link rule reads: its [normalCodeEntry] form is
+/// empty, so it covers no file, matches no code path, takes no fingerprint,
+/// and counts as no entry for the shared-doc rule.
+bool isEmptyCodeEntry(String entry) => normalCodeEntry(entry).isEmpty;
+
 /// Returns the files under the `code:` [entry], as paths from [codeRoot]
 /// sorted by code point; an [entry] that names a file lists that file. Every
 /// path is in [normalCodeEntry]'s form.

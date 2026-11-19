@@ -28,7 +28,6 @@ export 'src/document_writing/move_doc.dart'
     show answerMove, answerRename, answerReorder;
 export 'src/document_writing/new_doc.dart' show answerNew;
 export 'src/document_writing/owner_confirmation.dart' show OwnerConfirmation;
-export 'src/document_writing/reference_links.dart' show rewriteReferenceLinks;
 export 'src/document_writing/remove_task_refs.dart'
     show answerRemoveTasks, requireTaskIds;
 export 'src/document_writing/root_trust.dart' show locateReadRoots;
@@ -48,7 +47,7 @@ export 'src/index_query/bundle_file.dart'
     show answerBundleFile, bareBundleFile, bundleFileName;
 export 'src/index_query/bundle_render.dart' show ContextAnswer, answerContext;
 export 'src/index_query/code_bundle.dart'
-    show CodePath, pickCodeBundle, resolveCodePath;
+    show CodePath, pickCodeBundle, projectRootMatch, resolveCodePath;
 export 'src/index_query/doc_index.dart' show DocIndex;
 export 'src/index_query/feature_catalog.dart'
     show featureCatalogBlocks, featureCatalogKind;
@@ -99,7 +98,7 @@ export 'src/rendering/page_setup.dart' show PageSetup, Paper;
 export 'src/rendering/render_fault.dart';
 export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
 export 'src/setup_migration/migrate_fault.dart'
-    show MigrateFault, MigrateFaultCode;
+    show MigrateFault, MigrateFaultCode, MigrateUsageError;
 export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
 export 'src/setup_migration/stale_project.dart' show staleProjectLine;
 export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
@@ -114,7 +113,11 @@ export 'src/templates/models/checklist_item.dart';
 export 'src/templates/models/feature_pattern.dart';
 export 'src/templates/models/root_match.dart';
 export 'src/templates/project_config.dart'
-    show matchProjectRoot, readCleanupBounds, requireSpecstoneFolder;
+    show
+        isPackName,
+        matchProjectRoot,
+        readCleanupBounds,
+        requireSpecstoneFolder;
 export 'src/templates/shared_entry.dart'
     show SharedEntries, SharedField, SharedLine;
 export 'src/templates/shared_merge.dart'

@@ -746,6 +746,8 @@ void main() {
           workingDirectory: project,
           targets: session.project.targets,
           codeRootOf: session.project.codeRootOf,
+          projectRoot: session.project.projectRoot,
+          reachedFromProjectRoot: (_) => false,
         ),
         BundleMode.implement,
         noProject: false,

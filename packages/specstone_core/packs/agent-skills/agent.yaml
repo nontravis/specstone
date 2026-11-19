@@ -1,0 +1,54 @@
+id: agent
+description: |-
+  An agent doc: the spec of one subagent a project builds for other projects to use.
+  An AI grounds it before it writes or edits the agent.
+  Title it `# <Agent name>`, the agent's name, with no number.
+  State each boundary as a host-neutral capability, such as read-only outside the report file, never as one host's tool list, since a host may not enforce such a list.
+path: specs/agents/{slug}.md
+fields:
+  - id: feature
+    type: doc_ref
+    doc_types: [feature]
+    description: |-
+      Names the feature the agent serves; it must resolve to a feature.
+  - id: covers
+    type: output_ref
+    list: true
+    required: true
+    pointer: prefix
+    root: project
+    description: |-
+      Lists the agent file relative to the project root, such as `.claude/agents/reviewer.md`.
+      An entry may end in one space and its code fingerprint, which `check` compares with the file it names.
+sections:
+  - id: role
+    header: Role
+    required: true
+    summary: true
+    description: |-
+      Write the one job the agent does, and why it runs as a separate agent.
+  - id: dispatch_trigger
+    header: Dispatch trigger
+    required: true
+    description: |-
+      List when the main session dispatches the agent, when it must not, and the sibling agent that wins instead.
+  - id: brief_inputs
+    header: Brief inputs
+    required: true
+    description: |-
+      List what every dispatch must give the agent, each marked required or optional.
+  - id: report_shape
+    header: Report shape
+    required: true
+    description: |-
+      Write what the agent returns, its parts and order, and where it returns them.
+  - id: boundaries
+    header: Boundaries
+    required: true
+    description: |-
+      Write the agent's capability envelope and what it hands back to the main session or the Owner.
+  - id: acceptance
+    header: Acceptance
+    required: true
+    description: |-
+      Write the dispatch cases, sent and not sent, and assertions on the report for two or more realistic briefs.

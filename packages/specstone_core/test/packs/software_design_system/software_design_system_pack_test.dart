@@ -311,16 +311,6 @@ void main() {
       }
     });
 
-    test('contributing sets export false and no other doc type sets it', () {
-      expect(prdCoreDocType(set, 'contributing').export, isFalse);
-      expect(prdCoreDocType(set, 'contributing').exported, isFalse);
-      for (final id in softwareDesignSystemIds.where(
-        (i) => i != 'contributing',
-      )) {
-        expect(prdCoreDocType(set, id).export, isNull, reason: id);
-      }
-    });
-
     test('discovery lists the component_catalog generator and no other doc '
         'type lists one', () {
       expect(prdCoreDocType(set, 'discovery').listedGenerators, [
@@ -353,16 +343,30 @@ void main() {
       }
     });
 
-    test('the setup description holds the install-page statement on one '
-        'line', () {
+    test('the setup guide states the install contract a skill follows and no '
+        'copy', () {
       expect(
         linesOf('setup').where(
           (l) =>
               l ==
-              "The install contract is the source of the skill's install page.",
+              "The install contract is what a skill's install steps follow.",
         ),
         hasLength(1),
       );
+      for (final id in ['setup', 'contributing']) {
+        expect(
+          prdCoreDocType(set, id).description,
+          isNot(
+            contains(
+              RegExp(
+                r'\b(install page|references|copy)\b',
+                caseSensitive: false,
+              ),
+            ),
+          ),
+          reason: id,
+        );
+      }
     });
 
     test('a doc that breaks a hard rule gets no check finding, since no rule '

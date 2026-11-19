@@ -177,6 +177,9 @@ class ContextCommand extends SpecstoneCommand {
           workingDirectory: specstoneRunner.workingDirectory,
           targets: session.project.targets,
           codeRootOf: session.project.codeRootOf,
+          projectRoot: session.project.projectRoot,
+          reachedFromProjectRoot: (projectPath) =>
+              projectRootMatch(session.index, projectPath).isNotEmpty,
         );
         if (given != null && given != codePath.target.name) {
           throw IndexFault(
@@ -188,7 +191,7 @@ class ContextCommand extends SpecstoneCommand {
         final answer = answerContext(
           session.index,
           pickCodeBundle(session.index, codePath, mode, noProject: noProject),
-          label: codePath.path,
+          label: codePath.label,
           byCode: true,
           budget: budget,
           split: splits,

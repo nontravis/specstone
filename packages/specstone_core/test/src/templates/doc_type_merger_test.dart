@@ -904,38 +904,7 @@ sections:
     });
   });
 
-  group('DocTypeMerger.apply export and root', () {
-    test('a higher layer export replaces a lower one; none reads null', () {
-      final base = project(shipped(), 'export: false');
-      expect(base.export, isFalse);
-      expect(base.exported, isFalse);
-
-      expect(project(base, 'export: true').export, isTrue);
-      expect(project(base, 'description: Other').export, isFalse);
-      expect(shipped().export, isNull);
-      expect(shipped().exported, isTrue);
-    });
-
-    test('a higher layer field export replaces a lower one', () {
-      final base = project(
-        shipped(),
-        'fields: [{id: note, type: string, export: false}]',
-      );
-      MergedField note(MergedDocType type) =>
-          type.fields.singleWhere((f) => f.id == 'note');
-
-      expect(note(base).export, isFalse);
-      expect(note(base).exported, isFalse);
-      expect(
-        note(project(base, 'fields: [{id: note, export: true}]')).export,
-        isTrue,
-      );
-      expect(
-        note(project(base, 'fields: [{id: note, required: true}]')).export,
-        isFalse,
-      );
-    });
-
+  group('DocTypeMerger.apply root', () {
     test('a higher layer root replaces a lower one', () {
       final base = project(
         shipped(),

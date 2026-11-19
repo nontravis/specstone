@@ -13,13 +13,14 @@ takes a state instead, a waiting code target's left out.
 ## 3. Find the covering docs
 
 A finding's `path` is from its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`;
-default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
+default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`; a `root: project`
+entry's path (its field's `root` in `specstone guide <type> --json`, once per type) is from the project root already
+and takes no prefix.
 
 For each listed code path but a `tests_unresolved` line's or a matrix row's (steps 4.4, 4.5), run
-`specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
-`--target`; read parts of its read-first and refs files per `specstone-read-sdd`. A `root: project` entry (its field's
-`root` in `specstone guide <type> --json`, once per type) takes none: its path is from the project root, its
-covering doc the doc its finding names: `specstone context <doc> --for implement --out`.
+`specstone context --code <code root>/<path> --for implement --out`, or `--code <path>` for a `root: project`
+entry's, which takes its path's target and no `--target`; read parts of its read-first and refs files per
+`specstone-read-sdd`. The bundle of a `root: project` entry holds the doc that names it.
 
 - **Warning `no doc covers or implements <path>`:** A rename pair's new side: step 4.3. Else `helpers.md`
   first; what it leaves: read it, write nothing; report under `Uncovered:` its path, the observable behavior it adds
@@ -55,7 +56,7 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
    `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (hash:
    `bases.fields.<field>` of `get --json`; or `--field covers` on the spec doc), then rerun
    `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"`, searching its file, until those docs hold none;
-   `path-fixes.md` gives a moved file, a deleted one, and a `root: project` entry.
+   `path-fixes.md` gives a moved file, a deleted one, a `root: project` entry, and an empty entry.
 4. A `tests_unresolved` line: repoint it with
    `specstone set implementation:<feature> --field tests --target <name> --base <hash>` to the moved file of step 4.3
    or the test's current name in it; one you cannot place stays waiting. Write no `tests` line for a
@@ -74,6 +75,6 @@ After your last write, run one `specstone approve --dry-run --json`, for every c
 Your drafts are the docs your own list names: list them with their count, each one's dropped and new sentence counts,
 and one sentence on why it changed, never its text; name each other draft it lists, never counted; one of yours it
 shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, under `Pointers:` each
-pointer or row fixed and helper joined, each covers path missing line, each task removed, each behavior handed to
-`specstone-brainstorming-sdd`, and each waiting pointer, row, or helper: its code target, and its doc and code path,
-or its tasks.
+pointer or row fixed and helper joined, each covers path missing and covers entry empty line, each task removed, each
+behavior handed to `specstone-brainstorming-sdd`, and each waiting pointer, row, or helper: its code target, and its
+doc and code path, or its tasks.

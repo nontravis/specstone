@@ -60,13 +60,13 @@ extension DocTypeGuide on MergedDocType {
   /// Returns the writing guide, each block set off by a blank line.
   ///
   /// The description with the shared lines under it, and the doc-level banned
-  /// words, come first, then the `Fields:` block of the declared non-built-in
-  /// `fields`, then the doc `Limits:` line, then each section's header,
-  /// required, optional, or condition line with its `Limits:`, description,
-  /// own banned words, and template, then the `Guide sources:` block of
-  /// `reference`. A banned word list drops the allowed words that apply
-  /// there, as `check` does; a description, word list, template, field set,
-  /// or `reference` list left empty adds no block.
+  /// words, come first, then the `Fields (frontmatter):` block of the
+  /// declared non-built-in `fields`, then the doc `Limits:` line, then each
+  /// section's header, required, optional, or condition line with its
+  /// `Limits:`, description, own banned words, and template, then the
+  /// `Guide sources:` block of `reference`. A banned word list drops the
+  /// allowed words that apply there, as `check` does; a description, word
+  /// list, template, field set, or `reference` list left empty adds no block.
   ///
   /// A shared line whose id is in [sharedOut] is left out, since the caller
   /// prints it once in a block shared by every guide of the call.
@@ -149,12 +149,14 @@ extension DocTypeGuide on MergedDocType {
     };
   }
 
-  /// Returns the `Fields:` block of the non-built-in `fields`, or null when
-  /// the type declares none.
+  static const _fieldsHeading = 'Fields (frontmatter):';
+
+  /// Returns the `Fields (frontmatter):` block of the non-built-in `fields`,
+  /// or null when the type declares none.
   String? _fieldsBlock() {
     final declared = fields.where((field) => !field.isBuiltIn);
     if (declared.isEmpty) return null;
-    return ['Fields:', ...declared.map(_fieldLine)].join('\n');
+    return [_fieldsHeading, ...declared.map(_fieldLine)].join('\n');
   }
 
   /// Returns the guide line of [field]; a description line after the first is

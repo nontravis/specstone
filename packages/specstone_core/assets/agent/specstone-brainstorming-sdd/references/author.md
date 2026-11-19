@@ -52,10 +52,10 @@ copy, rewrite a reader owning a rule. List any other under `Findings:` only.
 
 Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your drafts,
 searching each for your drafts. Before the second, walk each item you wrote against the saved guide's description lines
-(doc part, held sections, `Fields:`) and each type's `==> shared <==` lines, not templates or `Banned words:`, `Required
-…`, `Optional …`, or `Limits:` lines. List a line you cannot meet under `Findings:`. Run `specstone check <feature>
---repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per feature of your drafts: link, never repeat, another
-doc's item.
+(doc part, held sections, `Fields (frontmatter):`) and each type's `==> shared <==` lines, not templates or
+`Banned words:`, `Required …`, `Optional …`, or `Limits:` lines. List a line you cannot meet under `Findings:`. Run
+`specstone check <feature> --repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per feature of your drafts:
+link, never repeat, another doc's item.
 
 Fix each second-run finding, even a first-run one, in a section you wrote; list others under `Findings:`,
 unfixed. Two kinds:

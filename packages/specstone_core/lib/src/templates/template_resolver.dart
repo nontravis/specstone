@@ -98,6 +98,14 @@ final class TemplateResolver {
       pack.manifest.name: pack.manifest,
   };
 
+  /// Whether a shipped pack or a `~/.specstone/packs/<name>/` folder under
+  /// [homeDirectory] carries [name].
+  ///
+  /// Reads no manifest, so a personal pack's faults surface when it loads.
+  bool carriesPack(String name, {required Directory? homeDirectory}) =>
+      _shippedPackNames().contains(name) ||
+      _hasPersonalFolder(name, homeDirectory);
+
   /// Resolves the doc types of [packNames] at their available versions.
   ///
   /// The packs merge with [projectLayers] and nothing else: no
@@ -244,14 +252,17 @@ final class TemplateResolver {
     return pack;
   }
 
+  bool _hasPersonalFolder(String name, Directory? home) =>
+      home != null &&
+      Directory.fromUri(home.uri.resolve('.specstone/packs/$name/'))
+          .existsSync();
+
   /// Loads the personal pack [name] from [home], with no pin check.
   ///
   /// Throws `pack_not_found` when [home] holds no folder for it and
   /// `pack_name_mismatch` when its `pack.yaml` names another pack.
   LoadedPack _personalPack(String name, Directory? home) {
-    if (home == null ||
-        !Directory.fromUri(home.uri.resolve('.specstone/packs/$name/'))
-            .existsSync()) {
+    if (home == null || !_hasPersonalFolder(name, home)) {
       throw TemplateFault(
         FaultCode.packNotFound,
         'Pack $name is pinned but no shipped pack has that name and '
@@ -561,7 +572,7 @@ final class TemplateResolver {
     final base = target == null
         ? merger.builtInBase(id)
         : _extendsBase(id, target, merged, defining);
-    _checkNewDocTypeKeys(defining, target);
+    _checkNewDocTypeKeys(defining);
     final mergedType = _applyLayers(base, id, layers, merger, reach);
     final writesDescription = layers.any((l) => l.layer.description != null);
     return mergedType.copyWith(
@@ -624,31 +635,17 @@ final class TemplateResolver {
 
   /// Throws `missing_key` when the defining layer of a new doc type misses
   /// `id`, `path`, or `description` without `extends`.
-  void _checkNewDocTypeKeys(DocTypeLayer defining, String? target) {
-    if (defining.id == null) {
-      throw TemplateFault(
-        FaultCode.missingKey,
-        'the key id is required',
-        file: defining.file,
-        key: 'id',
-      );
-    }
-    if (defining.path == null) {
-      throw TemplateFault(
-        FaultCode.missingKey,
-        'the key path is required',
-        file: defining.file,
-        key: 'path',
-      );
-    }
-    if (target == null && defining.description == null) {
-      throw TemplateFault(
-        FaultCode.missingKey,
-        'the key description is required without extends',
-        file: defining.file,
-        key: 'description',
-      );
-    }
+  void _checkNewDocTypeKeys(DocTypeLayer defining) {
+    final key = defining.missingNewDocTypeKey;
+    if (key == null) return;
+    throw TemplateFault(
+      FaultCode.missingKey,
+      key == 'description'
+          ? 'the key description is required without extends'
+          : 'the key $key is required',
+      file: defining.file,
+      key: key,
+    );
   }
 
   /// The base of the doc type [id] extending [targetId]: every key of the
@@ -675,7 +672,6 @@ final class TemplateResolver {
       path: null,
       maxDepth: null,
       isPerTarget: target.isPerTarget,
-      export: target.export,
       bundle: target.bundle == null ? null : List.unmodifiable(target.bundle!),
       bundleRefs: target.bundleRefs,
       summaryFor: target.summaryFor == null

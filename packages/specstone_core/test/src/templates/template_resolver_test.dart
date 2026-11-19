@@ -1220,28 +1220,6 @@ path: prds/notes/{slug}/NOTE.md
       ]);
     });
 
-    test("an extends doc type keeps its target's export", () async {
-      final home = await writeTree({});
-      final resolver = TemplateResolver(shippedFiles: shipped());
-      Future<bool?> extending(String extra) async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/note.yaml':
-              'id: note\ndescription: A note\npath: prds/notes/{slug}/NOTE.md\n'
-              'export: false\n',
-          '.specstone/templates/memo.yaml':
-              'id: memo\nextends: note\npath: memos/{slug}.md\n$extra',
-        });
-        return resolver
-            .resolve(workingDirectory: project, homeDirectory: home)
-            .lookup('memo')!
-            .export;
-      }
-
-      expect(await extending(''), isFalse);
-      expect(await extending('export: true\n'), isTrue);
-    });
-
     test("an extends doc type keeps its target's summary_for", () async {
       final home = await writeTree({});
       final project = await writeTree({

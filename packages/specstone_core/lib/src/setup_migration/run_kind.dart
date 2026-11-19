@@ -58,11 +58,14 @@ enum RunKind {
 /// two or more code targets over a per-target doc at a one-target path
 /// (`treeMovesOf`), then a row the matrix fold pass folds, gives
 /// [RunKind.upgrade], otherwise [RunKind.none].
-/// [homeDirectory] is the personal pack home, or null.
+/// [homeDirectory] is the personal pack home, or null. With [hasAdds], a
+/// run that would be [RunKind.none] or [RunKind.upgrade] is [RunKind.upgrade]
+/// whatever the pins and files hold; the refusals above still apply.
 RunKind chooseRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  bool hasAdds = false,
 }) {
   if (MoveJournal.pendingMigrate(root)) return RunKind.resume;
   if (File.fromUri(root.uri.resolve(legacyContextPath)).existsSync()) {
@@ -86,7 +89,7 @@ RunKind chooseRun(
   if (stamp != null && stamp.compareTo(runningVersion) > 0) {
     throw _agentFilesNewerFault(stamp);
   }
-  if (older) return RunKind.upgrade;
+  if (older || hasAdds) return RunKind.upgrade;
   if (_hasDocOffLayout(root, templates, homeDirectory)) return RunKind.upgrade;
   if (_hasAgentFileDrift(root, templates, homeDirectory)) {
     return RunKind.upgrade;

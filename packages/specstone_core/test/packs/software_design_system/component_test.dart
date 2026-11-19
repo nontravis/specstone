@@ -109,9 +109,6 @@ void main() {
         ),
         FieldSpec('design_source', FieldType.sourceRef, list: true),
       ]);
-      expect(fieldOf(component, 'lifecycle').export, isNull);
-      expect(fieldOf(component, 'feature').export, isFalse);
-      expect(fieldOf(component, 'design_source').export, isFalse);
     });
 
     test('the component guide lists its sections in the read order', () {

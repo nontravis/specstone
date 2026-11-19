@@ -10,7 +10,7 @@ import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dar
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show normalCodeEntry;
+    show isEmptyCodeEntry, normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/index_query/status_tree.dart';
@@ -259,6 +259,9 @@ Iterable<CodeLink> _entryLinks(
 
 /// Returns the entries of the `covers`-like [field] that the check reads
 /// from [root], [target]'s code root or the project root when null.
+///
+/// An empty entry is no code link, so it takes no state: neither
+/// `code_unconfirmed` nor `code_suspect` reads it.
 Iterable<CodeLink> _coversLinks(
   MergedField field,
   DocLines lines,
@@ -269,6 +272,7 @@ Iterable<CodeLink> _coversLinks(
   for (final YamlEntry(:value, :line) in lines.entriesOf(field.id)) {
     if (value is! String) continue;
     final entry = CodeLinkEntry(value);
+    if (isEmptyCodeEntry(entry.pointer)) continue;
     if (!readsCoversCode(root, entry.pointer, endsWait: endsWait)) continue;
     yield CodeLink(
       field: field.id,

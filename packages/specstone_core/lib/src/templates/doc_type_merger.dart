@@ -96,7 +96,6 @@ final class DocTypeMerger {
       path: layer.path,
       maxDepth: layer.maxDepth,
       isPerTarget: layer.perTarget,
-      export: layer.export,
       bundle: mergeList<String>(
         base.bundle,
         layer.bundle,
@@ -315,7 +314,6 @@ final class DocTypeMerger {
             docTypes: _frozen(entry.docTypes),
             pointer: _pointerOf(entry, type, file),
             root: _rootOf(entry, type, file),
-            export: entry.export,
             description: entry.description,
             lint: entry.lint,
           ),
@@ -337,7 +335,6 @@ final class DocTypeMerger {
         docTypes: _frozen(entry.docTypes),
         pointer: _pointerOf(entry, entry.type ?? current.type, file),
         root: _rootOf(entry, entry.type ?? current.type, file),
-        export: entry.export,
         description: entry.description,
         lint: _mergedCaps(current.lint, entry.lint),
       );

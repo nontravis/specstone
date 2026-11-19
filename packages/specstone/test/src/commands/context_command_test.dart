@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/shipped_pins.dart'
     show shippedPinsConfig;
+import '../../../../specstone_core/test/helpers/skill_doc_fixture.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -2483,6 +2484,85 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('a path outside the code roots that a skill doc reaches', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    /// Writes a project whose skill doc covers the folder of [skillFile], with
+    /// the code roots [targets], a `name: root` line each.
+    Future<Directory> writeSkillProject(List<String> targets) {
+      final lines = [for (final target in targets) '  $target\n'].join();
+      return writeReadProject(
+        extra: {
+          '.specstone/config.yaml': '${skillPinsConfig()}targets:\n$lines',
+          ...skillDocFile(['.claude/skills/review/']),
+          skillFile: skillText,
+          'flutter_lib/.keep': '',
+          'jaspr_lib/.keep': '',
+        },
+      );
+    }
+
+    Future<ProcessResult> run(Directory project, List<String> args) =>
+        Process.run(binary, [
+          'context',
+          '--code',
+          skillFile,
+          '--for',
+          'implement',
+          ...args,
+        ], workingDirectory: project.path);
+
+    const twoTargets = [
+      'flutter:\n    code_root: flutter_lib',
+      'jaspr:\n    code_root: jaspr_lib',
+    ];
+
+    test("a skill-covered path outside the code roots prints the first target's code target line with two targets", () async {
+      final project = await writeSkillProject(twoTargets);
+
+      final text = await run(project, []);
+      final json = await run(project, ['--json']);
+
+      expect(text.exitCode, 0, reason: '${text.stderr}');
+      expect(
+        text.stdout as String,
+        startsWith('==> code target: flutter <==\n'),
+      );
+      expect(text.stdout as String, contains('(skill)'));
+      expect(
+        (jsonDecode(json.stdout as String)
+            as Map<String, Object?>)['codeTarget'],
+        'flutter',
+      );
+    });
+    test('that path with another target is argument_conflict', () async {
+      final project = await writeSkillProject(twoTargets);
+
+      final other = await run(project, ['--target', 'jaspr']);
+      final same = await run(project, ['--target', 'flutter']);
+
+      expect(other.exitCode, 64);
+      expect(
+        other.stderr,
+        'the code path $skillFile lies in the code target flutter, not jaspr\n',
+      );
+      expect(same.exitCode, 0, reason: '${same.stderr}');
+    });
+    test('that path with one target prints no code target line', () async {
+      final project = await writeSkillProject([
+        'app:\n    code_root: flutter_lib',
+      ]);
+
+      final text = await run(project, []);
+
+      expect(text.exitCode, 0, reason: '${text.stderr}');
+      expect(text.stdout as String, contains('(skill)'));
+      expect(text.stdout as String, isNot(contains('code target')));
     });
   });
 }

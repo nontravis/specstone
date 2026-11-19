@@ -305,7 +305,7 @@ void main() {
     });
   });
 
-  group('a source_ref field and an export: false field', () {
+  group('a source_ref field', () {
     const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
     Map<String, String> projectWith(String fields, String frontmatter) => {
@@ -330,19 +330,6 @@ void main() {
         ),
       );
       expect(spots(refused, FindingKind.fieldValueMismatch), [
-        '$recordPath:2: field_value_mismatch',
-      ]);
-    });
-
-    test('a field with export: false is still read by check', () async {
-      const fields = '  - id: size\n    type: integer\n    export: false\n';
-      final report = await checkOf(
-        await writeCheckProject(
-          unstamped: {recordPath},
-          extra: projectWith(fields, 'size: big\n'),
-        ),
-      );
-      expect(spots(report, FindingKind.fieldValueMismatch), [
         '$recordPath:2: field_value_mismatch',
       ]);
     });

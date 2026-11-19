@@ -233,6 +233,39 @@ void main() {
     }
   });
 
+  test('an empty covers entry refuses stamp_entry_unresolved naming '
+      'covers_entry_empty, in each empty form', () async {
+    // Each pair is the entry as the doc writes it and as `--stamp` names it.
+    const forms = [
+      ("''", ''),
+      ('.', '.'),
+      ('./', './'),
+      ('/', '/'),
+      ('./.', './.'),
+      ('lib/..', 'lib/..'),
+      ('./lib/../', './lib/../'),
+    ];
+    for (final (written, named) in forms) {
+      final root = await _project(covers: [written]);
+      final before = readDoc(root, loginArchitecture);
+
+      final fault = _refused(root, _archAddress, ['$named=$_old']);
+
+      expect(fault.exitStatus, 64, reason: written);
+      expect(
+        fault.refusals.single.code,
+        WriteFaultCode.stampEntryUnresolved,
+        reason: written,
+      );
+      expect(
+        fault.refusals.single.message,
+        '$named does not resolve: covers_entry_empty',
+        reason: written,
+      );
+      expect(readDoc(root, loginArchitecture), before, reason: written);
+    }
+  });
+
   test(
     'an entry whose code cannot be read refuses stamp_entry_unresolved as file_unreadable',
     skip: unreadablePathSkipReason(),

@@ -65,6 +65,7 @@ List<StampDoc> _docs(Map<String, String> texts) => [
   Map<String, PackVersion>? pins,
   Map<String, PackVersion>? pinsAfter,
   bool restampsFingerprints = true,
+  Set<String> typedByAdd = const {},
 }) {
   final pass = StampPass.plan(
     _docs(before),
@@ -72,6 +73,7 @@ List<StampDoc> _docs(Map<String, String> texts) => [
     pins: pins ?? _belowBoth,
     pinsAfter: pinsAfter ?? pins ?? _belowBoth,
     restampsFingerprints: restampsFingerprints,
+    typedByAdd: typedByAdd,
   );
   return (
     pass: pass,
@@ -246,6 +248,20 @@ void main() {
         _stamped(after[_storyPath]!, _typeAt(_storyPath)),
       );
       expect(run.applied[_frPath], after[_frPath]);
+      expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
+    });
+
+    test('a doc the add newly types gets no approval hash', () {
+      final before = {_storyPath: _story(_one), _frPath: _story(_one)};
+      final after = {
+        for (final MapEntry(:key, :value) in before.entries)
+          key: '---\ndraft: true\n---\n$value',
+      };
+
+      final run = _run(before, after, typedByAdd: {_storyPath});
+
+      expect(run.applied[_storyPath], after[_storyPath]);
+      expect(run.applied[_frPath], isNot(after[_frPath]));
       expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
     });
 
