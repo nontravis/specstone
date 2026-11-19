@@ -37,6 +37,8 @@ batch's findings into drafts.
 - **`amend`** (audit with `stage: design`, optional): `<N>`, the amend whose decisions the design check reads.
 - **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
   docs to read.
+- **`check`** (audit with no `stage: design`, optional): the last author pass's `Check:` file, passed while no `Move:`
+  command ran since; search it per target; absent, run one bare `check --out`.
 - **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; absent, your gate `check`
   gives the work list.
 - **`scope`** (sync, optional): one group of a sync with no feature named, `feature:<name>`, `<type>:<name>`, or
