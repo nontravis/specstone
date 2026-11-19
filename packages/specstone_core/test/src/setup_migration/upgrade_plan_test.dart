@@ -5336,6 +5336,34 @@ void _dropDefaultLinesTests() {
       );
     });
 
+    test('a layer with no Consistency entry keeps every Consistency line, and '
+        'an optional entry with no values drops them', () async {
+      final cases = {
+        '{item_fields: {remove: [Consistency]}}':
+            '  - **Consistency:** '
+            'immediate',
+        '{item_fields: {add: [{field: Consistency, optional: true}]}}': '',
+      };
+      for (final MapEntry(key: lint, value: kept) in cases.entries) {
+        final plan = _plan(
+          await _fixture(
+            packYaml: _dropPackYaml,
+            overrides: {_domainOverridePath: _domainOverride(lint)},
+            docs: {_loginPath: _loginDoc},
+          ),
+        );
+
+        expect(
+          _rewriteAt(plan, 'docs/$_loginPath').text,
+          _domainText(
+            _accountRow,
+            '- **INV-1** An email is unique.${kept.isEmpty ? '' : '\n$kept'}',
+          ),
+          reason: lint,
+        );
+      }
+    });
+
     test('a layer whose Consistency entry allows immediate or requires the '
         'field keeps every Consistency line', () async {
       for (final entry in const [

@@ -19,9 +19,9 @@ const _immediate = 'immediate';
 /// A default line is a nested `- **Consistency:** immediate` line while
 /// [dropsConsistency] holds, or a nested `- **Enforcer:**` line that names
 /// [defaultEnforcer]; with a null [defaultEnforcer] every Enforcer line stays.
-/// Matches the header as
-/// [headerKey] does and reads items as the check does, so a fenced line, a
-/// line outside the section, and a line not nested under an item stay.
+/// Matches the header as [headerKey] does and reads items as the check does,
+/// so a fenced line, a line outside the section, and a line not nested under
+/// an item stay.
 String withDefaultLinesDropped(
   String lf, {
   required String invariantsHeader,
