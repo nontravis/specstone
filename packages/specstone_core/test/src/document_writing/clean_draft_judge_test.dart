@@ -15,7 +15,7 @@ const _draft = JudgedDraft(name: _name, docPath: _docPath, currentHash: _hash);
 String _audited(String name, String hash) => 'Audited: $name@$hash';
 String _styled(String name, String hash) => 'Styled: $name@$hash';
 
-// The reason patterns of the doc's Clean-draft tests table.
+// The reason text patterns, built here, never imported from the code.
 String _checkFinding(String kind) => 'check finding $kind';
 String _auditedAt(String then, String now) => 'audited at $then, now $now';
 String _namedIn(String section, String file) => 'named in $section of $file';
@@ -36,18 +36,31 @@ CleanDraftJudge _judge({
   AuditSequence? audit,
   bool noAudit = false,
   List<ReportFile> authors = const [],
+  String? unreadableReason,
 }) => CleanDraftJudge(
   findings: findings,
   audit: audit,
   noAudit: noAudit,
   authors: authors,
+  unreadableReason: unreadableReason,
 );
 
+String _crlf(String text) =>
+    text.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
+
+/// Judges [text] as LF and as CRLF, which must agree; returns the reason.
 String? _reasonForAudit(
   String text, {
   JudgedDraft? draft,
   List<String> later = const [],
-}) => _judge(audit: _sequence([text, ...later])).reasonFor(draft ?? _draft);
+}) {
+  final lf = _judge(audit: _sequence([text, ...later]))
+      .reasonFor(draft ?? _draft);
+  final crlf = _judge(audit: _sequence([_crlf(text), ...later.map(_crlf)]))
+      .reasonFor(draft ?? _draft);
+  expect(crlf, lf, reason: 'CRLF text reads as its LF copy');
+  return lf;
+}
 
 Finding _finding(
   FindingKind kind, {
@@ -209,6 +222,53 @@ void main() {
         '$_name is mentioned before any section',
       ].join('\n');
       expect(_reasonForAudit(outside), isNull);
+    });
+
+    test('keeps a line led by a hash that is no heading as an item', () {
+      for (final line in [
+        '#1 $_name is wrong',
+        '####### $_name',
+        '#x $_name',
+      ]) {
+        final text = [_audited(_name, _hash), 'Findings:', line].join('\n');
+        expect(
+          _reasonForAudit(text),
+          _namedIn('Findings', 'audit1.md'),
+          reason: line,
+        );
+      }
+      for (final heading in ['#', '# $_name', '###### x', '#\tx']) {
+        final text = [
+          _audited(_name, _hash),
+          'Findings:',
+          heading,
+          '- $_name after the heading',
+        ].join('\n');
+        expect(_reasonForAudit(text), isNull, reason: heading);
+      }
+    });
+
+    test('splits parts at a round heading line inside a fenced block', () {
+      final text = [
+        _audited(_name, _hash),
+        'Findings:',
+        '```',
+        '## Round 2',
+        '```',
+        '- $_name is broken',
+      ].join('\n');
+      // The heading splits the part, so no section is open after it.
+      expect(_reasonForAudit(text), isNull);
+
+      final inFence = [
+        _audited(_name, _hash),
+        '```',
+        '## Round 2',
+        'Findings:',
+        '- $_name is broken',
+        '```',
+      ].join('\n');
+      expect(_reasonForAudit(inFence), _namedIn('Findings', 'audit1.md'));
     });
 
     test('closes a section at any other label line', () {
@@ -427,18 +487,21 @@ void main() {
       );
     });
 
-    test('asks a draft named only by a DocPath under test 3', () {
-      const shared = JudgedDraft(
-        name: _docPath,
-        docPath: _docPath,
-        currentHash: _hash,
-      );
-      final text = [
-        _audited(_name, _hash),
-        'Audited: $_docPath@$_hash',
-      ].join('\n');
-      expect(_reasonForAudit(text, draft: shared), _noAuditReason);
-    });
+    test(
+      'asks a draft whose audit names only its typed name by its DocPath',
+      () {
+        const shared = JudgedDraft(
+          name: _docPath,
+          docPath: _docPath,
+          currentHash: _hash,
+        );
+        final text = [
+          _audited(_name, _hash),
+          'Audited: $_docPath@$_hash',
+        ].join('\n');
+        expect(_reasonForAudit(text, draft: shared), _noAuditReason);
+      },
+    );
 
     test('an unreadable report fails each draft', () {
       final folder = Directory.systemTemp.createTempSync('clean_judge_');
@@ -460,6 +523,25 @@ void main() {
       }
       expect(osMessage, isNotEmpty);
       expect(missing.unreadableReason, _unreadable('gone.md', osMessage));
+
+      const typed = JudgedDraft(
+        name: 'fr:b',
+        docPath: 'prds/b.md',
+        currentHash: _otherHash,
+      );
+      final judge = _judge(
+        audit: _sequence([
+          [_audited(_name, _hash), _audited('fr:b', _otherHash)].join('\n'),
+        ]),
+        unreadableReason: missing.unreadableReason,
+      );
+      for (final draft in [_draft, typed]) {
+        expect(
+          judge.reasonFor(draft),
+          _unreadable('gone.md', osMessage),
+          reason: draft.name,
+        );
+      }
 
       final authorMissing = ReportFiles.read(
         auditPaths: ['audit.md'],

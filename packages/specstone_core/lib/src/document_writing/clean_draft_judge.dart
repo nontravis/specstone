@@ -23,6 +23,9 @@ final _sectionLine = RegExp(r'^(Findings|Outside the drafts):(?:[ \t]+(.*))?$');
 /// Any label line: a capital, then letters, spaces, or `'`, then a colon.
 final _labelLine = RegExp(r"^[A-Z][A-Za-z ']*:(?: |$)");
 
+/// A Markdown ATX heading: 1 to 6 `#`, then a blank or the line end.
+final _atxHeading = RegExp(r'^#{1,6}(?:[ \t]|$)');
+
 final _dashItem = RegExp(r'^-[ \t]+(.+)$');
 final _edgeBlanks = RegExp(r'^[ \t]+|[ \t]+$');
 
@@ -227,7 +230,7 @@ _Part _readPart(String fileName, List<String> lines) {
       last = null;
       final first = match[2];
       if (first != null && first.isNotEmpty && first != 'none') addItem(first);
-    } else if (_labelLine.hasMatch(line) || line.startsWith('#')) {
+    } else if (_labelLine.hasMatch(line) || _atxHeading.hasMatch(line)) {
       open = null;
       last = null;
     } else if (open != null) {
@@ -261,11 +264,15 @@ final class CleanDraftJudge {
     required AuditSequence? audit,
     required bool noAudit,
     required List<ReportFile> authors,
+    String? unreadableReason,
   }) : _findings = findings,
        _audit = audit,
        _noAudit = noAudit,
+       _unreadableReason = unreadableReason,
        _notLandedFile = _firstNotLandedFile(authors);
 
+  /// Fails every draft when set: [ReportFiles.unreadableReason] of the call.
+  final String? _unreadableReason;
   final List<Finding> _findings;
   final AuditSequence? _audit;
   final bool _noAudit;
@@ -273,6 +280,7 @@ final class CleanDraftJudge {
 
   /// Returns the reason of the first failing test, or null for a clean draft.
   String? reasonFor(JudgedDraft draft) =>
+      _unreadableReason ??
       _checkReason(draft) ??
       (_noAudit ? null : _auditReason(draft)) ??
       _authorReason();
