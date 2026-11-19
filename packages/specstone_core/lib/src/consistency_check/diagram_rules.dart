@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/diagram_block.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -40,9 +41,6 @@ Iterable<Finding> checkDiagrams(CheckContext context, IndexedDoc doc) sync* {
   }
 }
 
-/// One `mermaid` flowchart block: its opening-fence line and body lines.
-typedef DiagramBlock = ({int fenceLine, List<BodyLine> lines});
-
 /// Returns each `mermaid` fence of [body] whose first body word is
 /// `flowchart` or `graph`.
 Iterable<DiagramBlock> _flowchartBlocks(List<BodyLine> body) sync* {
@@ -63,7 +61,7 @@ Iterable<DiagramBlock> _flowchartBlocks(List<BodyLine> body) sync* {
     if (info == mermaidInfoWord &&
         drawn.isNotEmpty &&
         _flowchartWord.hasMatch(drawn.first.text.trim())) {
-      yield (fenceLine: body[i].line, lines: lines);
+      yield DiagramBlock(fenceLine: body[i].line, lines: lines);
     }
     i = end + 1;
   }
