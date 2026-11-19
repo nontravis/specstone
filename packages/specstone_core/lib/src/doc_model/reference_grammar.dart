@@ -615,13 +615,6 @@ final _legacyTitleLabel = RegExp(
 String withoutLegacyTitleLabel(String title) =>
     title.replaceFirst(_legacyTitleLabel, '');
 
-final _angleDestinationOpen = RegExp(r'\]\(\s*<');
-
-/// Whether [source] holds, at index [at], the `](` that closes a link's text
-/// and opens its destination in angle brackets.
-bool opensAngleDestinationAt(String source, int at) =>
-    _angleDestinationOpen.matchAsPrefix(source, at) != null;
-
 /// Returns, keyed by its index in [ids], the next free ID of each
 /// [LetteredId], counted per prefix in list order: the
 /// highest [ItemId] number of that prefix plus one, plus one per earlier
