@@ -231,7 +231,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'cHM6Ly9iYXJlc3RyYXRlZ3kuY29tL2Jsb2cvbWVzc2FnaW5nLWhvdXNlLWZyYW1l'
       'd29yawo=',
   'marketing/pack.yaml':
-      'bmFtZTogbWFya2V0aW5nCnZlcnNpb246IDEuMC4wCmV4dGVuZHM6IHByZC1jb3Jl'
+      'bmFtZTogbWFya2V0aW5nCnZlcnNpb246IDEuMS4wCmV4dGVuZHM6IHByZC1jb3Jl'
       'Cg==',
   'marketing/patterns/product_launch.yaml':
       'aWQ6IHByb2R1Y3RfbGF1bmNoCmRlc2NyaXB0aW9uOiBhIGxhdW5jaCBvZiBhIG5l'

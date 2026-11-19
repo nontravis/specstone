@@ -111,26 +111,28 @@ void main() {
       );
     });
 
-    test('a pin one version below fails as pack_pin_older naming the shipped '
-        'version', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  marketing: 1.0.0\n  personal-branding: 0.9.0\n',
-      });
-      final home = await writeTree({});
-      expect(
-        () => TemplateResolver().resolve(
-          workingDirectory: project,
-          homeDirectory: home,
-        ),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code, 'code', FaultCode.packPinOlder)
-              .having((f) => f.message, 'message', contains('1.0.0')),
-        ),
-      );
-    });
+    test(
+      'an older personal-branding pin points at its shipped version',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  marketing: 1.1.0\n  personal-branding: 0.9.0\n',
+        });
+        final home = await writeTree({});
+        expect(
+          () => TemplateResolver().resolve(
+            workingDirectory: project,
+            homeDirectory: home,
+          ),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.packPinOlder)
+                .having((f) => f.message, 'message', contains('1.0.0')),
+          ),
+        );
+      },
+    );
   });
 
   group('merged set', () {
