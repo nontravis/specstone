@@ -27,6 +27,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 
 /// Why a rule reads a code file, which names what an unreadable file leaves
 /// unchecked.
@@ -82,8 +83,8 @@ final class CheckContext {
   /// Whether the config pins a pack at or above the approval stamps.
   bool get stampsHaveRun => _session.project.stampsHaveRun;
 
-  /// Whether the config turns on `verification_coverage`.
-  bool get verificationCoverage => _session.project.verificationCoverage;
+  /// The Verification matrix mode the config names.
+  MatrixMode get matrixMode => _session.project.matrixMode;
 
   /// The merged doc types of the project.
   MergedSet get set => _session.project.set;

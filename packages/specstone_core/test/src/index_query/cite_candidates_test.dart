@@ -266,6 +266,16 @@ void main() {
       expect(read, isEmpty);
     });
 
+    test('reads no cite candidate in any span of a per-FR test row', () {
+      final read = candidatesOf(
+        _matrixRecord(
+          '- show_toast: `login/email_login`, `domain:login`\n'
+          '- show_toast/pin_toast: `topic:doc_model`\n',
+        ),
+      );
+      expect(read, isEmpty);
+    });
+
     test('a span outside the matrix, a skip row, and a line that is no row '
         'still give their candidates', () {
       final read = candidatesOf(

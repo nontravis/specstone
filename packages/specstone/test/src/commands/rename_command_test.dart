@@ -6,8 +6,9 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart'
     show fingerprintFor, writeCheckProject;
 import '../../../../specstone_core/test/helpers/nested_fixture.dart'
-    show writeNestedProject;
+    show cartRecord, writeNestedProject;
 import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
+import '../../../../specstone_core/test/helpers/per_fr_row_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
@@ -529,6 +530,27 @@ void main() {
         expect(File('${root.path}/$note').readAsStringSync(), text);
       },
     );
+
+    test('prints a record the re-stamp alone changes under dry run', () async {
+      // The record keeps no status the rename rewrites, so the re-stamp alone
+      // changes it.
+      final root = await writePerFrProject(keepsDropStatus: false);
+      final before = readDoc(root, cartRecord);
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:shop/cart/drop_item',
+          '--to',
+          'remove_item',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), contains('rewrites $cartRecord\n'));
+      expect(readDoc(root, cartRecord), before);
+    });
 
     test('--json prints moved, rewritten, mentions, and dryRun true', () async {
       final (:runner, :out, :err) = writeRunner(await writeWriteProject());
