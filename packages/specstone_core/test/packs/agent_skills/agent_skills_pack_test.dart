@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';

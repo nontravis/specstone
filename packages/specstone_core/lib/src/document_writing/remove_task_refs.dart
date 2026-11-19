@@ -14,8 +14,6 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 // MARK: - Public

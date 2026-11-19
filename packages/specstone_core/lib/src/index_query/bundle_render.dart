@@ -12,6 +12,7 @@ import 'package:specstone_core/src/index_query/models/ancestor_piece.dart';
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
+import 'package:specstone_core/src/index_query/models/feature_pattern_part.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
 String _summaryNextStep(BundleMode mode) =>

@@ -221,7 +221,7 @@ Iterable<({String? target, String entry})> _codeEntriesOf(
     if (!match.docType.fields.any((field) => field.id == _codeField)) continue;
     final text = _decode(readPlanInput(docs[docPath]!));
     if (text == null) continue;
-    for (final YamlEntry(:value) in DocLines.of(
+    for (final YamlEntry(:value) in docLinesOf(
       toLf(text),
     ).entriesOf(_codeField)) {
       if (value is String) yield (target: match.target, entry: value);

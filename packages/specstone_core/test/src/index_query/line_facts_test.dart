@@ -7,12 +7,13 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
-import 'package:specstone_core/src/index_query/mermaid_blocks.dart';
 import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/label_place.dart';
+import 'package:specstone_core/src/index_query/models/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_place.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
+import 'package:specstone_core/src/index_query/models/mermaid_block.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -61,7 +62,7 @@ void main() {
         const LabelPlace(line: 6, written: 'FR-04'),
       ]);
       expect(
-        LineFacts.fromJson(
+        lineFactsFromJson(
           jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
           sectionCounts: facts.sectionCounts,
         ).numberLabels,
@@ -83,7 +84,7 @@ void main() {
         const TbrMarkerPlace(line: 10, rest: 'later.'),
       ]);
       expect(
-        LineFacts.fromJson(
+        lineFactsFromJson(
           jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
           sectionCounts: facts.sectionCounts,
         ).tbrMarkers,
@@ -371,7 +372,7 @@ void main() {
     test('the JSON round-trips every fact but the section counts, which the '
         'section rows keep', () {
       final facts = _factsOf(text);
-      final back = LineFacts.fromJson(
+      final back = lineFactsFromJson(
         jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
         sectionCounts: facts.sectionCounts,
       );
@@ -388,7 +389,7 @@ void main() {
     test('the JSON round-trips the file links', () {
       final facts = _factsOf('# T\n\n![f](flow%20a.png) [c](../x.dart)\n');
       expect(facts.fileLinks, hasLength(2));
-      final back = LineFacts.fromJson(
+      final back = lineFactsFromJson(
         jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
         sectionCounts: facts.sectionCounts,
       );
@@ -413,7 +414,7 @@ void main() {
       expect(facts.anchors, isNotNull);
       expect(facts.anchors!.holds('t'), isTrue);
       expect(facts.anchors!.holds('rules'), isTrue);
-      final back = LineFacts.fromJson(
+      final back = lineFactsFromJson(
         jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
         sectionCounts: facts.sectionCounts,
       );
@@ -463,7 +464,7 @@ void main() {
       idPrefixes: const {'INV-'},
     ).content.lineFacts;
 
-    LineFacts roundTrip(LineFacts facts) => LineFacts.fromJson(
+    LineFacts roundTrip(LineFacts facts) => lineFactsFromJson(
       jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
       sectionCounts: facts.sectionCounts,
     );
@@ -631,10 +632,7 @@ void main() {
         [8, 11, 'INV-3', 'cite', 'domain:x'],
       ]);
       expect(
-        LineFacts.fromJson(
-          json,
-          sectionCounts: facts.sectionCounts,
-        ).bareItemIds,
+        lineFactsFromJson(json, sectionCounts: facts.sectionCounts).bareItemIds,
         written,
       );
     });
@@ -659,7 +657,7 @@ void main() {
         MermaidBlock(fenceLine: 3, hash: 'aa'),
         MermaidBlock(fenceLine: 9, hash: 'bb'),
       ];
-      final facts = LineFacts.of(
+      final facts = lineFactsOf(
         lfText: '# T\n',
         countedText: '# T\n',
         docPath: 'doc.md',
@@ -680,7 +678,7 @@ void main() {
         [3, 'aa'],
         [9, 'bb'],
       ]);
-      final read = LineFacts.fromJson(json, sectionCounts: const []);
+      final read = lineFactsFromJson(json, sectionCounts: const []);
       expect(
         [for (final b in read.mermaidBlocks) (b.fenceLine, b.hash)],
         [(3, 'aa'), (9, 'bb')],
@@ -689,7 +687,7 @@ void main() {
 
     test('structureOf stores no block', () {
       const text = '# T\n\n```mermaid\npie\n```\n';
-      final facts = LineFacts.structureOf(lfText: text, doc: Doc.parse(text));
+      final facts = lineStructureOf(lfText: text, doc: Doc.parse(text));
 
       expect(facts.mermaidBlocks, isEmpty);
     });
@@ -699,7 +697,7 @@ void main() {
     test('lineCount and charCount measure countedText '
         'while every line number stays the file line', () {
       const disk = '# T\n\n## A\nx\n\n\n## B\ny\n';
-      final facts = LineFacts.of(
+      final facts = lineFactsOf(
         lfText: disk,
         countedText: 'one\ntwo\n\nthree\n',
         docPath: 'doc.md',

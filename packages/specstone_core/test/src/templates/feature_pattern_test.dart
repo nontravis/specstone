@@ -2,6 +2,7 @@ import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
+import 'package:specstone_core/src/templates/models/feature_pattern.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 

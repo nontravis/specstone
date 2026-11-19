@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/models/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/mention.dart';
 import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/index_query/models/written_path.dart';

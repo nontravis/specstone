@@ -29,8 +29,6 @@ import 'package:specstone_core/src/index_query/record_entries.dart'
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show PointerKind;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _pairMark = '=';

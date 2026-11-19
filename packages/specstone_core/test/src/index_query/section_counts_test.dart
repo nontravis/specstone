@@ -55,7 +55,7 @@ void main() {
   test('a blank line and a 165-character paragraph store line count 1 and '
       'code-point count 166', () {
     final text = '# Title\n\n## Statement\n\n${'x' * 165}\n';
-    final counts = DocLines.of(text).sectionCounts.single;
+    final counts = docLinesOf(text).sectionCounts.single;
     expect(counts, const SectionCounts(lines: 1, chars: 166));
   });
 }

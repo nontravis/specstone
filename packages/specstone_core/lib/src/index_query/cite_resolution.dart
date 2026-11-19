@@ -16,11 +16,11 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show docNamedBy, namesakesIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
 import 'package:specstone_core/src/index_query/models/cite_doc.dart';
 import 'package:specstone_core/src/index_query/models/cite_item.dart';
 import 'package:specstone_core/src/index_query/models/cite_section.dart';
+import 'package:specstone_core/src/index_query/models/line_facts.dart';
 
 // MARK: - Results
 

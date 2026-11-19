@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/models/reference_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -24,7 +25,7 @@ ReferenceEntry parseRef(
   String key = 'reference[0]',
 }) {
   final map = readYamlMap(entry, file: _file);
-  return ReferenceEntry.parse(
+  return parseReferenceEntry(
     map,
     file: _file,
     key: key,
