@@ -68,7 +68,6 @@ class FormatCommand extends SpecstoneCommand {
             return (resolver: session.index, close: session.close);
           },
         ),
-        rewriteLinks: rewriteReferenceLinks,
       );
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson, warnings: sessionWarnings);
