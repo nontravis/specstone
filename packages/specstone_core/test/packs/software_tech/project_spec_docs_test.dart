@@ -147,12 +147,17 @@ void main() {
     expect(sectionOf(type, 'conventions').description, isNotEmpty);
   });
 
-  test('project_error requires error_envelope', () {
+  test('project error requires its envelope and frees its retry section', () {
     final type = prdCoreDocType(set, 'project_error');
     final base = prdCoreDocType(set, 'error');
     expect(sectionOf(type, 'error_envelope').required, isTrue);
     expect(sectionOf(base, 'error_envelope').required, isFalse);
     expect(sectionOf(type, 'error_envelope').description, isNotEmpty);
+    expect(sectionOf(type, 'retry_policy').required, isFalse);
+    expect(
+      sectionOf(type, 'error_catalog').description,
+      isNot(contains('Implemented by')),
+    );
     expect(
       [for (final s in type.sections) s.id],
       [for (final s in base.sections) s.id],
