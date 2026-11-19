@@ -345,7 +345,9 @@ void main() {
         ['Enforcer', 'Consistency', 'Corrective policy'],
       );
       expect(fields.first.values, isNull);
-      expect(fields[1].values, ['immediate', 'eventual']);
+      expect(fields.first.defaultFrom, 'entities');
+      expect(fields[1].values, ['eventual']);
+      expect(fields[1].optional, isTrue);
       expect(fields.last.values, isNull);
       expect(fields.last.when!.field, 'Consistency');
       expect(fields.last.when!.value, 'eventual');
