@@ -1,3 +1,7 @@
 name: software-design-system
 version: 1.0.0
 extends: software-tech
+shared_lines:
+  - id: serve_library_builders
+    text: These docs serve the team that builds the library, not the library's consumers.
+    for_doc_types: [accessibility, color, component, component_group, content, contributing, discovery, elevation, guidelines, icon, layout, motion, setup, shape, spacing, theme, tokens, typography, ui_pattern]

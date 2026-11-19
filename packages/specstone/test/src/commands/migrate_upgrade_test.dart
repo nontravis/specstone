@@ -252,7 +252,59 @@ const _bulletedDoc =
     '# Deploy\n\n## Goals\n\n- **Serves:** PV-01\n- **By:** v1\n\n'
     '## Notes\n\n**Serves:** kept\n';
 
+const _stripMigrations = '''
+shared_lines:
+  - {id: acme_no_status, text: Never write a status field.}
+migrations:
+  - from: 1.0.0
+    steps:
+      - strip_shared_copies: {}
+''';
+
+const _stripType = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+''';
+
+const _stripOverride =
+    'description: |-\n  A runbook.\n  Never write a status field.\n';
+
 void main() {
+  group('strip_shared_copies step', () {
+    test('--dry-run --json lists the copy under sharedCopies and writes '
+        'nothing, and bare migrate writes the stripped override in '
+        'commit 2', () async {
+      final home = await _home(migrations: _stripMigrations, type: _stripType);
+      final root = await _project(
+        files: {_runbookPath: '# Deploy\n', _overridePath: _stripOverride},
+      );
+      final before = _bytesUnder(root);
+
+      final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+
+      expect(json.status, 0, reason: json.err);
+      final plan = jsonDecode(json.out) as Map<String, Object?>;
+      expect(plan['sharedCopies'], {
+        'stripped': ['$_overridePath:3 acme_no_status'],
+        'left': <String>[],
+      });
+      expect(_bytesUnder(root), before);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        result.out,
+        contains('  from 1.0.0: strip_shared_copies: 1 docs\n'),
+      );
+      expect(result.out, isNot(contains('shared copies left:')));
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_read(root, _overridePath), 'description: |-\n  A runbook.\n');
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+  });
   group('bullet_lines step', () {
     test('bare migrate writes the bullet lines in commit 2 and changes '
         'nothing else, and --dry-run writes nothing', () async {

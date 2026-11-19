@@ -1,22 +1,15 @@
 id: persona
 description: |-
-  A persona: one archetype of a human Role, described by its goals, behaviors, and the research behind them.
+  A persona: one archetype of a human Role, described by its goals, behaviors, and research.
   Title it `# <archetype title>`, role-based, with no number. The folder name is its identity, so it has no id field.
-  `role:` names the Role of PROJECT that the persona deepens; one Role may have many personas.
+  One Role may have many personas.
   Write one persona per distinct pattern of goals, behaviors, and skills, never one per job title or segment.
-  Keep the set to the minimum that shows real differences, and merge personas whose needs match.
-  Mark one primary persona per product surface; mark the others secondary or served.
-  Scope each persona to the product's domain; do not reuse one built for another product or for marketing.
+  Keep the set to the minimum that shows real differences; merge personas whose needs match.
+  Scope each persona to the product's domain, never reused from another product or from marketing.
   Keep the persona behavioral: demographics alone describe a marketing segment.
-  Keep it in a form anyone can edit; never polish it into an artifact nobody can update.
+  Keep it editable by anyone; never polish it into an artifact nobody can update.
   Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
   Keep a bound in the item it limits, and the research trace in `basis:` and the Sources section, never in the prose.
-  State the present truth; history lives in git.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: prds/personas/{slug}/PERSONA.md
 fields:
   - id: role
@@ -55,16 +48,15 @@ fields:
   - id: reviewed
     type: date
     description: |-
-      Date of the last review. Bump it on each review.
+      The last review date; bump it on each review.
       Change the content only when the user base or the business landscape changes.
 sections:
   - id: snapshot
     header: Snapshot
     required: true
     description: |-
-      Write role, experience level, and one memorable detail.
       Add a personal name only to make the persona memorable; the title stays the archetype role.
-      Include a detail only if it would change a product decision; cut the rest.
+      Include only a detail that would change a product decision.
     template: |-
       <Role, experience level, and one memorable detail.>
     lint:
@@ -75,7 +67,7 @@ sections:
     required: true
     description: |-
       Write goals: mostly end goals, an experience goal where feelings matter, a life goal only if needed.
-      Write each job as verb + object + context, with no solution or product name in it.
+      Name no solution or product in a job.
       Reference a shared job statement by its ID instead of copying it into each persona.
     template: |-
       - <Verb> <object> <context>
@@ -95,7 +87,7 @@ sections:
     header: Context of use
     required: true
     description: |-
-      State the setting, the tools or devices, the frequency, and whether use is chosen or required.
+      State the setting, tools or devices, frequency, and whether use is chosen or required.
     template: |-
       - **Setting:** <where the persona works>
       - **Tools or devices:** <what the persona uses>
@@ -128,7 +120,7 @@ sections:
     header: Current alternatives
     required: true
     description: |-
-      List what the persona does today, including manual workarounds and doing nothing.
+      Include manual workarounds and doing nothing.
     template: |-
       - <What the persona does today, or does nothing.>
     lint:
@@ -138,7 +130,7 @@ sections:
     header: Success looks like
     required: true
     description: |-
-      Write success as desired outcomes: direction + metric + object + context.
+      Write success as desired outcomes.
       Add functional and emotional success criteria where the persona differs from the others.
     template: |-
       - <Direction> <metric> <object> <context>
@@ -154,26 +146,26 @@ sections:
     header: Sources
     required: true
     description: |-
-      List every research source behind the persona's claims, and link each claim to its source.
+      List every research source behind the persona's claims, linking each claim to its source.
       For an assumed persona, list the assumptions to test.
     template: |-
       - <Research link or reference>
   - id: decision_criteria
     header: Decision criteria
     description: |-
-      Optional. Fill it only when the persona chooses or buys among options.
+      Fill it only when the persona chooses or buys among options.
     template: |-
       - <A criterion the persona uses to choose.>
   - id: channels
     header: Channels & content habits
     description: |-
-      Optional. Fill it only for marketing use; record the resources the persona trusts.
+      Fill it only for marketing use; record the resources the persona trusts.
     template: |-
       - <A resource or channel the persona trusts.>
   - id: how_we_talk
     header: How we talk to
     description: |-
-      Optional. Link the brand voice guide and state only the tone shift for the persona's state of mind.
+      Link the brand voice guide and state only the tone shift for the persona's state of mind.
     template: |-
       - **Voice guide:** <link>
       - **Tone shift:** <how the tone changes for the persona>

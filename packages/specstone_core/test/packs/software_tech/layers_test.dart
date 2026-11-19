@@ -21,6 +21,10 @@ void main() {
       final merged = prdCoreDocType(both, id);
       final base = prdCoreDocType(prdOnly, id);
       expect(merged.description, base.description);
+      expect(
+        [for (final l in merged.sharedLines) (l.id, l.text)],
+        [for (final l in base.sharedLines) (l.id, l.text)],
+      );
       expect(merged.path, base.path);
       expect(merged.parent, base.parent);
       expect(merged.extendsId, base.extendsId);

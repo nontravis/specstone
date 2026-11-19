@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -2816,6 +2817,75 @@ path: features/{slug}/FEATURE.md
       expect(fault.key, 'name');
       expect(fault.exitStatus, 78);
     });
+  });
+
+  group('TemplateResolver project shared.yaml', () {
+    const sharedPath = '.specstone/templates/shared.yaml';
+    const config = 'packs:\n  prd-core: 1.1.0\n';
+
+    test('a shared_lines file adds no doc type and loads its lines', () async {
+      final project = await writeTree({
+        _configPath: config,
+        sharedPath: 'shared_lines:\n  - id: tone\n    text: Be brief.\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: await writeTree({}),
+      );
+      final lines = loadProjectSharedLines(project);
+
+      expect(merged.docTypes.map((type) => type.id), ['feature']);
+      expect(lines.map((line) => line.id), ['tone']);
+      expect(lines.single.text, 'Be brief.');
+      expect(lines.single.file, sharedPath);
+    });
+
+    test('a CRLF shared.yaml loads its line text without the CR', () async {
+      final project = await writeTree({
+        sharedPath: 'shared_lines:\r\n  - id: tone\r\n    text: Be brief.\r\n',
+      });
+
+      final lines = loadProjectSharedLines(project);
+
+      expect(lines.single.text, 'Be brief.');
+    });
+
+    for (final (name, text) in [
+      ('shared_fields', 'shared_fields:\n  - id: x\n    type: string\n'),
+      ('notes', 'shared_lines:\n  - id: a\n    text: b\nnotes: x\n'),
+    ]) {
+      test('shared.yaml key $name is unknown_key at that key', () async {
+        final fault = await _resolveFault(
+          project: {_configPath: config, sharedPath: text},
+        );
+
+        expect(fault.code, FaultCode.unknownKey);
+        expect(fault.file, sharedPath);
+        expect(fault.key, name);
+        expect(fault.exitStatus, 78);
+      });
+    }
+
+    for (final (name, files) in [
+      ('no file', <String, String>{}),
+      ('a file with no key', {sharedPath: ''}),
+      ('shared_lines with no value', {sharedPath: 'shared_lines:\n'}),
+    ]) {
+      test('no project shared layer and no fault for $name', () async {
+        final project = await writeTree({_configPath: config, ...files});
+        final resolver = TemplateResolver(shippedFiles: shipped());
+
+        final merged = resolver.resolve(
+          workingDirectory: project,
+          homeDirectory: await writeTree({}),
+        );
+
+        expect(loadProjectSharedLines(project), isEmpty);
+        expect(merged.docTypes.map((type) => type.id), ['feature']);
+      });
+    }
   });
 
   group('TemplateResolver.availableManifests and resolveCarried', () {

@@ -1,7 +1,6 @@
 id: ui_pattern
 description: |-
   A UI pattern: one pattern composed of components.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# <Pattern name>`, with no number.
 path: specs/design_system/composition/patterns/{slug}.md
 sections:

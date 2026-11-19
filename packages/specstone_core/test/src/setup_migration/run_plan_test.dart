@@ -683,4 +683,41 @@ void main() {
     );
     expect(formatLayoutLine(const []), isNull);
   });
+
+  group('shared copies', () {
+    test('the lists print sharedCopies with both lists whole, and no key '
+        'when the step is not planned', () {
+      expect(const PlanLists().toJson(), isNot(contains('sharedCopies')));
+      expect(
+        const PlanLists(
+          sharedCopies: SharedCopiesLists(
+            stripped: [],
+            left: ['.specstone/templates/api.yaml:3 no_status'],
+          ),
+        ).toJson()['sharedCopies'],
+        {
+          'stripped': <String>[],
+          'left': ['.specstone/templates/api.yaml:3 no_status'],
+        },
+      );
+    });
+
+    test('a step line keeps its own text and JSON object when it holds a '
+        'following line', () {
+      const line = UpgradeStepLine(
+        from: '1.12.0',
+        step: 'strip_shared_copies',
+        paths: ['.specstone/templates/api.yaml'],
+        nextLine: 'shared copies left: 2',
+      );
+
+      expect(line.text, 'from 1.12.0: strip_shared_copies: 1 docs');
+      expect(line.nextLine, 'shared copies left: 2');
+      expect(line.toJson(), {
+        'from': '1.12.0',
+        'step': 'strip_shared_copies',
+        'paths': ['.specstone/templates/api.yaml'],
+      });
+    });
+  });
 }

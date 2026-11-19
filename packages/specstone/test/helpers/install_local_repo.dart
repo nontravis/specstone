@@ -97,7 +97,8 @@ Future<InstallLocalRepo> createInstallLocalRepo() async {
 ///
 /// The `dart` and `git` stubs log each call to `dart.log` and `git.log`; the
 /// `dart` stub fails per `STUB_DART_PUB=fail` and `STUB_DART_BUILD=fail`, and
-/// waits for `<logs>/release` per `STUB_DART_BUILD=wait`; under
+/// per `STUB_DART_BUILD=wait` waits until `<logs>/release` appears or `<logs>`
+/// is gone, then exits 1 and writes nothing, so no teardown leaves it; under
 /// `STUB_DART_LOCK=1` its build step leaves a read-only `locked/` folder
 /// beside the build output, which a delete of the temp folder cannot remove.
 final class InstallLocalRepo {
@@ -259,7 +260,9 @@ case "$1 $2" in
     fi
     if [ "$STUB_DART_BUILD" = wait ]; then
       touch "$STUB_LOG_DIR/building"
-      while [ ! -e "$STUB_LOG_DIR/release" ]; do sleep 0.1; done
+      while [ -d "$STUB_LOG_DIR" ] && [ ! -e "$STUB_LOG_DIR/release" ]
+      do sleep 0.1; done
+      exit 1
     fi
     root=$(cd ../.. && pwd)
     mkdir -p "$out/bundle/lib" "$out/bundle/bin"

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/readability_rules.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -13,17 +13,18 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/marketing.dart';
 import '../../helpers/personal_branding.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_design_system.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/yaml_key_line.dart';
 
 const _voiceDoc = 'specs/marketing/VOICE.md';
-const List<String> _readabilityMarkers = [
-  'Keep one rule in each item',
-  citeNoteGuideLine,
-  'State the condition first',
-];
+const _personStatement =
+    "The docs hold the stable facts; the person's own skills write the "
+    'content outside the docs.';
+const _learningStatement = 'A learning edits the doc it corrects.';
 const _allSixPacks = [
   'prd-core',
   'software-tech',
@@ -63,6 +64,20 @@ const _docTypes = <String, _DocTypeSpec>{
 Future<MergedSet> _resolve(List<String> packs) =>
     resolvePersonalBranding(packs);
 
+PackManifest _manifest() => PackManifest.parse(
+  utf8.decode(shippedPackFiles['personal-branding/pack.yaml']!),
+  file: 'packs/personal-branding/pack.yaml',
+);
+
+/// Expects [type]'s guide to print the shared lines of [ids], in that order.
+void _expectSharedLines(MergedDocType type, List<String> ids) {
+  expect(type.sharedLines.map((l) => l.id), ids, reason: type.id);
+  final guide = type.renderGuide();
+  for (final line in type.sharedLines) {
+    expect(guide, contains(line.text), reason: type.id);
+  }
+}
+
 void main() {
   late MergedSet set;
 
@@ -79,6 +94,22 @@ void main() {
       expect(manifest.name, 'personal-branding');
       expect(manifest.version.toString(), '1.0.0');
       expect(manifest.extendsPack, 'marketing');
+    });
+
+    test('ships person_stable_facts, then person_learning_edits_doc, each '
+        'naming the four doc types, and no shared field', () {
+      final shared = _manifest().shared;
+      expect(
+        [for (final l in shared.lines) (l.id, l.text, l.disabled)],
+        [
+          ('person_stable_facts', _personStatement, false),
+          ('person_learning_edits_doc', _learningStatement, false),
+        ],
+      );
+      for (final line in shared.lines) {
+        expect(line.forDocTypes, personalBrandingIds, reason: line.id);
+      }
+      expect(shared.fields, isEmpty);
     });
 
     test('the pack holds the manifest, the voice layer, and the doc type '
@@ -213,14 +244,37 @@ void main() {
       }
     });
 
-    test('no guide carries a readability line', () {
+    test('each guide prints the prd-core lines, then the two pack lines', () {
       for (final id in personalBrandingIds) {
-        for (final line in _readabilityMarkers) {
-          expect(
-            prdCoreDocType(set, id).description,
-            isNot(contains(line)),
-            reason: id,
-          );
+        _expectSharedLines(prdCoreDocType(set, id), [
+          ...everyTypeSharedLineIds,
+          'person_stable_facts',
+          'person_learning_edits_doc',
+        ]);
+      }
+    });
+
+    test('no description restates a shared line that reaches its doc '
+        'type', () {
+      for (final id in [...personalBrandingIds, 'voice']) {
+        final type = prdCoreDocType(set, id);
+        for (final description in descriptionsOf(type)) {
+          for (final line in type.sharedLines) {
+            expect(description ?? '', isNot(contains(line.text)), reason: id);
+          }
+        }
+      }
+    });
+
+    test('no description or template holds a YAML key line', () {
+      for (final id in [...personalBrandingIds, 'voice']) {
+        final type = prdCoreDocType(set, id);
+        final texts = [
+          ...descriptionsOf(type),
+          for (final section in type.sections) section.template,
+        ];
+        for (final text in texts) {
+          expectNoYamlKeyLine(text, reason: id);
         }
       }
     });
@@ -243,6 +297,15 @@ void main() {
       final layered = prdCoreDocType(set, 'voice');
       expect(layered.description, base.description);
       expect(layered.path, base.path);
+    });
+
+    test('the voice guide prints the prd-core lines, then both marketing '
+        'lines', () {
+      _expectSharedLines(prdCoreDocType(set, 'voice'), [
+        ...everyTypeSharedLineIds,
+        'stable_facts_and_plan',
+        'learning_edits_doc',
+      ]);
     });
 
     test('a project that lists marketing alone holds no writing_habits '

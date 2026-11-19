@@ -2,18 +2,11 @@ id: tech_stack
 description: |-
   The project's technology stack: one small set of tables that an Agent loads on most calls.
   Title it `# Tech stack`, with no number.
-  Keep one fact per table cell and write rows that a reader can check.
-  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
+  Keep one fact per table cell and write checkable rows.
   The target's record holds each story's and FR's status and code paths; `code` names the target's own code only.
   Hold no secret in any row.
   Leave performance and scale to the project-wide and per-story non-functional requirements.
   Write one rule per ID: one Stack row per slot.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: specs/TECH_STACK.md
 per_target: true
 bundle: [implement, design]
@@ -24,12 +17,6 @@ fields:
     description: |-
       Lists each folder or file of the project's code, relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root), such as `packages/app/lib/`.
       `specstone check` reports each file under it that no `covers` entry reaches.
-  - id: tasks
-    type: task_ref
-    list: true
-    description: |-
-      Lists the tasks that track the doc's work, each `<item>:<task>`, or `<task>` alone for the whole doc, such as `INV-4:ENG-42`.
-      `specstone-sync-sdd` removes an entry once a synced commit closes its task with a closing word, such as `Closes ENG-42`; put that word in the commit that finishes the task's work.
 sections:
   - id: stack
     header: Stack
@@ -39,7 +26,7 @@ sections:
       Fill the slots Language, Architecture, API protocol, Storage, Auth / Identity, Frontend framework, and Repo layout.
       Keep the Architecture row to one line pointing at the architecture docs.
       Add the rows Primary dependencies, Testing, and Target platform.
-      Write the exact version in Version, since the Agent prefers the stack you establish.
+      Write the exact version in Version, since the Agent prefers the stack the doc sets.
     lint:
       max_sentences:
         - count: 1

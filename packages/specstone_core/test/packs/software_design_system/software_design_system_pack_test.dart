@@ -10,11 +10,13 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_design_system.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
+import '../../helpers/yaml_key_line.dart';
 
 const _root = 'specs/design_system';
 
@@ -87,6 +89,18 @@ const _audienceSentence =
     "These docs serve the team that builds the library, not the library's "
     'consumers.';
 
+/// The ids of the shared lines each guide prints, in print order: the
+/// `prd-core` lines that reach every doc type, then the pack's own line.
+const _sharedLineIds = <String>[
+  ...everyTypeSharedLineIds,
+  'serve_library_builders',
+];
+
+PackManifest _manifest() => PackManifest.parse(
+  utf8.decode(shippedPackFiles['software-design-system/pack.yaml']!),
+  file: 'packs/software-design-system/pack.yaml',
+);
+
 Future<MergedSet> _resolve(List<String> packs) async {
   final project = await writeTree({
     '.specstone/config.yaml': shippedPinsConfig(packs),
@@ -125,6 +139,17 @@ void main() {
             'software-design-system/$id.yaml',
         ]),
       );
+    });
+
+    test('ships the one shared line serve_library_builders, naming its '
+        'nineteen doc types, and no shared field', () {
+      final shared = _manifest().shared;
+      expect(
+        [for (final l in shared.lines) (l.id, l.text, l.disabled)],
+        [('serve_library_builders', _audienceSentence, false)],
+      );
+      expect(shared.lines.single.forDocTypes, softwareDesignSystemIds);
+      expect(shared.fields, isEmpty);
     });
 
     test('the pack writes no layer over a prd-core or software-tech doc '
@@ -248,14 +273,40 @@ void main() {
       }
     });
 
-    test('every guide intro says the docs serve the team that builds the '
-        'library', () {
+    test('each guide prints the prd-core lines, then serve_library_builders, '
+        'and no software-tech line', () {
       for (final id in softwareDesignSystemIds) {
-        expect(
-          prdCoreDocType(set, id).description,
-          contains(_audienceSentence),
-          reason: id,
-        );
+        final type = prdCoreDocType(set, id);
+        expect(type.sharedLines.map((l) => l.id), _sharedLineIds, reason: id);
+        final guide = type.renderGuide();
+        for (final line in type.sharedLines) {
+          expect(guide, contains(line.text), reason: id);
+        }
+      }
+    });
+
+    test('no description restates a shared line that reaches its doc '
+        'type', () {
+      for (final id in softwareDesignSystemIds) {
+        final type = prdCoreDocType(set, id);
+        for (final description in descriptionsOf(type)) {
+          for (final line in type.sharedLines) {
+            expect(description ?? '', isNot(contains(line.text)), reason: id);
+          }
+        }
+      }
+    });
+
+    test('no description or template holds a YAML key line', () {
+      for (final id in softwareDesignSystemIds) {
+        final type = prdCoreDocType(set, id);
+        final texts = [
+          ...descriptionsOf(type),
+          for (final section in type.sections) section.template,
+        ];
+        for (final text in texts) {
+          expectNoYamlKeyLine(text, reason: id);
+        }
       }
     });
 

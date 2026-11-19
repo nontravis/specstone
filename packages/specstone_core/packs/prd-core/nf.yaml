@@ -1,20 +1,14 @@
 id: nf
 description: |-
-  A story-level non-functional requirement: one quantified quality target that a single story tightens, relaxes, or adds.
+  A story-level non-functional requirement: one quantified quality target a single story tightens, relaxes, or adds.
   Title it `# <Name>`, with no number.
-  Write one NFR in each file, and never restate a GNFR item that stays unchanged: every GNFR item applies to every story.
+  Write one NFR per file; never restate an unchanged GNFR item, since every GNFR item applies to every story.
   Write the statement in fr's form, with one "shall" and a quantified value.
-  Avoid the listed words and other -ly and -ize words.
+  Avoid -ly and -ize words beyond the banned list.
   Write one rule per ID, keep its bound in the Statement, and leave mechanics to the spec docs.
   Keep the trace in `traced_from` alone, never in the Statement.
-  Name the GNFR item in `overrides` and write only what differs; the entry controls for this story.
+  Write only what differs from the GNFR item `overrides` names; the entry controls for this story.
   When several stories need the same `add`, move it to GNFR.
-  State the present truth; history lives in git.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/nf{nn}_{slug}.md
 parent: user_story
 fields:
@@ -42,14 +36,13 @@ fields:
     enum: [test, analysis, inspection, demonstration]
     required: true
     description: |-
-      Names how the requirement is proven; set it while writing the statement.
+      Names how the requirement is proven; set it with the statement.
       `test` runs the product and checks measured output; `analysis` proves it by reasoning or calculation.
       `inspection` examines the artifact, such as code or a document; `demonstration` shows it working without measuring.
   - id: owner
     type: string
     description: |-
-      Names the person or group who writes the requirement and approves its changes.
-      Leave it blank when the PROJECT owner holds it.
+      Names who writes the requirement and approves its changes; blank when the PROJECT owner holds it.
   - id: confirmed
     type: string
     list: true
@@ -61,10 +54,7 @@ sections:
     header: Statement
     required: true
     description: |-
-      Write: The <product> shall <verb> <object> <value ± tolerance> <condition>.
-      Use one "shall" and a positive form; give every value a unit and a tolerance (<, ≥, ±).
-      Remove this, these, as appropriate, etc., and/or, but not limited to, and the other listed words.
-      Do not use EARS keywords.
+      Use one "shall" and a positive form; give every value a unit and a tolerance (<, ≥, ±). Use no EARS keywords.
     template: |-
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
     summary: true
@@ -121,17 +111,15 @@ sections:
     header: Verification
     required: true
     description: |-
-      Give the pass criteria: the observable condition that shows the requirement holds, kept apart from the statement.
-      Give the level at which it is proven, such as unit, integration, or end to end.
+      Give as pass criteria the observable condition that shows the requirement holds, apart from the statement.
+      Give the proof level, such as unit, integration, or end to end.
     template: |-
       - **Pass criteria:** <what shows the requirement holds>
       - **Level:** <level>
   - id: tbr
     header: TBR
     description: |-
-      Write it when a value is still to be resolved; avoid TBD and give a best estimate marked TBR.
-      Give the value, the reason, the action that closes it, who closes it, and by when.
-      Skip the section when no value is open.
+      Write it when a value is still open; avoid TBD and give a best estimate marked TBR.
     template: |-
       - **Value:** <best estimate>
       - **Why:** <reason>

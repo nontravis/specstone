@@ -1,19 +1,13 @@
 id: goal
 description: |-
-  The project goal doc: every goal, grouped by the horizon it serves.
+  The project goal doc: every goal, grouped by horizon.
   Title it `# Project goals`, with no number. A project has exactly one GOAL.
   Write one rule per `PG-*` ID, and leave mechanics to the spec docs.
-  A new goal takes the next number above the doc's highest `PG-` ID, and no ID is used again.
+  A new goal takes the next number above the doc's highest `PG-` ID; no ID is reused.
   A goal that changes horizon moves its block to that horizon's section, its ID kept.
-  A goal met or dropped is deleted from the goal doc together with its measurement; the doc has no status field and no archive section.
+  A goal met or dropped is deleted with its measurement; the doc has no status field and no archive section.
   A long-term goal with no deadline leaves out `**By:**`; every other `**By:**` names a date or a milestone.
   The Metric holds the goal's pass bound and unit and links the goal's measurement; GOAL holds no measured number.
-  State the present truth; history lives in git.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: prds/GOAL.md
 bundle: [implement, design]
 bundle_refs: true
@@ -23,7 +17,7 @@ sections:
     prefix_id: PG-
     skeleton: true
     description: |-
-      Optional. Put here a goal for a year or more, or for the project's whole life.
+      Put here a goal for a year or more, or for the project's whole life.
       Its `**Serves:**` names a vision.
       The Metric is a numeric metric with unit; it names no other project, no scope item, and no baseline number.
     template: |-
@@ -43,7 +37,7 @@ sections:
     prefix_id: PG-
     skeleton: true
     description: |-
-      Optional. Put here a goal for a quarter or more.
+      Put here a goal for a quarter or more.
       Its `**Serves:**` names a vision or a long-term goal.
       The Metric is a numeric metric with unit; it names no other project, no scope item, and no baseline number.
     template: |-
@@ -63,7 +57,7 @@ sections:
     prefix_id: PG-
     skeleton: true
     description: |-
-      Optional. Put here a goal for under a quarter.
+      Put here a goal for under a quarter.
       Its `**Serves:**` names a vision, a long-term goal, or a mid-term goal.
       The Metric is a numeric metric with unit; it names no other project, no scope item, and no baseline number.
     template: |-

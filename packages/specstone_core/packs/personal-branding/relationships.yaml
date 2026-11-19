@@ -2,8 +2,6 @@ id: relationships
 description: |-
   The relationships doc: the people and groups to build ties with, for a network.
   Title it `# Relationships`, with no number.
-  The docs hold the stable facts; the person's own skills write the content outside the docs.
-  A learning edits the doc it corrects.
 path: specs/marketing/RELATIONSHIPS.md
 sections:
   - id: people
