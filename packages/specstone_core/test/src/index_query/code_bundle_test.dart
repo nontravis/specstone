@@ -801,6 +801,32 @@ void main() {
         ),
       );
     });
+    test('a path outside every code root that only an empty entry reaches '
+        'refuses', () async {
+      for (final form in ['./', '.', '/', 'lib/..', './lib/../']) {
+        final project = await openSkillProject(
+          codeRoot: 'specstone',
+          files: {
+            ...skillDocFile([form]),
+            skillFile: skillText,
+          },
+        );
+
+        expect(
+          () => project.pick(skillFile),
+          throwsA(
+            isA<IndexFault>()
+                .having(
+                  (x) => x.code,
+                  'code',
+                  IndexFaultCode.codePathOutsideProject,
+                )
+                .having((x) => x.exitStatus, 'exit', 64),
+          ),
+          reason: form,
+        );
+      }
+    });
     test('a code root file reached by an architecture doc and a skill doc bundles both', () async {
       final project = await openSkillProject(
         files: {

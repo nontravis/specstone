@@ -1131,6 +1131,105 @@ void main() {
     ]);
   });
 
+  test('an empty covers entry gives covers_entry_empty alone, in each empty '
+      'form', () async {
+    const forms = ['', '.', './', '/', './.', './/', 'lib/..', './lib/../'];
+    for (final form in forms) {
+      final project = await writeCheckProject(
+        extra: narrow(form.isEmpty ? "'$form'" : form),
+      );
+      final report = await checkOf(project);
+
+      final line = lineOfFirst(project, loginArchitecture, '- ');
+      expect(spots(report, FindingKind.coversEntryEmpty), [
+        '$loginArchitecture:$line: covers_entry_empty',
+      ], reason: form);
+      expect(_of(report, FindingKind.coversPathMissing), isEmpty, reason: form);
+      // The empty entry covers no file, so every listed code file stays
+      // uncovered beside it.
+      expect(_of(report, FindingKind.codeUncovered), [
+        '$techStack: app/lib/login.dart',
+      ], reason: form);
+    }
+  });
+
+  test('an empty covers entry with a fingerprint gives covers_entry_empty '
+      'alone, key entry the prefix', () async {
+    final report = await checkOf(
+      await writeCheckProject(extra: narrow('./ 9a1c03be55d2')),
+    );
+
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.coversEntryEmpty,
+    );
+    expect(finding.keys['entry'], './');
+    expect(finding.waitsFor, WaitsFor.owner);
+    expect(finding.textLines.single, endsWith(' (waits for the Owner)'));
+    expect(_of(report, FindingKind.coversPathMissing), isEmpty);
+    expect(_of(report, FindingKind.codeUncovered), [
+      '$techStack: app/lib/login.dart',
+    ]);
+  });
+
+  test(
+    'a project-root empty covers entry gives covers_entry_empty alone',
+    () async {
+      for (final form in ['.', './', 'lib/..']) {
+        final project = await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': skillPinsConfig(),
+            ...skillDocFile([form]),
+          },
+        );
+        final report = await checkOf(project);
+
+        final line = lineOfFirst(project, skillDoc, '- ');
+        expect(spots(report, FindingKind.coversEntryEmpty), [
+          '$skillDoc:$line: covers_entry_empty',
+        ], reason: form);
+        expect(
+          _of(report, FindingKind.coversPathMissing),
+          isEmpty,
+          reason: form,
+        );
+        expect(_of(report, FindingKind.codeUnconfirmed), isEmpty, reason: form);
+      }
+    },
+  );
+
+  test(
+    'an empty covers entry of a waiting target gives covers_entry_empty',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            ...narrow('./'),
+            loginRecord: _record(['email_login:planned']),
+          },
+          unstamped: {loginRecord},
+        ),
+      );
+
+      expect(_of(report, FindingKind.coversEntryEmpty), [
+        '$loginArchitecture: ./',
+      ]);
+      expect(_of(report, FindingKind.coversPathMissing), isEmpty);
+    },
+  );
+
+  test('a shared doc whose only covers entry is empty gives '
+      'covers_entry_empty alone', () async {
+    const topic =
+        '---\ncovers:\n  - ./\n---\n\n# Doc model\n\n## Purpose\n\n'
+        'One rule set.\n\n## Scope\n\nThe src folder.\n';
+    final report = await _run(
+      await _twin(extra: {'docs/$_sharedTopic': topic}),
+    );
+
+    expect(_of(report, FindingKind.coversEntryEmpty), ['$_sharedTopic: ./']);
+    expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
+  });
+
   test(
     'an entry with a backslash or a name Windows trims '
     'names nothing on any OS, though a POSIX disk holds such names',

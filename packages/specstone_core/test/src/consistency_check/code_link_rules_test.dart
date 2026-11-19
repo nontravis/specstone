@@ -735,6 +735,35 @@ void main() {
       expect(finding.textLines.last, '    fingerprint $folderFingerprint');
     });
 
+    test(
+      'an empty entry that records a fingerprint gives no code_suspect',
+      () async {
+        final report = await _run(
+          await writeCheckProject(extra: _covering('  - ./ $_stale\n')),
+        );
+
+        expect(_suspects(report), isEmpty);
+        expect(_unconfirmed(report), isEmpty);
+        expect(_ofKind(report, FindingKind.coversEntryEmpty), hasLength(1));
+      },
+    );
+
+    test(
+      'an empty entry with no fingerprint gives no code_unconfirmed',
+      () async {
+        final report = await _run(
+          await writeCheckProject(
+            extra: _covering('  - ./\n'),
+            unfingerprinted: {'docs/$loginArchitecture'},
+          ),
+        );
+
+        expect(_unconfirmed(report), isEmpty);
+        expect(_suspects(report), isEmpty);
+        expect(_ofKind(report, FindingKind.coversEntryEmpty), hasLength(1));
+      },
+    );
+
     test('that records no fingerprint and names a missing path gives '
         'covers_path_missing alone', () async {
       final report = await _run(

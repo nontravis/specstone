@@ -233,6 +233,22 @@ void main() {
     }
   });
 
+  test('an empty covers entry refuses stamp_entry_unresolved naming '
+      'covers_entry_empty', () async {
+    final root = await _project(covers: ['./']);
+    final before = readDoc(root, loginArchitecture);
+
+    final fault = _refused(root, _archAddress, ['./=$_old']);
+
+    expect(fault.exitStatus, 64);
+    expect(fault.refusals.single.code, WriteFaultCode.stampEntryUnresolved);
+    expect(
+      fault.refusals.single.message,
+      './ does not resolve: covers_entry_empty',
+    );
+    expect(readDoc(root, loginArchitecture), before);
+  });
+
   test(
     'an entry whose code cannot be read refuses stamp_entry_unresolved as file_unreadable',
     skip: unreadablePathSkipReason(),

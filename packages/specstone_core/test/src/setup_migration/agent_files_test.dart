@@ -18,7 +18,7 @@ const _agentMd =
     'doc they lack with `specstone context <doc> --for design --out`, never '
     '`get`; never open doc files.\n'
     '- With 2+ code targets, add `--target <code target>` (not with '
-    '`--code`).\n'
+    '`context --code`).\n'
     '- Change docs only with `specstone set`, `new`, `move`, `rename`; '
     "drafts await Owner's `specstone approve` (main session's when clean "
     'under `auto`).\n'
@@ -37,7 +37,7 @@ const _agentMd =
     '- Off PATH, run `~/.specstone/bin/specstone`.\n';
 
 const _agentMdWordBound = 215;
-const _targetClauseWordBound = 12;
+const _targetClauseWordBound = 13;
 const _targetFlag = '--target <code target>';
 
 final _asciiSpace = RegExp(r'[ \t\n\r\f\v]+');

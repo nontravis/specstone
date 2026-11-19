@@ -7,7 +7,8 @@ import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId;
-import 'package:specstone_core/src/index_query/code_root_files.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show filesUnderCodeRoot, isEmptyCodeEntry, normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/status_tree.dart';
 import 'package:specstone_core/src/portable_path.dart';
@@ -138,9 +139,11 @@ bool readsCoversCode(
   required bool endsWait,
 }) => endsWait && namesFileOrFolderFrom(root, pointer);
 
-/// Returns the `covers_path_missing` and `code_root_missing` findings of a
-/// typed [doc].
+/// Returns the `covers_entry_empty`, `covers_path_missing`, and
+/// `code_root_missing` findings of a typed [doc].
 ///
+/// An empty `covers` entry names no path of its own, so it is reported in
+/// every run, a waiting target's docs included, and no other rule reads it.
 /// A `root: project` entry resolves from the project root in every run. Any
 /// other `covers` entry and each `code` root resolve from the code root of
 /// the doc's target, once [work] says it holds the work that ends their
@@ -160,6 +163,21 @@ Iterable<Finding> checkCoversAndCodeRoots(
       ? context.codeRootOf(target)
       : null;
   for (final field in coversFieldsOf(type)) {
+    final lines = context.linesOf(doc);
+    for (final YamlEntry(:value, :line) in lines.entriesOf(field.id)) {
+      if (value is! String) continue;
+      final entry = CodeLinkEntry(value).pointer;
+      if (!isEmptyCodeEntry(entry)) continue;
+      yield context.finding(
+        doc,
+        FindingKind.coversEntryEmpty,
+        line: line,
+        message:
+            '$entry names no path of its own, only the whole root; the Owner '
+            'sets the path it covers',
+        keys: {'entry': entry},
+      );
+    }
     final base = readsFromProjectRoot(field) ? context.projectRoot : codeRoot;
     if (base == null) continue;
     yield* _missingPaths(
@@ -183,7 +201,8 @@ Iterable<Finding> checkCoversAndCodeRoots(
 }
 
 /// Yields a [kind] finding for each entry of [doc]'s [fieldId] whose path,
-/// as [pathOf] reads it, names nothing from [base].
+/// as [pathOf] reads it, names nothing from [base]. An empty `covers` entry
+/// is no path to resolve, so it gives none here.
 Iterable<Finding> _missingPaths(
   CheckContext context,
   IndexedDoc doc,
@@ -196,7 +215,9 @@ Iterable<Finding> _missingPaths(
       in context.linesOf(doc).entriesOf(fieldId)) {
     if (value is! String) continue;
     final entry = pathOf(value);
-    if (namesFileOrFolderFrom(base, entry)) continue;
+    if (isEmptyCodeEntry(entry) || namesFileOrFolderFrom(base, entry)) {
+      continue;
+    }
     yield context.finding(
       doc,
       kind,
@@ -213,19 +234,23 @@ Iterable<Finding> _missingPaths(
 ///
 /// One finding per doc, at the line of the first such key; its paths count for
 /// no target. A `root: project` field resolves from the project root and covers
-/// code there, so its entries give none.
+/// code there, so its entries give none. An empty entry counts as no entry.
 Iterable<Finding> _sharedDocPaths(
   CheckContext context,
   IndexedDoc doc,
   MergedDocType type,
 ) sync* {
   final lines = context.linesOf(doc);
+  bool holdsEntry(String fieldId) => [
+    for (final YamlEntry(:value) in lines.entriesOf(fieldId))
+      if (value is String && !isEmptyCodeEntry(CodeLinkEntry(value).pointer))
+        value,
+  ].isNotEmpty;
   final line = [
     for (final field in coversFieldsOf(type))
-      if (!readsFromProjectRoot(field) && lines.entriesOf(field.id).isNotEmpty)
+      if (!readsFromProjectRoot(field) && holdsEntry(field.id))
         lines.keyLine(field.id),
-    if (context.typeHoldsField(type, _codeField) &&
-        lines.entriesOf(_codeField).isNotEmpty)
+    if (context.typeHoldsField(type, _codeField) && holdsEntry(_codeField))
       lines.keyLine(_codeField),
   ].nonNulls.firstOrNull;
   if (line == null) return;

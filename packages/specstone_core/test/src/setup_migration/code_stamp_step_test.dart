@@ -249,6 +249,35 @@ void main() {
       expect(step.rewrites, isNot(contains(loginRecord)));
     });
 
+    test('an empty covers entry stays as written and stamps nothing', () async {
+      final project = await _project(
+        extra: {
+          'docs/$loginArchitecture':
+              checkProjectFiles()['docs/$loginArchitecture']!.replaceFirst(
+                'covers:\n  - app/lib/\n',
+                'covers:\n  - ./ $_stale\n  - app/lib/\n',
+              ),
+        },
+      );
+
+      final step = _planAt(project);
+
+      expect(
+        step.rewrites[loginArchitecture],
+        contains('covers:\n  - ./ $_stale\n  - app/lib/ $_appLibFingerprint\n'),
+      );
+      expect(
+        step.rewrites[loginArchitecture],
+        isNot(contains('./ $_appLibFingerprint')),
+      );
+      // The empty entry counts as no entry; the rest stamps as it does
+      // without it.
+      expect(
+        step.stepLine(from: _from, step: _step).text,
+        'from 1.6.0: stamp_code_fingerprints: 2 docs; 3 entries',
+      );
+    });
+
     test('a covers entry of a target that holds no implemented item yet '
         'waits and stays as written', () async {
       final project = await _project(
@@ -613,6 +642,34 @@ void main() {
       final step = _planAt(project, restamp: true);
 
       expect(step.rewrites, isNot(contains(loginRecord)));
+    });
+
+    test('an empty covers entry that records the legacy fingerprint of its '
+        'whole root stays as written and is not counted', () async {
+      final legacyRoot = folderCodeFingerprint([
+        FileFingerprint(path: _login, fingerprint: legacyLogin),
+      ]);
+      final project = await _project(
+        extra: {
+          '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+          'code/$_login': _loginText,
+          loginRecord: _record(),
+          'docs/$loginArchitecture':
+              checkProjectFiles()['docs/$loginArchitecture']!.replaceFirst(
+                'covers:\n  - app/lib/\n',
+                'covers:\n  - ./ $legacyRoot\n',
+              ),
+        },
+        without: {_login},
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isNot(contains(loginArchitecture)));
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 0 docs; 0 entries',
+      );
     });
 
     test('a link whose code has no line the new rule drops is not '
