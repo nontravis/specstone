@@ -207,7 +207,8 @@ final class _DescriptionScan {
     required this.endLine,
     required this.firstTextLine,
     required this.valueLines,
-    required this.copyIds,
+    required this.copyAt,
+    required this.isEditable,
     required this.isLocatable,
   });
 
@@ -223,8 +224,12 @@ final class _DescriptionScan {
   /// The scalar's value, split into lines.
   final List<String> valueLines;
 
-  /// The shared entry id of each value line that is a copy, by value line.
-  final Map<int, String> copyIds;
+  /// The copy of each value line that is one, by value line.
+  final Map<int, _Copy> copyAt;
+
+  /// Whether the scalar maps each value line to one text line: a literal
+  /// block scalar, or a one-line plain or quoted scalar.
+  final bool isEditable;
 
   /// Whether each copy sits on the text line its value line maps to.
   final bool isLocatable;
@@ -232,14 +237,14 @@ final class _DescriptionScan {
   int textLineOf(int valueLine) => firstTextLine + valueLine;
 
   /// Each copy of the value, in line order.
-  List<_Copy> get copies => [
-    for (final MapEntry(:key, :value) in copyIds.entries)
-      _Copy(textLineOf(key) + 1, value),
-  ];
+  List<_Copy> get copies => [...copyAt.values];
+
+  /// Whether the step may strip a copy of the value.
+  bool get hasEditableCopy => isEditable && copyAt.isNotEmpty;
 
   /// Whether every non-blank line of the value is a copy.
   bool get isAllCopies =>
-      copyIds.length == valueLines.where((l) => l.trim().isNotEmpty).length;
+      copyAt.length == valueLines.where((l) => l.trim().isNotEmpty).length;
 }
 
 /// A field entry of the `fields` list that equals a shared field.
@@ -260,6 +265,7 @@ final class _Scan {
     required this.path,
     required this.lf,
     required this.root,
+    required this.isBlockRoot,
     required this.type,
     required this.description,
     required this.fieldCopies,
@@ -267,7 +273,7 @@ final class _Scan {
 
   /// Returns the scan of [lf], or null when it holds no copy.
   static _Scan? of(String path, String lf, MergedSet target) {
-    final root = _blockRootOf(lf);
+    final root = _mapRootOf(lf);
     final type = target.lookup(_docTypeIdOf(path));
     if (root == null || type == null) return null;
     final lines = lf.split('\n');
@@ -275,6 +281,7 @@ final class _Scan {
       path: path,
       lf: lf,
       root: root,
+      isBlockRoot: root.style == CollectionStyle.BLOCK,
       type: type,
       description: _scanDescription(root, lines, type),
       fieldCopies: _scanFields(root, path, target, type.id),
@@ -285,6 +292,10 @@ final class _Scan {
   final String path;
   final String lf;
   final YamlMap root;
+
+  /// Whether [root] is a block mapping, the only root the step rewrites.
+  final bool isBlockRoot;
+
   final MergedDocType type;
   final _DescriptionScan? description;
   final List<_FieldCopy> fieldCopies;
@@ -297,10 +308,11 @@ final class _Scan {
 
   /// Plans which copies the file loses and the text it takes.
   ///
-  /// The field copies at [keptFieldLines] stay. Every copy stays when its lines
-  /// cannot be located or the text with the removals no longer reads as the
-  /// file less the copies.
+  /// The field copies at [keptFieldLines] stay. Every copy stays when the root
+  /// is no block mapping, its lines cannot be located, or the text with the
+  /// removals no longer reads as the file less the copies.
   _Removal removal(Set<int> keptFieldLines) {
+    if (!isBlockRoot) return _Removal.keeping(copies);
     final plan = _plan(keptFieldLines);
     final text = plan.text;
     if (text == null || _isRemovalSafe(text, plan)) return plan;
@@ -339,7 +351,7 @@ final class _Scan {
     final expected = _plain(root)! as Map<String, Object?>;
     final scan = description;
     final strippedLines = {for (final copy in plan.stripped) copy.line - 1};
-    if (scan != null && scan.copyIds.isNotEmpty) {
+    if (scan != null && scan.hasEditableCopy) {
       final kept = [
         for (final (i, line) in scan.valueLines.indexed)
           if (!strippedLines.contains(scan.textLineOf(i))) line,
@@ -384,7 +396,8 @@ final class _Drops {
 
   /// Decides, for each copy of [scan], whether the step strips or keeps it.
   ///
-  /// The field copies at [keptFieldLines] stay. A description whose every line
+  /// The field copies at [keptFieldLines] stay, as does every copy of a
+  /// description the step cannot edit. A description whose every line
   /// is a copy loses its key when a lower layer defines the doc type, whose own
   /// description then shows; else its last copy stays, so the type keeps one.
   static _Drops of(_Scan scan, Set<int> keptFieldLines) {
@@ -397,9 +410,10 @@ final class _Drops {
     final left = <_Copy>[
       for (final field in scan.fieldCopies)
         if (keptFieldLines.contains(field.copy.line)) field.copy,
+      if (description != null && !description.isEditable) ...description.copies,
     ];
     var dropsKey = false;
-    if (description != null && description.copyIds.isNotEmpty) {
+    if (description != null && description.hasEditableCopy) {
       final copies = description.copies;
       final isEmptied = description.isAllCopies;
       final hasLowerLayer = scan.type.files.any((file) => file != scan.path);
@@ -429,12 +443,12 @@ final class _Drops {
     final description = scan.description;
     final strippedLines = {for (final copy in stripped) copy.line - 1};
     final result = <_LineRange>[];
-    if (description != null && description.copyIds.isNotEmpty) {
+    if (description != null && description.hasEditableCopy) {
       if (!description.isLocatable) return null;
       if (dropsKey) {
         result.add(_LineRange(description.keyLine, description.endLine));
       } else {
-        for (final key in description.copyIds.keys) {
+        for (final key in description.copyAt.keys) {
           final line = description.textLineOf(key);
           if (strippedLines.contains(line)) result.add(_LineRange(line, line));
         }
@@ -473,15 +487,15 @@ String _docTypeIdOf(String path) {
 List<_Copy> _inLineOrder(List<_Copy> copies) =>
     [...copies]..sort((a, b) => a.line.compareTo(b.line));
 
-/// Returns the root of [lf] when it is a block mapping, else null.
-YamlMap? _blockRootOf(String lf) {
+/// Returns the root of [lf] when it is a mapping, else null.
+YamlMap? _mapRootOf(String lf) {
   final YamlNode node;
   try {
     node = loadYamlNode(lf);
   } on YamlException {
     return null;
   }
-  return node is YamlMap && node.style == CollectionStyle.BLOCK ? node : null;
+  return node is YamlMap ? node : null;
 }
 
 /// Returns the plain value of [lf], `{}` for an empty file, or null when it
@@ -518,8 +532,11 @@ YamlNode? _keyNodeOf(YamlMap map, String key) {
 }
 
 /// Returns the description scan of [root], or null when the key holds no
-/// string this step reads: a block scalar of any chomping, or a one-line
-/// plain or quoted scalar.
+/// string.
+///
+/// The step edits a literal block scalar of any chomping or a one-line plain
+/// or quoted scalar; a copy in any other scalar is listed at the text line
+/// that reads it, else at the key line.
 _DescriptionScan? _scanDescription(
   YamlMap root,
   List<String> textLines,
@@ -537,25 +554,52 @@ _DescriptionScan? _scanDescription(
       !isBlock &&
       !value.contains('\n') &&
       scalar.span.start.line == scalar.span.end.line;
-  if (!isBlock && !isOneLine) return null;
+  final isEditable = isBlock || isOneLine;
   final valueLines = value.split('\n');
   final firstTextLine = scalar.span.start.line + (isBlock ? 1 : 0);
-  final copyIds = {
-    for (final (i, line) in valueLines.indexed) i: ?_sharedLineIdOf(type, line),
+  int listedLineOf(int i) => isEditable
+      ? firstTextLine + i
+      : _lineReading(
+              textLines,
+              valueLines[i],
+              from: scalar.span.start.line,
+              to: scalar.span.end.line,
+            ) ??
+            key.span.start.line;
+  final copyAt = {
+    for (final (i, line) in valueLines.indexed)
+      if (_sharedLineIdOf(type, line) case final id?)
+        i: _Copy(listedLineOf(i) + 1, id),
   };
   return _DescriptionScan(
     keyLine: key.span.start.line,
     endLine: scalar.span.end.line,
     firstTextLine: firstTextLine,
     valueLines: valueLines,
-    copyIds: copyIds,
-    isLocatable: copyIds.keys.every(
+    copyAt: copyAt,
+    isEditable: isEditable,
+    isLocatable: copyAt.keys.every(
       (i) =>
           isOneLine ||
           (firstTextLine + i < textLines.length &&
               textLines[firstTextLine + i].trimLeft() == valueLines[i]),
     ),
   );
+}
+
+/// Returns the first text line from [from] to [to], both 0-based and
+/// inclusive, that reads [text] once trimmed, or null.
+int? _lineReading(
+  List<String> textLines,
+  String text, {
+  required int from,
+  required int to,
+}) {
+  final last = math.min(to, textLines.length - 1);
+  for (var line = from; line <= last; line++) {
+    if (textLines[line].trim() == text) return line;
+  }
+  return null;
 }
 
 /// Returns the id of the shared line of [type] that reads [text], the one

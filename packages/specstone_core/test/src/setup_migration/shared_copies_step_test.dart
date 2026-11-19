@@ -454,6 +454,44 @@ void main() {
     });
   });
 
+  for (final (name, text, entry) in [
+    (
+      'a folded description',
+      'description: >-\n  A runbook.\n\n  $_statusLine\n',
+      'api.yaml:4 no_status',
+    ),
+    (
+      'a multi-line plain description',
+      'description: A runbook.\n\n  $_statusLine\n',
+      'api.yaml:3 no_status',
+    ),
+    (
+      'a multi-line quoted description, at its key line',
+      'description: "A runbook.\n\n  $_statusLine"\n',
+      'api.yaml:1 no_status',
+    ),
+    (
+      'a flow root description',
+      '{description: $_statusLine}\n',
+      'api.yaml:1 no_status',
+    ),
+    (
+      'a flow root field',
+      '{fields: [{id: overrides, type: string, list: true, '
+          'description: Shared overrides.}]}\n',
+      'api.yaml:1 overrides',
+    ),
+  ]) {
+    test('a copy in $name is kept and counts as left', () {
+      final step = _step({'api.yaml': text});
+
+      expect(step.rewrites, isEmpty);
+      expect(step.stripped, isEmpty);
+      expect(step.left, ['$_templates/$entry']);
+      expect(step.leftLine, 'shared copies left: 1');
+    });
+  }
+
   test('a project with no copy plans nothing and prints no left line', () {
     final step = _step({'api.yaml': 'description: Own words.\n'});
 

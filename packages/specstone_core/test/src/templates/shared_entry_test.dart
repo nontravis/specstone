@@ -6,12 +6,11 @@ import 'package:test/test.dart';
 
 const _file = 'packs/x/pack.yaml';
 
-SharedEntries _parse(String text, {bool allowsFields = true}) =>
-    parseSharedEntries(
-      readYamlMap(text, file: _file),
-      file: _file,
-      allowsFields: allowsFields,
-    );
+SharedEntries _parse(String text) => parseSharedEntries(
+  readYamlMap(text, file: _file),
+  file: _file,
+  format: 'pack',
+);
 
 TypeMatcher<TemplateFault> _fault(
   FaultCode code, {
@@ -66,16 +65,6 @@ shared_fields:
 
       expect(shared.lines, isEmpty);
       expect(shared.fields, isEmpty);
-    });
-
-    test('a file that allows no fields refuses shared_fields', () {
-      expect(
-        () => _parse(
-          'shared_fields:\n  - id: a\n    type: string\n',
-          allowsFields: false,
-        ),
-        throwsA(_fault(FaultCode.unknownKey, key: 'shared_fields')),
-      );
     });
 
     group('for_doc_types', () {
