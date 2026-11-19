@@ -4,18 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart'
     show lfLinesOf, linesBeforeBodyOf;
-
-/// A `mermaid` block as the line facts keep it: its opening fence's 1-based
-/// file line and the [hash] of its text.
-final class MermaidBlock {
-  const new({required this.fenceLine, required this.hash});
-
-  /// The 1-based file line of the opening fence.
-  final int fenceLine;
-
-  /// The full `sha256` hex of the block's text.
-  final String hash;
-}
+import 'package:specstone_core/src/index_query/models/mermaid_block.dart';
 
 /// A `mermaid` block with its text, as a doc holds it.
 final class MermaidSource {

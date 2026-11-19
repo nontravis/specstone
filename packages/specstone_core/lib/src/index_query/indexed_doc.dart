@@ -16,9 +16,12 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show mermaidSourcesOf;
+import 'package:specstone_core/src/index_query/models/banned_match.dart';
 import 'package:specstone_core/src/index_query/models/cite_form.dart';
 import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/models/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/indexed_section.dart';
+import 'package:specstone_core/src/index_query/models/item_facts.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/models/rule_item_words.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
@@ -29,6 +32,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
 
 export 'package:specstone_core/src/index_query/models/indexed_doc.dart';
+export 'package:specstone_core/src/index_query/models/indexed_section.dart';
 
 /// The id of the `feature` doc type.
 const featureType = 'feature';
@@ -91,26 +95,9 @@ String docNameOf(String docPath, MergedDocType? docType, {String? target}) {
 /// Returns [n] as the word a message uses: `two` for 2, else the digits.
 String countWord(int n) => n == 2 ? 'two' : '$n';
 
-/// One `##` section of an indexed doc.
-final class IndexedSection {
-  const new({required this.key, required this.headerLine, required this.body});
-
-  /// The template section id, else the [sectionKeyOf] key of the header.
-  final String key;
-
-  /// The `##` line as written, without its line ending.
-  final String headerLine;
-
-  /// Every line after the header line up to the next section header.
-  final String body;
-
-  /// The header line and the body, without the final line break.
-  String get text {
-    final whole = '$headerLine\n$body';
-    return whole.endsWith('\n') ? whole.substring(0, whole.length - 1) : whole;
-  }
-
-  /// The size of [text] in tokens.
+/// Adds its token size to an [IndexedSection].
+extension IndexedSectionTokens on IndexedSection {
+  /// The size of `text` in tokens.
   int get tokens => tokenSizeOf(text);
 }
 

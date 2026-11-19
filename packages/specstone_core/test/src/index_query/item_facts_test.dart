@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/item_fact.dart';
+import 'package:specstone_core/src/index_query/models/item_facts.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';

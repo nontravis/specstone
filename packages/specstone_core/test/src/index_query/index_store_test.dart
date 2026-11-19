@@ -4,11 +4,11 @@ import 'dart:isolate';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
-import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/banned_match.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/models/file_stat_key.dart';

@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/banned_match.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// Returns the pattern findings of a typed [doc]; an untyped doc has none.

@@ -13,8 +13,6 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
-import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
-    show MermaidBlock;
 import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
 import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
@@ -23,6 +21,7 @@ import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_place.dart';
 import 'package:specstone_core/src/index_query/models/link_places.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
+import 'package:specstone_core/src/index_query/models/mermaid_block.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:yaml/yaml.dart';
