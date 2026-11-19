@@ -323,6 +323,7 @@ final class TemplateResolver {
     _checkRecordTargets(packs);
     _checkBulletLineTargets(packs, layerLists);
     _checkDropDefaultLineTargets(packs, layerLists);
+    _checkMarkRetrimTargets(packs, layerLists);
     _checkExtendsInOverride(loadOrder, layerLists);
     final shared = mergeSharedEntries(
       ordered: [for (final ParsedPack(:pack) in packs) pack],
@@ -393,6 +394,17 @@ final class TemplateResolver {
   ) {
     for (final ParsedPack(:pack) in packs) {
       pack.manifest.checkDropDefaultLineTargets(layerLists);
+    }
+  }
+
+  /// Throws `unknown_value` for the first `mark_retrim` doc type or section
+  /// no layer of [layerLists] defines.
+  void _checkMarkRetrimTargets(
+    List<ParsedPack> packs,
+    Map<String, DocTypeLayers> layerLists,
+  ) {
+    for (final ParsedPack(:pack) in packs) {
+      pack.manifest.checkMarkRetrimTargets(layerLists);
     }
   }
 

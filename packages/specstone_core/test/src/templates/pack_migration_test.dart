@@ -551,6 +551,78 @@ void main() {
     );
   });
 
+  test('a mark_retrim step reads its doc types and sections', () {
+    final step = parseMigrationsOf('''
+- from: 1.14.0
+  steps:
+    - mark_retrim: {doc_types: [domain, project_domain], sections: [invariants]}
+''').single.steps.single;
+
+    expect(step, isA<MarkRetrim>());
+    step as MarkRetrim;
+    expect(step.kind, 'mark_retrim');
+    expect(step.docTypes, ['domain', 'project_domain']);
+    expect(step.sections, ['invariants']);
+    expect(step.touches('domain'), isTrue);
+    expect(step.touches('project_domain'), isTrue);
+    expect(step.touches('feature'), isFalse);
+  });
+
+  test('a mark_retrim step with a missing, unknown, or empty key is refused '
+      'at that key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.14.0\n'
+        '  steps:\n'
+        '    - mark_retrim: {doc_types: [domain], sections: [invariants],'
+        ' note: x}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].mark_retrim.note',
+        ),
+      ),
+    );
+    const held = {'doc_types': '[domain]', 'sections': '[invariants]'};
+    for (final missing in held.keys) {
+      final body = [
+        for (final MapEntry(:key, :value) in held.entries)
+          if (key != missing) '$key: $value',
+      ].join(', ');
+      expect(
+        () => parseMigrationsOf(
+          '- from: 1.14.0\n  steps:\n    - mark_retrim: {$body}\n',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.missingKey,
+            key: 'migrations[0].steps[0].mark_retrim.$missing',
+          ),
+        ),
+        reason: 'missing $missing',
+      );
+    }
+    for (final empty in held.keys) {
+      final body = [
+        for (final MapEntry(:key, :value) in held.entries)
+          '$key: ${key == empty ? '[]' : value}',
+      ].join(', ');
+      expect(
+        () => parseMigrationsOf(
+          '- from: 1.14.0\n  steps:\n    - mark_retrim: {$body}\n',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'migrations[0].steps[0].mark_retrim.$empty',
+          ),
+        ),
+        reason: 'empty $empty',
+      );
+    }
+  });
+
   test('a move_to_record list that holds a non-string is '
       'unknown_value', () {
     expect(

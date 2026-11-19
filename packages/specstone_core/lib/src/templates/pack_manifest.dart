@@ -161,6 +161,48 @@ final class PackManifest {
     }
   }
 
+  /// Throws `unknown_value` for the first `mark_retrim` id that names no doc
+  /// type of [layerLists] or no section any layer of a listed type defines, a
+  /// layer that disables the section included.
+  ///
+  /// The key is `migrations[<i>].steps[<j>].mark_retrim.doc_types[<k>]` or
+  /// `migrations[<i>].steps[<j>].mark_retrim.sections[<k>]`.
+  void checkMarkRetrimTargets(Map<String, DocTypeLayers> layerLists) {
+    for (final (i, migration) in migrations.indexed) {
+      for (final (j, step) in migration.steps.indexed) {
+        if (step is! MarkRetrim) continue;
+        final key = 'migrations[$i].steps[$j].mark_retrim';
+        for (final (k, docType) in step.docTypes.indexed) {
+          if (layerLists.containsKey(docType)) continue;
+          throw TemplateFault(
+            FaultCode.unknownValue,
+            'the mark_retrim doc type $docType is not a doc type the packs '
+            'define',
+            file: file,
+            key: '$key.doc_types[$k]',
+          );
+        }
+        for (final (k, section) in step.sections.indexed) {
+          final defined = step.docTypes.any(
+            (docType) =>
+                layerLists[docType]?.any(
+                  (entry) => entry.layer.sections.any((s) => s.id == section),
+                ) ??
+                false,
+          );
+          if (defined) continue;
+          throw TemplateFault(
+            FaultCode.unknownValue,
+            'the mark_retrim section $section is not a section of '
+            '${step.docTypes.join(', ')}',
+            file: file,
+            key: '$key.sections[$k]',
+          );
+        }
+      }
+    }
+  }
+
   String? _dropTargetProblem(
     String docType,
     Map<String, DocTypeLayers> layerLists,
