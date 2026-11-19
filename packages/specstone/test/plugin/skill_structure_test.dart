@@ -40,6 +40,7 @@ const _procedures = <String>[
   'specstone-sync-sdd/references/routes.md',
   'specstone-sync-sdd/references/helpers.md',
   'specstone-sync-sdd/references/task-refs.md',
+  'specstone-sync-sdd/references/path-fixes.md',
   'specstone-sync-sdd/references/matrix-rows.md',
   'specstone-sync-sdd/references/spec-drafts.md',
   'specstone-bootstrap-prd/references/procedure.md',

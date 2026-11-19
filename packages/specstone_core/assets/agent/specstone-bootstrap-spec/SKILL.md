@@ -37,17 +37,17 @@ when findings it owns remain or a write-a-spec pick awaits. Dispatch one `specst
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:`
 the batch's paths, `check:` the latest check file, never a `--repeats` one, with no doc write since, `picks:` step 3's
 write-a-spec picks for the batch's files, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new
-name per batch; batches may run at once. Send no doc text, and work no step of the procedure yourself while a
+name per batch; batches run at once, a rest batch with a `code_uncovered` finding after the feature batches. Send no doc text, and work no step of the procedure yourself while a
 dispatch can run.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
 
 An `item_over_limit` finding joins its doc's batch only when the Owner named `item_over_limit` when starting the run;
-that batch's `batch:` then names it, and its agent reshapes the item. In any other
-run the finding waits for the Owner.
+that batch's `batch:` then names it, its agent reshapes it. Otherwise
+the finding waits for the Owner.
 
-The main session's procedure is `references/procedure.md` beside this file: with no subagent at all, over every
+The main session's procedure is `references/procedure.md`: with no subagent, over every
 finding this skill takes; after a failed dispatch, over that dispatch's one batch.
 
 ## 3. After the reports
@@ -59,11 +59,10 @@ in for item 4.
 2. Get each draft approved through `specstone-expert-sdd`'s Owner confirmation; ask the Owner to approve each
    proposal, then run each of its commands in run order
    (`../specstone-expert-sdd/references/size-fix.md`).
-3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
-   for the batch with them. Ask once per batch, every file under its `Uncovered:`, no helper, in one question: write a
+3. Ask the Owner each open question; send the answers to that batch's live agent, else to a new one. Ask once per batch, every file under its `Uncovered:`, no helper, in one question: write a
    spec for it, or change or remove the code. Change or remove writes nothing. A write-a-spec pick whose behavior needs a new story
    or FR hands over by following the `specstone-brainstorming-sdd` skill; any other goes with its file to the next round's agent of that batch
-   as `picks:`, which writes the draft and does not report the file. Keep each answered file, whatever the pick, for
+   as `picks:`, which writes the draft and does not report the file. Keep each answered file for
    the run: no later batch reports it and the Owner is not asked again.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
    one command naming each path once, each still quoted, with each path `specstone-bootstrap-prd` left waiting on a
@@ -72,7 +71,7 @@ in for item 4.
 5. Run `specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again and search its file. A finding this
    skill takes starts another round at step 2 unless it is tagged `(waits for the Owner)`, the last reports name it as
    one that clears with no write, it is an answered `code_uncovered` file, which starts a round only through a
-   write-a-spec pick, or it waits on `specstone-bootstrap-prd`. With none left, go to item 6.
+   write-a-spec pick, it is a helper waiting on a draft, or it waits on `specstone-bootstrap-prd`. With none left, go to item 6.
 6. Once per run, after the last round and `specstone-bootstrap-prd`'s repeats batch, run
    `specstone check --repeats --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"`, then dispatch the repeats batch
    (`../specstone-expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each group with an item

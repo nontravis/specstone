@@ -102,8 +102,9 @@ A failed load: report it and stop; never search.
    `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.
 4. **Author, audit**: follow the On-Demand reference through its report; then stop.
 5. **Check and report**: after writing, run
-   `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`; search its file and fix each finding your writes
-   added, but leave each tagged `(waits for the Owner)`.
+   `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`, in sync mode with a `scope` as step 1 scopes
+   its check, so another engineer's drafts stay out; search its file and fix each finding your writes added, but leave
+   each tagged `(waits for the Owner)`.
 
 ## Output Format
 

@@ -51,7 +51,7 @@ To dispatch `specstone-sdd-engineer`, follow `../specstone-expert-sdd/references
 group, with no `scope:`. Pass `check:` with the gate's file on a first-route dispatch alone; a later step runs its own
 check first, as `routes.md` gives. Show each report's `Report:` line and relay block as it comes in. Send no list of
 paths or doc text, and work no step of the procedure yourself while a dispatch can run, but a small group. Name
-each report path as the gate names its file, `XXXXXX` picked again while that file exists.
+each report path as the gate names its file.
 
 Run again any `specstone` command that ends `index_busy`.
 
@@ -80,7 +80,7 @@ every group. A group you judged or followed stands in for item 1 by its own chan
    `specstone set <doc> --stamp <entry>=<fingerprint>` (the finding's, no base; a waiting helper's from a `check`
    after its write), and a `planned` entry's `implemented` goes to `statuses` by `--field statuses` with
    `bases.fields.statuses`. A refused stamp writes nothing more for its entry: report it, its finding stays. For each
-   waiting removal, once approved, run `specstone set --remove-task <task> ...` (`--target <name>` when two or more),
-   then name them to the Owner.
+   waiting removal, once approved or listed by a feature engineer, run `specstone set --remove-task <task> ...`
+   (`--target <name>` when two or more), then name them to the Owner.
 5. Follow the `specstone-brainstorming-sdd` skill for each behavior the report hands over and each pick that lands in
    a story or FR, since the sync writes no PRD doc.

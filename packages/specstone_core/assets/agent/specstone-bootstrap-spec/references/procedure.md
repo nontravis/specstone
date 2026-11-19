@@ -75,5 +75,5 @@ PRD section.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
-Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; then get
-each approved through step 5's Owner confirmation.
+Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; under
+`Pointers:`, each helper file joined or waiting; then get each approved through step 5's Owner confirmation.

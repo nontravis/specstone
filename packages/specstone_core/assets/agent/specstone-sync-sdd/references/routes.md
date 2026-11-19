@@ -22,15 +22,13 @@ All of these hold, else the group goes to its route above:
 - No covering doc prints `draft: true`.
 
 Judge it: run `specstone context <doc> --for implement --out` per covering doc, as `procedure.md` step 3 gives, search
-the entry's sections, and read the diff. A match is code that does what the approved text states today; approved text
-ahead of the code is no match. Stamp a match with
+the entry's sections, and read the diff. A match is as `procedure.md` step 4.2 gives. Stamp a match with
 `specstone set <doc> --stamp <entry>=<fingerprint>`, the `<entry>` as the doc holds it before its fingerprint, the
 `<fingerprint>` the finding's, and `--target <name>` when the project has two or more. A stamp touches only that
-group's docs.
+group's docs. After each stamp, follow `task-refs.md` for that link, so a closed task's refs go with it.
 
-A mismatch, any doubt, approved text ahead of the code (no stamp: it stays suspect, listed as a waiting pointer), a
-`draft: true` you meet, or any refused stamp hands the whole group to an engineer of its
-route. That engineer runs its own check first.
+A mismatch, any doubt, approved text ahead of the code, a `draft: true` you meet, or any refused stamp hands the whole
+group to an engineer of its route. That engineer runs its own check first.
 
 ## Order
 
