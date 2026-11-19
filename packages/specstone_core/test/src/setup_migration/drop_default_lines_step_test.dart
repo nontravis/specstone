@@ -5,12 +5,16 @@ import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
     show readDocText, writtenText;
 import 'package:test/test.dart';
 
-String _dropped(String lf, {String? defaultEnforcer = 'Account'}) =>
-    withDefaultLinesDropped(
-      lf,
-      invariantsHeader: 'Invariants',
-      defaultEnforcer: defaultEnforcer,
-    );
+String _dropped(
+  String lf, {
+  String? defaultEnforcer = 'Account',
+  bool dropsConsistency = true,
+}) => withDefaultLinesDropped(
+  lf,
+  invariantsHeader: 'Invariants',
+  defaultEnforcer: defaultEnforcer,
+  dropsConsistency: dropsConsistency,
+);
 
 String _invariants(String body) => '# Domain\n\n## Invariants\n\n$body\n';
 
@@ -141,6 +145,22 @@ void main() {
       expect(
         _dropped(lf, defaultEnforcer: null),
         _invariants('- **INV-1** One.\n  - **Enforcer:** Account'),
+      );
+    });
+
+    test('a Consistency line stays when the caller does not free it', () {
+      final lf = _invariants(
+        '- **INV-1** One.\n'
+        '  - **Enforcer:** Account\n'
+        '  - **Consistency:** immediate',
+      );
+
+      expect(
+        _dropped(lf, dropsConsistency: false),
+        _invariants(
+          '- **INV-1** One.\n'
+          '  - **Consistency:** immediate',
+        ),
       );
     });
 

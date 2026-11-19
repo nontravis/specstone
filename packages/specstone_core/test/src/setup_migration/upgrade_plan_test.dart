@@ -5212,6 +5212,11 @@ migrations:
       - drop_default_lines: {doc_types: [domain]}
 ''';
 
+const _domainOverridePath = '.specstone/templates/domain.yaml';
+
+String _domainOverride(String lint) =>
+    'sections: [{id: invariants, lint: $lint}]\n';
+
 const _loginPath = 'specs/f01_login/DOMAIN.md';
 const _resetPath = 'specs/f01_login/f01_reset/DOMAIN.md';
 const _payPath = 'specs/f02_pay/DOMAIN.md';
@@ -5306,6 +5311,59 @@ void _dropDefaultLinesTests() {
           '- **INV-1** A cart expires.\n  - **Enforcer:** Project',
         ),
       );
+    });
+
+    test('a layer whose Enforcer entry has no default source keeps every '
+        'Enforcer line', () async {
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: {
+            _domainOverridePath: _domainOverride(
+              '{item_fields: {add: [{field: Enforcer}]}}',
+            ),
+          },
+          docs: {_loginPath: _loginDoc},
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        _domainText(
+          _accountRow,
+          '- **INV-1** An email is unique.\n  - **Enforcer:** Account',
+        ),
+      );
+    });
+
+    test('a layer whose Consistency entry allows immediate or requires the '
+        'field keeps every Consistency line', () async {
+      for (final entry in const [
+        '{field: Consistency, values: [eventual, immediate], optional: true}',
+        '{field: Consistency, values: [eventual]}',
+      ]) {
+        final plan = _plan(
+          await _fixture(
+            packYaml: _dropPackYaml,
+            overrides: {
+              _domainOverridePath: _domainOverride(
+                '{item_fields: {add: [$entry]}}',
+              ),
+            },
+            docs: {_loginPath: _loginDoc},
+          ),
+        );
+
+        expect(
+          _rewriteAt(plan, 'docs/$_loginPath').text,
+          _domainText(
+            _accountRow,
+            '- **INV-1** An email is unique.\n'
+            '  - **Consistency:** immediate',
+          ),
+          reason: entry,
+        );
+      }
     });
 
     test('a draft doc is left unapproved by the step', () async {

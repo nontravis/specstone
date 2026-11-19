@@ -16,15 +16,17 @@ const _immediate = 'immediate';
 /// Returns [lf] without the nested lines of the `##` section [invariantsHeader]
 /// that state only the default, or [lf] when it holds none.
 ///
-/// A default line is a nested `- **Consistency:** immediate` line, or a nested
-/// `- **Enforcer:**` line that names [defaultEnforcer]; with a null
-/// [defaultEnforcer] every Enforcer line stays. Matches the header as
+/// A default line is a nested `- **Consistency:** immediate` line while
+/// [dropsConsistency] holds, or a nested `- **Enforcer:**` line that names
+/// [defaultEnforcer]; with a null [defaultEnforcer] every Enforcer line stays.
+/// Matches the header as
 /// [headerKey] does and reads items as the check does, so a fenced line, a
 /// line outside the section, and a line not nested under an item stay.
 String withDefaultLinesDropped(
   String lf, {
   required String invariantsHeader,
   required String? defaultEnforcer,
+  required bool dropsConsistency,
 }) {
   final doc = Doc.parse(lf);
   final key = headerKey(invariantsHeader);
@@ -32,7 +34,12 @@ String withDefaultLinesDropped(
   if (index < 0) return lf;
   final items = sectionItemsAt(docStructureOf(lf, null), index, null);
   final dropped = {
-    for (final item in _defaultItemsOf(items, defaultEnforcer)) item.line - 1,
+    for (final item in _defaultItemsOf(
+      items,
+      defaultEnforcer,
+      dropsConsistency,
+    ))
+      item.line - 1,
   };
   if (dropped.isEmpty) return lf;
   final lines = lf.split('\n');
@@ -74,6 +81,7 @@ List<EntityRow> _entityRowsIn(String lf, String header) {
 Iterable<SectionItem> _defaultItemsOf(
   List<SectionItem> items,
   String? defaultEnforcer,
+  bool dropsConsistency,
 ) sync* {
   var isUnderItem = false;
   for (var i = 0; i < items.length; i++) {
@@ -88,7 +96,7 @@ Iterable<SectionItem> _defaultItemsOf(
     } else if (isUnderItem &&
         !item.text.contains('\n') &&
         !_holdsDeeperItem(item, i + 1 < items.length ? items[i + 1] : null) &&
-        _statesDefault(item.head, defaultEnforcer)) {
+        _statesDefault(item.head, defaultEnforcer, dropsConsistency)) {
       yield item;
     }
   }
@@ -100,11 +108,15 @@ bool _holdsDeeperItem(SectionItem item, SectionItem? next) =>
 int _indentOf(SectionItem item) =>
     item.firstLine.length - item.firstLine.trimLeft().length;
 
-bool _statesDefault(String head, String? defaultEnforcer) {
+bool _statesDefault(
+  String head,
+  String? defaultEnforcer,
+  bool dropsConsistency,
+) {
   final field = readFieldHead(head);
   if (field == null) return false;
   return switch (field.name) {
-    _consistencyField => field.value == _immediate,
+    _consistencyField => dropsConsistency && field.value == _immediate,
     _enforcerField =>
       defaultEnforcer != null &&
           namesDefaultEnforcer(field.value, defaultEnforcer),

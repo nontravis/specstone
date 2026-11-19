@@ -86,6 +86,9 @@ const _codeRestampChange = 'restamp code fingerprints';
 const _citeChange = 'convert cites';
 const _invariantsSectionId = 'invariants';
 const _entitiesSectionId = 'entities';
+const _enforcerField = 'Enforcer';
+const _consistencyField = 'Consistency';
+const _immediateValue = 'immediate';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -1281,7 +1284,10 @@ String _describe(MigrationStep step) => switch (step) {
 ///
 /// The default enforcer comes from the pre-run text of the doc and of each
 /// ancestor twin, nearest first, kept only when it has the doc's own type and
-/// target, so a project domain never feeds a feature domain.
+/// target, so a project domain never feeds a feature domain. An Enforcer line
+/// goes only while the merged `Enforcer` entry holds `default_from`, and a
+/// Consistency line only while the merged `Consistency` entry is optional and
+/// lists no `immediate`.
 String _withDefaultLinesDropped(
   String lf, {
   required MergedDocType docType,
@@ -1307,15 +1313,24 @@ String _withDefaultLinesDropped(
           when id == docType.id && twinTarget == target)
         ?preRunTexts[path],
   ];
+  final fields = invariants.itemFields ?? const <ItemFieldLint>[];
+  final enforcer = fields.where((f) => f.field == _enforcerField).firstOrNull;
+  final consistency = fields
+      .where((f) => f.field == _consistencyField)
+      .firstOrNull;
   return withDefaultLinesDropped(
     lf,
     invariantsHeader: invariants.header,
-    defaultEnforcer: entities == null
+    defaultEnforcer: entities == null || enforcer?.defaultFrom == null
         ? null
         : defaultEnforcerAmong([
             lf,
             ...twinTexts,
           ], entitiesHeader: entities.header),
+    dropsConsistency:
+        consistency != null &&
+        consistency.optional &&
+        !(consistency.values?.contains(_immediateValue) ?? false),
   );
 }
 
