@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
+import 'package:specstone/src/models/latest_release.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 const String _rawContentBase =
@@ -140,28 +141,30 @@ String _comparable(Directory folder, {required bool windows}) {
 /// Reads the Version of the latest full release from the `tag_name` of [url].
 ///
 /// The reply is untrusted, so it must be a JSON object holding `v<Version>`.
-/// The record holds the Version, or null with the reason when the read fails.
+/// The result holds the Version, or null with the reason when the read fails.
 /// A completed [abandon] closes the request at once, so a caller that stops
 /// waiting leaves nothing pending.
-Future<({ReleaseVersion? version, String? failure})> readLatestRelease(
+Future<LatestRelease> readLatestRelease(
   Uri url, {
   Future<void>? abandon,
 }) async {
-  final (:body, :failure) = await _get(url, abandon: abandon);
-  if (body == null) return (version: null, failure: failure);
+  final _Reply(:body, :failure) = await _get(url, abandon: abandon);
+  if (body == null) return LatestRelease(version: null, failure: failure);
   final Object? json;
   try {
     json = jsonDecode(utf8.decode(body));
   } on FormatException {
-    return (version: null, failure: 'the body is not JSON');
+    return const LatestRelease(version: null, failure: 'the body is not JSON');
   }
   final tag = json is Map<String, Object?> ? json['tag_name'] : null;
-  if (tag is! String) return (version: null, failure: 'no tag_name');
+  if (tag is! String) {
+    return const LatestRelease(version: null, failure: 'no tag_name');
+  }
   final version = tag.startsWith('v')
       ? ReleaseVersion.tryParse(tag.substring(1))
       : null;
-  if (version != null) return (version: version, failure: null);
-  return (
+  if (version != null) return LatestRelease(version: version, failure: null);
+  return LatestRelease(
     version: null,
     failure: 'tag_name ${_printable(tag)} is not v<Version>',
   );
@@ -169,10 +172,7 @@ Future<({ReleaseVersion? version, String? failure})> readLatestRelease(
 
 // Returns the body of one complete 2xx reply of [url], else why there is none:
 // `HTTP <status>`, `no data for 60 s`, or the I/O or decoder message.
-Future<({List<int>? body, String? failure})> _get(
-  Uri url, {
-  Future<void>? abandon,
-}) async {
+Future<_Reply> _get(Uri url, {Future<void>? abandon}) async {
   final client = HttpClient()..connectionTimeout = _connectTimeout;
   unawaited(abandon?.then((_) => client.close(force: true)));
   try {
@@ -184,7 +184,7 @@ Future<({List<int>? body, String? failure})> _get(
     // An error body is never read: the closed client drops it, so it cannot
     // stall, fail to decode, or grow without a cap.
     if (status < 200 || status >= 300) {
-      return (body: null, failure: 'HTTP $status');
+      return _Reply(body: null, failure: 'HTTP $status');
     }
     final quiet = response.timeout(_idleTimeout);
     // HttpClient throws on a body cut short, so a finished loop is complete.
@@ -192,17 +192,23 @@ Future<({List<int>? body, String? failure})> _get(
     await for (final chunk in quiet) {
       body.add(chunk);
       if (body.length > _maxReplyBytes) {
-        return (body: null, failure: 'the reply is over $_maxReplyMiB MiB');
+        return const _Reply(
+          body: null,
+          failure: 'the reply is over $_maxReplyMiB MiB',
+        );
       }
     }
-    return (body: body.takeBytes(), failure: null);
+    return _Reply(body: body.takeBytes(), failure: null);
   } on IOException catch (e) {
-    return (body: null, failure: e is HttpException ? e.message : '$e');
+    return _Reply(body: null, failure: e is HttpException ? e.message : '$e');
   } on FormatException catch (e) {
     // The SDK's decoder of a `Content-Encoding` reply throws it on bad data.
-    return (body: null, failure: e.message);
+    return _Reply(body: null, failure: e.message);
   } on TimeoutException {
-    return (body: null, failure: 'no data for ${_idleTimeout.inSeconds} s');
+    return _Reply(
+      body: null,
+      failure: 'no data for ${_idleTimeout.inSeconds} s',
+    );
   } finally {
     client.close(force: true);
   }
@@ -309,7 +315,9 @@ class UpgradeCommand extends SpecstoneCommand {
   Future<int?> _keepNewerPreRelease(Directory home) async {
     final running = ReleaseVersion.tryParse(runningVersion);
     if (running == null || !running.isPreRelease) return null;
-    final (:version, :failure) = await readLatestRelease(latestReleaseUrl);
+    final LatestRelease(:version, :failure) = await readLatestRelease(
+      latestReleaseUrl,
+    );
     if (version == null) {
       return fail(
         UpgradeFault(
@@ -403,7 +411,7 @@ class UpgradeCommand extends SpecstoneCommand {
   // Writes the body of [url] to [file] only when the whole body arrived.
   // Returns why it did not, or null.
   Future<String?> _fetch(Uri url, File file) async {
-    final (:body, :failure) = await _get(url);
+    final _Reply(:body, :failure) = await _get(url);
     if (body == null) return failure;
     try {
       await file.writeAsBytes(body);
@@ -437,4 +445,12 @@ class UpgradeCommand extends SpecstoneCommand {
       return;
     }
   }
+}
+
+/// The body of one complete 2xx reply, or null with the reason there is none.
+final class _Reply {
+  const new({required this.body, required this.failure});
+
+  final List<int>? body;
+  final String? failure;
 }

@@ -3,15 +3,30 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
+import 'package:specstone_core/src/templates/models/ranked_fault_files.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// The layers the resolver folded for one doc type, lowest first.
-typedef DocTypeLayers = List<({LoadedPack? pack, DocTypeLayer layer})>;
+typedef DocTypeLayers = List<PackLayer>;
 
 /// One pack with the doc type layers its folder parsed, by doc type id.
-typedef ParsedPack = ({LoadedPack pack, Map<String, DocTypeLayer> layers});
+final class ParsedPack {
+  const new({required this.pack, required this.layers});
+
+  final LoadedPack pack;
+  final Map<String, DocTypeLayer> layers;
+}
+
+/// One doc type layer and the pack it comes from; null for a project layer.
+final class PackLayer {
+  const new({required this.pack, required this.layer});
+
+  final LoadedPack? pack;
+  final DocTypeLayer layer;
+}
 
 /// The load index of every layer file: its place in the load sequence.
 ///
@@ -32,14 +47,14 @@ LoadIndex loadIndexOf(Iterable<DocTypeLayer> loadOrder) => {
 /// later-loaded one; `relatedFiles` holds the rest, ascending. A null file is
 /// dropped and a repeated file counts once. Every file comes from a layer of
 /// the load sequence, so [index] holds it.
-({String? file, List<String> related}) rankFaultFiles(
-  Iterable<String?> files,
-  LoadIndex index,
-) {
+RankedFaultFiles rankFaultFiles(Iterable<String?> files, LoadIndex index) {
   final ranked = <String>{for (final file in files) ?file}.toList()
     ..sort((a, b) => index[a]!.compareTo(index[b]!));
-  if (ranked.isEmpty) return (file: null, related: const []);
-  return (file: ranked.last, related: ranked.sublist(0, ranked.length - 1));
+  if (ranked.isEmpty) return const RankedFaultFiles(file: null, related: []);
+  return RankedFaultFiles(
+    file: ranked.last,
+    related: ranked.sublist(0, ranked.length - 1),
+  );
 }
 
 /// The top-most layer of [layers] for which [wrote] holds, or null.
@@ -66,9 +81,9 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// through `extends` when no own layer wrote it. A fault that names several
 /// files ranks them by [loadIndex]. [targetNames] holds the config's target
 /// names, empty when the config reads no `targets:` key; a named-target
-/// config needs the record doc type. [verificationCoverage] is the config's
-/// `verification_coverage:`; `true` needs the record doc type with an enabled
-/// matrix section. Runs after every merge:
+/// config needs the record doc type. [matrixMode] is the config's
+/// `verification_coverage:`; a mode other than off needs the record doc type
+/// with an enabled matrix section. Runs after every merge:
 /// two doc types may not share one `path`
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
 /// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
@@ -89,7 +104,7 @@ void checkMergedSet(
   Map<String, DocTypeLayers> layerLists, {
   required LoadIndex loadIndex,
   List<String> targetNames = const [],
-  bool verificationCoverage = false,
+  MatrixMode matrixMode = MatrixMode.off,
 }) {
   final byId = {for (final docType in docTypes) docType.id: docType};
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
@@ -104,13 +119,7 @@ void checkMergedSet(
   _checkRequiredWhen(sorted, layerLists);
   _checkRequiredWithRequiredWhen(sorted, layerLists);
   _checkWhenField(sorted, layerLists);
-  _checkRecords(
-    sorted,
-    layerLists,
-    loadIndex,
-    targetNames,
-    verificationCoverage,
-  );
+  _checkRecords(sorted, layerLists, loadIndex, targetNames, matrixMode);
   _checkPatternCarriers(sorted, layerLists);
 }
 
@@ -143,7 +152,7 @@ Never _throwSecondCarrier(
   Map<String, DocTypeLayers> layerLists,
   LoadIndex loadIndex,
 ) {
-  final (:file, :related) = rankFaultFiles([
+  final RankedFaultFiles(:file, :related) = rankFaultFiles([
     for (final carrier in carriers)
       _writerOf(carrier.id, _wroteMaxDepth, layerLists),
   ], loadIndex);
@@ -213,7 +222,7 @@ void _checkPaths(
         ]..sort(
           (a, b) => _loadRank(a.file, loadIndex) - _loadRank(b.file, loadIndex),
         );
-    final (:file, :related) = rankFaultFiles([
+    final RankedFaultFiles(:file, :related) = rankFaultFiles([
       for (final writer in writers) writer.file,
     ], loadIndex);
     throw TemplateFault(
@@ -308,7 +317,7 @@ Never _throwParentCycle(
   Map<String, DocTypeLayers> layerLists,
   LoadIndex loadIndex,
 ) {
-  final (:file, :related) = rankFaultFiles([
+  final RankedFaultFiles(:file, :related) = rankFaultFiles([
     for (final member in cycle) _writerOf(member, _wroteParent, layerLists),
   ], loadIndex);
   throw TemplateFault(
@@ -508,14 +517,15 @@ void _checkWhenField(
 /// a second `record_status` holder, a record doc type whose merged
 /// `per_target` is not `true`, a record matrix section whose merged
 /// `output_ref` is not `true`, an `output_ref: true` on any other section, a
-/// named-target config with no record doc type, and `verification_coverage:
-/// true` with no record doc type or no enabled matrix section on it.
+/// named-target config with no record doc type, and a `verification_coverage:`
+/// mode other than off with no record doc type or no enabled matrix section on
+/// it.
 void _checkRecords(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
   LoadIndex loadIndex,
   List<String> targetNames,
-  bool verificationCoverage,
+  MatrixMode matrixMode,
 ) {
   final holders = [
     for (final docType in docTypes)
@@ -538,7 +548,7 @@ void _checkRecords(
       );
     }
     _checkMatrixOutputRef(holder, layerLists);
-    if (verificationCoverage && verificationMatrixOf(holder) == null) {
+    if (matrixMode.isOn && verificationMatrixOf(holder) == null) {
       throw TemplateFault(
         FaultCode.unknownValue,
         'verification_coverage needs an enabled $verificationMatrixKey '
@@ -559,7 +569,7 @@ void _checkRecords(
       key: 'targets',
     );
   }
-  if (holders.isEmpty && verificationCoverage) {
+  if (holders.isEmpty && matrixMode.isOn) {
     throw TemplateFault(
       FaultCode.unknownValue,
       'verification coverage reads a record, and this merged set holds no '
@@ -583,7 +593,7 @@ void _checkOutputRefSections(
   for (final docType in docTypes) {
     final layers = layerLists[docType.id];
     if (layers == null) continue;
-    for (final (:layer, pack: _) in layers) {
+    for (final PackLayer(:layer) in layers) {
       for (final (index, entry) in layer.sections.indexed) {
         if (entry.outputRef != true || entry.disabled) continue;
         if (entry.id == verificationMatrixKey) continue;
@@ -642,7 +652,7 @@ Never _throwSecondRecordHolder(
   Map<String, DocTypeLayers> layerLists,
   LoadIndex loadIndex,
 ) {
-  final (:file, :related) = rankFaultFiles([
+  final RankedFaultFiles(:file, :related) = rankFaultFiles([
     for (final holder in holders)
       _writerOf(holder.id, _wroteRecordField, layerLists),
   ], loadIndex);

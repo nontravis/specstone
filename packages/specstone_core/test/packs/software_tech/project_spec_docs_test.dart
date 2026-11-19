@@ -1,10 +1,15 @@
+import 'dart:convert';
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
@@ -147,12 +152,17 @@ void main() {
     expect(sectionOf(type, 'conventions').description, isNotEmpty);
   });
 
-  test('project_error requires error_envelope', () {
+  test('project error requires its envelope and frees its retry section', () {
     final type = prdCoreDocType(set, 'project_error');
     final base = prdCoreDocType(set, 'error');
     expect(sectionOf(type, 'error_envelope').required, isTrue);
     expect(sectionOf(base, 'error_envelope').required, isFalse);
     expect(sectionOf(type, 'error_envelope').description, isNotEmpty);
+    expect(sectionOf(type, 'retry_policy').required, isFalse);
+    expect(
+      sectionOf(type, 'error_catalog').description,
+      isNot(contains('Implemented by')),
+    );
     expect(
       [for (final s in type.sections) s.id],
       [for (final s in base.sections) s.id],
@@ -249,7 +259,7 @@ void main() {
     );
   });
 
-  test('project_domain invariants take the corrective policy of domain', () {
+  test('project_domain inherits the invariant entries', () {
     final domain = prdCoreDocType(set, 'domain');
     final projectDomain = prdCoreDocType(set, 'project_domain');
     List<Map<String, Object>> fieldsOf(MergedDocType type) => [
@@ -258,6 +268,18 @@ void main() {
         f.toJson(),
     ];
     expect(fieldsOf(projectDomain), fieldsOf(domain));
+    expect(fieldsOf(projectDomain), [
+      containsPair('default_from', 'entities'),
+      allOf(
+        containsPair('optional', true),
+        containsPair('values', ['eventual']),
+      ),
+      containsPair('when', isNotNull),
+    ]);
+    expect(
+      sectionOf(projectDomain, 'invariants').description,
+      isNot(contains('- **Consistency:** immediate')),
+    );
     expect(
       projectDomain.sections.map((s) => s.id),
       isNot(contains('corrective_policies')),
@@ -358,19 +380,41 @@ void main() {
     expect(rewritten, greaterThan(0));
   });
 
-  test('project, topic, and per-feature descriptions place every-feature, '
-      'shared, and one-feature rules', () {
-    for (final id in _projectTypes.keys) {
+  test('each project spec doc type disables the shared overrides field its '
+      'base holds and keeps the shared tasks field', () {
+    final shared = PackManifest.parse(
+      utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+      file: 'packs/software-tech/pack.yaml',
+    ).shared.fields;
+    final overrides = shared.singleWhere((f) => f.id == 'overrides');
+    final tasks = shared.singleWhere((f) => f.id == 'tasks');
+    for (final MapEntry(key: id, value: project) in _projectTypes.entries) {
+      final layer = loadYaml(
+        utf8.decode(shippedPackFiles['software-tech/$id.yaml']!),
+      ) as YamlMap;
       expect(
-        prdCoreDocType(set, id).description,
-        contains(
-          'Hold only rules every feature uses; write any other rule in a '
-          'per-feature spec doc, or in a `topic` when two or more features '
-          'share it.',
-        ),
+        [
+          for (final field in layer['fields'] as YamlList)
+            if ((field as YamlMap)['id'] == 'overrides') field['disabled'],
+        ],
+        [true],
+        reason: id,
+      );
+      expect(overrides.forDocTypes, contains(project.base), reason: id);
+      expect(overrides.forDocTypes, isNot(contains(id)), reason: id);
+      expect(tasks.forDocTypes, isNot(contains(id)), reason: id);
+      final fields = prdCoreDocType(set, id).fields;
+      expect(fields.any((f) => f.id == 'overrides'), isFalse, reason: id);
+      expect(
+        fields.singleWhere((f) => f.id == 'tasks').type,
+        FieldType.taskRef,
         reason: id,
       );
     }
+  });
+
+  test('project, topic, and per-feature descriptions place every-feature, '
+      'shared, and one-feature rules', () {
     expect(
       prdCoreDocType(set, 'topic').description,
       contains(
@@ -381,9 +425,9 @@ void main() {
     for (final project in _projectTypes.values) {
       expect(
         prdCoreDocType(set, project.base).description,
-        contains(
-          "This doc holds one feature's spec; a rule every feature uses goes "
-          "to the project's",
+        allOf(
+          matches(RegExp(r'^[^\n]*one feature', caseSensitive: false)),
+          contains("Put a rule every feature uses in the project's"),
         ),
         reason: project.base,
       );

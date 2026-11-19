@@ -113,16 +113,6 @@ final _allowed = <_Allowed>[
     """.indexOf('#'""",
     'Mention reader: cuts a prose path token at its `#`.',
   ),
-  _core(
-    'document_writing/rewrite_mentions.dart',
-    r"""RegExp(r'[.,;:]$'""",
-    'Mention reader: trailing sentence mark of a prose path.',
-  ),
-  _core(
-    'document_writing/rewrite_mentions.dart',
-    r"""RegExp(r'(?::\d+)+$'""",
-    'Mention reader: `:12:5` line suffix of a prose path.',
-  ),
   // A file-system path segment, not a doc reference.
   _core(
     'document_writing/journal_bounds.dart',
@@ -182,6 +172,11 @@ final _allowed = <_Allowed>[
     'setup_migration/upgrade_plan.dart',
     r"""RegExp('^${RegExp.escape(block.key)}(?=\\s*:)'""",
     'Upgrade reader: finds a frontmatter key line by name.',
+  ),
+  _core(
+    'setup_migration/shared_copies_step.dart',
+    r"""RegExp(r'^\s*[\x27"]?fields[\x27"]?\s*:\s*(#.*)?$'""",
+    'Strip reader: checks a YAML `fields:` key line stands alone.',
   ),
   _core(
     'setup_migration/models/label_tree.dart',

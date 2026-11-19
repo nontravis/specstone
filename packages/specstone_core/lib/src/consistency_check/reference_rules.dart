@@ -5,8 +5,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/models/see_target.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -30,7 +30,6 @@ const _filesField = 'files';
 /// Id of the section whose lines end with a `see` target.
 const concernsSectionId = 'concerns';
 const _seeMarker = ' see ';
-const _notApplicable = 'N/A — ';
 const _backtick = '`';
 const _trailingPunctuation = '.,;:!?';
 const _templatesFolder = '.specstone/templates';
@@ -152,9 +151,8 @@ Iterable<Finding> _unresolvedConcerns(
 
 /// Returns the text after the last ` see ` of [line], less trailing
 /// punctuation and whitespace and one pair of backticks, with the index it
-/// starts at in [line]; null for a line that is `N/A — ` or holds no ` see `.
+/// starts at in [line]; null for a line that holds no ` see `.
 SeeTarget? seeTargetIn(String line) {
-  if (line.contains(_notApplicable)) return null;
   final at = line.lastIndexOf(_seeMarker);
   if (at < 0) return null;
   final after = line.substring(at + _seeMarker.length);

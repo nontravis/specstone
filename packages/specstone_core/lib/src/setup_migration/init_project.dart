@@ -140,7 +140,7 @@ Directory? _linkFolderOf(Directory folder, Directory root) {
 /// process, so the new files stay untracked. Throws
 /// `agent_block_malformed` before the first write.
 int _scaffold(Directory root, InitRequest request) {
-  final (:set, :pins) = request.templates.resolveCarriedPinned(
+  final PinnedSet(:set, :pins) = request.templates.resolveCarriedPinned(
     packNames: carriedPacks,
     homeDirectory: request.homeDirectory,
   );

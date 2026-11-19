@@ -68,8 +68,7 @@ Iterable<Finding> _resolve(
   if (symbol.isEmpty) return;
   final text = context.codeTextOf(target, path);
   if (text == null) return;
-  for (final segment in symbol.split(_segmentMark)) {
-    if (_wordPattern(segment).hasMatch(text)) continue;
+  if (unresolvedSymbolOf(code, text) case final segment?) {
     yield context.finding(
       doc,
       FindingKind.implementsSymbolUnresolved,
@@ -77,8 +76,21 @@ Iterable<Finding> _resolve(
       message: '$segment occurs nowhere in $path',
       keys: {'entry': code, 'symbol': segment},
     );
-    return;
   }
+}
+
+/// Returns the first `Symbol` segment of the `implements` entry [code] that
+/// occurs nowhere in [text], the code file it names; null when every segment
+/// occurs or [code] holds no Symbol.
+///
+/// The one Symbol rule `check` and `set --stamp` resolve an entry by.
+String? unresolvedSymbolOf(String code, String text) {
+  final symbol = ImplementsEntry(code).symbol;
+  if (symbol.isEmpty) return null;
+  return symbol
+      .split(_segmentMark)
+      .where((segment) => !_wordPattern(segment).hasMatch(text))
+      .firstOrNull;
 }
 
 RegExp _wordPattern(String word) =>

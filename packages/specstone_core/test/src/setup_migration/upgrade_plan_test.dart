@@ -50,9 +50,19 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show withApprovalHashes;
+import '../../helpers/check_fixture.dart'
+    show checkOf, withApprovalHashes, writeCheckProject;
 import '../../helpers/git_repo.dart' show commitAll, git, hasGit;
 import '../../helpers/legacy_fixture.dart' show commitRepo;
+import '../../helpers/override_link_fixture.dart'
+    show
+        domainDoc,
+        linkKinds,
+        loginDomain,
+        overrideOfRoot,
+        rootAddress,
+        rootDomain,
+        rootFingerprint;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart'
     show oneTargetConfig, recordLayer, recordText, twinConfig;
@@ -158,6 +168,9 @@ void main() {
   _codeStampTests();
   _citeTests();
   _bulletLinesTests();
+  _dropDefaultLinesTests();
+  _sharedCopiesTests();
+  _matrixFoldTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -3547,6 +3560,7 @@ void _moveToRecordTests() {
             'paths': [newRecord],
             'unreadable': <String>[],
           },
+          {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
         ]);
       });
 
@@ -4685,6 +4699,7 @@ void _codeStampTests() {
           'paths': <String>[],
           'unreadable': <String>[],
         },
+        {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
       ]);
     });
 
@@ -5185,6 +5200,849 @@ void _bulletLinesTests() {
               ),
         ),
       );
+    });
+  });
+}
+
+const _dropPackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - drop_default_lines: {doc_types: [domain]}
+''';
+
+const _domainOverridePath = '.specstone/templates/domain.yaml';
+
+String _domainOverride(String lint) =>
+    'sections: [{id: invariants, lint: $lint}]\n';
+
+const _loginPath = 'specs/f01_login/DOMAIN.md';
+const _resetPath = 'specs/f01_login/f01_reset/DOMAIN.md';
+const _payPath = 'specs/f02_pay/DOMAIN.md';
+const _projectDomainPath = 'specs/DOMAIN.md';
+
+String _domainText(String rows, String invariants) =>
+    '# Domain\n\n## Entities\n\n| Entity | Kind | Identity | Owns |\n'
+    '|---|---|---|---|\n${rows.isEmpty ? '' : '$rows\n'}\n'
+    '## Invariants\n\n$invariants\n';
+
+const _accountRow = '| Account | Aggregate root | its email | a name |';
+const _statedDefaults =
+    '- **INV-1** An email is unique.\n'
+    '  - **Enforcer:** Account\n'
+    '  - **Consistency:** immediate';
+const _bareInvariant = '- **INV-1** An email is unique.';
+final String _loginDoc = _domainText(_accountRow, _statedDefaults);
+final String _loginDropped = _domainText(_accountRow, _bareInvariant);
+
+void _dropDefaultLinesTests() {
+  group('drop_default_lines step', () {
+    test('the step line counts the rewritten domain docs', () async {
+      final nonDefaults = _domainText(
+        '| Pay | Aggregate root | its id | a ledger |',
+        '- **INV-1** A charge posts once.\n'
+            '  - **Enforcer:** Ledger\n'
+            '  - **Consistency:** eventual',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {
+            _loginPath: _loginDoc,
+            _resetPath: _domainText(
+              '',
+              '- **INV-2** A link expires.\n'
+                  '  - **Enforcer:** `Account` ([domain:login](../DOMAIN.md))\n'
+                  '  - **Consistency:** immediate',
+            ),
+            _payPath: nonDefaults,
+          },
+        ),
+      );
+
+      expect(_rewriteAt(plan, 'docs/$_loginPath').text, _loginDropped);
+      expect(
+        _rewriteAt(plan, 'docs/$_resetPath').text,
+        _domainText('', '- **INV-2** A link expires.'),
+      );
+      expect(
+        plan.toText(),
+        contains(
+          'commit 2, rewrites:\n'
+          '  from 1.0.0: drop_default_lines: 2 docs\n',
+        ),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'drop_default_lines',
+          'paths': [_loginPath, _resetPath],
+        },
+      ]);
+    });
+
+    test('a project domain row never feeds a feature domain', () async {
+      final text = _domainText(
+        '',
+        '- **INV-1** A cart expires.\n'
+            '  - **Enforcer:** Project\n'
+            '  - **Consistency:** immediate',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {
+            _projectDomainPath: _domainText(
+              '| Project | Aggregate root | its name | carts |',
+              _bareInvariant,
+            ),
+            _payPath: text,
+          },
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_payPath').text,
+        _domainText(
+          '',
+          '- **INV-1** A cart expires.\n  - **Enforcer:** Project',
+        ),
+      );
+    });
+
+    test('a layer whose Enforcer entry has no default source keeps every '
+        'Enforcer line', () async {
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: {
+            _domainOverridePath: _domainOverride(
+              '{item_fields: {add: [{field: Enforcer}]}}',
+            ),
+          },
+          docs: {_loginPath: _loginDoc},
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        _domainText(
+          _accountRow,
+          '- **INV-1** An email is unique.\n  - **Enforcer:** Account',
+        ),
+      );
+    });
+
+    test('a layer with no Consistency entry keeps every Consistency line, and '
+        'an optional entry with no values drops them', () async {
+      final cases = {
+        '{item_fields: {remove: [Consistency]}}':
+            '  - **Consistency:** '
+            'immediate',
+        '{item_fields: {add: [{field: Consistency, optional: true}]}}': '',
+      };
+      for (final MapEntry(key: lint, value: kept) in cases.entries) {
+        final plan = _plan(
+          await _fixture(
+            packYaml: _dropPackYaml,
+            overrides: {_domainOverridePath: _domainOverride(lint)},
+            docs: {_loginPath: _loginDoc},
+          ),
+        );
+
+        expect(
+          _rewriteAt(plan, 'docs/$_loginPath').text,
+          _domainText(
+            _accountRow,
+            '- **INV-1** An email is unique.${kept.isEmpty ? '' : '\n$kept'}',
+          ),
+          reason: lint,
+        );
+      }
+    });
+
+    test('a layer whose Consistency entry allows immediate or requires the '
+        'field keeps every Consistency line', () async {
+      for (final entry in const [
+        '{field: Consistency, values: [eventual, immediate], optional: true}',
+        '{field: Consistency, values: [eventual]}',
+      ]) {
+        final plan = _plan(
+          await _fixture(
+            packYaml: _dropPackYaml,
+            overrides: {
+              _domainOverridePath: _domainOverride(
+                '{item_fields: {add: [$entry]}}',
+              ),
+            },
+            docs: {_loginPath: _loginDoc},
+          ),
+        );
+
+        expect(
+          _rewriteAt(plan, 'docs/$_loginPath').text,
+          _domainText(
+            _accountRow,
+            '- **INV-1** An email is unique.\n'
+            '  - **Consistency:** immediate',
+          ),
+          reason: entry,
+        );
+      }
+    });
+
+    test('a draft doc is left unapproved by the step', () async {
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: '---\ndraft: true\n---\n$_loginDoc'},
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        '---\ndraft: true\n---\n$_loginDropped',
+      );
+      expect(plan.toText(), isNot(contains('stamps:')));
+    });
+
+    test('an approved doc takes a fresh approval hash', () async {
+      final seed = await _fixture(
+        packYaml: _dropPackYaml,
+        overrides: const {},
+        docs: {_loginPath: _loginDoc},
+      );
+      final set = TemplateResolver().resolveCarried(
+        packNames: ProjectConfig.read(seed.project).pins.keys,
+        homeDirectory: seed.home,
+      );
+      final type = switch (DocTypeMatcher(
+        set,
+        targetNames: const [],
+      ).match(_loginPath)) {
+        MatchedDocType(:final docType) => docType,
+        _ => null,
+      };
+      final approved = _stampedBefore(_loginDoc, type);
+
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: approved},
+        ),
+      );
+
+      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
+      expect(written, isNot(contains('Consistency')));
+      final hash = RegExp(
+        r'^approved: "(\w+)"$',
+        multiLine: true,
+      ).firstMatch(written)!.group(1);
+      expect(hash, _approvalHashBefore(written, type));
+      expect(hash, isNot(_approvalHashBefore(approved, type)));
+      expect(
+        plan.toText(),
+        contains('  stamps: 1 approval hashes, 0 fingerprints\n'),
+      );
+    });
+
+    test('an overrides entry on a rewritten item stays unsuspect', () async {
+      const rule = '- **INV-3** A cart expires after 7 days.';
+      final upstream = _domainText(
+        '| Cart | Aggregate root | its id | items |',
+        '$rule\n  - **Enforcer:** Cart\n  - **Consistency:** immediate',
+      );
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml.replaceFirst('[domain]', '[project_domain]'),
+          overrides: const {},
+          docs: {_projectDomainPath: upstream},
+        ),
+      );
+      final rewritten = _rewriteAt(plan, 'docs/$_projectDomainPath').text;
+      expect(rewritten, isNot(contains('Consistency')));
+      final files = {
+        'docs/$rootDomain': rewritten,
+        'docs/$loginDomain': domainDoc(
+          [overrideOfRoot],
+          entries: ['$rootAddress $rootFingerprint'],
+        ),
+      };
+
+      final report = await checkOf(
+        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+        docPath: loginDomain,
+      );
+
+      expect(report.findings.where((f) => linkKinds.contains(f.kind)), isEmpty);
+    });
+
+    test('the step touches no line beyond the defaults, and a second run '
+        'drops nothing', () async {
+      const body =
+          '- **INV-1** An email is unique.\n'
+          '  - a condition\n'
+          '  - **Enforcer:** Setup engine\n'
+          '  - **Consistency:** Immediate\n'
+          '- **INV-2** A name is short.\n'
+          '  - **Enforcer:** Account\n'
+          '  - **Consistency:** eventual\n'
+          '  - **Corrective policy:** Trim it.';
+      final doc = _domainText(_accountRow, body);
+
+      final plan = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: doc},
+        ),
+      );
+
+      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
+      expect(
+        written,
+        _domainText(
+          _accountRow,
+          '- **INV-1** An email is unique.\n'
+          '  - a condition\n'
+          '  - **Enforcer:** Setup engine\n'
+          '  - **Consistency:** Immediate\n'
+          '- **INV-2** A name is short.\n'
+          '  - **Consistency:** eventual\n'
+          '  - **Corrective policy:** Trim it.',
+        ),
+      );
+      final again = _plan(
+        await _fixture(
+          packYaml: _dropPackYaml,
+          overrides: const {},
+          docs: {_loginPath: written},
+        ),
+      );
+      expect(_docRewrites(again), isEmpty);
+      expect(
+        again.toText(),
+        contains('  from 1.0.0: drop_default_lines: 0 docs\n'),
+      );
+    });
+
+    test('a drop_default_lines step the pack load refuses plans '
+        'nothing', () async {
+      final fixture = await _fixture(
+        packYaml: _dropPackYaml.replaceFirst('[domain]', '[domian]'),
+        overrides: const {},
+        docs: {_loginPath: _loginDoc},
+      );
+
+      expect(
+        () => _plan(fixture),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having(
+                (f) => f.key,
+                'key',
+                'migrations[0].steps[0].drop_default_lines.doc_types',
+              ),
+        ),
+      );
+    });
+  });
+}
+
+const _stripPackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+shared_lines:
+  - {id: acme_no_status, text: Never write a status field.}
+  - {id: be_brief, text: Be brief.}
+migrations:
+  - from: 1.0.0
+    steps:
+      - strip_shared_copies: {}
+''';
+
+const _stripRunbookPath = '.specstone/templates/runbook.yaml';
+const _stripGuidePath = '.specstone/templates/guide.yaml';
+const _stripLedgerPath = '.specstone/templates/ledger.yaml';
+
+String _stripType(String id, {String? description}) =>
+    '''
+id: $id
+description: |-
+${(description ?? 'A $id.').split('\n').map((line) => '  $line').join('\n')}
+path: prds/${id}s/{slug}/${id.toUpperCase()}.md
+''';
+
+const _statusCopyOverride =
+    'description: |-\n  A runbook.\n  Never write a status field.\n';
+
+/// Three acme doc types; [runbookDescription] is the first one's description.
+String _stripTypes({String runbookDescription = 'A runbook.'}) => [
+  _stripType('runbook', description: runbookDescription),
+  _stripType('guide'),
+  _stripType('ledger'),
+].join('---\n');
+
+/// Three project overrides holding four copies in all, one file of them two.
+const Map<String, String> _stripOverrides = {
+  _stripGuidePath:
+      'description: |-\n  A guide.\n  Never write a status field.\n',
+  _stripLedgerPath: 'description: |-\n  A ledger.\n  Be brief.\n',
+  _stripRunbookPath:
+      'description: |-\n  A runbook.\n  Never write a status field.\n'
+      '  Be brief.\n',
+};
+
+/// A project and the personal pack home a strip test plans over.
+final class _StripFixture {
+  const new(this.project, this.home);
+
+  final Directory project;
+  final Directory home;
+}
+
+Future<_StripFixture> _stripFixture({
+  String packYaml = _stripPackYaml,
+  String? types,
+  Map<String, String> overrides = _stripOverrides,
+}) async {
+  final fixture = await _fixture(
+    packYaml: packYaml,
+    runbookType: types ?? _stripTypes(),
+    docs: const {},
+    overrides: overrides,
+  );
+  return _StripFixture(fixture.project, fixture.home);
+}
+
+RunPlan _planStrip(_StripFixture fixture) => planUpgradeRun(
+  fixture.project,
+  templates: TemplateResolver(),
+  homeDirectory: fixture.home,
+);
+
+void _sharedCopiesTests() {
+  group('strip_shared_copies step', () {
+    test('three stripped files and two kept copies print the step line, '
+        'then the left line, and list both under sharedCopies', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          types: _stripTypes(
+            runbookDescription:
+                'A runbook.\nNever write a status field.\nBe brief.',
+          ),
+        ),
+      );
+
+      expect(
+        plan.toText(),
+        contains(
+          '  from 1.0.0: strip_shared_copies: 3 docs\n'
+          '  shared copies left: 2\n',
+        ),
+      );
+      expect(plan.lists.toJson()['sharedCopies'], {
+        'stripped': [
+          '$_stripGuidePath:3 acme_no_status',
+          '$_stripLedgerPath:3 be_brief',
+          '$_stripRunbookPath:3 acme_no_status',
+          '$_stripRunbookPath:4 be_brief',
+        ],
+        'left': [
+          '~/.specstone/packs/acme/runbook.yaml:4 acme_no_status',
+          '~/.specstone/packs/acme/runbook.yaml:5 be_brief',
+        ],
+      });
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'strip_shared_copies',
+          'paths': [_stripGuidePath, _stripLedgerPath, _stripRunbookPath],
+        },
+      ]);
+      expect(
+        _rewriteAt(plan, _stripGuidePath).text,
+        'description: |-\n  A guide.\n',
+      );
+      expect(_rewriteAt(plan, _stripGuidePath).changes, [
+        'strip_shared_copies',
+      ]);
+      expect(
+        _rewriteAt(plan, _stripRunbookPath).text,
+        'description: |-\n  A runbook.\n',
+      );
+    });
+
+    test('a step that keeps no copy prints no left line and lists left as '
+        'empty', () async {
+      final plan = _planStrip(await _stripFixture());
+
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: strip_shared_copies: 3 docs\n'),
+      );
+      expect(plan.toText(), isNot(contains('shared copies left:')));
+      final copies =
+          plan.lists.toJson()['sharedCopies']! as Map<String, Object?>;
+      expect(copies['left'], <String>[]);
+      expect(copies['stripped'], hasLength(4));
+    });
+
+    test('a plan without the step holds no sharedCopies key', () async {
+      final plan = _plan(await _fixture());
+
+      expect(plan.lists.toJson(), isNot(contains('sharedCopies')));
+    });
+
+    test('a line equal to a pack line and a shared.yaml line is listed '
+        'under the pack line printed first', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          overrides: {
+            _stripRunbookPath: _statusCopyOverride,
+            '.specstone/templates/shared.yaml':
+                'shared_lines:\n'
+                '  - {id: mine, text: Never write a status field.}\n',
+          },
+        ),
+      );
+
+      final copies =
+          plan.lists.toJson()['sharedCopies']! as Map<String, Object?>;
+      expect(copies['stripped'], ['$_stripRunbookPath:3 acme_no_status']);
+    });
+
+    test('the removals sit in commit 2 beside the pins, and commit 1 is '
+        'absent', () async {
+      final fixture = await _stripFixture();
+      final plan = _planStrip(fixture);
+
+      final steps = plan.journalSteps(
+        base: 'abc',
+        projectRoot: fixture.project,
+      );
+
+      expect(plan.moves, isEmpty);
+      expect(steps.whereType<CommitStep>(), hasLength(1));
+      expect(
+        steps.whereType<CommitStep>().single.paths,
+        containsAll([_stripGuidePath, _stripLedgerPath, _stripRunbookPath]),
+      );
+      expect([
+        for (final step in steps.whereType<WriteStep>()) step.path,
+      ], containsAll([_stripGuidePath, _stripLedgerPath, _stripRunbookPath]));
+    });
+
+    test('a CRLF project file matches and keeps its line style', () async {
+      final fixture = await _stripFixture(
+        overrides: {
+          _stripGuidePath:
+              'description: |-\r\n  A guide.\r\n'
+              '  Never write a status field.\r\n',
+        },
+      );
+
+      final plan = _planStrip(fixture);
+
+      expect(
+        _rewriteAt(plan, _stripGuidePath).text,
+        'description: |-\r\n  A guide.\r\n',
+      );
+    });
+
+    test('a field copy of a shared field is stripped with its entry', () async {
+      const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+shared_fields:
+  - id: note
+    type: string
+    description: A note.
+    for_doc_types: [runbook]
+migrations:
+  - from: 1.0.0
+    steps:
+      - strip_shared_copies: {}
+''';
+      final plan = _planStrip(
+        await _stripFixture(
+          packYaml: packYaml,
+          overrides: {
+            _stripRunbookPath:
+                'fields:\n'
+                '  - id: owner\n'
+                '    type: string\n'
+                '  - type: string\n'
+                '    id: note\n'
+                '    description: A note.\n',
+          },
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, _stripRunbookPath).text,
+        'fields:\n  - id: owner\n    type: string\n',
+      );
+      expect(
+        (plan.lists.toJson()['sharedCopies']!
+            as Map<String, Object?>)['stripped'],
+        ['$_stripRunbookPath:5 note'],
+      );
+    });
+
+    test('a line shared.yaml disabled is never stripped', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          overrides: {
+            _stripRunbookPath: _statusCopyOverride,
+            '.specstone/templates/shared.yaml':
+                'shared_lines:\n  - {id: acme_no_status, disabled: true}\n',
+          },
+        ),
+      );
+
+      expect(
+        plan.rewrites.map((rewrite) => rewrite.path),
+        isNot(contains(_stripRunbookPath)),
+      );
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: strip_shared_copies: 0 docs\n'),
+      );
+    });
+
+    test('a file a rename step and the strip both change gets one rewrite '
+        'holding both changes', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          packYaml: _stripPackYaml.replaceFirst(
+            '      - strip_shared_copies: {}',
+            '      - rename_field: {doc_type: runbook, from: owner, '
+                'to: on_call}\n'
+                '      - strip_shared_copies: {}',
+          ),
+          overrides: {
+            _stripRunbookPath:
+                'description: |-\n  A runbook.\n  Never write a status field.\n'
+                'fields:\n  - {id: owner, type: string}\n',
+          },
+        ),
+      );
+
+      final rewrite = _rewriteAt(plan, _stripRunbookPath);
+      expect(
+        rewrite.text,
+        'description: |-\n  A runbook.\n'
+        'fields:\n  - {id: on_call, type: string}\n',
+      );
+      expect(rewrite.changes, [
+        'rename_field runbook owner -> on_call',
+        'strip_shared_copies',
+      ]);
+    });
+
+    test('the plan hash changes when a stripped copy moves to another line, '
+        'though the printed count stays', () async {
+      final fixture = await _stripFixture(
+        overrides: const {
+          _stripGuidePath:
+              'description: |-\n  A guide.\n  Never write a status field.\n',
+        },
+      );
+      final first = _planStrip(fixture);
+
+      File('${fixture.project.path}/$_stripGuidePath').writeAsStringSync(
+        'description: |-\n  A guide.\n  More.\n  Never write a status field.\n',
+      );
+      final second = _planStrip(fixture);
+
+      expect(second.toText(), first.toText());
+      expect(
+        (second.lists.toJson()['sharedCopies']!
+            as Map<String, Object?>)['stripped'],
+        ['$_stripGuidePath:4 acme_no_status'],
+      );
+      expect(_hashOf(second), isNot(_hashOf(first)));
+    });
+  });
+}
+
+// MARK: - Matrix fold pass
+
+const _foldFr = 'email_login/validate_credentials';
+const _foldFlutterRecord =
+    '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _foldJasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+const _foldEdgeRows = [
+  '- $_foldFr E01: `rejects a wrong key`',
+  '- $_foldFr E02: `rejects an empty key`',
+];
+const _foldedRow = '- $_foldFr: `rejects a wrong key`, `rejects an empty key`';
+
+/// A record of the login feature whose Verification matrix holds [rows].
+String _foldRecord(List<String> rows, {String front = ''}) =>
+    "---\n${front}statuses:\n  - 'email_login:implemented'\n---\n\n"
+    '# Login implementation\n\n## Verification matrix\n\n${rows.join('\n')}\n';
+
+/// A project pinned to the shipped packs under [coverage] (omitted for off),
+/// holding the plain login docs and each of [records] by project path.
+Future<Directory> _foldProject(
+  Map<String, String> records, {
+  String? coverage,
+  String? config,
+}) => writeTree({
+  '.specstone/config.yaml':
+      config ??
+      '${shippedPinsConfig()}'
+          '${coverage == null ? '' : 'verification_coverage: $coverage\n'}',
+  for (final MapEntry(:key, :value) in _plainLoginDocs.entries)
+    'docs/$key': value,
+  ...records,
+});
+
+/// The project path of each record [plan] rewrites.
+List<String> _foldedPaths(RunPlan plan) => [
+  for (final rewrite in plan.rewrites)
+    if (rewrite.path.startsWith('.specstone/records/')) rewrite.path,
+];
+
+void _matrixFoldTests() {
+  group('matrix fold pass', () {
+    const twinFold = [_foldFlutterRecord, _foldJasprRecord];
+
+    for (final coverage in <String?>[null, 'fr']) {
+      test("folds every target's records under "
+          '${coverage ?? 'off'}', () async {
+        final project = await _foldProject(
+          {for (final path in twinFold) path: _foldRecord(_foldEdgeRows)},
+          config:
+              '${twinConfig()}'
+              '${coverage == null ? '' : 'verification_coverage: $coverage\n'}',
+        );
+
+        final plan = _planAt(project);
+
+        expect(_foldedPaths(plan), twinFold);
+        for (final path in twinFold) {
+          expect(_rewriteAt(plan, path).text, _foldRecord([_foldedRow]));
+        }
+        expect(
+          plan.toText(),
+          contains('  matrix rows: 4 rows folded into 2 rows in 2 records\n'),
+        );
+        expect(plan.lists.toJson()['matrixRows'], {'folded': twinFold});
+      });
+    }
+
+    test('does not run under edge_case', () async {
+      final project = await _foldProject({
+        _foldFlutterRecord: _foldRecord(_foldEdgeRows),
+      }, coverage: 'edge_case');
+
+      final plan = _planAt(project);
+
+      expect(_foldedPaths(plan), isEmpty);
+      expect(plan.toText(), isNot(contains('matrix rows:')));
+      expect(plan.lists.toJson(), isNot(contains('matrixRows')));
+    });
+
+    test('plans no fold for a record already folded, under a pin below '
+        'shipped', () async {
+      final project = await _foldProject(
+        {
+          _foldFlutterRecord: _foldRecord([_foldedRow]),
+        },
+        config:
+            '${shippedPinsOneMinorBelow('software-tech')}'
+            'verification_coverage: fr\n',
+      );
+
+      final plan = _planAt(project);
+
+      expect(_foldedPaths(plan), isEmpty);
+      expect(plan.toText(), isNot(contains('matrix rows:')));
+      expect(plan.lists.toJson(), isNot(contains('matrixRows')));
+    });
+
+    test(
+      'does not run when only story or feature rows are per-edge-case',
+      () async {
+        final project = await _foldProject({
+          _foldFlutterRecord: _foldRecord([
+            '- email_login E01: `signs in`',
+            '- login E01: `loads the feature`',
+            '- no_such_doc E01: `names no doc`',
+          ]),
+        }, coverage: 'fr');
+
+        final plan = _planAt(project);
+
+        expect(_foldedPaths(plan), isEmpty);
+        expect(plan.toText(), isNot(contains('matrix rows:')));
+        expect(plan.lists.toJson(), isNot(contains('matrixRows')));
+      },
+    );
+
+    test('lists the matrix rows line after the tests line and before the '
+        'cites line', () async {
+      final project = await _testNameProject(
+        docs: {
+          ..._plainLoginDocs,
+          _citeTopicPath: '# Cites\n\n## Rules\n\n`feature:login`\n',
+        },
+        files: {
+          _testFile: _testSource('f01/us01/fr01 rejects'),
+          _testRecordPath: _foldRecord(_foldEdgeRows),
+        },
+      );
+
+      final text = _planTestNames(project).toText();
+
+      final tests = text.indexOf('  tests: ');
+      final matrix = text.indexOf(
+        '  matrix rows: 2 rows folded into 1 rows in 1 records\n',
+      );
+      final cites = text.indexOf('  cites: ');
+      expect(tests, isNonNegative);
+      expect(matrix, greaterThan(tests));
+      expect(cites, greaterThan(matrix));
+    });
+
+    test('leaves approval fields as they were when it folds', () async {
+      final type = TemplateResolver()
+          .resolveCarried(
+            packNames: const ['prd-core', 'software-tech'],
+            homeDirectory: null,
+          )
+          .recordDocType;
+      final approved = _stampedBefore(_foldRecord(_foldEdgeRows), type);
+      final project = await _foldProject({
+        _foldFlutterRecord: approved,
+        _foldJasprRecord: _foldRecord(_foldEdgeRows, front: 'draft: true\n'),
+      }, config: twinConfig());
+
+      final plan = _planAt(project);
+
+      final stamp = RegExp(r'^approved: .*$', multiLine: true);
+      final folded = _rewriteAt(plan, _foldFlutterRecord).text;
+      expect(
+        stamp.firstMatch(folded)?.group(0),
+        stamp.firstMatch(approved)![0],
+      );
+      expect(folded, contains(_foldedRow));
+      final draft = _rewriteAt(plan, _foldJasprRecord).text;
+      expect(draft, startsWith('---\ndraft: true\n'));
+      expect(draft, contains(_foldedRow));
     });
   });
 }

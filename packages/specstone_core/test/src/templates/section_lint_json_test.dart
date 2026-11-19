@@ -28,7 +28,7 @@ void main() {
         min: 1,
         max: 5,
         perSubsection: true,
-        prefixes: [(linePrefix: 'E', count: 2)],
+        prefixes: [LinePrefixCount(linePrefix: 'E', count: 2)],
       ),
     );
 

@@ -12,6 +12,8 @@ import '../../specstone_core/test/helpers/write_fixture.dart' show testHome;
 import 'helpers/baseline_tree.dart';
 import 'helpers/best_of.dart';
 import 'helpers/built_cli.dart';
+import 'helpers/children_cpu_time.dart';
+import 'helpers/timing_metric.dart';
 
 /// The files a busy project's `.specstone/bundles/` held when measured.
 const _savedBundleCount = 1221;
@@ -22,6 +24,14 @@ const _droppedPerDraft = 10;
 const _added = 'Added one. Added two. Added three. Added four. Added five.';
 const _filler = 'the amber birch cedar delta ember fjord grove haven iris';
 const _commit = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+const _busyLoop = r'i=0; while [ $i -lt 100000 ]; do i=$((i+1)); done';
+
+/// Clock granularity: one shell thread cannot spend more CPU than wall.
+const _tick = Duration(milliseconds: 20);
+// A fixed amount of work (301M steps, over 200 ms CPU), never a wall span.
+const _selfCpuLoopCount = 301000000;
+const _residueModulus = 7;
+const _residueCycleSum = 21;
 
 /// Returns a doc body of the first [keep] of [_sentencesPerDoc] sentences, 5 KB
 /// in all.
@@ -102,11 +112,15 @@ void main() {
   });
 
   Duration timed(List<String> args, {Set<int> exitCodes = const {0}}) {
-    final watch = Stopwatch()..start();
-    final run = Process.runSync(exe, args, workingDirectory: project.path);
-    watch.stop();
-    expect(exitCodes, contains(run.exitCode), reason: '${run.stderr}');
-    return watch.elapsed;
+    final run = measureChild(
+      () => Process.runSync(exe, args, workingDirectory: project.path),
+    );
+    expect(
+      exitCodes,
+      contains(run.result.exitCode),
+      reason: '${run.result.stderr}',
+    );
+    return run.elapsed;
   }
 
   test('the generated tree matches the baseline figures', () {
@@ -124,19 +138,24 @@ void main() {
   test('the fastest of five specstone calls from '
       'no index builds the full index within 10 s', () {
     expect(
-      bestOf(timingRuns, () {
-        for (final suffix in ['', '-wal', '-shm']) {
-          final sibling = File(
-            '${project.path}/.specstone/index.sqlite$suffix',
+      bestOf(
+        timingRuns,
+        () {
+          for (final suffix in ['', '-wal', '-shm']) {
+            final sibling = File(
+              '${project.path}/.specstone/index.sqlite$suffix',
+            );
+            if (sibling.existsSync()) sibling.deleteSync();
+          }
+          expect(
+            File('${project.path}/.specstone/index.sqlite').existsSync(),
+            isFalse,
           );
-          if (sibling.existsSync()) sibling.deleteSync();
-        }
-        expect(
-          File('${project.path}/.specstone/index.sqlite').existsSync(),
-          isFalse,
-        );
-        return timed(['structure', '--json']);
-      }, label: 'full index runs'),
+          return timed(['structure', '--json']);
+        },
+        label: 'full index runs',
+        metric: timingMetric,
+      ),
       lessThanOrEqualTo(const Duration(seconds: 10)),
     );
   });
@@ -146,7 +165,12 @@ void main() {
     const call = ['context', 'feature_1/story_1', '--for', 'implement'];
     timed(call); // warm-up: the index is current after it
     expect(
-      bestOf(timingRuns, () => timed(call), label: 'context calls'),
+      bestOf(
+        timingRuns,
+        () => timed(call),
+        label: 'context calls',
+        metric: timingMetric,
+      ),
       lessThanOrEqualTo(const Duration(milliseconds: 500)),
     );
     final watch = Stopwatch()..start();
@@ -189,10 +213,18 @@ void main() {
       File('${bundles.path}/saved_$n.txt').writeAsStringSync('saved\n');
     }
     timed(call); // warm-up: the index is current after it
-    final best = bestOf(timingRuns, () => timed(call), label: 'prune calls');
+    final best = bestOf(
+      timingRuns,
+      () => timed(call),
+      label: 'prune calls',
+      metric: timingMetric,
+    );
     expect(best, lessThanOrEqualTo(const Duration(milliseconds: 500)));
     // ignore: avoid_print, the gate reports the figure so a slow run shows by how much.
-    print('diagnostic: context --out over $_savedBundleCount files $best');
+    print(
+      'diagnostic: context --out over $_savedBundleCount files '
+      '${timingMetric.name} $best',
+    );
   });
 
   test('specstone context for a story, ending with the stale-project '
@@ -248,7 +280,12 @@ void main() {
     );
     expect(stale.stderr.toString(), contains('run specstone migrate'));
     expect(
-      bestOf(timingRuns, () => timed(call), label: 'stale-line context calls'),
+      bestOf(
+        timingRuns,
+        () => timed(call),
+        label: 'stale-line context calls',
+        metric: timingMetric,
+      ),
       lessThanOrEqualTo(const Duration(milliseconds: 500)),
     );
   });
@@ -271,7 +308,12 @@ void main() {
       reason: 'the bundle appends every item its own docs cite densely',
     );
     expect(
-      bestOf(timingRuns, () => timed(call), label: 'design context calls'),
+      bestOf(
+        timingRuns,
+        () => timed(call),
+        label: 'design context calls',
+        metric: timingMetric,
+      ),
       lessThanOrEqualTo(const Duration(seconds: 1)),
     );
   });
@@ -337,6 +379,7 @@ void main() {
         timingRuns,
         () => timed(call, exitCodes: {0, 1}),
         label: 'check calls',
+        metric: timingMetric,
       ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
@@ -364,7 +407,12 @@ void main() {
       ),
     );
     expect(
-      bestOf(timingRuns, () => timed(call), label: 'followed context calls'),
+      bestOf(
+        timingRuns,
+        () => timed(call),
+        label: 'followed context calls',
+        metric: timingMetric,
+      ),
       lessThanOrEqualTo(const Duration(milliseconds: 500)),
     );
   });
@@ -408,6 +456,53 @@ void main() {
         timingRuns,
         () => timed(call, exitCodes: {1}),
         label: 'check calls over item links',
+        metric: timingMetric,
+      ),
+      lessThanOrEqualTo(const Duration(seconds: 2)),
+    );
+  });
+
+  test('a whole-project specstone check over a project whose FRs each hold a '
+      'bare item ID finishes within 2 s in the fastest of five calls', () {
+    const heldId = 'E900';
+    const lackedId = 'E901';
+    const section = '## Edge cases\n';
+    final frs = [
+      for (final file in Directory(
+        '${project.path}/docs/prds/features',
+      ).listSync(recursive: true).whereType<File>())
+        if (RegExp(r'fr\d+_req_\d+\.md$').hasMatch(file.path)) file,
+    ];
+    final originals = {for (final f in frs) f: f.readAsStringSync()};
+    addTearDown(() {
+      originals.forEach((file, text) => file.writeAsStringSync(text));
+    });
+    var count = 0;
+    for (final MapEntry(key: file, value: text) in originals.entries) {
+      count++;
+      final mentioned = count == 1 ? lackedId : heldId;
+      final held = text.replaceFirst(section, '$section- **$heldId** Held.\n');
+      file.writeAsStringSync('$held\nSee $mentioned here.\n');
+    }
+    expect(count, greaterThan(1000));
+    const call = ['check'];
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 1, reason: '${first.stderr}');
+    final missing = RegExp(
+      r'^.*: item_mention_missing: .*$',
+      multiLine: true,
+    ).allMatches(first.stdout.toString());
+    expect(missing, hasLength(1), reason: 'the rule ran over the bare IDs');
+    expect(
+      bestOf(
+        timingRuns,
+        () => timed(call, exitCodes: {1}),
+        label: 'check calls over bare item IDs',
+        metric: timingMetric,
       ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
@@ -425,7 +520,12 @@ void main() {
     expect(first.exitCode, 0, reason: '${first.stderr}');
     expect(first.stdout.toString(), matches(RegExp(r'\d+ repeat groups?\n$')));
     expect(
-      bestOf(timingRuns, () => timed(call), label: 'check --repeats calls'),
+      bestOf(
+        timingRuns,
+        () => timed(call),
+        label: 'check --repeats calls',
+        metric: timingMetric,
+      ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
   });
@@ -474,6 +574,7 @@ void main() {
         timingRuns,
         () => timed(call, exitCodes: {0, 1}),
         label: 'check calls over comment-rich code',
+        metric: timingMetric,
       ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
@@ -549,13 +650,20 @@ void main() {
     settingsFile.writeAsStringSync(settingsOriginal);
     expect(check().stdout.toString(), isNot(contains('agent_block_stale')));
     expect(
-      bestOf(timingRuns, () {
-        final watch = Stopwatch()..start();
-        final run = check();
-        watch.stop();
-        expect(run.exitCode, anyOf(0, 1), reason: '${run.stderr}');
-        return watch.elapsed;
-      }, label: 'check calls over skill, agent, and settings files'),
+      bestOf(
+        timingRuns,
+        () {
+          final run = measureChild(check);
+          expect(
+            run.result.exitCode,
+            anyOf(0, 1),
+            reason: '${run.result.stderr}',
+          );
+          return run.elapsed;
+        },
+        label: 'check calls over skill, agent, and settings files',
+        metric: timingMetric,
+      ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
   });
@@ -563,8 +671,7 @@ void main() {
   test('approve --dry-run builds the views of 20 drafts of 55 sentences over '
       '2,000 docs of 5 KB within 2 s in the fastest of five runs', () {
     final root = _writeApproveProject();
-    Duration build() {
-      final watch = Stopwatch()..start();
+    Duration build() => measureInProcess(() {
       final answer = WriteSession.run(
         (session) => approveDryRun(
           session,
@@ -574,16 +681,52 @@ void main() {
         workingDirectory: root,
         homeDirectory: null,
       );
-      watch.stop();
       expect(answer.json['count'], _approveDraftCount);
       expect(answer.text, contains('$_droppedPerDraft sentences dropped'));
-      return watch.elapsed;
-    }
+    });
 
     build(); // warm-up: the index is current after it
     expect(
-      bestOf(timingRuns, build, label: 'approve view runs'),
+      bestOf(
+        timingRuns,
+        build,
+        label: 'approve view runs',
+        metric: timingMetric,
+      ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
   });
+
+  test('childrenCpuTime counts a busy child once it is waited for', () {
+    final watch = Stopwatch()..start();
+    final before = childrenCpuTime();
+    final run = Process.runSync('/bin/sh', ['-c', _busyLoop]);
+    final cpu = childrenCpuTime() - before;
+    watch.stop();
+    expect(run.exitCode, 0);
+    expect(cpu, greaterThan(const Duration(milliseconds: 50)));
+    expect(cpu, lessThanOrEqualTo(watch.elapsed + _tick));
+  }, testOn: 'mac-os || linux');
+
+  test('selfCpuTime counts in-process work', () {
+    final watch = Stopwatch()..start();
+    final before = selfCpuTime();
+    final sum = _residueSum(_selfCpuLoopCount);
+    final cpu = selfCpuTime() - before;
+    watch.stop();
+    expect(sum, _selfCpuLoopCount ~/ _residueModulus * _residueCycleSum);
+    expect(cpu, greaterThan(const Duration(milliseconds: 50)));
+    expect(
+      cpu,
+      lessThanOrEqualTo(watch.elapsed * Platform.numberOfProcessors + _tick),
+    );
+  }, testOn: 'mac-os || linux');
+}
+
+int _residueSum(int count) {
+  var sum = 0;
+  for (var i = 0; i < count; i++) {
+    sum += i % _residueModulus;
+  }
+  return sum;
 }

@@ -23,9 +23,27 @@ void main() {
     expectSections(error, const [
       SectionSpec('error_envelope', 'Error envelope'),
       SectionSpec('error_catalog', 'Error catalog', required: true),
-      SectionSpec('retry_policy', 'Retry policy', required: true),
+      SectionSpec('retry_policy', 'Retry policy'),
       SectionSpec('fallback', 'Fallback'),
     ]);
+  });
+
+  test('the catalog names no implementing column', () {
+    final text = sectionOf(error, 'error_catalog').description!;
+    expect(text, isNot(contains('Implemented by')));
+    expect(
+      text,
+      contains(
+        'columns Code, Exit/HTTP, Category, Triggered by, Client guidance',
+      ),
+    );
+    expect(text, contains('an optional Details column'));
+  });
+
+  test('retry policy is optional', () {
+    final retry = sectionOf(error, 'retry_policy');
+    expect(retry.required, isFalse);
+    expect(retry.description, contains('only when some call retries'));
   });
 
   test('error_catalog caps its two prose columns at one sentence each', () {

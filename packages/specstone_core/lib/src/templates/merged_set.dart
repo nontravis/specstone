@@ -4,13 +4,15 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
+import 'package:specstone_core/src/templates/shared_merge.dart';
 
 /// The merged doc types and feature patterns of one resolve, each sorted by id
-/// in code point order.
+/// in code point order, with the shared entries that reach them.
 final class MergedSet {
   new({
     required List<MergedDocType> docTypes,
     List<FeaturePattern> featurePatterns = const [],
+    this.shared = SharedSet.empty,
   }) : docTypes = List.unmodifiable(withNestedPaths(_sortedCopy(docTypes))),
        featurePatterns = List.unmodifiable(
          List<FeaturePattern>.of(featurePatterns)
@@ -23,6 +25,9 @@ final class MergedSet {
   /// The merged feature patterns, sorted by id; the caller's list is
   /// untouched.
   final List<FeaturePattern> featurePatterns;
+
+  /// The merged shared lines and fields, before any doc type takes its own.
+  final SharedSet shared;
 
   /// The doc type that writes `max_depth`, 0 included; null when none does.
   MergedDocType? get nestingType => nestingTypeOf(docTypes);

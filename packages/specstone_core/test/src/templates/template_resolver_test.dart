@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -1036,6 +1037,156 @@ path: prds/notes/{slug}/NOTE.md
         );
 
         expect(merged.lookup('feature'), isNotNull);
+      });
+    });
+
+    group('a drop_default_lines step', () {
+      const defining =
+          'id: ledger\ndescription: A ledger\npath: ledgers/{slug}.md\n'
+          'sections:\n  - id: entities\n    header: Entities\n'
+          '  - id: invariants\n    header: Invariants\n';
+
+      Map<String, Uint8List> files({
+        String docType = 'ledger',
+        String ledger = defining,
+        Map<String, String> more = const {},
+      }) => {
+        ...shipped(),
+        'prd-core/pack.yaml': _bytes(
+          'name: prd-core\nversion: 1.1.0\nmigrations:\n'
+          '  - from: 1.0.0\n    steps:\n'
+          '      - drop_default_lines: {doc_types: [$docType]}\n',
+        ),
+        'prd-core/ledger.yaml': _bytes(ledger),
+        for (final MapEntry(:key, :value) in more.entries) key: _bytes(value),
+      };
+
+      Future<MergedSet> resolveWith(
+        Map<String, Uint8List> shippedFiles, {
+        Map<String, String> project = const {},
+      }) async => TemplateResolver(shippedFiles: shippedFiles).resolve(
+        workingDirectory: await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          ...project,
+        }),
+        homeDirectory: await writeTree({}),
+      );
+
+      final unknownAtDocTypes = isA<TemplateFault>()
+          .having((f) => f.code, 'code', FaultCode.unknownValue)
+          .having(
+            (f) => f.code.exitStatus,
+            'exit',
+            FaultCode.unknownValue.exitStatus,
+          )
+          .having((f) => f.file, 'file', 'packs/prd-core/pack.yaml')
+          .having(
+            (f) => f.key,
+            'key',
+            'migrations[0].steps[0].drop_default_lines.doc_types',
+          );
+
+      test('a drop_default_lines doc type no layer defines is '
+          'unknown_value', () async {
+        await expectLater(
+          resolveWith(files(docType: 'ledgr')),
+          throwsA(unknownAtDocTypes),
+        );
+        expect(await resolveWith(files()), isA<MergedSet>());
+      });
+
+      test('a drop_default_lines doc type missing invariants or entities is '
+          'unknown_value', () async {
+        for (final present in ['entities', 'invariants']) {
+          await expectLater(
+            resolveWith(
+              files(
+                ledger:
+                    'id: ledger\ndescription: A ledger\n'
+                    'path: ledgers/{slug}.md\n'
+                    'sections:\n  - id: $present\n    header: Header\n',
+              ),
+            ),
+            throwsA(unknownAtDocTypes),
+            reason: 'only $present is defined',
+          );
+        }
+      });
+
+      test('a drop_default_lines section a project layer disables still '
+          'loads', () async {
+        for (final disabled in ['entities', 'invariants']) {
+          final merged = await resolveWith(
+            files(),
+            project: {
+              '.specstone/templates/ledger.yaml':
+                  'sections:\n  - id: $disabled\n    disabled: true\n',
+            },
+          );
+
+          expect(merged.lookup('ledger'), isNotNull, reason: disabled);
+        }
+      });
+
+      test('a drop_default_lines doc type finds its sections through '
+          'extends', () async {
+        final merged = await resolveWith(
+          files(
+            docType: 'child',
+            more: {
+              'prd-core/child.yaml':
+                  'id: child\nextends: ledger\npath: children/{slug}.md\n',
+            },
+          ),
+        );
+
+        expect(merged.lookup('child'), isNotNull);
+      });
+
+      test('a drop_default_lines doc type finds its sections two extends '
+          'hops up', () async {
+        final merged = await resolveWith(
+          files(
+            docType: 'grandchild',
+            more: {
+              'prd-core/child.yaml':
+                  'id: child\nextends: ledger\npath: children/{slug}.md\n',
+              'prd-core/grandchild.yaml':
+                  'id: grandchild\nextends: child\n'
+                  'path: grandchildren/{slug}.md\n',
+            },
+          ),
+        );
+
+        expect(merged.lookup('grandchild'), isNotNull);
+      });
+
+      test('a drop_default_lines extends cycle ends in a refusal, not a '
+          'hang', () async {
+        final result = await resolveWith(
+          files(
+            docType: 'left',
+            more: {
+              'prd-core/left.yaml':
+                  'id: left\nextends: right\npath: lefts/{slug}.md\n',
+              'prd-core/right.yaml':
+                  'id: right\nextends: left\npath: rights/{slug}.md\n',
+            },
+          ),
+        ).then<Object>((set) => set, onError: (Object e) => e);
+
+        expect(result, isA<TemplateFault>());
+      });
+
+      test('the shipped software-tech drop_default_lines entry loads '
+          'clean', () {
+        final merged = TemplateResolver().resolveCarried(
+          packNames: ['prd-core', 'software-tech'],
+          homeDirectory: null,
+        );
+
+        expect(merged.lookup('domain'), isNotNull);
+        expect(merged.lookup('project_domain'), isNotNull);
       });
     });
 
@@ -2816,6 +2967,75 @@ path: features/{slug}/FEATURE.md
       expect(fault.key, 'name');
       expect(fault.exitStatus, 78);
     });
+  });
+
+  group('TemplateResolver project shared.yaml', () {
+    const sharedPath = '.specstone/templates/shared.yaml';
+    const config = 'packs:\n  prd-core: 1.1.0\n';
+
+    test('a shared_lines file adds no doc type and loads its lines', () async {
+      final project = await writeTree({
+        _configPath: config,
+        sharedPath: 'shared_lines:\n  - id: tone\n    text: Be brief.\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: await writeTree({}),
+      );
+      final lines = loadProjectSharedLines(project);
+
+      expect(merged.docTypes.map((type) => type.id), ['feature']);
+      expect(lines.map((line) => line.id), ['tone']);
+      expect(lines.single.text, 'Be brief.');
+      expect(lines.single.file, sharedPath);
+    });
+
+    test('a CRLF shared.yaml loads its line text without the CR', () async {
+      final project = await writeTree({
+        sharedPath: 'shared_lines:\r\n  - id: tone\r\n    text: Be brief.\r\n',
+      });
+
+      final lines = loadProjectSharedLines(project);
+
+      expect(lines.single.text, 'Be brief.');
+    });
+
+    for (final (name, text) in [
+      ('shared_fields', 'shared_fields:\n  - id: x\n    type: string\n'),
+      ('notes', 'shared_lines:\n  - id: a\n    text: b\nnotes: x\n'),
+    ]) {
+      test('shared.yaml key $name is unknown_key at that key', () async {
+        final fault = await _resolveFault(
+          project: {_configPath: config, sharedPath: text},
+        );
+
+        expect(fault.code, FaultCode.unknownKey);
+        expect(fault.file, sharedPath);
+        expect(fault.key, name);
+        expect(fault.exitStatus, 78);
+      });
+    }
+
+    for (final (name, files) in [
+      ('no file', <String, String>{}),
+      ('a file with no key', {sharedPath: ''}),
+      ('shared_lines with no value', {sharedPath: 'shared_lines:\n'}),
+    ]) {
+      test('no project shared layer and no fault for $name', () async {
+        final project = await writeTree({_configPath: config, ...files});
+        final resolver = TemplateResolver(shippedFiles: shipped());
+
+        final merged = resolver.resolve(
+          workingDirectory: project,
+          homeDirectory: await writeTree({}),
+        );
+
+        expect(loadProjectSharedLines(project), isEmpty);
+        expect(merged.docTypes.map((type) => type.id), ['feature']);
+      });
+    }
   });
 
   group('TemplateResolver.availableManifests and resolveCarried', () {

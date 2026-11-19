@@ -3,17 +3,8 @@ extends: api
 description: |-
   The project's API conventions: the rules every feature's operations follow, and where the source of truth declares them.
   Title it `# <Project name> API`, such as `# Specstone API`, with no number.
-  Keep one file per spec folder.
-  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
-  Hold only rules every feature uses; write any other rule in a per-feature spec doc, or in a `topic` when two or more features share it.
   Copy no request or response schema; the source of truth owns it.
   Write one rule per ID: one bullet per convention.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: specs/API.md
 parent:
 bundle: [implement, design]
@@ -40,5 +31,4 @@ sections:
         - count: 1
   - id: compatibility
     description: |-
-      Write what counts as breaking for every feature's operations.
-      End with a pointer to the Rollout section of the architecture doc.
+      Write what counts as breaking for every feature's operations; point at the architecture doc's Rollout.

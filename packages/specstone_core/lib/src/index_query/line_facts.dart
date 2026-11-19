@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax, parseMarkdownTreeByBlock;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
+import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
 import 'package:specstone_core/src/doc_model/models/tbr_marker_line.dart';
@@ -14,6 +15,7 @@ import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show MermaidBlock;
+import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
 import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/models/label_place.dart';
@@ -101,6 +103,7 @@ final class LineFacts {
     required this.numberLabels,
     required this.tbrMarkers,
     required this.citeCandidates,
+    required this.bareItemIds,
     required this.mermaidBlocks,
     required this.anchors,
     required this.headingLines,
@@ -120,11 +123,12 @@ final class LineFacts {
   /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
   /// frontmatter. [bodyNumberLabels] are the number labels of the body, by
   /// 0-based body line, and [bodyTbrMarkers] its TBR markers, by the same
-  /// line; [citeCandidates] and [mermaidBlocks] are those of a typed doc, none
-  /// for an untyped one. A body whose parse fails has no links and an unknown
-  /// anchor set; [markdownUnparsedWarning] joins [warnings] only when the body
-  /// holds link syntax, as at base — a body with no link syntax is never
-  /// parsed for links, so it never warns. [linkWarningOf] gives the warning.
+  /// line; [citeCandidates], [bareItemIds], and [mermaidBlocks] are those of a
+  /// typed doc, none for an untyped one. A body whose parse fails has no links
+  /// and an unknown anchor set; [markdownUnparsedWarning] joins [warnings] only
+  /// when the body holds link syntax, as at base — a body with no link syntax
+  /// is never parsed for links, so it never warns. [linkWarningOf] gives the
+  /// warning.
   factory of({
     required String lfText,
     required String countedText,
@@ -135,6 +139,7 @@ final class LineFacts {
     required List<NumberLabelLine> bodyNumberLabels,
     required List<TbrMarkerLine> bodyTbrMarkers,
     required List<CiteCandidate> citeCandidates,
+    required List<BareItemId> bareItemIds,
     required List<MermaidBlock> mermaidBlocks,
     required List<String> warnings,
   }) {
@@ -175,6 +180,7 @@ final class LineFacts {
           TbrMarkerPlace(line: bodyStart + line + 1, rest: rest),
       ],
       citeCandidates: citeCandidates,
+      bareItemIds: bareItemIds,
       mermaidBlocks: mermaidBlocks,
       anchors: anchors,
       headingLines: anchors == null
@@ -207,6 +213,7 @@ final class LineFacts {
       numberLabels: const [],
       tbrMarkers: const [],
       citeCandidates: const [],
+      bareItemIds: const [],
       mermaidBlocks: const [],
       anchors: null,
       headingLines: null,
@@ -244,6 +251,7 @@ final class LineFacts {
           TbrMarkerPlace(line: marker[0]! as int, rest: marker[1]! as String),
       ],
       citeCandidates: _citeCandidatesOfJson(json['cite_candidates']!),
+      bareItemIds: _bareItemIdsOfJson(json['bare_item_ids']!),
       mermaidBlocks: _mermaidBlocksOfJson(json['mermaid_blocks']!),
       anchors: anchors == null
           ? null
@@ -300,6 +308,9 @@ final class LineFacts {
   /// The cite candidates of the body, in source order; none for an
   /// untyped doc.
   final List<CiteCandidate> citeCandidates;
+
+  /// The bare item IDs of the body, in source order; none for an untyped doc.
+  final List<BareItemId> bareItemIds;
 
   /// The `mermaid` blocks of the body, in source order; none for an untyped
   /// doc.
@@ -375,6 +386,7 @@ final class LineFacts {
       for (final c in citeCandidates)
         [c.line, c.written, c.sectionKey, c.itemIds],
     ],
+    'bare_item_ids': [for (final b in bareItemIds) _bareItemIdToJson(b)],
     'mermaid_blocks': [
       for (final b in mermaidBlocks) [b.fenceLine, b.hash],
     ],
@@ -436,6 +448,36 @@ List<CiteCandidate> _citeCandidatesOfJson(Object json) => [
       written: c[1]! as String,
       sectionKey: c[2] as String?,
       itemIds: (c[3]! as List<Object?>).cast<String>().toList(),
+    ),
+];
+
+const _linkKind = 'link';
+const _citeKind = 'cite';
+
+/// Returns [bare] as its JSON row: line, column, ID, citation kind, and the
+/// citation as written, the last two null for no citation.
+List<Object?> _bareItemIdToJson(BareItemId bare) {
+  final (kind, written) = switch (bare.citation) {
+    null => (null, null),
+    LinkCitation(:final destination) => (_linkKind, destination),
+    CiteCitation(:final written) => (_citeKind, written),
+  };
+  return [bare.line, bare.column, bare.id, kind, written];
+}
+
+/// Returns the bare item IDs [json] holds, as `LineFacts.toJson` wrote them.
+List<BareItemId> _bareItemIdsOfJson(Object json) => [
+  for (final b in (json as List<Object?>).cast<List<Object?>>())
+    BareItemId(
+      line: b[0]! as int,
+      column: b[1]! as int,
+      id: b[2]! as String,
+      citation: switch (b[3]) {
+        null => null,
+        _linkKind => LinkCitation(destination: b[4]! as String),
+        _citeKind => CiteCitation(written: b[4]! as String),
+        final kind => throw FormatException('unknown citation kind', kind),
+      },
     ),
 ];
 

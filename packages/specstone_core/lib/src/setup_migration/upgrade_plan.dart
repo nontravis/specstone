@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/default_enforcer.dart'
+    show ancestorTwinPaths;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -20,12 +22,14 @@ import 'package:specstone_core/src/setup_migration/bullet_lines_step.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
+import 'package:specstone_core/src/setup_migration/drop_default_lines_step.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
     show caseBlindPath;
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
+import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
@@ -36,6 +40,7 @@ import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/setup_migration/shared_copies_step.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
     show shipsSkillFiles;
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
@@ -47,8 +52,11 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/pattern_move.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart'
     show movePatternsAtEveryDepth;
+import 'package:specstone_core/src/templates/pack_manifest.dart'
+    show PackManifest;
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -78,9 +86,15 @@ const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
 const _testsChange = 'add test lines';
+const _matrixRowsChange = 'fold matrix rows';
 const _codeStampChange = 'stamp code fingerprints';
 const _codeRestampChange = 'restamp code fingerprints';
 const _citeChange = 'convert cites';
+const _invariantsSectionId = 'invariants';
+const _entitiesSectionId = 'entities';
+const _enforcerField = 'Enforcer';
+const _consistencyField = 'Consistency';
+const _immediateValue = 'immediate';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -137,6 +151,7 @@ RunPlan _upgradeRunOf(
   );
   final upgrades = selectUpgrades(pins, available);
   final overrides = loadProjectTemplates(root);
+  final projectSharedLines = loadProjectSharedLines(root);
   final targetSet = templates.resolveCarried(
     packNames: pins.keys,
     homeDirectory: homeDirectory,
@@ -148,6 +163,7 @@ RunPlan _upgradeRunOf(
       for (final entry in available.entries) entry.key: entry.value.version,
     },
     upgrades: upgrades,
+    sharedLines: projectSharedLines,
   );
 
   final steps = [for (final upgrade in upgrades) ...upgrade.steps];
@@ -158,14 +174,29 @@ RunPlan _upgradeRunOf(
         case RecordPathOverride(:final file, path: final path?))
       PlannedCreate(path: file, text: 'path: $path\n'),
   ];
-  final finalSet = templates.resolveCarried(
-    packNames: pins.keys,
-    homeDirectory: homeDirectory,
-    projectLayers: parseOverrides({
-      for (final file in overrideFiles) file.path: file.lf,
-      for (final create in overrideCreates) create.path: create.text,
-    }),
-  );
+  MergedSet resolveWith(Map<String, String> overrideTexts) =>
+      templates.resolveCarried(
+        packNames: pins.keys,
+        homeDirectory: homeDirectory,
+        projectLayers: parseOverrides({
+          ...overrideTexts,
+          for (final create in overrideCreates) create.path: create.text,
+        }),
+        projectSharedLines: projectSharedLines,
+      );
+  final finalSet = resolveWith({
+    for (final file in overrideFiles) file.path: file.lf,
+  });
+  final stripIndex = stepKinds.indexWhere((step) => step is StripSharedCopies);
+  final sharedCopies = stripIndex < 0
+      ? null
+      : _sharedCopiesOf(
+          overrideFiles,
+          stripIndex: stripIndex,
+          target: finalSet,
+          personalFiles: _personalFilesOf(available.values, homeDirectory),
+          resolveWith: resolveWith,
+        );
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = docPathsOf(docsRoot, root)..sort(compareCodePoints);
@@ -208,12 +239,22 @@ RunPlan _upgradeRunOf(
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
   final renameCollisions = <MigrateFault>[];
+  final originals = {
+    for (final path in docPaths)
+      path: readDocFile(
+        fileOfDocPath(path, docsRoot: docsRoot, projectRoot: root),
+        docPath: path,
+      ),
+  };
+  // The pre-run text under the planned path: no step reads a twin another
+  // step has already rewritten, so the result needs no doc order.
+  final preRunTexts = {
+    for (final MapEntry(:key, :value) in originals.entries)
+      if (value != null) planned[key]!: value.lf,
+  };
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
-    final original = readDocFile(
-      fileOfDocPath(path, docsRoot: docsRoot, projectRoot: root),
-      docPath: path,
-    );
+    final original = originals[path];
     if (original == null) continue;
     final match = matcher.match(plannedPath);
     final docType = match is MatchedDocType ? match.docType : null;
@@ -239,6 +280,7 @@ RunPlan _upgradeRunOf(
         ),
         StampCodeFingerprints() => lf,
         RestampCodeFingerprints() => lf,
+        StripSharedCopies() => lf,
         BulletLines() => switch (docType.sections
             .where((section) => section.id == step.section)
             .firstOrNull) {
@@ -249,6 +291,14 @@ RunPlan _upgradeRunOf(
           ),
           null => lf,
         },
+        DropDefaultLines() => _withDefaultLinesDropped(
+          lf,
+          docType: docType,
+          plannedPath: plannedPath,
+          target: target,
+          matcher: matcher,
+          preRunTexts: preRunTexts,
+        ),
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -264,7 +314,9 @@ RunPlan _upgradeRunOf(
           MoveToRecord() => false,
           StampCodeFingerprints() => false,
           RestampCodeFingerprints() => false,
+          StripSharedCopies() => false,
           BulletLines() => false,
+          DropDefaultLines() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -280,7 +332,9 @@ RunPlan _upgradeRunOf(
             MoveToRecord() => '',
             StampCodeFingerprints() => '',
             RestampCodeFingerprints() => '',
+            StripSharedCopies() => '',
             BulletLines() => '',
+            DropDefaultLines() => '',
           };
           renameCollisions.add(
             MigrateFault(
@@ -423,12 +477,30 @@ RunPlan _upgradeRunOf(
           isTaken: (docPath) => taken(projectPathOfDocPath(docPath)),
         )
       : null;
-  final recorded = <String>[];
+  final tested = <String>[];
   for (final (index, work) in works.indexed) {
     var text = converted[index];
     if (tests?.recordEdits[work.plannedPath] case final edited?) {
       text = edited;
       work.changes.add(_testsChange);
+    }
+    tested.add(text);
+  }
+  final matrixFold = MatrixFoldPass.plan(config.matrixMode, finalSet, [
+    for (final (index, work) in works.indexed)
+      MatrixFoldDoc(
+        plannedPath: work.plannedPath,
+        type: work.docType,
+        target: work.target,
+        lf: tested[index],
+      ),
+  ]);
+  final recorded = <String>[];
+  for (final (index, work) in works.indexed) {
+    var text = tested[index];
+    if (matrixFold?.recordEdits[work.plannedPath] case final edited?) {
+      text = edited;
+      work.changes.add(_matrixRowsChange);
     }
     recorded.add(text);
   }
@@ -548,6 +620,13 @@ RunPlan _upgradeRunOf(
         codeStamp.stepLine(from: '$from', step: _describe(step))
       else if (step is RestampCodeFingerprints && codeRestamp != null)
         codeRestamp.stepLine(from: '$from', step: _describe(step))
+      else if (index == stripIndex)
+        UpgradeStepLine(
+          from: '$from',
+          step: _describe(step),
+          paths: pathsAt(index),
+          nextLine: sharedCopies?.leftLine,
+        )
       else
         UpgradeStepLine(
           from: '$from',
@@ -600,11 +679,12 @@ RunPlan _upgradeRunOf(
     commit2Message: commit2Message,
     inputs: inputs,
     rewriteLines: [
-      for (final line in stepLines) line.text,
+      for (final line in stepLines) ...[line.text, ?line.nextLine],
       ...linkLines,
       ?renumber?.planLine,
       ?labels?.planLine,
       ?tests?.planLine,
+      ?matrixFold?.planLine,
       ?cites?.planLine,
       ?formatLayoutLine(laidOutPaths),
       ?stamps.planLine,
@@ -625,6 +705,14 @@ RunPlan _upgradeRunOf(
       steps: stepLines,
       mentions: mentions,
       tests: tests?.json,
+      sharedCopies: switch (sharedCopies) {
+        final step? => SharedCopiesLists(
+          stripped: step.stripped,
+          left: step.left,
+        ),
+        null => null,
+      },
+      matrixRows: matrixFold?.json,
     ),
   );
   return plan;
@@ -827,7 +915,9 @@ List<_OverrideFile> _renamedOverrides(
         MoveToRecord() => file.lf,
         StampCodeFingerprints() => file.lf,
         RestampCodeFingerprints() => file.lf,
+        StripSharedCopies() => file.lf,
         BulletLines() => file.lf,
+        DropDefaultLines() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -837,6 +927,44 @@ List<_OverrideFile> _renamedOverrides(
   }
   return files;
 }
+
+/// Plans the `strip_shared_copies` step over [files], as the renames left
+/// them, and writes the stripped text into each file it changes, which then
+/// counts as changed by the step at [stripIndex].
+SharedCopiesStep _sharedCopiesOf(
+  List<_OverrideFile> files, {
+  required int stripIndex,
+  required MergedSet target,
+  required List<PersonalPackFile> personalFiles,
+  required MergedSet Function(Map<String, String> overrideTexts) resolveWith,
+}) {
+  final step = planSharedCopies(
+    projectFiles: [
+      for (final file in files) ProjectLayerFile(path: file.path, lf: file.lf),
+    ],
+    target: target,
+    personalFiles: personalFiles,
+    resolveWith: resolveWith,
+  );
+  for (final file in files) {
+    if (step.rewrites[file.path] case final text?) {
+      file.lf = text;
+      file.changedBy.add(stripIndex);
+    }
+  }
+  return step;
+}
+
+/// Returns the doc-type files of each personal pack among [manifests], read
+/// from [home].
+List<PersonalPackFile> _personalFilesOf(
+  Iterable<PackManifest> manifests,
+  Directory? home,
+) => [
+  for (final pack in loadPersonalPacks(manifests, home: home))
+    for (final MapEntry(:key, :value) in pack.docTypeTexts().entries)
+      PersonalPackFile(path: '${pack.displayFolder}/$key', lf: value),
+];
 
 /// Returns [lf] with each [keys] scalar of a [list] entry equal to [from]
 /// replaced by [to], keeping quotes and every other byte.
@@ -1047,10 +1175,10 @@ bool _isPerTargetStep(MoveFile step, MergedSet set, String? firstTarget) =>
 
 /// Returns the patterns [step] moves by: its `from` and `to`, repeated once per
 /// nesting depth when its doc type nests in [set].
-List<({String from, String to})> _movePatternsOf(MoveFile step, MergedSet set) {
+List<PatternMove> _movePatternsOf(MoveFile step, MergedSet set) {
   final nesting = set.nestingType;
   if (nesting == null || set.lookup(step.docType)?.nestedPaths == null) {
-    return [(from: step.from, to: step.to)];
+    return [PatternMove(from: step.from, to: step.to)];
   }
   return movePatternsAtEveryDepth(step.from, step.to, nesting);
 }
@@ -1246,8 +1374,65 @@ String _describe(MigrationStep step) => switch (step) {
         '-> ${step.to}',
   StampCodeFingerprints() => step.kind,
   RestampCodeFingerprints() => step.kind,
+  StripSharedCopies() => step.kind,
   BulletLines() => '${step.kind} ${step.docType} ${step.section}',
+  DropDefaultLines() => step.kind,
 };
+
+/// Returns [lf] of the doc at [plannedPath] without the default lines of its
+/// invariants.
+///
+/// The default enforcer comes from the pre-run text of the doc and of each
+/// ancestor twin, nearest first, kept only when it has the doc's own type and
+/// target, so a project domain never feeds a feature domain. An Enforcer line
+/// goes only while the merged `Enforcer` entry holds `default_from`, and a
+/// Consistency line only while the merged `Consistency` entry is optional and
+/// lists no `immediate`.
+String _withDefaultLinesDropped(
+  String lf, {
+  required MergedDocType docType,
+  required String plannedPath,
+  required String? target,
+  required DocTypeMatcher matcher,
+  required Map<String, String> preRunTexts,
+}) {
+  final invariants = docType.sections
+      .where((section) => section.id == _invariantsSectionId)
+      .firstOrNull;
+  if (invariants == null) return lf;
+  final entities = docType.sections
+      .where((section) => section.id == _entitiesSectionId)
+      .firstOrNull;
+  final twinTexts = [
+    for (final path in ancestorTwinPaths(plannedPath))
+      if (matcher.match(path)
+          case MatchedDocType(
+            docType: MergedDocType(:final id),
+            target: final twinTarget,
+          )
+          when id == docType.id && twinTarget == target)
+        ?preRunTexts[path],
+  ];
+  final fields = invariants.itemFields ?? const <ItemFieldLint>[];
+  final enforcer = fields.where((f) => f.field == _enforcerField).firstOrNull;
+  final consistency = fields
+      .where((f) => f.field == _consistencyField)
+      .firstOrNull;
+  return withDefaultLinesDropped(
+    lf,
+    invariantsHeader: invariants.header,
+    defaultEnforcer: entities == null || enforcer?.defaultFrom == null
+        ? null
+        : defaultEnforcerAmong([
+            lf,
+            ...twinTexts,
+          ], entitiesHeader: entities.header),
+    dropsConsistency:
+        consistency != null &&
+        consistency.optional &&
+        !(consistency.values?.contains(_immediateValue) ?? false),
+  );
+}
 
 /// Returns the doc paths in code point order, then the override paths in the
 /// same order.

@@ -1,7 +1,6 @@
 id: motion
 description: |-
-  The motion doc: the durations, the easings, and their tokens.
-  These docs serve the team that builds the library, not the library's consumers.
+  The motion doc: the durations, the easings, and their usage; it links the tokens doc and writes no token value.
   Title it `# Motion`, with no number.
 path: specs/design_system/foundations/MOTION.md
 sections:
@@ -9,9 +8,9 @@ sections:
     header: Durations
     required: true
     description: |-
-      Write one row per duration: its name, its use, and the token that holds it.
+      Write one row per duration: its name, its use, and a link to its row in the tokens doc.
   - id: easings
     header: Easings
     required: true
     description: |-
-      Write one row per easing: its name, its use, and the token that holds it.
+      Write one row per easing: its name, its use, and a link to its row in the tokens doc.

@@ -35,6 +35,9 @@ export 'src/document_writing/root_trust.dart' show locateReadRoots;
 export 'src/document_writing/set_batch.dart' show answerSetBatch;
 export 'src/document_writing/set_doc.dart'
     show SetRequest, answerSet, replaceConflictMessage;
+export 'src/document_writing/stamp_fault.dart' show StampFault, StampRefusal;
+export 'src/document_writing/stamp_fingerprints.dart'
+    show StampPair, StampRequest, answerStamp;
 export 'src/document_writing/write_fault.dart'
     show CurrentTarget, WriteFault, WriteFaultCode;
 export 'src/document_writing/write_session.dart' show WriteSession;
@@ -91,6 +94,7 @@ export 'src/rendering/format_run.dart'
     show FormatReport, GeneratorRun, runFormat;
 export 'src/rendering/generated_blocks.dart';
 export 'src/rendering/html_build.dart' show HtmlBuild, buildHtml;
+export 'src/rendering/models/opened_resolver.dart';
 export 'src/rendering/page_setup.dart' show PageSetup, Paper;
 export 'src/rendering/render_fault.dart';
 export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
@@ -102,12 +106,18 @@ export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
 export 'src/templates/cleanup_bounds.dart' show CleanupBounds;
 export 'src/templates/component_catalog.dart'
     show componentCatalogBlocks, componentCatalogKind;
-export 'src/templates/feature_pattern.dart' show ChecklistItem, FeaturePattern;
+export 'src/templates/feature_pattern.dart' show FeaturePattern;
 export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
+export 'src/templates/models/checklist_item.dart';
+export 'src/templates/models/root_match.dart';
 export 'src/templates/project_config.dart'
     show matchProjectRoot, readCleanupBounds, requireSpecstoneFolder;
+export 'src/templates/shared_entry.dart'
+    show SharedEntries, SharedField, SharedLine;
+export 'src/templates/shared_merge.dart'
+    show MergedSharedField, MergedSharedLine, SharedSet;
 export 'src/templates/template_fault.dart';
 export 'src/templates/template_resolver.dart';
 export 'src/version.dart';

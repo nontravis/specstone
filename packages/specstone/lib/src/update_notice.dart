@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:specstone/src/commands/upgrade_command.dart';
 import 'package:specstone/src/console.dart';
+import 'package:specstone/src/models/latest_release.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 // MARK: - Constants
@@ -23,9 +24,6 @@ const Set<String> _noCheckCommands = {'upgrade', 'hook post-edit'};
 
 /// The file in the install folder that marks a local build.
 const String _localBuildFile = 'build.txt';
-
-/// The Version and the time of the last release check.
-typedef _Record = ({DateTime checkedAt, ReleaseVersion? latest});
 
 // MARK: - UpdateNotice
 
@@ -147,7 +145,7 @@ final class UpdateNotice {
 
   Future<void> _request(File file, DateTime checkedAt) async {
     try {
-      final (:version, failure: _) = await readLatestRelease(
+      final LatestRelease(:version) = await readLatestRelease(
         _latestReleaseUrl,
         abandon: _abandoned.future,
       );
@@ -180,9 +178,9 @@ final class UpdateNotice {
       if (checkedAt is! String) return null;
       final time = DateTime.tryParse(checkedAt);
       if (time == null) return null;
-      if (latest == null) return (checkedAt: time, latest: null);
+      if (latest == null) return _Record(checkedAt: time, latest: null);
       final version = latest is String ? ReleaseVersion.tryParse(latest) : null;
-      return version == null ? null : (checkedAt: time, latest: version);
+      return version == null ? null : _Record(checkedAt: time, latest: version);
     } on Object {
       return null;
     }
@@ -195,4 +193,12 @@ final class UpdateNotice {
     });
     writeFileAtomic(file, utf8.encode(text));
   }
+}
+
+/// The Version and the time of the last release check.
+final class _Record {
+  const new({required this.checkedAt, required this.latest});
+
+  final DateTime checkedAt;
+  final ReleaseVersion? latest;
 }

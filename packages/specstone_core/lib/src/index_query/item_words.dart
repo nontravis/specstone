@@ -144,12 +144,16 @@ String definitionLinesOf(String body) {
   ].join('\n');
 }
 
-/// Returns the item ID prefixes of [docTypes], the scenario ref prefix `S`
-/// included: the prefixes whose tokens `normalizedWordsOf` drops.
+/// The prefix of a scenario ref, such as `S6`; no doc type's `prefix_id`.
+const scenarioRefPrefix = 'S';
+
+/// Returns the item ID prefixes of [docTypes], the scenario ref prefix
+/// [scenarioRefPrefix] included: the prefixes whose tokens `normalizedWordsOf`
+/// drops.
 Set<String> itemIdPrefixesOf(Iterable<MergedDocType> docTypes) => {
   for (final type in docTypes)
     for (final section in type.sections) ?section.prefixId,
-  'S',
+  scenarioRefPrefix,
 };
 
 /// Returns [text] with each link replaced by its text, as the link scan reads

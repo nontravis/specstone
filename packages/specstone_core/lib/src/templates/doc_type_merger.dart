@@ -111,7 +111,7 @@ final class DocTypeMerger {
       bundleRefs: layer.bundleRefs,
       summaryFor: layer.summaryFor,
       fields: List.unmodifiable(
-        _mergeFields(base.fields, layer, disabledFields),
+        _mergeFields(base.fields, layer.fields, layer.file, disabledFields),
       ),
       sections: List.unmodifiable(
         _mergeSections(base.sections, layer, disabledSections),
@@ -248,24 +248,43 @@ final class DocTypeMerger {
     notFound: FaultCode.referenceTitleNotFound,
   );
 
-  /// Returns [base] with the field entries of [layer] applied.
+  /// Returns [base] with [entries] applied as one more layer of fields.
+  ///
+  /// [file] is the file a fault names: the `pack.yaml` that declares the
+  /// entries. The doc type's own layer list and file list stay as they are.
+  MergedDocType applyFields(
+    MergedDocType base,
+    List<FieldEntry> entries, {
+    required String file,
+  }) {
+    final disabledFields = {...base.disabledFieldIds};
+    return base.copyWith(
+      fields: List.unmodifiable(
+        _mergeFields(base.fields, entries, file, disabledFields),
+      ),
+      disabledFieldIds: Set.unmodifiable(disabledFields),
+    );
+  }
+
+  /// Returns [base] with the field [entries] of the layer file [file] applied.
   ///
   /// [disabledIds] holds the ids a lower layer disabled; it gains each id this
   /// layer disables and loses each id this layer adds back.
   List<MergedField> _mergeFields(
     List<MergedField> base,
-    DocTypeLayer layer,
+    List<FieldEntry> entries,
+    String file,
     Set<String> disabledIds,
   ) {
     final fields = [...base];
-    for (final entry in layer.fields) {
+    for (final entry in entries) {
       final index = fields.indexWhere((f) => f.id == entry.id);
       if (index == -1) {
         if (entry.disabled && disabledIds.contains(entry.id)) continue;
         final type = entry.type;
         if (entry.disabled || type == null) {
           throw _notFound(
-            layer,
+            file,
             'field',
             entry.id,
             disabled: entry.disabled,
@@ -281,8 +300,8 @@ final class DocTypeMerger {
             required: entry.required ?? false,
             enumValues: _frozen(entry.enumValues),
             docTypes: _frozen(entry.docTypes),
-            pointer: _pointerOf(entry, type, layer),
-            root: _rootOf(entry, type, layer),
+            pointer: _pointerOf(entry, type, file),
+            root: _rootOf(entry, type, file),
             export: entry.export,
             description: entry.description,
             lint: entry.lint,
@@ -291,7 +310,7 @@ final class DocTypeMerger {
         continue;
       }
       final current = fields[index];
-      if (current.isBuiltIn) _checkLocked(current, entry, layer);
+      if (current.isBuiltIn) _checkLocked(current, entry, file);
       if (entry.disabled) {
         fields.removeAt(index);
         disabledIds.add(entry.id);
@@ -303,8 +322,8 @@ final class DocTypeMerger {
         required: entry.required,
         enumValues: _frozen(entry.enumValues),
         docTypes: _frozen(entry.docTypes),
-        pointer: _pointerOf(entry, entry.type ?? current.type, layer),
-        root: _rootOf(entry, entry.type ?? current.type, layer),
+        pointer: _pointerOf(entry, entry.type ?? current.type, file),
+        root: _rootOf(entry, entry.type ?? current.type, file),
         export: entry.export,
         description: entry.description,
         lint: _mergedCaps(current.lint, entry.lint),
@@ -320,31 +339,19 @@ final class DocTypeMerger {
   /// Returns the kind [entry] writes, read only when [type] is `output_ref`.
   ///
   /// A pointer on any other type has no effect and is not checked.
-  PointerKind? _pointerOf(
-    FieldEntry entry,
-    FieldType type,
-    DocTypeLayer layer,
-  ) {
+  PointerKind? _pointerOf(FieldEntry entry, FieldType type, String file) {
     final written = entry.pointer;
     if (type != FieldType.outputRef || written == null) return null;
-    return PointerKind.read(
-      written,
-      file: layer.file,
-      prefix: 'fields.${entry.id}.',
-    );
+    return PointerKind.read(written, file: file, prefix: 'fields.${entry.id}.');
   }
 
   /// Returns the root [entry] writes, read only when [type] is `output_ref`.
   ///
   /// A root on any other type has no effect and is not checked.
-  PointerRoot? _rootOf(FieldEntry entry, FieldType type, DocTypeLayer layer) {
+  PointerRoot? _rootOf(FieldEntry entry, FieldType type, String file) {
     final written = entry.root;
     if (type != FieldType.outputRef || written == null) return null;
-    return PointerRoot.read(
-      written,
-      file: layer.file,
-      prefix: 'fields.${entry.id}.',
-    );
+    return PointerRoot.read(written, file: file, prefix: 'fields.${entry.id}.');
   }
 
   /// Returns [base] with the section entries of [layer] applied.
@@ -364,7 +371,7 @@ final class DocTypeMerger {
         final header = entry.header;
         if (entry.disabled || header == null) {
           throw _notFound(
-            layer,
+            layer.file,
             'section',
             entry.id,
             disabled: entry.disabled,
@@ -573,7 +580,7 @@ final class DocTypeMerger {
   List<String>? _frozen(List<String>? list) =>
       list == null ? null : List.unmodifiable(list);
 
-  void _checkLocked(MergedField current, FieldEntry entry, DocTypeLayer layer) {
+  void _checkLocked(MergedField current, FieldEntry entry, String file) {
     final changesType = entry.type != null && entry.type != current.type;
     // Only `approve` and the stamps write `approved`, so it takes no shape.
     final shapesApproved =
@@ -584,7 +591,7 @@ final class DocTypeMerger {
       FaultCode.lockedFieldDisabled,
       'the built-in field ${entry.id} cannot be disabled or change its type'
       '${shapesApproved ? '; approved takes no enum or list' : ''}',
-      file: layer.file,
+      file: file,
       key: 'fields.${entry.id}',
     );
   }
@@ -595,7 +602,7 @@ final class DocTypeMerger {
   /// A [disabled] entry has nothing to disable; any other entry lacks the
   /// [missing] key that would add it.
   TemplateFault _notFound(
-    DocTypeLayer layer,
+    String file,
     String kind,
     String id, {
     required bool disabled,
@@ -605,7 +612,7 @@ final class DocTypeMerger {
     disabled
         ? 'no $kind "$id" in the merged doc type to disable'
         : 'no $kind "$id" in the merged doc type and no $missing to add it',
-    file: layer.file,
+    file: file,
     key: '${kind}s.$id',
   );
 }

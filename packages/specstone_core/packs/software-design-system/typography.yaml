@@ -1,7 +1,6 @@
 id: typography
 description: |-
-  The typography doc: the type scale and its tokens.
-  These docs serve the team that builds the library, not the library's consumers.
+  The typography doc: the type scale and its usage; it links the tokens doc and writes no token value.
   Title it `# Typography`, with no number.
 path: specs/design_system/foundations/TYPOGRAPHY.md
 sections:
@@ -9,4 +8,4 @@ sections:
     header: Type scale
     required: true
     description: |-
-      Write one row per type style: its name, its use, and the token that holds it.
+      Write one row per type style: its name, its use, and a link to its row in the tokens doc.

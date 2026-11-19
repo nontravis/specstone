@@ -344,6 +344,35 @@ void main() {
     );
   });
 
+  test('a strip_shared_copies step with no keys parses and touches no '
+      'doc type', () {
+    final step = parseMigrationsOf('''
+- from: 1.12.0
+  steps:
+    - strip_shared_copies: {}
+''').single.steps.single;
+
+    expect(step, isA<StripSharedCopies>());
+    expect(step.kind, 'strip_shared_copies');
+    expect(step.touches('api'), isFalse);
+  });
+
+  test('a strip_shared_copies step with a key is unknown_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.12.0\n'
+        '  steps:\n'
+        '    - strip_shared_copies: {note: x}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].strip_shared_copies.note',
+        ),
+      ),
+    );
+  });
+
   test('a bullet_lines step parses to BulletLines and touches its '
       'doc type', () {
     final step = parseMigrationsOf('''
@@ -421,6 +450,36 @@ void main() {
         reason: prefixes,
       );
     }
+  });
+
+  test('a drop_default_lines step reads its doc type list', () {
+    final step = parseMigrationsOf('''
+- from: 1.13.0
+  steps:
+    - drop_default_lines: {doc_types: [domain, project_domain]}
+''').single.steps.single;
+
+    expect(step, isA<DropDefaultLines>());
+    step as DropDefaultLines;
+    expect(step.kind, 'drop_default_lines');
+    expect(step.docTypes, ['domain', 'project_domain']);
+    expect(step.touches('domain'), isTrue);
+    expect(step.touches('project_domain'), isTrue);
+    expect(step.touches('feature'), isFalse);
+  });
+
+  test('a drop_default_lines step with no doc types is missing_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.13.0\n  steps:\n    - drop_default_lines: {}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.missingKey,
+          key: 'migrations[0].steps[0].drop_default_lines.doc_types',
+        ),
+      ),
+    );
   });
 
   test('a move_to_record list that holds a non-string is '

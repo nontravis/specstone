@@ -5,6 +5,8 @@ import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
+import 'package:specstone_core/src/templates/models/root_match.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -68,7 +70,7 @@ Directory? findRootUpward(
 /// through the folder's `docs` link. Returns null when no folder up to the
 /// file-system root yields one; never throws, a folder that cannot be resolved
 /// stands for itself, absolute.
-({Directory folder, Directory root})? matchRootUpward(
+RootMatch? matchRootUpward(
   Directory start,
   bool Function(Directory candidate) isRoot,
 ) {
@@ -79,8 +81,10 @@ Directory? findRootUpward(
       dir,
     );
     final linked = _canonicalOr(() => rootThroughDocsLink(dir), dir);
-    if (isRoot(linked)) return (folder: own, root: linked);
-    if (own.path != linked.path && isRoot(own)) return (folder: own, root: own);
+    if (isRoot(linked)) return RootMatch(folder: own, root: linked);
+    if (own.path != linked.path && isRoot(own)) {
+      return RootMatch(folder: own, root: own);
+    }
     final parent = dir.parent;
     if (parent.path == dir.path) return null;
     dir = parent;
@@ -106,18 +110,16 @@ Directory? findProjectRoot(Directory start) => matchProjectRoot(start)?.root;
 ///
 /// The root is the first candidate holding `.specstone/config.yaml`. Never
 /// throws.
-({Directory folder, Directory root})? matchProjectRoot(Directory start) =>
-    matchRootUpward(
-      start,
-      (candidate) =>
-          File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
-    );
+RootMatch? matchProjectRoot(Directory start) => matchRootUpward(
+  start,
+  (candidate) =>
+      File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
+);
 
 /// The project config: the pack version each pack is pinned to, the code
 /// targets code paths are written from, the repository tops already offered
-/// agent files, the Version stamp of the run that wrote them, whether `check`
-/// reports unproven edge cases, and the bounds that keep the saved bundles and
-/// reports small.
+/// agent files, the Version stamp of the run that wrote them, the Verification
+/// matrix mode, and the bounds that keep the saved bundles and reports small.
 final class ProjectConfig {
   new _({
     required this.pins,
@@ -125,7 +127,7 @@ final class ProjectConfig {
     required this.hasCodeRoot,
     required this.agentFileRoots,
     required this.agentFilesVersion,
-    required this.verificationCoverage,
+    required this.matrixMode,
     required this.cleanup,
   });
 
@@ -142,7 +144,8 @@ final class ProjectConfig {
   /// `unknown_value` for a `code_root` that is not a string, is empty, is
   /// absolute, or holds a backslash, for an `agent_file_roots` that is not a
   /// list of such strings, for an `agent_files_version` that is not a Version,
-  /// for a `verification_coverage` that is not a boolean, for a `cleanup` that
+  /// for a `verification_coverage` outside `false`, `true`, `fr`, and
+  /// `edge_case`, for a `cleanup` that
   /// is not a map or holds a bound that is not a positive integer, and for a
   /// `targets` that is empty, sits beside `code_root:`, or holds two targets
   /// on one code folder.
@@ -203,13 +206,7 @@ final class ProjectConfig {
       hasCodeRoot: map.containsKey(_codeRootKey),
       agentFileRoots: _readAgentFileRoots(map),
       agentFilesVersion: _readAgentFilesVersion(map),
-      verificationCoverage:
-          optionalValue<bool>(
-            map,
-            verificationCoverageKey,
-            file: projectConfigPath,
-          ) ??
-          false,
+      matrixMode: _readMatrixMode(map),
       cleanup: CleanupBounds.fromConfig(map, file: projectConfigPath),
     );
   }
@@ -246,9 +243,9 @@ final class ProjectConfig {
   /// when the config has no `agent_files_version`.
   final ReleaseVersion? agentFilesVersion;
 
-  /// Whether `check` reports the unproven edge cases of a record's matrix;
-  /// `false` when the config has no `verification_coverage`.
-  final bool verificationCoverage;
+  /// The Verification matrix mode `verification_coverage:` names;
+  /// [MatrixMode.off] when the config has no such key.
+  final MatrixMode matrixMode;
 
   /// The bounds the prune commands keep `bundles/` and `reports/` within; each
   /// default when the config has no `cleanup`.
@@ -329,6 +326,21 @@ CleanupBounds readCleanupBounds(Directory root) {
     return CleanupBounds.defaults;
   }
 }
+
+/// Reads `verification_coverage:` by the node's own type, so a quoted `'true'`
+/// stays a string and is refused.
+MatrixMode _readMatrixMode(YamlMap map) =>
+    switch (map[verificationCoverageKey]) {
+      null || false => MatrixMode.off,
+      true || 'fr' => MatrixMode.fr,
+      'edge_case' => MatrixMode.edgeCase,
+      _ => throw TemplateFault(
+        FaultCode.unknownValue,
+        '$verificationCoverageKey takes false, true, fr, or edge_case',
+        file: projectConfigPath,
+        key: verificationCoverageKey,
+      ),
+    };
 
 ReleaseVersion? _readAgentFilesVersion(YamlMap map) {
   final text = optionalValue<String>(

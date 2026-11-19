@@ -1,7 +1,6 @@
 id: color
 description: |-
-  The color doc: the color roles and their tokens.
-  These docs serve the team that builds the library, not the library's consumers.
+  The color doc: the color roles and their usage; it links the tokens doc and writes no token value.
   Title it `# Color`, with no number.
 path: specs/design_system/foundations/COLOR.md
 sections:
@@ -9,4 +8,4 @@ sections:
     header: Color roles
     required: true
     description: |-
-      Write one row per color role: its name, its use, and the token that holds it.
+      Write one row per color role: its name, its use, and a link to its row in the tokens doc.

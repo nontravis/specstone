@@ -1,11 +1,14 @@
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
 void main() {
+  const draft = '---\ndraft: true\n---\n\n';
   late MergedDocType architecture;
   setUpAll(() async {
     architecture = prdCoreDocType(await resolveSoftwareTech(), 'architecture');
@@ -35,7 +38,7 @@ void main() {
       SectionSpec('deployment', 'Deployment'),
       SectionSpec('rollout', 'Rollout'),
       SectionSpec('observability', 'Observability'),
-      SectionSpec('concerns', 'Concerns', required: true),
+      SectionSpec('concerns', 'Concerns'),
       SectionSpec('design_references', 'Design references'),
       SectionSpec('open_questions', 'Open questions'),
     ]);
@@ -55,33 +58,93 @@ void main() {
     );
   });
 
-  test('concerns and design_references describe their items without a line '
-      'count', () {
-    List<String> linesOf(String id) =>
-        sectionOf(architecture, id).description?.split('\n') ?? const [];
+  test('concerns is optional and keeps only the see ending rule', () {
+    final concerns = sectionOf(architecture, 'concerns');
+
+    expect(concerns.required, isFalse);
+    expect(concerns.requiredPatterns, isNull);
     expect(
-      linesOf('concerns'),
-      contains(
-        'Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and '
-        'Observability, one item each.',
-      ),
+      [for (final p in concerns.bannedPatterns!) p.id],
+      ['concern_ending'],
     );
+    expect(concerns.maxItemLines, 1);
     expect(
-      linesOf('design_references'),
-      contains(
-        'List each design or ADR whose decisions this doc still states.',
+      concerns.description?.split('\n'),
+      allOf(
+        contains(
+          'Write one line per concern that applies, among Integration, '
+          'Errors, Auth, Lifecycle, Events, Rollout, and Observability.',
+        ),
+        contains('End each line with `see <section or sibling doc>`.'),
+        contains('Write no line for a concern that does not apply.'),
       ),
     );
   });
 
-  test('each concern message quotes its guide line as written', () {
-    final concerns = sectionOf(architecture, 'concerns');
-    final entries = concerns.requiredPatterns!;
-    expect(entries, hasLength(7));
-    for (final entry in entries) {
-      final quoted = entry.message.split('guide line: ').last;
-      expect(concerns.description, contains('$quoted.'), reason: entry.id);
-    }
+  test('an N/A concern line breaks the ending rule', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/specs/f01_login/ARCHITECTURE.md':
+              '$draft# Login architecture\n\n## Concerns\n'
+              '- Auth: N/A — no access rules\n',
+        },
+      ),
+    );
+
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.patternBanned,
+    );
+    expect(finding.path, 'specs/f01_login/ARCHITECTURE.md');
+    expect(finding.toJson(), containsPair('pattern', 'concern_ending'));
+  });
+
+  test('a bullet under the components table is banned', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/specs/f01_login/ARCHITECTURE.md':
+              '$draft# Login architecture\n\n## Components\n'
+              '| Component | Responsibility |\n|---|---|\n'
+              '| Gate | Checks the password |\n\n'
+              '- Gate also logs each attempt\n',
+        },
+      ),
+    );
+
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.patternBanned,
+    );
+    expect(finding.path, 'specs/f01_login/ARCHITECTURE.md');
+    expect(finding.toJson(), containsPair('line', 12));
+  });
+
+  test('design references cap their links', () {
+    final references = sectionOf(architecture, 'design_references');
+
+    expect(references.maxItemLines, 1);
+    expect(references.itemCount!.max, 5);
+    expect(
+      references.description?.split('\n'),
+      contains(
+        'List each design or ADR whose decisions this doc still states, one '
+        'link per line. Add the decision IDs the doc still relies on and no '
+        'summary.',
+      ),
+    );
+  });
+
+  test('components names four columns and no file list', () {
+    final components = sectionOf(architecture, 'components');
+
+    expect(
+      components.description,
+      allOf(
+        contains('the columns Component, Responsibility, Tech, Owns.'),
+        isNot(contains('Code path')),
+        contains('Write no file, folder, or command list'),
+      ),
+    );
   });
 
   test('the component details guide asks for one ### Component subsection per '

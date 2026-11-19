@@ -1,3 +1,10 @@
 name: marketing
-version: 1.0.0
+version: 1.1.0
 extends: prd-core
+shared_lines:
+  - id: stable_facts_and_plan
+    text: The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
+    for_doc_types: [audience, campaign, campaign_results, channel, competitor, content_pillars, lifecycle, loyalty, messaging, positioning, voice]
+  - id: learning_edits_doc
+    text: A learning edits the doc it corrects.
+    for_doc_types: [audience, campaign, campaign_results, channel, competitor, content_pillars, lifecycle, loyalty, messaging, positioning, voice]

@@ -1602,6 +1602,37 @@ items:
     });
   });
 
+  group('specstone guide --json in the built CLI with a shared line', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    test('guide json holds the project shared line after the own text in '
+        'description', () async {
+      const line = 'Name the owner of every term.';
+      final project = await writeTree({
+        _configPath: shippedPinsConfig(),
+        '.specstone/templates/shared.yaml':
+            'shared_lines:\n'
+            '  - id: project_line\n'
+            '    text: $line\n'
+            '    for_doc_types: [domain]\n',
+      });
+
+      final result = await Process.run(binary, [
+        'guide',
+        'domain',
+        '--json',
+      ], workingDirectory: project.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final json = jsonDecode(result.stdout as String) as Map<String, Object?>;
+      final description = json['description']! as String;
+      expect(description, endsWith('\n$line'));
+      expect(description.length, greaterThan(line.length + 1));
+    });
+  });
+
   group(
     'specstone guide in the built CLI after a layer disables the matrix',
     () {
@@ -1996,7 +2027,7 @@ items:
       expect(err.toString(), isEmpty);
     });
 
-    test('guide component prints its description, then the twelve sections in '
+    test('guide component prints its description, then the nine sections in '
         'order', () async {
       final runner = await runnerFor(packs: softwareDesignSystemConfig());
 
@@ -2014,9 +2045,6 @@ items:
         'Variants',
         'States',
         'Props',
-        'Tokens',
-        'Do',
-        "Don't",
         'Examples',
         'Keyboard',
         'Accessibility',
@@ -2383,7 +2411,7 @@ items:
           out.toString(),
           stringContainsInOrder([
             'A journey: ',
-            'Keep one goal of one persona, from the start',
+            'Run from the start to the result the persona wants.',
             '## Goal\n\nRequired section. Limits: at most 1 line.\n',
             '## Flow\n\nRequired section.\n',
             '## Steps\n\nRequired section.\n',
@@ -2442,7 +2470,7 @@ items:
         out.toString(),
         stringContainsInOrder([
           'A measurement: ',
-          "to the measured goal's `### PG-` heading in the goal doc.",
+          "to the measured goal's `### PG-` heading in GOAL.",
           'Results is a log: a run adds its row on top',
           '## Scope\n',
           '## Method\n',
@@ -2691,6 +2719,58 @@ items:
         File('${folder.path}/notes/fr.txt').readAsStringSync(),
         contains('One requirement.'),
       );
+    });
+
+    test('guide fr --out and guide fr --json --out to a named reports file '
+        'write both', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+      final reports = '${folder.path}/.specstone/reports';
+
+      expect(
+        await runner.run(['guide', 'fr', '--out', '$reports/guide.ab12cd.txt']),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        reportOf(folder, 'guide.ab12cd.txt'),
+        contains('One requirement.'),
+      );
+      expect(out.toString(), startsWith('==> guide: '));
+
+      out.clear();
+      expect(
+        await runner.run([
+          'guide',
+          'fr',
+          '--json',
+          '--out',
+          '$reports/guide.ab12cd.json',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      final schema = jsonDecode(
+        reportOf(folder, 'guide.ab12cd.json'),
+      ) as Map<String, Object?>;
+      expect(schema['id'], 'fr');
+      final printed = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(
+        printed['out'],
+        File('$reports/guide.ab12cd.json').resolveSymbolicLinksSync(),
+      );
+      expect(File('$reports/guide.fr.txt').existsSync(), isFalse);
+    });
+
+    test('a given --out under .specstone/ outside bundles/ and reports/ exits '
+        '73 and writes nothing', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+      final refused = File('${folder.path}/.specstone/guide.ab12cd.txt');
+
+      expect(await runner.run(['guide', 'fr', '--out', refused.path]), 73);
+      expect(out.toString(), isEmpty);
+      expect(refused.existsSync(), isFalse);
     });
 
     test('--out "" exits 64 and writes no file', () async {

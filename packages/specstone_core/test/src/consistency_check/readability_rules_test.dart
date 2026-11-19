@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/readability_rules.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -22,8 +23,9 @@ late Directory _project;
 Future<List<Finding>> _found(
   Map<String, String> extra, {
   String? docPath,
+  Set<String> unstamped = const {},
 }) async {
-  _project = await writeCheckProject(extra: extra);
+  _project = await writeCheckProject(extra: extra, unstamped: unstamped);
   return [
     for (final f in (await checkOf(_project, docPath: docPath)).findings)
       if (_readabilityKinds.contains(f.kind)) f,
@@ -569,22 +571,112 @@ void main() {
   });
 
   test('the cite-note guide line matches every shipped guide', () async {
-    final project = await writeCheckProject();
+    final outside = await Directory.systemTemp.createTemp('no_project');
+    addTearDown(() => outside.delete(recursive: true));
     final types = TemplateResolver()
-        .resolve(workingDirectory: project, homeDirectory: null)
-        .docTypes
-        .where(
-          (type) => type.pack == 'prd-core' || type.pack == 'software-tech',
-        )
-        .toList();
+        .resolve(workingDirectory: outside, homeDirectory: null)
+        .docTypes;
     expect(types.map((type) => type.pack).toSet(), {
-      'prd-core',
-      'software-tech',
+      for (final key in shippedPackFiles.keys)
+        key.substring(0, key.indexOf('/')),
     });
     for (final type in types) {
-      final lines = type.description!.split('\n');
-      expect(lines, contains(citeNoteGuideLine), reason: type.id);
+      expect(
+        type.renderGuide().split('\n'),
+        contains(citeNoteGuideLine),
+        reason: type.id,
+      );
     }
+  });
+
+  group('a record matrix section', () {
+    const head =
+        "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
+        '# Login implementation\n\n';
+    final perFrRow =
+        '- email_login/check_password: '
+        '${[for (var i = 0; i < 28; i++) '`reads row $i`'].join(', ')}';
+
+    Map<String, String> record(String body) => {loginRecord: '$head$body\n'};
+
+    Future<List<Finding>> foundIn(
+      String body, {
+      Map<String, String> layers = const {},
+    }) => _found(
+      {...record('## Verification matrix\n\n$body'), ...layers},
+      unstamped: {loginRecord},
+    );
+
+    final lines = <(String, String)>[
+      ('a per-FR row of 28 literals', perFrRow),
+      (
+        'a skip row with a 30-word reason',
+        '- email_login/check_password skipped: ${_sentenceOf(30)}',
+      ),
+      (
+        'a skip row with a long Thai reason',
+        "- email_login/check_password skipped: ${'ก' * 120}.",
+      ),
+      (
+        'a skip row with an early note',
+        '- email_login/check_password skipped: '
+            'needs root (INV-4) on every CI runner.',
+      ),
+      ('a paragraph line', _sentenceOf(30)),
+    ];
+
+    for (final (name, line) in lines) {
+      test('$name gives no readability finding', () async {
+        expect(await foundIn(line), isEmpty);
+      });
+    }
+
+    test(
+      'the same list in another section still gives words_over_limit',
+      () async {
+        final found = await _found(
+          {...record('## Notes\n\n$perFrRow\n\n## Verification matrix\n\nOk.')},
+          unstamped: {loginRecord},
+        );
+        expect(found, hasLength(1));
+        expect(found.single.kind, FindingKind.wordsOverLimit);
+        expect(found.single.toJson(), containsPair('section', 'notes'));
+      },
+    );
+
+    test('a disabled matrix section reads as any other', () async {
+      final found = await foundIn(
+        perFrRow,
+        layers: {
+          '.specstone/templates/implementation.yaml':
+              'sections:\n  - {id: verification_matrix, disabled: true}\n',
+        },
+      );
+      expect(found.map((f) => f.kind), [FindingKind.wordsOverLimit]);
+    });
+
+    test('a section max_sentences on the matrix still counts', () async {
+      final found = await foundIn(
+        '- email_login/check_password skipped: needs root. Runs on CI only.',
+        layers: {
+          '.specstone/templates/implementation.yaml':
+              'sections:\n  - id: verification_matrix\n'
+              '    lint:\n      max_sentences:\n        - count: 1\n',
+        },
+      );
+      final kinds = found.map((f) => f.kind);
+      expect(kinds, contains(FindingKind.sentencesOverLimit));
+      expect(
+        kinds,
+        isNot(
+          anyOf(
+            contains(FindingKind.wordsOverLimit),
+            contains(FindingKind.sentenceCharsOverLimit),
+            contains(FindingKind.traceNoteNotLast),
+          ),
+        ),
+      );
+    });
   });
 }
 

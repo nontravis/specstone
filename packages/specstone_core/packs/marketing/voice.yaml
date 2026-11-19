@@ -1,9 +1,7 @@
 id: voice
 description: |-
-  The voice doc: the tone of the project's writing, and the words to use and to avoid.
+  The voice doc: the tone of the project's writing, and the words to use and avoid.
   Title it `# Voice`, with no number.
-  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
-  A learning edits the doc it corrects.
 path: specs/marketing/VOICE.md
 sections:
   - id: tone

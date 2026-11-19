@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 const _agentMd =
     '# Specstone\n'
     '\n'
-    'This project keeps its PRD and spec as Specstone docs.\n'
+    'The PRD and spec are Specstone docs.\n'
     '\n'
     '## Rules\n'
     '- code ⊆ spec ⊆ PRD over observable behavior: specify each behavior '
@@ -21,16 +21,16 @@ const _agentMd =
     '- Change docs only with `specstone set`, `new`, `move`, `rename`; '
     "drafts await Owner's `specstone approve` (main session's when clean "
     'under `auto`).\n'
-    '- Before writing a doc, run `specstone guide <type>`; write each item in '
-    'its shape,\n'
+    '- Before writing a doc, have its `specstone guide <type>` or this '
+    "run's saved guide; write items in its shape,\n"
     '  once, short, complete.\n'
-    "- Before a story's plan, tickets, or tests, ground them with "
+    "- Before a story's plan, tickets, or tests, run "
     '`specstone context <story> --for implement --out`.\n'
     '- Cite by markdown link, never a number label '
     '(`F-<nn> US-<nn>`).\n'
-    '- Before reporting done, run `specstone check <doc>` on each '
-    'changed doc until every finding ends `(waits for the Owner)` '
-    '(`--json`: `waitsFor` is `owner`).\n'
+    '- Before reporting done, run `specstone check <doc> --out '
+    '<folder>/reports/check.done.<XXXXXX>.txt` per changed doc until every '
+    'finding ends `(waits for the Owner)` (`--json`: `waitsFor` `owner`).\n'
     '- Without specstone on PATH, run `~/.specstone/bin/specstone`.\n';
 
 const _agentMdWordBound = 200;
@@ -106,6 +106,53 @@ void main() {
       expect(agentMdText, isNot(contains('says it waits')));
       expect(_inlineBlock(), contains('`(waits for the Owner)`'));
       expect(_inlineBlock(), contains('`waitsFor`'));
+    });
+
+    test('the check rule saves to the done file and runs until every '
+        'finding waits', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text)
+            .singleWhere((r) => r.startsWith('- Before reporting done'));
+
+        expect(rule, contains('`specstone check <doc> --out '));
+        expect(rule, contains('<folder>/reports/check.done.<XXXXXX>.txt`'));
+        expect(rule, contains('`(waits for the Owner)`'));
+        expect(rule, contains('`waitsFor`'));
+      }
+    });
+
+    test('the draft rule names set, new, move, rename, and the approver', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text)
+            .singleWhere((r) => r.startsWith('- Change docs'));
+
+        expect(rule, contains('`specstone set`'));
+        for (final command in ['new', 'move', 'rename']) {
+          expect(rule, contains('`$command`'));
+        }
+        expect(rule, contains('`specstone approve`'));
+      }
+    });
+
+    test('the guide rule names the guide command and a guide file this '
+        'run saved', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text)
+            .singleWhere((r) => r.startsWith('- Before writing a doc'));
+
+        expect(rule, contains('`specstone guide <type>`'));
+        expect(rule, contains('saved guide'));
+        expect(rule, contains('this run'));
+      }
+    });
+
+    test('the PATH rule names the home binary', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text)
+            .singleWhere((r) => r.startsWith('- Without specstone on PATH'));
+
+        expect(rule, contains('`~/.specstone/bin/specstone`'));
+      }
     });
 
     test(

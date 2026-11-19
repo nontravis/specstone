@@ -1,7 +1,7 @@
 import 'package:markdown/markdown.dart';
-import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/html_attributes.dart';
+import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/models/html_attribute.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 

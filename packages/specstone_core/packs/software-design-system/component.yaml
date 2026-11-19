@@ -1,7 +1,6 @@
 id: component
 description: |-
   A component: one component's contract, inside its component group.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# <Component name>`, with no number.
   The component doc holds no code, so it serves the library in any language.
   The Agent writes Props by hand. A design file from another tool, such as a Figma frame, is input for deciding them, and Specstone never generates props from it.
@@ -14,21 +13,20 @@ fields:
     enum: [beta, stable, deprecated]
     required: true
     description: |-
-      Names the component's lifecycle: `beta`, `stable`, or `deprecated`.
-      The built-in `status` never holds it.
+      The built-in `status` never holds the component's lifecycle.
   - id: feature
     type: doc_ref
     doc_types: [feature]
     required: true
     export: false
     description: |-
-      Names the feature whose stories ask for the component; it must resolve to a feature.
+      Names the feature whose stories ask for the component.
   - id: design_source
     type: source_ref
     list: true
     export: false
     description: |-
-      Lists each design file or link that the props were decided from.
+      Lists each design file or link the props were decided from.
 sections:
   - id: purpose
     header: Purpose
@@ -40,42 +38,25 @@ sections:
     header: When to use
     required: true
     description: |-
-      Write when to use the component and when not, naming the component to use instead.
+      Write when to use the component, when not, and the component to use instead.
+      Fold the Do and Don't points into this section.
   - id: anatomy
     header: Anatomy
-    required: true
     description: |-
-      List the component's named parts.
+      List the named parts; write this section when the component has two or more.
   - id: variants
     header: Variants
-    required: true
     description: |-
-      List each variant with the prop value that picks it.
+      List each variant with the prop value that picks it; write this section when the component has more than one look.
   - id: states
     header: States
-    required: true
     description: |-
-      List each state the component takes and what shows in it.
+      List each state beyond default and what shows in it.
   - id: props
     header: Props
     required: true
     description: |-
       Write one row per prop, its type one of `text`, `number`, `boolean`, `choice`, and `on-tap`.
-  - id: tokens
-    header: Tokens
-    required: true
-    description: |-
-      List the tokens the component reads.
-  - id: do
-    header: Do
-    required: true
-    description: |-
-      List what to do with the component.
-  - id: dont
-    header: Don't
-    required: true
-    description: |-
-      List what never to do with the component.
   - id: examples
     header: Examples
     required: true
@@ -89,4 +70,4 @@ sections:
     header: Accessibility
     required: true
     description: |-
-      Write how the component meets the library-wide accessibility bar.
+      Write only what the component adds to the library-wide accessibility bar, or link to the bar.

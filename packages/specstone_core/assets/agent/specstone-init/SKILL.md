@@ -16,7 +16,7 @@ Run this first, from the folder that becomes the project root, before any other 
 specstone init
 ```
 
-Run no `specstone check` and no look for `.specstone/` before it: `specstone init` refuses on its own in a folder
+Run no `check` and no look for `.specstone/` before it: `specstone init` refuses on its own in a folder
 that is already a project.
 
 - **0:** it printed the six drafts and the config it created. Go on, and follow the `specstone-expert-sdd` skill from
@@ -49,7 +49,7 @@ Exit 75, `base_mismatch`: read the target again and merge before you retry. Any 
 stop.
 
 The tech stack's `code` field lists the folders the code will live in, relative to the root. Fill it before you ask
-for approval: while it is empty, `specstone check` reports no uncovered code at all. A listed folder that does not
+for approval: while it is empty, `check` reports no uncovered code at all. A listed folder that does not
 exist yet draws no finding while no record entry of its code target is `implemented`, and `code_root_missing` once one
 is and the folder is still missing; keep the entry either way.
 

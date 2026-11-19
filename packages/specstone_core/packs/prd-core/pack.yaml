@@ -1,2 +1,20 @@
 name: prd-core
 version: 1.18.0
+migrations:
+  - from: 1.7.0
+    steps:
+      - strip_shared_copies: {}
+shared_lines:
+  - id: present_truth
+    text: State the present truth; history lives in git.
+    for_doc_types: [anti_persona, feature, features, fr, glossary, gnfr, goal, journey, measurement, nf, persona, project, user_story]
+  - id: one_rule_per_item
+    text: Keep one rule in each item, and put several conditions in a nested list. Move the detail of a one-sentence paragraph with no ID to the section of the same doc that owns it, never into a sub-list.
+  - id: cite_at_item_end
+    text: Put a cite or an ownership note at the item's end.
+  - id: one_example
+    text: 'Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence''s cap.'
+  - id: condition_first
+    text: State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
+  - id: cite_by_link
+    text: Cite a rule another doc owns by a link to its item, never restate it.

@@ -444,6 +444,22 @@ void main() {
     });
   });
 
+  group('withoutTrailingLinkGroup', () {
+    test('drops the link group that closes the text and the space before', () {
+      expect(
+        withoutTrailingLinkGroup('`Account` ([domain:a](../DOMAIN.md)) '),
+        '`Account`',
+      );
+    });
+
+    test('keeps a link group that does not close the text', () {
+      expect(
+        withoutTrailingLinkGroup('Account ([a](b.md)) and more'),
+        'Account ([a](b.md)) and more',
+      );
+    });
+  });
+
   group('readLinkLabel', () {
     test('reads S<N>', () {
       final label = readLinkLabel('S1');
@@ -773,5 +789,26 @@ void main() {
 
       expect(itemKeyOf(heading, isScenario: true), 'Scenario 6a');
     });
+  });
+
+  group('proseTrimmedPath', () {
+    const cases = {
+      'a.md': 'a.md',
+      'a.md.': 'a.md',
+      'a.md;': 'a.md',
+      'a.md:': 'a.md',
+      'a.md:12': 'a.md',
+      'a.md:12:5': 'a.md',
+      'a.md:12.': 'a.md',
+      'a.md:x': 'a.md:x',
+      'a.md::1': 'a.md:',
+      ':1': '',
+      '': '',
+    };
+    for (final MapEntry(key: written, value: trimmed) in cases.entries) {
+      test('trims "$written" to "$trimmed"', () {
+        expect(proseTrimmedPath(written), trimmed);
+      });
+    }
   });
 }

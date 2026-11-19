@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
@@ -13,9 +12,11 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/marketing.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/yaml_key_line.dart';
 
 const _resultsDoc = 'specs/f01_login/results/RESULTS.md';
 const _positioningDoc = 'specs/marketing/POSITIONING.md';
@@ -26,8 +27,21 @@ const _storedStatement =
     'skills write the content outside the docs.';
 const _learningStatement = 'A learning edits the doc it corrects.';
 const _measurementsStatement =
-    "A campaign's results never go under `measurements/`, which keeps the "
+    "Keep a campaign's results out of `measurements/`, which holds the "
     "project goals' measurements alone.";
+
+/// The ids of the shared lines each guide prints, in print order: the
+/// `prd-core` lines that reach every doc type, then the pack's own lines.
+const _sharedLineIds = <String>[
+  ...everyTypeSharedLineIds,
+  'stable_facts_and_plan',
+  'learning_edits_doc',
+];
+
+PackManifest _manifest() => PackManifest.parse(
+  utf8.decode(shippedPackFiles['marketing/pack.yaml']!),
+  file: 'packs/marketing/pack.yaml',
+);
 
 /// One expected marketing doc type: its path, parent, and sections.
 final class _DocTypeSpec {
@@ -117,7 +131,7 @@ void main() {
   setUpAll(() async => set = await resolveMarketing());
 
   group('manifest', () {
-    test('marketing ships at 1.0.0 and extends prd-core', () {
+    test('marketing ships at 1.1.0 and extends prd-core', () {
       final bytes = shippedPackFiles['marketing/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -125,8 +139,24 @@ void main() {
         file: 'packs/marketing/pack.yaml',
       );
       expect(manifest.name, 'marketing');
-      expect(manifest.version.toString(), '1.0.0');
+      expect(manifest.version.toString(), '1.1.0');
       expect(manifest.extendsPack, 'prd-core');
+    });
+
+    test('ships stable_facts_and_plan, then learning_edits_doc, each naming '
+        'the eleven doc types, and no shared field', () {
+      final shared = _manifest().shared;
+      expect(
+        [for (final l in shared.lines) (l.id, l.text, l.disabled)],
+        [
+          ('stable_facts_and_plan', _storedStatement, false),
+          ('learning_edits_doc', _learningStatement, false),
+        ],
+      );
+      for (final line in shared.lines) {
+        expect(line.forDocTypes, marketingIds, reason: line.id);
+      }
+      expect(shared.fields, isEmpty);
     });
 
     test('outside its patterns folder the pack holds the manifest and the '
@@ -183,8 +213,7 @@ void main() {
       );
     });
 
-    test('a pin one version below fails as pack_pin_older naming the shipped '
-        'version', () async {
+    test('an older marketing pin points at the shipped version', () async {
       final project = await writeTree({
         '.specstone/config.yaml':
             'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
@@ -199,7 +228,7 @@ void main() {
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.packPinOlder)
-              .having((f) => f.message, 'message', contains('1.0.0')),
+              .having((f) => f.message, 'message', contains('1.1.0')),
         ),
       );
     });
@@ -250,13 +279,6 @@ void main() {
       }
     });
 
-    test('no guide carries a shared readability line', () {
-      for (final id in marketingIds) {
-        final description = prdCoreDocType(set, id).description;
-        expect(description, isNot(contains(citeNoteGuideLine)), reason: id);
-      }
-    });
-
     test('none sets per_target', () {
       for (final id in marketingIds) {
         expect(prdCoreDocType(set, id).isPerTarget, isFalse, reason: id);
@@ -280,25 +302,66 @@ void main() {
       expect(fieldOf(campaign, 'covers').root, PointerRoot.project);
     });
 
-    test('every description holds the two guide statements on one line each, '
-        'and campaign_results the measurements one', () {
+    test('guide campaign prints the five prd-core lines, then '
+        'stable_facts_and_plan and learning_edits_doc, and no code_root '
+        'line', () {
+      final campaign = prdCoreDocType(set, 'campaign');
+      expect(campaign.sharedLines.map((l) => l.id), _sharedLineIds);
+      final guide = campaign.renderGuide();
+      final starts = [
+        for (final line in campaign.sharedLines) guide.indexOf(line.text),
+      ];
+      expect(starts, everyElement(isNonNegative));
+      expect(starts, [...starts]..sort());
+      expect(guide, isNot(contains('code_root')));
+    });
+
+    test('each guide prints the prd-core lines, then the two marketing '
+        'lines', () {
+      for (final id in marketingIds) {
+        final type = prdCoreDocType(set, id);
+        expect(type.sharedLines.map((l) => l.id), _sharedLineIds, reason: id);
+        final guide = type.renderGuide();
+        for (final line in type.sharedLines) {
+          expect(guide, contains(line.text), reason: id);
+        }
+      }
+    });
+
+    test('no description restates a shared line that reaches its doc '
+        'type', () {
+      for (final id in marketingIds) {
+        final type = prdCoreDocType(set, id);
+        for (final description in descriptionsOf(type)) {
+          for (final line in type.sharedLines) {
+            expect(description ?? '', isNot(contains(line.text)), reason: id);
+          }
+        }
+      }
+    });
+
+    test('only the campaign_results description holds the measurements '
+        'line', () {
       for (final id in marketingIds) {
         final lines = prdCoreDocType(set, id).description!.split('\n');
-        expect(
-          lines.where((l) => l == _storedStatement),
-          hasLength(1),
-          reason: id,
-        );
-        expect(
-          lines.where((l) => l == _learningStatement),
-          hasLength(1),
-          reason: id,
-        );
         expect(
           lines.where((l) => l == _measurementsStatement),
           hasLength(id == 'campaign_results' ? 1 : 0),
           reason: id,
         );
+      }
+    });
+
+    test('no description or template holds a YAML key line', () {
+      for (final id in marketingIds) {
+        final type = prdCoreDocType(set, id);
+        final texts = [
+          ...descriptionsOf(type),
+          for (final section in type.sections) section.template,
+        ];
+        for (final text in texts) {
+          expectNoYamlKeyLine(text, reason: id);
+        }
       }
     });
 

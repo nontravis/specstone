@@ -34,6 +34,50 @@ const _sources = <String, String>{
   'Extole, Reward brand advocates': 'https://www.extole.com/blog/how-to-reward-brand-advocates-effectively-rewards-tiers-and-community-programs/',
 };
 
+/// Each pattern's items in file order, with the source titles each traces to.
+const _traces = <String, Map<String, List<String>>>{
+  'product_launch': {
+    'launch_goal': ['Anthropic marketing plugin, campaign-plan'],
+    'shared_positioning': ['marketingskills, product-marketing'],
+    'price_and_sales_model': ['HubSpot, GTM strategy'],
+    'owned_earned_paid': ['Anthropic marketing plugin, campaign-plan'],
+    'launch_window': ['HubSpot, GTM strategy'],
+    'metrics_per_channel': ['Amplitude, AARRR pirate metrics'],
+    'after_purchase': ['Ortto, Marketing funnel explained'],
+  },
+  'promotion': {
+    'offer_terms': ['Anthropic marketing plugin, campaign-plan'],
+    'time_box': ['Anthropic marketing plugin, campaign-plan'],
+    'sales_goal': ['Anthropic marketing plugin, campaign-plan'],
+    'send_calendar': ['Anthropic marketing plugin, campaign-plan'],
+    'cost_per_sale': ['HubSpot, GTM strategy'],
+    'revenue_and_use': ['Amplitude, AARRR pirate metrics'],
+    'metrics_per_channel': ['Amplitude, AARRR pirate metrics'],
+    'after_the_offer': ['Ortto, Marketing funnel explained'],
+    'budget_and_risks': ['Anthropic marketing plugin, campaign-plan'],
+  },
+  'referral': {
+    'program_type': ['marketingskills, product-marketing'],
+    'advocate_groups': ['marketingskills, product-marketing'],
+    'trigger_moments': ['Ortto, Marketing funnel explained'],
+    'share_mechanism': ['Amplitude, AARRR pirate metrics'],
+    'incentive_structure': ['Extole, Reward brand advocates'],
+    'reward_fit': ['Extole, Reward brand advocates'],
+    'reward_tiers': ['Extole, Reward brand advocates'],
+    'actions_beyond_referrals': ['Extole, Reward brand advocates'],
+    'referral_metrics': ['Amplitude, AARRR pirate metrics'],
+    'referred_first_use': ['Ortto, Marketing funnel explained'],
+  },
+  'retention': {
+    'retention_goal': ['Anthropic marketing plugin, campaign-plan'],
+    'lapse_definition': ['Ortto, Marketing funnel explained'],
+    'owned_channels': ['Anthropic marketing plugin, campaign-plan'],
+    'advocacy_path': ['Extole, Reward brand advocates'],
+    'feedback_loop': ['marketingskills, product-marketing'],
+    'cohort_retention': ['Amplitude, AARRR pirate metrics'],
+  },
+};
+
 const _maxItemChars = 160;
 const _minItems = 5;
 const _maxItems = 15;
@@ -84,6 +128,31 @@ void main() {
           expect(_sources[entry['title']], entry['url'], reason: '$entry');
         }
       });
+    }
+  });
+
+  test('each campaign pattern holds the trimmed item ids in order', () {
+    for (final MapEntry(key: id, value: traces) in _traces.entries) {
+      final items = (_fileOf(id)['items'] as YamlList).cast<YamlMap>();
+      expect(
+        items.map((i) => i['id']).toList(),
+        traces.keys.toList(),
+        reason: id,
+      );
+    }
+  });
+
+  test('every kept reference entry has an item that traces to it', () {
+    for (final MapEntry(key: id, value: traces) in _traces.entries) {
+      final titles = (_fileOf(id)['reference'] as YamlList)
+          .cast<YamlMap>()
+          .map((e) => e['title'])
+          .toSet();
+      for (final MapEntry(key: item, value: sources) in traces.entries) {
+        expect(sources, isNotEmpty, reason: '$id/$item');
+      }
+      final traced = traces.values.expand((t) => t).toSet();
+      expect(titles, traced, reason: id);
     }
   });
 

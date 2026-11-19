@@ -87,10 +87,11 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
    - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
      other targets.
-3. **Check**: run `specstone check` once, as
-   `{ specstone check 2>&1; echo "exit=$?"; } | grep -E 'approval_stale|^exit='`, and read only those lines. Exit 0 or
-   1 is a finished check: no `approval_stale` line means no doc is stale, and no finding is a stop. Any other exit is
-   an error, not findings: stop, name that exit under `Findings:`, and plan no target on a check you could not read.
+3. **Check**: run `specstone folder` once, then `specstone check --out "<folder>/reports/check.plan.<XXXXXX>.txt"`,
+   `<folder>` the path `specstone folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file
+   exists. Read its exit status, and search that file with `Grep` for `approval_stale` lines alone. Exit 0 or 1 is a
+   finished check: no `approval_stale` line means no doc is stale, and no finding is a stop. Any other exit is an
+   error, not findings: stop, name that exit under `Findings:`, and plan no target on a check you could not read.
    Match each `approval_stale` line to a doc by the file path a `==> ` header of a Ground saved bundle holds
    (`==> <name> (<type>) · <path> <==`).
 4. **Design document**: when given, read it whole for what changed and why; the docs, never the document, say what
@@ -130,14 +131,27 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      more than one way.
    - **Tests line**: a task that adds or moves a test for an FR writes out a step that sets that FR's `tests` line in
      its target's record: `specstone set implementation:<feature> --field tests`, with `--target <code target>` when
-     one is given. Right after it, in the same bullet, a step writes one Verification matrix row per edge case the test
-     proves, in that record's `verification_matrix` section (`specstone set implementation:<feature>#verification_matrix`,
-     with the same `--target`), as ``- <item> <edge case>: `<literal>` ``: the FR named relative to its feature, its
-     edge case ID, and the first literal of the test's name, with no fingerprint. A later step stamps each row with the
-     fingerprint `specstone check` prints for it once the test passes, never one you compute. A row whose edge case sits
-     in an FR carrying `draft: true` stays unstamped: the task names it as waiting on that FR's approval. A task that
-     writes a new test for a row the sync reported, because its test proves none of its edge case, also rewrites that
-     old row to the new test's literal and stamps it the same way, or removes it when a row of that literal already
+     one is given. Right after it, in the same bullet, steps write that record's Verification matrix rows, in its
+     `verification_matrix` section (`specstone set implementation:<feature>#verification_matrix`, with the same
+     `--target`), by the mode the top-level `verification_coverage` of `.specstone/config.yaml` names. `<item>` is the
+     FR named relative to its feature, `<literal>` the first literal of the test's name.
+     - **Off or `fr`, per-edge-case rows**: when the record holds rows ``- <item> <edge case>: …`` of the FR, write no
+       row, whatever the bullets below say; the step names `specstone migrate` for the Owner to run first.
+     - **Off** (absent, null, or `false`): no row; the `tests` line is all the task writes.
+     - **`fr`** (`true` or `fr`): the FR's one per-FR test row,
+       ``- <item>: `<literal>`[, `<literal>` ...][ <fingerprint>]``. No row: write ``- <item>: `<literal>` `` with no
+       fingerprint. A test row: append ``, `<literal>` `` and keep its fingerprint; one already holding the literal
+       stays unchanged. A skip row: replace it with ``- <item>: `<literal>` ``, no fingerprint, its reason dropped.
+     - **`edge_case`**: one row per edge case the test proves, ``- <item> <edge case>: `<literal>` ``, naming its
+       edge case ID, with no fingerprint; no row whose item, edge case, and literal already stand. A per-FR row of
+       the FR stays as written: the task's notes name its `matrix_row_malformed` for the Agent to rewrite.
+
+     A later step stamps each row this task wrote with no fingerprint, and each reported row, with the fingerprint
+     `check` prints for it once the test passes, never one you compute. A row of an FR carrying
+     `draft: true` stays unstamped: the task names it as waiting on that FR's approval. A task that writes a new test
+     for a row the sync reported, because its tests prove none of the FR's changed contract (under `edge_case`, none
+     of its edge case), also writes that row by the mode: under `fr`, the new literal into the FR's row as above;
+     under `edge_case`, the old row rewritten to the new test's literal, or removed when a row of that literal already
      stands. The sync writes no new `tests` line and no row for a new test.
 
    The plan's last task runs the `specstone-sync-sdd` skill with no path list; it builds no doc, so it carries no read
@@ -168,9 +182,9 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 
 ## Output Format
 
-With no `report`, run `specstone folder` once, after the Ground's calls or at a stop before them, `<folder>` the path
-`specstone folder` prints, and name your own `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `XXXXXX` six `a-z0-9`
-characters, picked again while that file exists; every round reuses it.
+`specstone folder` runs once, in Workflow step 3, or at a stop before it. With no `report`, name your own
+`<folder>/reports/plan-engineer.plan.<XXXXXX>.md` there, `XXXXXX` six `a-z0-9` characters, picked again while that
+file exists; every round reuses it.
 
 Read the `report` file with the host's file read before each write to it, in every round, not only the first; a
 missing file's read error is no stop. Write the report, the block below,
@@ -202,9 +216,9 @@ Findings: <items, or none>
 
 **DO:**
 
-- Run `specstone context` for the Ground, `specstone get` only after searching its saved files with `Grep`, and one
-  `specstone check`, read through its `approval_stale` lines and its exit code (Workflow step 3), `specstone folder`
-  once with no `report` (Output Format), and no other specstone command.
+- Run `specstone context` for the Ground, `specstone get` only after searching its saved files with `Grep`, one
+  `check` saved with `--out`, read through its exit status and its `approval_stale` lines (Workflow step 3),
+  `specstone folder` once (Workflow step 3), and no other specstone command.
 - Read code, instruction files, and library docs read-only; follow the plan skill.
 - Beyond the `report:` file, write only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.

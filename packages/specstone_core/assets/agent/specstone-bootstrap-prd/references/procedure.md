@@ -1,4 +1,4 @@
-Step 1, the gate, ran.
+Your batch's findings are in the `check:` file, else in your gate's file.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
 Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming canonicalization
@@ -10,14 +10,15 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 
 ## 2. One finding at a time
 
-Fix the first unhandled finding under `prds/` or `measurements/`, then rerun `specstone check`. Stop when each
-finding left goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an
-unanswered size finding.
+Fix the first unhandled finding of your batch, then rerun
+`specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` and search its file. Stop when each finding left
+goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an unanswered
+size finding.
 
 Write each fix as `../../specstone-expert-sdd/references/writes.md` says.
 
-Move every old statement to a home; never drop one on judgement. Where the old text lacks a value the guide needs,
-write `TBR — <why>` in its field or sub-field, never a value you propose. Ask the Owner only when no text bears on a
+Move every old statement to a home. Where the old text lacks a value the guide needs,
+write `TBR — <why>` in its place, never a value you propose. Ask the Owner only when no text bears on a
 whole section.
 
 | Finding | Fix |
@@ -66,15 +67,14 @@ its new doc. Name in step 6 each waiver and each mention in a section kept uncha
 3. Name the set in one line, `specstone delete <path> …`, quoting each path with a space.
 
 On a batch, delete nothing: hand that line to `specstone-bootstrap-prd`'s step 3.4.
-Else, run it through `specstone-expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
+Else, run it through `specstone-expert-sdd`'s Owner confirmation. Never run `git rm`.
 Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval
 
-`specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (the project, features, and
-gnfr docs): read each with `specstone get` and fill it with the Owner. Set a goal, glossary, or features doc's title to
-its guide's with `--title` when it differs. In the features doc, `set` an empty `## Features` header on the base `get` prints
-for it, run `specstone format` on it.
+`check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote: read each with `specstone get` and fill it with the Owner. Set a goal, glossary, or features doc's title to
+its guide's with `--title` when it differs. In the features doc, `set` an empty `## Features` header on the base `get` prints, then
+run `specstone format`.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding. Name

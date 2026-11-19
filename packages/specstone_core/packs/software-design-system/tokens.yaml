@@ -1,7 +1,6 @@
 id: tokens
 description: |-
   The tokens doc: the closed token list.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Tokens`, with no number.
 path: specs/design_system/foundations/TOKENS.md
 sections:
@@ -9,4 +8,4 @@ sections:
     header: Token list
     required: true
     description: |-
-      Write one table with the columns Token, Value, Role; list every token once, since the list is closed.
+      Write one table of Token, Value, Role; list every token once, since the list is closed.

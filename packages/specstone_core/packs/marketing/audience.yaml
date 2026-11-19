@@ -1,16 +1,14 @@
 id: audience
 description: |-
-  The audience doc: each audience segment the project's marketing speaks to.
+  The audience doc: each segment the project's marketing speaks to.
   Title it `# Audience`, with no number.
   Link each segment's `persona` doc and restate none of it; persona and goals stay in the PRD.
-  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
-  A learning edits the doc it corrects.
 path: specs/marketing/AUDIENCE.md
 sections:
   - id: segments
     header: Segments
     description: |-
-      Write one item per audience segment, linking its `persona` doc.
+      Write one item per segment.
 reference:
   - title: marketingskills, product-marketing
     url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

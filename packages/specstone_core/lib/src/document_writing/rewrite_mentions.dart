@@ -3,6 +3,8 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show nameMentionsInFile;
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show proseTrimmedPath;
 import 'package:specstone_core/src/document_writing/models/counted_rewrite.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
@@ -14,14 +16,8 @@ import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 
-/// A closing `.`, `,`, `;`, or `:` that prose adds after a path.
-final _closingMark = RegExp(r'[.,;:]$');
-
 /// A file extension: a `.` and letters or digits that end a path.
 final _extension = RegExp(r'\.[A-Za-z0-9]+$');
-
-/// A line, or line and column, suffix such as `:12` or `:12:5`.
-final _lineSuffix = RegExp(r'(?::\d+)+$');
 
 /// Returns [lfText] with each path mention set to the path [moves] leave its
 /// file at, with the number of mentions changed, or null when none changes.
@@ -148,9 +144,7 @@ _PathEdit? _editFor(
 /// reader could mean.
 String? _pathOf(String token) {
   final hash = token.indexOf('#');
-  final path = (hash < 0 ? token : token.substring(0, hash))
-      .replaceFirst(_closingMark, '')
-      .replaceFirst(_lineSuffix, '');
+  final path = proseTrimmedPath(hash < 0 ? token : token.substring(0, hash));
   // Dots and slashes alone (`...`, `../..`) name an ancestor folder that
   // exists, so an ellipsis would be rewritten when its doc moves.
   final named = path
