@@ -52,6 +52,10 @@ void main() {
 
   String descriptionOf(String id) => prdCoreDocType(set, id).description ?? '';
 
+  List<String> sharedIdsOf(String id) => [
+    for (final line in prdCoreDocType(set, id).sharedLines) line.id,
+  ];
+
   test('the seven per-feature descriptions title the doc with the feature '
       'name and no number', () {
     for (final MapEntry(key: id, value: word) in _featureTitles.entries) {
@@ -91,14 +95,15 @@ void main() {
     }
   });
 
-  test('every spec doc type description says to never write status and where '
-      'code existence lives', () {
+  test('every spec doc type guide prints the shared no-status line', () {
     for (final id in softwareTechIds) {
+      final type = prdCoreDocType(set, id);
+      expect(sharedIdsOf(id), contains('no_status'), reason: id);
       expect(
-        descriptionOf(id),
+        type.renderGuide(),
         contains(
-          'Never write `status:`; whether code exists in a target lives in '
-          "that target's record, its `implementation` docs, only.",
+          "Never write `status:`; only a target's record, its `implementation` "
+          'docs, says whether code exists in that target.',
         ),
         reason: id,
       );
@@ -210,60 +215,137 @@ void main() {
     );
   });
 
-  test('every spec doc type description says to cite another doc rule by a '
-      'link and never restate it', () {
+  test('every spec doc type guide prints the spec cite line right after the '
+      'cite rule', () {
     for (final id in softwareTechIds) {
+      final ids = sharedIdsOf(id);
       expect(
-        descriptionOf(id),
+        ids.indexOf('cite_spec_docs'),
+        ids.indexOf('cite_by_link') + 1,
+        reason: id,
+      );
+      expect(
+        prdCoreDocType(set, id).renderGuide(),
         contains(
-          'Cite a rule another doc owns by a link to the item that holds it, '
-          'never restate it.\n'
-          'This includes a rule of a project spec doc or of an ancestor '
-          "feature's spec doc.",
+          'Cite a rule another doc owns by a link to its item, never restate '
+          "it.\nCite a rule of a project spec doc or an ancestor feature's "
+          'spec doc by a link to its item, never restate it.',
         ),
         reason: id,
       );
     }
   });
 
-  test('the six per-feature types and topic ask for an Overrides line and its '
-      'entry', () {
-    for (final id in [
-      'architecture',
-      'domain',
-      'api',
-      'integration',
-      'error',
-      'auth',
-      'topic',
+  test('project spec doc types print the every-feature and spec-folder lines, '
+      'and the six per-feature types print the feature-folder line', () {
+    for (final id in softwareTechIds) {
+      final ids = sharedIdsOf(id);
+      final isProject = projectSpecDocBases.containsKey(id);
+      final isPerFeature = projectSpecDocBases.containsValue(id);
+      expect(ids.contains('project_rules_only'), isProject, reason: id);
+      expect(ids.contains('one_file_per_spec_folder'), isProject, reason: id);
+      expect(
+        ids.contains('one_file_per_feature_folder'),
+        isPerFeature,
+        reason: id,
+      );
+    }
+    expect(
+      prdCoreDocType(set, 'project_domain').renderGuide(),
+      allOf(
+        contains(
+          'Hold only rules every feature uses; write any other rule in a '
+          'per-feature spec doc, or in a `topic` when two or more features '
+          'share it.',
+        ),
+        contains('Keep one file per spec folder.'),
+      ),
+    );
+    expect(
+      prdCoreDocType(set, 'domain').renderGuide(),
+      contains('Keep one file per feature spec folder.'),
+    );
+  });
+
+  test('the six per-feature types print an Overrides line, and topic keeps its '
+      'own', () {
+    for (final (id, line) in [
+      ('api', 'overrides_line'),
+      ('domain', 'overrides_line'),
+      ('integration', 'overrides_line'),
+      ('architecture', 'overrides_line_table'),
+      ('auth', 'overrides_line_table'),
+      ('error', 'overrides_line_table'),
     ]) {
-      final description = descriptionOf(id);
-      expect(description, contains('`Overrides:` line'), reason: id);
+      final ids = sharedIdsOf(id);
+      expect(ids, contains(line), reason: id);
       expect(
-        description,
-        contains('record its `overrides` entry.'),
+        ids.where((i) => i.startsWith('overrides_line')),
+        hasLength(1),
+        reason: id,
+      );
+    }
+    for (final id in projectSpecDocBases.keys) {
+      expect(
+        sharedIdsOf(id).where((i) => i.startsWith('overrides_line')),
+        isEmpty,
+        reason: id,
+      );
+    }
+    expect(
+      prdCoreDocType(set, 'auth').renderGuide(),
+      contains(
+        'or right under its table when the item is a table row, write '
+        '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
+        '<why>`, its how-clause naming the row, and record its `overrides` '
+        'entry.',
+      ),
+    );
+    expect(sharedIdsOf('topic'), isNot(contains('overrides_line')));
+    expect(
+      descriptionOf('topic'),
+      allOf(
+        contains('write `Overrides: [<ID>]'),
+        contains('record its `overrides` entry'),
+      ),
+    );
+  });
+
+  test('every spec doc type guide prints the readability lines after its '
+      'description', () {
+    for (final id in softwareTechIds) {
+      final type = prdCoreDocType(set, id);
+      expect(sharedIdsOf(id).take(4), [
+        'one_rule_per_item',
+        'cite_at_item_end',
+        'one_example',
+        'condition_first',
+      ], reason: id);
+      final guide = type.renderGuide();
+      expect(
+        guide.indexOf(type.sharedLines.first.text),
+        greaterThan(guide.indexOf(type.description!.split('\n').last)),
         reason: id,
       );
     }
   });
 
-  test('every spec doc type description adds the four readability lines', () {
+  test('no description of a spec doc type holds a shared line', () {
+    final texts = {
+      for (final type in set.docTypes)
+        for (final line in type.sharedLines) line.text,
+    };
     for (final id in softwareTechIds) {
-      expect(
-        descriptionOf(id),
-        contains(
-          'Keep one rule in each item, and put several conditions in a nested '
-          'list. A one-sentence paragraph with no ID moves its detail to the '
-          'section of the same doc that owns it, never into a sub-list.\n'
-          "Put a cite or an ownership note at the item's end.\n"
-          'Give a non-obvious rule one example inside its item, as a `such '
-          'as` clause or one "For example," sentence, within the sentence\'s '
-          'cap.\n'
-          'State the condition first, then the rule, one clause chain per '
-          'sentence; split a sentence whose clauses nest.',
-        ),
-        reason: id,
-      );
+      final type = prdCoreDocType(set, id);
+      for (final description in [
+        type.description,
+        for (final field in type.fields) field.description,
+        for (final section in type.sections) section.description,
+      ]) {
+        for (final text in texts) {
+          expect(description ?? '', isNot(contains(text)), reason: id);
+        }
+      }
     }
   });
 }

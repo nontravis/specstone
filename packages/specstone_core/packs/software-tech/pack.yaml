@@ -18,3 +18,39 @@ migrations:
           from: specs/f{nn}_{slug}/IMPLEMENTATION.md
           to: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
       - restamp_code_fingerprints: {}
+shared_lines:
+  - id: cite_spec_docs
+    text: 'Cite a rule of a project spec doc or an ancestor feature''s spec doc by a link to its item, never restate it.'
+    for_doc_types: [api, architecture, auth, domain, error, implementation, integration, project_api, project_architecture, project_auth, project_domain, project_error, project_integration, tech_stack, topic]
+  - id: no_status
+    text: 'Never write `status:`; only a target''s record, its `implementation` docs, says whether code exists in that target.'
+    for_doc_types: [api, architecture, auth, domain, error, implementation, integration, project_api, project_architecture, project_auth, project_domain, project_error, project_integration, tech_stack, topic]
+  - id: project_rules_only
+    text: Hold only rules every feature uses; write any other rule in a per-feature spec doc, or in a `topic` when two or more features share it.
+    for_doc_types: [project_api, project_architecture, project_auth, project_domain, project_error, project_integration]
+  - id: one_file_per_feature_folder
+    text: Keep one file per feature spec folder.
+    for_doc_types: [api, architecture, auth, domain, error, integration]
+  - id: one_file_per_spec_folder
+    text: Keep one file per spec folder.
+    for_doc_types: [project_api, project_architecture, project_auth, project_domain, project_error, project_integration]
+  - id: overrides_line
+    text: 'Right after an item that departs from a rule above, write `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>` and record its `overrides` entry.'
+    for_doc_types: [api, domain, integration]
+  - id: overrides_line_table
+    text: 'Right after an item that departs from a rule above, or right under its table when the item is a table row, write `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>`, its how-clause naming the row, and record its `overrides` entry.'
+    for_doc_types: [architecture, auth, error]
+shared_fields:
+  - id: overrides
+    type: string
+    list: true
+    for_doc_types: [api, architecture, auth, domain, error, integration, topic]
+    description: |-
+      Records one `<doc type>:<name>#<ID> <fingerprint>` entry per item the doc's `Overrides:` lines link, such as `project_domain:domain#INV-3 3f9a1c0b7e2d`; it counts once the Owner approves the doc.
+  - id: tasks
+    type: task_ref
+    list: true
+    for_doc_types: [api, architecture, auth, domain, error, integration, tech_stack, topic]
+    description: |-
+      Lists the tasks tracking the doc's work, each `<item>:<task>`, or `<task>` alone for the whole doc, such as `INV-4:ENG-42`.
+      `specstone-sync-sdd` removes an entry once a synced commit closes its task with a closing word, such as `Closes ENG-42`; put that word in the commit that finishes the task's work.

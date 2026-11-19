@@ -3,18 +3,9 @@ extends: architecture
 description: |-
   The project's architecture: the components, calls, and deployment that every feature uses.
   Title it `# <Project name> architecture`, such as `# Specstone architecture`, with no number.
-  Keep one file per spec folder.
-  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
-  Hold only rules every feature uses; write any other rule in a per-feature spec doc, or in a `topic` when two or more features share it.
-  Write no code samples; this doc describes structure, and the implementation belongs in code.
+  Write no code samples; the doc describes structure, and code holds the implementation.
   Write one rule per ID: one Components row per component.
   The project's DOMAIN cites the project's ARCHITECTURE by a section link, such as `[architecture](ARCHITECTURE.md#components)`.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: specs/ARCHITECTURE.md
 parent:
 bundle: [implement, design]
@@ -26,18 +17,6 @@ fields:
 sections:
   - id: deployment
     description: |-
-      Write this section only when every feature runs somewhere the tech stack doc does not say.
+      Write it only when every feature runs somewhere the tech stack doc does not say.
       Write a table of where each component runs, such as process, container, edge, or browser, with a one-clause Why per row.
       Write one table per environment only when the environments differ.
-  - id: rollout
-    description: |-
-      Omit this section when the project has no rollout concern.
-      Write a table with the columns Stage, Scope, Gate, Rollback.
-      Write the Gate as a signal and a threshold, and the Rollback as a trigger and an action.
-      Add expand, migrate, and contract steps for a breaking change.
-  - id: observability
-    description: |-
-      Omit this section when the project has no observability concern.
-      Write a table with the columns Signal, SLI, SLO target, Alert on.
-      Write the SLI as how the signal is measured, and Alert on as a symptom, never a cause.
-      Add the log channels as `<name> - <events>`.

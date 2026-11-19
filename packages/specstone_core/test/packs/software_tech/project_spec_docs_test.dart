@@ -1,10 +1,15 @@
+import 'dart:convert';
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
@@ -358,19 +363,41 @@ void main() {
     expect(rewritten, greaterThan(0));
   });
 
-  test('project, topic, and per-feature descriptions place every-feature, '
-      'shared, and one-feature rules', () {
-    for (final id in _projectTypes.keys) {
+  test('each project spec doc type disables the shared overrides field its '
+      'base holds and keeps the shared tasks field', () {
+    final shared = PackManifest.parse(
+      utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+      file: 'packs/software-tech/pack.yaml',
+    ).shared.fields;
+    final overrides = shared.singleWhere((f) => f.id == 'overrides');
+    final tasks = shared.singleWhere((f) => f.id == 'tasks');
+    for (final MapEntry(key: id, value: project) in _projectTypes.entries) {
+      final layer = loadYaml(
+        utf8.decode(shippedPackFiles['software-tech/$id.yaml']!),
+      ) as YamlMap;
       expect(
-        prdCoreDocType(set, id).description,
-        contains(
-          'Hold only rules every feature uses; write any other rule in a '
-          'per-feature spec doc, or in a `topic` when two or more features '
-          'share it.',
-        ),
+        [
+          for (final field in layer['fields'] as YamlList)
+            if ((field as YamlMap)['id'] == 'overrides') field['disabled'],
+        ],
+        [true],
+        reason: id,
+      );
+      expect(overrides.forDocTypes, contains(project.base), reason: id);
+      expect(overrides.forDocTypes, isNot(contains(id)), reason: id);
+      expect(tasks.forDocTypes, isNot(contains(id)), reason: id);
+      final fields = prdCoreDocType(set, id).fields;
+      expect(fields.any((f) => f.id == 'overrides'), isFalse, reason: id);
+      expect(
+        fields.singleWhere((f) => f.id == 'tasks').type,
+        FieldType.taskRef,
         reason: id,
       );
     }
+  });
+
+  test('project, topic, and per-feature descriptions place every-feature, '
+      'shared, and one-feature rules', () {
     expect(
       prdCoreDocType(set, 'topic').description,
       contains(
@@ -382,8 +409,8 @@ void main() {
       expect(
         prdCoreDocType(set, project.base).description,
         contains(
-          "This doc holds one feature's spec; a rule every feature uses goes "
-          "to the project's",
+          "Hold one feature's spec; put a rule every feature uses in the "
+          "project's",
         ),
         reason: project.base,
       );
