@@ -34,6 +34,7 @@ import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/consistency_check/record_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/repeat_listing.dart';
+import 'package:specstone_core/src/consistency_check/retrim_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/shape_count_rules.dart';
 import 'package:specstone_core/src/consistency_check/source_rules.dart';
@@ -105,6 +106,7 @@ Future<CheckReport> runCheck(
     }
     findings
       ..addAll(checkFrontmatter(context, doc))
+      ..addAll(checkRetrimMarks(context, doc))
       ..addAll(staleApproval(context, doc))
       ..addAll(checkNesting(context, doc))
       ..addAll(checkSections(context, doc))
