@@ -10,8 +10,6 @@ const List<String> _contractSectionKeys = [
   edgeCasesSectionKey,
 ];
 
-final _headingMarks = RegExp(r'^#+\s*');
-
 /// The sections of an FR a per-FR matrix row records its fingerprint against.
 final class ContractBlock {
   const new({required this.text, required this.headings});
@@ -34,15 +32,12 @@ ContractBlock? contractBlockOf(CheckContext context, IndexedDoc fr) {
     for (final key in _contractSectionKeys) ?context.heldIndexOf(fr, key),
   ]..sort();
   if (held.isEmpty) return null;
-  final sections = [
-    for (final index in held) context.contentOf(fr).sections[index],
-  ];
+  final sections = context.contentOf(fr).sections;
   return ContractBlock(
-    text: [for (final section in sections) upstreamText(section.text)]
-        .join('\n'),
+    text: [for (final i in held) upstreamText(sections[i].text)].join('\n'),
     headings: [
-      for (final section in sections)
-        section.headerLine.replaceFirst(_headingMarks, '').trim(),
+      for (final i in held)
+        context.templateSectionAt(fr, i)?.header ?? sections[i].key,
     ],
   );
 }

@@ -179,7 +179,7 @@ final class _MatrixWalk {
                 'row per FR'
           : 'per-FR row under verification_coverage edge_case; write one row '
                 'per edge case',
-      waitsFor: readsFr ? WaitsFor.owner : WaitsFor.agent,
+      waitsFor: refusedFormRowWait(modeReadsFr: readsFr),
       keys: {'row': _lineOf(row)},
     );
   }

@@ -641,8 +641,8 @@ _RowLink? _edgeCaseRowLink(
 
 /// Whether any link [doc] tracks is `suspect`.
 ///
-/// A record holds a `suspect` link when a row's fingerprint differs from its
-/// edge case's.
+/// A record holds a `suspect` link when a row's fingerprint differs from the
+/// block it records: its FR's contract block, or its edge case.
 bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
   if (_rowLinksOf(context, doc).any((link) => link.isSuspect)) return true;
   if (_entryKeysOf(context, doc).isEmpty) return false;

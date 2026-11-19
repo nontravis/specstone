@@ -43,6 +43,10 @@ String _domain(List<String> items) =>
 
 String _inv(int number) => '- **INV-$number** Rule $number holds.';
 
+/// The config that reads the per-edge-case rows the row projects hold.
+String _edgeCaseConfig() =>
+    '${shippedPinsConfig()}verification_coverage: edge_case\n';
+
 Future<Directory> _project({
   List<String> shop = const [],
   List<String> cart = const [],
@@ -1331,6 +1335,7 @@ void main() {
 
     Future<Directory> project() => writeNestedProject(
       extra: {
+        '.specstone/config.yaml': _edgeCaseConfig(),
         ...nestedRecords(),
         'docs/$cartAddFr': fr([1, 2]),
         'docs/$dropFr': fr([1]),
@@ -1400,6 +1405,7 @@ void main() {
         bool holdsPayRecord = true,
       }) => writeNestedProject(
         extra: {
+          '.specstone/config.yaml': _edgeCaseConfig(),
           ...nestedRecords()
             ..removeWhere((path, _) => !holdsPayRecord && path == payRecord),
           'docs/$cartAddFr': fr([1, 2]),
