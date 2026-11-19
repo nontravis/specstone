@@ -97,6 +97,7 @@ Future<Directory> _campaignProject(
 ///
 /// Returns the project folder. [docs] replaces or adds a project file.
 Future<Directory> _outsideRootProject({
+  String? config,
   Map<String, String> docs = const {},
   Map<String, String> outside = const {},
   Set<String> without = const {},
@@ -975,45 +976,106 @@ void main() {
       expect(_of(report, FindingKind.codeSuspect), ['$skillDoc: $skillFile']);
     });
 
-    test('with two targets covers no target code, so a skill file under a '
-        'code root stays code_uncovered', () async {
-      const skillUnderRoot = 'skills/review/SKILL.md';
-      final project = await _twin(
-        extra: {
-          '.specstone/config.yaml':
-              '${skillPinsConfig()}targets:\n  flutter:\n    code_root: .\n'
-              '  jaspr:\n    code_root: jaspr_ws\n',
-          'docs/$_flutterTech': _tech(['skills/']),
-          ...skillDocFile([skillUnderRoot]),
-          skillUnderRoot: skillText,
-        },
-      );
+    group(
+      'a project-root covers entry covers a skill file under a code root',
+      () {
+        const skillUnderRoot = 'skills/review/SKILL.md';
 
-      final report = await _run(project);
+        test('with one target', () async {
+          final report = await checkOf(
+            await writeCheckProject(
+              extra: {
+                '.specstone/config.yaml': skillPinsConfig(),
+                ...doc(
+                  techStack,
+                  '  - app/lib/\n',
+                  '  - app/lib/\n  - skills/\n',
+                ),
+                ...skillDocFile([skillUnderRoot]),
+                skillUnderRoot: skillText,
+              },
+            ),
+          );
 
-      expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
-      expect(_of(report, FindingKind.codeUncovered), [
-        '$_flutterTech: $skillUnderRoot',
-      ]);
-    });
+          expect(_of(report, FindingKind.codeUncovered), isEmpty);
+        });
 
-    test('covers no target code, so a skill file under a code root stays '
+        test('with two targets', () async {
+          final project = await _twin(
+            extra: {
+              '.specstone/config.yaml':
+                  '${skillPinsConfig()}targets:\n  flutter:\n    code_root: .\n'
+                  '  jaspr:\n    code_root: jaspr_ws\n',
+              'docs/$_flutterTech': _tech(['skills/']),
+              ...skillDocFile([skillUnderRoot]),
+              skillUnderRoot: skillText,
+            },
+          );
+
+          final report = await _run(project);
+
+          expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
+          expect(_of(report, FindingKind.codeUncovered), isEmpty);
+        });
+      },
+    );
+
+    test('a file under the code root no entry of either kind reaches stays '
         'code_uncovered', () async {
-      const skillUnderRoot = 'skills/review/SKILL.md';
+      const reached = 'skills/review/SKILL.md';
+      const other = 'skills/other/SKILL.md';
       final report = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/config.yaml': skillPinsConfig(),
             ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
-            ...skillDocFile([skillUnderRoot]),
-            skillUnderRoot: skillText,
+            ...skillDocFile([reached]),
+            reached: skillText,
+            other: skillText,
           },
         ),
       );
 
+      expect(_of(report, FindingKind.codeUncovered), ['$techStack: $other']);
+    });
+
+    test('a project-root entry never reaches a code root outside the '
+        'project', () async {
+      const skillUnderRoot = 'skills/review/SKILL.md';
+      final project = await _outsideRootProject(
+        config: '${skillPinsConfig()}code_root: ../stratum_ui/example\n',
+        docs: {
+          ...doc(techStack, '  - app/lib/\n', '  - skills/\n'),
+          ...skillDocFile([skillUnderRoot]),
+          skillUnderRoot: skillText,
+        },
+        outside: {skillUnderRoot: skillText},
+        without: {loginRecord},
+      );
+
+      final report = await _run(project);
+
       expect(_of(report, FindingKind.codeUncovered), [
         '$techStack: $skillUnderRoot',
       ]);
+    });
+
+    test('a project-root entry needs whole segments to match', () async {
+      const entry = 'skills/rev';
+      const longer = 'skills/review/SKILL.md';
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': skillPinsConfig(),
+            ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
+            ...skillDocFile([entry]),
+            entry: skillText,
+            longer: skillText,
+          },
+        ),
+      );
+
+      expect(_of(report, FindingKind.codeUncovered), ['$techStack: $longer']);
     });
   });
 

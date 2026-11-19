@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart' show pathInside;
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
@@ -202,8 +203,8 @@ Iterable<Finding> _missingPaths(
 /// of several targets.
 ///
 /// One finding per doc, at the line of the first such key; its paths count for
-/// no target. A `root: project` field resolves from the project root, so its
-/// entries give none.
+/// no target. A `root: project` field resolves from the project root and covers
+/// code there, so its entries give none.
 Iterable<Finding> _sharedDocPaths(
   CheckContext context,
   IndexedDoc doc,
@@ -230,7 +231,11 @@ Iterable<Finding> _sharedDocPaths(
 }
 
 /// Returns a `code_uncovered` finding for each code file no `covers` entry
-/// of the same target reaches.
+/// reaches.
+///
+/// A code-root entry of the same target reaches a file by its code-root path.
+/// A `root: project` entry of any doc reaches it by its project-root path, and
+/// never one under a code root outside the project root.
 ///
 /// Each code root of a target's doc that defines `code` is listed without
 /// following links and without reading a file. A file under two roots is
@@ -241,12 +246,14 @@ Iterable<Finding> uncoveredCode(
   CheckContext context,
   ImplementedWork work,
 ) sync* {
+  final projectCovers = _projectCoversOf(context);
   for (final target in work.targets) {
     final docs = [
       for (final doc in context.index.docs)
         if (work.targetOf(doc) == target) doc,
     ];
     final covers = _coversOf(context, docs);
+    final projectPrefix = _projectPrefixOf(context, target);
     final nested = context.nestedRootsOf(target);
     final reported = <String>{};
     for (final doc in docs) {
@@ -264,7 +271,11 @@ Iterable<Finding> uncoveredCode(
           ),
         );
         for (final path in paths) {
-          if (_isCovered(covers, path) || !reported.add(path)) continue;
+          if (_isCovered(covers, path) ||
+              _isCoveredFromProject(projectCovers, projectPrefix, path) ||
+              !reported.add(path)) {
+            continue;
+          }
           yield context.finding(
             doc,
             FindingKind.codeUncovered,
@@ -283,7 +294,7 @@ Iterable<Finding> uncoveredCode(
 /// Returns every code-root `covers` entry of the typed [docs] in
 /// [normalCodeEntry]'s form, the form the lister gives its paths in.
 ///
-/// A `root: project` entry covers no target's code, so none is returned.
+/// A `root: project` entry is read by [_projectCoversOf].
 List<String> _coversOf(CheckContext context, List<IndexedDoc> docs) => [
   for (final doc in docs)
     for (final field in coversFieldsOf(context.typeOf(doc)))
@@ -293,14 +304,46 @@ List<String> _coversOf(CheckContext context, List<IndexedDoc> docs) => [
           if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
 ];
 
+/// Returns every `root: project` `covers` entry of every typed doc of the
+/// project in [normalCodeEntry]'s form.
+///
+/// A doc of no target counts: such an entry belongs to the project root, not to
+/// a target.
+List<String> _projectCoversOf(CheckContext context) => [
+  for (final doc in context.index.docs)
+    for (final field in coversFieldsOf(context.typeOf(doc)))
+      if (readsFromProjectRoot(field))
+        for (final YamlEntry(:value)
+            in context.linesOf(doc).entriesOf(field.id))
+          if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
+];
+
+/// Returns the path of [target]'s code root from the project root, `''` for
+/// the project root itself; null when the code root lies outside it.
+String? _projectPrefixOf(CheckContext context, CodeTarget target) {
+  final project = context.projectRoot.path;
+  final root = context.codeRootOf(target).path;
+  return root == project ? '' : pathInside(project, root);
+}
+
+/// Whether a `root: project` entry of [projectCovers] reaches [path], a path
+/// from the code root that lies [projectPrefix] below the project root.
+bool _isCoveredFromProject(
+  List<String> projectCovers,
+  String? projectPrefix,
+  String path,
+) {
+  if (projectPrefix == null) return false;
+  final fromProject = projectPrefix.isEmpty
+      ? path
+      : '$projectPrefix$_separator$path';
+  return projectCovers.any((entry) => entryReaches(entry, fromProject));
+}
+
 /// Whether an entry equals [path], names a folder that holds it, or names
 /// the code root itself.
-///
-/// Matching is by path segment: `lib/src` does not reach `lib/srcx/a.dart`.
-bool _isCovered(List<String> covers, String path) => covers.any(
-  (entry) =>
-      entry.isEmpty || path == entry || path.startsWith('$entry$_separator'),
-);
+bool _isCovered(List<String> covers, String path) =>
+    covers.any((entry) => entryReaches(entry, path));
 
 /// Whether [entry], in [normalCodeEntry]'s form, is a file or a folder from
 /// [base].
