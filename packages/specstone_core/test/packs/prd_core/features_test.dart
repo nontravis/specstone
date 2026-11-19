@@ -38,6 +38,16 @@ void main() {
     expect(features.description, isNot(contains('three sections')));
   });
 
+  test('every prd-core doc type sets the shared 400-line and 20000-char '
+      'lint caps', () async {
+    final set = await resolvePrdCore();
+    expect(set.docTypes, hasLength(14));
+    for (final docType in set.docTypes) {
+      expect(docType.lint.maxLines, 400, reason: docType.id);
+      expect(docType.lint.maxChars, 20000, reason: docType.id);
+    }
+  });
+
   test('the Features section holds a generated block with no template', () {
     final section = sectionOf(features, 'features');
     expect(section.description, contains('generated block'));
