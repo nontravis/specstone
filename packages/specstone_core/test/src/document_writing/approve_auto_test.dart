@@ -400,7 +400,7 @@ void main() {
     addTearDown(other.close);
     Object? duringCheck;
 
-    await _approveAuto(
+    final answer = await _approveAuto(
       root,
       _call(root, noAudit: true),
       runner: MermaidNodeRun(
@@ -415,6 +415,7 @@ void main() {
       ),
     );
 
+    expect(answer.text, 'mode: auto\napproved $_story\napproved $_fr\n');
     expect(duringCheck, IndexFaultCode.indexBusy);
     final raw = sqlite3.open('${root.path}/.specstone/index.sqlite');
     addTearDown(raw.close);
@@ -422,6 +423,25 @@ void main() {
       raw.select('SELECT count(*) AS n FROM diagram_parses').single['n'],
       1,
     );
+  });
+
+  test("carries the check's warnings into the answer", () async {
+    final root = await _draftsProject(
+      extra: check.edit(check.loginArchitecture, [
+        ('One box.', '```mermaid\nsequenceDiagram\n  A->>B: ok\n```'),
+      ]),
+    );
+
+    final answer = await _approveAuto(
+      root,
+      _call(root, noAudit: true),
+      runner: MermaidNodeRun(
+        start: (_) => throw const ProcessException('node', [], 'gone', 2),
+      ),
+    );
+
+    expect(answer.text, 'mode: auto\napproved $_story\napproved $_fr\n');
+    expect(answer.warnings, ['Mermaid parse skipped: node not found']);
   });
 }
 

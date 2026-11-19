@@ -24,19 +24,23 @@ String _unreadable(String path, String os) => 'report $path unreadable: $os';
 const _noAuditReason = 'no audit report names it';
 
 /// The line ending the report text of the running test is written with.
-String Function(String) _lineEnding = (text) => text;
+String Function(String) _lineEnding = _lf;
+
+String _lf(String text) => text;
 
 String _crlf(String text) =>
     text.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
 
-/// Runs [body] with LF report text, then again with CRLF report text.
-void _reportTest(String name, void Function() body) => test(name, () {
-  addTearDown(() => _lineEnding = (text) => text);
-  for (final ending in <String Function(String)>[(text) => text, _crlf]) {
-    _lineEnding = ending;
-    body();
+/// Registers [body] as two tests, one with LF and one with CRLF report text.
+void _reportTest(String name, void Function() body) {
+  for (final (label, ending) in [('LF', _lf), ('CRLF', _crlf)]) {
+    test('$name ($label)', () {
+      _lineEnding = ending;
+      addTearDown(() => _lineEnding = _lf);
+      body();
+    });
   }
-});
+}
 
 ReportFile _file(String text, {String path = 'reports/audit1.md'}) =>
     ReportFile(path: path, text: _lineEnding(text));

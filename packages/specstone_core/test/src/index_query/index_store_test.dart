@@ -321,6 +321,43 @@ void main() {
         });
       },
     );
+    test('a nested write that loses the outer write fails the outer one, '
+        'and no later write lands', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      // RAISE(ROLLBACK) ends the whole transaction, as SQLITE_FULL may.
+      sqlite3.open(file(r, indexFilePath).path)
+        ..execute(
+          'CREATE TRIGGER lose_hold BEFORE INSERT ON docs '
+          "WHEN NEW.doc_path = 'X.md' "
+          "BEGIN SELECT RAISE(ROLLBACK, 'lost'); END",
+        )
+        ..close();
+      void loseHoldThenWrite() {
+        store.putDoc(parsed('A.md', '# A\n'));
+        try {
+          store.write(() => store.putDoc(parsed('X.md', '# X\n')));
+        } on IndexFault {
+          // A caller that reads a failed nested write as not stored.
+        } on SqliteException {
+          // The same caller, for an error the store leaves unmapped.
+        }
+        store.putDoc(parsed('B.md', '# B\n'));
+      }
+
+      final lost = isA<IndexFault>().having(
+        (f) => f.code,
+        'code',
+        IndexFaultCode.indexNotWritable,
+      );
+      expect(() => store.write(loseHoldThenWrite), throwsA(lost));
+      await expectLater(
+        store.writeAsync(() async => loseHoldThenWrite()),
+        throwsA(lost),
+      );
+      expect(storedPaths(store), isEmpty);
+    });
     test(
       'a read-only .specstone/.gitignore at a full rebuild is index_not_writable, exit 73, and leaves the index and the file as they were',
       skip: unreadablePathSkipReason(),

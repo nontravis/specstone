@@ -63,13 +63,18 @@ Future<ReadAnswer> approveAuto(
   if (drafts.firstOrNull case final first?) requireTrusted(session, first);
   final ApproveMode(:mode, :warnings) = approveModeOf(call.approveModeVariable);
   final addresses = [for (final doc in drafts) session.index.addressOf(doc)];
-  final verdicts = mode == _autoMode
+  final judgment = mode == _autoMode
       ? await _judgeAndWrite(session, call, drafts, addresses, mermaidRunner)
-      : [
-          for (final (at, doc) in drafts.indexed)
-            _Verdict(doc.docPath, addresses[at], _askModeReason),
-        ];
-  return _answerOf(mode, verdicts, warnings);
+      : _Judgment(
+          verdicts: [
+            for (final (at, doc) in drafts.indexed)
+              _Verdict(doc.docPath, addresses[at], _askModeReason),
+          ],
+        );
+  return _answerOf(mode, judgment.verdicts, [
+    ...warnings,
+    ...judgment.checkWarnings,
+  ]);
 }
 
 /// Returns the docs [call] names, each once, in tree order.
@@ -86,7 +91,7 @@ List<IndexedDoc> _namedDrafts(WriteSession session, AutoApproveCall call) {
 
 /// Reads the reports, then runs the check, judges each draft, writes each
 /// clean one, and prunes, in one hold of the write lock.
-Future<List<_Verdict>> _judgeAndWrite(
+Future<_Judgment> _judgeAndWrite(
   WriteSession session,
   AutoApproveCall call,
   List<IndexedDoc> drafts,
@@ -115,7 +120,7 @@ Future<List<_Verdict>> _judgeAndWrite(
         _judgeAndApprove(session, judge, doc, addresses[at], current[at]),
     ];
     pruneApprovedCopiesLocked(session);
-    return verdicts;
+    return _Judgment(verdicts: verdicts, checkWarnings: check.warnings);
   });
 }
 
@@ -178,6 +183,14 @@ ReadAnswer _answerOf(
   },
   warnings: warnings,
 );
+
+/// What the call decided for each draft, and what the check warned.
+final class _Judgment {
+  const new({required this.verdicts, this.checkWarnings = const []});
+
+  final List<_Verdict> verdicts;
+  final List<String> checkWarnings;
+}
 
 /// What the call decided for one draft: approved when [reason] is null.
 final class _Verdict {

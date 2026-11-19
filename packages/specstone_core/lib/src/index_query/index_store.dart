@@ -463,7 +463,8 @@ final class IndexStore {
   /// alone, and a return commits with the outer transaction.
   ///
   /// Throws [IndexFault] when another call holds the write lock or the index
-  /// cannot be written.
+  /// cannot be written. A nested write whose error ends the outer write fails
+  /// the outer one, past any caller that catches it.
   void write(void Function() body) {
     final nested = !_db.autocommit;
     try {
@@ -472,12 +473,16 @@ final class IndexStore {
       try {
         body();
         _db.execute(nested ? 'RELEASE $_nestedWrite' : 'COMMIT');
-      } on Object {
+      } on Object catch (error) {
+        if (nested && _holdsWrite && _db.autocommit) throw _LostWrite.of(error);
         _undoWrite(nested);
         rethrow;
       } finally {
         if (!nested) _holdsWrite = false;
       }
+    } on _LostWrite catch (lost) {
+      if (nested) rethrow;
+      throw lost.fault;
     } on SqliteException catch (e) {
       throw _faultOf(e) ?? e;
     }
@@ -505,6 +510,8 @@ final class IndexStore {
       } finally {
         _holdsWrite = false;
       }
+    } on _LostWrite catch (lost) {
+      throw lost.fault;
     } on SqliteException catch (e) {
       throw _faultOf(e) ?? e;
     }
@@ -1025,6 +1032,22 @@ final class IndexStore {
 /// A database that holds tables but no `meta` table.
 final class _NotAnIndex implements Exception {
   const new();
+}
+
+/// A nested write's error that made SQLite roll back the outer write.
+///
+/// Neither an [IndexFault] nor a [SqliteException], so no caller of the nested
+/// write swallows it; the outer write throws [fault].
+final class _LostWrite implements Exception {
+  new of(Object error)
+    : fault = switch (error) {
+        _LostWrite(:final fault) => fault,
+        IndexFault() => error,
+        SqliteException() => IndexStore.faultOf(error),
+        _ => IndexFault(IndexFaultCode.indexNotWritable, _notWritableMessage),
+      };
+
+  final IndexFault fault;
 }
 
 /// Opens [file] and returns the connection to an index with a `meta` table.
