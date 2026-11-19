@@ -1,10 +1,12 @@
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/shared_entry.dart';
 
 const _editThenMigrate = 'edit the override, then run specstone migrate again';
 const _architectureType = 'architecture';
@@ -17,21 +19,25 @@ const _layerWithoutPath =
     "architecture folder, so no rule gives each feature's record its folder";
 
 /// Throws `override_dangling` when a project-layer override names a section,
-/// field, or doc type that the upgrade target no longer defines, or
-/// when a selected `move_to_record` step needs a record override the run
-/// cannot write ([recordPathOverrideOf]).
+/// field, or doc type that the upgrade target no longer defines, when a
+/// `shared.yaml` line in [sharedLines] does, or when a selected
+/// `move_to_record` step needs a record override the run cannot write
+/// ([recordPathOverrideOf]).
 ///
 /// [target] is the listed packs at their target versions with no project
 /// layer. An entry is spared when a selected step in [upgrades] renames it. A
 /// layer that writes `path:` for a doc type no pack defines defines its own
-/// and is skipped; one for a pack doc type is still checked. The
-/// fault is the first dangling entry; `more` holds the rest in file order,
-/// then entry order, the record override last.
+/// and is skipped; one for a pack doc type is still checked. A shared line
+/// dangles when it is no complete new entry and the target defines no line of
+/// its id, and for each `for_doc_types` id that neither the target nor a layer
+/// that writes `path:` defines. The fault is the first dangling entry; `more`
+/// holds the rest in file order, then entry order, the record override last.
 void refuseDanglingOverrides(
   List<DocTypeLayer> overrides, {
   required MergedSet target,
   required Map<String, PackVersion> targetVersions,
   required List<PackUpgrade> upgrades,
+  List<SharedLine> sharedLines = const [],
 }) {
   final steps = [
     for (final upgrade in upgrades)
@@ -46,16 +52,33 @@ void refuseDanglingOverrides(
       (step.docType, step.from),
   };
 
-  final faults = <MigrateFault>[
-    for (final layer in overrides)
-      if (target.lookup(layer.docTypeId) != null || layer.path == null)
-        ..._danglingOf(
+  final sharedFaults = _sharedDanglingOf(
+    sharedLines,
+    target: target,
+    layerDefined: {
+      for (final layer in overrides)
+        if (layer.path != null) layer.docTypeId,
+    },
+  );
+  final sharedFile = sharedLines.firstOrNull?.file;
+  bool followsShared(DocTypeLayer layer) =>
+      sharedFile != null && compareCodePoints(layer.file, sharedFile) > 0;
+  List<MigrateFault> danglingOf(DocTypeLayer layer) =>
+      target.lookup(layer.docTypeId) != null || layer.path == null
+      ? _danglingOf(
           layer,
           target.lookup(layer.docTypeId),
           targetVersions,
           renamedSections: renamedSections,
           renamedFields: renamedFields,
-        ),
+        )
+      : const [];
+
+  final faults = <MigrateFault>[
+    for (final layer in overrides.where((layer) => !followsShared(layer)))
+      ...danglingOf(layer),
+    ...sharedFaults,
+    for (final layer in overrides.where(followsShared)) ...danglingOf(layer),
     ..._recordOverrideFaults(
       recordPathOverrideOf(steps, overrides: overrides, target: target),
     ),
@@ -113,6 +136,46 @@ List<MigrateFault> _danglingOf(
           !fieldIds.contains(field.id) &&
           !renamedFields.contains((docTypeId, field.id)))
         fault('field', field.id),
+  ];
+}
+
+/// Returns one fault per dangling entry of [lines], in file order.
+///
+/// A line dangles on its id when it is no complete new entry, one with `text`
+/// and not disabled, and [target] defines no line of that id. It dangles on
+/// each `for_doc_types` id that neither [target] nor [layerDefined] defines.
+List<MigrateFault> _sharedDanglingOf(
+  List<SharedLine> lines, {
+  required MergedSet target,
+  required Set<String> layerDefined,
+}) {
+  final definedIds = {for (final line in target.shared.lines) line.id};
+  MigrateFault fault(SharedLine line, String key, String message) =>
+      MigrateFault(
+        MigrateFaultCode.overrideDangling,
+        '$message; $_editThenMigrate',
+        file: line.file,
+        key: key,
+      );
+
+  return [
+    for (final line in lines) ...[
+      if ((line.disabled || line.text == null) && !definedIds.contains(line.id))
+        fault(
+          line,
+          'shared_lines.${line.id}',
+          'no pack defines the shared line ${line.id}',
+        ),
+      for (final docTypeId in line.forDocTypes ?? const <String>[])
+        if (target.lookup(docTypeId) == null &&
+            !layerDefined.contains(docTypeId))
+          fault(
+            line,
+            'shared_lines.${line.id}.for_doc_types',
+            'no pack defines the doc type $docTypeId that shared line '
+                '${line.id} names',
+          ),
+    ],
   ];
 }
 

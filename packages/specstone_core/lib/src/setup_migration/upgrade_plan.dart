@@ -148,6 +148,7 @@ RunPlan _upgradeRunOf(
       for (final entry in available.entries) entry.key: entry.value.version,
     },
     upgrades: upgrades,
+    sharedLines: loadProjectSharedLines(root),
   );
 
   final steps = [for (final upgrade in upgrades) ...upgrade.steps];
