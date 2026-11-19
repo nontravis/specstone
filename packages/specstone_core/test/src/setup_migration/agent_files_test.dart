@@ -116,7 +116,8 @@ void main() {
 
         expect(rule, contains('`specstone check <doc> --out '));
         expect(rule, contains('<folder>/reports/check.done.<XXXXXX>.txt`'));
-        expect(rule, contains('until every finding'));
+        expect(rule, contains('`(waits for the Owner)`'));
+        expect(rule, contains('`waitsFor`'));
       }
     });
 
@@ -130,8 +131,6 @@ void main() {
           expect(rule, contains('`$command`'));
         }
         expect(rule, contains('`specstone approve`'));
-        expect(rule, contains('Owner'));
-        expect(rule, contains('main session'));
       }
     });
 
