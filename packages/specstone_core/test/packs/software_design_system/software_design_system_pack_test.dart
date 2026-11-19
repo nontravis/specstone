@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -86,6 +87,33 @@ const _audienceSentence =
     "These docs serve the team that builds the library, not the library's "
     'consumers.';
 
+/// The ids of the shared lines each guide prints, in print order: the
+/// `prd-core` lines that reach every doc type, then the pack's own line.
+const _sharedLineIds = [
+  'one_rule_per_item',
+  'cite_at_item_end',
+  'one_example',
+  'condition_first',
+  'cite_by_link',
+  'serve_library_builders',
+];
+
+/// A line of a description or template that reads as a YAML key.
+final _yamlKeyLine = RegExp(r'^[a-z_]+:(?: |$)', multiLine: true);
+
+PackManifest _manifest() => PackManifest.parse(
+  utf8.decode(shippedPackFiles['software-design-system/pack.yaml']!),
+  file: 'packs/software-design-system/pack.yaml',
+);
+
+/// The description of [type], its declared fields, and its sections.
+List<String?> _descriptionsOf(MergedDocType type) => [
+  type.description,
+  for (final field in type.fields)
+    if (!field.isBuiltIn) field.description,
+  for (final section in type.sections) section.description,
+];
+
 Future<MergedSet> _resolve(List<String> packs) async {
   final project = await writeTree({
     '.specstone/config.yaml': shippedPinsConfig(packs),
@@ -124,6 +152,17 @@ void main() {
             'software-design-system/$id.yaml',
         ]),
       );
+    });
+
+    test('ships the one shared line serve_library_builders, naming its '
+        'nineteen doc types, and no shared field', () {
+      final shared = _manifest().shared;
+      expect(
+        [for (final l in shared.lines) (l.id, l.text, l.disabled)],
+        [('serve_library_builders', _audienceSentence, false)],
+      );
+      expect(shared.lines.single.forDocTypes, softwareDesignSystemIds);
+      expect(shared.fields, isEmpty);
     });
 
     test('the pack writes no layer over a prd-core or software-tech doc '
@@ -247,14 +286,40 @@ void main() {
       }
     });
 
-    test('every guide intro says the docs serve the team that builds the '
-        'library', () {
+    test('each guide prints the prd-core lines, then serve_library_builders, '
+        'and no software-tech line', () {
       for (final id in softwareDesignSystemIds) {
-        expect(
-          prdCoreDocType(set, id).description,
-          contains(_audienceSentence),
-          reason: id,
-        );
+        final type = prdCoreDocType(set, id);
+        expect(type.sharedLines.map((l) => l.id), _sharedLineIds, reason: id);
+        final guide = type.renderGuide();
+        for (final line in type.sharedLines) {
+          expect(guide, contains(line.text), reason: id);
+        }
+      }
+    });
+
+    test('no description restates a shared line that reaches its doc '
+        'type', () {
+      for (final id in softwareDesignSystemIds) {
+        final type = prdCoreDocType(set, id);
+        for (final description in _descriptionsOf(type)) {
+          for (final line in type.sharedLines) {
+            expect(description ?? '', isNot(contains(line.text)), reason: id);
+          }
+        }
+      }
+    });
+
+    test('no description or template holds a YAML key line', () {
+      for (final id in softwareDesignSystemIds) {
+        final type = prdCoreDocType(set, id);
+        final texts = [
+          ..._descriptionsOf(type),
+          for (final section in type.sections) section.template,
+        ];
+        for (final text in texts) {
+          expect(text ?? '', isNot(contains(_yamlKeyLine)), reason: id);
+        }
       }
     });
 

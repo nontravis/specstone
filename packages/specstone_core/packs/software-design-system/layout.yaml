@@ -1,7 +1,6 @@
 id: layout
 description: |-
   The layout doc: the page layouts and grids.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Layouts`, with no number.
 path: specs/design_system/composition/LAYOUTS.md
 sections:

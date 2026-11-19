@@ -160,7 +160,6 @@ void main() {
         lines.singleWhere((l) => l.startsWith('The Agent writes Props')),
         contains('Specstone never generates props from it.'),
       );
-      expect(lines, contains(startsWith('These docs serve the team that')));
     });
 
     test('the props section names the five language-neutral types', () {

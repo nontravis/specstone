@@ -20,6 +20,17 @@ import '../../helpers/temp_tree.dart';
 const _skillDoc = 'specs/skills/review.md';
 const _skillFile = '.claude/skills/review/SKILL.md';
 
+/// A line of a description or template that reads as a YAML key.
+final _yamlKeyLine = RegExp(r'^[a-z_]+:(?: |$)', multiLine: true);
+
+/// The description of [type], its declared fields, and its sections.
+List<String?> _descriptionsOf(MergedDocType type) => [
+  type.description,
+  for (final field in type.fields)
+    if (!field.isBuiltIn) field.description,
+  for (final section in type.sections) section.description,
+];
+
 /// A skill doc whose `covers:` and body the caller picks.
 String _skillText({
   String covers = '  - $_skillFile\n',
@@ -143,6 +154,26 @@ void main() {
           hasLength(1),
           reason: phrase,
         );
+      }
+    });
+
+    test('no description restates a shared line the guide prints', () {
+      final texts = [for (final line in skill.sharedLines) line.text];
+      expect(texts, isNotEmpty);
+      for (final description in _descriptionsOf(skill)) {
+        for (final text in texts) {
+          expect(description ?? '', isNot(contains(text)));
+        }
+      }
+    });
+
+    test('no description or template holds a YAML key line', () {
+      final texts = [
+        ..._descriptionsOf(skill),
+        for (final section in skill.sections) section.template,
+      ];
+      for (final text in texts) {
+        expect(text ?? '', isNot(contains(_yamlKeyLine)));
       }
     });
 
