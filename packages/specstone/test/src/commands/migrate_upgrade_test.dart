@@ -317,6 +317,52 @@ void main() {
       expect(_head(root), head);
     });
   });
+  group('drop_default_lines step', () {
+    const migrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - drop_default_lines: {doc_types: [domain]}
+''';
+    const domainPath = 'docs/specs/f01_login/DOMAIN.md';
+    const head =
+        '# Login domain\n\n## Entities\n\n'
+        '| Entity | Kind | Identity | Owns |\n|---|---|---|---|\n'
+        '| Account | Aggregate root | its email | a name |\n\n'
+        '## Invariants\n\n- **INV-1** An email is unique.\n';
+    const stated =
+        '$head  - **Enforcer:** Account\n  - **Consistency:** immediate\n';
+
+    test('bare migrate drops default lines in commit 2 and changes nothing '
+        'else, and --dry-run writes nothing', () async {
+      final home = await _home(migrations: migrations);
+      final root = await _project(files: {domainPath: stated});
+      final before = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(dry.out, contains('  from 1.0.0: drop_default_lines: 1 docs\n'));
+      expect(_bytesUnder(root), before);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_read(root, domainPath), head);
+      expect(
+        _gitOut(root, [
+          'show',
+          '--name-only',
+          '--format=',
+          'HEAD',
+        ]).trim().split('\n').toSet(),
+        {'.specstone/config.yaml', domainPath},
+      );
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+  });
   group('prd-core 1.9.0 pin upgrade', () {
     const projectPath = 'docs/prds/PROJECT.md';
     const bareGoals =
