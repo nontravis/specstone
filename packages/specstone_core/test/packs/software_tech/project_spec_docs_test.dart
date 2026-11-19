@@ -249,7 +249,7 @@ void main() {
     );
   });
 
-  test('project_domain invariants take the corrective policy of domain', () {
+  test('project_domain inherits the invariant entries', () {
     final domain = prdCoreDocType(set, 'domain');
     final projectDomain = prdCoreDocType(set, 'project_domain');
     List<Map<String, Object>> fieldsOf(MergedDocType type) => [
@@ -258,6 +258,11 @@ void main() {
         f.toJson(),
     ];
     expect(fieldsOf(projectDomain), fieldsOf(domain));
+    expect(fieldsOf(projectDomain), [
+      containsPair('default_from', 'entities'),
+      containsPair('optional', true),
+      containsPair('when', isNotNull),
+    ]);
     expect(
       projectDomain.sections.map((s) => s.id),
       isNot(contains('corrective_policies')),

@@ -34,19 +34,62 @@ void main() {
     ]);
   });
 
-  test('the invariants require a corrective policy on an eventual invariant '
-      'only', () {
-    final fields = domain.sections
-        .singleWhere((s) => s.id == 'invariants')
-        .itemFields!;
+  test('the invariants lint frees Enforcer by the entity default and '
+      'Consistency by optional', () {
+    final fields = sectionOf(domain, 'invariants').itemFields!;
     expect(
       [for (final f in fields) f.field],
       ['Enforcer', 'Consistency', 'Corrective policy'],
     );
-    final policy = fields.last;
+    final [enforcer, consistency, policy] = fields;
+    expect(enforcer.defaultFrom, 'entities');
+    expect(enforcer.optional, isFalse);
+    expect(enforcer.when, isNull);
+    expect(consistency.values, ['eventual']);
+    expect(consistency.optional, isTrue);
+    expect(consistency.defaultFrom, isNull);
     expect(policy.when!.field, 'Consistency');
     expect(policy.when!.value, 'eventual');
     expect(policy.values, isNull);
+    expect(policy.optional, isFalse);
+  });
+
+  test('the invariants guide asks a field line only off the default', () {
+    final description = sectionOf(domain, 'invariants').description!;
+    expect(
+      description,
+      allOf(
+        contains('- **<field>:** <text>'),
+        contains('- **Enforcer:** <entity>'),
+        contains('only off it'),
+        contains('- **Consistency:** eventual'),
+        contains('- **Corrective policy:** <how the system restores the rule>'),
+        contains('no Consistency line means immediate'),
+        isNot(contains('- **Consistency:** immediate')),
+      ),
+    );
+    expect(description, isNot(contains('<aggregate root>')));
+  });
+
+  test('the value objects and lifecycle guides follow their section '
+      'points', () {
+    final valueObjects = sectionOf(domain, 'value_objects').description!;
+    expect(
+      valueObjects,
+      allOf(
+        contains('Make each value object immutable'),
+        contains('Validation'),
+        contains('link an invariant for any rule on it'),
+      ),
+    );
+    final lifecycle = sectionOf(domain, 'lifecycle').description!;
+    expect(
+      lifecycle,
+      allOf(
+        contains('`stateDiagram-v2` alone, no prose'),
+        contains('4 or more states'),
+      ),
+    );
   });
 
   test('the invariant form states no sentence count', () {
@@ -152,23 +195,6 @@ void main() {
     );
     expect(finding.path, 'specs/f01_login/ARCHITECTURE.md');
     expect(finding.toJson(), containsPair('line', 12));
-  });
-
-  test('the invariants description states the bullet shape with the '
-      'enforcer, consistency, and corrective policy bullets', () {
-    final description = domain.sections
-        .singleWhere((s) => s.id == 'invariants')
-        .description;
-
-    expect(
-      description,
-      allOf(
-        contains('- **INV-<N>** <rule>'),
-        contains('- **Enforcer:** <aggregate root>'),
-        contains('- **Consistency:** immediate'),
-        contains('- **Corrective policy:** <how the system restores the rule>'),
-      ),
-    );
   });
 
   test(
