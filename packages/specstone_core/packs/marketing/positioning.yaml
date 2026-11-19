@@ -12,7 +12,7 @@ sections:
   - id: unique_attributes
     header: Unique attributes
     description: |-
-      List what the product has and the competitive alternatives lack.
+      List what the product has that the competitive alternatives lack.
   - id: value
     header: Value
     description: |-

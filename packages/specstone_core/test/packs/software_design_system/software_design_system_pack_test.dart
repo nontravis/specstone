@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/document_writing/new_doc.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -11,6 +10,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_design_system.dart';
 import '../../helpers/software_tech.dart';
@@ -90,12 +90,8 @@ const _audienceSentence =
 
 /// The ids of the shared lines each guide prints, in print order: the
 /// `prd-core` lines that reach every doc type, then the pack's own line.
-const _sharedLineIds = [
-  'one_rule_per_item',
-  'cite_at_item_end',
-  'one_example',
-  'condition_first',
-  'cite_by_link',
+const _sharedLineIds = <String>[
+  ...everyTypeSharedLineIds,
   'serve_library_builders',
 ];
 
@@ -103,14 +99,6 @@ PackManifest _manifest() => PackManifest.parse(
   utf8.decode(shippedPackFiles['software-design-system/pack.yaml']!),
   file: 'packs/software-design-system/pack.yaml',
 );
-
-/// The description of [type], its declared fields, and its sections.
-List<String?> _descriptionsOf(MergedDocType type) => [
-  type.description,
-  for (final field in type.fields)
-    if (!field.isBuiltIn) field.description,
-  for (final section in type.sections) section.description,
-];
 
 Future<MergedSet> _resolve(List<String> packs) async {
   final project = await writeTree({
@@ -300,7 +288,7 @@ void main() {
         'type', () {
       for (final id in softwareDesignSystemIds) {
         final type = prdCoreDocType(set, id);
-        for (final description in _descriptionsOf(type)) {
+        for (final description in descriptionsOf(type)) {
           for (final line in type.sharedLines) {
             expect(description ?? '', isNot(contains(line.text)), reason: id);
           }
@@ -312,7 +300,7 @@ void main() {
       for (final id in softwareDesignSystemIds) {
         final type = prdCoreDocType(set, id);
         final texts = [
-          ..._descriptionsOf(type),
+          ...descriptionsOf(type),
           for (final section in type.sections) section.template,
         ];
         for (final text in texts) {

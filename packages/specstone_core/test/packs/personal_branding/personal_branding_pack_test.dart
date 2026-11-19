@@ -13,6 +13,7 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/marketing.dart';
 import '../../helpers/personal_branding.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_design_system.dart';
 import '../../helpers/software_tech.dart';
@@ -24,15 +25,6 @@ const _personStatement =
     "The docs hold the stable facts; the person's own skills write the "
     'content outside the docs.';
 const _learningStatement = 'A learning edits the doc it corrects.';
-
-/// The `prd-core` shared line ids that reach every doc type, in print order.
-const _prdCoreLineIds = [
-  'one_rule_per_item',
-  'cite_at_item_end',
-  'one_example',
-  'condition_first',
-  'cite_by_link',
-];
 const _allSixPacks = [
   'prd-core',
   'software-tech',
@@ -76,14 +68,6 @@ PackManifest _manifest() => PackManifest.parse(
   utf8.decode(shippedPackFiles['personal-branding/pack.yaml']!),
   file: 'packs/personal-branding/pack.yaml',
 );
-
-/// The description of [type], its declared fields, and its sections.
-List<String?> _descriptionsOf(MergedDocType type) => [
-  type.description,
-  for (final field in type.fields)
-    if (!field.isBuiltIn) field.description,
-  for (final section in type.sections) section.description,
-];
 
 /// Expects [type]'s guide to print the shared lines of [ids], in that order.
 void _expectSharedLines(MergedDocType type, List<String> ids) {
@@ -263,7 +247,7 @@ void main() {
     test('each guide prints the prd-core lines, then the two pack lines', () {
       for (final id in personalBrandingIds) {
         _expectSharedLines(prdCoreDocType(set, id), [
-          ..._prdCoreLineIds,
+          ...everyTypeSharedLineIds,
           'person_stable_facts',
           'person_learning_edits_doc',
         ]);
@@ -274,7 +258,7 @@ void main() {
         'type', () {
       for (final id in [...personalBrandingIds, 'voice']) {
         final type = prdCoreDocType(set, id);
-        for (final description in _descriptionsOf(type)) {
+        for (final description in descriptionsOf(type)) {
           for (final line in type.sharedLines) {
             expect(description ?? '', isNot(contains(line.text)), reason: id);
           }
@@ -286,7 +270,7 @@ void main() {
       for (final id in [...personalBrandingIds, 'voice']) {
         final type = prdCoreDocType(set, id);
         final texts = [
-          ..._descriptionsOf(type),
+          ...descriptionsOf(type),
           for (final section in type.sections) section.template,
         ];
         for (final text in texts) {
@@ -318,7 +302,7 @@ void main() {
     test('the voice guide prints the prd-core lines, then both marketing '
         'lines', () {
       _expectSharedLines(prdCoreDocType(set, 'voice'), [
-        ..._prdCoreLineIds,
+        ...everyTypeSharedLineIds,
         'stable_facts_and_plan',
         'learning_edits_doc',
       ]);

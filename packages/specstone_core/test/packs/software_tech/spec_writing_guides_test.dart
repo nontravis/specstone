@@ -2,6 +2,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/software_tech.dart';
 
 /// The title word each per-feature spec doc type puts after the feature name.
@@ -319,12 +320,11 @@ void main() {
       'description', () {
     for (final id in softwareTechIds) {
       final type = prdCoreDocType(set, id);
-      expect(sharedIdsOf(id).take(4), [
-        'one_rule_per_item',
-        'cite_at_item_end',
-        'one_example',
-        'condition_first',
-      ], reason: id);
+      expect(
+        sharedIdsOf(id).take(4),
+        everyTypeSharedLineIds.take(4),
+        reason: id,
+      );
       final guide = type.renderGuide();
       expect(
         guide.indexOf(type.sharedLines.first.text),

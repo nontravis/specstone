@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -13,6 +12,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/marketing.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
@@ -32,12 +32,8 @@ const _measurementsStatement =
 
 /// The ids of the shared lines each guide prints, in print order: the
 /// `prd-core` lines that reach every doc type, then the pack's own lines.
-const _sharedLineIds = [
-  'one_rule_per_item',
-  'cite_at_item_end',
-  'one_example',
-  'condition_first',
-  'cite_by_link',
+const _sharedLineIds = <String>[
+  ...everyTypeSharedLineIds,
   'stable_facts_and_plan',
   'learning_edits_doc',
 ];
@@ -46,14 +42,6 @@ PackManifest _manifest() => PackManifest.parse(
   utf8.decode(shippedPackFiles['marketing/pack.yaml']!),
   file: 'packs/marketing/pack.yaml',
 );
-
-/// The description of [type], its declared fields, and its sections.
-List<String?> _descriptionsOf(MergedDocType type) => [
-  type.description,
-  for (final field in type.fields)
-    if (!field.isBuiltIn) field.description,
-  for (final section in type.sections) section.description,
-];
 
 /// One expected marketing doc type: its path, parent, and sections.
 final class _DocTypeSpec {
@@ -330,7 +318,7 @@ void main() {
         'type', () {
       for (final id in marketingIds) {
         final type = prdCoreDocType(set, id);
-        for (final description in _descriptionsOf(type)) {
+        for (final description in descriptionsOf(type)) {
           for (final line in type.sharedLines) {
             expect(description ?? '', isNot(contains(line.text)), reason: id);
           }
@@ -354,7 +342,7 @@ void main() {
       for (final id in marketingIds) {
         final type = prdCoreDocType(set, id);
         final texts = [
-          ..._descriptionsOf(type),
+          ...descriptionsOf(type),
           for (final section in type.sections) section.template,
         ];
         for (final text in texts) {
