@@ -15,7 +15,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 final class DraftView {
   new({
     required this.name,
-    String? address,
+    required this.address,
     required this.docType,
     this.mergedType,
     this.title,
@@ -26,14 +26,13 @@ final class DraftView {
     required this.text,
     required this.lookup,
     required this.sentences,
-  }) : address = address ?? '$docType:$name';
+  });
 
   /// The doc name, which heads the view when [title] is null.
   final String name;
 
   /// The shortest address that picks only this draft: `<doc type>:<name>`, or
-  /// its DocPath when another doc holds that typed name; `<doc type>:<name>`
-  /// when the constructor is given none.
+  /// its DocPath when another doc holds that typed name.
   final String address;
 
   /// The doc type the index gives.

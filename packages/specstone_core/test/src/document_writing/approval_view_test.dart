@@ -42,6 +42,7 @@ DraftView _draft({
   SentenceChanges sentences = _noSentences,
 }) => DraftView(
   name: name,
+  address: 'fr:$name',
   docType: 'fr',
   mergedType: mergedType,
   title: title,

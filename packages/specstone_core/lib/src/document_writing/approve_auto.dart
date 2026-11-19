@@ -49,17 +49,14 @@ final class AutoApproveCall {
 
 /// Judges the drafts [call] names and approves each clean one.
 ///
-/// Under the `auto` approve mode the whole-project check, the judgment, every
-/// write, and the prune of the approved copies share one hold of the write
-/// lock. Under any other mode nothing is written and every draft is asked.
-/// The text is `mode: <mode>`, an `approved <address>` line per approved draft,
-/// then an `ask <address>: <reason>` line per asked draft, each in tree order;
-/// the JSON is `approveMode`, `approved`, and `asked`, and the mode warning is
-/// the answer's `warnings`.
-/// Throws [IndexFault] for a name that is no write target, [WriteFault]
-/// `draft_not_found` for a doc that is no draft, `RenderFault`
-/// `output_not_writable` for roots the Owner has not recorded, all before the
-/// mode gate, and `index_busy` when another call holds the lock.
+/// Under `auto` the check, the judgment, the writes, and the prune share one
+/// lock hold; under any other mode nothing is written and every draft is asked.
+/// Prints a `mode:` line, `approved` lines, then `ask` lines with their
+/// reasons, in tree order; JSON keys are `approveMode`, `approved`, `asked`,
+/// and the mode warning is the answer's `warnings`.
+/// Throws [IndexFault], [WriteFault] `draft_not_found`, or `RenderFault`
+/// `output_not_writable` before the mode gate, `base_mismatch` for a draft gone
+/// inside the hold, and `index_busy` when another call holds the lock.
 Future<ReadAnswer> approveAuto(
   WriteSession session,
   AutoApproveCall call, {
@@ -68,14 +65,12 @@ Future<ReadAnswer> approveAuto(
   final drafts = _namedDrafts(session, call);
   if (drafts.firstOrNull case final first?) requireTrusted(session, first);
   final ApproveMode(:mode, :warnings) = approveModeOf(call.approveModeVariable);
-  final addresses = {
-    for (final doc in drafts) doc.docPath: session.index.addressOf(doc),
-  };
+  final addresses = [for (final doc in drafts) session.index.addressOf(doc)];
   final verdicts = mode == _autoMode
       ? await _judgeAndWrite(session, call, drafts, addresses, mermaidRunner)
       : [
-          for (final doc in drafts)
-            _Verdict(doc.docPath, addresses[doc.docPath]!, _askModeReason),
+          for (final (at, doc) in drafts.indexed)
+            _Verdict(doc.docPath, addresses[at], _askModeReason),
         ];
   return _answerOf(mode, verdicts, warnings);
 }
@@ -98,7 +93,7 @@ Future<List<_Verdict>> _judgeAndWrite(
   WriteSession session,
   AutoApproveCall call,
   List<IndexedDoc> drafts,
-  Map<String, String> addresses,
+  List<String> addresses,
   MermaidNodeRun? mermaidRunner,
 ) async {
   final reports = ReportFiles.read(
@@ -117,13 +112,29 @@ Future<List<_Verdict>> _judgeAndWrite(
       authors: reports.authors,
       unreadableReason: reports.unreadableReason,
     );
+    final current = _currentBytes(session, drafts);
     final verdicts = [
-      for (final doc in drafts)
-        _judgeAndApprove(session, judge, doc, addresses[doc.docPath]!),
+      for (final (at, doc) in drafts.indexed)
+        _judgeAndApprove(session, judge, doc, addresses[at], current[at]),
     ];
     pruneApprovedCopiesLocked(session);
     return verdicts;
   });
+}
+
+/// Returns the bytes of each of [drafts] as they are now, in order.
+///
+/// Throws [WriteFault] `base_mismatch`, as `approveNamed` does, when a draft's
+/// file is gone; nothing is written then.
+List<List<int>> _currentBytes(WriteSession session, List<IndexedDoc> drafts) {
+  final bytes = <List<int>>[];
+  final gone = <IndexedDoc>[];
+  for (final doc in drafts) {
+    final read = session.readDocBytes(doc.docPath);
+    read == null ? gone.add(doc) : bytes.add(read);
+  }
+  if (gone.isNotEmpty) throw changedSinceHashed(gone);
+  return bytes;
 }
 
 _Verdict _judgeAndApprove(
@@ -131,14 +142,14 @@ _Verdict _judgeAndApprove(
   CleanDraftJudge judge,
   IndexedDoc doc,
   String address,
+  List<int> bytes,
 ) {
-  final bytes = session.readDocBytes(doc.docPath);
-  final hash = docHashOf(bytes);
-  if (bytes == null || hash == null) {
-    return _Verdict(doc.docPath, address, '${doc.docPath} is gone');
-  }
   final reason = judge.reasonFor(
-    JudgedDraft(name: address, docPath: doc.docPath, currentHash: hash),
+    JudgedDraft(
+      name: address,
+      docPath: doc.docPath,
+      currentHash: bytesHashOf(bytes),
+    ),
   );
   if (reason == null) writeApproval(session, doc, bytes);
   return _Verdict(doc.docPath, address, reason);

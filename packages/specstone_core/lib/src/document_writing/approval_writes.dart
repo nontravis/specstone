@@ -69,7 +69,24 @@ void requireTrusted(WriteSession session, IndexedDoc doc) =>
 
 /// Returns the `bases.doc` hash of [bytes], or null for a file gone.
 String? docHashOf(List<int>? bytes) =>
-    bytes == null ? null : baseHashOf(toLf(utf8.decode(bytes)));
+    bytes == null ? null : bytesHashOf(bytes);
+
+/// Returns the `bases.doc` hash of [bytes].
+String bytesHashOf(List<int> bytes) => baseHashOf(toLf(utf8.decode(bytes)));
+
+/// Returns the `<doc type>:<name>` of the typed [doc].
+String addressOf(IndexedDoc doc) => '${doc.docTypeId}:${doc.name}';
+
+/// Returns the refusal for [changed], drafts whose file changed or is gone
+/// since their hash was taken.
+WriteFault changedSinceHashed(List<IndexedDoc> changed) => WriteFault(
+  WriteFaultCode.baseMismatch,
+  'changed since their hash was taken: ${changed.map(addressOf).join(', ')}; '
+  'read each again and approve it with its new hash',
+  file: changed.first.docPath,
+  key: 'doc',
+  relatedFiles: [for (final doc in changed.skip(1)) doc.docPath],
+);
 
 /// Writes [bytes] of [doc] back without `draft`, with the ApprovalHash of its
 /// content as `approved:`; runs under the lock.

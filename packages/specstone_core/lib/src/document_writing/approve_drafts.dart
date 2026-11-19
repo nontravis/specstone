@@ -172,29 +172,18 @@ ReadAnswer approveNamed(
         ))
           doc,
     ];
-    if (changed.isNotEmpty) throw _changedSinceHashed(changed);
+    if (changed.isNotEmpty) throw changedSinceHashed(changed);
     for (final doc in drafts) {
       writeApproval(session, doc, current[doc.docPath]!);
     }
     pruneApprovedCopiesLocked(session);
-    return drafts.map(_addressOf).toList();
+    return drafts.map(addressOf).toList();
   });
   return ReadAnswer(
     text: approved.map((address) => 'approved $address\n').join(),
     json: {'approved': approved},
   );
 }
-
-WriteFault _changedSinceHashed(List<IndexedDoc> changed) => WriteFault(
-  WriteFaultCode.baseMismatch,
-  'changed since their hash was taken: ${changed.map(_addressOf).join(', ')}; '
-  'read each again and approve it with its new hash',
-  file: changed.first.docPath,
-  key: 'doc',
-  relatedFiles: [for (final doc in changed.skip(1)) doc.docPath],
-);
-
-String _addressOf(IndexedDoc doc) => '${doc.docTypeId}:${doc.name}';
 
 /// Returns the typed docs that await approval in tree order: all of them when
 /// [names] is empty, else those under any of [names], each once; with a

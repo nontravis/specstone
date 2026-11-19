@@ -959,6 +959,7 @@ void main() {
         final view = renderApprovalView(
           DraftView(
             name: 'recover_account',
+            address: 'fr:recover_account',
             docType: 'fr',
             mergedType: _docType,
             docPath: newPath,

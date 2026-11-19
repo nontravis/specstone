@@ -1,6 +1,3 @@
-// The test names are plan text kept as written.
-// ignore_for_file: lines_longer_than_80_chars
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -229,9 +226,10 @@ void main() {
         .listSync()
         .map((entry) => entry.uri.pathSegments.last)
         .toSet();
+    final mark = RegExp('approved: "([0-9a-f]+)"');
     final marks = {
       for (final docPath in [check.loginStory, check.loginFr])
-        '${RegExp('approved: "([0-9a-f]+)"').firstMatch(readDoc(root, docPath))![1]}.md',
+        '${mark.firstMatch(readDoc(root, docPath))![1]}.md',
     };
     expect(copies, marks);
     expect(stale.existsSync(), isFalse);
@@ -293,30 +291,40 @@ void main() {
   }, skip: _linksUnavailable);
 
   test('holds the lock from the check to the last write', () async {
-    const block = 'sequenceDiagram\n  A->>B: ok';
     final root = await _draftsProject(
       extra: check.edit(check.loginArchitecture, [
-        ('One box.', '```mermaid\n$block\n```'),
+        ('One box.', '```mermaid\nsequenceDiagram\n  A->>B: ok\n```'),
       ]),
     );
     _createIndex(root);
-    final peer = _PeerWrite(root);
-    addTearDown(peer.dispose);
+    // A long report makes the judgment between the check and the writes take
+    // long enough for a second connection to take any gap in the hold.
+    final audit = await _auditNaming(
+      root,
+      [_story, _fr],
+      findings: [
+        'Findings:',
+        for (var i = 0; i < 100000; i++) '- a finding of no draft $i',
+      ].join('\n'),
+    );
+    final taker = _LockTaker(root);
+    addTearDown(taker.dispose);
 
     await _approveAuto(
       root,
-      _call(root, noAudit: true),
+      _call(root, audits: [audit]),
       runner: MermaidNodeRun(
         start: (arguments) async {
-          await peer.startWaiting();
+          await taker.start();
           return _startFakeNode(arguments);
         },
       ),
     );
 
-    final seen = await peer.docSeenOnceFree();
-    expect(seen, contains('\napproved: '));
-    expect(seen, isNot(contains('draft: true')));
+    final story = await taker.storyAtFirstFreeLock();
+    expect(story, contains('\napproved: '));
+    expect(story, isNot(contains('draft: true')));
+    expect(_isApproved(root, check.loginFr), isTrue);
   });
 
   test('faults index_busy on a held lock and writes no doc', () async {
@@ -344,16 +352,17 @@ void main() {
     expect(_docBytes(root), before);
   });
 
-  test(
-    'asks a draft whose file is gone before the lock and approves no other',
-    () async {
-      final root = await _draftsProject(
-        extra: check.edit(check.loginArchitecture, [
-          ('One box.', '```mermaid\nsequenceDiagram\n  A->>B: ok\n```'),
-        ]),
-      );
+  test('a draft gone inside the hold is base_mismatch, exit 75, '
+      'and nothing is approved', () async {
+    final root = await _draftsProject(
+      extra: check.edit(check.loginArchitecture, [
+        ('One box.', '```mermaid\nsequenceDiagram\n  A->>B: ok\n```'),
+      ]),
+    );
+    final storyBefore = readDoc(root, check.loginStory);
 
-      final answer = await _approveAuto(
+    await expectLater(
+      _approveAuto(
         root,
         _call(root, noAudit: true),
         runner: MermaidNodeRun(
@@ -362,16 +371,22 @@ void main() {
             return _startFakeNode(arguments);
           },
         ),
-      );
-
-      expect(
-        answer.text,
-        'mode: auto\n'
-        'approved $_story\n'
-        'ask $_fr: ${check.loginFr} is gone\n',
-      );
-    },
-  );
+      ),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+            .having((f) => f.exitStatus, 'exitStatus', 75)
+            .having((f) => f.file, 'file', check.loginFr)
+            .having(
+              (f) => f.message,
+              'message',
+              'changed since their hash was taken: $_fr; '
+                  'read each again and approve it with its new hash',
+            ),
+      ),
+    );
+    expect(readDoc(root, check.loginStory), storyBefore);
+  });
 
   test('stores a fresh diagram parse inside the auto hold', () async {
     const block = 'sequenceDiagram\n  A->>B: ok';
@@ -417,35 +432,34 @@ void _createIndex(Directory root) => WriteSession.run(
   homeDirectory: testHome(),
 );
 
-/// A second isolate that retries for the write lock at once, so it takes the
-/// first gap between two holds, then reads the story.
-final class _PeerWrite {
+/// A second connection that tries for the write lock in a tight loop from
+/// [start], so it takes the first moment the lock is free, and reads the story
+/// at that moment.
+final class _LockTaker {
   new(this._root);
 
   final Directory _root;
   final _messages = ReceivePort();
-  final _trying = Completer<void>();
-  final _seen = Completer<String>();
+  final _ready = Completer<void>();
+  final _story = Completer<String>();
   Isolate? _isolate;
 
-  /// Starts the peer and returns once it has begun to wait for the lock.
-  Future<void> startWaiting() async {
+  Future<void> start() async {
     _messages.listen((message) {
-      if (message == 'trying') _trying.complete();
-      if (message is String && message != 'trying') _seen.complete(message);
-      if (message is List) _seen.completeError(StateError('${message.first}'));
+      if (message == 'ready') _ready.complete();
+      if (message is String && message != 'ready') _story.complete(message);
+      if (message is List) _story.completeError(StateError('${message[0]}'));
     });
-    _isolate = await Isolate.spawn(_writeWhenFree, (
+    _isolate = await Isolate.spawn(_takeLock, (
       _root.path,
       _messages.sendPort,
     ), onError: _messages.sendPort);
-    await _trying.future.timeout(const Duration(seconds: 10));
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await _ready.future.timeout(const Duration(seconds: 10));
   }
 
-  /// The story the peer read once its write got the lock.
-  Future<String> docSeenOnceFree() =>
-      _seen.future.timeout(const Duration(seconds: 20));
+  /// The story as it stood when the lock was first free.
+  Future<String> storyAtFirstFreeLock() =>
+      _story.future.timeout(const Duration(seconds: 20));
 
   void dispose() {
     _messages.close();
@@ -453,22 +467,23 @@ final class _PeerWrite {
   }
 }
 
-void _writeWhenFree((String, SendPort) arguments) {
+void _takeLock((String, SendPort) arguments) {
   final (path, port) = arguments;
-  final store = IndexStore.open(Directory(path), busyTimeout: Duration.zero);
-  port.send('trying');
-  String? text;
-  while (text == null) {
+  final database = sqlite3.open('$path/.specstone/index.sqlite');
+  port.send('ready');
+  while (true) {
     try {
-      store.write(() {
-        text = File('$path/docs/${check.loginStory}').readAsStringSync();
-      });
-    } on IndexFault {
-      // The lock is held: try again at once.
+      database.execute('BEGIN IMMEDIATE');
+    } on SqliteException {
+      continue;
     }
+    final story = File('$path/docs/${check.loginStory}').readAsStringSync();
+    database
+      ..execute('ROLLBACK')
+      ..close();
+    port.send(story);
+    return;
   }
-  store.close();
-  port.send(text);
 }
 
 Future<Process> _startFakeNode(List<String> arguments) async {

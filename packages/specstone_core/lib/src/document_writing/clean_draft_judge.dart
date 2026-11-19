@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 
 const _byteOrderMark = '﻿';
 const _styleToken = '[style]';
@@ -12,10 +13,9 @@ const _noAuditReason = 'no audit report names it';
 /// Round heading, a part break of an audit file.
 final _roundHeading = RegExp(r'^## Round [0-9]+[ \t]*$');
 
-/// `Audited:` and `Styled:` lines, each naming one typed draft at one hash.
-final _draftLine = RegExp(
-  r'^(Audited|Styled): ([a-z][a-z0-9_]*:[^\s@]+)@([0-9a-f]{12})$',
-);
+/// `Audited:` and `Styled:` lines, each naming one draft at one hash; the
+/// grammar reads the name, which must be typed.
+final _draftLine = RegExp(r'^(Audited|Styled): ([^\s@]+)@([0-9a-f]{12})$');
 
 /// A `Findings:` or `Outside the drafts:` line, with an optional first item.
 final _sectionLine = RegExp(r'^(Findings|Outside the drafts):(?:[ \t]+(.*))?$');
@@ -188,6 +188,15 @@ List<String> _linesOf(String text) {
   ];
 }
 
+/// Returns the match of [line] when it is an `Audited:` or `Styled:` line
+/// that names a typed draft, else null.
+Match? _draftLineOf(String line) {
+  final match = _draftLine.firstMatch(line);
+  if (match == null) return null;
+  final typeId = readDocAddress(match[2]!).typeId;
+  return typeId != null && match[2]!.length > typeId.length + 1 ? match : null;
+}
+
 bool _isNonBlank(String line) => _trimmed(line).isNotEmpty;
 
 String _trimmed(String line) => line.replaceAll(_edgeBlanks, '');
@@ -218,7 +227,7 @@ _Part _readPart(String fileName, List<String> lines) {
     final line = _trimmed(raw);
     if (line.isEmpty) continue;
 
-    if (_draftLine.firstMatch(line) case final match?) {
+    if (_draftLineOf(line) case final match?) {
       final into = match[1] == 'Audited' ? part.audited : part.styled;
       into[match[2]!] = match[3]!;
       open = null;
@@ -288,10 +297,9 @@ final class CleanDraftJudge {
   String? _checkReason(JudgedDraft draft) {
     for (final finding in _findings) {
       if (finding.path != draft.docPath) continue;
-      final clearedByApproval =
-          finding.kind == FindingKind.unconfirmed &&
-          finding.waitsFor == WaitsFor.owner;
-      if (!clearedByApproval) return 'check finding ${finding.kind.wire}';
+      if (!finding.isClearedByApproval) {
+        return 'check finding ${finding.kind.wire}';
+      }
     }
     return null;
   }
