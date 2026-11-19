@@ -1,23 +1,23 @@
 With `stage: design`, follow `design-check.md` instead. `specstone-sdd-engineer` runs this in `mode: audit` with no
-`stage` or `stage: drafts`, its gate made; so does the runner of `specstone-brainstorming-sdd`. Write nothing but the
+`stage` or `stage: drafts`, its gate made; so does the runner of `specstone-brainstorming-sdd`. Write only the
 agent's `report:` file, no fix. Ask the Owner nothing.
 
 ## 1. Read
 
-1. **Targets**: the dispatch's `targets`: the drafts list, a later audit's targets, each read whole and audited
-   again, or the feature or doc the Owner named.
+1. **Targets**: the dispatch's `targets` (the drafts list, a later audit's targets, or the doc the Owner named),
+   each read whole and audited again.
 2. **Hashes**: run one `specstone approve <targets> --dry-run --json`, the drafts list's names with no `--target`: it
-   gives each draft's `hash` and changed units. Only a target it omits, no draft, takes `specstone get <target> --json`.
+   gives each draft's `hash` and changed units. A target it does not list is no draft; only it takes `specstone get <target> --json`.
    On `doc_not_found` (never created, moved, or deleted), drop each name it names and list it under
    `Outside the drafts:`, with no `Audited:` line; any other refusal, such as `doc_type_unknown`, is a finding and
-   drops its names too. Rerun on the rest; with no target left, skip it and the steps below.
+   drops its names too. Rerun on the rest; no target left: skip it and the steps below.
 3. **Bundles**: run one `specstone context <doc> --for design --out` on the smallest doc holding every target when
    they sit in one feature, else once per top-level feature (the project doc for a project-level one), with no
    `--budget` or `--target`, so it takes every code target's spec docs. Read the saved files per
    `specstone-read-sdd`, the read-first one whole; ground a doc they lack with its own
    `specstone context <doc> --for design --out`, never `get`. On a non-zero exit, report the CLI's error as a
    finding and go on.
-4. **Design document**, when given: read it whole; list each decision and ruling by its ID or label. Then run
+4. **Design document**, when given: read it whole; list each decision and ruling by ID or label. Then run
    `specstone list <type> --draft` for `user_story`, `fr`, and `nf`: the drafts among the targets are this
    change's.
 5. **Check**: search the dispatch's `check:` file per target; with none, run one bare
@@ -47,10 +47,10 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each lens:
   a draft's new text beside another doc's item; a group of drafts alone is no gap, nor is any group by itself.
 - Without a design document, skip the first two lenses.
 - **Feature pattern:** for each item of a bundle's pattern part, search the doc listing the pattern, its subtree, and
-  its feature's spec folder, if any, for covering text or a skip line in that doc's `out_of_scope`; else report
+  its feature's spec folder for covering text or a skip line in that doc's `out_of_scope`; else report
   `<type>:<name>#out_of_scope: <pattern>/<item> neither covered nor skipped`, `<type>:<name>` the listing doc, typed
   as the part's bundle line.
-- **Repoint:** after a size-fix move, follow `repoint.md`.
+- **Repoint:** with no `check:` passed after an author pass, a `Move:` ran; follow `repoint.md`.
 - Read each draft item for two gaps `check` never names, each a `[style]` `Findings:` line naming its ID or first words:
   - **No example:** a non-obvious rule whose result on one concrete input you cannot state after one read.
   - **Clause order:** a condition after its rule, or clauses nested inside one sentence.

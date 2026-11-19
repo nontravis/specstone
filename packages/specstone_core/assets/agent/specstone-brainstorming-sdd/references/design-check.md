@@ -14,9 +14,8 @@ nothing but the agent's `report:` file; never edit the design document. Ask the 
    `OPEN QUESTIONS:` line naming `amend`. With no `amend`, keep every decision, a stub too.
 3. **Targets**: each doc that exists among the Docs to change rows; with `amend`, only the rows of the decisions
    step 2 kept, a stub's rows included. A row for a doc still to be created is no target.
-4. **Bundles**: ground the features the targets fall under as step 1.3 of `audit.md` does, one
-   `specstone context <feature> --for design --out` each, but read the `bundles` files in place of that call for the
-   target they hold. Run no `get`.
+4. **Bundles**: run one `specstone context <feature> --for design --out` per feature the targets fall under; a target
+   whose files `bundles` passes takes no call, so read those files in place. Run no `get`.
 
 ## 2. Compare
 
