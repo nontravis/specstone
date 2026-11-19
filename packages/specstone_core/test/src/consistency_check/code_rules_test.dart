@@ -126,6 +126,12 @@ Future<CheckReport> _run(Directory project, {String? codeTarget}) async {
   }
 }
 
+/// Returns the kind of each finding of [report] at [docPath].
+List<FindingKind> _kindsAt(CheckReport report, String docPath) => [
+  for (final f in report.findings)
+    if (f.path == docPath) f.kind,
+];
+
 /// Returns `<path>: <entry or path>` per finding of [kind].
 List<String> _of(CheckReport report, FindingKind kind) => [
   for (final f in report.findings)
@@ -809,6 +815,27 @@ void main() {
       );
     });
 
+    test('a shared doc whose code root is empty is still one '
+        'shared_doc_code_path', () async {
+      final project = await writeTwinProject(
+        without: {'docs/$_flutterTech', 'docs/$_jasprTech'},
+        extra: {
+          '.specstone/templates/tech_stack.yaml':
+              'id: tech_stack\nper_target: false\n',
+        },
+      );
+      File('${project.path}/docs/$techStack').writeAsStringSync(
+        withApprovalHashes({
+          ...checkProjectFiles(),
+          ...doc(techStack, '  - app/lib/\n', '  - ./\n'),
+        })['docs/$techStack']!,
+      );
+
+      final report = await _run(project);
+
+      expect(_kindsAt(report, techStack), [FindingKind.sharedDocCodePath]);
+    });
+
     test('a --target run lists the files of that target only', () async {
       final project = await _twin(
         extra: {
@@ -1123,14 +1150,6 @@ void main() {
     });
   });
 
-  test('a code-root entry naming the code root reaches nothing', () async {
-    final report = await checkOf(await writeCheckProject(extra: narrow('./')));
-
-    expect(_of(report, FindingKind.codeUncovered), [
-      '$techStack: app/lib/login.dart',
-    ]);
-  });
-
   test('an empty covers entry gives covers_entry_empty alone, in each empty '
       'form', () async {
     const forms = ['', '.', './', '/', './.', './/', 'lib/..', './lib/../'];
@@ -1143,6 +1162,17 @@ void main() {
       final line = lineOfFirst(project, loginArchitecture, '- ');
       expect(spots(report, FindingKind.coversEntryEmpty), [
         '$loginArchitecture:$line: covers_entry_empty',
+      ], reason: form);
+      expect(
+        report.findings
+            .where((f) => f.kind == FindingKind.coversEntryEmpty)
+            .single
+            .message,
+        startsWith('"$form" names no path of its own'),
+        reason: form,
+      );
+      expect(_kindsAt(report, loginArchitecture), [
+        FindingKind.coversEntryEmpty,
       ], reason: form);
       expect(_of(report, FindingKind.coversPathMissing), isEmpty, reason: form);
       // The empty entry covers no file, so every listed code file stays
@@ -1192,7 +1222,9 @@ void main() {
           isEmpty,
           reason: form,
         );
-        expect(_of(report, FindingKind.codeUnconfirmed), isEmpty, reason: form);
+        expect(_kindsAt(report, skillDoc), [
+          FindingKind.coversEntryEmpty,
+        ], reason: form);
       }
     },
   );
@@ -1228,6 +1260,22 @@ void main() {
 
     expect(_of(report, FindingKind.coversEntryEmpty), ['$_sharedTopic: ./']);
     expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
+  });
+
+  test('an empty code root is still a code root: code_root_missing once the '
+      'code root folder is gone', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}code_root: nowhere\n',
+          ...doc(techStack, '  - app/lib/\n', '  - ./\n'),
+        },
+      ),
+    );
+
+    expect(_of(report, FindingKind.codeRootMissing), ['$techStack: ./']);
+    expect(_of(report, FindingKind.coversEntryEmpty), isEmpty);
   });
 
   test(

@@ -162,8 +162,8 @@ Iterable<Finding> checkCoversAndCodeRoots(
   final codeRoot = target != null && work.endsWaitOf(doc, target)
       ? context.codeRootOf(target)
       : null;
+  final lines = context.linesOf(doc);
   for (final field in coversFieldsOf(type)) {
-    final lines = context.linesOf(doc);
     for (final YamlEntry(:value, :line) in lines.entriesOf(field.id)) {
       if (value is! String) continue;
       final entry = CodeLinkEntry(value).pointer;
@@ -173,8 +173,8 @@ Iterable<Finding> checkCoversAndCodeRoots(
         FindingKind.coversEntryEmpty,
         line: line,
         message:
-            '$entry names no path of its own, only the whole root; the Owner '
-            'sets the path it covers',
+            '"$entry" names no path of its own, only the whole root; the '
+            'Owner sets the path it covers',
         keys: {'entry': entry},
       );
     }
@@ -187,6 +187,7 @@ Iterable<Finding> checkCoversAndCodeRoots(
       base,
       FindingKind.coversPathMissing,
       pathOf: (value) => CodeLinkEntry(value).pointer,
+      skipsEmpty: true,
     );
   }
   if (codeRoot == null || !context.typeHoldsField(type, _codeField)) return;
@@ -197,12 +198,16 @@ Iterable<Finding> checkCoversAndCodeRoots(
     codeRoot,
     FindingKind.codeRootMissing,
     pathOf: (value) => value,
+    skipsEmpty: false,
   );
 }
 
 /// Yields a [kind] finding for each entry of [doc]'s [fieldId] whose path,
-/// as [pathOf] reads it, names nothing from [base]. An empty `covers` entry
-/// is no path to resolve, so it gives none here.
+/// as [pathOf] reads it, names nothing from [base].
+///
+/// With [skipsEmpty], an empty entry gives none: a `covers` entry that names
+/// no path is `covers_entry_empty`'s. A `code` root has no such finding, so it
+/// keeps resolving.
 Iterable<Finding> _missingPaths(
   CheckContext context,
   IndexedDoc doc,
@@ -210,14 +215,14 @@ Iterable<Finding> _missingPaths(
   Directory base,
   FindingKind kind, {
   required String Function(String value) pathOf,
+  required bool skipsEmpty,
 }) sync* {
   for (final YamlEntry(:value, :line)
       in context.linesOf(doc).entriesOf(fieldId)) {
     if (value is! String) continue;
     final entry = pathOf(value);
-    if (isEmptyCodeEntry(entry) || namesFileOrFolderFrom(base, entry)) {
-      continue;
-    }
+    if (skipsEmpty && isEmptyCodeEntry(entry)) continue;
+    if (namesFileOrFolderFrom(base, entry)) continue;
     yield context.finding(
       doc,
       kind,
@@ -234,23 +239,27 @@ Iterable<Finding> _missingPaths(
 ///
 /// One finding per doc, at the line of the first such key; its paths count for
 /// no target. A `root: project` field resolves from the project root and covers
-/// code there, so its entries give none. An empty entry counts as no entry.
+/// code there, so its entries give none. An empty `covers` entry counts as no
+/// entry; an empty `code` root still does.
 Iterable<Finding> _sharedDocPaths(
   CheckContext context,
   IndexedDoc doc,
   MergedDocType type,
 ) sync* {
   final lines = context.linesOf(doc);
-  bool holdsEntry(String fieldId) => [
+  bool holdsEntry(String fieldId, {required bool skipsEmpty}) => [
     for (final YamlEntry(:value) in lines.entriesOf(fieldId))
-      if (value is String && !isEmptyCodeEntry(CodeLinkEntry(value).pointer))
+      if (value is String &&
+          !(skipsEmpty && isEmptyCodeEntry(CodeLinkEntry(value).pointer)))
         value,
   ].isNotEmpty;
   final line = [
     for (final field in coversFieldsOf(type))
-      if (!readsFromProjectRoot(field) && holdsEntry(field.id))
+      if (!readsFromProjectRoot(field) &&
+          holdsEntry(field.id, skipsEmpty: true))
         lines.keyLine(field.id),
-    if (context.typeHoldsField(type, _codeField) && holdsEntry(_codeField))
+    if (context.typeHoldsField(type, _codeField) &&
+        holdsEntry(_codeField, skipsEmpty: false))
       lines.keyLine(_codeField),
   ].nonNulls.firstOrNull;
   if (line == null) return;
@@ -335,7 +344,7 @@ List<String> _coversOf(CheckContext context, List<IndexedDoc> docs) => [
       if (!readsFromProjectRoot(field))
         for (final YamlEntry(:value)
             in context.linesOf(doc).entriesOf(field.id))
-          if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
+          if (value is String) ?reachablePathOf(value),
 ];
 
 /// Returns every `root: project` `covers` entry of every typed doc of the
@@ -349,7 +358,7 @@ List<String> _projectCoversOf(CheckContext context) => [
       if (readsFromProjectRoot(field))
         for (final YamlEntry(:value)
             in context.linesOf(doc).entriesOf(field.id))
-          if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
+          if (value is String) ?reachablePathOf(value),
 ];
 
 /// Returns the path of [target]'s code root from the project root, `''` for

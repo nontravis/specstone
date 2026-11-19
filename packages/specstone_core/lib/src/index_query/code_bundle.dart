@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:specstone_core/src/canonical_path.dart'
     show absoluteFrom, pathInside;
 import 'package:specstone_core/src/index_query/bundle.dart';
-import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show normalCodeEntry;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -250,9 +248,9 @@ List<IndexedDoc> _longestCover(
   return matches;
 }
 
-/// Returns the paths [doc]'s `covers` fields name, in [normalCodeEntry]'s
-/// form: the fields that read from the project root when [fromProject], else
-/// those that read from a code root.
+/// Returns the paths [doc]'s `covers` fields name, in `normalCodeEntry`'s
+/// form, an empty entry left out: the fields that read from the project root
+/// when [fromProject], else those that read from a code root.
 Iterable<String> _coveredPaths(
   DocIndex index,
   IndexedDoc doc, {
@@ -261,7 +259,7 @@ Iterable<String> _coveredPaths(
   for (final field in coversFieldsOf(index.typeOf(doc))) {
     if (readsFromProjectRoot(field) != fromProject) continue;
     for (final entry in doc.valuesOf(field.id)) {
-      yield normalCodeEntry(CodeLinkEntry(entry).pointer);
+      if (reachablePathOf(entry) case final path?) yield path;
     }
   }
 }

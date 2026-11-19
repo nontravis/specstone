@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show isEmptyCodeEntry, normalCodeEntry;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One entry of a code-link field: a pointer, then optionally a fingerprint.
@@ -53,10 +55,20 @@ List<MergedField> coversFieldsOf(MergedDocType? type) => [
 bool readsFromProjectRoot(MergedField field) =>
     field.root == PointerRoot.project;
 
+/// Returns the path [entry] names, in `normalCodeEntry`'s form; null when it
+/// is empty, so it names no path of its own.
+///
+/// The one reader of a `covers` entry as a path: coverage and `context --code`
+/// take it, so an empty entry reaches nothing in either.
+String? reachablePathOf(String entry) {
+  final pointer = CodeLinkEntry(entry).pointer;
+  return isEmptyCodeEntry(pointer) ? null : normalCodeEntry(pointer);
+}
+
 /// Whether [entry] equals [path] or names a folder that holds it.
 ///
 /// Both are `/`-separated paths in one normal form, from the same root, and
 /// match by whole segment: `skills/rev` does not reach `skills/review/a.md`.
-/// An empty [entry], the root itself, reaches nothing.
+/// [entry] is a [reachablePathOf] result, never empty.
 bool entryReaches(String entry, String path) =>
-    entry.isNotEmpty && (path == entry || path.startsWith('$entry/'));
+    path == entry || path.startsWith('$entry/');
