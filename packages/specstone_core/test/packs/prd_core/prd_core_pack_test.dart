@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -13,13 +14,31 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 
-/// The cite line and the four readability lines every description keeps.
-const _readabilityLines = <String>[
-  _citeLine,
-  _oneRuleLine,
-  citeNoteGuideLine,
-  _exampleLine,
-  _conditionLine,
+/// The shared lines `prd-core` ships, by id, in file order.
+const _sharedLines = <String, String>{
+  'present_truth': 'State the present truth; history lives in git.',
+  'one_rule_per_item': _oneRuleLine,
+  'cite_at_item_end': citeNoteGuideLine,
+  'one_example': _exampleLine,
+  'condition_first': _conditionLine,
+  'cite_by_link': _citeLine,
+};
+
+/// The doc types whose lint holds the `history` pattern.
+const _historyIds = [
+  'anti_persona',
+  'feature',
+  'features',
+  'fr',
+  'glossary',
+  'gnfr',
+  'goal',
+  'journey',
+  'measurement',
+  'nf',
+  'persona',
+  'project',
+  'user_story',
 ];
 
 const _citeLine =
@@ -28,7 +47,7 @@ const _citeLine =
 
 const _oneRuleLine =
     'Keep one rule in each item, and put several conditions in a nested list. '
-    'A one-sentence paragraph with no ID moves its detail to the section of '
+    'Move the detail of a one-sentence paragraph with no ID to the section of '
     'the same doc that owns it, never into a sub-list.';
 
 const _exampleLine =
@@ -85,25 +104,40 @@ void main() {
       expect(manifest.name, 'prd-core');
       expect(manifest.version.toString(), '1.18.0');
       expect(manifest.extendsPack, isNull);
-      final upgrades = selectUpgrades(
-        {
-          'prd-core': PackVersion.parse(
-            '1.17.0',
-            file: 'config',
-            key: 'prd-core',
-          ),
-        },
-        {'prd-core': manifest},
+      final upgrade = _upgradeFrom('1.7.0', manifest);
+      expect(upgrade.target.toString(), '1.18.0');
+      expect(
+        [for (final s in upgrade.steps) (s.from.toString(), s.step.kind)],
+        [('1.7.0', 'strip_shared_copies')],
       );
-      expect(upgrades.single.steps, isEmpty);
     });
 
-    test('prd-core lists no migration entry with an empty step list', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
-        file: 'packs/prd-core/pack.yaml',
+    test('a pin past the strip entry gets the pin change only', () {
+      final upgrade = _upgradeFrom('1.17.0', _prdCoreManifest());
+      expect(upgrade.target.toString(), '1.18.0');
+      expect(upgrade.steps, isEmpty);
+    });
+
+    test('prd-core lists one migration entry, from 1.7.0, holding the one '
+        'strip step', () {
+      final migrations = _prdCoreManifest().migrations;
+      expect(migrations.map((e) => e.from.toString()), ['1.7.0']);
+      expect(migrations.single.steps.single, isA<StripSharedCopies>());
+    });
+
+    test('prd-core ships its shared lines in order with their reach and no '
+        'shared field', () {
+      final shared = _prdCoreManifest().shared;
+      expect({for (final l in shared.lines) l.id: l.text}, _sharedLines);
+      expect(shared.lines.map((l) => l.id), _sharedLines.keys);
+      expect(
+        {for (final l in shared.lines) l.id: l.forDocTypes},
+        {
+          for (final id in _sharedLines.keys)
+            id: id == 'present_truth' ? _historyIds : null,
+        },
       );
-      expect(manifest.migrations.where((e) => e.steps.isEmpty), isEmpty);
+      expect(shared.fields, isEmpty);
     });
 
     test('a project pinning the shipped prd-core resolves with '
@@ -181,12 +215,24 @@ void main() {
       },
     );
 
-    test('the description holds the shared readability lines', () async {
+    test('no description holds a shared line, and each guide prints the '
+        'shared lines that reach it', () async {
       final set = await resolvePrdCore();
       for (final docType in set.docTypes) {
-        for (final line in _readabilityLines) {
-          expect(docType.description, contains(line), reason: docType.id);
+        final texts = [
+          docType.description,
+          for (final field in docType.fields) field.description,
+          for (final section in docType.sections) section.description,
+        ];
+        for (final line in _sharedLines.values) {
+          for (final text in texts) {
+            expect(text ?? '', isNot(contains(line)), reason: docType.id);
+          }
         }
+        expect(docType.sharedLines.map((l) => l.id), [
+          for (final id in _sharedLines.keys)
+            if (id != 'present_truth' || _historyIds.contains(docType.id)) id,
+        ], reason: docType.id);
       }
     });
 
@@ -429,20 +475,18 @@ void main() {
       }
     });
 
-    test('a pin at 1.7.0 or 1.9.0 moves to the shipped version through no '
-        'step and no migration entry', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
-        file: 'packs/prd-core/pack.yaml',
-      );
+    test('a pin at 1.7.0 or 1.9.0 takes steps that change no goal doc', () {
+      final manifest = _prdCoreManifest();
       for (final pin in ['1.7.0', '1.9.0']) {
-        final upgrades = selectUpgrades(
-          {'prd-core': PackVersion.parse(pin, file: 'config', key: 'prd-core')},
-          {'prd-core': manifest},
+        expect(
+          _upgradeFrom(
+            pin,
+            manifest,
+          ).steps.where((s) => s.step.touches('goal')),
+          isEmpty,
+          reason: pin,
         );
-        expect(upgrades.single.steps, isEmpty, reason: pin);
       }
-      expect(manifest.migrations, isEmpty);
     });
   });
 
@@ -588,3 +632,14 @@ void main() {
     });
   });
 }
+
+PackManifest _prdCoreManifest() => PackManifest.parse(
+  utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
+  file: 'packs/prd-core/pack.yaml',
+);
+
+/// The one upgrade of a project that pins `prd-core` at [pin].
+PackUpgrade _upgradeFrom(String pin, PackManifest manifest) => selectUpgrades(
+  {'prd-core': PackVersion.parse(pin, file: 'config', key: 'prd-core')},
+  {'prd-core': manifest},
+).single;

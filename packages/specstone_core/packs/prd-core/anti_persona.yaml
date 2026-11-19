@@ -2,19 +2,13 @@ id: anti_persona
 description: |-
   An anti-persona: a group the product must resist or does not serve, kept as its own doc beside the personas.
   Title it `# <archetype title>`, role-based, with no number. The folder name is its identity, so it has no id field.
-  `anti_type:` is misuser or non-target. Never write an anti-persona as a row inside a persona.
+  Never write an anti-persona as a row inside a persona.
   A misuser fills every section; the Goal is the threat, then Motivations, Actions, Tools, Needs, and Consequences.
   A non-target fills only Snapshot, Goal, and Sources; the Goal states who the product does not serve and why.
   Write a misuser only when the likelihood or consequence of misuse justifies the effort.
   A doc or spec that guards against an anti-persona cites it in `reference:`.
   Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
   Keep a bound in the item it limits, and the research trace in `basis:` and the Sources section, never in the prose.
-  State the present truth; history lives in git.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: prds/personas/{slug}/ANTI_PERSONA.md
 fields:
   - id: anti_type
@@ -75,7 +69,6 @@ sections:
     required: true
     when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Fill it for a misuser; a non-target leaves it out.
       State why the misuser wants to misuse the product.
     template: |-
       - <Why the misuser wants to misuse the product.>
@@ -84,7 +77,6 @@ sections:
     required: true
     when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Fill it for a misuser; a non-target leaves it out.
       List the steps the misuser takes to reach the goal.
     template: |-
       - <A step the misuser takes.>
@@ -93,7 +85,6 @@ sections:
     required: true
     when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Fill it for a misuser; a non-target leaves it out.
       List the tools, scripts, or access the misuser uses.
     template: |-
       - <A tool, script, or access the misuser uses.>
@@ -102,7 +93,6 @@ sections:
     required: true
     when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Fill it for a misuser; a non-target leaves it out.
       List what the misuser needs from the product to succeed.
     template: |-
       - <What the misuser needs from the product.>
@@ -111,7 +101,6 @@ sections:
     required: true
     when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Fill it for a misuser; a non-target leaves it out.
       State the harm if the misuse succeeds, and who bears it.
     template: |-
       - <The harm if the misuse succeeds, and who bears it.>

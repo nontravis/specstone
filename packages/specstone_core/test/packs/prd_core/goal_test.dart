@@ -10,6 +10,8 @@ import '../../helpers/write_fixture.dart' as write;
 
 const _horizonIds = ['long_term', 'mid_term', 'short_term'];
 
+const _citeFragment = 'by a link to the item that holds it, never restate it';
+
 void main() {
   late MergedDocType goal;
   setUpAll(() async {
@@ -33,6 +35,19 @@ void main() {
       expect(section.query, isNull, reason: id);
       expect(section.summary, isNull, reason: id);
     }
+  });
+
+  test('the guide prints the goal rules, then the shared cite line', () {
+    final guide = goal.renderGuide();
+    final cite = guide.indexOf(_citeFragment);
+    for (final rule in [
+      'A goal that changes horizon moves its block',
+      'A goal met or dropped is deleted',
+    ]) {
+      expect(guide.indexOf(rule), allOf(isNonNegative, lessThan(cite)));
+    }
+    expect(goal.description, isNot(contains(_citeFragment)));
+    expect(goal.sharedLines.map((l) => l.id), contains('cite_by_link'));
   });
 
   test('every section carries the metric_number entry', () {

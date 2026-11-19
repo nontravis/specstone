@@ -10,12 +10,6 @@ description: |-
   Keep a bound in the rule it limits, and the trace in `vision:` and `goals:`, never in the prose.
   Mark the story ready only when no open question can still change its scope.
   Keep prose at reader altitude: name no class, function, file path, error code, plan, or ruling.
-  State the present truth; history lives in git.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md
 parent: feature
 fields:
@@ -103,7 +97,7 @@ sections:
   - id: open_questions
     header: Open questions
     description: |-
-      Optional. Record each example whose outcome nobody knows as a question, not as a scenario.
+      Record each example whose outcome nobody knows as a question, not as a scenario.
       Leave it empty before the Owner approves the story.
     template: |-
       - <question>

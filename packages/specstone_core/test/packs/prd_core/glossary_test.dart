@@ -25,6 +25,8 @@ Future<List<String>> _glossarySpots(String text) async {
 
 const glossaryDoc = 'prds/GLOSSARY.md';
 
+const _citeFragment = 'by a link to the item that holds it, never restate it';
+
 void main() {
   late MergedDocType glossary;
   setUpAll(() async {
@@ -37,6 +39,19 @@ void main() {
     expect(glossary.parent, isNull);
     expectOwnFields(glossary, const []);
     expectSections(glossary, const [SectionSpec('terms', 'Terms')]);
+  });
+
+  test('the guide prints the glossary rules, then the shared cite line', () {
+    final guide = glossary.renderGuide();
+    final cite = guide.indexOf(_citeFragment);
+    for (final rule in [
+      'Write one bullet per term',
+      'A project has exactly one glossary doc',
+    ]) {
+      expect(guide.indexOf(rule), allOf(isNonNegative, lessThan(cite)));
+    }
+    expect(glossary.description, isNot(contains(_citeFragment)));
+    expect(glossary.sharedLines.map((l) => l.id), contains('cite_by_link'));
   });
 
   test('the description states no number a lint key holds', () {

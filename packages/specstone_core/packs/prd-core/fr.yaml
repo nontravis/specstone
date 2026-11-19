@@ -15,12 +15,6 @@ description: |-
   In an error case, name the error code the person or caller sees and whether the run stops. State no exit status: the error catalog reaching the FR holds it, the one the nearest feature up its parent chain holds in the target.
   Quote an error message only when it is part of the contract, and then once, in the Output row that defines it; with no catalog reaching the FR, state in words what the person sees.
   Split an FR that holds too many edge cases into new FRs in its story.
-  State the present truth; history lives in git.
-  Cite a rule another doc owns by a link to the item that holds it, never restate it.
-  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
-  Put a cite or an ownership note at the item's end.
-  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
-  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md
 parent: user_story
 fields:
@@ -59,7 +53,6 @@ sections:
       Write: The <product> shall <verb> <object> <value ± tolerance> <condition>.
       Use one "shall" and a positive form; rewrite "shall not" as the required behavior. Do not use EARS keywords.
       Give every value a unit and a tolerance (<, ≥, ±); a statement without a number is an expectation for the story.
-      Remove this, these, as appropriate, etc., and/or, but not limited to, and the other listed words.
     template: |-
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
     summary: true
