@@ -934,6 +934,70 @@ lint:
       );
     });
 
+    test('item field entries in the three accepted shapes load', () {
+      final entries =
+          (lintOf(
+                    '{item_fields: [ '
+                    '{field: Corrective policy, when: {field: Consistency, '
+                    'value: eventual}, values: [a]}, '
+                    '{field: Consistency, values: [eventual], optional: true}, '
+                    '{field: Enforcer, default_from: entities}, '
+                    '{field: Plain}]}',
+                  ).itemFields!
+                  as PlainList<ItemFieldLint>)
+              .items;
+      expect(entries[0].when?.field, 'Consistency');
+      expect(entries[0].optional, isFalse);
+      expect(entries[0].defaultFrom, isNull);
+      expect(entries[1].optional, isTrue);
+      expect(entries[1].when, isNull);
+      expect(entries[2].defaultFrom, 'entities');
+      expect(entries[2].optional, isFalse);
+      expect(entries[3].optional, isFalse);
+      expect(entries[3].defaultFrom, isNull);
+      expect(entries[1].toJson()['optional'], isTrue);
+      expect(entries[2].toJson()['default_from'], 'entities');
+      expect(entries[3].toJson().keys, ['field']);
+    });
+
+    test('a non-boolean optional is refused at its entry key', () {
+      expectSectionFault(
+        '{item_fields: [{field: A, optional: yes}]}',
+        FaultCode.unknownValue,
+        'item_fields[0].optional',
+      );
+    });
+
+    test('a default_from naming another section is refused', () {
+      expectSectionFault(
+        '{item_fields: [{field: A, default_from: roles}]}',
+        FaultCode.unknownValue,
+        'item_fields[0].default_from',
+      );
+    });
+
+    test('an entry writing two exclusive keys is refused with the one-of '
+        'message', () {
+      const pairs = [
+        'when: {field: K, value: v}, optional: true',
+        'when: {field: K, value: v}, default_from: entities',
+        'optional: false, default_from: entities',
+      ];
+      for (final pair in pairs) {
+        expect(
+          () => lintOf('{item_fields: [{field: A, $pair}]}'),
+          throwsA(
+            sectionFault(FaultCode.unknownValue, 'item_fields[0]').having(
+              (f) => f.message,
+              'message',
+              'an item_fields entry takes one of when, optional, default_from',
+            ),
+          ),
+          reason: pair,
+        );
+      }
+    });
+
     test('required_when reads section, field, and value', () {
       final rule = lintOf(
         '{required_when: {section: scope, field: Kind, value: api}}',
