@@ -79,8 +79,8 @@ do not ground is an open question.
    fresh `mode: audit` with the document's path, the drafts list as its targets, and `check:` as
    `references/rounds.md` section 3 item 4 gives.
 3. Run fix rounds on its `Findings:` lines per `references/rounds.md`.
-4. Show each author reply and the last audit's relay block; approve the drafts through the
-   `specstone-expert-sdd` skill's Owner confirmation, testing both under `auto`.
+4. Show each author reply and the last audit's relay block; follow the `specstone-expert-sdd` skill's
+   "Get the drafts approved", with `--audit` and `--author`.
 
 ## 5. Hand the approved drafts to the plan skill
 

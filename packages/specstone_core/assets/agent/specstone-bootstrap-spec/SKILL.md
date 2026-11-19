@@ -56,7 +56,7 @@ When you followed the procedure yourself, its report stands in for item 1; on no
 in for item 4.
 
 1. Show the Owner each agent's `Report:` line, then its relay block word for word, before your own notes.
-2. Get each draft approved through `specstone-expert-sdd`'s Owner confirmation; ask the Owner to approve each
+2. Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`; ask the Owner to approve each
    proposal, then run each of its commands in run order
    (`../specstone-expert-sdd/references/size-fix.md`).
 3. Ask the Owner each open question; send the answers to that batch's live agent, else to a new one. Ask once per batch, every file under its `Uncovered:`, no helper, in one question: write a

@@ -91,15 +91,10 @@ field; `specstone-expert-sdd` says how to record it.
 
 ## 4. Name the change for the Owner
 
-Write no design document. Name the change through `specstone-expert-sdd`'s Owner confirmation: its `Why:` line,
-adding for a confirmation the upstream change you checked it against, then the view
-`specstone approve <type>:<name> --dry-run` prints.
+Write no design document. Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`.
 
 When that doc holds others, as a feature holds its stories and a story its FRs, say so: at the terminal the approve
 call also walks every draft under that doc; in the chat, the dry run prints and you send each one.
-
-With no design document or coverage table, the Owner's look at your named change is the edit's one check: under
-`ask`, never approve before their `ok`.
 
 ## Red flags
 
@@ -109,4 +104,4 @@ With no design document or coverage table, the Owner's look at your named change
 | "The new FR is short; one `set` fits it."          | Follow the `specstone-brainstorming-sdd` skill.             |
 | "A quick design document first, to be safe."       | A small edit has none; name the change.                     |
 | "Base mismatch: rerun with my text."               | Merge into the current text first.                          |
-| "I'll run `specstone approve` without an `ok`."    | Under `ask`, wait for the `ok`; `auto`: Owner confirmation. |
+| "I'll run `specstone approve` without an `ok`."    | Follow "Get the drafts approved", with `--no-audit`.        |

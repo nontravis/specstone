@@ -1456,6 +1456,45 @@ const _expertSdd = 'specstone-expert-sdd/SKILL.md';
 
 const _approveHeading = '## Get the drafts approved';
 
+/// The report flags each runner skill's approval names, by skill file.
+const _runnerFlags = {
+  'specstone-brainstorming-sdd/SKILL.md': ['--audit', '--author'],
+  'specstone-update-sdd/SKILL.md': ['--no-audit'],
+  'specstone-sync-sdd/SKILL.md': ['--no-audit'],
+  'specstone-bootstrap-prd/SKILL.md': ['--no-audit'],
+  'specstone-bootstrap-spec/SKILL.md': ['--no-audit'],
+  'specstone-init/SKILL.md': ['--no-audit'],
+};
+
+const _reportFlags = ['--audit', '--author', '--no-audit'];
+
+/// One problem per way runner skill [file] fails to point to expert-sdd's
+/// auto approve section with exactly its [flags].
+List<String> _runnerPointerProblems(String file, List<String> flags) {
+  final text = _pluginText(file);
+  final body = _oneLine(
+    text.split('\n').where((line) => !line.startsWith('#')).join('\n'),
+  );
+  final title = _approveHeading.substring('## '.length);
+  final pointers = body
+      .split(RegExp(r'(?<=[.;])\s'))
+      .where(
+        (sentence) =>
+            sentence.contains(title) &&
+            sentence.contains('specstone-expert-sdd'),
+      )
+      .join(' ');
+  return [
+    if (pointers.isEmpty) '$file: no pointer to "$title"',
+    for (final flag in _reportFlags)
+      if (flags.contains(flag) && !pointers.contains(flag))
+        '$file: pointer lacks $flag'
+      else if (!flags.contains(flag) && body.contains(flag))
+        '$file: names $flag',
+    if (text.contains('approve-mode')) '$file: names approve-mode',
+  ];
+}
+
 /// The text of [heading]'s section in [markdown], up to the next `## `
 /// heading, every whitespace run as one space; empty when no line is
 /// [heading].
@@ -1527,5 +1566,14 @@ void _approveStepTests() {
       ),
       isNotEmpty,
     );
+  });
+
+  test("each runner points to the auto approve section with its flow's report "
+      'flags', () {
+    final problems = [
+      for (final MapEntry(key: file, value: flags) in _runnerFlags.entries)
+        ..._runnerPointerProblems(file, flags),
+    ];
+    expect(problems, isEmpty);
   });
 }

@@ -42,13 +42,13 @@ section 3 says.
   `[behavior]` (`[style]` too).
 - **A `[style]`-only audit** spends no round and gets no re-audit: fix each line in place by `specstone set --replace`.
   Run `specstone approve <drafts list> --dry-run --json`, then append to that audit's report file one
-  `Styled: <type>:<name>@<hash>` line per fixed draft, `hash` as that call prints it.
+  `Styled: <type>:<name>@<hash>` line per fixed draft, `hash` as that call prints it, for `--auto` to read.
 - **A split proposal** the Owner okays: run its `specstone move` commands as an author's `Move:` lines. The new FRs
   join the drafts list, and a fresh author pass fills them before any audit: it joins the next round when one is due,
   else it is no round. Then the amend compare below.
-- **The cap**: run at most two rounds, fix rounds and amend passes alike; no design check counts. Lines left after the
-  second get no third round: the Owner sees them with the drafts before approving any, and their decision on one takes
-  section 1's route.
+- **The cap**: run at most two rounds, fix rounds and amend passes alike; no design check counts. Lines past the second
+  get no third round: the Owner sees them with the drafts; `--auto` asks each draft they name; a decision on
+  one takes section 1's route.
 - After each fix round, and after each pass that follows an amend, re-audit as section 3 says.
 - **Before every audit dispatch**, the skill's step 4 audit included, compare the design's last amend, the highest
   `Amend <N>` its headings list or `0`, with the `amend <N>` of the last author relay block's first line,

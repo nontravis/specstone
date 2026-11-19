@@ -65,7 +65,7 @@ Run item 1 for each report as it comes in, and items 2 and 3 once, after the las
 every group. A group you judged or followed stands in for item 1 by its own changes and stamps.
 
 1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
-2. Get each draft approved through `specstone-expert-sdd`'s Owner confirmation.
+2. Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`.
 3. Ask the Owner, per point under `Mismatches:`, fix the code or fix the spec. Fix the code writes nothing: the next
    `check` lists the link again. Ask the Owner, per file under `Uncovered:`, write a spec or change or
    remove the code; change or remove writes nothing, and a write-a-spec pick routes as a fix-the-spec pick does. When a
