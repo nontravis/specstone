@@ -51,6 +51,39 @@ final bool shippedStatusesOutside = statusesOutsideApproval({
 /// statuses outside the approval hash.
 const statusesBelowVersion = '1.6.0';
 
+/// The shipped pack files less each key of [without], such as
+/// `prd-core/glossary.yaml`.
+///
+/// A dropped doc type also leaves the `for_doc_types` of its pack's shared
+/// lines, as a pack that never shipped the type would write them.
+Map<String, Uint8List> shippedFilesWithout(Set<String> without) {
+  final files = {...shippedPackFiles};
+  without.forEach(files.remove);
+  final droppedTypes = <String, Set<String>>{};
+  for (final key in without) {
+    final [pack, file] = key.split('/');
+    if (file == 'pack.yaml') continue;
+    droppedTypes.putIfAbsent(pack, () => {}).add(file.replaceAll('.yaml', ''));
+  }
+  for (final MapEntry(:key, :value) in droppedTypes.entries) {
+    final manifest = utf8.decode(files['$key/pack.yaml']!);
+    files['$key/pack.yaml'] = Uint8List.fromList(
+      utf8.encode(
+        manifest.replaceAllMapped(
+          RegExp(r'^(\s*for_doc_types: )\[(.*)\]$', multiLine: true),
+          (match) {
+            final kept = match[2]!
+                .split(', ')
+                .where((id) => !value.contains(id));
+            return '${match[1]}[${kept.join(', ')}]';
+          },
+        ),
+      ),
+    );
+  }
+  return files;
+}
+
 /// Returns a resolver whose shipped packs carry [versions] in place of their
 /// own, so a project may pin them below the shipped versions.
 ///
@@ -60,8 +93,7 @@ TemplateResolver resolverCarrying(
   Map<String, String> versions, {
   Set<String> without = const {},
 }) {
-  final files = {...shippedPackFiles};
-  without.forEach(files.remove);
+  final files = shippedFilesWithout(without);
   for (final MapEntry(:key, :value) in versions.entries) {
     final manifest = utf8.decode(files['$key/pack.yaml']!);
     files['$key/pack.yaml'] = Uint8List.fromList(

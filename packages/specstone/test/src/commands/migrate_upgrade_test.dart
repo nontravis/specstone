@@ -254,7 +254,7 @@ const _bulletedDoc =
 
 const _stripMigrations = '''
 shared_lines:
-  - {id: no_status, text: Never write a status field.}
+  - {id: acme_no_status, text: Never write a status field.}
 migrations:
   - from: 1.0.0
     steps:
@@ -286,7 +286,7 @@ void main() {
       expect(json.status, 0, reason: json.err);
       final plan = jsonDecode(json.out) as Map<String, Object?>;
       expect(plan['sharedCopies'], {
-        'stripped': ['$_overridePath:3 no_status'],
+        'stripped': ['$_overridePath:3 acme_no_status'],
         'left': <String>[],
       });
       expect(_bytesUnder(root), before);

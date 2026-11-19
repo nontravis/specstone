@@ -5195,7 +5195,7 @@ name: acme
 version: 1.2.0
 extends: software-tech
 shared_lines:
-  - {id: no_status, text: Never write a status field.}
+  - {id: acme_no_status, text: Never write a status field.}
   - {id: be_brief, text: Be brief.}
 migrations:
   - from: 1.0.0
@@ -5285,13 +5285,13 @@ void _sharedCopiesTests() {
       );
       expect(plan.lists.toJson()['sharedCopies'], {
         'stripped': [
-          '$_stripGuidePath:3 no_status',
+          '$_stripGuidePath:3 acme_no_status',
           '$_stripLedgerPath:3 be_brief',
-          '$_stripRunbookPath:3 no_status',
+          '$_stripRunbookPath:3 acme_no_status',
           '$_stripRunbookPath:4 be_brief',
         ],
         'left': [
-          '~/.specstone/packs/acme/runbook.yaml:4 no_status',
+          '~/.specstone/packs/acme/runbook.yaml:4 acme_no_status',
           '~/.specstone/packs/acme/runbook.yaml:5 be_brief',
         ],
       });
@@ -5351,7 +5351,7 @@ void _sharedCopiesTests() {
 
       final copies =
           plan.lists.toJson()['sharedCopies']! as Map<String, Object?>;
-      expect(copies['stripped'], ['$_stripRunbookPath:3 no_status']);
+      expect(copies['stripped'], ['$_stripRunbookPath:3 acme_no_status']);
     });
 
     test('the removals sit in commit 2 beside the pins, and commit 1 is '
@@ -5439,7 +5439,7 @@ migrations:
           overrides: {
             _stripRunbookPath: _statusCopyOverride,
             '.specstone/templates/shared.yaml':
-                'shared_lines:\n  - {id: no_status, disabled: true}\n',
+                'shared_lines:\n  - {id: acme_no_status, disabled: true}\n',
           },
         ),
       );
@@ -5503,7 +5503,7 @@ migrations:
       expect(
         (second.lists.toJson()['sharedCopies']!
             as Map<String, Object?>)['stripped'],
-        ['$_stripGuidePath:4 no_status'],
+        ['$_stripGuidePath:4 acme_no_status'],
       );
       expect(_hashOf(second), isNot(_hashOf(first)));
     });

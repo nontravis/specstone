@@ -2414,7 +2414,7 @@ items:
           out.toString(),
           stringContainsInOrder([
             'A journey: ',
-            'Keep one goal of one persona, from the start',
+            'Run from the start to the result the persona wants.',
             '## Goal\n\nRequired section. Limits: at most 1 line.\n',
             '## Flow\n\nRequired section.\n',
             '## Steps\n\nRequired section.\n',
@@ -2473,7 +2473,7 @@ items:
         out.toString(),
         stringContainsInOrder([
           'A measurement: ',
-          "to the measured goal's `### PG-` heading in the goal doc.",
+          "to the measured goal's `### PG-` heading in GOAL.",
           'Results is a log: a run adds its row on top',
           '## Scope\n',
           '## Method\n',
