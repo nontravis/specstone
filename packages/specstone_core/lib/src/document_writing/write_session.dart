@@ -153,6 +153,7 @@ final class WriteSession {
   ReadSession _read;
   bool _snapshotOpen = true;
   bool _closed = false;
+  bool _inLockedAsync = false;
 
   /// The DocPaths whose last [readDocBytes] began with a UTF-8 BOM.
   final _bomDocs = <String>{};
@@ -311,20 +312,31 @@ final class WriteSession {
   /// the busy timeout.
   Future<T> lockedAsync<T>(Future<T> Function() act) {
     final endsSnapshot = _endSnapshot();
-    return _read.store.writeAsync(() {
+    return _read.store.writeAsync(() async {
       if (endsSnapshot && _read.store.snapshotIsStale) {
         throw const _StaleSnapshot();
       }
-      return act();
+      _inLockedAsync = true;
+      try {
+        return await act();
+      } finally {
+        _inLockedAsync = false;
+      }
     });
   }
 
   /// Runs every check rule over the whole project on the session's snapshot.
   ///
-  /// Call it before the first [locked] call or inside [lockedAsync]; the parse
-  /// results it stores join the open write instead of ending it.
-  Future<CheckReport> runProjectCheck({MermaidNodeRun? mermaidRunner}) =>
-      runCheck(_read, mermaidRunner: mermaidRunner);
+  /// Call it inside [lockedAsync]; the parse results it stores join the open
+  /// write instead of ending it. Outside, its cache write would restart the
+  /// snapshot and hide a peer commit from the first lock.
+  /// Throws [StateError] when called outside [lockedAsync].
+  Future<CheckReport> runProjectCheck({MermaidNodeRun? mermaidRunner}) {
+    if (!_inLockedAsync) {
+      throw StateError('runProjectCheck runs only inside lockedAsync');
+    }
+    return runCheck(_read, mermaidRunner: mermaidRunner);
+  }
 
   /// Ends the read snapshot when it is still open; returns whether it did.
   bool _endSnapshot() {

@@ -1,6 +1,8 @@
 // Test names carry the story, FR, and edge-case IDs on one line.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_report.dart';
@@ -205,13 +207,59 @@ void main() {
       bareSession.close();
     }
     final projectWide = await WriteSession.runAsync(
-      (s) async => lines(await s.runProjectCheck(mermaidRunner: runner)),
+      (s) => s.lockedAsync(
+        () async => lines(await s.runProjectCheck(mermaidRunner: runner)),
+      ),
       templates: TemplateResolver(),
       workingDirectory: root,
       homeDirectory: testHome(),
     );
     expect(bare, isNotEmpty);
     expect(projectWide, bare);
+  });
+
+  test('runProjectCheck outside lockedAsync is a StateError', () async {
+    final root = await writeWriteProject();
+    await expectLater(
+      WriteSession.runAsync(
+        (s) async => s.runProjectCheck(),
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: testHome(),
+      ),
+      throwsStateError,
+    );
+  });
+
+  test('runProjectCheck stores a fresh parse inside the hold, visible after it commits', () async {
+    const block = 'sequenceDiagram\n  A->>B: ok';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$signupArch':
+            '---\ndraft: true\n---\n\n# Signup architecture\n\n## Component diagram\n\n```mermaid\n$block\n```\n\n## Components\n\n| Component | Responsibility |\n|---|---|\n| Signup form | Collects the email |\n',
+      },
+    );
+    final runner = MermaidNodeRun(start: _startFakeNode);
+    final other = IndexStore.open(root, busyTimeout: Duration.zero);
+    addTearDown(other.close);
+    await WriteSession.runAsync(
+      (s) => s.lockedAsync(() async {
+        await s.runProjectCheck(mermaidRunner: runner);
+        expect(
+          () => other.write(() {}),
+          throwsA(_faultCode(IndexFaultCode.indexBusy)),
+        );
+      }),
+      templates: TemplateResolver(),
+      workingDirectory: root,
+      homeDirectory: testHome(),
+    );
+    final raw = sqlite3.open('${root.path}/.specstone/index.sqlite');
+    addTearDown(raw.close);
+    expect(
+      raw.select('SELECT count(*) AS n FROM diagram_parses').single['n'],
+      1,
+    );
   });
 
   test('a lock held past the busy timeout is index_busy, exit 75', () async {
@@ -758,4 +806,36 @@ void main() {
       expect(MoveJournal.pendingMigrate(root), isFalse);
     });
   });
+}
+
+/// Starts a fake Node child that answers block 0 as a parsing sequence diagram.
+Future<Process> _startFakeNode(List<String> arguments) async {
+  final stdin = StreamController<List<int>>();
+  unawaited(stdin.stream.drain<void>());
+  return _FakeNodeProcess(
+    IOSink(stdin),
+    Stream.value(utf8.encode('{"i":0,"diagram":"sequence","parses":true}\n')),
+  );
+}
+
+final class _FakeNodeProcess implements Process {
+  new(this.stdin, this.stdout);
+
+  @override
+  final IOSink stdin;
+
+  @override
+  final Stream<List<int>> stdout;
+
+  @override
+  Future<int> get exitCode async => 0;
+
+  @override
+  Stream<List<int>> get stderr => const Stream.empty();
+
+  @override
+  int get pid => 0;
+
+  @override
+  bool kill([ProcessSignal signal = ProcessSignal.sigterm]) => true;
 }
