@@ -62,7 +62,7 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
     final lines = searchLinesOf(held, content.lineFacts, i);
     final headings = required.any((entry) => entry.perSubsection)
         ? _subsectionHeadings(context.itemsIn(doc, i))
-        : const <({int line, String text})>[];
+        : const <_Heading>[];
     for (final entry in required) {
       yield* entry.perSubsection
           ? _missingPerSubsection(
@@ -141,11 +141,11 @@ Iterable<Finding> _missingPerSubsection(
   IndexedDoc doc,
   PatternEntry entry,
   String sectionKey,
-  List<({int line, String text})> headings,
+  List<_Heading> headings,
   List<SearchLine> lines,
 ) sync* {
   for (var k = 0; k < headings.length; k++) {
-    final (:line, :text) = headings[k];
+    final _Heading(:line, :text) = headings[k];
     final end = k + 1 < headings.length ? headings[k + 1].line : null;
     final held = lines.where(
       (searched) =>
@@ -163,12 +163,19 @@ Iterable<Finding> _missingPerSubsection(
 }
 
 /// Returns the line and text of each top-level `###` heading of [items].
-List<({int line, String text})> _subsectionHeadings(List<SectionItem> items) =>
-    [
-      for (final item in items)
-        if (item.kind == SectionItemKind.heading && !item.nested)
-          (line: item.line, text: item.head),
-    ];
+List<_Heading> _subsectionHeadings(List<SectionItem> items) => [
+  for (final item in items)
+    if (item.kind == SectionItemKind.heading && !item.nested)
+      _Heading(line: item.line, text: item.head),
+];
+
+/// A top-level `###` heading: its file line and its text.
+final class _Heading {
+  const new({required this.line, required this.text});
+
+  final int line;
+  final String text;
+}
 
 /// Whether [matched], a code-span match, names a doc-tree folder or a
 /// `/`-joined run of them: it names a place in the doc tree, so no hit.

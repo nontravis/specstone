@@ -58,7 +58,8 @@ Iterable<Finding> checkBannedWords(CheckContext context, IndexedDoc doc) sync* {
     for (final searched in lines) {
       final onPrefixLine = prefix == null || searched.raw.startsWith(prefix);
       final prose = searched.prose;
-      for (final (:word, :pattern) in onPrefixLine ? onPrefix : everywhere) {
+      for (final _BannedPattern(:word, :pattern)
+          in onPrefixLine ? onPrefix : everywhere) {
         if (!pattern.hasMatch(prose)) continue;
         for (final _ in pattern.allMatches(prose)) {
           yield context.finding(
@@ -94,7 +95,7 @@ Iterable<Finding> _fieldFindings(
     }
     for (final text in value.split('\n')) {
       final prose = SearchLine(text, line).prose;
-      for (final (:word, :pattern) in patterns) {
+      for (final _BannedPattern(:word, :pattern) in patterns) {
         for (final _ in pattern.allMatches(prose)) {
           yield context.finding(
             doc,
@@ -111,15 +112,23 @@ Iterable<Finding> _fieldFindings(
 
 /// Returns the distinct [words] not in [allowed] with their cached patterns,
 /// in order of first appearance.
-List<({String word, RegExp pattern})> _patternsOf(
+List<_BannedPattern> _patternsOf(
   CheckContext context,
   Iterable<String> words,
   Set<String> allowed,
 ) => [
   for (final word in {...words})
     if (!allowed.contains(word))
-      (word: word, pattern: context.bannedPatternOf(word)),
+      _BannedPattern(word: word, pattern: context.bannedPatternOf(word)),
 ];
+
+/// A banned word and its cached pattern.
+final class _BannedPattern {
+  const new({required this.word, required this.pattern});
+
+  final String word;
+  final RegExp pattern;
+}
 
 /// Returns the header line and the unfenced body lines of [section], which
 /// starts at file line [headerLine], less each line [isGenerated] marks.

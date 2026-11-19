@@ -48,7 +48,7 @@ final class ImplementedWork {
   /// The targets the run's code rules cover.
   final List<CodeTarget> targets;
 
-  final Map<CodeTarget, ({bool any, Set<String> features})> _work;
+  final Map<CodeTarget, _TargetWork> _work;
 
   /// Returns the target [doc] belongs to, null when it belongs to none of
   /// [targets].
@@ -84,7 +84,7 @@ final class ImplementedWork {
 
 /// Returns whether [target] holds an implemented story or FR, and the name
 /// of each feature that holds one in its subtree.
-({bool any, Set<String> features}) _workOf(StatusTree tree, CodeTarget target) {
+_TargetWork _workOf(StatusTree tree, CodeTarget target) {
   final features = <String>{};
   var any = false;
   for (final doc in tree.docs) {
@@ -98,7 +98,16 @@ final class ImplementedWork {
       if (up.docTypeId == featureType) features.add(up.name);
     }
   }
-  return (any: any, features: features);
+  return _TargetWork(any: any, features: features);
+}
+
+/// Whether a target holds an implemented story or FR, and the name of each
+/// feature that holds one in its subtree.
+final class _TargetWork {
+  const new({required this.any, required this.features});
+
+  final bool any;
+  final Set<String> features;
 }
 
 /// Whether the check reads the code a record entry names, [pointer] being its

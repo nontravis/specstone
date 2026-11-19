@@ -86,10 +86,13 @@ Iterable<Finding> _operationFindings(
 ) sync* {
   final operations = _operationHeadings(context, api);
   final traced = [
-    for (final (:operation, :line) in _traceOperations(context, api))
-      (operation: operation, line: line),
+    for (final _OperationCell(:operation, :line) in _traceOperations(
+      context,
+      api,
+    ))
+      _OperationCell(operation: operation, line: line),
   ];
-  for (final (:operation, :line) in traced) {
+  for (final _OperationCell(:operation, :line) in traced) {
     if (operations.containsKey(operation)) continue;
     yield context.finding(
       api,
@@ -138,7 +141,7 @@ String? _headingOperation(String heading) {
 }
 
 /// Returns each `fr_trace` row's Operation cell with the row's file line.
-Iterable<({String operation, int line})> _traceOperations(
+Iterable<_OperationCell> _traceOperations(
   CheckContext context,
   IndexedDoc api,
 ) sync* {
@@ -149,7 +152,9 @@ Iterable<({String operation, int line})> _traceOperations(
     final textByLine = {for (final line in body) line.line: line.text};
     for (final FrTraceRow(:line) in readFrTraceRows(body)) {
       final operation = _secondCell(textByLine[line] ?? '');
-      if (operation != null) yield (operation: operation, line: line);
+      if (operation != null) {
+        yield _OperationCell(operation: operation, line: line);
+      }
     }
   }
 }
@@ -172,7 +177,7 @@ Iterable<Finding> _scopeOperationFindings(
   final operations = _operationHeadings(context, api).keys.toSet();
   final index = context.heldIndexOf(auth, _scopesSection);
   if (index == null) return;
-  for (final (:operation, :line) in _requiredForCells(
+  for (final _OperationCell(:operation, :line) in _requiredForCells(
     context.bodyLinesOf(auth, index),
   )) {
     if (operations.contains(operation)) continue;
@@ -206,14 +211,12 @@ IndexedDoc? _apiOf(CheckContext context, IndexedDoc doc) {
 
 /// Returns each body row's Required for cell with the row's line, one pair of
 /// backticks dropped.
-Iterable<({String operation, int line})> _requiredForCells(
-  List<BodyLine> body,
-) sync* {
+Iterable<_OperationCell> _requiredForCells(List<BodyLine> body) sync* {
   for (final table in _tablesOf(body)) {
     for (final row in table.rows) {
       final cell = _cellAt(row.text, table.header.indexOf(_requiredForColumn));
       if (cell != null && cell.isNotEmpty) {
-        yield (operation: _unquoted(cell), line: row.line);
+        yield _OperationCell(operation: _unquoted(cell), line: row.line);
       }
     }
   }
@@ -253,10 +256,8 @@ bool _reaches(String entry, String path) =>
     entry.isEmpty || path == entry || path.startsWith('$entry/');
 
 /// Returns each table of [body]: its header cells and body rows.
-List<({List<String> header, List<BodyLine> rows})> _tablesOf(
-  List<BodyLine> body,
-) {
-  final tables = <({List<String> header, List<BodyLine> rows})>[];
+List<_Table> _tablesOf(List<BodyLine> body) {
+  final tables = <_Table>[];
   var k = 0;
   while (k + 1 < body.length) {
     if (body[k].fenced || body[k + 1].fenced) {
@@ -272,13 +273,15 @@ List<({List<String> header, List<BodyLine> rows})> _tablesOf(
     while (end < body.length && _isRow(body[end])) {
       end++;
     }
-    tables.add((
-      header: [
-        for (final cell in cells)
-          body[k].text.substring(cell.start, cell.end).trim(),
-      ],
-      rows: body.sublist(k + 2, end),
-    ));
+    tables.add(
+      _Table(
+        header: [
+          for (final cell in cells)
+            body[k].text.substring(cell.start, cell.end).trim(),
+        ],
+        rows: body.sublist(k + 2, end),
+      ),
+    );
     k = end;
   }
   return tables;
@@ -314,4 +317,20 @@ Iterable<String> _firstCellsOf(
       if (cell != null && cell.isNotEmpty) yield _unquoted(cell);
     }
   }
+}
+
+/// An operation a table cell names, and the row's file line.
+final class _OperationCell {
+  const new({required this.operation, required this.line});
+
+  final String operation;
+  final int line;
+}
+
+/// A table of a body: its header cells and its body rows.
+final class _Table {
+  const new({required this.header, required this.rows});
+
+  final List<String> header;
+  final List<BodyLine> rows;
 }

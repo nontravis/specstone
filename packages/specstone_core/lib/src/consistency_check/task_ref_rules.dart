@@ -15,7 +15,13 @@ import 'package:specstone_core/src/templates/models/record_status.dart';
 
 /// One well-formed entry of a `task_ref` field, the field's id, and the file
 /// line the entry is on.
-typedef _TaskRefEntry = ({String field, TaskRef ref, int line});
+final class _TaskRefEntry {
+  const new({required this.field, required this.ref, required this.line});
+
+  final String field;
+  final TaskRef ref;
+  final int line;
+}
 
 /// Returns each well-formed entry of every `task_ref` field of [doc], in field
 /// then entry order.
@@ -33,7 +39,9 @@ Iterable<_TaskRefEntry> _taskRefEntriesOf(
     if (field.type != FieldType.taskRef) continue;
     for (final YamlEntry(:value, :line) in lines.entriesOf(field.id)) {
       final ref = value is String ? TaskRef.parse(value) : null;
-      if (ref != null) yield (field: field.id, ref: ref, line: line);
+      if (ref != null) {
+        yield _TaskRefEntry(field: field.id, ref: ref, line: line);
+      }
     }
   }
 }
@@ -46,7 +54,7 @@ Iterable<_TaskRefEntry> _taskRefEntriesOf(
 /// case-sensitive. A whole-doc ref always resolves.
 Iterable<Finding> checkTaskRefs(CheckContext context, IndexedDoc doc) sync* {
   Set<String>? held;
-  for (final (field: _, :ref, :line) in _taskRefEntriesOf(context, doc)) {
+  for (final _TaskRefEntry(:ref, :line) in _taskRefEntriesOf(context, doc)) {
     final item = ref.item;
     if (item == null) continue;
     held ??= _itemNamesOf(context, doc);
@@ -76,7 +84,7 @@ Iterable<Finding> checkLeftoverTaskRefs(
   final entries = _taskRefEntriesOf(context, doc).toList();
   if (entries.isEmpty || !_isDone(context.index, doc, feature)) return;
   final target = doc.target == null ? '' : ' --target ${doc.target}';
-  for (final (:field, :ref, :line) in entries) {
+  for (final _TaskRefEntry(:field, :ref, :line) in entries) {
     yield context.finding(
       doc,
       FindingKind.taskRefLeftover,
