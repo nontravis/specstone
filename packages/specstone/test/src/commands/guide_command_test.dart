@@ -2693,6 +2693,58 @@ items:
       );
     });
 
+    test('guide fr --out and guide fr --json --out to a named reports file '
+        'write both', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+      final reports = '${folder.path}/.specstone/reports';
+
+      expect(
+        await runner.run(['guide', 'fr', '--out', '$reports/guide.ab12cd.txt']),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        reportOf(folder, 'guide.ab12cd.txt'),
+        contains('One requirement.'),
+      );
+      expect(out.toString(), startsWith('==> guide: '));
+
+      out.clear();
+      expect(
+        await runner.run([
+          'guide',
+          'fr',
+          '--json',
+          '--out',
+          '$reports/guide.ab12cd.json',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      final schema = jsonDecode(
+        reportOf(folder, 'guide.ab12cd.json'),
+      ) as Map<String, Object?>;
+      expect(schema['id'], 'fr');
+      final printed = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(
+        printed['out'],
+        File('$reports/guide.ab12cd.json').resolveSymbolicLinksSync(),
+      );
+      expect(File('$reports/guide.fr.txt').existsSync(), isFalse);
+    });
+
+    test('a given --out under .specstone/ outside bundles/ and reports/ exits '
+        '73 and writes nothing', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+      final refused = File('${folder.path}/.specstone/guide.ab12cd.txt');
+
+      expect(await runner.run(['guide', 'fr', '--out', refused.path]), 73);
+      expect(out.toString(), isEmpty);
+      expect(refused.existsSync(), isFalse);
+    });
+
     test('--out "" exits 64 and writes no file', () async {
       final folder = await project();
       final runner = await runnerIn(folder);
