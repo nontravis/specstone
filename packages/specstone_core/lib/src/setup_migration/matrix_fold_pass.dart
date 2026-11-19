@@ -11,12 +11,19 @@ import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 
 /// A typed doc as the pass reads it: its DocPath after the moves, its doc type
 /// and code target, and its LF text after the passes before this one.
-typedef MatrixFoldDoc = ({
-  String plannedPath,
-  MergedDocType? type,
-  String? target,
-  String lf,
-});
+final class MatrixFoldDoc {
+  const new({
+    required this.plannedPath,
+    required this.type,
+    required this.target,
+    required this.lf,
+  });
+
+  final String plannedPath;
+  final MergedDocType? type;
+  final String? target;
+  final String lf;
+}
 
 /// The matrix fold pass of an upgrade: each record's per-edge-case rows of an
 /// FR of its feature become one per-FR row.

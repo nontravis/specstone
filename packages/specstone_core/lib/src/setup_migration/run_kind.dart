@@ -122,12 +122,14 @@ bool _hasFoldableRow(
       docPath: docPath,
     );
     if (match is! MatchedDocType || text == null) continue;
-    docs.add((
-      plannedPath: docPath,
-      type: match.docType,
-      target: match.target,
-      lf: text.lf,
-    ));
+    docs.add(
+      MatrixFoldDoc(
+        plannedPath: docPath,
+        type: match.docType,
+        target: match.target,
+        lf: text.lf,
+      ),
+    );
   }
   return MatrixFoldPass.plan(project.matrixMode, project.set, docs) != null;
 }

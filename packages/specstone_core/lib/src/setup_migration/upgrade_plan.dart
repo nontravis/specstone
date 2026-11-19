@@ -436,7 +436,7 @@ RunPlan _upgradeRunOf(
   }
   final matrixFold = MatrixFoldPass.plan(config.matrixMode, finalSet, [
     for (final (index, work) in works.indexed)
-      (
+      MatrixFoldDoc(
         plannedPath: work.plannedPath,
         type: work.docType,
         target: work.target,
