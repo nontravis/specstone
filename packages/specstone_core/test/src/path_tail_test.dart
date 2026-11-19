@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/models/path_tail.dart';
 import 'package:specstone_core/src/path_tail.dart';
 import 'package:test/test.dart';
 
@@ -12,10 +13,10 @@ void main() {
   });
 
   test('a text with no colon has no tail, and an empty tail stays empty', () {
-    expect(splitPathTail('test/a_test.dart'), (
-      path: 'test/a_test.dart',
-      tail: null,
-    ));
+    expect(
+      splitPathTail('test/a_test.dart'),
+      const PathTail(path: 'test/a_test.dart', tail: null),
+    );
     expect(splitPathTail('test/a_test.dart:').tail, '');
   });
 
