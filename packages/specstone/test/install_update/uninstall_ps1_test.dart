@@ -155,6 +155,59 @@ void main() {
       expect(lines, contains('Removed ${binDir(sb)}'));
     });
 
+    // Denies (or allows again) every account the right to set a value under the
+    // user environment key, so the script's write of the user PATH fails while
+    // reading it still works.
+    Future<void> denyUserPathWrite({required bool isDenied}) async {
+      const script =
+          r'$hkcu = [Microsoft.Win32.Registry]::CurrentUser; '
+          r"$k = $hkcu.OpenSubKey('Environment', 'ReadWriteSubTree', "
+          "'ChangePermissions, ReadPermissions'); "
+          r'$sid = New-Object System.Security.Principal.SecurityIdentifier '
+          "'S-1-1-0'; "
+          r'$rule = New-Object '
+          'System.Security.AccessControl.RegistryAccessRule '
+          r"$sid, 'SetValue', 'None', 'None', 'Deny'; "
+          r'$acl = $k.GetAccessControl(); '
+          r"if ($env:SPECSTONE_TEST_DENY_PATH_WRITE -eq '1') { "
+          r'$acl.AddAccessRule($rule) } '
+          r'else { [void]$acl.RemoveAccessRule($rule) }; '
+          r'$k.SetAccessControl($acl); $k.Close()';
+      final result = await runPowerShell(
+        'deny-path-write',
+        ['-NoProfile', '-Command', script],
+        environment: {'SPECSTONE_TEST_DENY_PATH_WRITE': isDenied ? '1' : '0'},
+      );
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+    }
+
+    pathTest('a user PATH that cannot be written is named and left as it '
+        'was; the folders go, exit 1', () async {
+      final sb = await installedSandbox();
+      final pathBefore = (await readUserPath())?.value;
+      // Registered after the lock's own teardowns, so it runs before the PATH
+      // is written back, which needs the right this test took away.
+      addTearDown(() => denyUserPathWrite(isDenied: false));
+      await denyUserPathWrite(isDenied: true);
+
+      final r = await sb.run('uninstall.ps1');
+
+      expect(r.exitCode, 1);
+      expect(
+        flat(r.stderr),
+        contains(
+          'specstone: could not write the user PATH: remove ${binDir(sb)} '
+          'from it yourself',
+        ),
+      );
+      expect(Directory(binDir(sb)).existsSync(), isFalse);
+      expect(Directory(libDir(sb)).existsSync(), isFalse);
+      expect((await readUserPath())?.value, pathBefore);
+      expect(pathBefore, contains(binDir(sb)));
+      final lines = (r.stdout as String).trimRight().split(RegExp(r'\r?\n'));
+      expect(lines, ['Removed ${binDir(sb)}', 'Removed ${libDir(sb)}']);
+    });
+
     pathTest('the PATH item is found in another case and with '
         'a trailing backslash', () async {
       final sb = await installedSandbox();
