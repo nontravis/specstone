@@ -1,5 +1,5 @@
 name: prd-core
-version: 1.18.0
+version: 1.19.0
 migrations:
   - from: 1.7.0
     steps:

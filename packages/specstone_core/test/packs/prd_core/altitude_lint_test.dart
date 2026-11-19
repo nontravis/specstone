@@ -120,6 +120,34 @@ void main() {
     expect(_patterns(found), ['history']);
   });
 
+  Future<List<Finding>> personaSnapshot(String text) =>
+      _banned({'docs/$_persona': '# Reviewer\n\n## Snapshot\n$text\n'});
+
+  for (final text in [
+    'It works as before Specstone 1.2.',
+    'As before v1.2 it works.',
+    'It works as before 1.2.0.',
+  ]) {
+    test('as before and a version is history in every prd-core type that '
+        'takes it: $text', () async {
+      expect(_patterns(await personaSnapshot(text)), ['history']);
+    });
+  }
+
+  test('as before with no version, or the word predates, gives no '
+      'history', () async {
+    for (final text in [
+      'It works as before the merge.',
+      'This predates Specstone 1.2.',
+    ]) {
+      expect(
+        _patterns(await personaSnapshot(text)),
+        isNot(contains('history')),
+        reason: text,
+      );
+    }
+  });
+
   test('a story with only happy scenarios is error_case', () async {
     final report = await checkOf(
       await writeCheckProject(

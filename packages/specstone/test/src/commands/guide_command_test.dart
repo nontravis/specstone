@@ -528,6 +528,7 @@ void main() {
         expect(await runner.run(['guide', 'fr', 'user_story', 'fr']), 0);
         expect(
           out.toString(),
+          '==> shared <==\n'
           '==> fr <==\n'
           'One requirement.\n\n$_docLimits\n'
           '==> user_story <==\n'
@@ -555,6 +556,7 @@ void main() {
       expect(await runner.run(['guide', 'user_story', 'feature', 'fr']), 0);
       expect(
         out.toString(),
+        '==> shared <==\n'
         '==> user_story <==\n'
         'One story\n\n$_docLimits\n'
         '==> feature <==\n'
@@ -625,6 +627,7 @@ void main() {
       expect(await runner.run(['guide', 'user_story', 'fr']), 0);
       expect(
         out.toString(),
+        '==> shared <==\n'
         '==> user_story <==\n'
         'An overridden story.\n\n$_docLimits\n'
         '==> fr <==\n'
@@ -1619,6 +1622,84 @@ items:
         (section) => section['id'] == 'verification_matrix',
       );
       expect(matrix['outputRef'], isTrue);
+    });
+  });
+
+  group('specstone guide naming several types with shared lines', () {
+    late StringBuffer out;
+
+    setUp(() => out = StringBuffer());
+
+    /// Runs `guide fr user_story` over a `prd-core` pack that holds
+    /// [sharedLines].
+    Future<void> guideBoth(String sharedLines) async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+      });
+      final runner = SpecstoneCommandRunner(
+        out: out,
+        err: StringBuffer(),
+        templates: TemplateResolver(
+          shippedFiles: {
+            ...shipped(),
+            'prd-core/pack.yaml': _bytes(
+              'name: prd-core\nversion: 1.1.0\n$sharedLines',
+            ),
+            'prd-core/fr.yaml': _bytes(
+              'id: fr\ndescription: One requirement.\npath: frs/{slug}.md\n',
+            ),
+          },
+        ),
+        workingDirectory: project,
+        homeDirectory: await writeTree({}),
+      );
+
+      expect(await runner.run(['guide', 'fr', 'user_story']), 0);
+    }
+
+    test('guide fr user_story prints the lines both share once under the '
+        'shared block', () async {
+      await guideBoth(
+        'shared_lines:\n'
+        '  - id: cite_rule\n'
+        '    text: Cite by link.\n'
+        '  - id: tone_rule\n'
+        '    text: Say it once.\n',
+      );
+
+      expect(
+        out.toString(),
+        '==> shared <==\n'
+        'Cite by link.\n'
+        'Say it once.\n'
+        '==> fr <==\n'
+        'One requirement.\n\n$_docLimits\n'
+        '==> user_story <==\n'
+        'One story\n\n$_docLimits\n',
+      );
+    });
+
+    test('a shared line that reaches only one named type prints under that '
+        'type', () async {
+      await guideBoth(
+        'shared_lines:\n'
+        '  - id: cite_rule\n'
+        '    text: Cite by link.\n'
+        '  - id: fr_rule\n'
+        '    text: Name the verb.\n'
+        '    for_doc_types: [fr]\n',
+      );
+
+      expect(
+        out.toString(),
+        '==> shared <==\n'
+        'Cite by link.\n'
+        '==> fr <==\n'
+        'One requirement.\n'
+        'Name the verb.\n\n$_docLimits\n'
+        '==> user_story <==\n'
+        'One story\n\n$_docLimits\n',
+      );
     });
   });
 
@@ -2662,7 +2743,8 @@ items:
 
       expect(await runner.run(['guide', 'fr', 'user_story', '--out']), 0);
       final written = reportOf(folder, 'guide.fr.user_story.txt');
-      expect(written, startsWith('==> fr <==\n'));
+      expect(written, startsWith('==> shared <==\n'));
+      expect(written, contains('==> fr <==\n'));
       expect(written, contains('==> user_story <==\n'));
       final header = out.toString();
       expect(header, startsWith('==> guide: '));
