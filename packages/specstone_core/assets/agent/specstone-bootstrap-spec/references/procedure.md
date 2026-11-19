@@ -40,7 +40,9 @@ the Owner only when no text bears on a whole section.
   with `specstone set implementation:<feature> --field implements --base <hash>`, then drop the key.
 - **`architecture_missing`:** run `specstone new architecture --parent <feature>`, fill it, and list in `covers` the
   code its record entries name.
-- **`code_uncovered`:** read the file and write nothing for it; report it under `Uncovered:` in the form of step 3 of
+- **`code_uncovered`:** apply `../../specstone-sync-sdd/references/helpers.md` first: a helper is joined or waits,
+  never reported under `Uncovered:` or asked, and a waiting one is written by a later round once its draft is
+  approved. For any other, read the file and write nothing; report it under `Uncovered:` in the form of step 3 of
   `../../specstone-sync-sdd/references/procedure.md`. On a write-a-spec pick sent to you, with its file:
   add the file or its folder to `covers` on the architecture or topic doc describing it; with none,
   `specstone new topic --slug <slug>`.
@@ -73,5 +75,5 @@ PRD section.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
-Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; then get
-each approved through step 5's Owner confirmation.
+Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; under
+`Pointers:`, each helper file joined or waiting; then get each approved through step 5's Owner confirmation.

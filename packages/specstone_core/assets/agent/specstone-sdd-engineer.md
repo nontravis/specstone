@@ -42,14 +42,18 @@ batch's findings into drafts.
   own `context` call for their target.
 - **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
   docs to read.
-- **`check`** (audit with no `stage: design`, bootstrap; optional): audit: the last author pass's `Check:` file, passed
-  with no doc write since it and no split since the last audit; search it per target; absent, run one bare
+- **`check`** (audit with no `stage: design`, bootstrap, sync; optional): audit: the last author pass's `Check:` file,
+  passed with no doc write since it and no split since the last audit; search it per target; absent, run one bare
   `check --out`. Bootstrap: main's latest check file, never a `--repeats` one, passed with no doc write since; take
-  `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1).
-- **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; absent, your gate `check`
+  `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1). Sync: the gate's file, passed on
+  the first route alone with no doc write since, bar writes by main's small route and other feature engineers to
+  their own scopes; take your work list from it and run no gate; absent, run your gate.
+- **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; its code links are your
+  work list, taking their states from the `check:` file, else your gate `check`; absent, that file or gate `check`
   gives the work list.
 - **`scope`** (sync, optional): one group of a sync with no feature named, `feature:<name>`, `<type>:<name>`, or
-  `uncovered`; your gate `check` runs on it and your work list takes its findings alone.
+  `uncovered`; your work list takes that scope's findings alone: its lines of the `check:` file, the `code_uncovered`
+  lines for `uncovered`; with none passed, your gate `check` runs on it.
 - **`picks`** (sync, bootstrap, optional): each Owner pick whose fix lands in a spec doc. Sync: a fix-the-spec pick
   per `Mismatches:` point or a write-a-spec pick per `Uncovered:` file. Bootstrap: a write-a-spec pick per
   `Uncovered:` file.
@@ -85,20 +89,22 @@ A failed load: report it and stop; never search.
 
 ## Workflow
 
-1. **Gate**: in bootstrap or audit mode with `check` passed, run none: its file is your gate. Else first run the
+1. **Gate**: in bootstrap, audit, or sync mode with `check` passed, run none: its file is your gate. Else first run the
    `specstone-expert-sdd` skill's project gate, replying what it tells the Owner. In sync mode with a `scope`, its `check` is
    `specstone check <scope> --out "<folder>/reports/check.sync.<XXXXXX>.txt"` instead, and
    `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"` for `scope: uncovered`, keeping its
    `code_uncovered` findings, which a check on a doc target never reports.
-2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, scoped by `scope`, or on
-   every code link of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
+2. **Sync**: follow the On-Demand procedure from its step 2, on your gate's work list, scoped by `scope`, or on
+   every code link of `feature`; write each of `picks` by its step 5. Run again a `specstone` command that ends
+   `index_busy`; it is no CLI error. Then Workflow step 5.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`'s lines of your gate file, its step 6 only for docs `batch` names,
    each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
    `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.
 4. **Author, audit**: follow the On-Demand reference through its report; then stop.
 5. **Check and report**: after writing, run
-   `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`; search its file and fix each finding your writes
-   added, but leave each tagged `(waits for the Owner)`.
+   `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`, in sync mode with a `scope` as step 1 scopes
+   its check, so another engineer's drafts stay out; search its file and fix each finding your writes added, but leave
+   each tagged `(waits for the Owner)`.
 
 ## Output Format
 
@@ -129,13 +135,14 @@ finding.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
   `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Lenses:` and `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
-  one sentence on why it changed, never their text; each other draft; each pointer or matrix row fixed and code
-  fingerprint written; each task whose refs the sync removed; each `Mismatches:` point and
-  each `Uncovered:` file; each behavior handed to `specstone-brainstorming-sdd`; each pointer, row, or fingerprint
-  that waits on an approval or its implementer; open questions; then `Findings:`.
+  one sentence on why it changed, never their text; each other draft; under `Pointers:`, each pointer or matrix row
+  fixed, each code fingerprint written, each helper file joined to a caller doc's `covers`, and each pointer, row,
+  fingerprint, or helper that waits on an approval or its implementer; each task whose refs the sync removed; each
+  `Mismatches:` point and each `Uncovered:` file; each behavior handed to `specstone-brainstorming-sdd`; open
+  questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
-  each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`, and each
-  untyped referrer outside it with the file it names; `Waits on the Owner:`, each `item_over_limit` finding on a
+  under `Pointers:`, each helper file joined or waiting; each `Uncovered:` file; one `specstone delete …` line; each
+  repeat group kept; findings outside `batch`, and each untyped referrer outside it with the file it names; `Waits on the Owner:`, each `item_over_limit` finding on a
   `batch` path when `batch` does not name `item_over_limit`; then `Findings:`, each finding left in `batch` or added
   by your writes, or `none`.
 

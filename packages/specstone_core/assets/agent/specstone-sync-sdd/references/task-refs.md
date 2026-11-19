@@ -1,6 +1,6 @@
 # Remove the refs of a task a commit closes
 
-Run this for each match step 4.2 writes: a link's fingerprint, or a `planned` entry's `implemented` status. A mismatch,
+Run this for each match step 4.2 or the small route writes: a link's fingerprint, or a `planned` entry's `implemented` status. A mismatch,
 and a `planned` entry whose code lacks its planned behavior yet, take no removal: every ref stays until a later match.
 
 ## 1. Candidates
@@ -52,7 +52,9 @@ Pass `--target <name>`, the synced code target, when the project has 2 or more c
 target's doc stays. A task no doc holds prints `<task> · no refs` and exits 0.
 
 While a covering doc is a pending draft, run nothing: list the command as a waiting pointer, with its code target, to
-run once the Owner approves. A rerun finds no candidate left for a removed task.
+run once the Owner approves. With a `check:` file passed, you run beside other feature engineers, and the command
+writes every doc of the target: run nothing, list it the same way, for the main session to run after the last feature
+report. A rerun finds no candidate left for a removed task.
 
 ## 5. Report
 
