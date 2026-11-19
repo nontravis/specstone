@@ -557,19 +557,23 @@ _DescriptionScan? _scanDescription(
   final isEditable = isBlock || isOneLine;
   final valueLines = value.split('\n');
   final firstTextLine = scalar.span.start.line + (isBlock ? 1 : 0);
-  int listedLineOf(int i) => isEditable
-      ? firstTextLine + i
-      : _lineReading(
-              textLines,
-              valueLines[i],
-              from: scalar.span.start.line,
-              to: scalar.span.end.line,
-            ) ??
-            key.span.start.line;
-  final copyAt = {
+  final copyIds = [
     for (final (i, line) in valueLines.indexed)
-      if (_sharedLineIdOf(type, line) case final id?)
-        i: _Copy(listedLineOf(i) + 1, id),
+      if (_sharedLineIdOf(type, line) case final id?) MapEntry(i, id),
+  ];
+  final listedLines = isEditable
+      ? [for (final MapEntry(key: i) in copyIds) firstTextLine + i]
+      : _readingLines(
+          textLines,
+          [for (final MapEntry(key: i) in copyIds) valueLines[i]],
+          from: scalar.span.start.line,
+          to: scalar.span.end.line,
+          quote: _quoteOf(scalar.style),
+          fallback: key.span.start.line,
+        );
+  final copyAt = {
+    for (final (n, MapEntry(key: i, value: id)) in copyIds.indexed)
+      i: _Copy(listedLines[n] + 1, id),
   };
   return _DescriptionScan(
     keyLine: key.span.start.line,
@@ -587,20 +591,54 @@ _DescriptionScan? _scanDescription(
   );
 }
 
-/// Returns the first text line from [from] to [to], both 0-based and
-/// inclusive, that reads [text] once trimmed, or null.
-int? _lineReading(
+/// Returns, for each of [texts] in order, the text line from [from] to [to],
+/// both 0-based and inclusive, that reads it, else [fallback].
+///
+/// Each search starts after the previous match, so a text written twice maps
+/// to two lines. A line reads a text once trimmed and stripped of one [quote]
+/// at each end.
+List<int> _readingLines(
   List<String> textLines,
-  String text, {
+  List<String> texts, {
   required int from,
   required int to,
+  required String quote,
+  required int fallback,
 }) {
   final last = math.min(to, textLines.length - 1);
-  for (var line = from; line <= last; line++) {
-    if (textLines[line].trim() == text) return line;
+  final result = <int>[];
+  var next = from;
+  for (final text in texts) {
+    var found = next;
+    while (found <= last && _unquoted(textLines[found].trim(), quote) != text) {
+      found++;
+    }
+    if (found > last) {
+      result.add(fallback);
+      continue;
+    }
+    result.add(found);
+    next = found + 1;
   }
-  return null;
+  return result;
 }
+
+/// Returns [text] without one [quote] at its start and one at its end.
+String _unquoted(String text, String quote) {
+  if (quote.isEmpty) return text;
+  final start = text.startsWith(quote) ? quote.length : 0;
+  final end = text.endsWith(quote) && text.length > start
+      ? text.length - quote.length
+      : text.length;
+  return text.substring(start, end);
+}
+
+/// The quote character a quoted scalar [style] writes, or empty.
+String _quoteOf(ScalarStyle style) => switch (style) {
+  ScalarStyle.DOUBLE_QUOTED => '"',
+  ScalarStyle.SINGLE_QUOTED => "'",
+  _ => '',
+};
 
 /// Returns the id of the shared line of [type] that reads [text], the one
 /// printed first when two do, or null.
