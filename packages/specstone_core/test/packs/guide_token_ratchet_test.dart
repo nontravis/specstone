@@ -26,7 +26,7 @@ const _guideTokenRows = <String, int>{
   'personal-branding/story': 341,
   'personal-branding/voice': 355,
   'prd-core/anti_persona': 993,
-  'prd-core/feature': 1722,
+  'prd-core/feature': 1724,
   'prd-core/features': 468,
   'prd-core/fr': 1796,
   'prd-core/glossary': 342,
