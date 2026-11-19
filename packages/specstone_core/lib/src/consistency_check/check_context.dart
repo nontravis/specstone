@@ -54,9 +54,7 @@ final class CheckContext {
   final ReadSession _session;
   final Map<String, DocContent> _contents;
   final Map<String, DocLines> _lines = {};
-  // A null target keys a read from the project root.
-  final Map<(CodeTarget?, String), List<int>?> _codeBytes = {};
-  final Map<(CodeTarget?, String), CodeRead> _unreadable = {};
+  final _codeReads = _CodeReads();
   final Set<String> _codeWarnings = {};
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
@@ -145,8 +143,10 @@ final class CheckContext {
   List<int>? _bytesOf(CodeTarget? target, String path, CodeRead reason) {
     final bytes = _readBytes(target, path);
     if (bytes == null) {
-      final key = (target, normalCodeEntry(path));
-      if (_unreadable[key] != CodeRead.symbols) _unreadable[key] = reason;
+      _codeReads.markUnreadable(
+        _CodeFile(target: target, path: normalCodeEntry(path)),
+        reason,
+      );
     }
     return bytes;
   }
@@ -162,16 +162,15 @@ final class CheckContext {
   /// Reads [path] from [target]'s code root, or from the project root when
   /// [target] is null, once per run.
   List<int>? _readBytes(CodeTarget? target, String path) {
-    final key = (target, normalCodeEntry(path));
-    if (_codeBytes.containsKey(key)) return _codeBytes[key];
-    final root = target == null ? projectRoot : codeRootOf(target);
-    List<int>? bytes;
-    try {
-      bytes = File('${root.path}/${key.$2}').readAsBytesSync();
-    } on FileSystemException {
-      bytes = null;
-    }
-    return _codeBytes[key] = bytes;
+    final file = _CodeFile(target: target, path: normalCodeEntry(path));
+    return _codeReads.bytesOf(file, () {
+      final root = target == null ? projectRoot : codeRootOf(target);
+      try {
+        return File('${root.path}/${file.path}').readAsBytesSync();
+      } on FileSystemException {
+        return null;
+      }
+    });
   }
 
   /// Adds [warning], which no finding states; a text already added is kept
@@ -179,7 +178,7 @@ final class CheckContext {
   void warn(String warning) => _codeWarnings.add(warning);
 
   /// How many code files this run has read.
-  int get codeFilesRead => _codeBytes.length;
+  int get codeFilesRead => _codeReads.count;
 
   /// Returns the merged doc type of [doc], or null for an untyped doc.
   MergedDocType? typeOf(IndexedDoc doc) => index.typeOf(doc);
@@ -506,8 +505,8 @@ final class CheckContext {
     for (final warning in _session.warnings)
       if (!_stated.contains(warning)) warning,
     ...{
-      for (final MapEntry(key: (target, path), value: reason)
-          in _unreadable.entries)
+      for (final MapEntry(key: _CodeFile(:target, :path), value: reason)
+          in _codeReads.unreadable)
         _unreadableWarning(target, path, reason),
     },
     ..._codeWarnings,
@@ -534,3 +533,47 @@ const _frTraceSection = 'fr_trace';
 
 /// The horizon of each goal doc section that holds goals.
 const _goalHorizons = {'long_term': 3, 'mid_term': 2, 'short_term': 1};
+
+/// A code file one run reads: its target, null for a read from the project
+/// root, and its path in `normalCodeEntry`'s form.
+final class _CodeFile {
+  const new({required this.target, required this.path});
+
+  final CodeTarget? target;
+  final String path;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _CodeFile && other.target == target && other.path == path;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(target, path);
+}
+
+/// The code files one run has read, each once, and the reason each unreadable
+/// one leaves code unchecked.
+final class _CodeReads {
+  final _bytes = <_CodeFile, List<int>?>{};
+  final _unreadable = <_CodeFile, CodeRead>{};
+
+  /// How many distinct code files this run has read.
+  int get count => _bytes.length;
+
+  /// Returns the bytes of [file], calling [read] once and caching its result,
+  /// null included.
+  List<int>? bytesOf(_CodeFile file, List<int>? Function() read) {
+    if (_bytes.containsKey(file)) return _bytes[file];
+    return _bytes[file] = read();
+  }
+
+  /// Records that [file] is unreadable for [reason]; a [CodeRead.symbols]
+  /// reason is never replaced.
+  void markUnreadable(_CodeFile file, CodeRead reason) {
+    if (_unreadable[file] != CodeRead.symbols) _unreadable[file] = reason;
+  }
+
+  /// The unreadable files with their reasons, in the order first marked.
+  Iterable<MapEntry<_CodeFile, CodeRead>> get unreadable => _unreadable.entries;
+}
