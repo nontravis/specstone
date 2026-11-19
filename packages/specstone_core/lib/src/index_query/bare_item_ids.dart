@@ -2,6 +2,8 @@ import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show itemIdRunAt, itemIdsInProse;
 import 'package:specstone_core/src/document_writing/body_scan.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show scenarioRefPrefix;
 import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/cite_form.dart';
 import 'package:specstone_core/src/index_query/models/link_source.dart';
@@ -15,6 +17,9 @@ const _space = 0x20;
 /// A bare ID is a token of [idPrefixes] outside a code span, a link text,
 /// frontmatter, and fenced code. Its citation is the cite of [citeForms] or the
 /// link whose item-ID run holds it, as written; none when no run holds it.
+///
+/// A run reads the scenario ref prefix as `citeFormsOf` does, but no scenario
+/// ref is stored as an ID.
 List<BareItemId> bareItemIdsOf(
   String lfText, {
   required Set<String> idPrefixes,
@@ -23,7 +28,7 @@ List<BareItemId> bareItemIdsOf(
   final body = BodyScan(lfText);
   final ids = itemIdsInProse(
     _outsideLinks(body.scan.prose, body.scan.sources),
-    prefixes: idPrefixes,
+    prefixes: idPrefixes.difference({scenarioRefPrefix}),
   );
   if (ids.isEmpty) return const [];
   final citations = {

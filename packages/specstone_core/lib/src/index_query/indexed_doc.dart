@@ -12,8 +12,6 @@ import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/bare_item_ids.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
-import 'package:specstone_core/src/index_query/item_words.dart'
-    show scenarioRefPrefix;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
@@ -260,11 +258,7 @@ ParsedDoc parseIndexedDoc({
     citeCandidates: [for (final form in citeForms) form.candidate],
     bareItemIds: docType == null
         ? const []
-        : bareItemIdsOf(
-            lfText,
-            idPrefixes: idPrefixes.difference({scenarioRefPrefix}),
-            citeForms: citeForms,
-          ),
+        : bareItemIdsOf(lfText, idPrefixes: idPrefixes, citeForms: citeForms),
     mermaidBlocks: docType == null
         ? const []
         : [for (final s in mermaidSourcesOf(doc, lfText)) s.block],

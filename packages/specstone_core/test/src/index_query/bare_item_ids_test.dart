@@ -100,6 +100,31 @@ void main() {
       ]);
     });
 
+    test('a scenario ref inside a link run is read, never stored', () {
+      const link = LinkCitation(destination: '../DOMAIN.md');
+      const text = '[domain:x](../DOMAIN.md) S6, INV-3\n';
+      const prefixes = {..._prefixes, scenarioRefPrefix};
+      expect(
+        bareItemIdsOf(
+          text,
+          idPrefixes: prefixes,
+          citeForms: citeFormsOf(text, idPrefixes: prefixes),
+        ),
+        [_id(1, 29, 'INV-3', link)],
+      );
+    });
+
+    test('a cite with a section key before its run carries the cite as '
+        'citeFormsOf gives it', () {
+      expect(_read('`domain:shop#invariants` INV-3'), [
+        _id(1, 25, 'INV-3', const CiteCitation(written: 'domain:shop')),
+      ]);
+    });
+
+    test('a link spanning two lines starts no run', () {
+      expect(_read('[a\nb](../DOMAIN.md) INV-3'), [_id(2, 17, 'INV-3')]);
+    });
+
     test('a CRLF text gives the lines and columns of its LF text', () {
       const lf =
           '---\nstatus: planned\n---\n\n# T\n\n'
