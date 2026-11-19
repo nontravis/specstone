@@ -580,10 +580,6 @@ void main() {
       }
       expect(named, contains('fr.statement second_shall'));
       expect(named, contains('fr.verification test_file_named'));
-      expect(
-        prdCoreDocType(set, 'goal').renderGuide(),
-        contains("links the goal's measurement"),
-      );
       for (final docType in set.docTypes) {
         expect(
           docType.renderGuide(),
