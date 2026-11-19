@@ -1,7 +1,6 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-/// A folder segment of a path that repeats once per nesting level.
-typedef NestingSegment = ({int index, String text});
+import 'package:specstone_core/src/templates/models/nesting_segment.dart';
+import 'package:specstone_core/src/templates/models/pattern_move.dart';
 
 final _placeholder = RegExp(r'\{nn\}|\{slug\}');
 
@@ -25,7 +24,9 @@ NestingSegment? nestingSegmentOf(String path, MergedDocType nesting) {
   for (var index = 0; index < segments.length - 1; index++) {
     running += _placeholderCount([segments[index]]);
     if (running >= wanted) {
-      return segments[index] == text ? (index: index, text: text) : null;
+      return segments[index] == text
+          ? NestingSegment(index: index, text: text)
+          : null;
     }
   }
   return null;
@@ -58,7 +59,7 @@ List<String> pathsAtEveryDepth(
 /// The pair comes back alone when [nesting] writes no `max_depth` or when
 /// either pattern holds no repeating segment: a move that leaves the nesting
 /// folders has no depth to repeat.
-List<({String from, String to})> movePatternsAtEveryDepth(
+List<PatternMove> movePatternsAtEveryDepth(
   String from,
   String to,
   MergedDocType nesting,
@@ -67,12 +68,13 @@ List<({String from, String to})> movePatternsAtEveryDepth(
   final toSegment = nestingSegmentOf(to, nesting);
   final maxDepth = nesting.maxDepth;
   if (maxDepth == null || fromSegment == null || toSegment == null) {
-    return [(from: from, to: to)];
+    return [PatternMove(from: from, to: to)];
   }
   final froms = pathsAtEveryDepth(from, fromSegment, maxDepth);
   final tos = pathsAtEveryDepth(to, toSegment, maxDepth);
   return [
-    for (final (index, path) in froms.indexed) (from: path, to: tos[index]),
+    for (final (index, path) in froms.indexed)
+      PatternMove(from: path, to: tos[index]),
   ];
 }
 

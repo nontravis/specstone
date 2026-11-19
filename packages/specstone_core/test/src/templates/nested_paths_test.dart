@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/pattern_move.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
 import 'package:test/test.dart';
 
@@ -187,8 +188,8 @@ void main() {
       final pairs = movePatternsAtEveryDepth(from, to, feature(maxDepth: 1));
 
       expect(pairs, [
-        (from: from, to: to),
-        (
+        const PatternMove(from: from, to: to),
+        const PatternMove(
           from: 'specs/f{nn}_{slug}/f{nn}_{slug}/IMPLEMENTATION.md',
           to: '.specstone/records/f{nn}_{slug}/f{nn}_{slug}/IMPLEMENTATION.md',
         ),
@@ -197,14 +198,14 @@ void main() {
 
     test('keeps the pair alone when the nesting type writes no depth', () {
       expect(movePatternsAtEveryDepth(from, to, feature()), [
-        (from: from, to: to),
+        const PatternMove(from: from, to: to),
       ]);
     });
 
     test('keeps the pair alone when a pattern holds no repeating segment', () {
       expect(
         movePatternsAtEveryDepth(from, 'specs/{slug}.md', feature(maxDepth: 2)),
-        [(from: from, to: 'specs/{slug}.md')],
+        [const PatternMove(from: from, to: 'specs/{slug}.md')],
       );
     });
   });
