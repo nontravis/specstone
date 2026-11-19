@@ -158,6 +158,7 @@ void main() {
   _codeStampTests();
   _citeTests();
   _bulletLinesTests();
+  _addedPinsTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -5183,6 +5184,248 @@ void _bulletLinesTests() {
                 'key',
                 'migrations[0].steps[0].bullet_lines.section',
               ),
+        ),
+      );
+    });
+  });
+}
+
+const _configPath = '.specstone/config.yaml';
+
+/// Plans the upgrade of [project] with [adds] as the added packs.
+RunPlan _planAdding(Directory project, List<String> adds, {Directory? home}) =>
+    planUpgradeRun(
+      _canonical(project),
+      templates: TemplateResolver(),
+      homeDirectory: home,
+      addedPacks: adds,
+    );
+
+/// The `config.yaml` text [plan] writes, less the `agent_files_version` line
+/// every run that writes the config sets.
+String _configWrittenBy(RunPlan plan) => _rewriteAt(
+  plan,
+  _configPath,
+).text.replaceAll(RegExp(r'agent_files_version: [^\r\n]*\r?\n'), '');
+
+PackVersion _version(String text) =>
+    PackVersion.parse(text, file: _configPath, key: 'packs');
+
+void _addedPinsTests() {
+  group('added pins', () {
+    final versions = shippedPackVersions();
+    final core = versions['prd-core']!;
+    final tech = versions['software-tech']!;
+    final skills = versions['agent-skills']!;
+    final marketing = versions['marketing']!;
+
+    Future<Directory> project(String config) =>
+        writeTree({_configPath: config});
+
+    test('an added pin prints its line before upgraded pins', () async {
+      final fixture = await _fixture();
+
+      final plan = planUpgradeRun(
+        fixture.project,
+        templates: TemplateResolver(),
+        homeDirectory: fixture.home,
+        addedPacks: const ['agent-skills'],
+      );
+
+      expect(
+        plan.toText(),
+        contains(
+          '  $_configPath: agent-skills $skills (added)\n'
+          '  $_configPath: acme 1.2.0\n',
+        ),
+      );
+    });
+
+    test('the header names added pins before upgraded ones and never says '
+        'pins unchanged', () async {
+      final fixture = await _fixture();
+      final alone = await project(shippedPinsConfig());
+
+      final withUpgrade = planUpgradeRun(
+        fixture.project,
+        templates: TemplateResolver(),
+        homeDirectory: fixture.home,
+        addedPacks: const ['agent-skills'],
+      );
+      final addOnly = _planAdding(alone, const ['agent-skills']);
+
+      expect(
+        withUpgrade.header,
+        'pack upgrade: agent-skills $skills (added), acme 1.0.0 -> 1.2.0',
+      );
+      expect(addOnly.header, 'pack upgrade: agent-skills $skills (added)');
+      expect(addOnly.toText(), isNot(contains('pins unchanged')));
+    });
+
+    test('two added pins list in the order given in the config, lines, '
+        'header, and json', () async {
+      final root = await project(shippedPinsConfig());
+
+      final plan = _planAdding(root, const ['agent-skills', 'marketing']);
+
+      expect(
+        plan.header,
+        'pack upgrade: agent-skills $skills (added), marketing $marketing '
+        '(added)',
+      );
+      expect(
+        plan.toText(),
+        contains(
+          '  $_configPath: agent-skills $skills (added)\n'
+          '  $_configPath: marketing $marketing (added)\n',
+        ),
+      );
+      expect(
+        _configWrittenBy(plan),
+        'packs:\n'
+        '  prd-core: $core\n'
+        '  software-tech: $tech\n'
+        '  agent-skills: $skills\n'
+        '  marketing: $marketing\n',
+      );
+      expect(plan.lists.toJson()['addedPins'], [
+        {'pack': 'agent-skills', 'version': skills},
+        {'pack': 'marketing', 'version': marketing},
+      ]);
+    });
+
+    test('a run with no add holds no addedPins key', () async {
+      final root = await project(shippedPinsConfig());
+
+      expect(_planAt(root).lists.toJson(), isNot(contains('addedPins')));
+    });
+
+    group('a block map takes the pin after its last entry line with that '
+        'indent', () {
+      for (final (:label, :config, :expected) in [
+        (
+          label: 'a trailing comment on the last entry',
+          config: 'packs:\n  prd-core: $core\n  software-tech: $tech # keep\n',
+          expected:
+              'packs:\n  prd-core: $core\n  software-tech: $tech # keep\n'
+              '  agent-skills: $skills\n',
+        ),
+        (
+          label: 'blank lines then another key',
+          config:
+              'packs:\n  prd-core: $core\n  software-tech: $tech\n\n\n'
+              'verification_coverage: false\n',
+          expected:
+              'packs:\n  prd-core: $core\n  software-tech: $tech\n'
+              '  agent-skills: $skills\n\n\nverification_coverage: false\n',
+        ),
+        (
+          label: 'a four-space indent',
+          config: 'packs:\n    prd-core: $core\n    software-tech: $tech\n',
+          expected:
+              'packs:\n    prd-core: $core\n    software-tech: $tech\n'
+              '    agent-skills: $skills\n',
+        ),
+        (
+          label: 'CRLF line endings',
+          config:
+              'packs:\r\n  prd-core: $core\r\n  software-tech: $tech\r\n'
+              'verification_coverage: false\r\n',
+          expected:
+              'packs:\r\n  prd-core: $core\r\n  software-tech: $tech\r\n'
+              '  agent-skills: $skills\r\nverification_coverage: false\r\n',
+        ),
+      ]) {
+        test(label, () async {
+          final root = await project(config);
+
+          final plan = _planAdding(root, const ['agent-skills']);
+
+          expect(_configWrittenBy(plan), expected);
+        });
+      }
+    });
+
+    test(
+      'a one-line flow map takes the pin before its closing brace',
+      () async {
+        final root = await project('packs: {prd-core: $core}\n');
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(
+          _configWrittenBy(plan),
+          'packs: {prd-core: $core, agent-skills: $skills}\n',
+        );
+      },
+    );
+
+    test('an empty one-line flow map takes the pins with no leading '
+        'comma', () {
+      final pins = [
+        AddedPin(pack: 'agent-skills', version: _version(skills)),
+        AddedPin(pack: 'marketing', version: _version(marketing)),
+      ];
+
+      expect(
+        withPinsAppended('packs: {}\n', pins),
+        'packs: {agent-skills: $skills, marketing: $marketing}\n',
+      );
+    });
+
+    test('a multi-line flow map refuses unknown_value at packs', () async {
+      final root = await project(
+        'packs: {\n  prd-core: $core,\n  software-tech: $tech\n}\n',
+      );
+
+      expect(
+        () => _planAdding(root, const ['agent-skills']),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.file, 'file', _configPath)
+              .having((f) => f.key, 'key', 'packs')
+              .having(
+                (f) => f.message,
+                'message',
+                'migrate --add writes a packs block map or a one-line flow '
+                    'map; add the pin by hand',
+              ),
+        ),
+      );
+    });
+
+    test('an added pack whose base is neither pinned nor added raises the '
+        'load fault before the plan', () async {
+      final root = await project('packs:\n  prd-core: $core\n');
+
+      expect(
+        () => _planAdding(root, const ['software-design-system']),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.extendsTargetUnknown,
+          ),
+        ),
+      );
+      expect(
+        _planAdding(root, const ['software-design-system', 'software-tech']),
+        isA<RunPlan>(),
+      );
+    });
+
+    test('the form check refuses before the load fault', () async {
+      final root = await project('packs: {\n  prd-core: $core\n}\n');
+
+      expect(
+        () => _planAdding(root, const ['software-design-system']),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.unknownValue,
+          ),
         ),
       );
     });

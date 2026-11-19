@@ -3285,7 +3285,7 @@ agent_file_roots:
     });
   }, skip: hasGit ? null : 'git is not available');
 
-  group('the names --add takes, in the built CLI', () {
+  group('migrate --add, in the built CLI', () {
     late String binary;
 
     setUpAll(() async {
@@ -3356,7 +3356,141 @@ agent_file_roots:
       ], home: home);
 
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(
+        result.stdout,
+        startsWith('pack upgrade: mine 1.0.0 (added)\ncommit 2, rewrites:\n'),
+      );
       expect(result.stdout, contains('dry run: nothing written'));
+    });
+
+    Future<Directory> pinProject() => gitFixture({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      _gitignore: _ignoreFile,
+    });
+
+    final planLine = RegExp(r'^plan ([0-9a-f]+)$', multiLine: true);
+    final skills = shippedPackVersions()['agent-skills'];
+
+    test('a dry run with an add prints its plan and hash and writes '
+        'nothing', () async {
+      final project = await pinProject();
+      final before = _bytesUnder(project);
+
+      final result = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'agent-skills',
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(
+        result.stdout,
+        startsWith('pack upgrade: agent-skills $skills (added)\n'),
+      );
+      expect(
+        result.stdout,
+        contains('  .specstone/config.yaml: agent-skills $skills (added)\n'),
+      );
+      expect(planLine.hasMatch(result.stdout as String), isTrue);
+      expect(result.stdout, contains('dry run: nothing written'));
+      expect(_bytesUnder(project), before);
+    });
+
+    test('the apply with the same adds pins agent-skills at the shipped '
+        'version', () async {
+      final project = await pinProject();
+      final dry = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'agent-skills',
+      ]);
+      final hash = planLine.firstMatch(dry.stdout as String)!.group(1)!;
+
+      final applied = await migrate(project, [
+        '--yes',
+        '--plan',
+        hash,
+        '--add',
+        'agent-skills',
+      ]);
+
+      expect(
+        applied.exitCode,
+        0,
+        reason: '${applied.stdout}\n${applied.stderr}',
+      );
+      expect(
+        _read(project, '.specstone/config.yaml'),
+        contains(
+          '  software-tech: ${shippedPackVersions()['software-tech']}\n'
+          '  agent-skills: $skills\n',
+        ),
+      );
+      expect(_subjects(project).first, 'upgrade pack pins');
+      expect(_gitOut(project, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('adds in another order give the same hash, a repeated name '
+        'included', () async {
+      final project = await pinProject();
+      final orders = [
+        ['--add', 'marketing', '--add', 'agent-skills'],
+        ['--add', 'agent-skills', '--add', 'marketing'],
+        [
+          '--add',
+          'agent-skills',
+          '--add',
+          'agent-skills',
+          '--add',
+          'marketing',
+        ],
+      ];
+
+      final outputs = [
+        for (final order in orders)
+          (await migrate(project, ['--dry-run', ...order])).stdout as String,
+      ];
+
+      expect(planLine.hasMatch(outputs.first), isTrue);
+      expect(
+        outputs.first,
+        startsWith(
+          'pack upgrade: agent-skills $skills (added), marketing '
+          '${shippedPackVersions()['marketing']} (added)\n',
+        ),
+      );
+      expect(outputs[1], outputs.first);
+      expect(outputs[2], outputs.first);
+    });
+
+    test('the apply with a different add list is plan_mismatch', () async {
+      final project = await pinProject();
+      final dry = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'agent-skills',
+      ]);
+      final hash = planLine.firstMatch(dry.stdout as String)!.group(1)!;
+      final before = _bytesUnder(project);
+
+      final applied = await migrate(project, [
+        '--yes',
+        '--plan',
+        hash,
+        '--add',
+        'marketing',
+      ]);
+
+      expect(
+        applied.exitCode,
+        75,
+        reason: '${applied.stdout}\n${applied.stderr}',
+      );
+      expect(
+        applied.stderr,
+        startsWith('the plan is not the one the Owner saw in the dry run'),
+      );
+      expect(_bytesUnder(project), before);
     });
   });
 }

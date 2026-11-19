@@ -52,6 +52,7 @@ import 'package:specstone_core/src/templates/nested_paths.dart'
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:yaml/yaml.dart';
@@ -106,10 +107,16 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// the merged set holds the record doc type, the test-name pass runs too, and
 /// when [runsCitePass] holds, the cite pass. [homeDirectory] is the personal
 /// pack home, or null. The plan's `inputs` hold every file it read.
+///
+/// Each of [addedPacks], sorted with no repeat, joins the pins at the version
+/// its pack carries: the `packs:` form is checked first, then the merged set
+/// with the added packs loads, so a refused add prints nothing. Throws a
+/// `TemplateFault` `unknown_value` at `packs` for a form the add cannot write.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  List<String> addedPacks = const [],
 }) {
   final inputs = PlanInputs(root);
   return inputs.collect(
@@ -117,6 +124,7 @@ RunPlan planUpgradeRun(
       root,
       templates: templates,
       homeDirectory: homeDirectory,
+      addedPacks: addedPacks,
       inputs: inputs,
     ),
   )..refuseTakenCreates(root);
@@ -127,10 +135,20 @@ RunPlan _upgradeRunOf(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  required List<String> addedPacks,
   required PlanInputs inputs,
 }) {
   final config = ProjectConfig.read(root);
   final pins = config.pins;
+  if (addedPacks.isNotEmpty) _requirePacksWritable(root);
+  final addedPins = [
+    for (final MapEntry(:key, :value)
+        in templates
+            .availableManifests(addedPacks, homeDirectory: homeDirectory)
+            .entries)
+      AddedPin(pack: key, version: value.version),
+  ];
+  final packNames = [...pins.keys, for (final pin in addedPins) pin.pack];
   final available = templates.availableManifests(
     pins.keys,
     homeDirectory: homeDirectory,
@@ -138,7 +156,7 @@ RunPlan _upgradeRunOf(
   final upgrades = selectUpgrades(pins, available);
   final overrides = loadProjectTemplates(root);
   final targetSet = templates.resolveCarried(
-    packNames: pins.keys,
+    packNames: packNames,
     homeDirectory: homeDirectory,
   );
   refuseDanglingOverrides(
@@ -159,7 +177,7 @@ RunPlan _upgradeRunOf(
       PlannedCreate(path: file, text: 'path: $path\n'),
   ];
   final finalSet = templates.resolveCarried(
-    packNames: pins.keys,
+    packNames: packNames,
     homeDirectory: homeDirectory,
     projectLayers: parseOverrides({
       for (final file in overrideFiles) file.path: file.lf,
@@ -520,6 +538,7 @@ RunPlan _upgradeRunOf(
   final configRewrite = _configRewriteOf(
     root,
     upgrades,
+    addedPins: addedPins,
     agentFileRoots: agentFiles.addedRoots.isEmpty
         ? null
         : agentFiles.agentFileRoots,
@@ -527,7 +546,8 @@ RunPlan _upgradeRunOf(
       agentInputs,
       agentFiles,
       config,
-      isConfigWritten: upgrades.isNotEmpty || !agentFiles.isEmpty,
+      isConfigWritten:
+          upgrades.isNotEmpty || addedPins.isNotEmpty || !agentFiles.isEmpty,
     ),
   );
 
@@ -562,6 +582,9 @@ RunPlan _upgradeRunOf(
   final pinned = [
     for (final upgrade in upgrades) '${upgrade.pack} ${upgrade.target}',
   ];
+  final added = [
+    for (final pin in addedPins) '${pin.pack} ${pin.version} (added)',
+  ];
 
   final mentions = _staleMentionsOf(
     root,
@@ -570,15 +593,21 @@ RunPlan _upgradeRunOf(
     docPaths: docPaths,
     moves: moves,
   );
-  final arePinsUnchanged = upgrades.isEmpty;
+  final arePinsUnchanged = upgrades.isEmpty && addedPins.isEmpty;
+  final treeMovesTo = treeMoves.isEmpty ? null : firstTarget;
+  final headerParts = [
+    ...added,
+    ...upgraded,
+    if (treeMovesTo != null) 'spec tree to $treeMovesTo',
+  ];
   final (:header, :commit2Message) = arePinsUnchanged
       ? _pinsUnchangedTitles(
           laysOut: laidOutPaths.isNotEmpty,
           writesAgentFiles: !agentFiles.isEmpty,
-          treeMovesTo: treeMoves.isEmpty ? null : firstTarget,
+          treeMovesTo: treeMovesTo,
         )
       : (
-          header: 'pack upgrade: ${upgraded.join(', ')}',
+          header: 'pack upgrade: ${headerParts.join(', ')}',
           commit2Message: _commit2Message,
         );
   final plan = RunPlan(
@@ -610,7 +639,8 @@ RunPlan _upgradeRunOf(
       ?stamps.planLine,
       if (agentFiles.line.isNotEmpty) agentFiles.line,
       ?mentionsLine(mentions),
-      if (!arePinsUnchanged) '$projectConfigPath: ${pinned.join(', ')}',
+      for (final line in added) '$projectConfigPath: $line',
+      if (upgrades.isNotEmpty) '$projectConfigPath: ${pinned.join(', ')}',
     ],
     agentFiles: agentFiles,
     lists: PlanLists(
@@ -624,6 +654,7 @@ RunPlan _upgradeRunOf(
       stampsSkipped: stamps.paths,
       steps: stepLines,
       mentions: mentions,
+      addedPins: addedPins,
       tests: tests?.json,
     ),
   );
@@ -956,17 +987,21 @@ final class _DocWork {
   final List<String> changes;
 }
 
-/// Returns the rewrite of `config.yaml` that moves the pins of [upgrades] and
-/// sets `agent_file_roots` to [agentFileRoots] and `agent_files_version` to
-/// [agentFilesVersion] when each is not null, every other byte kept, or null
-/// when none changes.
+/// Returns the rewrite of `config.yaml` that moves the pins of [upgrades],
+/// appends [addedPins], and sets `agent_file_roots` to [agentFileRoots] and
+/// `agent_files_version` to [agentFilesVersion] when each is not null, every
+/// other byte kept, or null when none changes.
 PlannedRewrite? _configRewriteOf(
   Directory root,
   List<PackUpgrade> upgrades, {
+  required List<AddedPin> addedPins,
   required List<String>? agentFileRoots,
   required ReleaseVersion? agentFilesVersion,
 }) {
-  if (upgrades.isEmpty && agentFileRoots == null && agentFilesVersion == null) {
+  if (upgrades.isEmpty &&
+      addedPins.isEmpty &&
+      agentFileRoots == null &&
+      agentFilesVersion == null) {
     return null;
   }
   final original = readDocText(
@@ -978,6 +1013,7 @@ PlannedRewrite? _configRewriteOf(
     for (final upgrade in upgrades)
       (packs.nodes[upgrade.pack]! as YamlScalar, '${upgrade.target}'),
   ]);
+  text = withPinsAppended(text, addedPins);
   if (agentFileRoots != null) text = _withAgentFileRoots(text, agentFileRoots);
   if (agentFilesVersion != null) {
     text = _withAgentFilesVersion(text, agentFilesVersion);
@@ -987,11 +1023,69 @@ PlannedRewrite? _configRewriteOf(
     text: writtenText(original, text),
     before: original.hash,
     changes: [
-      if (upgrades.isNotEmpty) 'pins',
+      if (upgrades.isNotEmpty || addedPins.isNotEmpty) 'pins',
       if (agentFileRoots != null) _agentFileRootsKey,
       if (agentFilesVersion != null) _agentFilesVersionKey,
     ],
   );
+}
+
+/// The forms of the `packs:` value that [withPinsAppended] writes.
+enum _PacksForm { block, flow }
+
+/// Returns the form of [packs], or null when it is neither a block map nor a
+/// flow map on one line.
+_PacksForm? _packsFormOf(YamlMap packs) => switch (packs.style) {
+  CollectionStyle.BLOCK => _PacksForm.block,
+  CollectionStyle.FLOW when packs.span.start.line == packs.span.end.line =>
+    _PacksForm.flow,
+  _ => null,
+};
+
+/// Throws `unknown_value` at `packs` when the config of [root] holds `packs:`
+/// in a form [withPinsAppended] cannot write.
+void _requirePacksWritable(Directory root) {
+  final original = readDocText(
+    readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
+  );
+  final packs =
+      (loadYamlNode(original.lf) as YamlMap).nodes['packs']! as YamlMap;
+  if (_packsFormOf(packs) != null) return;
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'migrate --add writes a packs block map or a one-line flow map; add the '
+    'pin by hand',
+    file: projectConfigPath,
+    key: 'packs',
+  );
+}
+
+/// Returns [lf] with each of [pins] appended to its `packs:` map, every other
+/// byte kept.
+///
+/// A block map takes `pack: version` on a new line after its last entry's
+/// line, at that entry's indent; a flow map on one line takes `, pack:
+/// version` after its last entry, or `pack: version` when empty.
+String withPinsAppended(String lf, List<AddedPin> pins) {
+  if (pins.isEmpty) return lf;
+  final packs = (loadYamlNode(lf) as YamlMap).nodes['packs']! as YamlMap;
+  final entries = [for (final pin in pins) '${pin.pack}: ${pin.version}'];
+  switch (_packsFormOf(packs)) {
+    case _PacksForm.block:
+      final last = packs.nodes.entries.last;
+      final indent = ' ' * (last.key as YamlNode).span.start.column;
+      final lineEnd = lf.indexOf('\n', last.value.span.end.offset);
+      final at = lineEnd == -1 ? lf.length : lineEnd;
+      return lf.replaceRange(at, at, '\n$indent${entries.join('\n$indent')}');
+    case _PacksForm.flow when packs.nodes.isEmpty:
+      final at = packs.span.start.offset + 1;
+      return lf.replaceRange(at, at, entries.join(', '));
+    case _PacksForm.flow:
+      final at = packs.nodes.entries.last.value.span.end.offset;
+      return lf.replaceRange(at, at, ', ${entries.join(', ')}');
+    case null:
+      throw ArgumentError.value(lf, 'lf', 'packs is not a writable map');
+  }
 }
 
 /// Returns [text] with the `agent_file_roots` entry set to [roots]: replaced

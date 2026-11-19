@@ -176,7 +176,13 @@ Future<int> _migrate(MigrateRequest request) async {
       return 0;
     case RunKind.legacy:
     case RunKind.upgrade:
-      return await _plannedRun(request, root, kind, linkFolder: linkFolder);
+      return await _plannedRun(
+        request,
+        root,
+        kind,
+        linkFolder: linkFolder,
+        added: added,
+      );
     case RunKind.resume:
       return await _resume(request, root, trust);
   }
@@ -296,11 +302,12 @@ Future<int> _plannedRun(
   Directory root,
   RunKind kind, {
   required Directory? linkFolder,
+  List<String> added = const [],
 }) async {
   final trust = _trustOf(root, linkFolder, request);
   _preflight(request, root, trust, checksCleanTree: !request.dryRun);
   final isTreeDirty = request.dryRun && isWorkTreeDirty(root, request.runGit);
-  final plan = _planOf(request, root, kind, linkFolder);
+  final plan = _planOf(request, root, kind, linkFolder, added);
   _nameSkipped(request, plan);
   final planText = plan.toText();
   if (request.dryRun) {
@@ -324,7 +331,7 @@ Future<int> _plannedRun(
     _requireSeenPlan(request, planText, plan.inputs);
   }
   requireCleanWorkTree(root, request.runGit);
-  final applied = _replanMatching(request, root, kind, linkFolder, plan);
+  final applied = _replanMatching(request, root, kind, linkFolder, plan, added);
   final base = headSha(root, request.runGit);
   final steps = applied.journalSteps(base: base, projectRoot: root);
   MoveJournal(steps).run(
@@ -350,11 +357,14 @@ RunPlan _replanMatching(
   RunKind kind,
   Directory? linkFolder,
   RunPlan shown,
+  List<String> added,
 ) {
   final recorder = PlanInputs(root);
   final RunPlan fresh;
   try {
-    fresh = recorder.collect(() => _planOf(request, root, kind, linkFolder));
+    fresh = recorder.collect(
+      () => _planOf(request, root, kind, linkFolder, added),
+    );
   } on FileSystemException catch (error) {
     throw _inputChanged(_fromRoot(root, error.path));
   } on TemplateFault catch (fault) {
@@ -414,11 +424,13 @@ RunPlan _planOf(
   Directory root,
   RunKind kind,
   Directory? linkFolder,
+  List<String> added,
 ) => kind == RunKind.upgrade
     ? planUpgradeRun(
         root,
         templates: request.templates,
         homeDirectory: request.homeDirectory,
+        addedPacks: added,
       )
     : planLegacyRun(
         root,
