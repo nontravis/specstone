@@ -357,6 +357,7 @@ void main() {
         'motion',
       ];
       final literal = RegExp(r'#[0-9a-fA-F]{3,8}\b|\d');
+      // Intros may say "no token value"; a section must never ask for one.
       final valueAsk = RegExp(r'\bvalues?\b', caseSensitive: false);
       for (final id in foundations) {
         final docType = prdCoreDocType(set, id);

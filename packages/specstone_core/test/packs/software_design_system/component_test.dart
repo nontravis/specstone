@@ -164,6 +164,13 @@ void main() {
       expect(lines, contains(startsWith('These docs serve the team that')));
     });
 
+    test("the when-to-use section folds in the Do and Don't points", () {
+      expect(
+        sectionOf(component, 'when_to_use').description,
+        contains("Fold the Do and Don't points into this section."),
+      );
+    });
+
     test('the props section names the five language-neutral types', () {
       expect(
         sectionOf(component, 'props').description,

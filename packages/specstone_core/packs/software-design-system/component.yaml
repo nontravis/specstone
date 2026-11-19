@@ -41,6 +41,7 @@ sections:
     required: true
     description: |-
       Write when to use the component, when not, and the component to use instead.
+      Fold the Do and Don't points into this section.
   - id: anatomy
     header: Anatomy
     description: |-
