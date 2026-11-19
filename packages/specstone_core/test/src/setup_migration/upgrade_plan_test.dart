@@ -5732,13 +5732,20 @@ migrations:
         plan.toText(),
         contains(
           'commit 2, rewrites:\n'
-          '  from 1.0.0: mark_retrim: 0 docs\n',
+          '  from 1.0.0: mark_retrim: 1 docs\n',
         ),
       );
       expect(plan.lists.toJson()['steps'], [
-        {'from': '1.0.0', 'step': 'mark_retrim', 'paths': <String>[]},
+        {
+          'from': '1.0.0',
+          'step': 'mark_retrim',
+          'paths': [_loginPath],
+        },
       ]);
-      expect(_docRewrites(plan), isEmpty);
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        '---\nretrim:\n  - invariants\n---\n\n$_loginDoc',
+      );
     });
   });
 }

@@ -31,6 +31,7 @@ import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
+import 'package:specstone_core/src/setup_migration/mark_retrim_step.dart';
 import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
@@ -352,7 +353,11 @@ RunPlan _upgradeRunOf(
           matcher: matcher,
           preRunTexts: preRunTexts,
         ),
-        MarkRetrim() => lf,
+        MarkRetrim() => withRetrimMarked(
+          lf,
+          docType: docType,
+          sections: step.sections,
+        ),
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the

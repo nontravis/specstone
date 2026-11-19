@@ -274,6 +274,41 @@ void main() {
       );
       expect(run.pass.apply('docs/unplanned.md', '# X\n'), '# X\n');
     });
+    group('a mark step wrote the doc', () {
+      const marked =
+          '---\ntraced_from: [S1]\nretrim:\n  - edge_cases\n---\n'
+          '# C\n\n## Edge cases\n\n1. E01 — Empty → refused.\n';
+
+      test('an approved doc a mark step wrote is stamped with the hash approve '
+          'gives', () {
+        final before = {_frPath: _tracing('  - S1 000000000000\n')};
+        final after = {_frPath: marked};
+
+        final run = _run(before, after, restampsFingerprints: false);
+
+        final stamped = run.applied[_frPath]!;
+        expect(
+          stamped,
+          withApprovalHash(marked, _typeAt(_frPath), statusesOutside: false),
+        );
+        expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
+      });
+
+      test('a draft a mark step wrote stays a draft', () {
+        const draft =
+            '---\ndraft: true\ntraced_from: [S1]\nretrim:\n'
+            '  - edge_cases\n---\n# C\n\n## Edge cases\n\n'
+            '1. E01 — Empty → refused.\n';
+        final before = {
+          _frPath: '---\ndraft: true\ntraced_from: [S1]\n---\n# C\n',
+        };
+        final after = {_frPath: draft};
+
+        final run = _run(before, after, restampsFingerprints: false);
+
+        expect(run.applied[_frPath], draft);
+      });
+    });
   });
 
   group('the entry fingerprint stamp', () {
