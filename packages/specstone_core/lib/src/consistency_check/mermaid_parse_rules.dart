@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart';
+import 'package:specstone_core/src/index_query/models/mermaid_block.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 

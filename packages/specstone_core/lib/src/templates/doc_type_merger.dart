@@ -1,7 +1,5 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/pattern_entry.dart';
-import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 const _approvedId = 'approved';

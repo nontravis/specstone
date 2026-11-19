@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/models/repeat_item.dart';
 import 'package:specstone_core/src/index_query/item_words.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The fewest normalized words a shared run holds.
 const minRepeatRunWords = 8;

@@ -8,13 +8,13 @@ import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/models/indexed_item_words.dart';
 import 'package:specstone_core/src/index_query/models/indexed_link.dart';
+import 'package:specstone_core/src/index_query/models/item_facts.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -943,7 +943,7 @@ final class IndexStore {
       links: [
         for (final row in _linksSql.select([docPath])) row['target'] as String,
       ],
-      lineFacts: LineFacts.fromJson(
+      lineFacts: lineFactsFromJson(
         jsonDecode(doc['line_facts'] as String) as Map<String, Object?>,
         sectionCounts: [
           for (final row in rows)

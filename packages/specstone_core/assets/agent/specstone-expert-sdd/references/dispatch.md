@@ -3,8 +3,9 @@
 The rungs a skill takes to run `specstone-sdd-engineer`, `specstone-sdd-reader`, or `specstone-plan-engineer`. Every
 skill that dispatches an agent points here and restates none of it.
 
-Take the first rung that runs. Every rung gets the same inputs: the dispatch's mode, paths, and `report:`, and no doc
-text. Every rung's reply is the agent's `Report:` line and relay block.
+Take the first rung that runs. Every rung gets the same inputs: the dispatch's mode, paths, and task, and no doc text.
+`specstone-sdd-engineer` and `specstone-plan-engineer` also get `report:`; `specstone-sdd-reader` gets none. Every
+rung's reply is the engineer's or plan engineer's `Report:` line and relay block, or the reader's final message.
 
 ## Named agent
 

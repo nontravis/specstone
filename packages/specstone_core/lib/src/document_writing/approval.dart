@@ -4,15 +4,13 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/line_facts.dart'
-    show parseFrontmatterYaml;
 import 'package:specstone_core/src/index_query/matrix_rows.dart'
     show withoutMatrixSection;
+import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 
@@ -232,7 +230,7 @@ String? comparedApprovalHash(
   final blocks = Doc.parse(lfText).frontmatter;
   final isValid =
       blocks == null ||
-      parseFrontmatterYaml(blocks.map((b) => b.text).join()).errorLine == null;
+      FrontmatterYaml.parse(blocks.map((b) => b.text).join()).errorLine == null;
   return isValid
       ? approvalHashOf(lfText, docType, statusesOutside: statusesOutside)
       : null;

@@ -402,7 +402,7 @@ String _stamped(DocTypeMatcher matcher, String path, String text) {
   final fields = ApprovalFields.of(Doc.parse(toLf(text)));
   if (fields.isDraft || fields.approvedValue != null) return text;
   // The check reports an invalid frontmatter alone; a stamp would mend it.
-  if (DocLines.of(text).frontmatterErrorLine != null) return text;
+  if (docLinesOf(text).frontmatterErrorLine != null) return text;
   return switch (matcher.match(_docPathOfKey(path))) {
     MatchedDocType(:final docType) => _withEndings(
       text,

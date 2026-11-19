@@ -212,7 +212,7 @@ void _parseInline(Document document, List<Node> nodes) {
 ///
 /// A scheme autolink never resolves to a doc, but the grammar may fail to
 /// read it, so it passes too. A body that fails it is never read for links
-/// and never warns of its links: the index (`LineFacts.of`), `linkPlacesOf`
+/// and never warns of its links: the index (`lineFactsOf`), `linkPlacesOf`
 /// with no tree, the cite candidates, and the item words all start here.
 bool holdsLinkSyntax(String body) =>
     body.contains('](') || body.contains(']:') || _holdsSchemeAutolink(body);

@@ -3,123 +3,9 @@ import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
-import 'package:specstone_core/src/templates/summary_rows.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
-
-/// A field's type; [wire] is the snake_case name the format uses.
-enum FieldType {
-  string('string'),
-  integer('integer'),
-  boolean('boolean'),
-  date('date'),
-  enumType('enum'),
-  docRef('doc_ref'),
-  outputRef('output_ref'),
-  recordStatus('record_status'),
-  taskRef('task_ref'),
-  sourceRef('source_ref');
-
-  new(this.wire);
-
-  /// The snake_case name the doc-type format uses for this type.
-  final String wire;
-
-  /// Returns the type named [wire], or throws `unknown_value` at [prefix]type.
-  static FieldType byWire(
-    String wire, {
-    required String file,
-    required String prefix,
-  }) {
-    final type = values.where((t) => t.wire == wire).firstOrNull;
-    if (type != null) return type;
-    throw TemplateFault(
-      FaultCode.unknownValue,
-      'the key type must be one of the ten field types',
-      file: file,
-      key: '${prefix}type',
-    );
-  }
-}
-
-/// How an `output_ref` field's pointer is matched; [wire] is the format name.
-enum PointerKind {
-  exact('exact'),
-  prefix('prefix'),
-  itemExact('item_exact'),
-  itemTest('item_test');
-
-  new(this.wire);
-
-  /// The name the doc-type format uses for this pointer kind.
-  final String wire;
-
-  /// Returns the kind named [wire], or throws `unknown_value`.
-  ///
-  /// The fault key is [prefix]pointer.
-  static PointerKind byWire(
-    String wire, {
-    required String file,
-    required String prefix,
-  }) {
-    final kind = values.where((k) => k.wire == wire).firstOrNull;
-    if (kind != null) return kind;
-    throw _unknownPointer(file: file, prefix: prefix);
-  }
-
-  /// Returns the kind a field wrote as [value].
-  ///
-  /// Throws `unknown_value` at [prefix]pointer when [value] is not a string
-  /// naming a kind; a YAML value other than a string never names one.
-  static PointerKind read(
-    Object? value, {
-    required String file,
-    required String prefix,
-  }) {
-    if (value is String) return byWire(value, file: file, prefix: prefix);
-    throw _unknownPointer(file: file, prefix: prefix);
-  }
-}
-
-/// The folder an `output_ref` field's pointers resolve against; [wire] is the
-/// format name.
-enum PointerRoot {
-  code('code'),
-  project('project');
-
-  new(this.wire);
-
-  /// The name the doc-type format uses for this root.
-  final String wire;
-
-  /// Returns the root a field wrote as [value].
-  ///
-  /// Throws `unknown_value` at [prefix]root when [value] is not a string
-  /// naming a root.
-  static PointerRoot read(
-    Object? value, {
-    required String file,
-    required String prefix,
-  }) {
-    final root = values.where((r) => r.wire == value).firstOrNull;
-    if (root != null) return root;
-    throw TemplateFault(
-      FaultCode.unknownValue,
-      'the key root must be code or project',
-      file: file,
-      key: '${prefix}root',
-    );
-  }
-}
-
-TemplateFault _unknownPointer({required String file, required String prefix}) =>
-    TemplateFault(
-      FaultCode.unknownValue,
-      'the key pointer must be exact, prefix, item_exact, or item_test',
-      file: file,
-      key: '${prefix}pointer',
-    );
 
 /// A word list as written: a whole list, or `add`/`remove` changes.
 sealed class ListWrite<T>;
@@ -639,7 +525,7 @@ ListWrite<ReferenceEntry>? parseReferenceList(
     null => null,
     final YamlList list => PlainList<ReferenceEntry>([
       for (var i = 0; i < list.length; i++)
-        ReferenceEntry.parse(
+        parseReferenceEntry(
           _entryMap(list[i], 'reference[$i]', file: file),
           file: file,
           key: 'reference[$i]',
@@ -695,7 +581,7 @@ ListChange<ReferenceEntry> _referenceChange(
         ? <ReferenceEntry>[]
         : [
             for (var i = 0; i < add.length; i++)
-              ReferenceEntry.parse(
+              parseReferenceEntry(
                 _entryMap(add[i], 'reference.add[$i]', file: file),
                 file: file,
                 key: 'reference.add[$i]',
@@ -1383,7 +1269,7 @@ ListWrite<PatternEntry>? _patternWrite(
   key,
   file: file,
   prefix: prefix,
-  parseEntry: (entry, keyPath) => PatternEntry.parse(
+  parseEntry: (entry, keyPath) => parsePatternEntry(
     entry,
     file: file,
     key: keyPath,

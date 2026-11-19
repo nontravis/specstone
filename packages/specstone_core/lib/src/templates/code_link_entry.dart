@@ -1,6 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One entry of a code-link field: a pointer, then optionally a fingerprint.

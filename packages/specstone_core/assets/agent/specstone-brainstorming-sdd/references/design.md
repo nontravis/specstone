@@ -35,28 +35,23 @@ Sections, in order:
    text it supersedes.
 4. **Approaches**: the one picked, and why each other lost.
 5. **Decisions**: one per thing decided, ID `D1`, `D2`, ..., as the Owner decided it, with its rule's owner doc
-   (`none` with no rule) and the terms you searched. One taking inputs or states (a rule with states, or one adding a
-   key, flag, link form, refusal, or doc type target) gets an input table: a row per input or state, its result, and
-   each command or skill reading it; a refusal's row quotes its message literal.
-6. **Docs to change**: one row per doc: `<type>:<name>` (new: its type and parent), sections changed, decision IDs.
-   A decision with no row gets a line on why no doc takes it. Each reached feature's `architecture` doc gets a
-   `design_references` row linking this document, per `specstone guide architecture`. With two or more `targets:`,
-   a per-target spec doc's row names its code target; a row with none is an open question.
+   (`none` with no rule) and the terms it adds, changes, or supersedes. One taking inputs or states (a rule with
+   states, or one adding a key, flag, link form, refusal, or doc type target) gets an input table, written before the
+   author runs: a row per input or state, its result, and each command or skill reading it; a refusal's row quotes its
+   message literal.
+6. **Docs to change**: one row per doc: `<type>:<name>` (new: its type and parent), each changed section by its `get`
+   key (an item list in parentheses is a hint), or `whole` for a new doc or a rewrite of every section, decision IDs.
+   A decision with no row gets a line on why no doc takes it. Each doc the design check finds restating a decision's
+   rule gets a row: remove the copy and link the owner's item; when it owns a rule reading the decision's rule, rewrite
+   it. An `architecture` doc gets a `design_references` row linking this document, per `specstone guide
+   architecture`, only when its section states a decision of this design after the change, linking each design whose
+   decisions it still states; a feature merely reached takes none, nor does a doc whose only change swaps a copy for a link. With two or more `targets:`, a per-target
+   spec doc's row names its code target; a row with none is an open question.
 7. **Open questions**: each gap neither the answers nor the saved files settle.
 
-Before the Docs to change table closes, find each decision's dependents:
-
-- Name its rule's owner doc (`specstone-expert-sdd` rule 7); the owner item's cited-by lines give the docs linking it.
-  Run `specstone check <feature> --repeats --out "<folder>/reports/check.gate.<XXXXXX>.txt"` for the repeat groups
-  holding that item; search its file for the item's doc path.
-- Search the saved files, every section of each row's doc included, for the decision's terms and the wording it
-  supersedes, in every written form: with and without a trailing `/`, in backticks or not, singular and plural, and a
-  short form.
-- A doc restating the rule instead of citing its owner gets a row: link the owner's item, or rewrite the doc when it
-  owns a rule reading the decision's rule.
-- With no cited-by line, the repeat groups and text search carry the decision.
-- An amend that adds or changes behavior, or removes a decision, runs these steps on its terms after the removal read
-  in `removal.md`, adding its rows and searched terms before the author writes it.
+The runner runs no dependents search: the design check sweeps every reader. An amend that adds or changes behavior, or
+removes a decision, names its owner doc and terms the same way, after the removal read in `removal.md`, and adds its
+rows before the author writes it.
 
 Decide each point the answers leave open that a PRD or spec doc must state, such as a refusal or a name rule, naming
 the one owner item its rule takes, or list it as an open question; a design holding an open one goes to no author.
@@ -75,12 +70,11 @@ Write or amend the file with your host's file write; write no other file, and no
 No placeholder, no empty section but Open questions, no contradiction between sections or with a ruling, and each
 decision specific enough that two builders would build the same thing.
 
-Before the approval ask, check the saved files' sections outside the Docs to change rows for wording a decision
-supersedes, a removed decision's text included, until none is left: each hit gets a row, a stub row for removed text.
-This document is outside the check: it quotes that wording.
-
 Then the skill's step 3 runs the design check. Fix each finding in the document: an untagged one by an edit; a
-`[behavior]` one by deciding it, or asking the Owner if only they can, then section 3's dependents steps on its terms.
+`[behavior]` one by deciding it, or asking the Owner if only they can, then naming its owner doc and terms.
+
+Ask for approval only once no design-check line is left naming a reader or a wording a decision supersedes outside the
+Docs to change rows, a removed decision's text included: each such line gets a row (a stub row for removed text). This document is outside the sweep: it quotes that wording.
 
 ## 5. Tell the Owner
 

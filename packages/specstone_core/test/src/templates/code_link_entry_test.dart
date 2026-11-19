@@ -1,5 +1,4 @@
 import 'package:specstone_core/src/templates/code_link_entry.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
