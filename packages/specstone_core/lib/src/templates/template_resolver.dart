@@ -380,7 +380,7 @@ final class TemplateResolver {
     List<ParsedPack> packs,
     Map<String, DocTypeLayers> layerLists,
   ) {
-    for (final (:pack, layers: _) in packs) {
+    for (final ParsedPack(:pack) in packs) {
       pack.manifest.checkDropDefaultLineTargets(layerLists);
     }
   }
