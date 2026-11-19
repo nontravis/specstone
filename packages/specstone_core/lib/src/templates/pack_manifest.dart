@@ -43,6 +43,7 @@ final class PackManifest {
       file: file,
       key: 'version',
     );
+    final extendsPack = optionalValue<String>(map, 'extends', file: file);
     final migrations = parseMigrations(map.nodes['migrations'], file: file);
     final shared = parseSharedEntries(map, file: file, format: 'pack');
     _checkDropsOfOwnLines(migrations, {
@@ -51,7 +52,7 @@ final class PackManifest {
     return PackManifest._(
       name: name,
       version: version,
-      extendsPack: optionalValue<String>(map, 'extends', file: file),
+      extendsPack: extendsPack,
       migrations: migrations,
       shared: shared,
       file: file,
