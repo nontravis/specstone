@@ -1670,6 +1670,45 @@ lint:
       }
     });
 
+    test('an output_ref field with no pointer exits 78 at the pointer key', () {
+      expect(
+        () => _parse('fields: [{id: covers, type: output_ref}]'),
+        throwsA(refusal(FaultCode.missingKey, 'fields.covers.pointer')),
+      );
+    });
+
+    test('an output_ref pointer outside the four kinds exits 78 at the '
+        'pointer key', () {
+      expect(
+        () => _parse('fields: [{id: covers, type: output_ref, pointer: glob}]'),
+        throwsA(refusal(FaultCode.unknownValue, 'fields.covers.pointer')),
+      );
+    });
+
+    test('a per_target that is no boolean exits 78 at the per_target key', () {
+      expect(
+        () => _parse('per_target: yes please\n'),
+        throwsA(refusal(FaultCode.unknownValue, 'per_target')),
+      );
+    });
+
+    test('a section output_ref that is no boolean exits 78 at its section '
+        'key', () {
+      expect(
+        () => _parse('sections: [{id: why}, {id: matrix, output_ref: rows}]\n'),
+        throwsA(refusal(FaultCode.unknownValue, 'sections[1].output_ref')),
+      );
+    });
+
+    test('root: repo on an output_ref field exits 78 at the root key', () {
+      expect(
+        () => _parse(
+          'fields: [{id: a, type: output_ref, pointer: exact, root: repo}]',
+        ),
+        throwsA(refusal(FaultCode.unknownValue, 'fields.a.root')),
+      );
+    });
+
     test('a reference add entry holding a doc in a personal layer is '
         'refused at its add key', () {
       expect(

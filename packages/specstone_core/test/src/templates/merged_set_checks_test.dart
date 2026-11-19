@@ -619,9 +619,8 @@ void main() {
       },
     );
 
-    test('two '
-        'doc types holding a record_status field are unknown_value naming '
-        'each holder', () {
+    test('two doc types holding a record_status field are unknown_value '
+        'naming each holder', () {
       const recordField =
           'fields:\n'
           '  - id: owner\n'
@@ -663,8 +662,7 @@ void main() {
       );
     });
 
-    test('the '
-        'record doc type with a merged per_target that is not true is '
+    test('the record doc type with a merged per_target that is not true is '
         'unknown_value', () {
       const noKey =
           'fields:\n'
@@ -718,9 +716,8 @@ void main() {
       );
     });
 
-    test('the '
-        'record doc type with per_target: true passes, and one holder names '
-        'the record doc type', () {
+    test('the record doc type with per_target: true passes, and one '
+        'holder names the record doc type', () {
       const layer =
           'fields:\n'
           '  - id: entries\n'
@@ -742,6 +739,72 @@ void main() {
       );
       expect(MergedSet(docTypes: docTypes).recordDocType?.id, 'runbook');
       expect(MergedSet(docTypes: [builtIn('feature')]).recordDocType, isNull);
+    });
+
+    test('two record_status holders refuse with exit status 78 naming each '
+        'file', () {
+      const recordField =
+          'fields:\n'
+          '  - id: entries\n'
+          '    type: record_status\n';
+      final fields = [
+        const MergedField(id: 'entries', type: FieldType.recordStatus),
+      ];
+      expect(
+        () => check(
+          [
+            builtIn('runbook').copyWith(fields: fields),
+            builtIn('playbook').copyWith(fields: fields),
+          ],
+          {
+            'runbook': [layerOf('runbook', recordField)],
+            'playbook': [layerOf('playbook', recordField, file: _playbookFile)],
+          },
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.exitStatus, 'exit status', 78)
+              .having((f) => f.key, 'key', 'fields[0].type')
+              .having((f) => f.file, 'file', _playbookFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [_runbookFile]),
+        ),
+      );
+    });
+
+    test('a record per_target that is absent or false refuses with exit '
+        'status 78 at the per_target key', () {
+      const recordField =
+          'fields:\n'
+          '  - id: entries\n'
+          '    type: record_status\n';
+      for (final layer in [recordField, '${recordField}per_target: false\n']) {
+        expect(
+          () => check(
+            [
+              builtIn('runbook').copyWith(
+                fields: [
+                  const MergedField(
+                    id: 'entries',
+                    type: FieldType.recordStatus,
+                  ),
+                ],
+              ),
+            ],
+            {
+              'runbook': [layerOf('runbook', layer)],
+            },
+          ),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.unknownValue)
+                .having((f) => f.exitStatus, 'exit status', 78)
+                .having((f) => f.key, 'key', 'per_target')
+                .having((f) => f.file, 'file', _runbookFile),
+          ),
+          reason: layer,
+        );
+      }
     });
   });
 
@@ -875,6 +938,57 @@ void main() {
           },
         ),
         throwsA(refusedAt(_runbookFile, 'sections[1].output_ref')),
+      );
+    });
+
+    test('output_ref on a section other than the matrix refuses with exit '
+        'status 78 at its section key', () {
+      expect(
+        () => check(
+          [record()],
+          {
+            'runbook': [
+              layerOf(
+                'runbook',
+                '${recordKeys}sections:\n'
+                    '  - {id: notes, header: Notes, output_ref: true}\n',
+              ),
+            ],
+          },
+        ),
+        throwsA(
+          refusedAt(
+            _runbookFile,
+            'sections[0].output_ref',
+          ).having((f) => f.exitStatus, 'exit status', 78),
+        ),
+      );
+    });
+
+    test('a record matrix section whose output_ref is not true refuses with '
+        'exit status 78 at its section key', () {
+      expect(
+        () => check(
+          [
+            record(sections: [matrix(outputRef: false)]),
+          ],
+          {
+            'runbook': [
+              layerOf(
+                'runbook',
+                '${recordKeys}sections:\n'
+                    '  - {id: verification_matrix, header: Matrix, '
+                    'output_ref: false}\n',
+              ),
+            ],
+          },
+        ),
+        throwsA(
+          refusedAt(
+            _runbookFile,
+            'sections[0].output_ref',
+          ).having((f) => f.exitStatus, 'exit status', 78),
+        ),
       );
     });
 
