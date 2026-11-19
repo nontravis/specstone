@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart';
+import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/label_place.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_place.dart';
@@ -583,6 +584,75 @@ void main() {
     });
   });
 
+  group('LineFacts bare item IDs', () {
+    const type = MergedDocType(
+      id: 'topic',
+      path: 'specs/topics/{slug}.md',
+      isPerTarget: false,
+      fields: [],
+      sections: [],
+      lint: MergedLint(),
+      files: [],
+    );
+
+    test('bare item IDs survive the JSON round trip', () {
+      final facts = parseIndexedDoc(
+        docPath: 'specs/topics/a.md',
+        bytes: utf8.encode(
+          '---\nx: 1\n---\n\n# T\n\nsee INV-1 and [d](../D.md#i) INV-2\n'
+          '`domain:x` INV-3\n',
+        ),
+        match: MatchedDocType(type),
+        statusesOutside: true,
+        idPrefixes: const {'INV-'},
+      ).content.lineFacts;
+      const written = [
+        BareItemId(line: 7, column: 4, id: 'INV-1', citation: null),
+        BareItemId(
+          line: 7,
+          column: 29,
+          id: 'INV-2',
+          citation: LinkCitation(destination: '../D.md#i'),
+        ),
+        BareItemId(
+          line: 8,
+          column: 11,
+          id: 'INV-3',
+          citation: CiteCitation(written: 'domain:x'),
+        ),
+      ];
+
+      expect(facts.bareItemIds, written);
+      final json =
+          jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>;
+      expect(json['bare_item_ids'], [
+        [7, 4, 'INV-1', null, null],
+        [7, 29, 'INV-2', 'link', '../D.md#i'],
+        [8, 11, 'INV-3', 'cite', 'domain:x'],
+      ]);
+      expect(
+        LineFacts.fromJson(
+          json,
+          sectionCounts: facts.sectionCounts,
+        ).bareItemIds,
+        written,
+      );
+    });
+
+    test('an untyped doc stores no bare item ID', () {
+      expect(
+        parseIndexedDoc(
+          docPath: 'doc.md',
+          bytes: utf8.encode('# T\n\nsee INV-1 here\n'),
+          match: const NoDocType(),
+          statusesOutside: true,
+          idPrefixes: const {'INV-'},
+        ).content.lineFacts.bareItemIds,
+        isEmpty,
+      );
+    });
+  });
+
   group('LineFacts mermaid blocks', () {
     test('mermaidBlocks survives toJson and fromJson as pairs', () {
       const blocks = [
@@ -599,6 +669,7 @@ void main() {
         bodyNumberLabels: const [],
         bodyTbrMarkers: const [],
         citeCandidates: const [],
+        bareItemIds: const [],
         mermaidBlocks: blocks,
         warnings: [],
       );
@@ -641,6 +712,7 @@ void main() {
         bodyNumberLabels: const [],
         bodyTbrMarkers: const [],
         citeCandidates: const [],
+        bareItemIds: const [],
         mermaidBlocks: const [],
         warnings: [],
       );

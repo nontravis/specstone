@@ -22,8 +22,17 @@ import 'package:specstone_core/src/index_query/models/matrix_line.dart'
     show MatrixLine, TestRow;
 import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 
-/// Returns the cite candidates of [lfText], a typed doc with LF line ends, in
-/// file order.
+/// Returns the file lines of the test rows of [lines], the matrix lines of a
+/// record: the lines whose code span holds a test literal, no cite candidate.
+///
+/// A skip row and a line that is no row stay out: their text can cite.
+Set<int> testRowLinesOf(List<MatrixLine> lines) => {
+  for (final line in lines)
+    if (line is TestRow) line.line,
+};
+
+/// Returns the cite forms of [lfText], a typed doc with LF line ends, in file
+/// order: each cite candidate with its place on its line.
 ///
 /// Each doc mention `nameMentionsInFile` reads from the body outside fenced
 /// code, no lone-word span among them, is a candidate, bar one inside a link
@@ -37,30 +46,6 @@ import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 /// [idPrefixes], the merged set's item ID prefixes (`itemIdPrefixesOf`).
 ///
 /// A mention on a 1-based file line of [skipLines] is no candidate.
-List<CiteCandidate> citeCandidatesOf(
-  String lfText, {
-  required Set<String> idPrefixes,
-  Set<int> skipLines = const {},
-}) => [
-  for (final form in citeFormsOf(
-    lfText,
-    idPrefixes: idPrefixes,
-    skipLines: skipLines,
-  ))
-    form.candidate,
-];
-
-/// Returns the file lines of the test rows of [lines], the matrix lines of a
-/// record: the lines whose code span holds a test literal, no cite candidate.
-///
-/// A skip row and a line that is no row stay out: their text can cite.
-Set<int> testRowLinesOf(List<MatrixLine> lines) => {
-  for (final line in lines)
-    if (line is TestRow) line.line,
-};
-
-/// Returns the cite candidates of [lfText] as [citeCandidatesOf] reads them,
-/// each with its place on its line.
 List<CiteForm> citeFormsOf(
   String lfText, {
   required Set<String> idPrefixes,
