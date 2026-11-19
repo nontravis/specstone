@@ -7,14 +7,6 @@ items:
     text: The offer has a start date and an end date, and every place that shows the offer states the end.
   - id: sales_goal
     text: The promotion states one sales goal with a number and a baseline, so its lift can be judged.
-  - id: target_segment
-    text: The promotion names the customer segment it targets and the segment it leaves out.
-  - id: proof_points
-    text: Each message of the offer carries a proof point, so no claim stands alone.
-  - id: funnel_stage
-    text: The promotion names the funnel stage it moves buyers through, from consideration to purchase.
-  - id: channel_fit
-    text: Each channel states why it fits the audience and the goal, with its format and effort.
   - id: send_calendar
     text: The calendar gives each send or post a date, with a reminder before the offer ends.
   - id: cost_per_sale
