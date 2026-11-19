@@ -15,12 +15,11 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 /// holds none. An item may lack the field when the entry is `optional`, or
 /// when its `default_from` section names a default enforcer for the doc; a
 /// field the item holds still needs that text. An entry with a `when` applies
-/// only to an item
-/// that meets it; an item that does not meet it and holds the field gives
-/// `item_field_unneeded`. A section whose template sets `required_when`
-/// is required exactly while an item of the named section holds the named
-/// field value: missing or blank and met gives `required_section_missing`,
-/// held and unmet gives `section_unneeded`.
+/// only to an item that meets it; an item that does not meet it and holds the
+/// field gives `item_field_unneeded`. A section whose template sets
+/// `required_when` is required exactly while an item of the named section
+/// holds the named field value: missing or blank and met gives
+/// `required_section_missing`, held and unmet gives `section_unneeded`.
 Iterable<Finding> checkItemFields(CheckContext context, IndexedDoc doc) sync* {
   final type = context.typeOf(doc);
   if (type == null) return;

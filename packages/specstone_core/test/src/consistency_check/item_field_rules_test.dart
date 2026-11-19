@@ -397,13 +397,11 @@ sections:
 
     Future<List<Finding>> found(
       Map<String, String> domains, {
-      Map<String, String> extra = const {},
       bool twin = false,
     }) async {
-      final files = {...domains, ...extra};
       _project = twin
-          ? await writeTwinProject(extra: files)
-          : await writeCheckProject(extra: files);
+          ? await writeTwinProject(extra: domains)
+          : await writeCheckProject(extra: domains);
       return [
         for (final f in (await checkOf(_project)).findings)
           if (kinds.contains(f.kind)) f,
