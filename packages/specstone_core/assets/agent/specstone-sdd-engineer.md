@@ -29,7 +29,10 @@ batch's findings into drafts.
   approval, or approved and amended.
 - **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, or the
   pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
-  round or pass added; in a fix round, the audit's `Findings:` lines too.
+  round or pass added; in a fix round, the audit's `Findings:` lines not tagged `[behavior]` (`[style]` too) and each
+  untagged design-check line naming a draft.
+- **`guide`** (author, required in each pass after the first): `<txt path>, <json path>`, the run's saved guide files;
+  run `guide` only for a type they lack, saved the same way, and name it in your `Guide:` line.
 - **`stage`** (audit, optional): `drafts`, or none, for the drafts audit; `design` for the design check.
 - **`amend`** (audit with `stage: design`, optional): `<N>`, the amend whose decisions the design check reads.
 - **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
@@ -110,7 +113,9 @@ your own list names; name each other draft it lists, never counted; a doc of you
 finding.
 
 - **Author**: first the `Design: <path>, amend <N>` line, then the `Not landed:` lines, the `Drafts for the Owner's
-  specstone approve` line, the `Counts:` line, the `Findings:` line.
+  specstone approve` line, the `Counts:` line, the `Check:` line (the saved file of your bare `check` after your last
+  write), the `Guide:` line (the run's saved guide files, and each you saved for a type they lacked), the `Findings:`
+  line.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
   `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Lenses:` and `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and

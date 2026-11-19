@@ -48,6 +48,7 @@ const _procedures = <String>[
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/design-check.md',
   'specstone-brainstorming-sdd/references/removal.md',
+  'specstone-brainstorming-sdd/references/refused-batch.md',
 ];
 
 /// The goal-move reference of bootstrap-prd, under the plugin folder.
@@ -90,14 +91,14 @@ final _agentFilePath =
     r'<folder>/reports/(?:(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
     r'(?:(?:batch|source)\.)?<XXXXXX>\.(?:md|txt)|check\.'
     '(?:${checkRoles.join('|')}|<role>)'
-    r'\.<XXXXXX>\.txt)';
+    r'\.<XXXXXX>\.txt|guide\.<XXXXXX>\.(?:txt|json))';
 
 /// A code span naming an agent file by its AgentFileName under
-/// [_reportsFolder], bare or as the quoted `--out` of a `specstone check`; the
-/// file is group 1 or 2.
+/// [_reportsFolder], bare or as the quoted `--out` of a `specstone check` or
+/// `specstone guide`; the file is group 1 or 2.
 final _agentFileSpan = RegExp(
   '^(?:($_agentFilePath)|'
-  'specstone check(?: [^\\s"]+)* --out "($_agentFilePath)")\$',
+  'specstone (?:check|guide)(?: [^\\s"]+)* --out "($_agentFilePath)")\$',
 );
 
 /// A code line run in a shell: a `specstone` call or a redirect.
