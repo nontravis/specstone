@@ -34,13 +34,11 @@ final class FoldedRecord {
 // MARK: - Fold
 
 /// Folds each item of [frNames] that holds a per-edge-case row in [lfText], a
-/// record of [recordType], into one per-FR row.
+/// record of [recordType], into one per-FR row at its first row; null when
+/// none folds.
 ///
-/// The folded row takes the line of the item's first row and the item's other
-/// rows go; it carries no fingerprint. A test row keeps each distinct literal
-/// once in first-seen order, and wins over a skip row; a skip row joins each
-/// distinct reason with `; `. Every other line stays byte for byte. Returns
-/// null when no item folds.
+/// The row has no fingerprint. Test rows win over skip rows and keep each
+/// distinct literal once; skip rows join distinct reasons with `; `.
 FoldedRecord? foldMatrixRows(
   String lfText,
   MergedDocType recordType,

@@ -85,6 +85,7 @@ TestRow? _testRowOf(String text, int line) {
   final rest = head.rest.substring(2).trimRight();
   final literals = <String>[];
   var at = 0;
+  var awaitsSpan = false;
   for (final span in codeSpansOf(rest)) {
     if (span.start != at) break;
     literals.add(
@@ -93,10 +94,13 @@ TestRow? _testRowOf(String text, int line) {
       ),
     );
     at = span.end;
-    if (!rest.startsWith(_literalSeparator, at)) break;
+    awaitsSpan = rest.startsWith(_literalSeparator, at);
+    if (!awaitsSpan) break;
     at += _literalSeparator.length;
   }
-  if (literals.isEmpty || literals.toSet().length != literals.length) {
+  if (awaitsSpan ||
+      literals.isEmpty ||
+      literals.toSet().length != literals.length) {
     return null;
   }
   if (head.edgeCase != null && literals.length > 1) return null;

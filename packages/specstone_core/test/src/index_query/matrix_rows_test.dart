@@ -95,6 +95,16 @@ void main() {
       );
     });
 
+    test('reads a dangling separator before a fingerprint as no row', () {
+      for (final text in [
+        '- show_toast: `queues`,  3f9a1c0b7e2d',
+        '- show_toast E01: `queues`,  3f9a1c0b7e2d',
+        '- show_toast: `queues`, ',
+      ]) {
+        expect(parseMatrixLine(text, 7), isA<MalformedRow>(), reason: text);
+      }
+    });
+
     test('reads an upper-case fingerprint as no row', () {
       expect(
         parseMatrixLine('- show_toast: `queues` 3F9A1C0B7E2D', 7),

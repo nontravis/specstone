@@ -62,6 +62,17 @@ void main() {
     );
   });
 
+  test('keeps the span of a literal with a backtick or an edge space', () {
+    expect(
+      _folded([
+        '- check_rows E01: `` a `x` ``',
+        '- check_rows E02: `  padded  `',
+        '- check_rows E03: `plain`',
+      ]),
+      _record(['- check_rows: `` a `x` ``, `  padded  `, `plain`']),
+    );
+  });
+
   test('folds skip rows into one skip row joining distinct reasons', () {
     expect(
       _folded([

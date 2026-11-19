@@ -2364,6 +2364,22 @@ void main() {
       }
     });
 
+    test(
+      'tracks the per-FR row and not the per-edge-case rows of one FR under fr',
+      () async {
+        final text = record([
+          '- $item E01: `refuses an empty one` $older',
+          row(older),
+        ]);
+
+        final finding = (await findingsOf(text)).single;
+
+        expect(finding.kind, FindingKind.suspect);
+        expect(finding.line, rowLine(text, 1));
+        expect(finding.keys['link'], item);
+      },
+    );
+
     test('keeps edge_case rows tracked against their edge case', () async {
       final text = record(['- $item E01: `refuses an empty one` $older']);
 
