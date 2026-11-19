@@ -1477,7 +1477,8 @@ void main() {
       expect(out.toString(), '0 findings\n');
     });
 
-    test('the config key turns on the edge case coverage finding', () async {
+    test('the config key turns on the per-FR coverage finding, edge_case the '
+        'per-edge-case one', () async {
       Future<Directory> coverageProject(String config) => writeCheckProject(
         extra: {
           '.specstone/config.yaml': config,
@@ -1501,6 +1502,20 @@ void main() {
       );
       expect(await on.runner.run(['check']), 1, reason: on.out.toString());
       expect(missing(on.out.toString()), [
+        '$loginRecord:3: matrix_row_missing: $item is implemented and no matrix row names it',
+      ]);
+
+      final edgeCase = readRunner(
+        await coverageProject(
+          '${shippedPinsConfig()}verification_coverage: edge_case\n',
+        ),
+      );
+      expect(
+        await edgeCase.runner.run(['check']),
+        1,
+        reason: edgeCase.out.toString(),
+      );
+      expect(missing(edgeCase.out.toString()), [
         '$loginRecord:3: matrix_row_missing: $item#E01 is implemented and no matrix row names it',
       ]);
 
