@@ -7,7 +7,7 @@ and fix only that target's record and `covers:` entries, and each `root: project
 
 Your gate file gives it: each `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
 `implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row
-finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that takes a state instead, a waiting code target's left
+finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that takes a state, a waiting code target's left
 out.
 
 ## 3. Find the covering docs
@@ -21,10 +21,11 @@ For each listed code path but a `tests_unresolved` line's or a matrix row's (ste
 `root` in `specstone guide <type> --json`, once per type) takes none: its path is from the project root, its
 covering doc the doc its finding names: `specstone context <doc> --for implement --out`.
 
-- **Warning `no doc covers or implements <path>`:** A rename pair's new side goes to step 4.3. Else read the
-  file, write nothing for it; report under `Uncovered:` its path, the observable behavior it adds that no spec
+- **Warning `no doc covers or implements <path>`:** A rename pair's new side goes to step 4.3. Else read it,
+  write nothing for it; report under `Uncovered:` its path, the observable behavior it adds that no spec
   states, and whether that needs a new story or FR.
-- **64, `code_path_not_found`:** the file moved or is gone; step 4.3 fixes the entries naming it.
+- **64, `code_path_not_found`:** the file moved or is gone; step 4.3 fixes entries naming it.
+- **75, `index_busy`:** run it again.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 4. Compare, then write
@@ -36,11 +37,11 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
    commit, or on a `code_unconfirmed` folder, every file under the prefix.
 2. Write by outcome through step 4.3's `set --field`, which keeps the draft flag. A pending draft among the covering
    docs holds every write of a match and of a `planned` entry's fingerprint: list a match as a waiting pointer,
-   written whole once approved (fingerprint, and on a `planned` entry `implemented`). Else a named feature's
+   written whole once approved (fingerprint, and a `planned` entry's `implemented`). Else a named feature's
    `clean` link takes no fingerprint, only a `planned` entry's `implemented`:
    - **Match:** the finding's `fingerprint` ending the link's entry, any pointer fix, and for a `planned` entry
-     `implemented` in its `statuses`; never `skipped` or `deprecated`. Then `task-refs.md` removes closed tasks' refs.
-   - **A `planned` entry's code lacking its planned behavior yet** is no mismatch, no question: the fingerprint
+     `implemented` in its `statuses`; never `skipped` or `deprecated`. `task-refs.md` removes closed tasks' refs.
+   - **A `planned` entry's code lacking its behavior yet** is no mismatch, no question: the fingerprint
      alone, still `planned`.
    - **Mismatch**, code behavior the approved text contradicts: nothing for the link; report each point under
      `Mismatches:`: doc and section, what the spec states, what the code does. A fix-the-spec pick sent to you: write
@@ -50,7 +51,7 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
    `bases.fields.<field>` of `get --json`; or `--field covers` on the spec doc), then rerun
    `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"`, searching its file, until those docs hold none:
    - moved file: point each record entry naming it at its rename pair's new side, relative to that target's
-     code root; find the pair with
+     code root; find it with
      `git log -1 -M --diff-filter=R --name-status --format= -- <old path>`, or `git diff -M --name-status HEAD` while
      uncommitted; write no fingerprint;
    - deleted file: drop the entry, or point it at the code doing that work;

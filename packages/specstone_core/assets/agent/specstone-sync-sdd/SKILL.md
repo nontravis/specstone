@@ -22,8 +22,7 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
   `.specstone/config.yaml` here and in each folder above. Search its file for the work list (step 2).
 - **Any other exit:** report the CLI's error and stop.
 
-Never look for `.specstone/` yourself first: a look at the working directory misses a project root above it, and
-costs a call the gate already makes.
+Never look for `.specstone/` yourself first: the gate finds a project root above the working directory.
 
 ## 2. Work list, then hand off
 
@@ -43,30 +42,35 @@ under no feature, such as a topic, goes to that doc's own group; a `code_uncover
 group. A finding with no code link, such as a `tests_unresolved` line or a matrix-row finding, goes by the doc that
 holds the finding.
 
-Then dispatch `specstone-sdd-engineer` for each group in turn, one at a time, as
-`../specstone-expert-sdd/references/dispatch.md` gives, with `mode: sync`, `report:`
-`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the group's input: `scope: feature:<name>`,
-`scope: <type>:<name>`, or `scope: uncovered`; pass `feature: <name>` only for a feature the Owner named, as its one
-group, with no `scope:`. Show each report's `Report:` line and relay block before the next dispatch. Send no list of
-paths or doc text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` and `XXXXXX` as the gate does,
-`XXXXXX` picked again for each report while that file exists.
+Then route each group as `references/routes.md` gives: feature groups' engineers at once, small groups by yourself
+beside them, then each other group to one engineer at a time.
 
-The procedure for the main session is `references/procedure.md` beside this file. With no subagent on the host, follow
-the procedure yourself once per group, in the same order, taking only that group's findings. After a dispatch that
-fails, follow it for that group alone, then dispatch the next group again.
+To dispatch `specstone-sdd-engineer`, follow `../specstone-expert-sdd/references/dispatch.md` with `mode: sync`,
+`report:` `<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the group's input: `scope: feature:<name>`,
+`scope: <type>:<name>`, or `scope: uncovered`; pass `feature: <name>` only for a feature the Owner named, as its one
+group, with no `scope:`. Pass `check:` with the gate's file on a first-route dispatch alone; a later step runs its own
+check first, as `routes.md` gives. Show each report's `Report:` line and relay block as it comes in. Send no list of
+paths or doc text, and work no step of the procedure yourself while a dispatch can run, but a small group. Name
+each report path as the gate names its file, `XXXXXX` picked again while that file exists.
+
+Run again any `specstone` command that ends `index_busy`; it is no CLI error.
+
+The main session's procedure is `references/procedure.md`. With no subagent, follow it once per group in route order,
+on that group's findings. After a dispatch that fails, follow it for that group alone; the other groups go on by their
+routes.
 
 ## 3. After the report
 
-Run item 1 for each group as its report comes in, and items 2 and 3 once, after the last group's report, over the picks
-of every group. A group you followed yourself stands in for item 1 by its own changes.
+Run item 1 for each report as it comes in, and items 2 and 3 once, after the last group's report, over the picks of
+every group. A group you judged or followed yourself stands in for item 1 by its own changes and stamps.
 
 1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
 2. Get each draft approved through `specstone-expert-sdd`'s Owner confirmation.
 3. Ask the Owner, per point under `Mismatches:`, fix the code or fix the spec. Fix the code writes nothing: the next
    `check` lists the link again. Ask the Owner, per file under `Uncovered:`, write a spec or change or
    remove the code; change or remove writes nothing, and a write-a-spec pick routes as a fix-the-spec pick does. When a
-   fix lands in a spec doc, send the picks to a new `specstone-sdd-engineer` per group that holds picks, one at a time,
-   each with `mode: sync`, `picks`, and that group's `scope:` (`scope: uncovered` for an `Uncovered:` file), never
+   fix lands in a spec doc, send the picks to a new `specstone-sdd-engineer` per group that holds picks, each routed as
+   its group, with `mode: sync`, `picks`, and that group's `scope:` (`scope: uncovered` for an `Uncovered:` file), never
    `feature:` unless the Owner named the feature.
 4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
    list to `specstone set implementation:<feature> --field implements --base <hash>` (or
