@@ -169,6 +169,7 @@ void main() {
   _citeTests();
   _bulletLinesTests();
   _dropDefaultLinesTests();
+  _dropSharedLinesTests();
   _sharedCopiesTests();
   _matrixFoldTests();
 
@@ -5555,7 +5556,9 @@ void _dropDefaultLinesTests() {
       );
     });
   });
+}
 
+void _dropSharedLinesTests() {
   group('drop_shared_lines step', () {
     test('a drop_shared_lines step plans a 0 docs line, no writes', () async {
       const packYaml = '''

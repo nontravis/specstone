@@ -25,6 +25,9 @@ final _docTypeId = RegExp(r'^[a-z][a-z0-9_]*$');
 /// Whether all of [text] is shaped like a doc type id: `[a-z][a-z0-9_]*`.
 bool isDocTypeIdShaped(String text) => _docTypeId.hasMatch(text);
 
+/// The fault message for an `id` that is not [isDocTypeIdShaped].
+const slugIdMessage = 'the key id must be a slug: [a-z][a-z0-9_]*';
+
 /// Reads [text] as a doc address: an optional `<doc type>:` prefix, a Name
 /// or path, and an optional `#<section key>`.
 ///

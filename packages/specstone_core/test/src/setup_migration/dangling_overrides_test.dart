@@ -348,6 +348,7 @@ void main() {
         expect(fault.exitStatus, 78);
         expect(fault.file, file);
         expect(fault.key, 'shared_lines.ghost');
+        expect(fault.more, isEmpty);
         expect(
           fault.toText(),
           '$file: shared_lines.ghost: no pack defines the shared line ghost; '

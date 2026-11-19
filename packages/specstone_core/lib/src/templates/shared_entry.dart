@@ -131,7 +131,7 @@ SharedLine _parseLine(
   if (!isDocTypeIdShaped(id)) {
     throw TemplateFault(
       FaultCode.unknownValue,
-      'the key id must be a slug: [a-z][a-z0-9_]*',
+      slugIdMessage,
       file: file,
       key: '${prefix}id',
     );
