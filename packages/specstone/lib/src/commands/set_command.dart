@@ -45,6 +45,17 @@ class SetCommand extends WriteCommand {
             'passage must occur once in the section body. Takes a section '
             'target alone.',
       )
+      ..addMultiOption(
+        'stamp',
+        splitCommas: false,
+        valueHelp: 'entry=fingerprint',
+        help:
+            'Ends a covers or implements entry of the doc with the code '
+            'fingerprint you judged, as <entry>=<fingerprint>; repeat it for '
+            'more entries. Takes a doc address alone, with no --base, --field, '
+            '--title, --batch, --remove-task, --replace, or section key; '
+            'reads no stdin.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
     addTargetOption();
   }
@@ -56,7 +67,9 @@ class SetCommand extends WriteCommand {
   String get description =>
       'Replace a section, a field, or the title of a doc with stdin, replace '
       'one passage of a section with --replace, write a file of `get` blocks '
-      'with --batch, or remove a task from every doc with --remove-task.';
+      'with --batch, remove a task from every doc with --remove-task, or end '
+      'covers and implements entries with judged code fingerprints with '
+      '--stamp.';
 
   @override
   String get invocation =>
@@ -67,13 +80,17 @@ class SetCommand extends WriteCommand {
       '--replace [--target <name>] [--json]\n'
       '       specstone set --batch <file> [--json]\n'
       '       specstone set --remove-task <task id> [--remove-task <task id>] '
-      '[--target <name>] [--json]';
+      '[--target <name>] [--json]\n'
+      '       specstone set <doc address> --stamp <entry>=<fingerprint> '
+      '[--stamp <entry>=<fingerprint>] [--target <name>] [--json]';
 
   @override
   Future<int> run() async {
     final args = argResults!;
     final asJson = args.flag('json');
     final rest = args.rest;
+    final stamps = args.multiOption('stamp');
+    if (stamps.isNotEmpty) return _runStamp(stamps, asJson: asJson);
     final removeTasks = args.multiOption('remove-task');
     final replace = args.flag('replace');
     if (replace && (removeTasks.isNotEmpty || args.option('batch') != null)) {
@@ -155,6 +172,48 @@ class SetCommand extends WriteCommand {
       (session) =>
           answerRemoveTasks(session, tasks, codeTarget: targetOf(argResults!)),
       asJson: asJson,
+    );
+  }
+
+  /// Stamps the judged code fingerprints [stamps] on one doc in one write
+  /// session.
+  ///
+  /// The conflict is checked before the values, and both before a session
+  /// opens, so no project is needed to refuse. Stdin is never read.
+  Future<int> _runStamp(List<String> stamps, {required bool asJson}) async {
+    final args = argResults!;
+    final address = args.rest.firstOrNull;
+    final StampRequest request;
+    try {
+      _requireStampAlone();
+      if (args.rest.length > 1) {
+        usageException('Expected one target, got ${args.rest.length}.');
+      }
+      request = StampRequest.parse(address, stamps, codeTarget: targetOf(args));
+    } on SpecstoneFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
+    return runWrite((session) => answerStamp(session, request), asJson: asJson);
+  }
+
+  /// Throws [IndexFault] `argument_conflict` naming `--stamp` and the first of
+  /// `--base`, `--field`, `--title`, `--batch`, `--remove-task`, `--replace`,
+  /// or a section key that goes beside it.
+  void _requireStampAlone() {
+    final args = argResults!;
+    final beside = [
+      if (args.option('base') != null) '--base',
+      if (args.option('field') != null) '--field',
+      if (args.flag('title')) '--title',
+      if (args.option('batch') != null) '--batch',
+      if (args.multiOption('remove-task').isNotEmpty) '--remove-task',
+      if (args.flag('replace')) '--replace',
+      if (args.rest.any((address) => address.contains('#'))) 'a section key',
+    ];
+    if (beside.isEmpty) return;
+    throw IndexFault(
+      IndexFaultCode.argumentConflict,
+      '--stamp takes no ${beside.first}',
     );
   }
 

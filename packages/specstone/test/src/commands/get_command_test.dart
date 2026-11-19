@@ -689,6 +689,27 @@ void main() {
       );
     });
 
+    test('a path under .specstone/reports/ names the file and prints its '
+        'header', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      final target = [
+        project.path,
+        '.specstone',
+        'reports',
+        'get.ab12cd.txt',
+      ].join(Platform.pathSeparator);
+      expect(
+        await run.runner.run(['get', 'feature:login', '--out', target]),
+        0,
+        reason: run.err.toString(),
+      );
+      final file = File(target);
+      expect(file.readAsStringSync(), startsWith('==> login (feature) · '));
+      expect(run.out.toString(), startsWith('==> get: '));
+      expect(run.out.toString(), contains(file.resolveSymbolicLinksSync()));
+    });
+
     test('--out "" is argument_invalid, exit 64, and writes no file', () async {
       final project = await writeReadProject();
       final run = readRunner(project);

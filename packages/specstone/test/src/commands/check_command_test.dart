@@ -1151,6 +1151,54 @@ void main() {
       expect(run.out.toString(), contains(file.resolveSymbolicLinksSync()));
     });
 
+    test('--out <folder>/reports/check.gate.ab12cd.txt writes that file and exits 1 on findings', () async {
+      final project = await oneFinding();
+      final run = readRunner(project);
+      final target = [
+        project.path,
+        '.specstone',
+        'reports',
+        'check.gate.ab12cd.txt',
+      ].join(Platform.pathSeparator);
+      expect(
+        await run.runner.run(['check', '--out', target]),
+        1,
+        reason: run.err.toString(),
+      );
+      final file = File(target);
+      expect(file.readAsStringSync(), contains('field_value_mismatch'));
+      expect(file.readAsStringSync(), endsWith('1 finding\n'));
+      expect(run.out.toString(), startsWith('==> check: '));
+      expect(run.out.toString(), contains(file.resolveSymbolicLinksSync()));
+      expect(
+        File(
+          [
+            project.path,
+            '.specstone',
+            'reports',
+            'check.all.txt',
+          ].join(Platform.pathSeparator),
+        ).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('a given --out under .specstone/ outside bundles/ and reports/ exits 73 and the config stays whole', () async {
+      final project = await oneFinding();
+      final config = File('${project.path}/.specstone/config.yaml');
+      final before = config.readAsBytesSync();
+      final target = [
+        project.path,
+        '.specstone',
+        'check.gate.ab12cd.txt',
+      ].join(Platform.pathSeparator);
+      final run = readRunner(project);
+      expect(await run.runner.run(['check', '--out', target]), 73);
+      expect(run.out.toString(), isEmpty);
+      expect(File(target).existsSync(), isFalse);
+      expect(config.readAsBytesSync(), before);
+    });
+
     test('--out into the docs root exits 73 and writes nothing', () async {
       final project = await oneFinding();
       final run = readRunner(project);

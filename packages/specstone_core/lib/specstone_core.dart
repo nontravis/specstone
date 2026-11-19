@@ -33,6 +33,9 @@ export 'src/document_writing/root_trust.dart' show locateReadRoots;
 export 'src/document_writing/set_batch.dart' show answerSetBatch;
 export 'src/document_writing/set_doc.dart'
     show SetRequest, answerSet, replaceConflictMessage;
+export 'src/document_writing/stamp_fault.dart' show StampFault, StampRefusal;
+export 'src/document_writing/stamp_fingerprints.dart'
+    show StampPair, StampRequest, answerStamp;
 export 'src/document_writing/write_fault.dart'
     show CurrentTarget, WriteFault, WriteFaultCode;
 export 'src/document_writing/write_session.dart' show WriteSession;
