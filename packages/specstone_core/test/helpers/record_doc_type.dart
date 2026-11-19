@@ -1,4 +1,3 @@
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The `statuses` field that makes a doc type a record doc type.

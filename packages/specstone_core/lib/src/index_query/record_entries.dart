@@ -11,7 +11,6 @@ import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
     show withTemplateSection;
 import 'package:specstone_core/src/templates/code_link_entry.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/record_status.dart';
 

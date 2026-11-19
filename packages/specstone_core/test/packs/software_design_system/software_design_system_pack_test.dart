@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
