@@ -22,7 +22,7 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 
 - **78, `project_not_found`:** tell the Owner `specstone migrate` moves the project to the new format, or they keep
   the old skills. Stop: run, read, and write nothing more.
-- **0 or 1:** go on, even from a subfolder. Never look for `.specstone/` yourself.
+- **0 or 1:** go on. Never look for `.specstone/` yourself.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 2. Hand off in batches
@@ -36,10 +36,10 @@ the Owner answered in this run. In the first round the rest batch always runs, e
 target's tech stack doc, which the procedure's step 6 fills; no feature batch does. In a later round it runs only
 when findings it owns remain or a write-a-spec pick awaits. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:`
-the batch's paths, `check:` the latest check file, `picks:` step 3's write-a-spec picks
-for the batch's files, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch;
-batches may run at once. Send no doc
-text, and work no step of the procedure yourself while a dispatch can run.
+the batch's paths, `check:` the latest check file if no write followed, `picks:` step 3's
+write-a-spec picks for the batch's files, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new
+name per batch; batches may run at once. Send no doc text, and work no step of the procedure yourself while a
+dispatch can run.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
