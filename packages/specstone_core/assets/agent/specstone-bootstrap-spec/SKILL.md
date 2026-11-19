@@ -27,8 +27,7 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 
 ## 2. Hand off in batches
 
-Dispatch only once no `specstone-bootstrap-prd` batch is running: this skill takes the PRD sections it leaves, such
-as PROJECT's Tech stack.
+Dispatch only once no `specstone-bootstrap-prd` batch is running: this skill takes the PRD sections it leaves.
 
 With a subagent, split the gate file's findings this skill takes by doc path: one batch per feature folder, each
 `architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included except a file
@@ -36,7 +35,7 @@ the Owner answered in this run. In the first round the rest batch always runs, e
 target's tech stack doc, which the procedure's step 6 fills; no feature batch does. In a later round it runs only
 when findings it owns remain or a write-a-spec pick awaits. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:`
-the batch's paths, `check:` the latest check file if no write followed, `picks:` step 3's
+the batch's paths, `check:` the latest check file, never a `--repeats` one, with no doc write since, `picks:` step 3's
 write-a-spec picks for the batch's files, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new
 name per batch; batches may run at once. Send no doc text, and work no step of the procedure yourself while a
 dispatch can run.

@@ -20,7 +20,7 @@ agent's `report:` file, no fix. Ask the Owner nothing.
 4. **Design document**, when given: read it whole; list each decision and ruling by ID or label. Then run
    `specstone list <type> --draft` for `user_story`, `fr`, and `nf`: the drafts among the targets are this
    change's.
-5. **Check**: search the dispatch's `check:` file per target; with none, run one bare
+5. **Check**: search the `check:` file per target; with none, run one bare
    `specstone check --out "<folder>/reports/check.audit.<XXXXXX>.txt"` and search it. A finding whose `waitsFor` is
    `owner` is no gap.
 6. **Repeats**: run `specstone check <feature> --repeats --out "<folder>/reports/check.audit.<XXXXXX>.txt"`
@@ -50,7 +50,7 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each lens:
   its feature's spec folder for covering text or a skip line in that doc's `out_of_scope`; else report
   `<type>:<name>#out_of_scope: <pattern>/<item> neither covered nor skipped`, `<type>:<name>` the listing doc, typed
   as the part's bundle line.
-- **Repoint:** with no `check:` passed after an author pass, a `Move:` ran; follow `repoint.md`.
+- **Repoint:** with no `check:` passed after an author pass, a move may have run; follow `repoint.md`.
 - Read each draft item for two gaps `check` never names, each a `[style]` `Findings:` line naming its ID or first words:
   - **No example:** a non-obvious rule whose result on one concrete input you cannot state after one read.
   - **Clause order:** a condition after its rule, or clauses nested inside one sentence.

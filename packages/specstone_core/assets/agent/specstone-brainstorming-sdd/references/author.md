@@ -45,8 +45,8 @@ doc; list any other under `Findings:`.
 
 ## 4. Check
 
-Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your last
-(`Check:` names the last one), searching each for your drafts. Before the second, walk each item you wrote against the
+Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your
+drafts, searching each for your drafts. Before the second, walk each item you wrote against the
 saved guide's description lines (doc part, held sections, `Fields:`) and each type's `==> shared <==` lines, not
 templates or `Banned words:`, `Required …`, `Optional …`, or `Limits:` lines. List a line you cannot meet under
 `Findings:`. Then run `specstone check <feature> --repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per
@@ -59,6 +59,9 @@ Fix each second-run finding, even a first-run one, in a section you wrote; list 
 - **A finding whose `waitsFor` is `owner`**, ending `(waits for the Owner)`: leave it and list it; never write around
   it. An `item_count_out_of_range` on the edge cases of an FR you wrote takes
   `../../specstone-expert-sdd/references/size-fix.md`'s split proposal; run none of its commands.
+
+After any write of this step, a link, fix, or confirmation, run the bare check once more; list each finding it adds
+under `Findings:`, unfixed. `Check:` names the bare check after your last write, never a `--repeats` file.
 
 ## 5. Report
 

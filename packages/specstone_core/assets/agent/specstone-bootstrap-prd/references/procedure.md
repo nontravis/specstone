@@ -1,4 +1,4 @@
-Your batch's findings are in the gate's `check:` file; run no gate.
+Your batch's findings are in the `check:` file, else in your gate's file.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
 Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming canonicalization

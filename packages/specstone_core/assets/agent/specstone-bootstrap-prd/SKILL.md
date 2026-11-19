@@ -34,7 +34,7 @@ runs only when findings it owns remain. When it holds the `section_undeclared` o
 Owner each goal's horizon, long-, mid-, or short-term, one question per goal showing its `**By:**`, and send the
 answers with the batch; its glossary section asks the Owner nothing. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-prd`, `batch:`
-the batch's paths, `check:` the latest check file, if no write followed, and `report:`
+the batch's paths, `check:` the latest check file, never a `--repeats` one, with no doc write since, and `report:`
 `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches may run at once. Send no doc
 text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` and `XXXXXX` as the gate
 does.

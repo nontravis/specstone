@@ -37,12 +37,14 @@ batch's findings into drafts.
 - **`amend`** (audit with `stage: design`, optional): `<N>[,<N> ...]`, the amends whose decisions the design check
   reads; an `<N>` the design holds no amend of stops the whole check.
 - **`bundles`** (audit with `stage: design`, optional): the paths of main's saved bundle files of the same target and
-  mode, read in place of your own `context` call for their target.
+  mode, passed only with no doc write since they were saved, so never after an author pass; read them in place of your
+  own `context` call for their target.
 - **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
   docs to read.
 - **`check`** (audit with no `stage: design`, bootstrap; optional): audit: the last author pass's `Check:` file, passed
-  while no `Move:` command ran since; search it per target; absent, run one bare `check --out`. Bootstrap: main's
-  latest check file; take `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1).
+  with no doc write since it and no split since the last audit; search it per target; absent, run one bare
+  `check --out`. Bootstrap: main's latest check file, never a `--repeats` one, passed with no doc write since; take
+  `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1).
 - **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; absent, your gate `check`
   gives the work list.
 - **`scope`** (sync, optional): one group of a sync with no feature named, `feature:<name>`, `<type>:<name>`, or
@@ -82,7 +84,7 @@ A failed load: report it and stop; never search.
 
 ## Workflow
 
-1. **Gate**: in bootstrap mode with `check` passed, run none: its file is your gate. Else first run the
+1. **Gate**: in bootstrap or audit mode with `check` passed, run none: its file is your gate. Else first run the
    `specstone-expert-sdd` skill's project gate, replying what it tells the Owner. In sync mode with a `scope`, its `check` is
    `specstone check <scope> --out "<folder>/reports/check.sync.<XXXXXX>.txt"` instead, and
    `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"` for `scope: uncovered`, keeping its
