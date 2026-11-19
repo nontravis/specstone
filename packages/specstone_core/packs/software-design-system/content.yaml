@@ -1,7 +1,6 @@
 id: content
 description: |-
   The content doc: the rules for writing UI text.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Content`, with no number.
 path: specs/design_system/CONTENT.md
 sections:

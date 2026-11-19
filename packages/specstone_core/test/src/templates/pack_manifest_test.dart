@@ -83,6 +83,36 @@ void main() {
       );
     });
 
+    test('shared_lines and shared_fields parse into shared in file order', () {
+      final manifest = _parse('''
+name: team
+version: 1.0.0
+shared_lines:
+  - id: b_line
+    text: Second by name, first in the file.
+  - id: a_line
+    text: First by name, second in the file.
+shared_fields:
+  - id: b_field
+    type: string
+    for_doc_types: [story]
+  - id: a_field
+    type: string
+    for_doc_types: [story]
+''');
+
+      expect(manifest.shared.lines.map((l) => l.id), ['b_line', 'a_line']);
+      expect(manifest.shared.fields.map((f) => f.id), ['b_field', 'a_field']);
+      expect(manifest.shared.lines.first.file, _file);
+    });
+
+    test('a manifest with neither shared key holds no shared entries', () {
+      final manifest = _parse('name: x\nversion: 1.0.0\n');
+
+      expect(manifest.shared.lines, isEmpty);
+      expect(manifest.shared.fields, isEmpty);
+    });
+
     test('a leading zero in version is invalid', () {
       expect(
         () => _parse('name: x\nversion: 01.2.0\n'),

@@ -1,7 +1,6 @@
 id: icon
 description: |-
   The icon doc: the icon set, its sizes, and its naming.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Icons`, with no number.
 path: specs/design_system/ICON.md
 sections:

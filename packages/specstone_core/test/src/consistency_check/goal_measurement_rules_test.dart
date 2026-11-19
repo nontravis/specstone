@@ -8,11 +8,11 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
-import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 
 const _goal2Link = '[Faster sign-in](../../prds/GOAL.md#pg-02--faster-sign-in)';
 const _projectGoalLink =
@@ -185,11 +185,9 @@ void main() {
   test('a merged set with no measurement doc type runs no rule', () async {
     final project = await writeCheckProject(extra: _goals(secondGoal: true));
     final session = ReadSession.open(
-      templates: TemplateResolver(
-        shippedFiles: {
-          for (final MapEntry(:key, :value) in shippedPackFiles.entries)
-            if (key != 'prd-core/measurement.yaml') key: value,
-        },
+      templates: resolverCarrying(
+        const {},
+        without: {'prd-core/measurement.yaml'},
       ),
       workingDirectory: project,
       homeDirectory: null,
@@ -258,15 +256,16 @@ void main() {
     final session = ReadSession.open(
       templates: TemplateResolver(
         shippedFiles: {
-          for (final MapEntry(:key, :value) in shippedPackFiles.entries)
-            if (key != 'prd-core/goal.yaml')
-              key: key == 'prd-core/measurement.yaml'
-                  ? utf8.encode(
-                      utf8
-                          .decode(value)
-                          .replaceFirst('[project, goal]', '[project]'),
-                    )
-                  : value,
+          for (final MapEntry(:key, :value) in shippedFilesWithout({
+            'prd-core/goal.yaml',
+          }).entries)
+            key: key == 'prd-core/measurement.yaml'
+                ? utf8.encode(
+                    utf8
+                        .decode(value)
+                        .replaceFirst('[project, goal]', '[project]'),
+                  )
+                : value,
         },
       ),
       workingDirectory: project,
@@ -483,11 +482,9 @@ void main() {
       extra: _goals(metric: '- **Metric:** 50%'),
     );
     final session = ReadSession.open(
-      templates: TemplateResolver(
-        shippedFiles: {
-          for (final MapEntry(:key, :value) in shippedPackFiles.entries)
-            if (key != 'prd-core/measurement.yaml') key: value,
-        },
+      templates: resolverCarrying(
+        const {},
+        without: {'prd-core/measurement.yaml'},
       ),
       workingDirectory: project,
       homeDirectory: null,

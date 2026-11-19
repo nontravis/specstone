@@ -2,8 +2,6 @@ id: competitor
 description: |-
   A competitor: one competitor's offer, position, and gaps.
   Title it `# <Competitor name>`, with no number.
-  The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
-  A learning edits the doc it corrects.
 path: specs/marketing/competitors/{slug}.md
 sections:
   - id: offer

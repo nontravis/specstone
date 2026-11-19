@@ -148,6 +148,11 @@ final _allowed = <_Allowed>[
     'Upgrade reader: finds a frontmatter key line by name.',
   ),
   _core(
+    'setup_migration/shared_copies_step.dart',
+    r"""RegExp(r'^\s*[\x27"]?fields[\x27"]?\s*:\s*(#.*)?$'""",
+    'Strip reader: checks a YAML `fields:` key line stands alone.',
+  ),
+  _core(
     'setup_migration/models/label_tree.dart',
     r"""RegExp( r'^[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+)?(?:#{1,6}[ \t]+)?' r'(?:\|[ \t]*)?(?:\*\*|__|`)?' '${RegExp.escape(itemId)}(?![A-Za-z0-9])'""",
     'Label pass reader: finds the line that declares an item ID.',

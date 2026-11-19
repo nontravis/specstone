@@ -13,9 +13,11 @@ import 'package:test/test.dart';
 import '../../helpers/agent_skills.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/yaml_key_line.dart';
 
 const _skillDoc = 'specs/skills/review.md';
 const _skillFile = '.claude/skills/review/SKILL.md';
@@ -144,6 +146,23 @@ void main() {
           reason: phrase,
         );
       }
+    });
+
+    test('no description restates a shared line the guide prints', () {
+      final texts = [for (final line in skill.sharedLines) line.text];
+      expect(texts, isNotEmpty);
+      for (final description in descriptionsOf(skill)) {
+        for (final text in texts) {
+          expect(description ?? '', isNot(contains(text)));
+        }
+      }
+    });
+
+    test('no description or template holds a YAML key line', () {
+      [
+        ...descriptionsOf(skill),
+        for (final section in skill.sections) section.template,
+      ].forEach(expectNoYamlKeyLine);
     });
 
     test('lists beside the prd-core doc types', () {

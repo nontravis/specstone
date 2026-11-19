@@ -1,7 +1,6 @@
 id: guidelines
 description: |-
   The design system's guidelines: the reading order of the design-system docs and the library's hard rules.
-  These docs serve the team that builds the library, not the library's consumers.
   Title it `# Guidelines`, with no number.
   Shared code structure, such as a component base class, stays in the `software-tech` spec docs.
   GUIDELINES holds each hard rule, such as "no raw colors", and the project's own lint verifies the code against it.
@@ -16,4 +15,4 @@ sections:
     header: Hard rules
     required: true
     description: |-
-      Write one rule per item that the library's code never breaks, such as "no raw colors".
+      Write one rule per item the library's code never breaks, such as "no raw colors".

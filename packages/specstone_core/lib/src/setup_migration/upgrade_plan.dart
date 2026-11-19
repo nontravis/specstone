@@ -37,6 +37,7 @@ import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/setup_migration/shared_copies_step.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
     show shipsSkillFiles;
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
@@ -50,6 +51,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart'
     show movePatternsAtEveryDepth;
+import 'package:specstone_core/src/templates/pack_manifest.dart'
+    show PackManifest;
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -139,6 +142,7 @@ RunPlan _upgradeRunOf(
   );
   final upgrades = selectUpgrades(pins, available);
   final overrides = loadProjectTemplates(root);
+  final projectSharedLines = loadProjectSharedLines(root);
   final targetSet = templates.resolveCarried(
     packNames: pins.keys,
     homeDirectory: homeDirectory,
@@ -150,6 +154,7 @@ RunPlan _upgradeRunOf(
       for (final entry in available.entries) entry.key: entry.value.version,
     },
     upgrades: upgrades,
+    sharedLines: projectSharedLines,
   );
 
   final steps = [for (final upgrade in upgrades) ...upgrade.steps];
@@ -160,14 +165,29 @@ RunPlan _upgradeRunOf(
         case RecordPathOverride(:final file, path: final path?))
       PlannedCreate(path: file, text: 'path: $path\n'),
   ];
-  final finalSet = templates.resolveCarried(
-    packNames: pins.keys,
-    homeDirectory: homeDirectory,
-    projectLayers: parseOverrides({
-      for (final file in overrideFiles) file.path: file.lf,
-      for (final create in overrideCreates) create.path: create.text,
-    }),
-  );
+  MergedSet resolveWith(Map<String, String> overrideTexts) =>
+      templates.resolveCarried(
+        packNames: pins.keys,
+        homeDirectory: homeDirectory,
+        projectLayers: parseOverrides({
+          ...overrideTexts,
+          for (final create in overrideCreates) create.path: create.text,
+        }),
+        projectSharedLines: projectSharedLines,
+      );
+  final finalSet = resolveWith({
+    for (final file in overrideFiles) file.path: file.lf,
+  });
+  final stripIndex = stepKinds.indexWhere((step) => step is StripSharedCopies);
+  final sharedCopies = stripIndex < 0
+      ? null
+      : _sharedCopiesOf(
+          overrideFiles,
+          stripIndex: stripIndex,
+          target: finalSet,
+          personalFiles: _personalFilesOf(available.values, homeDirectory),
+          resolveWith: resolveWith,
+        );
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = docPathsOf(docsRoot, root)..sort(compareCodePoints);
@@ -241,6 +261,7 @@ RunPlan _upgradeRunOf(
         ),
         StampCodeFingerprints() => lf,
         RestampCodeFingerprints() => lf,
+        StripSharedCopies() => lf,
         BulletLines() => switch (docType.sections
             .where((section) => section.id == step.section)
             .firstOrNull) {
@@ -266,6 +287,7 @@ RunPlan _upgradeRunOf(
           MoveToRecord() => false,
           StampCodeFingerprints() => false,
           RestampCodeFingerprints() => false,
+          StripSharedCopies() => false,
           BulletLines() => false,
         };
         if (held) {
@@ -282,6 +304,7 @@ RunPlan _upgradeRunOf(
             MoveToRecord() => '',
             StampCodeFingerprints() => '',
             RestampCodeFingerprints() => '',
+            StripSharedCopies() => '',
             BulletLines() => '',
           };
           renameCollisions.add(
@@ -568,6 +591,13 @@ RunPlan _upgradeRunOf(
         codeStamp.stepLine(from: '$from', step: _describe(step))
       else if (step is RestampCodeFingerprints && codeRestamp != null)
         codeRestamp.stepLine(from: '$from', step: _describe(step))
+      else if (index == stripIndex)
+        UpgradeStepLine(
+          from: '$from',
+          step: _describe(step),
+          paths: pathsAt(index),
+          nextLine: sharedCopies?.leftLine,
+        )
       else
         UpgradeStepLine(
           from: '$from',
@@ -620,7 +650,7 @@ RunPlan _upgradeRunOf(
     commit2Message: commit2Message,
     inputs: inputs,
     rewriteLines: [
-      for (final line in stepLines) line.text,
+      for (final line in stepLines) ...[line.text, ?line.nextLine],
       ...linkLines,
       ?renumber?.planLine,
       ?labels?.planLine,
@@ -646,6 +676,13 @@ RunPlan _upgradeRunOf(
       steps: stepLines,
       mentions: mentions,
       tests: tests?.json,
+      sharedCopies: switch (sharedCopies) {
+        final step? => SharedCopiesLists(
+          stripped: step.stripped,
+          left: step.left,
+        ),
+        null => null,
+      },
       matrixRows: matrixFold?.json,
     ),
   );
@@ -849,6 +886,7 @@ List<_OverrideFile> _renamedOverrides(
         MoveToRecord() => file.lf,
         StampCodeFingerprints() => file.lf,
         RestampCodeFingerprints() => file.lf,
+        StripSharedCopies() => file.lf,
         BulletLines() => file.lf,
       };
       if (renamed == file.lf) continue;
@@ -859,6 +897,44 @@ List<_OverrideFile> _renamedOverrides(
   }
   return files;
 }
+
+/// Plans the `strip_shared_copies` step over [files], as the renames left
+/// them, and writes the stripped text into each file it changes, which then
+/// counts as changed by the step at [stripIndex].
+SharedCopiesStep _sharedCopiesOf(
+  List<_OverrideFile> files, {
+  required int stripIndex,
+  required MergedSet target,
+  required List<PersonalPackFile> personalFiles,
+  required MergedSet Function(Map<String, String> overrideTexts) resolveWith,
+}) {
+  final step = planSharedCopies(
+    projectFiles: [
+      for (final file in files) ProjectLayerFile(path: file.path, lf: file.lf),
+    ],
+    target: target,
+    personalFiles: personalFiles,
+    resolveWith: resolveWith,
+  );
+  for (final file in files) {
+    if (step.rewrites[file.path] case final text?) {
+      file.lf = text;
+      file.changedBy.add(stripIndex);
+    }
+  }
+  return step;
+}
+
+/// Returns the doc-type files of each personal pack among [manifests], read
+/// from [home].
+List<PersonalPackFile> _personalFilesOf(
+  Iterable<PackManifest> manifests,
+  Directory? home,
+) => [
+  for (final pack in loadPersonalPacks(manifests, home: home))
+    for (final MapEntry(:key, :value) in pack.docTypeTexts().entries)
+      PersonalPackFile(path: '${pack.displayFolder}/$key', lf: value),
+];
 
 /// Returns [lf] with each [keys] scalar of a [list] entry equal to [from]
 /// replaced by [to], keeping quotes and every other byte.
@@ -1268,6 +1344,7 @@ String _describe(MigrationStep step) => switch (step) {
         '-> ${step.to}',
   StampCodeFingerprints() => step.kind,
   RestampCodeFingerprints() => step.kind,
+  StripSharedCopies() => step.kind,
   BulletLines() => '${step.kind} ${step.docType} ${step.section}',
 };
 

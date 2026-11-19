@@ -158,6 +158,7 @@ void main() {
   _codeStampTests();
   _citeTests();
   _bulletLinesTests();
+  _sharedCopiesTests();
   _matrixFoldTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
@@ -5186,6 +5187,326 @@ void _bulletLinesTests() {
               ),
         ),
       );
+    });
+  });
+}
+
+const _stripPackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+shared_lines:
+  - {id: acme_no_status, text: Never write a status field.}
+  - {id: be_brief, text: Be brief.}
+migrations:
+  - from: 1.0.0
+    steps:
+      - strip_shared_copies: {}
+''';
+
+const _stripRunbookPath = '.specstone/templates/runbook.yaml';
+const _stripGuidePath = '.specstone/templates/guide.yaml';
+const _stripLedgerPath = '.specstone/templates/ledger.yaml';
+
+String _stripType(String id, {String? description}) =>
+    '''
+id: $id
+description: |-
+${(description ?? 'A $id.').split('\n').map((line) => '  $line').join('\n')}
+path: prds/${id}s/{slug}/${id.toUpperCase()}.md
+''';
+
+const _statusCopyOverride =
+    'description: |-\n  A runbook.\n  Never write a status field.\n';
+
+/// Three acme doc types; [runbookDescription] is the first one's description.
+String _stripTypes({String runbookDescription = 'A runbook.'}) => [
+  _stripType('runbook', description: runbookDescription),
+  _stripType('guide'),
+  _stripType('ledger'),
+].join('---\n');
+
+/// Three project overrides holding four copies in all, one file of them two.
+const Map<String, String> _stripOverrides = {
+  _stripGuidePath:
+      'description: |-\n  A guide.\n  Never write a status field.\n',
+  _stripLedgerPath: 'description: |-\n  A ledger.\n  Be brief.\n',
+  _stripRunbookPath:
+      'description: |-\n  A runbook.\n  Never write a status field.\n'
+      '  Be brief.\n',
+};
+
+/// A project and the personal pack home a strip test plans over.
+final class _StripFixture {
+  const new(this.project, this.home);
+
+  final Directory project;
+  final Directory home;
+}
+
+Future<_StripFixture> _stripFixture({
+  String packYaml = _stripPackYaml,
+  String? types,
+  Map<String, String> overrides = _stripOverrides,
+}) async {
+  final fixture = await _fixture(
+    packYaml: packYaml,
+    runbookType: types ?? _stripTypes(),
+    docs: const {},
+    overrides: overrides,
+  );
+  return _StripFixture(fixture.project, fixture.home);
+}
+
+RunPlan _planStrip(_StripFixture fixture) => planUpgradeRun(
+  fixture.project,
+  templates: TemplateResolver(),
+  homeDirectory: fixture.home,
+);
+
+void _sharedCopiesTests() {
+  group('strip_shared_copies step', () {
+    test('three stripped files and two kept copies print the step line, '
+        'then the left line, and list both under sharedCopies', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          types: _stripTypes(
+            runbookDescription:
+                'A runbook.\nNever write a status field.\nBe brief.',
+          ),
+        ),
+      );
+
+      expect(
+        plan.toText(),
+        contains(
+          '  from 1.0.0: strip_shared_copies: 3 docs\n'
+          '  shared copies left: 2\n',
+        ),
+      );
+      expect(plan.lists.toJson()['sharedCopies'], {
+        'stripped': [
+          '$_stripGuidePath:3 acme_no_status',
+          '$_stripLedgerPath:3 be_brief',
+          '$_stripRunbookPath:3 acme_no_status',
+          '$_stripRunbookPath:4 be_brief',
+        ],
+        'left': [
+          '~/.specstone/packs/acme/runbook.yaml:4 acme_no_status',
+          '~/.specstone/packs/acme/runbook.yaml:5 be_brief',
+        ],
+      });
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'strip_shared_copies',
+          'paths': [_stripGuidePath, _stripLedgerPath, _stripRunbookPath],
+        },
+      ]);
+      expect(
+        _rewriteAt(plan, _stripGuidePath).text,
+        'description: |-\n  A guide.\n',
+      );
+      expect(_rewriteAt(plan, _stripGuidePath).changes, [
+        'strip_shared_copies',
+      ]);
+      expect(
+        _rewriteAt(plan, _stripRunbookPath).text,
+        'description: |-\n  A runbook.\n',
+      );
+    });
+
+    test('a step that keeps no copy prints no left line and lists left as '
+        'empty', () async {
+      final plan = _planStrip(await _stripFixture());
+
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: strip_shared_copies: 3 docs\n'),
+      );
+      expect(plan.toText(), isNot(contains('shared copies left:')));
+      final copies =
+          plan.lists.toJson()['sharedCopies']! as Map<String, Object?>;
+      expect(copies['left'], <String>[]);
+      expect(copies['stripped'], hasLength(4));
+    });
+
+    test('a plan without the step holds no sharedCopies key', () async {
+      final plan = _plan(await _fixture());
+
+      expect(plan.lists.toJson(), isNot(contains('sharedCopies')));
+    });
+
+    test('a line equal to a pack line and a shared.yaml line is listed '
+        'under the pack line printed first', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          overrides: {
+            _stripRunbookPath: _statusCopyOverride,
+            '.specstone/templates/shared.yaml':
+                'shared_lines:\n'
+                '  - {id: mine, text: Never write a status field.}\n',
+          },
+        ),
+      );
+
+      final copies =
+          plan.lists.toJson()['sharedCopies']! as Map<String, Object?>;
+      expect(copies['stripped'], ['$_stripRunbookPath:3 acme_no_status']);
+    });
+
+    test('the removals sit in commit 2 beside the pins, and commit 1 is '
+        'absent', () async {
+      final fixture = await _stripFixture();
+      final plan = _planStrip(fixture);
+
+      final steps = plan.journalSteps(
+        base: 'abc',
+        projectRoot: fixture.project,
+      );
+
+      expect(plan.moves, isEmpty);
+      expect(steps.whereType<CommitStep>(), hasLength(1));
+      expect(
+        steps.whereType<CommitStep>().single.paths,
+        containsAll([_stripGuidePath, _stripLedgerPath, _stripRunbookPath]),
+      );
+      expect([
+        for (final step in steps.whereType<WriteStep>()) step.path,
+      ], containsAll([_stripGuidePath, _stripLedgerPath, _stripRunbookPath]));
+    });
+
+    test('a CRLF project file matches and keeps its line style', () async {
+      final fixture = await _stripFixture(
+        overrides: {
+          _stripGuidePath:
+              'description: |-\r\n  A guide.\r\n'
+              '  Never write a status field.\r\n',
+        },
+      );
+
+      final plan = _planStrip(fixture);
+
+      expect(
+        _rewriteAt(plan, _stripGuidePath).text,
+        'description: |-\r\n  A guide.\r\n',
+      );
+    });
+
+    test('a field copy of a shared field is stripped with its entry', () async {
+      const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+shared_fields:
+  - id: note
+    type: string
+    description: A note.
+    for_doc_types: [runbook]
+migrations:
+  - from: 1.0.0
+    steps:
+      - strip_shared_copies: {}
+''';
+      final plan = _planStrip(
+        await _stripFixture(
+          packYaml: packYaml,
+          overrides: {
+            _stripRunbookPath:
+                'fields:\n'
+                '  - id: owner\n'
+                '    type: string\n'
+                '  - type: string\n'
+                '    id: note\n'
+                '    description: A note.\n',
+          },
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, _stripRunbookPath).text,
+        'fields:\n  - id: owner\n    type: string\n',
+      );
+      expect(
+        (plan.lists.toJson()['sharedCopies']!
+            as Map<String, Object?>)['stripped'],
+        ['$_stripRunbookPath:5 note'],
+      );
+    });
+
+    test('a line shared.yaml disabled is never stripped', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          overrides: {
+            _stripRunbookPath: _statusCopyOverride,
+            '.specstone/templates/shared.yaml':
+                'shared_lines:\n  - {id: acme_no_status, disabled: true}\n',
+          },
+        ),
+      );
+
+      expect(
+        plan.rewrites.map((rewrite) => rewrite.path),
+        isNot(contains(_stripRunbookPath)),
+      );
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: strip_shared_copies: 0 docs\n'),
+      );
+    });
+
+    test('a file a rename step and the strip both change gets one rewrite '
+        'holding both changes', () async {
+      final plan = _planStrip(
+        await _stripFixture(
+          packYaml: _stripPackYaml.replaceFirst(
+            '      - strip_shared_copies: {}',
+            '      - rename_field: {doc_type: runbook, from: owner, '
+                'to: on_call}\n'
+                '      - strip_shared_copies: {}',
+          ),
+          overrides: {
+            _stripRunbookPath:
+                'description: |-\n  A runbook.\n  Never write a status field.\n'
+                'fields:\n  - {id: owner, type: string}\n',
+          },
+        ),
+      );
+
+      final rewrite = _rewriteAt(plan, _stripRunbookPath);
+      expect(
+        rewrite.text,
+        'description: |-\n  A runbook.\n'
+        'fields:\n  - {id: on_call, type: string}\n',
+      );
+      expect(rewrite.changes, [
+        'rename_field runbook owner -> on_call',
+        'strip_shared_copies',
+      ]);
+    });
+
+    test('the plan hash changes when a stripped copy moves to another line, '
+        'though the printed count stays', () async {
+      final fixture = await _stripFixture(
+        overrides: const {
+          _stripGuidePath:
+              'description: |-\n  A guide.\n  Never write a status field.\n',
+        },
+      );
+      final first = _planStrip(fixture);
+
+      File('${fixture.project.path}/$_stripGuidePath').writeAsStringSync(
+        'description: |-\n  A guide.\n  More.\n  Never write a status field.\n',
+      );
+      final second = _planStrip(fixture);
+
+      expect(second.toText(), first.toText());
+      expect(
+        (second.lists.toJson()['sharedCopies']!
+            as Map<String, Object?>)['stripped'],
+        ['$_stripGuidePath:4 acme_no_status'],
+      );
+      expect(_hashOf(second), isNot(_hashOf(first)));
     });
   });
 }

@@ -9,6 +9,8 @@ import '../../helpers/prd_core.dart';
 
 const _docPath = 'measurements/grounding_cost/MEASUREMENT.md';
 
+const _citeFragment = 'by a link to its item, never restate it';
+
 String _measurement({
   String title = '# Grounding cost',
   String? baseline,
@@ -61,6 +63,17 @@ void main() {
 
   test('measurement titles with no number', () {
     expect(measurement.lint.titleNoNumber, isTrue);
+  });
+
+  test('the guide prints the log rule and the goal link, then the shared '
+      'cite line', () {
+    final guide = measurement.renderGuide();
+    final cite = guide.indexOf(_citeFragment);
+    for (final rule in ['Results is a log', 'Measure one goal, never a']) {
+      expect(guide.indexOf(rule), allOf(isNonNegative, lessThan(cite)));
+    }
+    expect(measurement.description, isNot(contains(_citeFragment)));
+    expect(measurement.sharedLines.map((l) => l.id), contains('cite_by_link'));
   });
 
   group('check', () {

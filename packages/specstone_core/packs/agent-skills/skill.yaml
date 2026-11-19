@@ -18,7 +18,7 @@ fields:
     type: doc_ref
     doc_types: [feature]
     description: |-
-      Names the feature the skill serves; it must resolve to a feature.
+      Names the feature the skill serves.
   - id: covers
     type: output_ref
     list: true
