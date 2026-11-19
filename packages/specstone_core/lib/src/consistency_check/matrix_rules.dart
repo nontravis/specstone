@@ -127,21 +127,32 @@ final class _MatrixWalk {
     for (final line in _record.matrixLines) {
       switch (line) {
         case MalformedRow(:final text):
-          yield _finding(
-            FindingKind.matrixRowMalformed,
-            line.line,
-            '$text is no matrix row; write "- <item> <edge case>: '
-            '`<test name>`" or "- <item> <edge case> skipped: <reason>"',
-            {'row': text},
-          );
-        case final MatrixRow row when _isRecordRules(row):
-          break;
-        case final MatrixRow row:
-          yield* _resolved(row);
+          yield _malformed(line.line, text);
+        case final MatrixRow row when row.edgeCase == null:
+          // Reads as no row until the per-FR form is a mode of its own.
+          yield _malformed(row.line, _lineOf(row));
+        case final MatrixRow row && MatrixRow(edgeCase: final edgeCase?)
+            when !_isRecordRules(row):
+          yield* _resolved(row, edgeCase);
           yield* _related(row);
+        case MatrixRow():
+          break;
       }
     }
   }
+
+  Finding _malformed(int line, String text) => _finding(
+    FindingKind.matrixRowMalformed,
+    line,
+    '$text is no matrix row; write "- <item> <edge case>: '
+    '`<test name>`" or "- <item> <edge case> skipped: <reason>"',
+    {'row': text},
+  );
+
+  String _lineOf(MatrixRow row) => switch (row.fingerprint) {
+    final fingerprint? => '- ${row.written} $fingerprint',
+    null => '- ${row.written}',
+  };
 
   // The record entry rule reports a row of an item outside the feature, and
   // of a skipped FR, alone.
@@ -151,7 +162,7 @@ final class _MatrixWalk {
     return item.docTypeId == frType && isSkippedIn(_context, _record, item);
   }
 
-  Iterable<Finding> _resolved(MatrixRow row) sync* {
+  Iterable<Finding> _resolved(MatrixRow row, String edgeCase) sync* {
     final item = _items[row.item]!;
     if (item.docTypeId != frType) {
       yield _finding(
@@ -162,12 +173,12 @@ final class _MatrixWalk {
       );
       return;
     }
-    if (!_edgeCasesOf(item).containsKey(row.edgeCase)) {
+    if (!_edgeCasesOf(item).containsKey(edgeCase)) {
       yield _finding(
         FindingKind.matrixRowUnresolved,
         row.line,
-        '${row.item} has no edge case ${row.edgeCase}',
-        {'item': row.item, 'edge_case': row.edgeCase},
+        '${row.item} has no edge case $edgeCase',
+        {'item': row.item, 'edge_case': edgeCase},
       );
     }
     if (row is TestRow) yield* _literalOf(row, item);
@@ -190,7 +201,7 @@ final class _MatrixWalk {
       final text = testFileTextOf(_context, target, path);
       if (text == null) {
         unreadable = true;
-      } else if (text.contains(row.literal)) {
+      } else if (text.contains(row.firstLiteral)) {
         return;
       }
     }
@@ -199,9 +210,9 @@ final class _MatrixWalk {
       FindingKind.matrixTestUnresolved,
       row.line,
       paths.isEmpty
-          ? '${row.item} has no tests line to hold ${row.literal}'
-          : '${row.literal} occurs in no test file of ${row.item}',
-      {'item': row.item, 'name': row.literal},
+          ? '${row.item} has no tests line to hold ${row.firstLiteral}'
+          : '${row.firstLiteral} occurs in no test file of ${row.item}',
+      {'item': row.item, 'name': row.firstLiteral},
     );
   }
 
@@ -210,13 +221,13 @@ final class _MatrixWalk {
     if (row is TestRow) {
       final repeated = earlier
           .whereType<TestRow>()
-          .where((other) => other.literal == row.literal)
+          .where((other) => other.firstLiteral == row.firstLiteral)
           .firstOrNull;
       if (repeated != null) {
         yield _finding(
           FindingKind.matrixRowRepeated,
           row.line,
-          '${row.label} names ${row.literal} again; line ${repeated.line} '
+          '${row.label} names ${row.firstLiteral} again; line ${repeated.line} '
           'holds it, keep one row',
           {'first': repeated.line},
         );

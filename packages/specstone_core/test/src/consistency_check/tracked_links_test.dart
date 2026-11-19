@@ -9,6 +9,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -1732,6 +1734,31 @@ void main() {
 
     test("a row stamped with the edge case's fingerprint is clean", () async {
       expect(await findingsOf(record([testRow(current)])), isEmpty);
+    });
+
+    test(
+      'a per-FR row names no edge case, so it takes no link state',
+      () async {
+        final project = await writeMatrixRecordProject(row: frMatrixRow);
+
+        final findings = (await checkOf(project)).findings.where(
+          (f) =>
+              f.path == loginRecord &&
+              (f.kind == FindingKind.suspect ||
+                  f.kind == FindingKind.unconfirmed),
+        );
+
+        expect(findings, isEmpty);
+      },
+    );
+
+    test('a test row gives its literals joined by a comma and a space', () {
+      final row = parseMatrixLine(
+        '- $item: `reads a row`, `drops a row`',
+        1,
+      ) as MatrixRow;
+
+      expect(matrixRowLiteralOf(row), 'reads a row, drops a row');
     });
 
     test('a changed edge case makes its row suspect', () async {

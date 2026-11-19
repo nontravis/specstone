@@ -87,8 +87,10 @@ const _notWritableMessage =
 /// one or the other, is rebuilt. Layout 30 counts a section's body alone, so an
 /// index of layout 29, whose counts include the header line, is rebuilt.
 /// Layout 31 adds the `cited_by` table, so an index of layout 30, which holds
-/// none, is rebuilt.
-const indexLayoutVersion = 31;
+/// none, is rebuilt. Layout 32 stores a Verification matrix test row's literals
+/// as a list and a per-FR row's edge case as null, so an index of layout 31,
+/// whose rows hold one literal and an edge case, is rebuilt.
+const indexLayoutVersion = 32;
 
 const _schema = '''
 CREATE TABLE meta (

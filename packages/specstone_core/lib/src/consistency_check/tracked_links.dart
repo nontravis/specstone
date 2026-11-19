@@ -226,9 +226,9 @@ List<TrackedEntry> trackedEntriesOf(CheckContext context, IndexedDoc doc) {
   ];
 }
 
-/// Returns [row]'s literal, or a skip row's reason.
+/// Returns [row]'s literals joined by `, `, or a skip row's reason.
 String matrixRowLiteralOf(MatrixRow row) => switch (row) {
-  TestRow(:final literal) => literal,
+  TestRow(:final literals) => literals.join(', '),
   SkipRow(:final reason) => reason,
 };
 
@@ -512,12 +512,16 @@ LinkState _stateOf(IndexedDoc doc, TrackedLink link, _Entry? entry) {
 final class _RowLink {
   const new({
     required this.row,
+    required this.edgeCase,
     required this.fr,
     required this.source,
     required this.fingerprint,
   });
 
   final MatrixRow row;
+
+  /// The edge case [row] names.
+  final String edgeCase;
 
   /// The requirement that holds the edge case.
   final IndexedDoc fr;
@@ -531,7 +535,7 @@ final class _RowLink {
   TrackedBlock get block => TrackedBlock(
     kind: TrackedBlockKind.edgeCase,
     upstream: fr.docPath,
-    key: row.edgeCase,
+    key: edgeCase,
   );
 
   bool get isSuspect {
@@ -553,8 +557,10 @@ Iterable<_RowLink> _rowLinksOf(CheckContext context, IndexedDoc record) sync* {
   final items = recordItemsOf(read.feature, context.index.childrenOf);
   final blocksOf = <String, Map<String, String>>{};
   for (final row in record.matrixLines.whereType<MatrixRow>()) {
+    final edgeCase = row.edgeCase;
     final fr = items[row.item];
-    if (fr == null ||
+    if (edgeCase == null ||
+        fr == null ||
         fr.docTypeId != _frType ||
         isSkippedIn(context, record, fr)) {
       continue;
@@ -563,10 +569,11 @@ Iterable<_RowLink> _rowLinksOf(CheckContext context, IndexedDoc record) sync* {
       fr.docPath,
       () => edgeCaseBlocksOf(context, fr),
     );
-    final source = blocks[row.edgeCase];
+    final source = blocks[edgeCase];
     if (source == null) continue;
     yield _RowLink(
       row: row,
+      edgeCase: edgeCase,
       fr: fr,
       source: source,
       fingerprint: fingerprintOf(source),
@@ -689,7 +696,7 @@ Iterable<Finding> _checkRowLinks(
         keys: {
           'link': row.label,
           'upstream': link.fr.docPath,
-          'block': row.edgeCase,
+          'block': link.edgeCase,
           if (!isOwner) 'text': _blockText(link.source),
           'fingerprint': link.fingerprint,
         },
@@ -707,7 +714,7 @@ Iterable<Finding> _checkRowLinks(
           'link': row.label,
           'recorded': recorded,
           'upstream': link.fr.docPath,
-          'block': row.edgeCase,
+          'block': link.edgeCase,
           'text': _blockText(link.source),
           'fingerprint': link.fingerprint,
         },
@@ -717,7 +724,7 @@ Iterable<Finding> _checkRowLinks(
 }
 
 String _rowReadMessage(_RowLink link) =>
-    'read ${link.row.edgeCase} of ${link.fr.docPath} below, then record '
+    'read ${link.edgeCase} of ${link.fr.docPath} below, then record '
     '${link.row.label} with the fingerprint after it';
 
 String _rowOwnerSuspectTail(_RowLink link) => 'it ${_rowWaitsMessage(link)}';

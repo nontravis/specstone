@@ -195,12 +195,12 @@ _RowChanges _rowChangesOf(
   final rewritten = <int, String>{};
   final leaving = <int, _RowLeaving>{};
   for (final row in matrixLinesIn(lfText, recordType).whereType<MatrixRow>()) {
-    final move = moves['${row.item} ${row.edgeCase}'];
+    final edgeCase = row.edgeCase;
+    if (edgeCase == null) continue;
+    final move = moves['${row.item} $edgeCase'];
     if (move == null) continue;
     final at = row.line - 1;
-    final rest = lines[at].substring(
-      2 + row.item.length + 1 + row.edgeCase.length,
-    );
+    final rest = lines[at].substring(2 + row.item.length + 1 + edgeCase.length);
     final moved = '- ${move.target.name} ${move.edgeCase}$rest';
     if (move.target.feature.docPath == feature.docPath) {
       rewritten[at] = moved;

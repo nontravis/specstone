@@ -674,6 +674,8 @@ void main() {
           '## Verification matrix\n\n'
           '- show_toast E01: `` a`b\$c\\d `` 3f9a1c0b7e2d\n'
           '- show_toast E02 skipped: no clock on CI\n'
+          '- show_toast: `queues`, `drops, then pins` 3f9a1c0b7e2d\n'
+          '- show_toast skipped: no clock on CI\n'
           'stray\n';
       ParsedDoc record(String path, String body) => parseIndexedDoc(
         docPath: path,
@@ -708,8 +710,14 @@ void main() {
       };
 
       expect(lf.doc.matrixLines, [
-        isA<TestRow>().having((row) => row.literal, 'literal', r'a`b$c\d'),
+        isA<TestRow>().having((row) => row.literals, 'literals', [r'a`b$c\d']),
         isA<SkipRow>(),
+        isA<TestRow>().having((row) => row.form, 'form', RowForm.perFr).having(
+          (row) => row.literals,
+          'literals',
+          ['queues', 'drops, then pins'],
+        ),
+        isA<SkipRow>().having((row) => row.form, 'form', RowForm.perFr),
         isA<MalformedRow>(),
       ]);
       expect(loaded['specs/f01_a/IMPLEMENTATION.md'], lf.doc.matrixLines);
@@ -1307,6 +1315,20 @@ void main() {
     final raw = sqlite3.open(file(r, indexFilePath).path);
     addTearDown(raw.close);
     raw.execute('UPDATE meta SET layout = 20');
+    expect(store.readStamp(), isNull);
+  });
+
+  test('rebuilds an index of the previous layout, whose matrix rows hold one '
+      'literal and an edge case', () async {
+    final r = await root();
+    final store = IndexStore.open(r);
+    addTearDown(store.close);
+    const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+    store.write(() => store.reset(stamp));
+    expect(store.readStamp(), stamp);
+    final raw = sqlite3.open(file(r, indexFilePath).path);
+    addTearDown(raw.close);
+    raw.execute('UPDATE meta SET layout = 31');
     expect(store.readStamp(), isNull);
   });
 
