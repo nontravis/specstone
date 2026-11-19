@@ -17,7 +17,13 @@ const _itemIdForm = 'item_id';
 // with text after it.
 final _listMarker = RegExp(r'^(?:[-*+]|\d+[.)])\s+');
 
-typedef _Start = ({int index, String text});
+/// An item start: its body index, and its text with the marker stripped.
+final class _Start {
+  const new({required this.index, required this.text});
+
+  final int index;
+  final String text;
+}
 
 /// Returns the items of each held section of [content] whose template sets
 /// `prefix_id` (a null `id` for an item with no ID), and, for a doc whose
@@ -204,12 +210,11 @@ List<_Start> _itemStartsOf(List<BodyLine> body) {
   for (final (i, line) in body.indexed) {
     if (line.fenced) continue;
     if (line.text.startsWith(itemHeadingMarker)) {
-      headings.add((
-        index: i,
-        text: line.text.substring(itemHeadingMarker.length),
-      ));
+      headings.add(
+        _Start(index: i, text: line.text.substring(itemHeadingMarker.length)),
+      );
     } else if (_listMarker.firstMatch(line.text) case final marker?) {
-      listItems.add((index: i, text: line.text.substring(marker.end)));
+      listItems.add(_Start(index: i, text: line.text.substring(marker.end)));
     }
   }
   return headings.isNotEmpty ? headings : listItems;

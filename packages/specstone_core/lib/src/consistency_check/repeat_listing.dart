@@ -60,7 +60,14 @@ List<String> _windowsOf(List<String> words) => [
     words.sublist(p, p + minRepeatRunWords).join(' '),
 ];
 
-typedef _Run = ({List<String> words, List<int> items});
+/// One maximal run: its words, and the indexes of the items that hold it
+/// whole.
+final class _Run {
+  const new({required this.words, required this.items});
+
+  final List<String> words;
+  final List<int> items;
+}
 
 /// Finds the maximal runs of the words of many items.
 ///
@@ -121,7 +128,7 @@ final class _RunFinder {
       );
       if (!extendsRight && _spansDocs(places) && !_extendsLeft(places)) {
         final first = places.first;
-        yield (
+        yield _Run(
           words: _words[_itemOf(first)].sublist(
             _offsetOf(first),
             _offsetOf(first) + length,

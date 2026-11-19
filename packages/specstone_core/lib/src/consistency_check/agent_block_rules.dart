@@ -8,11 +8,16 @@ import 'package:specstone_core/src/version.dart';
 
 /// What a drift says: `lead` names the fault and, unless `isHandRepair`, the
 /// fix is appended; a hand repair is the whole message.
-typedef _Text = ({String lead, bool isHandRepair});
+final class _Text {
+  const new({required this.lead, required this.isHandRepair});
 
-_Text _command(String lead) => (lead: lead, isHandRepair: false);
+  final String lead;
+  final bool isHandRepair;
+}
 
-_Text _handRepair(String message) => (lead: message, isHandRepair: true);
+_Text _command(String lead) => _Text(lead: lead, isHandRepair: false);
+
+_Text _handRepair(String message) => _Text(lead: message, isHandRepair: true);
 
 _Text _textOf(AgentDriftKind kind) => switch (kind) {
   AgentDriftKind.blockStale => _command(

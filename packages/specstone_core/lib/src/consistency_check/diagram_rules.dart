@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/models/diagram_block.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -152,10 +153,38 @@ Iterable<Finding> _lineFindings(
 /// The nodes and edges of one diagram line, as written.
 final class _DiagramLineScan {
   /// Each node with a shape: its id and the content range of the shape.
-  final nodes = <({String id, int start, int end})>[];
+  final nodes = <_ShapedNode>[];
 
   /// Each edge: its two node ids and its label text, empty without one.
-  final edges = <({String from, String to, String label})>[];
+  final edges = <_Edge>[];
+}
+
+/// A node with a shape: its id and the content range of the shape.
+final class _ShapedNode {
+  const new({required this.id, required this.start, required this.end});
+
+  final String id;
+  final int start;
+  final int end;
+}
+
+/// An edge: its two node ids and its label text, empty without one.
+final class _Edge {
+  const new({required this.from, required this.to, required this.label});
+
+  final String from;
+  final String to;
+  final String label;
+}
+
+/// An arrow run: its end offset, whether it ends with the tip `>`, and how
+/// many arrow characters it holds.
+final class _Arrow {
+  const new({required this.end, required this.hasTip, required this.run});
+
+  final int end;
+  final bool hasTip;
+  final int run;
 }
 
 /// Reads [line] into its node shapes and edges.
@@ -174,21 +203,25 @@ _DiagramLineScan _scanDiagramLine(String line) {
     if (token is _NodeToken) {
       lastId = token.id;
       if (token.shapeEnd > token.shapeStart) {
-        scan.nodes.add((
-          id: token.id,
-          start: token.shapeStart,
-          end: token.shapeEnd,
-        ));
+        scan.nodes.add(
+          _ShapedNode(
+            id: token.id,
+            start: token.shapeStart,
+            end: token.shapeEnd,
+          ),
+        );
       }
     } else if (token is _ArrowToken && lastId != null) {
       final next = tokens.elementAtOrNull(i + 1);
       final target = next is _PipeToken ? tokens.elementAtOrNull(i + 2) : next;
       if (token.isEdge && target is _NodeToken) {
-        scan.edges.add((
-          from: lastId,
-          to: target.id,
-          label: next is _PipeToken ? next.label : token.label,
-        ));
+        scan.edges.add(
+          _Edge(
+            from: lastId,
+            to: target.id,
+            label: next is _PipeToken ? next.label : token.label,
+          ),
+        );
       }
     }
   }
@@ -237,8 +270,10 @@ List<_Token> _tokensOf(String line) {
     final id = _idRun.matchAsPrefix(line, i);
     if (id != null) {
       final shape = _shapeRangeAt(line, id.end);
-      tokens.add(_NodeToken(id[0]!, shape?.$1 ?? id.end, shape?.$2 ?? id.end));
-      i = shape?.$2 ?? id.end;
+      tokens.add(
+        _NodeToken(id[0]!, shape?.start ?? id.end, shape?.end ?? id.end),
+      );
+      i = shape?.end ?? id.end;
       continue;
     }
     final arrow = _arrowAt(line, i);
@@ -270,7 +305,7 @@ List<_Token> _tokensOf(String line) {
 
 /// The arrow at [i]: its end offset and whether it ends with the tip `>`;
 /// null when fewer than two arrow characters start there.
-({int end, bool hasTip, int run})? _arrowAt(String line, int i) {
+_Arrow? _arrowAt(String line, int i) {
   var end = i;
   while (end < line.length &&
       _arrowChars.codeUnits.contains(line.codeUnitAt(end))) {
@@ -278,12 +313,12 @@ List<_Token> _tokensOf(String line) {
   }
   if (end - i < 2) return null;
   final hasTip = end < line.length && line.codeUnitAt(end) == 0x3E;
-  return (end: hasTip ? end + 1 : end, hasTip: hasTip, run: end - i);
+  return _Arrow(end: hasTip ? end + 1 : end, hasTip: hasTip, run: end - i);
 }
 
 /// The tipped arrow run after [from], or null; a bare arrow's label is the
 /// text up to its start.
-({int start, int end})? _tipArrowAfter(String line, int from) {
+TextRange? _tipArrowAfter(String line, int from) {
   var i = from;
   while (i < line.length) {
     if (!_arrowChars.codeUnits.contains(line.codeUnitAt(i))) {
@@ -295,7 +330,7 @@ List<_Token> _tokensOf(String line) {
       i++;
       continue;
     }
-    if (arrow.hasTip) return (start: i, end: arrow.end);
+    if (arrow.hasTip) return TextRange(start: i, end: arrow.end);
     i = arrow.end;
   }
   return null;
@@ -305,7 +340,7 @@ List<_Token> _tokensOf(String line) {
 ///
 /// The range starts past the opener and ends at the matching closer, a
 /// quoted closer opaque; an unclosed shape runs to the line's end.
-(int, int)? _shapeRangeAt(String line, int i) {
+TextRange? _shapeRangeAt(String line, int i) {
   if (i >= line.length || !_openers.contains(line[i])) return null;
   final opener = line.codeUnitAt(i);
   final closer = _closers.codeUnitAt(_openers.indexOf(line[i]));
@@ -321,10 +356,10 @@ List<_Token> _tokensOf(String line) {
       depth++;
     } else if (unit == closer) {
       depth--;
-      if (depth == 0) return (i + 1, j);
+      if (depth == 0) return TextRange(start: i + 1, end: j);
     }
   }
-  return (i + 1, line.length);
+  return TextRange(start: i + 1, end: line.length);
 }
 
 /// Whether [shapeContent] holds a bracket outside double quotes.
