@@ -1,17 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/doc_model/code_spans.dart';
-import 'package:specstone_core/src/doc_model/doc_link.dart'
-    show DocTarget, resolveDocLink;
-import 'package:specstone_core/src/doc_model/models/code_span.dart';
-import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart' show ItemId;
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show extensionOfCodePath, nameMentionsInFile, readsNameMentions;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
-import 'package:specstone_core/src/document_writing/body_scan.dart';
 import 'package:specstone_core/src/document_writing/item_moves.dart';
 import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart'
@@ -23,6 +18,10 @@ import 'package:specstone_core/src/document_writing/scenario_items.dart'
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention;
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/bare_id_owner.dart';
+import 'package:specstone_core/src/index_query/bare_item_ids.dart';
+import 'package:specstone_core/src/index_query/cite_candidates.dart'
+    show citeFormsOf, testRowLinesOf;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show ProjectPathReader;
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -32,9 +31,11 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
-    show itemIdPrefixesOf;
+    show itemIdPrefixesOf, scenarioRefPrefix;
+import 'package:specstone_core/src/index_query/matrix_rows.dart'
+    show matrixLinesIn;
+import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
-import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show byteOrderMark;
@@ -277,60 +278,91 @@ List<StaleMention> _bareMentions(
   String lf,
   List<MovedSpan> spans,
 ) {
-  final body = BodyScan(lf);
-  final prose = _outsideLinks(body.scan.prose, body.scan.sources);
-  final lines = body.body.split('\n');
   final skippedHeads = <MovedSpan>{};
   final mentions = <StaleMention>[];
-  final runPrefixes = itemIdPrefixesOf(index.set.docTypes);
-  for (final ItemIdAt(:at, :id) in itemIdsInProse(
-    prose,
-    prefixes: moves.prefixes,
-  )) {
-    final number = body.fileLineOf(at);
+  for (final id in _bareIdsOf(index, moves, doc, lf)) {
     final span = spans
-        .where((span) => span.first <= number && number <= span.last)
+        .where((span) => span.first <= id.line && id.line <= span.last)
         .firstOrNull;
     if (span != null &&
-        number == span.first &&
-        id.written == span.landing.newId &&
+        id.line == span.first &&
+        id.id == span.landing.newId &&
         skippedHeads.add(span)) {
       continue;
     }
-    final lineIndex = number - body.firstLine;
-    final cited = _citedBy(
+    final owner = _ownerOf(
       index,
-      doc,
-      body.scan.sources,
-      lines[lineIndex],
-      body.columnOf(at),
-      body.starts[lineIndex],
-      runPrefixes,
+      id,
+      doc.docPath,
+      span?.landing.from.doc ?? doc,
     );
-    if (_namesMoved(index, moves, doc, cited, id.written, span)) {
+    if (_namesMoved(index, moves, owner, id.id, span)) {
       mentions.add(
-        StaleMention(path: doc.docPath, line: number, mention: id.written),
+        StaleMention(path: doc.docPath, line: id.line, mention: id.id),
       );
     }
   }
   return mentions;
 }
 
-/// Whether the bare ID [id], cited by the doc at [cited] or by none, is one
-/// the move leaves a mention for; [span] is the moved item that holds it.
-bool _namesMoved(
+/// Returns the bare IDs of [lf], the text [doc] holds after the write, as the
+/// index reads a typed doc; a scenario ref only when a scenario moves.
+List<BareItemId> _bareIdsOf(
   DocIndex index,
   ItemMoves moves,
   IndexedDoc doc,
-  String? cited,
+  String lf,
+) {
+  final type = index.typeOf(doc);
+  if (type == null) return const [];
+  final prefixes = itemIdPrefixesOf(index.set.docTypes);
+  final forms = citeFormsOf(
+    lf,
+    idPrefixes: prefixes,
+    skipLines: testRowLinesOf(matrixLinesIn(lf, type)),
+  );
+  return bareItemIdsOf(
+    lf,
+    idPrefixes: prefixes,
+    citeForms: forms,
+    includeScenarioRefs: moves.prefixes.contains(scenarioRefPrefix),
+  );
+}
+
+/// Returns the owner doc of [id] held in [holderDocPath], with [ownDoc] as the
+/// doc whose own items it may name.
+///
+/// A scenario ref is no `prefix_id`: its owner is the doc its citation names,
+/// or [ownDoc] when it has none.
+OwnerDoc? _ownerOf(
+  DocIndex index,
+  BareItemId id,
+  String holderDocPath,
+  IndexedDoc ownDoc,
+) {
+  if (readItemId(id.id, scenarioRefPrefix) is! ItemId) {
+    return ownerDocOf(index, id, holderDocPath: holderDocPath, ownDoc: ownDoc);
+  }
+  final citation = id.citation;
+  if (citation == null) return OwnerDoc(doc: ownDoc, isOwnDoc: true);
+  final cited = citedDocOf(index, citation, holderDocPath);
+  return cited == null ? null : OwnerDoc(doc: cited, isOwnDoc: false);
+}
+
+/// Whether the bare ID [id], owned by [owner], is one the move leaves a mention
+/// for; [span] is the moved item that holds it.
+bool _namesMoved(
+  DocIndex index,
+  ItemMoves moves,
+  OwnerDoc? owner,
   String id,
   MovedSpan? span,
 ) {
-  final authored = span?.landing.from.doc ?? doc;
-  final landing = moves.landingOf(cited ?? authored.docPath, id);
-  if (cited != null || span == null) return landing != null;
+  if (owner == null) return false;
+  final landing = moves.landingOf(owner.doc.docPath, id);
+  if (!owner.isOwnDoc || span == null) return landing != null;
   if (landing != null) return landing.newId != id;
-  return _holdsItem(index, authored, id);
+  return _holdsItem(index, owner.doc, id);
 }
 
 /// Whether some section of [doc] holds the item [id].
@@ -339,62 +371,6 @@ bool _holdsItem(DocIndex index, IndexedDoc doc, String id) => index
     .itemFacts
     .sectionItems
     .any((items) => items.any((fact) => fact.id == id));
-
-/// Returns [prose] with each of [sources] blanked, line ends kept.
-String _outsideLinks(String prose, List<LinkSource> sources) {
-  final units = prose.codeUnits.toList();
-  for (final source in sources) {
-    for (var at = source.offset; at < source.end && at < units.length; at++) {
-      if (units[at] != 0x0A) units[at] = 0x20;
-    }
-  }
-  return String.fromCharCodes(units);
-}
-
-/// Returns the DocPath of the doc address or doc link whose item-ID run holds
-/// the ID at [column] of [line], the empty string for one that names no doc,
-/// or null when no run holds it.
-String? _citedBy(
-  DocIndex index,
-  IndexedDoc doc,
-  List<LinkSource> sources,
-  String line,
-  int column,
-  int lineStart,
-  Set<String> prefixes,
-) {
-  bool runHolds(int end) => itemIdRunAt(
-    line,
-    end,
-    prefixes: prefixes,
-  ).any((item) => item.at == column);
-  for (final CodeSpan(:start, :end, :ticks) in codeSpansOf(line)) {
-    if (end > column || !runHolds(end)) continue;
-    final address = readDocAddress(line.substring(start + ticks, end - ticks));
-    if (address.sectionKey != null || !address.isReferenceWithoutLookup) {
-      continue;
-    }
-    final docs = _resolved(index, address.docPart);
-    return docs.length == 1 ? docs.single.docPath : '';
-  }
-  for (final source in sources) {
-    final shown = source.shown;
-    final start = source.offset - lineStart;
-    if (shown == null ||
-        start < 0 ||
-        source.offset >= lineStart + line.length) {
-      continue;
-    }
-    if (source.end - lineStart > column || !runHolds(source.end - lineStart)) {
-      continue;
-    }
-    return switch (resolveDocLink(shown, doc.docPath)) {
-      DocTarget(:final docPath) => docPath,
-      _ => '',
-    };
-  }
-  return null;
-}
 
 /// Returns the code files and agent files whose mentions are read, by their
 /// path from the project root.

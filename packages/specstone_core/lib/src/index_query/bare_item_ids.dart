@@ -18,17 +18,20 @@ const _space = 0x20;
 /// frontmatter, and fenced code. Its citation is the cite of [citeForms] or the
 /// link whose item-ID run holds it, as written; none when no run holds it.
 ///
-/// A run reads the scenario ref prefix as `citeFormsOf` does, but no scenario
-/// ref is stored as an ID.
+/// A run reads the scenario ref prefix as `citeFormsOf` does, but a scenario
+/// ref is no ID unless [includeScenarioRefs]; the index stores none.
 List<BareItemId> bareItemIdsOf(
   String lfText, {
   required Set<String> idPrefixes,
   required List<CiteForm> citeForms,
+  bool includeScenarioRefs = false,
 }) {
   final body = BodyScan(lfText);
   final ids = itemIdsInProse(
     _outsideLinks(body.scan.prose, body.scan.sources),
-    prefixes: idPrefixes.difference({scenarioRefPrefix}),
+    prefixes: includeScenarioRefs
+        ? idPrefixes
+        : idPrefixes.difference({scenarioRefPrefix}),
   );
   if (ids.isEmpty) return const [];
   final citations = {

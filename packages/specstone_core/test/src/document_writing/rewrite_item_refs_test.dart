@@ -1077,6 +1077,30 @@ void main() {
       ]);
     });
 
+    test('a bare ID after a link to the source doc is listed once', () async {
+      final root = await _project(
+        pay: [_inv(1, 'see [domain:shop](../DOMAIN.md) INV-3 here.')],
+      );
+      final payBefore = readDoc(root, _payDomain);
+      final answer = _move(root, ['domain:shop#INV-3']);
+      expect(answer.text.split('\n').where((l) => l.startsWith(mention)), [
+        '$mention$_payDomain:${_lineOf(payBefore, 'see')} INV-3',
+      ]);
+      expect(answer.json['mentions'], hasLength(1));
+    });
+
+    test('an ID after a link whose doc type lacks its prefix is judged in the doc that holds it', () async {
+      final root = await _project(
+        shop: [_inv(3), _inv(4, 'follows [api:shop](API.md) INV-3 here.')],
+        pay: [_inv(1, 'follows [api:shop](../API.md) INV-3 here.')],
+      );
+      final answer = _move(root, ['domain:shop#INV-3']);
+      expect(answer.text.split('\n').where((l) => l.startsWith(mention)), [
+        '$mention$shopDomain:${_lineOf(readDoc(root, shopDomain), 'follows')} INV-3',
+      ]);
+      expect(answer.text, isNot(contains(_payDomain)));
+    });
+
     test('a dry run prints the mentions lines a real move prints and writes no file', () async {
       final shop = [_inv(3), _inv(4, 'follows INV-3 of this doc.')];
       final twin = await _project(shop: shop);

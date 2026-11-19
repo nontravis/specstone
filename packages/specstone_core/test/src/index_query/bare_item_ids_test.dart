@@ -114,6 +114,21 @@ void main() {
       );
     });
 
+    test('a scenario ref after a link is read, with the link, when asked', () {
+      const text = '[domain:x](../DOMAIN.md) S6, INV-3\n';
+      const prefixes = {..._prefixes, scenarioRefPrefix};
+      const link = LinkCitation(destination: '../DOMAIN.md');
+      expect(
+        bareItemIdsOf(
+          text,
+          idPrefixes: prefixes,
+          citeForms: citeFormsOf(text, idPrefixes: prefixes),
+          includeScenarioRefs: true,
+        ),
+        [_id(1, 25, 'S6', link), _id(1, 29, 'INV-3', link)],
+      );
+    });
+
     test('a cite with a section key before its run carries the cite as '
         'citeFormsOf gives it', () {
       expect(_read('`domain:shop#invariants` INV-3'), [

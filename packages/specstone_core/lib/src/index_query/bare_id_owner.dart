@@ -33,7 +33,7 @@ OwnerDoc? ownerDocOf(
       : null;
   final citation = id.citation;
   if (citation == null || _isBareAnchor(citation)) return ownOwner();
-  final cited = _citedDocOf(index, citation, holderDocPath);
+  final cited = citedDocOf(index, citation, holderDocPath);
   if (cited == null || cited.docTypeId == null) return null;
   return _holdsPrefix(index, cited, id.id)
       ? OwnerDoc(doc: cited, isOwnDoc: false)
@@ -49,7 +49,7 @@ bool _isBareAnchor(BareIdCitation citation) =>
 
 /// Returns the doc [citation] names from [holderDocPath], or null when it
 /// names none or several.
-IndexedDoc? _citedDocOf(
+IndexedDoc? citedDocOf(
   DocIndex index,
   BareIdCitation citation,
   String holderDocPath,
