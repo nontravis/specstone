@@ -24,7 +24,8 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 /// its pin, name, and version checked, packs by name in code point order; the
 /// packs ordered by their `extends` chains; each pack's doc-type files, then
 /// its feature pattern files, parsed in pack load order; the project
-/// templates, then the project feature patterns; the merge. The first fault in
+/// templates, then the project shared lines, then the project feature
+/// patterns; the merge. The first fault in
 /// that order is the one fault raised (one fault per run), so no chain fault
 /// or doc-type file fault surfaces before every manifest check passes.
 final class TemplateResolver {
@@ -61,6 +62,7 @@ final class TemplateResolver {
     final projectLayers = root == null
         ? <DocTypeLayer>[]
         : loadProjectTemplates(root);
+    if (root != null) loadProjectSharedLines(root);
     final projectPatterns = root == null
         ? <FeaturePatternLayer>[]
         : loadProjectFeaturePatterns(root);

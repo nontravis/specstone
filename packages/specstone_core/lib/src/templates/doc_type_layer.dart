@@ -439,7 +439,7 @@ final class DocTypeLayer {
   /// [files] answers whether the layer holds a file at a layer-relative path,
   /// for `reference` checks.
   /// Throws a [TemplateFault] for any format fault, `unknown_value` first when
-  /// [docTypeId] is no slug.
+  /// [docTypeId] is no slug or is the reserved `shared`.
   static DocTypeLayer parse(
     String text, {
     required String file,
@@ -451,6 +451,14 @@ final class DocTypeLayer {
       throw TemplateFault(
         FaultCode.unknownValue,
         'the file name without .yaml must be a slug: [a-z][a-z0-9_]*',
+        file: file,
+        key: 'id',
+      );
+    }
+    if (docTypeId == _reservedDocTypeId) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'doc type id $_reservedDocTypeId is reserved',
         file: file,
         key: 'id',
       );
@@ -725,6 +733,9 @@ int? _parseMaxDepth(YamlMap map, {required String file}) {
     ),
   };
 }
+
+/// The doc type id no file may take: `shared.yaml` holds shared lines.
+const _reservedDocTypeId = 'shared';
 
 const _topKeys = {
   'id',
