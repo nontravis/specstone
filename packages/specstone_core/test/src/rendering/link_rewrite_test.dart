@@ -1,6 +1,7 @@
 import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
+import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
 import 'package:specstone_core/src/rendering/doc_html.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';

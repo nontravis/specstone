@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax, parseMarkdownTreeByBlock;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
+import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
 import 'package:specstone_core/src/doc_model/models/tbr_marker_line.dart';

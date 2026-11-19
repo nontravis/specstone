@@ -3,6 +3,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/html_attributes.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 import 'package:specstone_core/src/rendering/link_rewrite.dart';
 
