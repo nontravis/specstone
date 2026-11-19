@@ -129,14 +129,13 @@ final class PackManifest {
     }
     final defined = <String>{};
     final visited = <String>{};
-    for (
-      var layers = layerLists[docType];
-      layers != null && visited.add(layers.first.layer.docTypeId);
-      layers = _extendsTargetLayers(layers, layerLists)
-    ) {
+    var layers = layerLists[docType];
+    while (layers != null) {
+      if (!visited.add(layers.first.layer.docTypeId)) break;
       for (final entry in layers) {
         defined.addAll(entry.layer.sections.map((s) => s.id));
       }
+      layers = _extendsTargetLayers(layers, layerLists);
     }
     for (final section in const [_entitiesSection, _invariantsSection]) {
       if (!defined.contains(section)) {

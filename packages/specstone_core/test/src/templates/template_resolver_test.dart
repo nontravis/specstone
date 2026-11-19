@@ -1142,6 +1142,41 @@ path: prds/notes/{slug}/NOTE.md
         expect(merged.lookup('child'), isNotNull);
       });
 
+      test('a drop_default_lines doc type finds its sections two extends '
+          'hops up', () async {
+        final merged = await resolveWith(
+          files(
+            docType: 'grandchild',
+            more: {
+              'prd-core/child.yaml':
+                  'id: child\nextends: ledger\npath: children/{slug}.md\n',
+              'prd-core/grandchild.yaml':
+                  'id: grandchild\nextends: child\n'
+                  'path: grandchildren/{slug}.md\n',
+            },
+          ),
+        );
+
+        expect(merged.lookup('grandchild'), isNotNull);
+      });
+
+      test('a drop_default_lines extends cycle ends in a refusal, not a '
+          'hang', () async {
+        final result = await resolveWith(
+          files(
+            docType: 'left',
+            more: {
+              'prd-core/left.yaml':
+                  'id: left\nextends: right\npath: lefts/{slug}.md\n',
+              'prd-core/right.yaml':
+                  'id: right\nextends: left\npath: rights/{slug}.md\n',
+            },
+          ),
+        ).then<Object>((set) => set, onError: (Object e) => e);
+
+        expect(result, isA<TemplateFault>());
+      });
+
       test('the shipped software-tech drop_default_lines entry loads '
           'clean', () {
         final merged = TemplateResolver().resolveCarried(
