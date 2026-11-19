@@ -115,6 +115,27 @@ void main() {
     final hit = (answer.json['hits']! as List).single as Map;
     expect(hit['section'], 'first');
   });
+  test('hits come best bm25 first, the most relevant section ahead', () async {
+    final ranked = await searchIndexWith({
+      'docs/m/a_sparse.md':
+          '# AS\n\n## Body\nzorbquat sits among many other plain words '
+          'that say nothing about it, padding the section out to a long '
+          'stretch of unrelated filler text for the ranking to discount\n',
+      'docs/m/b_medium.md':
+          '# BM\n\n## Body\nzorbquat and zorbquat with a few other words\n',
+      'docs/m/c_dense.md': '# CD\n\n## Body\nzorbquat zorbquat zorbquat\n',
+    });
+    final answer = answerSearch(ranked, 'zorbquat', const SearchOptions());
+    expect(heads(answer), [
+      'm/c_dense.md#body — CD',
+      'm/b_medium.md#body — BM',
+      'm/a_sparse.md#body — AS',
+    ]);
+    expect(
+      [for (final h in answer.json['hits']! as List) (h as Map)['name']],
+      ['m/c_dense.md', 'm/b_medium.md', 'm/a_sparse.md'],
+    );
+  });
   test('no hit is an empty answer and success', () async {
     final answer = answerSearch(index, 'zzqqxx', const SearchOptions());
     expect(answer.text, isEmpty);
