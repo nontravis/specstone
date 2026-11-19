@@ -17,8 +17,37 @@ void _peerDrops(WriteSession session, IndexedDoc doc) {
   }
 }
 
+/// Commits, from another connection, a stamp of the index's last check alone.
+void _peerStamps(WriteSession session) {
+  final peer = IndexStore.open(session.project.projectRoot);
+  try {
+    peer.write(() => peer.setCheckedAt(1));
+  } finally {
+    peer.close();
+  }
+}
+
 void main() {
   group('a peer commit between the read snapshot and the write lock', () {
+    test('that only stamps the last check still runs the body twice and its '
+        'write once', () async {
+      final root = await writeWriteProject();
+      var runs = 0;
+      var writes = 0;
+      WriteSession.run(
+        (session) {
+          runs++;
+          if (runs == 1) _peerStamps(session);
+          session.locked(() => writes++);
+        },
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+      expect(runs, 2);
+      expect(writes, 1);
+    });
+
     test('runs the command again on the fresh index', () async {
       final root = await writeWriteProject();
       var runs = 0;

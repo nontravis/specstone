@@ -14,6 +14,8 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
+const _guideLineMarker = 'guide line: ';
+
 void main() {
   test('decodes base64 constants back to bytes', () {
     final files = decodeShippedPacks({
@@ -544,6 +546,27 @@ void main() {
       });
     });
 
+    test('each section pattern message that names a guide line names one the '
+        'doc type guide prints', () {
+      var named = 0;
+      for (final docType in set.docTypes) {
+        final guide = docType.renderGuide();
+        for (final s in docType.sections) {
+          for (final p in s.bannedPatterns ?? const <PatternEntry>[]) {
+            final at = p.message.indexOf(_guideLineMarker);
+            if (at < 0) continue;
+            named++;
+            expect(
+              guide,
+              contains(p.message.substring(at + _guideLineMarker.length)),
+              reason: '${docType.id}.${s.id} ${p.id}',
+            );
+          }
+        }
+      }
+      expect(named, greaterThan(0));
+    });
+
     for (final rule in _guideRules) {
       test('${rule.docType}.${rule.section} ${rule.id}: fires on a broken '
           'line and passes a sound one', () {
@@ -614,6 +637,16 @@ void main() {
         final snapshot = section(docType, 'snapshot');
         expect((snapshot.minLines, snapshot.maxLines), (2, 4), reason: docType);
       }
+      final edgeCases = section('fr', 'edge_cases').itemCount!;
+      expect(
+        (
+          edgeCases.min,
+          edgeCases.max,
+          edgeCases.perSubsection,
+          edgeCases.waitsForOwner,
+        ),
+        (null, 8, false, true),
+      );
       final rules = section('user_story', 'rules').itemCount!;
       expect((rules.min, rules.max), (2, null));
       final alternatives = section('persona', 'alternatives').itemCount!;
@@ -678,6 +711,7 @@ void main() {
         'project.name',
         'project.roles',
         'fr.statement',
+        'fr.edge_cases',
         'user_story.acceptance_criteria',
         'user_story.rules',
         'persona.jobs',

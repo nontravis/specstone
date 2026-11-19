@@ -15,6 +15,7 @@ import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -249,6 +250,41 @@ void main() {
       ).json['removed'],
       hasLength(3),
     );
+    expect(hasDoc(root, story2), isFalse);
+  });
+
+  test('a peer commit while the guarded prompt waits deletes the unit in one '
+      'run, with no second prompt', () async {
+    final root = await writeWriteProject(extra: approvedSignOut);
+    final prompts = StringBuffer();
+    var runs = 0;
+    var answered = 0;
+    final answer = writeIn(root, (s) {
+      runs++;
+      return answerDelete(
+        s,
+        ['user_story:login/sign_out'],
+        confirmation: OwnerConfirmation.prompt,
+        readLine: () {
+          if (answered++ > 0) return null;
+          final peer = IndexStore.open(s.project.projectRoot);
+          try {
+            peer.write(() => peer.deleteDoc(persona));
+          } finally {
+            peer.close();
+          }
+          return 'y';
+        },
+        prompts: prompts,
+      );
+    });
+    expect(runs, 1);
+    expect(answered, 1);
+    expect(
+      'delete 3 files? [y/N] '.allMatches(prompts.toString()),
+      hasLength(1),
+    );
+    expect(answer.json['removed'], hasLength(3));
     expect(hasDoc(root, story2), isFalse);
   });
 

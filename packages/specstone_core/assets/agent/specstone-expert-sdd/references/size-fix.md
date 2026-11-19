@@ -4,10 +4,11 @@ This covers the size findings `specstone check` raises, under `specstone-expert-
 
 ## The order
 
-Answer each `chars_over_limit`, `lines_over_limit`, or `subsections_over_limit` finding once in your report, though
-`check` tags it `(waits for the Owner)`: a split proposal, or why none applies. Give `item_over_limit` neither: it
-needs no answer; `An item over its limit` covers it. A `bundle_over_limit` or `subsections_over_limit` finding skips
-steps 1 to 3 and takes its own section below, with step 4 for each moved item.
+Answer each `chars_over_limit`, `lines_over_limit`, or `subsections_over_limit` finding, and an
+`item_count_out_of_range` on FR edge cases, once in your report, though `check` tags it `(waits for the Owner)`: a
+split proposal, or why none applies. Give `item_over_limit` neither: `An item over its limit` covers it. A
+`bundle_over_limit`, `subsections_over_limit`, or `item_count_out_of_range` finding skips steps 1 to 3 and takes its
+own section below, with step 4 for each moved item.
 
 1. **Layout.** Every write lays its doc out. A size finding `check` still lists takes the next step; `check` counts
    the laid-out doc.
@@ -42,8 +43,7 @@ for the main session. A split the Owner turns down leaves nothing to delete.
 ## A finding that names items to move
 
 A size finding with `candidates` or `split`, or an FR over its character cap, takes this route; every other size
-finding keeps its route above. Run the commands as the split's: none before the Owner's ok, then in run order, and a
-dispatched agent's report holds them.
+finding keeps its route above. Run the commands as the split's.
 
 - `candidates`: in place of `No split applies`, one `specstone move <doc>#<ID> … --under <doc>` per sub-feature, its
   target that sub-feature's doc of the same type. The Owner approves the drafts each move leaves.
@@ -56,6 +56,11 @@ dispatched agent's report holds them.
 
 Cut or merge no scenario. Propose new stories in its feature, `specstone new user_story --parent <feature> --slug
 <slug>` each, then the split proposal's scenario `move` line per new story.
+
+## An FR past its edge case cap
+
+Drop or merge no edge case, and write nothing for it. Propose new FRs in its story, as an FR over its character cap
+takes them, and run the commands as the split's.
 
 ## No split applies
 
@@ -79,9 +84,9 @@ the split does, and run none before the Owner's ok. The finding waits for the Ow
 - `doc` is a feature whose children are stories: the sub-feature split above, then the same moves for each spec item
   one sub-feature alone uses.
 - No fix applies to a feature at its doc type's `max_depth`, since no sub-feature nests below it, nor to a feature
-  whose children are fewer than 4 stories, since no grouping gives it 2 sub-features of 2 stories each.
+  whose children are fewer than 4 stories.
 
-Where no fix applies, say why in your report and leave the finding as it is: it waits for the Owner.
+Where no fix applies, say why.
 
 ## An item over its limit
 

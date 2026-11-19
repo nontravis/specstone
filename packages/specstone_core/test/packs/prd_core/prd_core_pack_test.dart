@@ -6,6 +6,7 @@ import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -75,7 +76,7 @@ const _barFragments = [
 
 void main() {
   group('prd-core manifest', () {
-    test('prd-core ships at 1.17.0 with no extends', () {
+    test('prd-core ships at 1.18.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -83,8 +84,19 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.17.0');
+      expect(manifest.version.toString(), '1.18.0');
       expect(manifest.extendsPack, isNull);
+      final upgrades = selectUpgrades(
+        {
+          'prd-core': PackVersion.parse(
+            '1.17.0',
+            file: 'config',
+            key: 'prd-core',
+          ),
+        },
+        {'prd-core': manifest},
+      );
+      expect(upgrades.single.steps, isEmpty);
     });
 
     test('prd-core lists no migration entry with an empty step list', () {
@@ -556,6 +568,35 @@ void main() {
       expect(rules.description, contains('`**BR-NN** — <rule>`'));
       for (final text in [edge.description!, rules.description!]) {
         expect(text, isNot(matches(RegExp('in order|numbered'))));
+      }
+    });
+
+    test('every guide line a shared-lint finding message names is printed in '
+        'the guide of the doc type it lints', () async {
+      final set = await resolvePrdCore();
+      const marker = 'guide line: ';
+      final named = <String>[];
+      for (final docType in set.docTypes) {
+        final guide = docType.renderGuide();
+        for (final section in docType.sections) {
+          for (final pattern
+              in section.bannedPatterns ?? const <PatternEntry>[]) {
+            final at = pattern.message.indexOf(marker);
+            if (at < 0) continue;
+            final line = pattern.message.substring(at + marker.length);
+            named.add('${docType.id}.${section.id} ${pattern.id}');
+            expect(guide, contains(line), reason: named.last);
+          }
+        }
+      }
+      expect(named, contains('fr.statement second_shall'));
+      expect(named, contains('fr.verification test_file_named'));
+      for (final docType in set.docTypes) {
+        expect(
+          docType.renderGuide(),
+          contains(citeNoteGuideLine),
+          reason: docType.id,
+        );
       }
     });
 

@@ -22,8 +22,8 @@ For each listed code path but a `tests_unresolved` line's or a matrix row's (ste
 covering doc the doc its finding names: `specstone context <doc> --for implement --out`.
 
 - **Warning `no doc covers or implements <path>`:** A rename pair's new side goes to step 4.3. Else read the
-  file and write nothing for it; report it under `Uncovered:`: its path, what it does that no spec states, and
-  whether that needs a new story or FR.
+  file, write nothing for it; report under `Uncovered:` its path, the observable behavior it adds that no spec
+  states, and whether that needs a new story or FR.
 - **64, `code_path_not_found`:** the file moved or is gone; step 4.3 fixes the entries naming it.
 - **Any other exit:** report the CLI's error and stop.
 

@@ -813,8 +813,8 @@ void main() {
       });
     });
 
-    test('that records no fingerprint gives code_unconfirmed with the '
-        "file's, in a project with no record", () async {
+    test('a post that records no fingerprint gives code_unconfirmed with its '
+        'own, in a project with no record', () async {
       final report = await _run(
         await _campaignProject(
           [_post],
@@ -912,6 +912,32 @@ void main() {
           'docs/ops/build.md':
               '---\ncovers:\n  - tools/ $_stale\n---\n\n# Build\n',
           tool: toolText,
+        },
+        without: {_login},
+      );
+
+      final [finding] = _suspects(await _run(project));
+
+      expect(
+        (finding.path, finding.keys['entry'], finding.keys['fingerprint']),
+        ('ops/build.md', 'tools/', _folderFingerprintOf({tool: toolText})),
+      );
+    });
+
+    test('of a project doc type with an output_ref field and no root hashes '
+        'each file by its path from the code root', () async {
+      const tool = 'tools/run.sh';
+      const toolText = 'echo run\n';
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+          'code/$tool': toolText,
+          '.specstone/templates/toolset.yaml':
+              'id: toolset\ndescription: Tools.\npath: ops/{slug}.md\n'
+              'fields:\n  - id: covers\n    type: output_ref\n'
+              '    list: true\n    pointer: prefix\n',
+          'docs/ops/build.md':
+              '---\ncovers:\n  - tools/ $_stale\n---\n\n# Build\n',
         },
         without: {_login},
       );

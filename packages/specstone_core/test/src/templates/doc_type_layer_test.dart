@@ -1023,6 +1023,32 @@ lint:
       expect(lintOf('{item_count: {min: 3, max: 3}}').itemCount?.min, 3);
     });
 
+    test('an item_count waits_for of maybe is unknown_value', () {
+      for (final value in ['maybe', '""']) {
+        expectSectionFault(
+          '{item_count: {max: 8, waits_for: $value}}',
+          FaultCode.unknownValue,
+          'item_count.waits_for',
+        );
+      }
+      expect(
+        lintOf('{item_count: {max: 8, waits_for: owner}}')
+            .itemCount
+            ?.waitsForOwner,
+        isTrue,
+      );
+      expect(
+        lintOf('{item_count: {max: 8, waits_for: agent}}')
+            .itemCount
+            ?.waitsForOwner,
+        isFalse,
+      );
+      expect(
+        lintOf('{item_count: {max: 8}}').itemCount?.waitsForOwner,
+        isFalse,
+      );
+    });
+
     test(
       'an item_count prefix with no line_prefix or count is missing_key',
       () {
@@ -1668,6 +1694,45 @@ lint:
           reason: key,
         );
       }
+    });
+
+    test('an output_ref field with no pointer exits 78 at the pointer key', () {
+      expect(
+        () => _parse('fields: [{id: covers, type: output_ref}]'),
+        throwsA(refusal(FaultCode.missingKey, 'fields.covers.pointer')),
+      );
+    });
+
+    test('an output_ref pointer outside the four kinds exits 78 at the '
+        'pointer key', () {
+      expect(
+        () => _parse('fields: [{id: covers, type: output_ref, pointer: glob}]'),
+        throwsA(refusal(FaultCode.unknownValue, 'fields.covers.pointer')),
+      );
+    });
+
+    test('a per_target that is no boolean exits 78 at the per_target key', () {
+      expect(
+        () => _parse('per_target: yes please\n'),
+        throwsA(refusal(FaultCode.unknownValue, 'per_target')),
+      );
+    });
+
+    test('a section output_ref that is no boolean exits 78 at its section '
+        'key', () {
+      expect(
+        () => _parse('sections: [{id: why}, {id: matrix, output_ref: rows}]\n'),
+        throwsA(refusal(FaultCode.unknownValue, 'sections[1].output_ref')),
+      );
+    });
+
+    test('root: repo on an output_ref field exits 78 at the root key', () {
+      expect(
+        () => _parse(
+          'fields: [{id: a, type: output_ref, pointer: exact, root: repo}]',
+        ),
+        throwsA(refusal(FaultCode.unknownValue, 'fields.a.root')),
+      );
     });
 
     test('a reference add entry holding a doc in a personal layer is '

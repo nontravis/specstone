@@ -161,6 +161,22 @@ void main() {
       expect(Directory('${root.path}/$_storeFolder').listSync(), hasLength(1));
     });
 
+    test('a later save re-adds a missing approved/ line when the store folder is already present', () async {
+      final root = await writeTree({
+        '.specstone/.gitignore':
+            'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        '$_storeFolder/$_orphan.md': 'an earlier copy',
+      });
+
+      ApprovedCopyStore(root).save(approvedText('# T\n\nBody.\n'));
+
+      expect(
+        File('${root.path}/.specstone/.gitignore').readAsStringSync(),
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
+      );
+      expect(Directory('${root.path}/$_storeFolder').listSync(), hasLength(2));
+    });
+
     test(
       'a .gitignore that cannot take the approved/ line skips the save',
       skip: unreadablePathSkipReason(),
@@ -456,6 +472,27 @@ void main() {
       expect(view, contains('renamed from `docs/$persona`'));
       expect(view, isNot(contains('not yet committed')));
     }, skip: skipGit);
+
+    test(
+      'a committed approval whose copy was never saved is read from git',
+      () async {
+        final root = await writeWriteProject(
+          extra: {_storeFolder: 'a file, not a folder'},
+        );
+        expect(git(root, ['init', '-q']).exitCode, 0);
+        expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+        _walkApproving(root, 'persona:buyer');
+        commitAll(root, 'approved');
+        _editAsDraft(root, persona, persona);
+
+        final view = _dryRunView(root, 'persona:buyer');
+
+        expect(view, contains('| old     | approved copy in commit `'));
+        expect(view, contains('| new     | 1 sentence new |\n'));
+        expect(view, isNot(contains('not yet committed')));
+      },
+      skip: skipGit,
+    );
 
     test('a copy whose hash does not match the doc is ignored, and git history is read', () async {
       String story(String mark, String useCase) =>

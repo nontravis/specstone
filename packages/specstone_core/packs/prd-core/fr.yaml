@@ -5,13 +5,16 @@ description: |-
   Write the Statement with one "shall", stated positively, with a quantified value kept in it, such as `within 2 s`.
   Avoid the listed words and other -ly and -ize words.
   State what the product does, never how: leave mechanics to the spec docs, and never assign a task to a person.
-  Write one Edge cases item per case; a case the system does not handle goes there too, with what happens then.
-  Exercise each Statement clause and each Input or Output row with an edge case, or with a scenario the FR traces.
-  A row that links the FR owning its behavior counts as exercised by that FR's edge cases.
-  So does a Statement clause whose output is such a row.
   Keep the trace in `traced_from` alone, never in the Statement or an edge case.
   Keep one behavior in each requirement; split joined behaviors into separate requirements.
   An FR never records results: the verification matrix points to the evidence.
+  Write an edge case only for an outcome the Statement, an Input/Output row, and a table leave unstated, such as a refusal, a limit, a default, a fallback, or a "no finding" boundary another FR's finding takes.
+  Write one edge case per distinct response; inputs that get the same response are nested triggers of one case, one sample each, in the shape the Edge cases template shows.
+  Leave out a case another FR or a spec rule owns, a case outside the Statement's condition, and implementation or test detail.
+  Put a case the product has no designed response for in the domain's `known_limits`, with what happens then; with no domain doc, put it in the feature's Out-of-scope as `<case> — not planned`. A designed response, even "the file is left as it is", is an edge case.
+  In an error case, name the error code the person or caller sees and whether the run stops. State no exit status: the error catalog reaching the FR holds it, the one the nearest feature up its parent chain holds in the target.
+  Quote an error message only when it is part of the contract, and then once, in the Output row that defines it; with no catalog reaching the FR, state in words what the person sees.
+  Split an FR that holds too many edge cases into new FRs in its story.
   State the present truth; history lives in git.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
   Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
@@ -136,8 +139,6 @@ sections:
     required: true
     description: |-
       Write each as `E01 — <trigger> → <response>`.
-      For an error case (failure, bad input, low performance, operator error), state how the product will detect, report,
-      handle, and recover from it. For a non-error edge case, state its outcome only.
       For several triggers, keep the `→` in the lead and join the response as indented lines, with no blank line.
       List the triggers as nested items.
     template: |-
@@ -148,6 +149,9 @@ sections:
          - <trigger>
     lint:
       names_codes: true
+      item_count:
+        max: 8
+        waits_for: owner
       banned_patterns:
         - id: edge_case_arrow
           pattern: '^(?:\d+\.|[-*]) (?!.*→)'
@@ -168,12 +172,15 @@ sections:
     description: |-
       Give the pass criteria: the observable condition that shows the requirement holds, kept apart from the statement.
       Give the level at which it is proven, such as unit, integration, or end to end.
-      Write a long Verification as one `- **Pass criteria:**` line with one nested bullet per condition.
+      Write `- **Pass criteria:** each edge case holds.`, and put each condition no edge case states in one nested bullet under it.
       Name no test file here; each target's record names the tests that prove the FR.
       Never write results here; evidence belongs to the verification matrix.
     template: |-
-      - **Pass criteria:** <what shows the requirement holds>
-        - <one condition, when the criteria are long>
+      - **Pass criteria:** each edge case holds.
+      - **Level:** <level>
+
+      - **Pass criteria:** each edge case holds.
+        - <a condition no edge case states>
       - **Level:** <level>
     lint:
       banned_patterns:
