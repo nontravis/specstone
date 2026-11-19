@@ -5,10 +5,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:specstone_core/src/index_query/cited_by.dart' show scanCitedBy;
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart'
     show markdownUnparsedWarning;
+import 'package:specstone_core/src/index_query/models/cited_by.dart';
+import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
@@ -1123,6 +1126,79 @@ void main() {
         docAt(store, requirement).parentPath,
         'prds/features/f01_login/us01_email_login/USER_STORY.md',
       );
+    });
+    group('the cited-by table', () {
+      const fr =
+          'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+      const domain = 'docs/specs/f02_signup/DOMAIN.md';
+      const domainDoc = 'specs/f02_signup/DOMAIN.md';
+      const invariants =
+          '# Sign-up domain\n\n## Invariants\n- **INV-13** One.\n- **INV-14** Two.\n';
+      const citing =
+          '---\nverify_method: test\n---\n\n# Validate credentials\n\n## Statement\n'
+          'Lock by [INV-14](../../../../specs/f02_signup/DOMAIN.md#invariants).\n';
+
+      Future<Directory> project() =>
+          writeLoginProject(extra: {domain: invariants, fr: citing});
+
+      /// Returns the lines of a fresh scan of the docs [store] holds.
+      Map<CitedPlace, List<CitedBy>> scanned(Directory root, IndexStore store) {
+        final docs = DocsProject.open(
+          templates: TemplateResolver(),
+          workingDirectory: root,
+          homeDirectory: null,
+        );
+        return scanCitedBy(
+          store.loadDocs(),
+          set: docs.set,
+          contentOf: (doc) => store.loadContent(doc.docPath),
+          links: store.loadLinks(),
+        );
+      }
+
+      CitedPlace item(String id) =>
+          CitedPlace(docPath: domainDoc, kind: CitedKind.item, key: id);
+
+      test(
+        'a refresh that writes docs stores the lines a fresh scan reads',
+        () async {
+          final root = await project();
+          final store = refresh(root).store;
+          expect(store.loadCitedBy(), scanned(root, store));
+          expect(store.loadCitedBy().keys, contains(item('INV-14')));
+        },
+      );
+
+      test('an edit to the cited doc alone drops the line of the doc that cites it', () async {
+        final root = await project();
+        refresh(root);
+        File('${root.path}/$domain')
+            .writeAsStringSync('# Sign-up domain\n\n## Entities\n- Account\n');
+        final again = refresh(root);
+        expect(again.result.reindexed, 1);
+        expect(again.store.loadCitedBy(), scanned(root, again.store));
+        expect(again.store.loadCitedBy().keys, isNot(contains(item('INV-14'))));
+      });
+
+      test('a deleted citing doc leaves no line', () async {
+        final root = await project();
+        refresh(root);
+        File('${root.path}/$fr').deleteSync();
+        final again = refresh(root);
+        expect(again.store.loadCitedBy(), scanned(root, again.store));
+        expect(again.store.loadCitedBy().keys, isNot(contains(item('INV-14'))));
+      });
+
+      test('a warm refresh with no change writes no row', () async {
+        final root = await project();
+        backdate(root);
+        refresh(root);
+        final written = watchWrites(root);
+        final again = refresh(root);
+        expect(again.result.reindexed, 0);
+        expect(written(), isFalse);
+        expect(again.store.loadCitedBy().keys, contains(item('INV-14')));
+      });
     });
     test('a second feature named login leaves the story with no parent and a stored warning', () async {
       const story = 'prds/features/f01_login/us01_email_login/USER_STORY.md';

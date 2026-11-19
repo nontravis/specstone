@@ -318,6 +318,36 @@ void main() {
       ]);
     });
 
+    test('an item part carries the lines of the cited items inside its lines, a nested one included, and the nested item has no part of its own', () async {
+      const nest = '$_specs/topics/nest.md#rules';
+      final index = await indexFor(
+        'See [RULE-1]($nest), [RULE-2]($nest), and [RULE-3]($nest).',
+        {
+          'docs/specs/topics/nest.md':
+              '# Nest\n\n## Rules\n'
+              '- **RULE-1** Outer.\n'
+              '  - **RULE-2** Inner.\n'
+              '- **RULE-3** Third.\n',
+        },
+      );
+      final parts = followLinks(
+        index,
+        pickBundle(index, frName, BundleMode.design, noProject: false),
+        citedBy: citedByIndex(index),
+      );
+
+      expect(
+        {
+          for (final part in parts)
+            part.itemId: [for (final c in part.cited) '${c.item}@${c.after}'],
+        },
+        {
+          'RULE-1': ['RULE-2@5', 'RULE-1@5'],
+          'RULE-3': ['RULE-3@6'],
+        },
+      );
+    });
+
     test('a block part a link appends carries the line right after its heading', () async {
       const line =
           'See [a worked example]($_specs/topics/doc_model.md#a-worked-example).';

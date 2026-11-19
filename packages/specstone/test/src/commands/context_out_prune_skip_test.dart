@@ -11,7 +11,8 @@ void main() {
     final aged = DateTime.now().subtract(const Duration(days: 2));
     File aging(String path) => File('${project.path}/.specstone/bundles/$path')
       ..createSync(recursive: true)
-      ..setLastModifiedSync(aged);
+      ..setLastModifiedSync(aged)
+      ..setLastAccessedSync(aged);
     final locked = aging('locked/old.txt');
     final other = aging('old.txt');
     await Process.run('chmod', ['555', locked.parent.path]);

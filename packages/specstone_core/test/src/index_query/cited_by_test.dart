@@ -8,10 +8,14 @@ import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/item_links.dart'
+    show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
+import 'package:specstone_core/src/index_query/models/indexed_link.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -772,6 +776,147 @@ void main() {
     expect(citedLinesAfter(inline, [item]), {
       3: ['  · cited by guide (topic) —: x'],
     });
+  });
+
+  test('the stored lines equal a fresh scan of the docs, place by place and line by line, whatever the link names', () async {
+    const toDomain = '$_specs/f02_signup/DOMAIN.md';
+    const toFr =
+        '../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    final index = await _index(
+      'Lock by $_inv13 and $_inv14, see [the domain]($toDomain) and '
+      '[the invariants]($toDomain#invariants), per [a note]($_specs/topics/blocks.md#a-note) '
+      'and [the title]($_specs/topics/blocks.md#blocks).',
+      extra: {
+        'docs/specs/topics/blocks.md':
+            '# Blocks\n\n## Examples\n### A note\nShort.\n',
+        'docs/specs/topics/guide.md':
+            '# Guide\n\n## Purpose\nSee [RULE-2](ranges.md#rules) to [RULE-4](ranges.md#rules), '
+            '[the edge cases]($toFr#edge-cases), and [the rule]($toFr).\n',
+      },
+    );
+
+    final stored = citedByIndex(index);
+    final fresh = scanCitedBy(
+      index.docs,
+      set: index.set,
+      contentOf: index.contentOf,
+      links: [
+        for (final doc in index.docs)
+          for (final to in index.linkedFrom(doc))
+            IndexedLink(source: doc.docPath, target: to.docPath),
+      ],
+    );
+
+    expect({
+      for (final place in fresh.keys) place.kind,
+    }, CitedKind.values.toSet());
+    expect(fresh.length, greaterThan(8));
+    expect(Map.of(stored), fresh);
+    expect(stored.keys.toList(), fresh.keys.toList());
+  });
+
+  test('a scan loads only the docs a link starts from or reaches', () async {
+    const lonely = 'docs/specs/topics/lonely.md';
+    final index = await _index(
+      'Lock by $_inv13.',
+      extra: {lonely: '# Lonely\n\n## Purpose\nNothing links here.\n'},
+    );
+    final loaded = <String>{};
+
+    scanCitedBy(
+      index.docs,
+      set: index.set,
+      contentOf: (doc) {
+        loaded.add(doc.docPath);
+        return index.contentOf(doc);
+      },
+      links: [
+        for (final doc in index.docs)
+          for (final to in index.linkedFrom(doc))
+            IndexedLink(source: doc.docPath, target: to.docPath),
+      ],
+    );
+
+    expect(loaded, contains(_domain));
+    expect(loaded, contains(_frPath));
+    expect(loaded, isNot(contains('specs/topics/lonely.md')));
+  });
+
+  test('the line of a link on the last line of a doc with no final newline is read', () async {
+    const guide = 'docs/specs/topics/guide.md';
+    const last = 'See [INV-14](../f02_signup/DOMAIN.md#invariants)';
+    final cited = _citedBy(
+      await _index(
+        'Check it.',
+        extra: {guide: '# Guide\n\n## Purpose\nFirst.\n$last'},
+      ),
+    );
+
+    expect(_of(cited, _domain, 'INV-14').map((by) => by.line), [last]);
+  });
+
+  group('citedItemsIn', () {
+    const inv15 = '[INV-15]($_specs/f02_signup/DOMAIN.md#invariants)';
+    const nesting = <String, String>{
+      'docs/specs/f02_signup/DOMAIN.md':
+          '# Sign-up domain\n\n## Invariants\n'
+          '- **INV-13** One.\n'
+          '  - **INV-14** Nested in one.\n'
+          '- **INV-15** Three.\n'
+          '- **INV-13** One again.\n',
+    };
+
+    /// The cited items of the domain's Invariants as `<ID>@<line printed after>`.
+    Future<List<String>> citedIn({
+      LineRange? within,
+      Map<String, LineRange>? extents,
+    }) async {
+      final index = await _index(
+        'Cites $_inv13, $_inv14, and $inv15.',
+        extra: nesting,
+      );
+      final doc = index.at('specs/f02_signup/DOMAIN.md')!;
+      final content = index.contentOf(doc);
+      final sections = citedSectionsOf(content, index.typeOf(doc));
+      final at = sections.indexWhere((s) => s.key == 'invariants');
+      return [
+        for (final item in citedItemsIn(
+          _citedBy(index),
+          doc,
+          content,
+          sections[at],
+          at,
+          within: within,
+          extents: extents,
+        ))
+          '${item.item}@${item.after}',
+      ];
+    }
+
+    test('a nested item prints before its outer item, a repeated ID spans its first item', () async {
+      expect(await citedIn(), ['INV-14@5', 'INV-13@5', 'INV-15@6']);
+    });
+
+    test(
+      'items whole inside the lines asked for are the only ones given',
+      () async {
+        expect(await citedIn(within: const LineRange(first: 6, last: 6)), [
+          'INV-15@6',
+        ]);
+      },
+    );
+
+    test(
+      'the extents a caller holds are the ones read, not the section again',
+      () async {
+        expect(
+          await citedIn(
+            extents: const {'INV-15': LineRange(first: 9, last: 9)},
+          ),
+          ['INV-15@9'],
+        );
+      },
+    );
   });
 
   group('printedBodyOf', () {

@@ -48,7 +48,7 @@ class FolderCommand extends SpecstoneCommand {
 }
 
 /// Returns the canonical `.specstone` path of the project above [start],
-/// after making its `reports/` folder.
+/// after making its `reports/` folder and pruning `bundles/` and `reports/`.
 String _specstoneFolder(Directory start) {
   final root = matchProjectRoot(start)?.root;
   if (root == null) {
@@ -71,5 +71,11 @@ String _specstoneFolder(Directory start) {
       'cannot make ${reports.path}: ${error.osError?.message ?? error.message}',
     );
   }
+  pruneSpecstoneFolder(
+    root,
+    keep: const {},
+    bounds: readCleanupBounds(root),
+    now: DateTime.now(),
+  );
   return folder;
 }

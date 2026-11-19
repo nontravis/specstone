@@ -29,12 +29,13 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// and the shared docs. Each shows its approval view (see
 /// [renderApprovalView]) as `Draft n/m` over the drafts selected, with
 /// [context] lines of context per hunk and ANSI [color] when set. Each prompt
-/// waits outside the write lock; `y` re-reads the file under the lock and
-/// writes only when its bytes are those the Owner saw, else the draft shows
-/// again at the same position. `n` moves on; `q` and the end of input from
-/// [readLine] end the walk; any other answer asks again. An approval removes
-/// `draft` and writes the doc's ApprovalHash as `approved:`, and saves the
-/// approved text in an [ApprovedCopyStore], which the walk's end prunes.
+/// waits outside the write lock; `y` reads the index afresh, re-reads the file
+/// under the lock, and writes only when its bytes are those the Owner saw,
+/// else the draft shows again at the same position. `n` moves on; `q` and the
+/// end of input from [readLine] end the walk; any other answer asks again. An
+/// approval removes `draft` and writes the doc's ApprovalHash as `approved:`,
+/// and saves the approved text in an [ApprovedCopyStore], which the walk's end
+/// prunes.
 /// Reads every selected draft, the approved copy of each, and every doc of the
 /// tree once, before the first view shows; with no draft waiting it reads none
 /// of them.
@@ -511,11 +512,22 @@ String _viewOf(
 );
 
 /// Writes the approval under the lock; returns false when the bytes changed.
+///
+/// Reads the index afresh first, so a peer commit during the prompt wait does
+/// not make the lock rerun the walk; a draft the fresh index lacks is gone.
 bool _approveIfUnchanged(
   WriteSession session,
-  IndexedDoc doc,
+  IndexedDoc shownDoc,
   List<int> shown,
 ) {
+  session.refresh();
+  // A draft the fresh index lacks still goes to the re-read under the lock,
+  // which refuses a link out of the project and passes over a deleted file.
+  final doc =
+      session.index.docs
+          .where((candidate) => candidate.docPath == shownDoc.docPath)
+          .firstOrNull ??
+      shownDoc;
   return session.locked(() {
     final current = session.readDocBytes(doc.docPath);
     if (current == null) return true;

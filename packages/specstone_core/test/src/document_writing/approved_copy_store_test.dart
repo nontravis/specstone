@@ -9,7 +9,10 @@ import 'package:specstone_core/src/document_writing/approved_copy_store.dart';
 import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
@@ -52,6 +55,11 @@ void _editAsDraft(Directory root, String from, String docPath) {
     ..createSync(recursive: true)
     ..writeAsStringSync(text);
 }
+
+SeenDraft _seenDraft(Directory root, String address) => SeenDraft(
+  name: address,
+  hash: (getDoc(root, address)['bases']! as Map)['doc']! as String,
+);
 
 String _dryRunView(Directory root, String name) =>
     writeIn(root, (s) => approveDryRun(s, names: [name])).text;
@@ -482,6 +490,35 @@ void main() {
       expect(view, contains('| old     | approved copy in commit `'));
       expect(view, isNot(contains('not yet committed')));
     }, skip: skipGit);
+
+    test('a doc marked approved: true with no saved copy reads its approved copy from git', () async {
+      String story(String marks, String useCase) =>
+          '---\nstatus: planned\n$marks---\n\n# Sign out\n\n## Use Case\n\n'
+          '$useCase\n\n## Acceptance Criteria\n\n- **Given** a signed-in user\n';
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$story2': story(
+            'approved: true\n',
+            'Sign out. Ends the session.',
+          ),
+        },
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      docFile(root, story2).writeAsStringSync(
+        story(
+          'draft: true\napproved: true\n',
+          'Sign out. Ends the session. Keeps the cart.',
+        ),
+      );
+
+      final view = _dryRunView(root, 'user_story:login/sign_out');
+
+      expect(Directory('${root.path}/$_storeFolder').existsSync(), isFalse);
+      expect(view, contains('| old     | approved copy in commit `'));
+      expect(view, isNot(contains('not yet committed')));
+    }, skip: skipGit);
   });
 
   group('the prune', () {
@@ -572,6 +609,149 @@ void main() {
       _dryRunView(root, 'persona:buyer');
 
       expect(_copyFile(root, _orphan).existsSync(), isTrue);
+    });
+
+    group('at the end of a walk or a --yes call', () {
+      late Directory root;
+
+      setUp(() async {
+        root = await writeWriteProject();
+        _saveCopy(root, _orphan, 'an approval no doc carries');
+      });
+
+      test('a walk ended by q prunes', () {
+        writeIn(
+          root,
+          (s) => approveDrafts(s, readLine: () => 'q', out: StringBuffer()),
+        );
+
+        expect(_copyFile(root, _orphan).existsSync(), isFalse);
+      });
+
+      test('a walk answered n to every draft prunes', () {
+        writeIn(
+          root,
+          (s) => approveDrafts(s, readLine: () => 'n', out: StringBuffer()),
+        );
+
+        expect(_copyFile(root, _orphan).existsSync(), isFalse);
+        expect(readDoc(root, persona), contains('draft: true'));
+      });
+
+      test('--yes prunes after its writes, keeping the copy it saved', () {
+        writeIn(
+          root,
+          (s) => approveNamed(s, [_seenDraft(root, 'persona:buyer')]),
+        );
+
+        expect(_copyFile(root, _orphan).existsSync(), isFalse);
+        expect(_copyFile(root, _markOf(root, persona)).existsSync(), isTrue);
+      });
+
+      test('a walk a refusal ends prunes none', () {
+        expect(
+          () => writeIn(
+            root,
+            (s) => approveDrafts(
+              s,
+              names: ['feature:nosuch'],
+              readLine: () => 'y',
+              out: StringBuffer(),
+            ),
+          ),
+          throwsA(isA<IndexFault>()),
+        );
+        expect(_copyFile(root, _orphan).existsSync(), isTrue);
+      });
+
+      test('a --yes call a refusal ends prunes none', () {
+        const stale = SeenDraft(name: 'persona:buyer', hash: '000000000000');
+
+        expect(
+          () => writeIn(root, (s) => approveNamed(s, [stale])),
+          throwsA(isA<WriteFault>()),
+        );
+        expect(_copyFile(root, _orphan).existsSync(), isTrue);
+      });
+
+      test('a walk with no draft in scope prunes none', () {
+        final out = StringBuffer();
+
+        writeIn(
+          root,
+          (s) => approveDrafts(
+            s,
+            names: ['user_story:login/sign_out'],
+            readLine: () => 'y',
+            out: out,
+          ),
+        );
+
+        expect(out.toString(), 'no draft waits for approval\n');
+        expect(_copyFile(root, _orphan).existsSync(), isTrue);
+      });
+
+      test('a busy index write lock skips the prune and keeps the copies', () {
+        writeIn(root, (_) {});
+        final other = sqlite3.open('${root.path}/.specstone/index.sqlite');
+        addTearDown(other.close);
+        String? answer() {
+          other.execute('BEGIN IMMEDIATE');
+          return 'q';
+        }
+
+        writeIn(
+          root,
+          (s) => approveDrafts(s, readLine: answer, out: StringBuffer()),
+          busyTimeout: const Duration(milliseconds: 200),
+        );
+
+        expect(_copyFile(root, _orphan).existsSync(), isTrue);
+      });
+
+      test(
+        'a doc that cannot be read skips the prune and keeps the copies',
+        skip: unreadablePathSkipReason(),
+        () {
+          final unreadable = docFile(root, 'prds/d01_context.md');
+          String? answer() {
+            Process.runSync('chmod', ['000', unreadable.path]);
+            addTearDown(
+              () => Process.runSync('chmod', ['644', unreadable.path]),
+            );
+            return 'q';
+          }
+
+          writeIn(
+            root,
+            (s) => approveDrafts(s, readLine: answer, out: StringBuffer()),
+          );
+
+          expect(_copyFile(root, _orphan).existsSync(), isTrue);
+        },
+      );
+
+      test(
+        'a docs folder that cannot be read skips the prune and keeps the copies',
+        skip: unreadablePathSkipReason(),
+        () {
+          final unreadable = Directory('${root.path}/docs/prds/personas');
+          String? answer() {
+            Process.runSync('chmod', ['000', unreadable.path]);
+            addTearDown(
+              () => Process.runSync('chmod', ['755', unreadable.path]),
+            );
+            return 'q';
+          }
+
+          writeIn(
+            root,
+            (s) => approveDrafts(s, readLine: answer, out: StringBuffer()),
+          );
+
+          expect(_copyFile(root, _orphan).existsSync(), isTrue);
+        },
+      );
     });
   });
 }

@@ -134,6 +134,31 @@ void main() {
     },
   );
 
+  test('an item range from the fr gives each item it spans its own outbound piece, nested lines included', () async {
+    final pieces = await _piecesOf(
+      _files(
+        fr: _fr(
+          'Holds [INV-1]($_toDomain#invariants) to [INV-3]($_toDomain#invariants).',
+        ),
+        domain: _lines([
+          '# Shop domain',
+          '',
+          '## Invariants',
+          '- **INV-1** One.',
+          '  - Nested detail.',
+          '- **INV-2** Two.',
+          '- **INV-3** Three.',
+          '- **INV-4** Four.',
+        ]),
+      ),
+    );
+    expect(pieces.map(_show), [
+      '$shopDomain#invariants id=INV-1 heading=null outbound 4-5',
+      '$shopDomain#invariants id=INV-2 heading=null outbound 6-6',
+      '$shopDomain#invariants id=INV-3 heading=null outbound 7-7',
+    ]);
+  });
+
   test('an item linked in and out is one outbound piece', () async {
     final pieces = await _piecesOf(
       _files(

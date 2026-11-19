@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
-import 'package:specstone_core/src/index_query/bundle_prune.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
     show featurePatternDocAddress, featurePatternListName;
+import 'package:specstone_core/src/index_query/folder_prune.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show tokenSizeOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
@@ -40,9 +40,6 @@ const _cutNameByteCap = 250;
 
 /// The hex characters of a cut name's hash.
 const _nameHashLength = 8;
-
-/// The `/`-separated path of the bundles folder below a project root.
-const _bundlesBelowRoot = '.specstone/bundles';
 
 const _refsIsReadFirst = 'the refs file is the read-first file';
 
@@ -141,7 +138,7 @@ int _nameStartOf(String path) {
 // MARK: - Write
 
 /// Writes [bundle]'s text to [file], and its refs text to the refs file beside
-/// it when the answer is split, then prunes old bundle files.
+/// it when the answer is split, then prunes old bundle and report files.
 ///
 /// An `implement` refs file opens with the index lines of its docs and parts,
 /// each range counting those lines; the reply's refs header and `--json` count
@@ -180,7 +177,12 @@ ReadAnswer answerBundleFile(
   for (final MapEntry(key: path, value: text) in writes.entries) {
     writeBuildOutput(File(path), utf8.encode(text), displayPath: path);
   }
-  _pruneBundlesOf(project.projectRoot, keep: writes.keys.toSet());
+  pruneSpecstoneFolder(
+    project.projectRoot,
+    keep: writes.keys.toSet(),
+    bounds: project.cleanup,
+    now: DateTime.now(),
+  );
   return ReadAnswer(
     text: bundleIndex(answer, shownPath, refsPath: refsPath),
     json: bundleIndexJson(answer, shownPath, refsPath: refsPath),
@@ -248,22 +250,6 @@ BundleEntry _shifted(BundleEntry entry, int lines) => BundleEntry(
       EntrySection(key: section.key, first: section.first + lines),
   ],
 );
-
-/// Prunes the project's `.specstone/bundles/`, keeping [keep].
-///
-/// A `bundles/` that is a link, or lies below one, is left alone: its real
-/// folder is not the project's own.
-void _pruneBundlesOf(Directory projectRoot, {required Set<String> keep}) {
-  final real = canonicalPath(bundlesFolderOf(projectRoot).path);
-  if (!isBundlesFolderOf(canonicalPath(projectRoot.path), real)) return;
-  pruneBundles(Directory(real), keep: keep, now: DateTime.now());
-}
-
-/// Whether [path] is `.specstone/bundles` right below [root], both canonical.
-///
-/// [isWindows] picks the path style; it defaults to the running platform.
-bool isBundlesFolderOf(String root, String path, {bool? isWindows}) =>
-    pathInside(root, path, isWindows: isWindows) == _bundlesBelowRoot;
 
 // MARK: - Index
 

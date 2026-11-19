@@ -130,6 +130,7 @@ class GetCommand extends SpecstoneCommand {
       projectRoot: project.projectRoot,
       docsRoot: project.docsRoot,
       asJson: asJson,
+      cleanup: project.cleanup,
       flags: [if (paths) 'paths', if (code) 'code'],
       args: rest,
       codeTarget: codeTarget,

@@ -124,6 +124,7 @@ class CheckCommand extends SpecstoneCommand {
         projectRoot: output.project.projectRoot,
         docsRoot: output.project.docsRoot,
         asJson: asJson,
+        cleanup: output.project.cleanup,
         flags: [if (isRepeats) 'repeats'],
         args: args.rest,
         codeTarget: targetOf(args),

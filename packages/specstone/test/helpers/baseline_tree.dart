@@ -44,16 +44,17 @@ const _padWords = [
 /// The project pins the shipped `prd-core` and `software-tech` and holds
 /// [baselineBuckets]' 1,826 docs in a fixed order. Each feature's record, the
 /// 52 `implementation` docs, takes one size of the middle of the ascending size
-/// list, so it fits its entries; each other doc takes the rest in generation
-/// order, stepping 7 sizes at a time through the 1,774 left. Each of the 1,040
-/// FRs has an `implemented` entry in its feature's record that names one class
-/// in its own `src/` file, and each of the two topics holds one `src/` file, so
-/// 1,042 code files sit under the tech stack's `code:` root and every one is
-/// reached by a `covers:` prefix. Each entry and prefix ends in the fingerprint
-/// of the code it names, from the shipped recipe, so a check finds no code link
-/// changed or unconfirmed. Each feature's architecture doc holds one small
-/// Mermaid block that parses, inside its size. The folder is deleted by
-/// `addTearDown`.
+/// list, so it fits its entries, and the two dense-cite FRs take the two
+/// largest, so they fit their lines; each other doc takes the rest in
+/// generation order, stepping 7 sizes at a time through the 1,772 left. Each of
+/// the 1,040 FRs has an `implemented` entry in its feature's record that names
+/// one class in its own `src/` file, and each of the two topics holds one
+/// `src/` file, so 1,042 code files sit under the tech stack's `code:` root and
+/// every one is reached by a `covers:` prefix. Each entry and prefix ends in
+/// the fingerprint of the code it names, from the shipped recipe, so a check
+/// finds no code link changed or unconfirmed. Each feature's architecture doc
+/// holds one small Mermaid block that parses, inside its size. The folder is
+/// deleted by `addTearDown`.
 Future<Directory> writeBaselineTree() async {
   final root = await writeTree({'.specstone/config.yaml': shippedPinsConfig()});
   final templates = TemplateResolver().resolve(
@@ -65,14 +66,21 @@ Future<Directory> writeBaselineTree() async {
   assert(specs.length == all.length, 'one size for each doc');
   final padding = _padding(all.last);
   final middle = all.length ~/ 2;
-  final recordSizes = all.sublist(middle, middle + _featureCount).iterator;
-  final sizes = [...all.take(middle), ...all.skip(middle + _featureCount)];
+  final recordEnd = middle + _featureCount;
+  final denseStart = all.length - _denseDocs.length;
+  final recordSizes = all.sublist(middle, recordEnd).iterator;
+  final denseSizes = all.sublist(denseStart).iterator;
+  final sizes = [...all.take(middle), ...all.sublist(recordEnd, denseStart)];
   var other = 0;
   for (final spec in specs) {
     final isRecord = spec.type == _recordType;
+    final isDense = _denseDocs.contains(spec.path);
     if (isRecord) recordSizes.moveNext();
+    if (isDense) denseSizes.moveNext();
     final size = isRecord
         ? recordSizes.current
+        : isDense
+        ? denseSizes.current
         : sizes[(other++ * _stride) % sizes.length];
     final file = File.fromUri(
       root.uri.resolve(
@@ -164,6 +172,37 @@ const Map<String, String> _citingFr = {
       '[E01](../../f01_feature_1/us01_story_1/fr01_req_1.md#edge-cases).',
 };
 
+/// How many items of one section the dense-cite fixture holds and cites.
+const denseCiteCount = 100;
+
+String _frPath(int f, int s, int r) =>
+    'prds/features/f${_two(f)}_feature_$f/us${_two(s)}_story_$s/'
+    'fr${_two(r)}_req_$r.md';
+
+/// The two FRs of the dense-cite fixture, the citing one first.
+final Set<String> _denseDocs = {_frPath(1, 1, 2), _frPath(1, 2, 1)};
+
+String _edgeCaseId(int n) => 'E${n.toString().padLeft(3, '0')}';
+
+/// The edge cases of feature 1's second story's first FR: [denseCiteCount]
+/// items, each cited by `_denseCiting`.
+final Map<String, String> _denseCited = {
+  'Edge cases': [
+    for (var n = 1; n <= denseCiteCount; n++)
+      '- **${_edgeCaseId(n)}** $_baselineText',
+  ].join('\n'),
+};
+
+/// The statement of feature 1's first story's second FR: one line for each item
+/// of `_denseCited`, so the design bundle of `feature_1/story_1` appends them
+/// all from a section whose every item another doc cites.
+final Map<String, String> _denseCiting = {
+  'Statement': [
+    for (var n = 1; n <= denseCiteCount; n++)
+      '- [${_edgeCaseId(n)}](../us02_story_2/fr01_req_1.md#edge-cases)',
+  ].join('\n'),
+};
+
 /// Returns the small Mermaid block of feature [f]'s architecture doc.
 ///
 /// It differs per feature, so the index stores one parse result for each doc.
@@ -225,12 +264,14 @@ List<_DocSpec> _featureSpecs(int f) {
       for (var r = 1; r <= _frsPerStory; r++)
         _spec(
           'fr',
-          'prds/features/$key/us${_two(s)}_story_$s/fr${_two(r)}_req_$r.md',
+          _frPath(f, s, r),
           'Requirement $r',
           'traced_from:\n  - S1\nverify_method: test\n',
           switch ((f, s, r)) {
             (1, 1, 1) => _citedFr,
             (2, 1, 1) => _citingFr,
+            (1, 1, 2) => _denseCiting,
+            (1, 2, 1) => _denseCited,
             _ => const {},
           },
         ),
