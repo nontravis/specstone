@@ -5600,6 +5600,27 @@ void _addedPinsTests() {
         ]);
       });
 
+      test('a project type extending a project type extending a pinned type '
+          'stands without the add, so its docs are neither drafted nor '
+          'newly typed', () async {
+        final root = await writeTree({
+          _configPath: shippedPinsConfig(const ['prd-core']),
+          '.specstone/templates/a.yaml':
+              'id: a\nextends: glossary\npath: prds/as/{slug}.md\n',
+          '.specstone/templates/b.yaml':
+              'id: b\nextends: a\npath: prds/bs/{slug}.md\n',
+          'docs/prds/bs/one.md': '# One\n\n\n\nText.\n',
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(plan.lists.toJson(), isNot(contains('typedByAdd')));
+        expect(
+          _rewriteAt(plan, 'docs/prds/bs/one.md').text,
+          isNot(contains('draft: true')),
+        );
+      });
+
       test('a newly typed doc the run also moves is listed at its planned '
           'path', () async {
         final home = await writeTree({
