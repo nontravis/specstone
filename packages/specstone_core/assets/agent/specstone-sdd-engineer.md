@@ -46,7 +46,7 @@ batch's findings into drafts.
   passed with no doc write since it and no split since the last audit; search it per target; absent, run one bare
   `check --out`. Bootstrap: main's latest check file, never a `--repeats` one, passed with no doc write since; take
   `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1). Sync: the gate's file, passed on
-  the first route alone with no doc write since, bar other feature engineers' own scopes; take your work list from it
+  the first route alone with no doc write since, bar writes by main's small route and other feature engineers to their own scopes; take your work list from it
   and run no gate; absent, run your gate.
 - **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; its code links are your
   work list, taking their states from the `check:` file, else your gate `check`; absent, that file or gate `check`

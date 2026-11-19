@@ -7,7 +7,7 @@ and fix only that target's record and `covers:` entries, and each `root: project
 
 Your gate file gives it: each `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
 `implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row
-finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that takes a state, a waiting code target's left
+finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that takes a state instead, a waiting code target's left
 out.
 
 ## 3. Find the covering docs
@@ -47,7 +47,7 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
    - **A `planned` entry's code lacking its behavior yet** is no mismatch, no question: stamp it, still
      `planned`.
    - **Mismatch**, code behavior the approved text contradicts: nothing for the link; report each point under
-     `Mismatches:`: doc and section, what the spec states, what the code does. On a fix-the-spec pick sent to you, draft
+     `Mismatches:`: doc and section, what the spec states, what the code does. On a fix-the-spec pick, draft
      each stale section (step 5); its fingerprint awaits approval.
 3. Fix each record code-path or `covers:` finding of a covering doc: pipe the corrected list to
    `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (hash:

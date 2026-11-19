@@ -20,9 +20,9 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **0 or 1:** the project is on the new format, even from a subfolder, since the CLI looks for
   `.specstone/config.yaml` here and in each folder above. Search its file for the work list (step 2).
-- **Any other exit:** report the CLI's error and stop.
+- **Any other exit but 75, `index_busy` (run it again):** report the CLI's error and stop.
 
-Never look for `.specstone/` first: the gate finds a root above the working directory.
+Never look for `.specstone/`: the gate finds a root above the working directory.
 
 ## 2. Work list, then hand off
 
@@ -53,7 +53,7 @@ check first, as `routes.md` gives. Show each report's `Report:` line and relay b
 paths or doc text, and work no step of the procedure yourself while a dispatch can run, but a small group. Name
 each report path as the gate names its file, `XXXXXX` picked again while that file exists.
 
-Run again any `specstone` command that ends `index_busy`; it is no CLI error.
+Run again any `specstone` command that ends `index_busy`.
 
 The main session's procedure is `references/procedure.md`. With no subagent, follow it once per group in route order,
 on that group's findings. After a dispatch that fails, follow it for that group alone; the other groups go on by their

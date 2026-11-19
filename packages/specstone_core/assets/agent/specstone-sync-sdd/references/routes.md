@@ -28,7 +28,8 @@ ahead of the code is no match. Stamp a match with
 `<fingerprint>` the finding's, and `--target <name>` when the project has two or more. A stamp touches only that
 group's docs.
 
-A mismatch, any doubt, a `draft: true` you meet, or any refused stamp hands the whole group to an engineer of its
+A mismatch, any doubt, approved text ahead of the code (no stamp: it stays suspect, listed as a waiting pointer), a
+`draft: true` you meet, or any refused stamp hands the whole group to an engineer of its
 route. That engineer runs its own check first.
 
 ## Order
