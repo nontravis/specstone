@@ -6,7 +6,8 @@
 2. When it refuses with `doc_not_found`, update the drafts list for each name it names: a doc moved between rounds
    takes the new name `move` printed (`moved <from> to <to>`), and a doc deleted, or listed and never created,
    drops out. Run the call again on that list.
-3. For each draft whose `bases.doc` differs from its last `Audited:` hash, a changed draft, run
+3. For each draft whose `bases.doc` differs from its last `Audited:` hash, or that has none, such as a split's new
+   FR, a changed draft, run
    `specstone refs <changed draft>`. Its `Inbound` lines give its citers: a draft of the list that links to it or
    names it in `traced_from`, one hop only.
 4. Send every re-audit as a fresh `mode: audit`, never a resumed one, with the document's path, `check:` the last

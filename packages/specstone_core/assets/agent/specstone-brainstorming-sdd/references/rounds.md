@@ -45,8 +45,10 @@ The drafts list is the first author report's drafts plus each doc a fix round or
   Run `specstone approve <drafts list> --dry-run --json`, then append to that audit's report file one
   `Styled: <type>:<name>@<hash>` line per fixed draft, `hash` as that call prints it.
 - **A split proposal** the Owner okays: run its `specstone move` commands as an author's `Move:` lines. The new FRs
-  join the drafts list, and a fresh author pass fills them before any audit: it joins the next round when one is due,
-  else it is no round. Then the amend compare below.
+  join the drafts list, and a fresh author pass, the fill pass, fills them before any audit. It takes the proposal's
+  lines and joins the next round when one is due; else it is no round and carries no findings. Past both rounds it
+  still runs, and its re-audit's findings reach the Owner with the drafts, with no further round. Then the amend
+  compare below.
 - **The cap**: run at most two rounds, fix rounds and amend passes alike; no design check counts. Lines left after the
   second get no third round: the Owner sees them with the drafts before approving any, and their decision on one
   takes section 1's route.
@@ -57,6 +59,7 @@ The drafts list is the first author report's drafts plus each doc a fix round or
   - The two equal: dispatch the audit.
   - The design's higher: run a fresh author pass with the amend first, then the audit.
   - No `Design:` line: run a fresh author pass first.
+  - A split's new FR awaits its fill: run the fill pass first, with any amend, then the audit.
 
 ## 3. Re-audit only what changed
 
