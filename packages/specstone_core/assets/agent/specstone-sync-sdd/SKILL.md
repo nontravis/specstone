@@ -22,7 +22,7 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
   `.specstone/config.yaml` here and in each folder above. Search its file for the work list (step 2).
 - **Any other exit:** report the CLI's error and stop.
 
-Never look for `.specstone/` yourself first: the gate finds a project root above the working directory.
+Never look for `.specstone/` first: the gate finds a root above the working directory.
 
 ## 2. Work list, then hand off
 
@@ -31,7 +31,7 @@ The work list is the gate file's `code_suspect`, `code_unconfirmed`, `implements
 never a `tests_missing` one. A matrix-row finding is a `matrix_test_unresolved` one, or a `suspect` or `unconfirmed` one
 whose `waitsFor` is `agent`, on a Verification matrix row; one whose `waitsFor` is `owner` stays out. When the Owner
 names a feature, it is every code link of that feature that takes a state, findings or not. Take nothing from the task:
-code changed outside a task is in the list too.
+code changed outside one is in the list too.
 
 With an empty list, tell the Owner no code changed since its docs were compared, and stop with no dispatch and no
 further call.
@@ -62,7 +62,7 @@ routes.
 ## 3. After the report
 
 Run item 1 for each report as it comes in, and items 2 and 3 once, after the last group's report, over the picks of
-every group. A group you judged or followed yourself stands in for item 1 by its own changes and stamps.
+every group. A group you judged or followed stands in for item 1 by its own changes and stamps.
 
 1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
 2. Get each draft approved through `specstone-expert-sdd`'s Owner confirmation.
@@ -72,15 +72,15 @@ every group. A group you judged or followed yourself stands in for item 1 by its
    fix lands in a spec doc, send the picks to a new `specstone-sdd-engineer` per group that holds picks, each routed as
    its group, with `mode: sync`, `picks`, and that group's `scope:` (`scope: uncovered` for an `Uncovered:` file), never
    `feature:` unless the Owner named the feature.
-4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
-   list to `specstone set implementation:<feature> --field implements --base <hash>` (or
-   `specstone set <type>:<name> --field covers --base <hash>`), each with `--target <name>`, the target the report
-   gives for that pointer, when the project has two or more, the hash from
-   `bases.fields.implements` (or `bases.fields.covers`) of `specstone get <doc> --json` for the same doc, with the
-   same `--target`. A waiting match is written whole: the
-   fingerprint ends the entry, and a `planned` entry's `implemented` goes to `statuses` through `--field statuses` with
-   `bases.fields.statuses`. For each waiting removal, once its draft is approved, run
-   `specstone set --remove-task <task> ...` (with `--target <name>` when the project has two or more), then name the
-   removed tasks to the Owner.
+4. For each pointer that waited on an approval, once its draft is approved, write that one entry, each `set` with
+   `--target <name>`, the report's, when the project has two or more: pipe the corrected list to
+   `specstone set implementation:<feature> --field implements --base <hash>` (or
+   `specstone set <type>:<name> --field covers --base <hash>`), the hash from `bases.fields.implements` (or
+   `bases.fields.covers`) of `specstone get <doc> --json`, same `--target`. A waiting match then takes
+   `specstone set <doc> --stamp <entry>=<fingerprint>` (the finding's, no base), and a `planned` entry's
+   `implemented` goes to `statuses` by `--field statuses` with `bases.fields.statuses`. A refused stamp writes
+   nothing more for its entry: report it, its finding left for the next sync. For each waiting removal, once approved,
+   run `specstone set --remove-task <task> ...` (`--target <name>` when two or more), then name
+   them to the Owner.
 5. Follow the `specstone-brainstorming-sdd` skill for each behavior the report hands over and each pick that lands in
    a story or FR, since the sync writes no PRD doc.

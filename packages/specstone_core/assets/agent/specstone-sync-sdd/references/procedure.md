@@ -1,5 +1,5 @@
 **Code target** (two or more `targets:`): a changed path's target is the `code target:` line, or the `codeTarget` key
-under `--json`, of its `context --code --out` call, covered or not, and a deleted path's is the finding DocPath's; each
+under `--json`, of its `context --code --out` call, and a deleted path's is the finding DocPath's; each
 `get`, `set`, and `new` of a per-target doc carries `--target <name>`, or addresses the doc by its DocPath. Compare
 and fix only that target's record and `covers:` entries, and each `root: project` entry (step 3), of no target.
 
@@ -12,8 +12,7 @@ out.
 
 ## 3. Find the covering docs
 
-A finding's `path` is from its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`;
-default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
+A finding's `path` is from its target's code root (`code_root:` per `targets:` entry; default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
 
 For each listed code path but a `tests_unresolved` line's or a matrix row's (steps 4.4, 4.5), run
 `specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
@@ -21,10 +20,10 @@ For each listed code path but a `tests_unresolved` line's or a matrix row's (ste
 `root` in `specstone guide <type> --json`, once per type) takes none: its path is from the project root, its
 covering doc the doc its finding names: `specstone context <doc> --for implement --out`.
 
-- **Warning `no doc covers or implements <path>`:** A rename pair's new side goes to step 4.3. Else read it,
-  write nothing for it; report under `Uncovered:` its path, the observable behavior it adds that no spec
+- **Warning `no doc covers or implements <path>`:** A rename pair's new side: step 4.3. Else read it,
+  write nothing; report under `Uncovered:` its path, the observable behavior it adds that no spec
   states, and whether that needs a new story or FR.
-- **64, `code_path_not_found`:** the file moved or is gone; step 4.3 fixes entries naming it.
+- **64, `code_path_not_found`:** the file moved or is gone; step 4.3.
 - **75, `index_busy`:** run it again.
 - **Any other exit:** report the CLI's error and stop.
 
@@ -35,17 +34,21 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
    `git log -1 --format=%H -S '<recorded>' -- docs/<DocPath>` gives `<base>`, then
    `git diff --name-only <base> -- <prefix>` and `git ls-files --others --exclude-standard -- <prefix>`; with no such
    commit, or on a `code_unconfirmed` folder, every file under the prefix.
-2. Write by outcome through step 4.3's `set --field`, which keeps the draft flag. A pending draft among the covering
+2. Write by outcome through `set`, which keeps the draft flag. A pending draft among the covering
    docs holds every write of a match and of a `planned` entry's fingerprint: list a match as a waiting pointer,
-   written whole once approved (fingerprint, and a `planned` entry's `implemented`). Else a named feature's
-   `clean` link takes no fingerprint, only a `planned` entry's `implemented`:
-   - **Match:** the finding's `fingerprint` ending the link's entry, any pointer fix, and for a `planned` entry
-     `implemented` in its `statuses`; never `skipped` or `deprecated`. `task-refs.md` removes closed tasks' refs.
+   written once approved. Else a named feature's `clean` link takes no fingerprint, only a `planned` entry's
+   `implemented`:
+   - **Match:** `set <doc> --stamp <entry>=<fingerprint>` (the finding's, no `get`), then by `--field` any pointer
+     fix and for a `planned` entry `implemented` in its `statuses`; never `skipped` or `deprecated`. `task-refs.md`
+     removes closed tasks' refs.
+   - **Refused stamp:** `stamp_stale`: judge again on the current code, with a fresh `check` fingerprint; stamp a
+     match, else report a mismatch. `stamp_entry_unresolved`: `file_unreadable` is unread code, reported; else
+     step 4.3.
    - **A `planned` entry's code lacking its behavior yet** is no mismatch, no question: the fingerprint
      alone, still `planned`.
    - **Mismatch**, code behavior the approved text contradicts: nothing for the link; report each point under
-     `Mismatches:`: doc and section, what the spec states, what the code does. A fix-the-spec pick sent to you: write
-     each stale section as a spec draft (step 5); the fingerprint awaits its approval.
+     `Mismatches:`: doc and section, what the spec states, what the code does. On a fix-the-spec pick sent to you, draft
+     each stale section (step 5); its fingerprint awaits approval.
 3. Fix each record code-path or `covers:` finding of a covering doc: pipe the corrected list to
    `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (hash:
    `bases.fields.<field>` of `get --json`; or `--field covers` on the spec doc), then rerun
@@ -55,16 +58,15 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
      `git log -1 -M --diff-filter=R --name-status --format= -- <old path>`, or `git diff -M --name-status HEAD` while
      uncommitted; write no fingerprint;
    - deleted file: drop the entry, or point it at the code doing that work;
-   - `root: project` entry: fingerprint alone, never moved; its `covers_path_missing` is only reported as
+   - `root: project` entry: fingerprint alone, never moved; its `covers_path_missing` is reported as
      `<doc>: covers path missing: <path>`, ending its loop.
 4. A `tests_unresolved` line: repoint it with
    `specstone set implementation:<feature> --field tests --target <name> --base <hash>` to the moved file of step 4.3
    or the test's current name in it; one you cannot place stays, a waiting pointer. Write no `tests` line for a
    test a change adds or moves.
 5. A matrix-row finding: follow `matrix-rows.md`.
-6. Report under `Mismatches:`, by file and line, each rule meaning a changed AGENT.md asset holds that the
-   agent-files FR's rule list lacks, and each bare item ID (`E21`) or number label in changed code or a test file
-   read for step 4.4.
+6. Report under `Mismatches:`, by file and line, each bare item ID (`E21`) or number label in changed code or a test
+   file read for step 4.4.
 
 ## 5. Spec drafts
 
