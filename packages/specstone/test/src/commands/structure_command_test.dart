@@ -283,6 +283,66 @@ void main() {
     });
   });
 
+  group('built binary on a doc the markdown parser fails on', () {
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    test('every read command answers with the title, frontmatter values, and '
+        'sections, no links, and the warning', () async {
+      const emptyHash = 'e3b0c44298fc';
+      const unparsedWarning =
+          'prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md: the markdown parser failed; '
+          'its links are not indexed';
+      final project = await writeReadProject(
+        extra: {
+          frKey:
+              '---\nstatus: implemented\n---\n\n# Validate credentials\n\n'
+              '## Statement\nSee [the story](USER_STORY.md).\n\n[a]:<b\\',
+        },
+      );
+      Future<ProcessResult> run(List<String> args) =>
+          Process.run(binary, args, workingDirectory: project.path);
+
+      final get = await run(['get', frTarget, '--json']);
+      final refs = await run(['refs', frTarget, '--json']);
+      final structure = await run(['structure', frTarget]);
+      final list = await run(['list', 'fr']);
+      final search = await run(['search', 'Validate']);
+
+      for (final result in [get, refs, structure, list, search]) {
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+      }
+      final doc =
+          ((jsonDecode(get.stdout as String) as Map)['docs']! as List).single
+              as Map;
+      final bases = doc['bases'] as Map;
+      expect(bases['title'], isNot(emptyHash));
+      expect((bases['fields'] as Map)['status'], isNot(emptyHash));
+      expect((bases['sections'] as Map)['statement'], isNot(emptyHash));
+      expect((jsonDecode(get.stdout as String) as Map)['warnings'], [
+        unparsedWarning,
+      ]);
+      expect(list.stdout, contains('Validate credentials'));
+      expect(search.stdout, contains('validate_credentials#statement'));
+      expect(structure.stdout, contains('statement'));
+      final refsDoc =
+          ((jsonDecode(refs.stdout as String) as Map)['docs']! as List).single
+              as Map;
+      expect(refsDoc['outbound'], isEmpty);
+      for (final result in [list, search, structure]) {
+        expect(result.stderr, contains(unparsedWarning));
+      }
+    });
+  });
+
   group('on a project with no docs folder', () {
     const readCommands = [
       ['structure'],
