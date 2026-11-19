@@ -3,6 +3,7 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -66,9 +67,9 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// through `extends` when no own layer wrote it. A fault that names several
 /// files ranks them by [loadIndex]. [targetNames] holds the config's target
 /// names, empty when the config reads no `targets:` key; a named-target
-/// config needs the record doc type. [verificationCoverage] is the config's
-/// `verification_coverage:`; `true` needs the record doc type with an enabled
-/// matrix section. Runs after every merge:
+/// config needs the record doc type. [matrixMode] is the config's
+/// `verification_coverage:`; a mode other than off needs the record doc type
+/// with an enabled matrix section. Runs after every merge:
 /// two doc types may not share one `path`
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
 /// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
@@ -89,7 +90,7 @@ void checkMergedSet(
   Map<String, DocTypeLayers> layerLists, {
   required LoadIndex loadIndex,
   List<String> targetNames = const [],
-  bool verificationCoverage = false,
+  MatrixMode matrixMode = MatrixMode.off,
 }) {
   final byId = {for (final docType in docTypes) docType.id: docType};
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
@@ -104,13 +105,7 @@ void checkMergedSet(
   _checkRequiredWhen(sorted, layerLists);
   _checkRequiredWithRequiredWhen(sorted, layerLists);
   _checkWhenField(sorted, layerLists);
-  _checkRecords(
-    sorted,
-    layerLists,
-    loadIndex,
-    targetNames,
-    verificationCoverage,
-  );
+  _checkRecords(sorted, layerLists, loadIndex, targetNames, matrixMode);
   _checkPatternCarriers(sorted, layerLists);
 }
 
@@ -508,14 +503,15 @@ void _checkWhenField(
 /// a second `record_status` holder, a record doc type whose merged
 /// `per_target` is not `true`, a record matrix section whose merged
 /// `output_ref` is not `true`, an `output_ref: true` on any other section, a
-/// named-target config with no record doc type, and `verification_coverage:
-/// true` with no record doc type or no enabled matrix section on it.
+/// named-target config with no record doc type, and a `verification_coverage:`
+/// mode other than off with no record doc type or no enabled matrix section on
+/// it.
 void _checkRecords(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
   LoadIndex loadIndex,
   List<String> targetNames,
-  bool verificationCoverage,
+  MatrixMode matrixMode,
 ) {
   final holders = [
     for (final docType in docTypes)
@@ -538,7 +534,7 @@ void _checkRecords(
       );
     }
     _checkMatrixOutputRef(holder, layerLists);
-    if (verificationCoverage && verificationMatrixOf(holder) == null) {
+    if (matrixMode.isOn && verificationMatrixOf(holder) == null) {
       throw TemplateFault(
         FaultCode.unknownValue,
         'verification_coverage needs an enabled $verificationMatrixKey '
@@ -559,7 +555,7 @@ void _checkRecords(
       key: 'targets',
     );
   }
-  if (holders.isEmpty && verificationCoverage) {
+  if (holders.isEmpty && matrixMode.isOn) {
     throw TemplateFault(
       FaultCode.unknownValue,
       'verification coverage reads a record, and this merged set holds no '

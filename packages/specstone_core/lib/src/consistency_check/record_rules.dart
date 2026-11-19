@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/matrix_form.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -18,8 +19,9 @@ const _featureItem = '';
 /// Every line and row gives at most one finding, the first its behavior order
 /// reaches, so no other rule reports a line this one does. A row is read as a
 /// `tests` line of its item, except a row naming a story, which the matrix
-/// rule reports. A doc that is no record, whose frontmatter is invalid, or
-/// whose feature is missing has none.
+/// rule reports, and a refused-form row, which gets the form finding alone. A
+/// doc that is no record, whose frontmatter is invalid, or whose feature is
+/// missing has none.
 Iterable<Finding> checkRecordEntries(
   CheckContext context,
   IndexedDoc record,
@@ -109,7 +111,9 @@ final class _RecordWalk {
       if (id != null) yield* _lineFindings(id, noun);
     }
     for (final row in _record.matrixLines.whereType<MatrixRow>()) {
-      // A row naming a story is the matrix rule's alone.
+      // A refused-form row and a row naming a story are the matrix rule's
+      // alone.
+      if (isRefusedFormRow(_context, _record, row)) continue;
       final doc = _docs[row.item];
       if (doc != null && doc.docTypeId != frType) continue;
       yield* _itemFindings(row.item, row.line, 'matrix row');

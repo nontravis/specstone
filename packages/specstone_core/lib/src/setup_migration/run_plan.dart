@@ -126,6 +126,7 @@ final class PlanLists {
     this.mentions = const [],
     this.tests,
     this.sharedCopies,
+    this.matrixRows,
   });
 
   /// The DocPath of each doc the layout pass rewrites, in code point order.
@@ -169,6 +170,10 @@ final class PlanLists {
   /// the run holds no such step.
   final SharedCopiesLists? sharedCopies;
 
+  /// The matrix fold pass's `matrixRows` object (`folded`), or null when the
+  /// pass folds no record.
+  final Map<String, Object?>? matrixRows;
+
   /// The lists as the keys of the JSON plan.
   Map<String, Object> toJson() => {
     'formatLayout': formatLayout,
@@ -184,6 +189,7 @@ final class PlanLists {
     'mentions': mentionsJsonOf(mentions),
     'tests': ?tests,
     'sharedCopies': ?sharedCopies?.toJson(),
+    'matrixRows': ?matrixRows,
   };
 }
 

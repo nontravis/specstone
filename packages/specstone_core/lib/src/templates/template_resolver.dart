@@ -11,6 +11,7 @@ import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/pack_chain.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -77,7 +78,7 @@ final class TemplateResolver {
       patterns: patterns,
       projectPatterns: projectPatterns,
       targetNames: config?.targetNames ?? const [],
-      verificationCoverage: config?.verificationCoverage ?? false,
+      matrixMode: config?.matrixMode ?? MatrixMode.off,
     );
   }
 
@@ -282,8 +283,8 @@ final class TemplateResolver {
   /// with every key kept but `id` and `path`, and no layer above
   /// the defining layer may write `extends`. The merged set is
   /// checked as one set after every merge, with [targetNames] gating a
-  /// `targets:` config on the record doc type and [verificationCoverage] on
-  /// its enabled matrix section. The one [LoadIndex]
+  /// `targets:` config on the record doc type and a [matrixMode] other than
+  /// off on its enabled matrix section. The one [LoadIndex]
   /// built here ranks every file a fault names. The shared entries of the
   /// packs and [projectSharedLines] merge once, after the `extends` check and
   /// before any doc type. The feature patterns merge
@@ -296,7 +297,7 @@ final class TemplateResolver {
     List<SharedLine> projectSharedLines = const [],
     List<FeaturePatternLayer> projectPatterns = const [],
     List<String> targetNames = const [],
-    bool verificationCoverage = false,
+    MatrixMode matrixMode = MatrixMode.off,
   }) {
     const merger = DocTypeMerger();
     final layerLists = _docTypeLayers(packs, projectLayers);
@@ -333,7 +334,7 @@ final class TemplateResolver {
       layerLists,
       loadIndex: loadIndex,
       targetNames: targetNames,
-      verificationCoverage: verificationCoverage,
+      matrixMode: matrixMode,
     );
     return MergedSet(
       docTypes: docTypes.values.toList(),
