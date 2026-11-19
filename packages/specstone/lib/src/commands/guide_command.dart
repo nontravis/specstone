@@ -192,9 +192,13 @@ class GuideCommand extends SpecstoneCommand {
 
   static String _renderGuides(List<MergedDocType> docTypes) {
     if (docTypes.length == 1) return docTypes.single.renderGuide();
+    final shared = sharedByAll(docTypes);
+    final sharedOut = {for (final line in shared) line.id};
     return [
+      '==> shared <==\n',
+      for (final line in shared) '${line.text}\n',
       for (final docType in docTypes)
-        '==> ${docType.id} <==\n${docType.renderGuide()}',
+        '==> ${docType.id} <==\n${docType.renderGuide(sharedOut: sharedOut)}',
     ].join();
   }
 
