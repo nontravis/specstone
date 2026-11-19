@@ -77,10 +77,10 @@ every group. A group you judged or followed stands in for item 1 by its own chan
    `specstone set implementation:<feature> --field implements --base <hash>` (or
    `specstone set <type>:<name> --field covers --base <hash>`), the hash from `bases.fields.implements` (or
    `bases.fields.covers`) of `specstone get <doc> --json`, same `--target`. A waiting match then takes
-   `specstone set <doc> --stamp <entry>=<fingerprint>` (the finding's, no base; a waiting helper's from a `check` run after its write), and a `planned` entry's
-   `implemented` goes to `statuses` by `--field statuses` with `bases.fields.statuses`. A refused stamp writes
-   nothing more for its entry: report it, its finding left for the next sync. For each waiting removal, once approved,
-   run `specstone set --remove-task <task> ...` (`--target <name>` when two or more), then name
-   them to the Owner.
+   `specstone set <doc> --stamp <entry>=<fingerprint>` (the finding's, no base; a waiting helper's from a `check`
+   after its write), and a `planned` entry's `implemented` goes to `statuses` by `--field statuses` with
+   `bases.fields.statuses`. A refused stamp writes nothing more for its entry: report it, its finding stays. For each
+   waiting removal, once approved, run `specstone set --remove-task <task> ...` (`--target <name>` when two or more),
+   then name them to the Owner.
 5. Follow the `specstone-brainstorming-sdd` skill for each behavior the report hands over and each pick that lands in
    a story or FR, since the sync writes no PRD doc.
