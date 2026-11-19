@@ -16,6 +16,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart'
     show checkOf, checkProjectFiles, docTypeMatcherOf, fingerprintFor;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/per_fr_row_fixture.dart';
 import '../../helpers/shipped_pins.dart'
     show shippedPinsConfig, shippedStatusesOutside;
 import '../../helpers/write_fixture.dart'
@@ -576,15 +577,11 @@ void main() {
   });
 
   group('a per-FR row', () {
-    const dropEdge =
-        '1. E01 — A sold-out item, as [drop]($_dropLink) shows → refused.';
+    const dropEdge = perFrDropEdge;
     const addEdge =
         '1. E01 — A sold-out item, as [add](../us01_add_item/USER_STORY.md) shows → refused.';
     const literals = '`refuses a sold-out item`, `refuses a missing item`';
     final stale = fingerprintFor('1. E01 — An old text → refused.');
-
-    String contractOf(String edgeCase) =>
-        '## Statement\n\n$checkStockStatement\n\n## Edge cases\n\n$edgeCase';
 
     String frRow(String item, String fingerprint) =>
         '- $item: $literals $fingerprint';
@@ -613,22 +610,20 @@ void main() {
     String renamedDrop(String text) =>
         text.replaceAll('drop_item', 'remove_item');
 
-    String renamedAdd(String text) => text.replaceAll('add_item', 'put_item');
-
     test('re-stamps a matched per-FR row when a rename changes a name in its contract', () async {
       final root = await project(
         coverage: 'fr',
         edgeCase: dropEdge,
         row: frRow(
           'add_item/check_stock',
-          fingerprintFor(contractOf(dropEdge)),
+          fingerprintFor(perFrContractOf(dropEdge)),
         ),
       );
       _renameDrop(root);
       expect(
         readDoc(root, cartRecord),
         endsWith(
-          '$_matrix${frRow('add_item/check_stock', fingerprintFor(contractOf(renamedDrop(dropEdge))))}\n',
+          '$_matrix${frRow('add_item/check_stock', fingerprintFor(perFrContractOf(renamedDrop(dropEdge))))}\n',
         ),
       );
       expect(await _suspects(root), isEmpty);
@@ -651,7 +646,7 @@ void main() {
     test(
       'rewrites the item of a stamped row under off and keeps its text',
       () async {
-        final recorded = fingerprintFor(contractOf(addEdge));
+        final recorded = fingerprintFor(perFrContractOf(addEdge));
         final root = await project(
           coverage: 'false',
           edgeCase: addEdge,
@@ -662,7 +657,13 @@ void main() {
           readDoc(root, cartRecord),
           endsWith('$_matrix${frRow('put_item/check_stock', recorded)}\n'),
         );
-        expect(renamedAdd(addEdge), isNot(addEdge));
+        expect(
+          readDoc(
+            root,
+            'prds/features/f02_shop/f01_cart/us01_put_item/fr01_check_stock.md',
+          ),
+          contains('as [add](USER_STORY.md) shows'),
+        );
       },
     );
 
@@ -676,6 +677,13 @@ void main() {
           row: edgeCaseRow('add_item/check_stock', recorded),
         );
         _renameAdd(root);
+        expect(
+          readDoc(
+            root,
+            'prds/features/f02_shop/f01_cart/us01_put_item/fr01_check_stock.md',
+          ),
+          contains('as [add](USER_STORY.md) shows'),
+        );
         expect(
           readDoc(root, cartRecord),
           endsWith(
