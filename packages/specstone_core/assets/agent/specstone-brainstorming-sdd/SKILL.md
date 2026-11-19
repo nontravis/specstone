@@ -5,7 +5,7 @@ description: Use when a change to a Specstone project adds a feature, a user sto
 
 # Brainstorm a change into an approved design
 
-A change that only rewrites one section or field of an existing doc, and adds no story or FR, is a small edit: follow
+A change that only rewrites one section or field of a doc, and adds no story or FR, is a small edit: follow
 the `specstone-update-sdd` skill instead.
 
 ## 1. Ground: the first call
@@ -52,16 +52,15 @@ document holds no open question; approval of an approach is not approval of the 
 
 ## 3. Write the document
 
-Write the one design document yourself, by `references/design.md`, once the Owner's answers are in: from step 1's saved
-files and the Owner's answers, at the brainstorm skill's own design path, else
+Write the one design document by `references/design.md`, from step 1's saved files and the Owner's
+answers, at the brainstorm skill's own design path, else
 `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. A refused path is an open question; write at the Owner's new path.
 Dispatch nothing to write it.
 
-Before the approval ask, dispatch the design check as step 4 dispatches: a fresh `mode: audit` with `stage: design`
-and the document's path. Dispatch it again with `amend: <N>` after each amend that adds or changes behavior, before
-that amend's author pass; an append that only words or records a decision takes none. Fix each finding it reports in
-the document by `references/design.md`, with no second check. Then ask for the approval, or, once an author pass has
-run, go on to the amend's author pass with no ask.
+Before the approval ask, dispatch the design check as step 4 dispatches: a fresh `mode: audit` with `stage: design`,
+the document's path, and `bundles:` your saved bundle files. Amends adding or changing behavior before the ask share
+one check, `amend: <N>[,<N> ...]`; a later one gets its own, `amend: <N>`, before its author pass. Fix each finding it reports in the document by `references/design.md`, with no
+second check. Then ask for approval, or, once an author pass has run, go on to the amend's author pass with no ask.
 
 Route each later Owner answer or change per `references/rounds.md`.
 
@@ -72,11 +71,12 @@ After step 1's calls, take `<folder>` the path `specstone folder` prints, run on
 `report:` `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that
 file exists; show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 Write no brief and run no `context` call again on a target already grounded before a dispatch; a claim your saved files
-do not ground is an open question of the document.
+do not ground is an open question.
 
 1. After approval, dispatch `mode: author` with the document's path. Pass no doc or design text.
 2. Run the author's `Move:` commands, if any, then the amend compare of `references/rounds.md` section 2. Dispatch a
-   fresh `mode: audit` with the document's path and the drafts list as its targets.
+   fresh `mode: audit` with the document's path, the drafts list as its targets, and, if no `Move:` ran, its `Check:`
+   file as `check:`.
 3. Run fix rounds on its `Findings:` lines per `references/rounds.md`.
 4. Show each author reply and the last audit's relay block; approve the drafts through the
    `specstone-expert-sdd` skill's Owner confirmation, testing both under `auto`.
