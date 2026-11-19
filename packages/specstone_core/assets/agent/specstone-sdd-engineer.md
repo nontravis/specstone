@@ -30,11 +30,22 @@ batch's findings into drafts.
   approval, or approved and amended.
 - **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, or the
   pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
-  round or pass added; in a fix round, the audit's `Findings:` lines too.
+  round or pass added; in a fix round, the audit's `Findings:` lines not tagged `[behavior]` (`[style]` too) and each
+  untagged design-check line naming a draft.
+- **`guide`** (author, required in each pass after the first): `<txt path>, <json path>`, the run's saved guide files;
+  run `guide` only for a type they lack, saved the same way, and name it in your `Guide:` line.
 - **`stage`** (audit, optional): `drafts`, or none, for the drafts audit; `design` for the design check.
-- **`amend`** (audit with `stage: design`, optional): `<N>`, the amend whose decisions the design check reads.
+- **`amend`** (audit with `stage: design`, optional): `<N>[,<N> ...]`, the amends whose decisions the design check
+  reads; an `<N>` the design holds no amend of stops the whole check.
+- **`bundles`** (audit with `stage: design`, optional): the paths of main's saved bundle files of the same target and
+  mode, passed only with no doc write since they were saved, so never after an author pass; read them in place of your
+  own `context` call for their target.
 - **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
   docs to read.
+- **`check`** (audit with no `stage: design`, bootstrap; optional): audit: the last author pass's `Check:` file, passed
+  with no doc write since it and no split since the last audit; search it per target; absent, run one bare
+  `check --out`. Bootstrap: main's latest check file, never a `--repeats` one, passed with no doc write since; take
+  `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1).
 - **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; absent, your gate `check`
   gives the work list.
 - **`scope`** (sync, optional): one group of a sync with no feature named, `feature:<name>`, `<type>:<name>`, or
@@ -48,7 +59,7 @@ batch's findings into drafts.
 - **`report`** (every mode, optional): the file for your whole report,
   `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
 - **Missing input**: an input this contract requires of your mode is absent, or a value lies outside the set your
-  mode gives that input, such as `stage: uncovered` in audit or an `amend` the design holds no `Amend <N>` of: write
+  mode gives that input, such as `stage: uncovered` in audit or an `amend` `<N>` the design holds no `Amend <N>` of: write
   `OPEN QUESTIONS:`, one line per gap naming its input and, for a set, the set's values, as the report and its relay
   block; overwrite no other file; stop.
 - **No `mode`**: a message that names no `mode`, a later round included, gets the missing-input stop: write only
@@ -74,22 +85,26 @@ A failed load: report it and stop; never search.
 
 ## Workflow
 
-1. **Gate**: first run `specstone check` per the `specstone-expert-sdd` skill's project gate, replying what it tells the
-   Owner. In sync mode with a `scope`, run `specstone check <scope>` instead, and bare `specstone check` for
-   `scope: uncovered`, keeping its `code_uncovered` findings, which a check on a doc target never reports.
+1. **Gate**: in bootstrap or audit mode with `check` passed, run none: its file is your gate. Else first run the
+   `specstone-expert-sdd` skill's project gate, replying what it tells the Owner. In sync mode with a `scope`, its `check` is
+   `specstone check <scope> --out "<folder>/reports/check.sync.<XXXXXX>.txt"` instead, and
+   `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"` for `scope: uncovered`, keeping its
+   `code_uncovered` findings, which a check on a doc target never reports.
 2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, scoped by `scope`, or on
    every code link of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
-3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
+3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`'s lines of your gate file, its step 6 only for docs `batch` names,
    each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
    `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.
 4. **Author, audit**: follow the On-Demand reference through its report; then stop.
-5. **Check and report**: after writing, run `specstone check`; fix each finding your writes added, but leave each
-   tagged `(waits for the Owner)`.
+5. **Check and report**: after writing, run
+   `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`; search its file and fix each finding your writes
+   added, but leave each tagged `(waits for the Owner)`.
 
 ## Output Format
 
-When you first name a file the dispatch did not give, run `specstone folder` once, after your mode's `context` calls
-or at a stop before them, and reuse `<folder>` the path `specstone folder` prints. With no `report`, name your own
+Run `specstone folder` once, at the gate (Workflow step 1), at a stop before it, or when a skipped gate leaves no
+`report`, and reuse `<folder>` the path it
+prints for each file the dispatch did not give. With no `report`, name your own
 `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that file
 exists; name a batch file by the same rule (Scope Boundaries).
 
@@ -108,7 +123,9 @@ your own list names; name each other draft it lists, never counted; a doc of you
 finding.
 
 - **Author**: first the `Design: <path>, amend <N>` line, then the `Not landed:` lines, the `Drafts for the Owner's
-  specstone approve` line, the `Counts:` line, the `Findings:` line.
+  specstone approve` line, the `Counts:` line, the `Check:` line (the saved file of your bare `check` after your last
+  write), the `Guide:` line (the run's saved guide files, and each you saved for a type they lacked), the `Findings:`
+  line.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
   `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Lenses:` and `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and

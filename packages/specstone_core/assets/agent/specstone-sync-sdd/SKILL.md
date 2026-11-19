@@ -7,16 +7,19 @@ description: Use when code in a Specstone project changed and its spec docs must
 
 ## 1. Gate: the first call
 
-Make this your first CLI call, before git, a file read, or any other command:
+Make these your first CLI calls, before git, a file read, or any other command:
 
 ```
-specstone check
+specstone folder
+specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 ```
+
+`<folder>` is the path `folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file exists.
 
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **0 or 1:** the project is on the new format, even from a subfolder, since the CLI looks for
-  `.specstone/config.yaml` here and in each folder above. Its findings give the work list (step 2).
+  `.specstone/config.yaml` here and in each folder above. Search its file for the work list (step 2).
 - **Any other exit:** report the CLI's error and stop.
 
 Never look for `.specstone/` yourself first: a look at the working directory misses a project root above it, and
@@ -24,7 +27,7 @@ costs a call the gate already makes.
 
 ## 2. Work list, then hand off
 
-The work list is the gate's `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
+The work list is the gate file's `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
 `implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row findings,
 never a `tests_missing` one. A matrix-row finding is a `matrix_test_unresolved` one, or a `suspect` or `unconfirmed` one
 whose `waitsFor` is `agent`, on a Verification matrix row, or, under `verification_coverage` `edge_case`, a per-FR
@@ -46,9 +49,8 @@ Then dispatch `specstone-sdd-engineer` for each group in turn, one at a time, as
 `<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the group's input: `scope: feature:<name>`,
 `scope: <type>:<name>`, or `scope: uncovered`; pass `feature: <name>` only for a feature the Owner named, as its one
 group, with no `scope:`. Show each report's `Report:` line and relay block before the next dispatch. Send no list of
-paths or doc text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` the path
-`specstone folder` prints, run once after the gate; `XXXXXX` is six `a-z0-9` characters, picked again for each report
-while that file exists.
+paths or doc text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` and `XXXXXX` as the gate does,
+`XXXXXX` picked again for each report while that file exists.
 
 The procedure for the main session is `references/procedure.md` beside this file. With no subagent on the host, follow
 the procedure yourself once per group, in the same order, taking only that group's findings. After a dispatch that
