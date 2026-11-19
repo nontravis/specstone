@@ -57,7 +57,7 @@ The drafts list is the first author report's drafts plus each doc a fix round or
 - **Before every audit dispatch**, the skill's step 4 audit included, compare the design's last amend, the highest
   `Amend <N>` its headings list or `0`, with the `amend <N>` of the last author relay block's first line,
   `Design: <path>, amend <N>`:
-  - The two equal: dispatch the audit.
+  - The two equal and no new FR awaits its fill: dispatch the audit.
   - The design's higher: run a fresh author pass with the amend first, then the audit.
   - No `Design:` line: run a fresh author pass first.
   - A split's new FR awaits its fill: run the fill pass first, with any amend, then the audit.
