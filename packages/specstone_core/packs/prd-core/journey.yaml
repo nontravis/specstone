@@ -2,8 +2,8 @@ id: journey
 description: |-
   A journey: the story scenarios one persona walks toward one goal, in order, branches included.
   Title it `# <the goal as the persona says it>`, with no number. The folder name is its identity.
-  Keep one goal of one persona, from the start to the result that persona wants.
-  Branch only on outcomes the persona sees; keep edge scenarios tested at story and requirement level.
+  Run from the start to the result the persona wants.
+  Branch only on outcomes the persona sees; test edge scenarios at story and requirement level.
   Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
   Keep a bound in the step it limits, never in the prose.
 path: prds/journeys/{slug}/JOURNEY.md
@@ -14,15 +14,13 @@ fields:
     list: true
     doc_types: [persona]
     description: |-
-      Names the personas the journey serves; each name must resolve to a persona.
-      Leave it out when the journey serves no human persona.
+      Names the personas the journey serves; leave it out when it serves no human persona.
   - id: confirmed
     type: string
     list: true
     description: |-
-      Records one `<story identity>#S<N> <fingerprint>` entry per step.
-      An entry reads such as `login/email_login#S1 0a1b2c3d4e5f`; copy the fingerprint `specstone check` prints.
-      The entry counts once the Owner approves the journey.
+      Records one `<story identity>#S<N> <fingerprint>` entry per step, such as `login/email_login#S1 0a1b2c3d4e5f`.
+      Copy the fingerprint `specstone check` prints; the entry counts once the Owner approves the journey.
 sections:
   - id: goal
     header: Goal

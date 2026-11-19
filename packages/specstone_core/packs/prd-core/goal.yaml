@@ -1,11 +1,11 @@
 id: goal
 description: |-
-  The project goal doc: every goal, grouped by the horizon it serves.
+  The project goal doc: every goal, grouped by horizon.
   Title it `# Project goals`, with no number. A project has exactly one GOAL.
   Write one rule per `PG-*` ID, and leave mechanics to the spec docs.
-  A new goal takes the next number above the doc's highest `PG-` ID, and no ID is used again.
+  A new goal takes the next number above the doc's highest `PG-` ID; no ID is reused.
   A goal that changes horizon moves its block to that horizon's section, its ID kept.
-  A goal met or dropped is deleted from the goal doc together with its measurement; the doc has no status field and no archive section.
+  A goal met or dropped is deleted with its measurement; the doc has no status field and no archive section.
   A long-term goal with no deadline leaves out `**By:**`; every other `**By:**` names a date or a milestone.
   The Metric holds the goal's pass bound and unit and links the goal's measurement; GOAL holds no measured number.
 path: prds/GOAL.md

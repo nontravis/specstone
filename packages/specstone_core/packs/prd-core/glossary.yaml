@@ -2,7 +2,7 @@ id: glossary
 description: |-
   The project glossary doc: every domain term.
   Title it `# Domain glossary`, with no number. A project has exactly one glossary doc.
-  Write one rule per item, since the `terms` section holds no IDs, and leave mechanics to the spec docs.
+  Write one rule per item, since the `terms` section holds no IDs.
   Write one bullet per term, in the section template form.
   Put an entry's mechanics in the spec doc that owns them, cited by a link.
 path: prds/GLOSSARY.md

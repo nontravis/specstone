@@ -42,8 +42,7 @@ const _historyIds = [
 ];
 
 const _citeLine =
-    'Cite a rule another doc owns by a link to the item that holds it, never '
-    'restate it.';
+    'Cite a rule another doc owns by a link to its item, never restate it.';
 
 const _oneRuleLine =
     'Keep one rule in each item, and put several conditions in a nested list. '
@@ -596,7 +595,7 @@ void main() {
       for (final docType in set.docTypes) {
         expect(
           docType.renderGuide(),
-          contains('by a link to the item that holds it, never restate it'),
+          contains('by a link to its item, never restate it'),
           reason: docType.id,
         );
       }

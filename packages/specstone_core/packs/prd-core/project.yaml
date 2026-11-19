@@ -23,7 +23,6 @@ sections:
     header: Project name
     required: true
     description: |-
-      Give the human-readable name, then the snake_case code name.
       The Code line stays here, since no folder carries the project's code.
     template: |-
       - **Human:** <Human-readable project name>
@@ -37,7 +36,7 @@ sections:
     description: |-
       Put one `> <lang>: <sentence>` line per language right under each PV heading.
       Use an ISO 639-1 code and give at least one language.
-      Then write Why, Problem, and Audience, with Problem in general words.
+      Write Problem in general words.
       Add one more PV entry for each extra angle, such as a business vision beside a product vision.
       Write at least one entry before the first feature.
     template: |-
@@ -77,7 +76,7 @@ sections:
     header: Role
     required: true
     description: |-
-      List every actor, human or not, by a short name with a definition.
+      List every actor, human or not.
       A story's "As a" line names one of these roles.
     template: |-
       - `<RoleName>` — <definition>
@@ -88,7 +87,7 @@ sections:
     header: Out-of-scope
     required: true
     description: |-
-      List what the project will NOT do, one bullet each.
+      List what the project will NOT do.
     template: |-
       - <thing the project will NOT do>
     query: true

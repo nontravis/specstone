@@ -1,15 +1,15 @@
 id: user_story
 description: |-
-  A user story: one change in behavior that someone outside the team cares about, sized to finish in one iteration.
+  A user story: one behavior change someone outside the team cares about, sized for one iteration.
   Title it `# <Name>`, with no number: the activity as actor, verb, and object.
   State what the person does and gets, never how: no screens, fields, tables, or design choices.
-  Check INVEST: independent, negotiable, valuable, estimable, small, and testable.
-  Split a story that holds too many scenarios, along business behavior and never along technical layers.
-  Keep team-wide quality checks in the Definition of Done, never in a story's criteria.
-  Write one rule per ID: each `BR-*` rule states one thing, with mechanics left to the spec docs.
+  Check INVEST: independent, negotiable, valuable, estimable, small, testable.
+  Split a story that holds too many scenarios by business behavior, never by technical layer.
+  Keep team-wide quality checks in the Definition of Done, not in a story.
+  Write one rule per `BR-*` ID, with mechanics left to the spec docs.
   Keep a bound in the rule it limits, and the trace in `vision:` and `goals:`, never in the prose.
-  Mark the story ready only when no open question can still change its scope.
-  Keep prose at reader altitude: name no class, function, file path, error code, plan, or ruling.
+  Mark the story ready only when no open question can change its scope.
+  Keep prose at reader altitude: no class, function, file path, error code, plan, or ruling.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md
 parent: feature
 fields:
@@ -17,28 +17,25 @@ fields:
     type: string
     list: true
     description: |-
-      Lists the vision IDs (`PV-*`) the story serves; each must be one the parent feature lists.
+      Lists the PROJECT vision IDs (`PV-*`) the story serves.
   - id: goals
     type: string
     list: true
     description: |-
-      Lists the goal IDs (`PG-*`) of the goal doc that the story serves; each must be one the parent feature lists.
+      Lists the GOAL goal IDs (`PG-*`) the story serves.
   - id: persona
     type: doc_ref
     list: true
     doc_types: [persona]
     description: |-
-      Names the personas the story serves; each name must resolve to a persona.
-      Leave it out when the actor is an Agent: an Agent-actor story has no persona.
+      Names the personas the story serves; an Agent-actor story has none.
 sections:
   - id: use_case
     header: Use Case
     required: true
     description: |-
-      Write: As a <Role>, I want to <action>, so that <benefit>.
-      Name a Role registered in PROJECT, never a bare "user"; add "who <situation>" when the situation matters.
-      Keep the so-that clause, or explain why it is left out; if the action cannot deliver it, look for a missing story.
-      State what the person does, never how the system does it.
+      Name a Role registered in PROJECT, never a bare "user"; add "who <situation>" when it matters.
+      Keep the so-that clause or say why it is left out; if the action cannot deliver it, look for a missing story.
     template: |-
       - **As a** <Role> [who <situation>]
       - **I want to** <action>
@@ -48,9 +45,9 @@ sections:
     header: Rules
     prefix_id: BR-
     description: |-
-      Write it for rules the story needs spelled out; skip it for a rule that everyone already understands.
+      Write it for rules the story needs spelled out, never for one everyone knows.
       Write each rule as `**BR-NN** — <rule>`.
-      Cite a rule's id at the end of the title of each scenario that illustrates it.
+      Cite a rule's id at the end of each scenario title that illustrates it.
     template: |-
       - **BR-01** — <rule>
     summary: true
@@ -61,8 +58,8 @@ sections:
     header: Acceptance Criteria
     required: true
     description: |-
-      Title each scenario `### Scenario N — [happy|edge|error] <what differs> (BR-NN)`, naming what differs.
-      Give only the state the scenario needs in Given; name the trigger in When; chain extra outcomes with And or But.
+      Title each scenario `### Scenario N — [happy|edge|error] <what differs> (BR-NN)`.
+      Chain extra outcomes with And or But.
       Make each Then observable by the person or an external system, in the domain's words.
       Write an `[error]` scenario, or write "Error cases: N/A — <reason>".
     template: |-
@@ -97,7 +94,7 @@ sections:
   - id: open_questions
     header: Open questions
     description: |-
-      Record each example whose outcome nobody knows as a question, not as a scenario.
+      Record each example whose outcome nobody knows as a question, not a scenario.
       Leave it empty before the Owner approves the story.
     template: |-
       - <question>

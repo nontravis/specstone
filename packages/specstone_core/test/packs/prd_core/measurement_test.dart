@@ -9,7 +9,7 @@ import '../../helpers/prd_core.dart';
 
 const _docPath = 'measurements/grounding_cost/MEASUREMENT.md';
 
-const _citeFragment = 'by a link to the item that holds it, never restate it';
+const _citeFragment = 'by a link to its item, never restate it';
 
 String _measurement({
   String title = '# Grounding cost',

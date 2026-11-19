@@ -1,19 +1,18 @@
 id: fr
 description: |-
-  A functional requirement: one testable statement of what the product shall do, traced to a scenario of its story.
+  A functional requirement: one testable statement of what the product shall do, traced to a story scenario.
   Title it `# <Name>`, with no number.
-  Write the Statement with one "shall", stated positively, with a quantified value kept in it, such as `within 2 s`.
-  Avoid the listed words and other -ly and -ize words.
-  State what the product does, never how: leave mechanics to the spec docs, and never assign a task to a person.
+  Write the Statement with one "shall" and its quantified value, such as `within 2 s`.
+  Avoid other -ly and -ize words.
+  State what the product does, never how; leave mechanics to the spec docs, and assign no task to a person.
   Keep the trace in `traced_from` alone, never in the Statement or an edge case.
-  Keep one behavior in each requirement; split joined behaviors into separate requirements.
-  An FR never records results: the verification matrix points to the evidence.
+  Keep one behavior per FR; split joined behaviors into separate FRs.
   Write an edge case only for an outcome the Statement, an Input/Output row, and a table leave unstated, such as a refusal, a limit, a default, a fallback, or a "no finding" boundary another FR's finding takes.
-  Write one edge case per distinct response; inputs that get the same response are nested triggers of one case, one sample each, in the shape the Edge cases template shows.
+  Write one edge case per distinct response; inputs with the same response are nested triggers of one case, one sample each.
   Leave out a case another FR or a spec rule owns, a case outside the Statement's condition, and implementation or test detail.
-  Put a case the product has no designed response for in the domain's `known_limits`, with what happens then; with no domain doc, put it in the feature's Out-of-scope as `<case> — not planned`. A designed response, even "the file is left as it is", is an edge case.
-  In an error case, name the error code the person or caller sees and whether the run stops. State no exit status: the error catalog reaching the FR holds it, the one the nearest feature up its parent chain holds in the target.
-  Quote an error message only when it is part of the contract, and then once, in the Output row that defines it; with no catalog reaching the FR, state in words what the person sees.
+  Put a case with no designed response in the domain's `known_limits`, with what happens then, or with no domain doc in the feature's Out-of-scope as `<case> — not planned`. A designed response, even "the file is left as it is", is an edge case.
+  In an error case, name the error code the person or caller sees and whether the run stops. State no exit status: the error catalog of the nearest feature up the FR's parent chain in the target holds it.
+  Quote an error message only when it is part of the contract, once, in the Output row that defines it; with no catalog reaching the FR, state in words what the person sees.
   Split an FR that holds too many edge cases into new FRs in its story.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md
 parent: user_story
@@ -23,22 +22,21 @@ fields:
     list: true
     required: true
     description: |-
-      Names the source of the requirement as `S<N>`, Scenario N of the parent story; `<story Name>#S<N>`, Scenario N of a sibling story of the same feature; or `self-derived`.
-      Trace each FR to a scenario that covers a nominal or an off-nominal case.
+      Names the source: `S<N>`, Scenario N of the parent story; `<story Name>#S<N>`, Scenario N of a sibling story; or `self-derived`.
+      Trace each FR to a scenario of a nominal or an off-nominal case.
       A self-derived FR needs the parent owner's agreement, or it is gold plating: delete it.
   - id: verify_method
     type: enum
     enum: [test, analysis, inspection, demonstration]
     required: true
     description: |-
-      Names how the requirement is proven; set it while writing the statement.
+      Names how the requirement is proven; set it with the statement.
       `test` runs the product and checks measured output; `analysis` proves it by reasoning or calculation.
       `inspection` examines the artifact, such as code or a document; `demonstration` shows it working without measuring.
   - id: owner
     type: string
     description: |-
-      Names the person or group who writes the requirement and approves its changes.
-      Leave it blank when the PROJECT owner holds it.
+      Names who writes the requirement and approves its changes; blank when the PROJECT owner holds it.
   - id: confirmed
     type: string
     list: true
@@ -50,8 +48,7 @@ sections:
     header: Statement
     required: true
     description: |-
-      Write: The <product> shall <verb> <object> <value ± tolerance> <condition>.
-      Use one "shall" and a positive form; rewrite "shall not" as the required behavior. Do not use EARS keywords.
+      Use one "shall" and a positive form; rewrite "shall not" as the required behavior. Use no EARS keywords.
       Give every value a unit and a tolerance (<, ≥, ±); a statement without a number is an expectation for the story.
     template: |-
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
@@ -99,8 +96,8 @@ sections:
   - id: input_output
     header: Input / Output
     description: |-
-      Write it when data crosses a boundary; skip it for a behavior that moves no data.
-      Give each item a type, a unit, a format, and a tolerance, and say "don't care" for a value that does not matter.
+      Write it when data crosses a boundary.
+      Give each item a type, unit, format, and tolerance; write "don't care" for a value that does not matter.
       For a data interface, also cover the standard, message timing, protocol, error detection, initialization, and status.
     template: |-
       **Input**
@@ -115,9 +112,9 @@ sections:
   - id: behavior
     header: Behavior
     description: |-
-      Draw a Mermaid diagram when the behavior branches; skip it for a straight line of steps.
+      Draw a Mermaid diagram when the behavior branches.
       State a required order of functions as a requirement, and an assumed order as an assumption.
-      Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
+      Quote a node label holding `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
     template: |-
       ```mermaid
       flowchart TD
@@ -154,7 +151,6 @@ sections:
     header: Rationale
     required: true
     description: |-
-      Give the reason, the assumptions, the related requirements, and the design constraints.
       Link the scenario the requirement traces from; confirm each assumption before the baseline.
       When the statement mandates a method, say why only that method will do.
     template: |-
@@ -163,11 +159,11 @@ sections:
     header: Verification
     required: true
     description: |-
-      Give the pass criteria: the observable condition that shows the requirement holds, kept apart from the statement.
-      Give the level at which it is proven, such as unit, integration, or end to end.
-      Write `- **Pass criteria:** each edge case holds.`, and put each condition no edge case states in one nested bullet under it.
+      Give as pass criteria the observable condition that shows the requirement holds, apart from the statement.
+      Give the proof level, such as unit, integration, or end to end.
+      Write `- **Pass criteria:** each edge case holds.`, with one nested bullet per condition no edge case states.
       Name no test file here; each target's record names the tests that prove the FR.
-      Never write results here; evidence belongs to the verification matrix.
+      Write no results in the FR; the verification matrix points to the evidence.
     template: |-
       - **Pass criteria:** each edge case holds.
       - **Level:** <level>
@@ -186,9 +182,7 @@ sections:
   - id: tbr
     header: TBR
     description: |-
-      Write it when a value is still to be resolved; avoid TBD and give a best estimate marked TBR.
-      Give the value, the reason, the action that closes it, who closes it, and by when.
-      Skip the section when no value is open.
+      Write it when a value is still open; give a best estimate marked TBR.
     template: |-
       - **Value:** <best estimate>
       - **Why:** <reason>

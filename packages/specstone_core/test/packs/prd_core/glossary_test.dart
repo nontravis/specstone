@@ -25,7 +25,7 @@ Future<List<String>> _glossarySpots(String text) async {
 
 const glossaryDoc = 'prds/GLOSSARY.md';
 
-const _citeFragment = 'by a link to the item that holds it, never restate it';
+const _citeFragment = 'by a link to its item, never restate it';
 
 void main() {
   late MergedDocType glossary;

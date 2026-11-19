@@ -10,7 +10,7 @@ import '../../helpers/write_fixture.dart' as write;
 
 const _horizonIds = ['long_term', 'mid_term', 'short_term'];
 
-const _citeFragment = 'by a link to the item that holds it, never restate it';
+const _citeFragment = 'by a link to its item, never restate it';
 
 void main() {
   late MergedDocType goal;
