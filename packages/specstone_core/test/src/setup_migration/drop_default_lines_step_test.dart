@@ -32,6 +32,32 @@ void main() {
       );
     });
 
+    test('under multi-line frontmatter the default lines go at their own '
+        'lines and the frontmatter stays', () {
+      const frontmatter =
+          '---\nowner: sre\nnote: |\n'
+          '  - **Consistency:** immediate\n'
+          'tags: [a, b]\n---\n';
+      const lf =
+          '$frontmatter# Domain\n\nLead text.\n\n## Invariants\n\n'
+          '- **INV-1** An email is unique.\n'
+          '  - **Consistency:** immediate\n'
+          '  - **Enforcer:** Account\n'
+          '- **INV-2** A name is short.\n'
+          '  - **Consistency:** eventual';
+
+      final dropped = _dropped(lf);
+
+      expect(dropped.startsWith(frontmatter), isTrue);
+      expect(
+        dropped,
+        '$frontmatter# Domain\n\nLead text.\n\n## Invariants\n\n'
+        '- **INV-1** An email is unique.\n'
+        '- **INV-2** A name is short.\n'
+        '  - **Consistency:** eventual',
+      );
+    });
+
     test('an Enforcer naming the default goes with its parenthesized '
         'link', () {
       final lf = _invariants(
