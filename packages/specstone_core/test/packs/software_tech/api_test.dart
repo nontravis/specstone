@@ -45,6 +45,34 @@ void main() {
     );
   });
 
+  test('operations carry no response example lint', () {
+    final operations = sectionOf(api, 'operations');
+
+    expect(operations.requiredPatterns, isNull);
+    expect(
+      [for (final p in operations.bannedPatterns!) p.id],
+      ['operation_heading'],
+    );
+    expect(
+      operations.description?.split('\n'),
+      contains(
+        'Write a success and an error Response example, valid against the '
+        'source of truth, only in a doc that holds that section.',
+      ),
+    );
+  });
+
+  test('the operations guide asks a code list per operation', () {
+    expect(
+      sectionOf(api, 'operations').description,
+      allOf(
+        contains('`**Errors:** <codes>; see <links>`'),
+        contains('every code the operation returns as a code span'),
+        contains('`**Errors:** none`'),
+      ),
+    );
+  });
+
   test('an API.md or an ERROR.md over 50000 characters gets chars_over_limit, '
       'limit 50000', () async {
     const draft = '---\ndraft: true\n---\n\n';

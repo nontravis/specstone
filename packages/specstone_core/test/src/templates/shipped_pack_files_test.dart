@@ -254,58 +254,34 @@ void main() {
           'project_domain.invariants': ['numbered_invariant'],
         },
       );
-      expect(
-        {
-          for (final (docType, s) in specSections())
-            if (s.requiredPatterns != null)
-              '${docType.id}.${s.id}': [
-                for (final p in s.requiredPatterns!) p.id,
-              ],
-        },
-        {
-          'api.operations': ['response_success', 'response_error'],
-          for (final id in ['architecture', 'project_architecture'])
-            '$id.concerns': [
-              'concern_integration',
-              'concern_errors',
-              'concern_auth',
-              'concern_lifecycle',
-              'concern_events',
-              'concern_rollout',
-              'concern_observability',
+      expect({
+        for (final (docType, s) in specSections())
+          if (s.requiredPatterns != null)
+            '${docType.id}.${s.id}': [
+              for (final p in s.requiredPatterns!) p.id,
             ],
-        },
-      );
+      }, isEmpty);
     });
 
     for (final rule in _specGuideRules) {
       test('${rule.docType}.${rule.section} ${rule.id}: fires on a broken '
           'line and passes a sound one', () {
         final sectionOfRule = section(rule.docType, rule.section!);
-        final patterns = rule.required
-            ? sectionOfRule.requiredPatterns!
-            : sectionOfRule.bannedPatterns!;
-        final pattern = patterns.singleWhere((p) => p.id == rule.id);
+        final pattern = sectionOfRule.bannedPatterns!.singleWhere(
+          (p) => p.id == rule.id,
+        );
         for (final line in rule.hits) {
           expect(pattern.regExp.hasMatch(line), isTrue, reason: line);
         }
         for (final line in rule.misses) {
           expect(pattern.regExp.hasMatch(line), isFalse, reason: line);
         }
-        if (!rule.required) expect(pattern.scope, rule.scope);
+        expect(pattern.scope, rule.scope);
       });
     }
 
-    test('the topic interface limits its pointer rule to the `- ` lines, and '
-        'each api operation needs both response examples per subsection', () {
+    test('the topic interface limits its pointer rule to the `- ` lines', () {
       expect(section('topic', 'interface').linePrefix, '- ');
-      for (final id in ['response_success', 'response_error']) {
-        final entry = section(
-          'api',
-          'operations',
-        ).requiredPatterns!.singleWhere((p) => p.id == id);
-        expect(entry.perSubsection, isTrue, reason: id);
-      }
     });
 
     test('component_details is an optional section right after components', () {
@@ -369,6 +345,7 @@ void main() {
         expect(section(docType, id).maxItemLines, 1, reason: '$docType.$id');
       }
       expect(section('auth', 'enforcement').maxLines, 1);
+      expect(section('architecture', 'design_references').itemCount!.max, 5);
       final purpose = section('topic', 'purpose').itemCount!;
       expect((purpose.min, purpose.max), (null, 1));
     });
@@ -427,57 +404,7 @@ void main() {
     );
   });
 
-  group('the shipped api and topic lint entries under check', () {
-    const operation = '### `signIn`\n\nSigns the Agent in.\n\n';
-    const success = '**Response example — success**\n\n';
-    const failure = '**Response example — error**\n\n';
-
-    String api(String operations) =>
-        '---\nconfirmed:\n  - email_login/check_password '
-        '${fingerprintFor('\n$checkPasswordStatement')}\n---\n\n# Login API\n\n'
-        '## FR trace\n\n| FR | Operation |\n|---|---|\n'
-        '| email_login/check_password | `signIn` |\n\n'
-        '## Operations\n\n$operations';
-
-    Future<List<String>> apiSpots(String operations) async => spots(
-      await checkOf(
-        await writeCheckProject(
-          extra: {'docs/$loginApi': api(operations)},
-          unstamped: {'docs/$loginApi'},
-        ),
-      ),
-      FindingKind.patternMissing,
-    );
-
-    test('an operation with no error example is pattern_missing at its '
-        'heading, and one with both examples passes', () async {
-      final text = api('$operation$success');
-      final headingLine = text
-          .substring(0, text.indexOf('### `signIn`'))
-          .split('\n')
-          .length;
-
-      expect(await apiSpots('$operation$success'), [
-        '$loginApi:$headingLine: pattern_missing',
-      ]);
-      expect(await apiSpots('$operation$success$failure'), isEmpty);
-    });
-
-    test('each operation needs its own examples, so a second operation with '
-        'none is reported alone', () async {
-      const first = '$operation$success$failure';
-      final text = api('$first### `lock`\n\nLocks it.\n');
-      final lockLine = text
-          .substring(0, text.indexOf('### `lock`'))
-          .split('\n')
-          .length;
-
-      expect(await apiSpots('$first### `lock`\n\nLocks it.\n'), [
-        '$loginApi:$lockLine: pattern_missing',
-        '$loginApi:$lockLine: pattern_missing',
-      ]);
-    });
-
+  group('the shipped topic lint entries under check', () {
     test('a topic interface item not opening with a path:Symbol code span is '
         'reported at its line', () async {
       const topicPath = 'docs/specs/topics/sign_in.md';
@@ -787,7 +714,6 @@ final class _GuideRule {
     required this.hits,
     required this.misses,
     this.scope = PatternScope.all,
-    this.required = false,
   });
 
   final String docType;
@@ -799,9 +725,6 @@ final class _GuideRule {
   final List<String> hits;
   final List<String> misses;
   final PatternScope scope;
-
-  /// Whether the entry is a `required_patterns` entry.
-  final bool required;
 }
 
 const _fifteenWords = 'w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14';
@@ -966,10 +889,10 @@ final _specGuideRules = <_GuideRule>[
       '- Integration — handled elsewhere',
       'Errors: fine',
       '- Auth — N/A —',
+      '- Errors — N/A — no new code',
     ],
     misses: [
       '- Integration — see `API.md`',
-      '- Errors — N/A — no new code',
       '- Auth — see AUTH.md#roles',
       '',
       '## Concerns',
@@ -997,25 +920,6 @@ final _specGuideRules = <_GuideRule>[
       '- `lib/src/a.dart:Symbol.method`',
       '  - nested note',
     ],
-  ),
-  const _GuideRule(
-    'api',
-    'operations',
-    'response_success',
-    required: true,
-    hits: [
-      '**Response example — success**',
-      '**Response example — success** x',
-    ],
-    misses: ['**Response example — error**', 'Response example — success'],
-  ),
-  const _GuideRule(
-    'api',
-    'operations',
-    'response_error',
-    required: true,
-    hits: ['**Response example — error**', '**Response example — error** x'],
-    misses: ['**Response example — success**', 'Response example — error'],
   ),
   const _GuideRule(
     'auth',
@@ -1087,29 +991,4 @@ final _specGuideRules = <_GuideRule>[
     hits: ['1. **INV-1** one rule', '12) The rule'],
     misses: ['- **INV-1** one rule', '  - **Enforcer:** order'],
   ),
-  for (final (concern, id) in [
-    ('Integration', 'concern_integration'),
-    ('Errors', 'concern_errors'),
-    ('Auth', 'concern_auth'),
-    ('Lifecycle', 'concern_lifecycle'),
-    ('Events', 'concern_events'),
-    ('Rollout', 'concern_rollout'),
-    ('Observability', 'concern_observability'),
-  ])
-    _GuideRule(
-      'architecture',
-      'concerns',
-      id,
-      required: true,
-      hits: [
-        '- $concern — see `API.md`',
-        '- **$concern:** N/A — none',
-        '$concern — see x',
-      ],
-      misses: [
-        '- ${concern}s — see x',
-        '- The $concern — see x',
-        '- ${concern}ation — see x',
-      ],
-    ),
 ];
