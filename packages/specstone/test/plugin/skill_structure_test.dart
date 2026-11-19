@@ -61,7 +61,10 @@ const _planAgent = 'specstone-plan-engineer.md';
 /// Each plugin file that names a file for an agent's run, and the
 /// AgentFileName forms it names under `<folder>/reports/`.
 const _agentFileNames = <String, List<String>>{
-  'specstone-plan-engineer.md': ['plan-engineer.plan.<XXXXXX>.md'],
+  'specstone-plan-engineer.md': [
+    'plan-engineer.plan.<XXXXXX>.md',
+    'check.plan.<XXXXXX>.txt',
+  ],
   'specstone-sdd-engineer.md': [
     'sdd-engineer.<mode>.<XXXXXX>.md',
     'sdd-engineer.<mode>.batch.<XXXXXX>.txt',
@@ -83,11 +86,14 @@ const _agentFileNames = <String, List<String>>{
 
 const _reportsFolder = '<folder>/reports/';
 
+const _agentFilePath =
+    r'<folder>/reports/(?:(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
+    r'(?:(?:batch|source)\.)?|check\.[a-z]+\.)<XXXXXX>\.(?:md|txt)';
+
 /// A code span naming an agent file by its AgentFileName under
-/// [_reportsFolder].
+/// [_reportsFolder], bare or as the quoted `--out` of a `specstone check`.
 final _agentFileSpan = RegExp(
-  r'^<folder>/reports/(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
-  r'(?:(?:batch|source)\.)?<XXXXXX>\.(?:md|txt)$',
+  '^(?:$_agentFilePath|specstone check --out "$_agentFilePath")\$',
 );
 
 /// A code line run in a shell: a `specstone` call or a redirect.
@@ -523,7 +529,13 @@ void _referencesResolveTests() {
         if (_agentFileSpan.hasMatch(code)) {
           named
               .putIfAbsent(file, () => [])
-              .add(code.substring(_reportsFolder.length));
+              .add(
+                code
+                    .substring(
+                      code.indexOf(_reportsFolder) + _reportsFolder.length,
+                    )
+                    .replaceFirst('"', ''),
+              );
         } else {
           problems.add('$file: $code');
         }
