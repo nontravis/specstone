@@ -22,7 +22,7 @@ Iterable<Finding> checkTestPointers(
 ) sync* {
   final read = recordDocOf(context, doc);
   if (read == null) return;
-  final (:type, :feature, :lines) = read;
+  final RecordDoc(:type, :feature, :lines) = read;
   final fieldId = recordTestFieldOf(type)?.id;
   final target = context.targets
       .where((target) => target.name == doc.target)

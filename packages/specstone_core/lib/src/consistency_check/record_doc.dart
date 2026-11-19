@@ -10,7 +10,13 @@ import 'package:specstone_core/src/templates/models/record_status.dart';
 
 /// A record doc read as a rule needs it: its doc type, its feature, and its
 /// lines.
-typedef RecordDoc = ({MergedDocType type, IndexedDoc feature, DocLines lines});
+final class RecordDoc {
+  const new({required this.type, required this.feature, required this.lines});
+
+  final MergedDocType type;
+  final IndexedDoc feature;
+  final DocLines lines;
+}
 
 /// Returns [doc] as a [RecordDoc], or null when it is no record, its parent
 /// is no feature, or its frontmatter is invalid.
@@ -32,7 +38,7 @@ RecordDoc? recordDocIn(
   if (feature == null || feature.docTypeId != featureType) return null;
   final lines = linesOf();
   if (lines.frontmatterErrorLine != null) return null;
-  return (type: type, feature: feature, lines: lines);
+  return RecordDoc(type: type, feature: feature, lines: lines);
 }
 
 /// Whether [item] is skipped in the target of [record], by its own entry or by

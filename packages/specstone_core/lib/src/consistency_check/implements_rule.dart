@@ -20,7 +20,7 @@ const _edge = r'[\p{L}\p{N}_]';
 Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
   final read = recordDocOf(context, doc);
   if (read == null) return;
-  final (:type, :feature, :lines) = read;
+  final RecordDoc(:type, :feature, :lines) = read;
   final fieldId = recordCodeFieldOf(type)?.id;
   final target = context.targets
       .where((target) => target.name == doc.target)

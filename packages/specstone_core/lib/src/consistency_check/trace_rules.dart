@@ -473,7 +473,7 @@ Iterable<Finding> checkImplementedStatus(
 ) sync* {
   final read = recordDocOf(context, doc);
   if (read == null) return;
-  final (:type, :feature, :lines) = read;
+  final RecordDoc(:type, :feature, :lines) = read;
   final statusField = recordStatusFieldOf(type);
   if (statusField == null) return;
   final index = context.index;
