@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -127,6 +128,14 @@ SharedLine _parseLine(
   final prefix = '$_linesKey[$index].';
   final id = requireValue<String>(entry, 'id', file: file, prefix: prefix);
   checkKeys(entry, _lineKeys, file: file, format: format, prefix: prefix);
+  if (!isDocTypeIdShaped(id)) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      slugIdMessage,
+      file: file,
+      key: '${prefix}id',
+    );
+  }
   _claimId(seen, id, file: file, key: '${prefix}id');
   final text = optionalValue<String>(entry, 'text', file: file, prefix: prefix);
   return SharedLine(

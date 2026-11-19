@@ -30,10 +30,12 @@ const _layerWithoutPath =
 /// layer. An entry is spared when a selected step in [upgrades] renames it. A
 /// layer that writes `path:` for a doc type no pack defines defines its own
 /// and is skipped; one for a pack doc type is still checked. A shared line
-/// dangles when it is no complete new entry and the target defines no line of
-/// its id, and for each `for_doc_types` id that neither the target nor a layer
-/// that writes `path:` defines. The fault is the first dangling entry; `more`
-/// holds the rest in file order, then entry order, the record override last.
+/// dangles on its id when the target defines no line of that id and either it
+/// is no complete new entry or a selected `drop_shared_lines` step names the
+/// id; it dangles on each `for_doc_types` id that neither the target nor a
+/// layer that writes `path:` defines. The fault is the first dangling entry;
+/// `more` holds the rest in file order, then entry order, the record override
+/// last.
 void refuseDanglingOverrides(
   List<DocTypeLayer> overrides, {
   required MergedSet target,
@@ -60,6 +62,9 @@ void refuseDanglingOverrides(
     layerDefined: {
       for (final layer in overrides)
         if (layer.path != null) layer.docTypeId,
+    },
+    droppedIds: {
+      for (final step in steps.whereType<DropSharedLines>()) ...step.ids,
     },
   );
   const sharedFile = '.specstone/templates/$projectSharedFileName';
@@ -143,13 +148,15 @@ List<MigrateFault> _danglingOf(
 
 /// Returns one fault per dangling entry of [lines], in file order.
 ///
-/// A line dangles on its id when it is no complete new entry, one with `text`
-/// and not disabled, and [target] defines no line of that id. It dangles on
-/// each `for_doc_types` id that neither [target] nor [layerDefined] defines.
+/// A line dangles on its id when [target] defines no line of that id and
+/// either the line is no complete new entry (one with `text`, not disabled)
+/// or a selected step names the id in [droppedIds]. It dangles on each
+/// `for_doc_types` id that neither [target] nor [layerDefined] defines.
 List<MigrateFault> _sharedDanglingOf(
   List<SharedLine> lines, {
   required MergedSet target,
   required Set<String> layerDefined,
+  required Set<String> droppedIds,
 }) {
   final definedIds = {
     for (final line in target.shared.lines) line.id,
@@ -165,7 +172,10 @@ List<MigrateFault> _sharedDanglingOf(
 
   return [
     for (final line in lines) ...[
-      if ((line.disabled || line.text == null) && !definedIds.contains(line.id))
+      if ((line.disabled ||
+              line.text == null ||
+              droppedIds.contains(line.id)) &&
+          !definedIds.contains(line.id))
         fault(
           line,
           'shared_lines.${line.id}',

@@ -373,6 +373,75 @@ void main() {
     );
   });
 
+  test('a drop_shared_lines step reads its ids', () {
+    final step = parseMigrationsOf('''
+- from: 1.12.0
+  steps:
+    - drop_shared_lines: {ids: [old_tone, Ghost-1]}
+''').single.steps.single;
+
+    expect(step, isA<DropSharedLines>());
+    step as DropSharedLines;
+    expect(step.kind, 'drop_shared_lines');
+    expect(step.ids, ['old_tone', 'Ghost-1']);
+    expect(step.touches('api'), isFalse);
+    expect(step.touches('story'), isFalse);
+  });
+
+  for (final ids in ['[]', 'ghost', '[1]']) {
+    test('a bad drop_shared_lines ids value is unknown_value: $ids', () {
+      expect(
+        () => parseMigrationsOf(
+          '- from: 1.12.0\n'
+          '  steps:\n'
+          '    - drop_shared_lines: {ids: $ids}\n',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'migrations[0].steps[0].drop_shared_lines.ids',
+          ).having(
+            (f) => f.message,
+            'message',
+            'drop_shared_lines holds no id',
+          ),
+        ),
+      );
+    });
+  }
+
+  test('a drop_shared_lines step with no ids is missing_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.12.0\n'
+        '  steps:\n'
+        '    - drop_shared_lines: {}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.missingKey,
+          key: 'migrations[0].steps[0].drop_shared_lines.ids',
+        ),
+      ),
+    );
+  });
+
+  test('a drop_shared_lines step with an extra key is unknown_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.12.0\n'
+        '  steps:\n'
+        '    - drop_shared_lines: {ids: [a], note: x}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].drop_shared_lines.note',
+        ),
+      ),
+    );
+  });
+
   test('a bullet_lines step parses to BulletLines and touches its '
       'doc type', () {
     final step = parseMigrationsOf('''
