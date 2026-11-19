@@ -49,17 +49,17 @@ Never look for `.specstone/` first: the working directory alone can miss a root 
 
 ## Get the drafts approved
 
-Only the main session runs this; a subagent runs `approve` only with `--dry-run` and reports its drafts.
+Only the main session runs `--auto`; a subagent runs `approve` only with `--dry-run` and reports its drafts.
 
 1. Run one `specstone approve <type>:<name> … --auto --json` naming each draft of the run's own list (yours or the
    engineer's), never a bare `approve`. In `specstone-brainstorming-sdd` add `--audit <path>` per audit
    report, oldest first, and `--author <path>` per author report; else `--no-audit`.
-2. Exit 75: rerun it once; a second sends every draft to Owner confirmation.
+2. Exit 75: rerun once; a second sends all drafts to Owner confirmation.
 3. List each `approved` entry's `name`, `docPath`, and `Why:` sentence, with no wait; for a confirmation written
    again, the upstream change.
 4. Send each `asked` entry to Owner confirmation unchanged.
 
-Under both modes the Owner answers the design document's approval, a mid-flow or report question, a split proposal, a
+Under `ask` and `auto` the Owner answers the design document's approval, a mid-flow or report question, a split proposal, a
 sync pick, each `--plan`.
 
 ## Owner confirmation
@@ -68,14 +68,14 @@ sync pick, each `--plan`.
 without `--yes` or in the chat:
 
 1. Show each item in full, one per message:
-   - `approve`, per asked draft: the literal `Why:`, one sentence in the chat's language on why it changed, then its
-     `specstone approve <type>:<name> … --dry-run` text verbatim, per-draft dry runs if cut.
+   - `approve`, per draft the `--auto` call asks: the literal `Why:`, one sentence in the chat's language on why it
+     changed, then its `specstone approve <type>:<name> … --dry-run` text verbatim, per draft if cut.
    - `delete`, `migrate`, or legacy `init`: the list or plan and `plan <hash>` line of
      `specstone delete <path> … --dry-run` or `specstone migrate --dry-run`, and why each goes.
-2. The Owner says `ok` or what to fix; fix it by `specstone set` and show it again.
-3. After `ok` on every item shown (or the Owner's leave to answer), run one command with the hashes shown,
+2. The Owner says `ok` or what to fix; fix it by `specstone set`; show it again.
+3. After `ok` on every item shown (or the Owner's leave), run one command with the hashes shown,
    each draft named: `specstone approve <type>:<name>@<hash> … --yes`, or `specstone delete <path> …`, `migrate`, or
-   `init`, with `--yes --plan <hash>`. Exit 75: show it again. Write each `@<hash>`, path, and `--plan <hash>`
+   `init` with `--yes --plan <hash>`. Exit 75: show it again. Write each `@<hash>`, path, and `--plan <hash>`
    literally, never from a file, variable, or command substitution.
 
 `specstone trust` is the Owner's alone, even if told to answer for them: never run it or answer its prompt, by pty or

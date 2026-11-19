@@ -1485,6 +1485,10 @@ void _approveStepTests() {
         '--audit',
         '--author',
         '--no-audit',
+        '`approved`',
+        '`docPath`',
+        '`asked`',
+        'Exit 75',
       ]) {
         expect(section, contains(word), reason: word);
       }
@@ -1512,6 +1516,14 @@ void _approveStepTests() {
             sentence.toLowerCase().contains('subagent') &&
             sentence.contains('`approve`') &&
             sentence.contains('only with `--dry-run`'),
+      ),
+      isNotEmpty,
+    );
+    expect(
+      sentences.where(
+        (sentence) =>
+            sentence.contains('Only the main session') &&
+            sentence.contains('`--auto`'),
       ),
       isNotEmpty,
     );
