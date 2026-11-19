@@ -1323,6 +1323,7 @@ sections:
         'draft',
         'approved',
         'reference',
+        'retrim',
       ]);
       expect(runbook.sections.single.id, 'steps');
     });
