@@ -35,6 +35,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _pairMark = '=';
 const _addressExample = 'architecture:login';
+const _stampExample = '--stamp <entry>=<fingerprint>';
 
 // MARK: - Request
 
@@ -60,7 +61,8 @@ final class StampRequest {
   /// to that code target's docs and the shared docs.
   /// Throws [IndexFault] `argument_missing` for a missing [address] and
   /// `argument_invalid` for an argument with no `=` or a fingerprint that is
-  /// not 12 lowercase hex characters.
+  /// not 12 lowercase hex characters, and `argument_missing` for no
+  /// [stampArgs].
   static StampRequest parse(
     String? address,
     List<String> stampArgs, {
@@ -68,6 +70,9 @@ final class StampRequest {
   }) {
     if (address == null) {
       throw missingArgument('set', 'a doc address', _addressExample);
+    }
+    if (stampArgs.isEmpty) {
+      throw missingArgument('set', '--stamp', _stampExample);
     }
     return StampRequest(
       address: address,
@@ -117,6 +122,7 @@ ReadAnswer answerStamp(WriteSession session, StampRequest request) {
       (throw StateError('${doc.docPath} is typed but its type is gone'));
   final address = session.index.addressOf(doc);
   final code = _CodeJudge(session, ownerTargetOf(doc, session.project.targets));
+  final stamped = {for (final pair in request.stamps) pair.entry}.toList();
   return session.locked(() {
     final locked = readLocked(session, doc, MatchedDocType(docType));
     final fields = _stampFieldsOf(locked.lfText, docType);
@@ -135,11 +141,8 @@ ReadAnswer answerStamp(WriteSession session, StampRequest request) {
       LineEnding.of(locked.parsed.content.text),
     );
     return ReadAnswer(
-      text: '$address: ${request.stamps.length} stamped\n',
-      json: {
-        'doc': address,
-        'stamped': [for (final pair in request.stamps) pair.entry],
-      },
+      text: '$address: ${stamped.length} stamped\n',
+      json: {'doc': address, 'stamped': stamped},
     );
   });
 }
@@ -260,9 +263,11 @@ final class _CodeJudge {
   /// entry resolves and its code fingerprints as [pair] says.
   StampRefusal? refusalOf(_StampField field, StampPair pair) {
     final root = _rootOf(field.field);
-    if (root == null) return _unresolved(pair, field.pathFinding);
+    if (root == null) {
+      return _unresolved(pair, FindingKind.sharedDocCodePath.wire);
+    }
     final unresolved = _unresolvedKind(field, pair.entry, root);
-    if (unresolved != null) return _unresolved(pair, unresolved);
+    if (unresolved != null) return _unresolved(pair, unresolved.wire);
     final current = currentCodeFingerprint(
       field.pathOf(pair.entry),
       codeRoot: root,
@@ -270,7 +275,7 @@ final class _CodeJudge {
       bytesOf: (file) => _bytesOf(root, file),
       onUnlistable: (_) {},
     );
-    if (current == null) return _unresolved(pair, field.pathFinding);
+    if (current == null) return _unresolved(pair, _unreadable);
     if (current == pair.fingerprint) return null;
     return StampRefusal(
       entry: pair.entry,
@@ -313,10 +318,12 @@ final class _CodeJudge {
   }
 }
 
-StampRefusal _unresolved(StampPair pair, FindingKind finding) => StampRefusal(
+const _unreadable = 'its code cannot be read';
+
+StampRefusal _unresolved(StampPair pair, String reason) => StampRefusal(
   entry: pair.entry,
   code: WriteFaultCode.stampEntryUnresolved,
-  message: '${pair.entry} does not resolve: ${finding.wire}',
+  message: '${pair.entry} does not resolve: $reason',
 );
 
 List<int>? _bytesOf(Directory root, String file) {

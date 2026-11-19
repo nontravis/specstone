@@ -296,6 +296,76 @@ void main() {
     );
   });
 
+  test(
+    'a shared doc of a two-target project refuses its code-root entry '
+    'as shared_doc_code_path and still stamps a root: project entry',
+    () async {
+      const tool = 'tools/run.sh';
+      const toolText = 'echo run\n';
+      const entry = 'flutter_ws/app/lib/login.dart';
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_ws\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\nfields:\n  - id: tools\n'
+              '    type: output_ref\n    list: true\n    pointer: prefix\n'
+              '    root: project\n',
+          'docs/$loginArchitecture':
+              '---\ncovers:\n  - $entry\ntools:\n  - tools/\n---\n\n'
+              '# Login architecture\n',
+          entry: _loginText,
+          tool: toolText,
+        },
+        without: {_login, loginRecord},
+        unfingerprinted: {'docs/$loginArchitecture'},
+      );
+      final before = readDoc(project, loginArchitecture);
+      final fingerprint = _folderFingerprint({tool: toolText});
+
+      final fault = _refused(project, _archAddress, ['$entry=$_old']);
+
+      expect(fault.refusals.single.code, WriteFaultCode.stampEntryUnresolved);
+      expect(
+        fault.refusals.single.message,
+        '$entry does not resolve: shared_doc_code_path',
+      );
+      expect(readDoc(project, loginArchitecture), before);
+      _stamp(project, _archAddress, ['tools/=$fingerprint']);
+      expect(
+        readDoc(project, loginArchitecture),
+        contains('  - tools/ $fingerprint'),
+      );
+    },
+  );
+
+  test('a stamp of the same entry twice counts and lists it once', () async {
+    final root = await _project();
+
+    final answer = _stamp(root, _archAddress, [
+      '$_login=$loginFingerprint',
+      '$_login=$loginFingerprint',
+    ]);
+
+    expect(answer.text, '$_archAddress: 1 stamped\n');
+    expect(answer.json['stamped'], [_login]);
+  });
+
+  test('a stamp with no --stamp argument is argument_missing', () {
+    expect(
+      () => StampRequest.parse(_archAddress, const []),
+      throwsA(
+        isA<IndexFault>().having(
+          (fault) => fault.code,
+          'code',
+          IndexFaultCode.argumentMissing,
+        ),
+      ),
+    );
+  });
+
   test('a root: project entry resolves from the project root', () async {
     const tool = 'tools/run.sh';
     const toolText = 'echo run\n';
