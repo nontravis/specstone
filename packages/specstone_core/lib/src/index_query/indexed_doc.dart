@@ -153,7 +153,7 @@ ParsedDoc parseIndexedDoc({
     );
   }
   final yaml = switch (doc.frontmatter) {
-    final blocks? => parseFrontmatterYaml(blocks.map((b) => b.text).join()),
+    final blocks? => FrontmatterYaml.parse(blocks.map((b) => b.text).join()),
     null => null,
   };
   final frontmatter = _frontmatterValues(yaml, docPath, warnings);
@@ -360,7 +360,7 @@ Map<String, Object?> frontmatterValuesOf(Doc doc) {
   final blocks = doc.frontmatter;
   final yaml = blocks == null
       ? null
-      : parseFrontmatterYaml(blocks.map((b) => b.text).join());
+      : FrontmatterYaml.parse(blocks.map((b) => b.text).join());
   return _frontmatterValues(yaml, '', []);
 }
 

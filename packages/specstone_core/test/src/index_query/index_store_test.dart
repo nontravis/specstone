@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/models/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -823,7 +824,7 @@ void main() {
           ..putDoc(parsed('A.md', text.replaceAll('\n', '\r\n')));
       });
       final stored = DocLines.from(store.loadContent('A.md'));
-      final direct = DocLines.of(text);
+      final direct = docLinesOf(text);
       expect(stored.lines, direct.lines);
       expect(stored.lineCount, direct.lineCount);
       expect(stored.charCount, direct.charCount);

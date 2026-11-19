@@ -484,7 +484,7 @@ String _codeRootNoteOf(CodeRootChoice? inferred) =>
 
 /// Returns the string entries of the frontmatter field [field] of [lf].
 List<String> _entriesOf(String lf, String field) => [
-  for (final YamlEntry(:value) in DocLines.of(lf).entriesOf(field))
+  for (final YamlEntry(:value) in docLinesOf(lf).entriesOf(field))
     if (value is String) value,
 ];
 

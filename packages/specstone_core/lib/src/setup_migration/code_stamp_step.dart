@@ -6,7 +6,7 @@ import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
 import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ImplementedWork;
-import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/models/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';

@@ -9,7 +9,7 @@ void main() {
       '## Statement\nBody.\n';
 
   test('key, entry, and section lines are 1-based in the file', () {
-    final lines = DocLines.of(text);
+    final lines = docLinesOf(text);
     expect(lines.keyLine('status'), 2);
     expect(lines.keyLine('missing'), isNull);
     expect(lines.entriesOf('traced_from'), [
@@ -25,8 +25,8 @@ void main() {
   });
 
   test('a CRLF file has the lines and counts of its LF twin', () {
-    final lf = DocLines.of(text);
-    final crlf = DocLines.of(text.replaceAll('\n', '\r\n'));
+    final lf = docLinesOf(text);
+    final crlf = docLinesOf(text.replaceAll('\n', '\r\n'));
     expect(crlf.lines, lf.lines);
     expect(crlf.charCount, lf.charCount);
     expect(crlf.sectionLines, lf.sectionLines);
@@ -34,7 +34,7 @@ void main() {
   });
 
   test('a ## line inside a fenced code block is no section', () {
-    final lines = DocLines.of(
+    final lines = docLinesOf(
       '# T\n\n```\n## not a section\n```\n\n## Real\nx\n',
     );
     expect(lines.sectionLines, [7]);
@@ -42,27 +42,27 @@ void main() {
 
   test('frontmatter YAML with an unclosed quote names the parser line', () {
     expect(
-      DocLines.of('---\ntitle: "open\n---\n\n# T\n').frontmatterErrorLine,
+      docLinesOf('---\ntitle: "open\n---\n\n# T\n').frontmatterErrorLine,
       3,
     );
-    expect(DocLines.of('---\n- a list\n---\n').frontmatterErrorLine, 1);
-    expect(DocLines.of('# No frontmatter\n').keyLine('status'), isNull);
+    expect(docLinesOf('---\n- a list\n---\n').frontmatterErrorLine, 1);
+    expect(docLinesOf('# No frontmatter\n').keyLine('status'), isNull);
   });
 
   test('review: a backtick fence with a backtick in its info string is no '
       'fence', () {
-    final lines = DocLines.of('# T\n\n```x``` inline\n\n## Real\nx\n');
+    final lines = docLinesOf('# T\n\n```x``` inline\n\n## Real\nx\n');
     expect(lines.sectionLines, [5]);
   });
 
   test('review: empty frontmatter is valid and holds no keys', () {
-    final lines = DocLines.of('---\n---\n');
+    final lines = docLinesOf('---\n---\n');
     expect(lines.frontmatterErrorLine, isNull);
     expect(lines.keyLine('status'), isNull);
   });
 
   test('a bare key, or a bare list item, has no entry', () {
-    final lines = DocLines.of(
+    final lines = docLinesOf(
       '---\nconfirmed:\nimplements:\n  - \n  - a\n---\n',
     );
     expect(lines.entriesOf('confirmed'), isEmpty);
@@ -72,9 +72,7 @@ void main() {
   test(
     'isFenced is true for a fence line and its content, and false elsewhere',
     () {
-      final lines = DocLines.of(
-        '---\nk: v\n---\n# T\n```\n### x\n```\nafter\n',
-      );
+      final lines = docLinesOf('---\nk: v\n---\n# T\n```\n### x\n```\nafter\n');
       expect(
         [for (var line = 1; line <= 9; line++) lines.isFenced(line)],
         [false, false, false, false, true, true, true, false, false],

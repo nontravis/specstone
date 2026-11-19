@@ -15,7 +15,6 @@ import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
-import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/models/label_place.dart';
 import 'package:specstone_core/src/index_query/models/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
@@ -25,7 +24,6 @@ import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/models/mermaid_block.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
-import 'package:yaml/yaml.dart';
 
 const _tab = 0x09;
 const _cr = 0x0D;
@@ -63,23 +61,6 @@ int _allLines(String text) {
   if (text.isEmpty) return 0;
   final breaks = scanText(text).breaks;
   return text.endsWith('\n') ? breaks : breaks + 1;
-}
-
-/// Returns [source], the frontmatter lines between the `---` delimiters, as
-/// a mapping or the line that makes it invalid.
-///
-/// File line numbers are the node line plus 2, since [source] starts on line 2.
-FrontmatterYaml parseFrontmatterYaml(String source) {
-  try {
-    final node = loadYamlNode(source);
-    if (node is YamlMap) return FrontmatterYaml(map: node, errorLine: null);
-    if (node is YamlScalar && node.value == null) {
-      return const FrontmatterYaml(map: null, errorLine: null);
-    }
-    return const FrontmatterYaml(map: null, errorLine: 1);
-  } on YamlException catch (e) {
-    return FrontmatterYaml(map: null, errorLine: e.span!.start.line + 2);
-  }
 }
 
 /// Returns the lines of [lfText] without their `\n` and with no final empty
