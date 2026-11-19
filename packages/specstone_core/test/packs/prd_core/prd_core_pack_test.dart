@@ -95,7 +95,7 @@ const _barFragments = [
 
 void main() {
   group('prd-core manifest', () {
-    test('prd-core ships at 1.18.0 with no extends', () {
+    test('prd-core ships at 1.19.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -103,10 +103,10 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.18.0');
+      expect(manifest.version.toString(), '1.19.0');
       expect(manifest.extendsPack, isNull);
       final upgrade = _upgradeFrom('1.7.0', manifest);
-      expect(upgrade.target.toString(), '1.18.0');
+      expect(upgrade.target.toString(), '1.19.0');
       expect(
         [for (final s in upgrade.steps) (s.from.toString(), s.step.kind)],
         [('1.7.0', 'strip_shared_copies')],
@@ -114,8 +114,8 @@ void main() {
     });
 
     test('a pin past the strip entry gets the pin change only', () {
-      final upgrade = _upgradeFrom('1.17.0', _prdCoreManifest());
-      expect(upgrade.target.toString(), '1.18.0');
+      final upgrade = _upgradeFrom('1.18.0', _prdCoreManifest());
+      expect(upgrade.target.toString(), '1.19.0');
       expect(upgrade.steps, isEmpty);
     });
 
@@ -139,6 +139,17 @@ void main() {
         },
       );
       expect(shared.fields, isEmpty);
+    });
+
+    test('no prd-core shared line names another shared line', () {
+      final lines = _prdCoreManifest().shared.lines;
+      for (final line in lines) {
+        for (final other in lines) {
+          if (other.id == line.id) continue;
+          expect(line.text, isNot(contains(other.id)), reason: line.id);
+          expect(line.text, isNot(contains(other.text)), reason: line.id);
+        }
+      }
     });
 
     test('a project pinning the shipped prd-core resolves with '
