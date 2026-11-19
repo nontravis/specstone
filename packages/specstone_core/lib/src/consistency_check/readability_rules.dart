@@ -29,11 +29,11 @@ Iterable<Finding> checkReadability(CheckContext context, IndexedDoc doc) sync* {
   final matrixId = verificationMatrixOf(type)?.id;
   yield* _sectionFindings(context, doc, type.lint, leadKey, facts.leadItems);
   for (var i = 0; i < content.sections.length; i++) {
-    if (matrixId != null && context.templateSectionAt(doc, i)?.id == matrixId) {
+    final template = context.templateSectionAt(doc, i);
+    if (matrixId != null && template?.id == matrixId) {
       continue;
     }
-    final sectionKey =
-        context.templateSectionAt(doc, i)?.id ?? content.sections[i].key;
+    final sectionKey = template?.id ?? content.sections[i].key;
     yield* _sectionFindings(
       context,
       doc,
