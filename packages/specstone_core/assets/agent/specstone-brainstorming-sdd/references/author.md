@@ -26,8 +26,8 @@ one it lacks under `Findings:`.
   `bases` of `specstone get <type>:<name> --json`.
 - **A removed decision's stub row**: follow `removal.md` section 2.
 - **Several docs**: one name list, step 1's names too: `#input--output` as `input_output`; item or note: its section
-  key; whole, new, or no-key doc: its bare name (gap under `Findings:`); key the doc lacks: its naming line, the section
-  written under it. `specstone get <list> --out "<file>"`, `<file>`
+  key; whole or new doc: its bare name; a finding naming a doc with no key: its bare name, the gap under `Findings:`;
+  key the doc lacks: its naming line, the section written under it. `specstone get <list> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`. `section_not_found`: rerun with its doc's bare name, the
   key under `Findings:`; `doc_not_found`: rerun without it, under `Findings:`, or `Not landed:` if never created. Find
   each block by text search; read a block only when you edit it, never the whole file; keep naming lines, one write per
@@ -37,16 +37,16 @@ one it lacks under `Findings:`.
 
 ## 3. Sweep each changed rule
 
-Run `specstone search "<term>"`, `--limit` above its hit count, per term in each written form section 4 of `design.md`
-lists, the short form the key noun alone:
+Run `specstone search "<term>"`, `--limit` above its hit count, per term in each written form that section 4 of
+`design.md` lists, the short form the key noun alone:
 
 - **First pass, or after an amend** (its decisions only): each added term, key, or literal; each ruling's superseded
   wording; each changed rule's owner item's words and every key or literal of the set the new one joins.
 - **Fix round**: each taken finding's rule and terms.
 
-A hit stating the rule without the decision's new text is a reader; its section goes in a second name list with its
-own `get … --out` and `set --batch`. In a draft or a Docs to change row's doc, link the owner's item for
-a restated copy; rewrite a reader owning a rule. List any other under `Findings:`.
+A hit stating the rule without the decision's new text is a reader. One in a draft or a Docs to change row's doc: its
+section goes in a second name list with its own `get … --out` and `set --batch`; link the owner's item for a restated
+copy, rewrite a reader owning a rule. List any other under `Findings:` only.
 
 ## 4. Check
 
