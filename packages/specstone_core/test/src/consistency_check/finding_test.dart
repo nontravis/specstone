@@ -236,6 +236,26 @@ void main() {
     expect(byRule.waitsFor, WaitsFor.owner);
   });
 
+  test('only an unconfirmed finding that waits for the Owner is cleared by '
+      'approval', () {
+    for (final kind in [FindingKind.unconfirmed, FindingKind.suspect]) {
+      for (final waitsFor in [WaitsFor.owner, WaitsFor.agent]) {
+        final finding = Finding(
+          kind: kind,
+          path: 'a.md',
+          line: 1,
+          message: 'm',
+          waitsFor: waitsFor,
+        );
+        expect(
+          finding.isClearedByApproval,
+          kind == FindingKind.unconfirmed && waitsFor == WaitsFor.owner,
+          reason: '${kind.wire} waits for ${waitsFor.name}',
+        );
+      }
+    }
+  });
+
   test('an owner finding ends its line with the tag; its JSON holds waitsFor '
       'after message and no tag in the message', () {
     const finding = Finding(

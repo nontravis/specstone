@@ -51,9 +51,6 @@ final class AutoApproveCall {
 ///
 /// Under `auto` the check, the judgment, the writes, and the prune share one
 /// lock hold; under any other mode nothing is written and every draft is asked.
-/// Prints a `mode:` line, `approved` lines, then `ask` lines with their
-/// reasons, in tree order; JSON keys are `approveMode`, `approved`, `asked`,
-/// and the mode warning is the answer's `warnings`.
 /// Throws [IndexFault], [WriteFault] `draft_not_found`, or `RenderFault`
 /// `output_not_writable` before the mode gate, `base_mismatch` for a draft gone
 /// inside the hold, and `index_busy` when another call holds the lock.
