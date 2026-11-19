@@ -119,31 +119,6 @@ void main() {
       expect(layer.fields.single.type, FieldType.sourceRef);
     });
 
-    test('a doc type and a field that write export: false load', () {
-      final layer = _parse(
-        'export: false\nfields: [{id: note, type: string, export: false}]',
-      );
-      expect(layer.export, isFalse);
-      expect(layer.fields.single.export, isFalse);
-    });
-
-    test('a doc type and a field that write no export read null', () {
-      final layer = _parse('fields: [{id: note, type: string}]');
-      expect(layer.export, isNull);
-      expect(layer.fields.single.export, isNull);
-    });
-
-    test('an export that is no boolean is unknown_value at that key', () {
-      expect(
-        () => _parse('export: no\n'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'export')),
-      );
-      expect(
-        () => _parse('fields: [{id: note, type: string, export: no}]'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'fields.note.export')),
-      );
-    });
-
     test('root: project and root: code load on an output_ref field', () {
       final layer = _parse(
         'fields: [{id: a, type: output_ref, pointer: exact, root: project}, '
@@ -1603,14 +1578,14 @@ lint:
       );
     });
 
-    test('a doc type and a field export that are no boolean exit 78', () {
+    test('a doc type or field writing export is unknown_key', () {
       expect(
-        () => _parse('export: no\n'),
-        throwsA(refusal(FaultCode.unknownValue, 'export')),
+        () => _parse('export: false\n'),
+        throwsA(refusal(FaultCode.unknownKey, 'export')),
       );
       expect(
-        () => _parse('fields: [{id: note, type: string, export: no}]'),
-        throwsA(refusal(FaultCode.unknownValue, 'fields.note.export')),
+        () => _parse('fields: [{id: note, type: string, export: false}]'),
+        throwsA(refusal(FaultCode.unknownKey, 'fields.note.export')),
       );
     });
 

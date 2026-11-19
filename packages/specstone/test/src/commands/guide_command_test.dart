@@ -238,35 +238,31 @@ void main() {
       expect(json['maxDepth'], 2);
     });
 
-    test('guide <type> --json prints export on the doc type and root and '
-        'export on a field when written, and omits each when not', () async {
+    test('guide <type> --json prints root on a field when written, and omits '
+        'it when not', () async {
       final runner = await runnerIn(
         await projectWith({
           '.specstone/templates/feature.yaml':
-              'export: false\nfields:\n'
+              'fields:\n'
               '  - {id: covers, type: output_ref, pointer: exact, '
-              'root: project, export: false}\n',
+              'root: project}\n',
         }),
       );
 
       expect(await runner.run(['guide', 'feature', '--json']), 0);
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(json['export'], isFalse);
       final covers = (json['fields']! as List)
           .cast<Map<String, Object?>>()
           .singleWhere((f) => f['id'] == 'covers');
       expect(covers['root'], 'project');
-      expect(covers['export'], isFalse);
 
       out.clear();
       final plain = await runnerIn(await projectWith({}));
       expect(await plain.run(['guide', 'feature', '--json']), 0);
       final unset = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(unset.containsKey('export'), isFalse);
       for (final field
           in (unset['fields']! as List).cast<Map<String, Object?>>()) {
         expect(field.containsKey('root'), isFalse);
-        expect(field.containsKey('export'), isFalse);
       }
     });
 
@@ -1913,7 +1909,7 @@ items:
     });
 
     test('guide component --json prints the group parent and the lifecycle, '
-        'feature, and design_source fields with their export keys', () async {
+        'feature, and design_source fields', () async {
       final runner = await runnerFor(packs: softwareDesignSystemConfig());
 
       final schema = await schemaOf(runner, 'component');
@@ -1925,34 +1921,28 @@ items:
           f['id']! as String: f,
       };
       expect(fields['lifecycle']!['enum'], ['beta', 'stable', 'deprecated']);
-      expect(fields['lifecycle']!.containsKey('export'), isFalse);
-      expect(fields['feature']!['export'], false);
-      expect(fields['design_source']!['export'], false);
+      expect(fields.keys, containsAll(['feature', 'design_source']));
     });
 
-    test(
-      'guide contributing --json sets export false and guide tokens --json '
-      'holds the built-in fields, no perTarget, and one required section',
-      () async {
-        final runner = await runnerFor(packs: softwareDesignSystemConfig());
+    test('guide tokens --json holds the built-in fields, no perTarget, and one '
+        'required section', () async {
+      final runner = await runnerFor(packs: softwareDesignSystemConfig());
 
-        expect((await schemaOf(runner, 'contributing'))['export'], false);
-        final tokens = await schemaOf(runner, 'tokens');
-        expect(tokens.containsKey('perTarget'), isFalse);
-        expect(
-          (tokens['fields']! as List<Object?>).map(
-            (f) => (f! as Map<String, Object?>)['id'],
-          ),
-          builtInFields.map((f) => f.id),
-        );
-        expect(tokens['sections'], [containsPair('id', 'token_list')]);
-        expect(
-          ((tokens['sections']! as List<Object?>).single!
-              as Map<String, Object?>)['required'],
-          true,
-        );
-      },
-    );
+      final tokens = await schemaOf(runner, 'tokens');
+      expect(tokens.containsKey('perTarget'), isFalse);
+      expect(
+        (tokens['fields']! as List<Object?>).map(
+          (f) => (f! as Map<String, Object?>)['id'],
+        ),
+        builtInFields.map((f) => f.id),
+      );
+      expect(tokens['sections'], [containsPair('id', 'token_list')]);
+      expect(
+        ((tokens['sections']! as List<Object?>).single!
+            as Map<String, Object?>)['required'],
+        true,
+      );
+    });
 
     test('guide guidelines, guide setup, and guide component print their '
         'statements and rules', () async {
@@ -1977,7 +1967,7 @@ items:
       expect(
         out.toString(),
         contains(
-          "The install contract is the source of the skill's install page.",
+          "The install contract is what a skill's install steps follow.",
         ),
       );
       out.clear();

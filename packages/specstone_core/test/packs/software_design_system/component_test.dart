@@ -116,9 +116,6 @@ void main() {
         ),
         FieldSpec('design_source', FieldType.sourceRef, list: true),
       ]);
-      expect(fieldOf(component, 'lifecycle').export, isNull);
-      expect(fieldOf(component, 'feature').export, isFalse);
-      expect(fieldOf(component, 'design_source').export, isFalse);
     });
 
     test('carries the twelve sections in order, keyboard alone optional', () {
