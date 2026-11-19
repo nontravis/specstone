@@ -8,14 +8,14 @@ words or records one.
 
 - **A refused design path**, an open question with no document written: append nothing; write the document at the
   Owner's new path, by `design.md`.
-- **Only words or records**: append it to the design document's Rulings yourself, as `design.md` writes them;
+- **Only words or records**: append it to the design document's Rulings, as `design.md` writes them;
   dispatch nothing, no design check; the author, or the fix round under way, goes on.
 - **Adds or changes behavior**, or needs more PRD or spec grounding: ground a doc newly reached by its own
-  `specstone context <doc> --for design --out`, never `get`, then amend the same file yourself. `design.md` finds the
+  `specstone context <doc> --for design --out`, never `get`, then amend the same file. `design.md` finds the
   decision's dependents before the author writes it. When the amend adds or changes behavior, dispatch the design
   check per the skill's step 3, `amend: <N>`; amends made before the approval ask share one,
-  `amend: <N>[,<N> ...]`. Your fix of its findings, an Owner answer to one included, is no amend and takes no second
-  check.
+  `amend: <N>[,<N> ...]`. Your fix of its findings, an Owner answer included, is no amend; a `[behavior]`
+  fix takes one second check of the same scope, never a third.
 - **Before the author**: after an append, or an amend and its check, ask for the approval again. When the design
   document holds open questions, gather the Owner's answers, append each that only words or records one, send the
   rest to one amend and its check, and ask for the approval only after it.

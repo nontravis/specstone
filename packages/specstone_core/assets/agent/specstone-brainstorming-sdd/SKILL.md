@@ -59,8 +59,9 @@ Dispatch nothing to write it.
 
 Before the approval ask, dispatch the design check as step 4 dispatches: a fresh `mode: audit` with `stage: design`,
 the document's path, and `bundles:` your saved bundle files. Amends adding or changing behavior before the ask share
-one check, `amend: <N>[,<N> ...]`; a later one gets its own, `amend: <N>`, before its author pass. Fix each finding it reports in the document by `references/design.md`, with no
-second check. Then ask for approval, or, once an author pass has run, go on to the amend's author pass with no ask.
+one check, `amend: <N>[,<N> ...]`; a later one gets its own, `amend: <N>`. Fix each finding by `references/design.md`;
+a `[behavior]` fix takes one second check, same scope. Then ask for approval, or, once an author pass has run, go on
+to the amend's author pass with no ask.
 
 Route each later Owner answer or change per `references/rounds.md`.
 

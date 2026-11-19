@@ -35,8 +35,9 @@ Owner each goal's horizon, long-, mid-, or short-term, one question per goal sho
 answers with the batch; its glossary section asks the Owner nothing. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-prd`, `batch:`
 the batch's paths, `check:` the latest check file, and `report:`
-`<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches may run at once. Send no doc text, and work no step of the procedure yourself while a dispatch can run. Take
-`<folder>` and `XXXXXX` as the gate does.
+`<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches may run at once. Send no doc
+text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` and `XXXXXX` as the gate
+does.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
@@ -58,7 +59,7 @@ in for item 4.
    proposal, then run each of its commands in run order
    (`../specstone-expert-sdd/references/size-fix.md`).
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
-   for the batch with them. Show the Owner the question on a goal that a goal move kept in PROJECT, or an entry that a
+   for the batch with them and the latest check file. Show the Owner the question on a goal that a goal move kept in PROJECT, or an entry that a
    glossary move kept there, without asking it, and count it settled for item 4.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
    one command naming each path once, each still quoted. Leave out each path under `specs/` and each path an untyped

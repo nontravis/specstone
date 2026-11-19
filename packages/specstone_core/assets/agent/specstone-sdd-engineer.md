@@ -99,7 +99,8 @@ A failed load: report it and stop; never search.
 
 ## Output Format
 
-Run `specstone folder` once, at the gate (Workflow step 1) or at a stop before it, and reuse `<folder>` the path it
+Run `specstone folder` once, at the gate (Workflow step 1), at a stop before it, or when a skipped gate leaves no
+`report`, and reuse `<folder>` the path it
 prints for each file the dispatch did not give. With no `report`, name your own
 `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that file
 exists; name a batch file by the same rule (Scope Boundaries).

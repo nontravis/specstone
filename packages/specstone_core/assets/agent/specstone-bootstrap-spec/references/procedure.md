@@ -47,7 +47,7 @@ the Owner only when no text bears on a whole section.
 
 ## 4. Merge an old file
 
-An `untyped_doc` under `specs/`: follow `merge-untyped.md`.
+An `untyped_doc` under `specs/`: follow `merge-untyped.md`; its step 6 is this file's.
 
 ## 5. Retire the old files
 
