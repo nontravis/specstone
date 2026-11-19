@@ -178,6 +178,20 @@ List<String>? _toolsOf(String agent, String key) {
   return line?.group(1)?.split(',').map((tool) => tool.trim()).toList();
 }
 
+/// The entries of the frontmatter block list `skills:` in [frontmatter];
+/// null when it has none.
+List<String>? _skillsOf(String frontmatter) {
+  final block = RegExp(
+    r'^skills:\n((?:  - .+\n?)+)',
+    multiLine: true,
+  ).firstMatch(frontmatter)?.group(1);
+  return block
+      ?.split('\n')
+      .where((line) => line.isNotEmpty)
+      .map((line) => line.replaceFirst('  - ', '').trim())
+      .toList();
+}
+
 /// The base name of [entity]'s path, its `.md` ending cut.
 String _baseNameOf(FileSystemEntity entity) {
   final segments = entity.uri.pathSegments.where((s) => s.isNotEmpty);
@@ -349,15 +363,9 @@ void _frontmatterTests() {
       'Skill tool', () {
     final text = _pluginText('specstone-sdd-engineer.md');
     final head = text.substring(0, text.indexOf('\n---\n', 4));
-    final skills = RegExp(r'^skills:\n((?:  - .+\n?)+)', multiLine: true)
-        .firstMatch(head)
-        ?.group(1)
-        ?.split('\n')
-        .where((line) => line.isNotEmpty)
-        .map((line) => line.replaceFirst('  - ', '').trim())
-        .toList();
+    final skills = _skillsOf(head);
     expect(skills, ['specstone-expert-sdd', 'specstone-read-sdd']);
-    expect(_toolsOf(text, 'tools'), isNot(contains('Skill')));
+    expect(_toolsOf(text, 'tools'), ['Bash', 'Read', 'Grep', 'Write', 'Edit']);
   });
 }
 
@@ -1206,11 +1214,20 @@ void _runsOnEveryHostTests() {
         hasLength(1),
         reason: render.path,
       );
+      final isSource = !render.path.contains('/');
+      final isClaudeCodeRender = render.path.contains('.claude/agents/');
+      final frontmatter = render.frontmatter ?? '';
       expect(
-        (render.frontmatter ?? '').contains('\nskills:'),
-        !render.path.contains('/') || render.path.contains('.claude/agents/'),
+        frontmatter.contains('\nskills:'),
+        isSource || isClaudeCodeRender,
         reason: render.path,
       );
+      if (isClaudeCodeRender) {
+        expect(_skillsOf(frontmatter), [
+          'specstone-expert-sdd',
+          'specstone-read-sdd',
+        ], reason: render.path);
+      }
     }
   });
 

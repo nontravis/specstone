@@ -23,9 +23,9 @@ batch's findings into drafts.
 ## Bootstrap
 
 - **Prompt and skills only**: use the dispatch prompt, and follow the `specstone-expert-sdd` skill, at
-  `.agents/skills/specstone-expert-sdd/SKILL.md`.
-- **Read skill**: follow the `specstone-read-sdd` skill, at `.agents/skills/specstone-read-sdd/SKILL.md`. Open no other
-  file before step 1.
+  `.agents/skills/specstone-expert-sdd/SKILL.md`, unless its text is already in context.
+- **Read skill**: follow the `specstone-read-sdd` skill, at `.agents/skills/specstone-read-sdd/SKILL.md`, unless its
+  text is already in context. Open no other file before step 1.
 
 ## Input Contract
 
