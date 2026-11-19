@@ -971,6 +971,24 @@ void main() {
       expect([for (final m in mentions) (m! as Map)['line']], [11]);
     });
 
+    test('a doc file of no doc type lists no mention and keeps every byte, while a typed doc lists the same text', () async {
+      const text =
+          'Holds `domain:shop#INV-3` and [domain:shop](DOMAIN.md) INV-3.\n';
+      final root = await _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [for (var n = 1; n <= 12; n++) _inv(n)],
+        pay: [_inv(1), '- **INV-2** Pay $text'],
+        extra: {'docs/$_notes': '# Notes\n\n$text'},
+      );
+      final notesBefore = readDoc(root, _notes);
+      final json = move(root, ['domain:shop#INV-3']).json;
+      final mentions = json['mentions']! as List<Object?>;
+      final paths = {for (final m in mentions) (m! as Map)['path']};
+      expect(paths, contains(_payDomain));
+      expect(paths, isNot(contains(_notes)));
+      expect(readDoc(root, _notes), notesBefore);
+    });
+
     test('a bare ID inside each of two items landing in one section is a mention at the line the item lands on', () async {
       final root = await _project(
         shop: [

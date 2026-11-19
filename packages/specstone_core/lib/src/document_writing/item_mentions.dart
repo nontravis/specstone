@@ -74,6 +74,7 @@ List<StaleMention> itemMentions(
   };
   final found = <StaleMention>[];
   for (final doc in index.docs) {
+    if (index.typeOf(doc) == null) continue;
     final after = afters[doc.docPath]!;
     found
       ..addAll(_addressMentions(index, moves, doc.docPath, after, '.md'))
