@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/contract_block.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
@@ -24,6 +25,7 @@ import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show verificationMatrixKey;
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 
 const _frType = 'fr';
 const _nfType = 'nf';
@@ -35,6 +37,8 @@ const _confirmedKey = 'confirmed';
 const _overrideEntriesKey = 'overrides';
 const _statementSection = 'statement';
 const _statementBlock = 'Statement';
+const _contractBlockKey = 'Contract';
+const _contractBlockName = 'the contract block';
 const _tighten = 'tighten';
 const _relax = 'relax';
 
@@ -42,7 +46,16 @@ const _relax = 'relax';
 enum LinkState { clean, suspect, unconfirmed }
 
 /// What kind of upstream block a tracked entry records.
-enum TrackedBlockKind { scenario, item, frStatement, nfrStatement, edgeCase }
+enum TrackedBlockKind {
+  scenario,
+  item,
+  frStatement,
+  nfrStatement,
+  edgeCase,
+
+  /// An FR's contract block, which a per-FR matrix row records.
+  frContract,
+}
 
 /// The upstream block a tracked entry records a fingerprint of.
 final class TrackedBlock {
@@ -171,6 +184,7 @@ String? trackedBlockTextOf(CheckContext context, TrackedBlock block) {
     TrackedBlockKind.frStatement =>
       context.heldSection(doc, _statementSection)?.body ?? '',
     TrackedBlockKind.nfrStatement => context.nfrStatements()[block.key]?.text,
+    TrackedBlockKind.frContract => contractBlockOf(context, doc)?.text,
     TrackedBlockKind.item => _itemTextOf(context, doc, block),
   };
 }
@@ -226,9 +240,9 @@ List<TrackedEntry> trackedEntriesOf(CheckContext context, IndexedDoc doc) {
   ];
 }
 
-/// Returns [row]'s literal, or a skip row's reason.
+/// Returns [row]'s literals joined by `, `, or a skip row's reason.
 String matrixRowLiteralOf(MatrixRow row) => switch (row) {
-  TestRow(:final literal) => literal,
+  TestRow(:final literals) => literals.join(', '),
   SkipRow(:final reason) => reason,
 };
 
@@ -508,31 +522,39 @@ LinkState _stateOf(IndexedDoc doc, TrackedLink link, _Entry? entry) {
       : LinkState.suspect;
 }
 
-/// One matrix row of a record read against the edge case it names.
+/// One matrix row of a record read against the block its form names: the
+/// contract block of its FR for a per-FR row, the edge case for a
+/// per-edge-case row.
 final class _RowLink {
   const new({
     required this.row,
     required this.fr,
+    required this.block,
+    required this.blockName,
     required this.source,
     required this.fingerprint,
   });
 
   final MatrixRow row;
 
-  /// The requirement that holds the edge case.
+  /// The requirement that holds the block.
   final IndexedDoc fr;
 
-  /// The edge case's block as the requirement holds it, before layout.
+  /// The block's address, as [trackedBlockTextOf] reads it.
+  final TrackedBlock block;
+
+  /// The block as a finding's `block` key names it: the headings of a contract
+  /// block, or an edge case ID.
+  final String blockName;
+
+  /// The block as the requirement holds it, before layout.
   final String source;
 
-  /// The Fingerprint of the edge case's block now.
+  /// The Fingerprint of the block now.
   final String fingerprint;
 
-  TrackedBlock get block => TrackedBlock(
-    kind: TrackedBlockKind.edgeCase,
-    upstream: fr.docPath,
-    key: row.edgeCase,
-  );
+  /// What a message tells the Agent to read.
+  String get readName => row.edgeCase ?? _contractBlockName;
 
   bool get isSuspect {
     final recorded = row.fingerprint;
@@ -544,40 +566,83 @@ final class _RowLink {
   WaitsFor get waitsFor => fr.isDraft ? WaitsFor.owner : WaitsFor.agent;
 }
 
-// The rows of [record] whose edge case exists: a row naming a story, a
-// missing item, a missing edge case, or a skipped requirement takes no state.
-// The edge case blocks are those [trackedBlockTextOf] reads, cached per FR.
+// The rows of [record] the mode tracks: none under off, and under fr or
+// edge_case the rows of the form it reads, so a refused-form row takes no
+// state. A row naming a story, a missing item, a missing edge case, or a
+// skipped requirement takes none either. The blocks are those
+// [trackedBlockTextOf] reads; the edge case blocks are cached per FR.
 Iterable<_RowLink> _rowLinksOf(CheckContext context, IndexedDoc record) sync* {
+  final mode = context.matrixMode;
   final read = recordDocOf(context, record);
-  if (read == null || record.matrixLines.isEmpty) return;
+  if (mode == MatrixMode.off || read == null || record.matrixLines.isEmpty) {
+    return;
+  }
   final items = recordItemsOf(read.feature, context.index.childrenOf);
   final blocksOf = <String, Map<String, String>>{};
   for (final row in record.matrixLines.whereType<MatrixRow>()) {
     final fr = items[row.item];
-    if (fr == null ||
+    if (row.form != mode.readsForm ||
+        fr == null ||
         fr.docTypeId != _frType ||
         isSkippedIn(context, record, fr)) {
       continue;
     }
-    final blocks = blocksOf.putIfAbsent(
-      fr.docPath,
-      () => edgeCaseBlocksOf(context, fr),
-    );
-    final source = blocks[row.edgeCase];
-    if (source == null) continue;
-    yield _RowLink(
-      row: row,
-      fr: fr,
-      source: source,
-      fingerprint: fingerprintOf(source),
-    );
+    final link = switch (row.edgeCase) {
+      null => _contractRowLink(context, row, fr),
+      final edgeCase => _edgeCaseRowLink(
+        row,
+        fr,
+        edgeCase,
+        blocksOf.putIfAbsent(fr.docPath, () => edgeCaseBlocksOf(context, fr)),
+      ),
+    };
+    if (link != null) yield link;
   }
+}
+
+_RowLink? _contractRowLink(CheckContext context, MatrixRow row, IndexedDoc fr) {
+  final contract = contractBlockOf(context, fr);
+  if (contract == null) return null;
+  return _RowLink(
+    row: row,
+    fr: fr,
+    block: TrackedBlock(
+      kind: TrackedBlockKind.frContract,
+      upstream: fr.docPath,
+      key: _contractBlockKey,
+    ),
+    blockName: contract.headings.join(', '),
+    source: contract.text,
+    fingerprint: fingerprintOf(contract.text),
+  );
+}
+
+_RowLink? _edgeCaseRowLink(
+  MatrixRow row,
+  IndexedDoc fr,
+  String edgeCase,
+  Map<String, String> blocks,
+) {
+  final source = blocks[edgeCase];
+  if (source == null) return null;
+  return _RowLink(
+    row: row,
+    fr: fr,
+    block: TrackedBlock(
+      kind: TrackedBlockKind.edgeCase,
+      upstream: fr.docPath,
+      key: edgeCase,
+    ),
+    blockName: edgeCase,
+    source: source,
+    fingerprint: fingerprintOf(source),
+  );
 }
 
 /// Whether any link [doc] tracks is `suspect`.
 ///
-/// A record holds a `suspect` link when a row's fingerprint differs from its
-/// edge case's.
+/// A record holds a `suspect` link when a row's fingerprint differs from the
+/// block it records: its FR's contract block, or its edge case.
 bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
   if (_rowLinksOf(context, doc).any((link) => link.isSuspect)) return true;
   if (_entryKeysOf(context, doc).isEmpty) return false;
@@ -689,7 +754,7 @@ Iterable<Finding> _checkRowLinks(
         keys: {
           'link': row.label,
           'upstream': link.fr.docPath,
-          'block': row.edgeCase,
+          'block': link.blockName,
           if (!isOwner) 'text': _blockText(link.source),
           'fingerprint': link.fingerprint,
         },
@@ -707,7 +772,7 @@ Iterable<Finding> _checkRowLinks(
           'link': row.label,
           'recorded': recorded,
           'upstream': link.fr.docPath,
-          'block': row.edgeCase,
+          'block': link.blockName,
           'text': _blockText(link.source),
           'fingerprint': link.fingerprint,
         },
@@ -717,7 +782,7 @@ Iterable<Finding> _checkRowLinks(
 }
 
 String _rowReadMessage(_RowLink link) =>
-    'read ${link.row.edgeCase} of ${link.fr.docPath} below, then record '
+    'read ${link.readName} of ${link.fr.docPath} below, then record '
     '${link.row.label} with the fingerprint after it';
 
 String _rowOwnerSuspectTail(_RowLink link) => 'it ${_rowWaitsMessage(link)}';

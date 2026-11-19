@@ -641,4 +641,55 @@ void main() {
       expect(_choose(project), RunKind.none);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
   });
+
+  group('the matrix-fold upgrade with every pin equal', () {
+    const foldRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const frName = 'email_login/validate_credentials';
+
+    Future<Directory> foldProject({String? coverage, required String row}) =>
+        writeTree({
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}'
+              '${coverage == null ? '' : 'verification_coverage: $coverage\n'}',
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              '# Email login\n',
+          'docs/prds/features/f01_login/us01_email_login/'
+                  'fr01_validate_credentials.md':
+              '# Validate credentials\n',
+          foldRecord:
+              "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
+              '# Login implementation\n\n## Verification matrix\n\n$row\n',
+        });
+
+    test('a per-edge-case row of an FR is upgrade under off and fr', () async {
+      for (final coverage in <String?>[null, 'fr']) {
+        final root = await foldProject(
+          coverage: coverage,
+          row: '- $frName E01: `rejects a wrong key`',
+        );
+
+        expect(_choose(root), RunKind.upgrade, reason: '$coverage');
+      }
+    });
+
+    test('edge_case, a story row, and a folded row are none', () async {
+      final edgeCase = await foldProject(
+        coverage: 'edge_case',
+        row: '- $frName E01: `rejects a wrong key`',
+      );
+      final story = await foldProject(
+        coverage: 'fr',
+        row: '- email_login E01: `signs in`',
+      );
+      final folded = await foldProject(
+        coverage: 'fr',
+        row: '- $frName: `rejects a wrong key`',
+      );
+
+      expect(_choose(edgeCase), RunKind.none);
+      expect(_choose(story), RunKind.none);
+      expect(_choose(folded), RunKind.none);
+    });
+  });
 }

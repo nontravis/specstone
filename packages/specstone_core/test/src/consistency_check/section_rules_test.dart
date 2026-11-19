@@ -284,28 +284,25 @@ void main() {
       );
     });
 
-    test('with a row over the item cap still gives its finding', () async {
+    test('gives no item cap finding to a long matrix row', () async {
       final long = row(1, nameLength: 640);
-      final record = recordOf([row(0), long]);
+      final longPerFr =
+          '- email_login/check_password: '
+          '${[for (var i = 0; i < 12; i++) '`${'n' * 60}$i`'].join(', ')}';
+      final record = recordOf([row(0), long, longPerFr]);
+      expect(longPerFr.length, greaterThan(defaultMaxItemChars));
+      expect(
+        long.length,
+        greaterThan(defaultMaxItemChars),
+        reason: 'the row alone passes the item cap',
+      );
       final report = await checkOf(
         await writeCheckProject(
           extra: {loginRecord: record},
           unstamped: {loginRecord},
         ),
       );
-      final finding = report.findings.singleWhere(
-        (f) => f.kind == FindingKind.itemOverLimit,
-      );
-      expect(finding.path, loginRecord);
-      expect(finding.line, record.split('\n').indexOf(long) + 1);
-      expect(
-        finding.toJson(),
-        allOf(
-          containsPair('section', 'verification_matrix'),
-          containsPair('limit', defaultMaxItemChars),
-          containsPair('actual', greaterThan(defaultMaxItemChars)),
-        ),
-      );
+      expect(spots(report, FindingKind.itemOverLimit), isEmpty);
     });
   });
 
