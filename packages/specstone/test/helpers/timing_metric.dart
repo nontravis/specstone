@@ -26,6 +26,22 @@ final class MeasuredRun {
   final Duration elapsed;
 }
 
+/// Runs [work] and returns the time [timingMetric] picks for this process.
+///
+/// Valid only while no other isolate or child works in the window.
+Duration measureInProcess(void Function() work) {
+  switch (timingMetric) {
+    case TimingMetric.wall:
+      final watch = Stopwatch()..start();
+      work();
+      return (watch..stop()).elapsed;
+    case TimingMetric.cpu:
+      final before = selfCpuTime();
+      work();
+      return selfCpuTime() - before;
+  }
+}
+
 /// Runs [run] and returns its result with the time [timingMetric] picks.
 ///
 /// [run] must block until the child is reaped, as `Process.runSync` does.

@@ -2,6 +2,7 @@ import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
 
+const _rusageSelf = 0;
 const _rusageChildren = -1;
 const _restLongCount = 14;
 
@@ -66,11 +67,16 @@ final int Function(int, Pointer<_Rusage>) _getrusage = DynamicLibrary.process()
 ///
 /// A child counts only once it is reaped, so time a synchronous run to
 /// completion. Sibling test suites in one VM share the total.
-Duration childrenCpuTime() {
+Duration childrenCpuTime() => _cpuTimeOf(_rusageChildren);
+
+/// Returns the user plus system CPU time of this process, every thread summed.
+Duration selfCpuTime() => _cpuTimeOf(_rusageSelf);
+
+Duration _cpuTimeOf(int who) {
   final usage = calloc<_Rusage>();
   try {
-    if (_getrusage(_rusageChildren, usage) != 0) {
-      throw StateError('getrusage(RUSAGE_CHILDREN) failed');
+    if (_getrusage(who, usage) != 0) {
+      throw StateError('getrusage($who) failed');
     }
     return usage.ref.utime.duration + usage.ref.stime.duration;
   } finally {

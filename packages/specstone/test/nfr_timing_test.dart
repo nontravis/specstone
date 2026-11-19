@@ -28,6 +28,7 @@ const _busyLoop = r'i=0; while [ $i -lt 100000 ]; do i=$((i+1)); done';
 
 /// Clock granularity: one shell thread cannot spend more CPU than wall.
 const _tick = Duration(milliseconds: 20);
+const _selfCpuSpin = Duration(milliseconds: 200);
 
 /// Returns a doc body of the first [keep] of [_sentencesPerDoc] sentences, 5 KB
 /// in all.
@@ -621,8 +622,7 @@ void main() {
   test('approve --dry-run builds the views of 20 drafts of 55 sentences over '
       '2,000 docs of 5 KB within 2 s in the fastest of five runs', () {
     final root = _writeApproveProject();
-    Duration build() {
-      final watch = Stopwatch()..start();
+    Duration build() => measureInProcess(() {
       final answer = WriteSession.run(
         (session) => approveDryRun(
           session,
@@ -632,11 +632,9 @@ void main() {
         workingDirectory: root,
         homeDirectory: null,
       );
-      watch.stop();
       expect(answer.json['count'], _approveDraftCount);
       expect(answer.text, contains('$_droppedPerDraft sentences dropped'));
-      return watch.elapsed;
-    }
+    });
 
     build(); // warm-up: the index is current after it
     expect(
@@ -644,7 +642,7 @@ void main() {
         timingRuns,
         build,
         label: 'approve view runs',
-        metric: TimingMetric.wall,
+        metric: timingMetric,
       ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
@@ -660,4 +658,22 @@ void main() {
     expect(cpu, greaterThan(const Duration(milliseconds: 50)));
     expect(cpu, lessThanOrEqualTo(watch.elapsed + _tick));
   }, testOn: 'mac-os || linux');
+
+  test('selfCpuTime counts in-process work', () {
+    final watch = Stopwatch()..start();
+    final before = selfCpuTime();
+    _spinFor(_selfCpuSpin);
+    final cpu = selfCpuTime() - before;
+    watch.stop();
+    expect(cpu, greaterThan(const Duration(milliseconds: 50)));
+    expect(
+      cpu,
+      lessThanOrEqualTo(watch.elapsed * Platform.numberOfProcessors + _tick),
+    );
+  }, testOn: 'mac-os || linux');
+}
+
+void _spinFor(Duration span) {
+  final watch = Stopwatch()..start();
+  while (watch.elapsed < span) {}
 }
