@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart' as check;
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/relative_link.dart';
@@ -19,6 +20,49 @@ import '../../helpers/write_runner.dart';
 /// Returns `<address>@<hash>`, the hash `get --json` prints as bases.doc.
 String _seen(Directory root, String address) =>
     '$address@${(getDoc(root, address)['bases']! as Map)['doc']}';
+
+const _story = 'user_story:login/email_login';
+const _fr = 'fr:login/email_login/check_password';
+
+/// The check project with the story and the FR as drafts, both clean, the FR
+/// with a missing section when [frHasFinding].
+Future<Directory> _draftsProject({bool frHasFinding = false}) =>
+    check.writeCheckProject(
+      extra: {
+        ...check.edit(check.loginStory, [
+          ('goals:\n', 'draft: true\ngoals:\n'),
+        ]),
+        ...check.edit(check.loginFr, [
+          ('traced_from:\n', 'draft: true\ntraced_from:\n'),
+          if (frHasFinding)
+            ('## Rationale\n\nA wrong password must not sign in.\n\n', ''),
+        ]),
+      },
+    );
+
+/// Writes `audit.md` in [root], naming each of [addresses] at its current hash.
+String _writeAudit(Directory root, List<String> addresses) {
+  final file = File('${root.path}/audit.md')
+    ..writeAsStringSync(
+      [
+        for (final address in addresses)
+          'Audited: $address@${(getDoc(root, address)['bases']! as Map)['doc']}',
+        'Findings: none',
+      ].join('\n'),
+    );
+  return file.path;
+}
+
+/// The bytes of every file of the docs folder.
+Map<String, List<int>> _docBytes(Directory root) => {
+  for (final MapEntry(:key, :value) in treeBytes(root).entries)
+    if (key.startsWith('docs/')) key: value,
+};
+
+bool _isApproved(Directory root, String docPath) {
+  final text = readDoc(root, docPath);
+  return text.contains('\napproved: ') && !text.contains('draft: true');
+}
 
 void main() {
   test('approve without a terminal exits 77 and shows nothing', () async {
@@ -357,10 +401,10 @@ void main() {
   });
   group('a usage error', () {
     for (final (args, message) in [
-      (['--json'], '--json goes only with --dry-run.'),
+      (['--json'], '--json goes only with --dry-run or --auto.'),
       (
         ['--yes', '--json', 'a@0123456789ab'],
-        '--json goes only with --dry-run.',
+        '--json goes only with --dry-run or --auto.',
       ),
       (
         ['--dry-run', '--json', '--context', '0'],
@@ -383,6 +427,18 @@ void main() {
         },
       );
     }
+    test('--json beside --auto is no usage error', () async {
+      final root = await _draftsProject();
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run(['approve', _story, '--auto', '--no-audit', '--json']),
+        0,
+      );
+
+      expect(err.toString(), isEmpty);
+      expect((jsonDecode(out.toString()) as Map).keys, contains('approved'));
+    });
   });
   group('--dry-run --json', () {
     test('--dry-run --json prints one object holding each draft and the count, the drafts and hashes its view prints', () async {
@@ -1530,6 +1586,22 @@ void main() {
       }
     });
 
+    test('--yes under the auto mode prints no mode line', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(approveModeVariable: 'auto'),
+      );
+
+      expect(
+        await runner.run(['approve', _seen(root, 'feature:signup'), '--yes']),
+        0,
+      );
+
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), 'approved feature:signup\n');
+    });
+
     test('the prompt holds no write lock, so another write lands while the Owner reads and the approval then acts', () async {
       final root = await writeWriteProject();
       final base = getDoc(root, 'feature:signup#problem')['base']! as String;
@@ -1561,5 +1633,175 @@ void main() {
       expect(text, matches(RegExp(r'\napproved: "[0-9a-f]{12}"\n')));
       expect(text, isNot(contains('draft: true')));
     });
+  });
+
+  group('--auto', () {
+    late String binary;
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    Future<ProcessResult> run(
+      Directory root,
+      List<String> args, {
+      String? mode = 'auto',
+    }) => Process.run(
+      binary,
+      ['approve', ...args],
+      workingDirectory: root.path,
+      environment: {'SPECSTONE_APPROVE_MODE': ?mode},
+    );
+
+    test('auto call with a clean draft and a draft with a finding', () async {
+      final root = await _draftsProject(frHasFinding: true);
+      final audit = _writeAudit(root, [_story, _fr]);
+
+      final result = await run(root, [_story, _fr, '--auto', '--audit', audit]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        result.stdout,
+        'mode: auto\n'
+        'approved $_story\n'
+        'ask $_fr: check finding required_section_missing\n',
+      );
+      expect(_isApproved(root, check.loginStory), isTrue);
+      expect(readDoc(root, check.loginFr), contains('draft: true'));
+    });
+
+    test('auto call under the ask mode writes no approval', () async {
+      final root = await _draftsProject();
+      final audit = _writeAudit(root, [_story, _fr]);
+      final before = _docBytes(root);
+
+      final result = await run(root, [
+        _story,
+        _fr,
+        '--auto',
+        '--audit',
+        audit,
+      ], mode: 'ask');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        result.stdout,
+        'mode: ask\n'
+        'ask $_story: approve mode is ask\n'
+        'ask $_fr: approve mode is ask\n',
+      );
+      expect(_docBytes(root), before);
+    });
+
+    test('auto call with no report flag leaves each draft a draft', () async {
+      final root = await _draftsProject();
+      final before = _docBytes(root);
+
+      final result = await run(root, [_story, _fr, '--auto']);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        result.stdout,
+        'mode: auto\n'
+        'ask $_story: no audit report names it\n'
+        'ask $_fr: no audit report names it\n',
+      );
+      expect(_docBytes(root), before);
+    });
+
+    test('prints one JSON object under --json', () async {
+      final root = await _draftsProject(frHasFinding: true);
+      final audit = _writeAudit(root, [_story, _fr]);
+
+      final result = await run(root, [
+        _story,
+        _fr,
+        '--auto',
+        '--audit',
+        audit,
+        '--json',
+      ], mode: 'yes');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final json = jsonDecode(result.stdout as String) as Map<String, Object?>;
+      expect(json.keys, ['approveMode', 'approved', 'asked', 'warnings']);
+      expect(json['approveMode'], 'ask');
+      expect(json['approved'], isEmpty);
+      expect(
+        (json['asked']! as List).cast<Map<String, Object?>>().map(
+          (a) => a['name'],
+        ),
+        [_story, _fr],
+      );
+      expect(json['warnings'], [
+        'SPECSTONE_APPROVE_MODE=yes is neither ask nor auto; ask is used',
+      ]);
+    });
+
+    test('reads an audit path relative to the working directory', () async {
+      final root = await _draftsProject();
+      _writeAudit(root, [_story, _fr]);
+
+      final result = await run(root, [
+        _story,
+        _fr,
+        '--auto',
+        '--audit',
+        'audit.md',
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, 'mode: auto\napproved $_story\napproved $_fr\n');
+    });
+
+    test('auto call runs with no terminal', () async {
+      final root = await _draftsProject();
+
+      final result = await run(root, [_story, '--auto', '--no-audit']);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, 'mode: auto\napproved $_story\n');
+    });
+
+    for (final (args, message) in [
+      (['--auto'], '--auto needs the names of the drafts it approves.'),
+      (
+        ['$_story@0123456789ab', '--auto', '--no-audit'],
+        '$_story@0123456789ab: a @<hash> goes only with --yes.',
+      ),
+      for (final flag in [
+        ['--yes'],
+        ['--dry-run'],
+        ['--context', '1'],
+      ])
+        (
+          [_story, '--auto', '--no-audit', ...flag],
+          '--auto takes no --yes, --dry-run, or --context.',
+        ),
+      (
+        [_story, '--auto', '--no-audit', '--audit', 'audit.md'],
+        '--auto takes --audit <path> or --no-audit, not both.',
+      ),
+      for (final flag in [
+        ['--audit', 'audit.md'],
+        ['--author', 'author.md'],
+        ['--no-audit'],
+      ])
+        ([_story, ...flag], '--audit, --author, and --no-audit need --auto.'),
+    ]) {
+      test(
+        'approve ${args.join(' ')} under --auto exits 64 and writes no doc',
+        () async {
+          final root = await _draftsProject();
+          final before = _docBytes(root);
+
+          final result = await run(root, args);
+
+          expect(result.exitCode, 64);
+          expect(result.stdout, isEmpty);
+          expect(result.stderr as String, startsWith('$message\n'));
+          expect(_docBytes(root), before);
+        },
+      );
+    }
   });
 }

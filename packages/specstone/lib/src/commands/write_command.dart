@@ -90,4 +90,29 @@ abstract class WriteCommand extends SpecstoneCommand {
     }
     return printAnswer(written, sessionWarnings, asJson: asJson);
   }
+
+  /// Opens a write session as [runWrite] does, for an [answer] that awaits.
+  Future<int> runWriteAsync(
+    Future<ReadAnswer> Function(WriteSession session) answer, {
+    required bool asJson,
+  }) async {
+    final runner = specstoneRunner;
+    var sessionWarnings = const <String>[];
+    final ReadAnswer written;
+    try {
+      written = await WriteSession.runAsync(
+        (session) {
+          sessionWarnings = session.warnings;
+          return answer(session);
+        },
+        templates: runner.templates,
+        workingDirectory: runner.workingDirectory,
+        homeDirectory: runner.homeDirectory,
+        busyTimeout: runner.busyTimeout,
+      );
+    } on SpecstoneFault catch (fault) {
+      return failWrite(fault, asJson: asJson, warnings: sessionWarnings);
+    }
+    return printAnswer(written, sessionWarnings, asJson: asJson);
+  }
 }
