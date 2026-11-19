@@ -68,8 +68,8 @@ void main() {
     );
   });
 
-  test('the description states the item shape and that edge cases exercise'
-      ' each Statement clause', () {
+  test('the description states the item shape, the edge case lines, and the'
+      ' split line', () {
     final description = fr.description!;
 
     expect(
@@ -77,13 +77,6 @@ void main() {
       contains(
         'Write the Statement with one "shall", stated positively, with a '
         'quantified value kept in it, such as `within 2 s`.',
-      ),
-    );
-    expect(
-      description,
-      contains(
-        'Write one Edge cases item per case; a case the system does not '
-        'handle goes there too, with what happens then.',
       ),
     );
     expect(description, contains('leave mechanics to the spec docs'));
@@ -94,32 +87,41 @@ void main() {
         'edge case.',
       ),
     );
-    expect(
-      description,
-      contains(
-        'Exercise each Statement clause and each Input or Output row with an '
-        'edge case, or with a scenario the FR traces.',
-      ),
-    );
+    final positions = [
+      for (final line in [..._edgeCaseLines, _splitLine])
+        description.indexOf(line),
+    ];
+    expect(positions, everyElement(isNonNegative));
+    expect(positions, orderedEquals([...positions]..sort()));
+    for (final fragment in _droppedFragments) {
+      expect(description, isNot(contains(fragment)), reason: fragment);
+    }
+    expect(_splitLine, isNot(matches(RegExp(r'\d'))));
   });
 
-  test('the verification description and template show one Pass criteria'
-      ' line and name no test file', () {
+  test('the verification shows the short Pass criteria first and names no'
+      ' test file', () {
     final verification = sectionOf(fr, 'verification');
     final template = verification.template!;
+    final short = template.indexOf(
+      '- **Pass criteria:** each edge case holds.\n- **Level:** <level>',
+    );
+    final long = template.indexOf(
+      '- **Pass criteria:** each edge case holds.\n'
+      '  - <a condition no edge case states>\n'
+      '- **Level:** <level>',
+    );
 
+    expect(short, isZero);
+    expect(long, greaterThan(short));
     expect(
       verification.description,
       contains(
-        'Write a long Verification as one `- **Pass criteria:**` line with '
-        'one nested bullet per condition.',
+        'Write `- **Pass criteria:** each edge case holds.`, and put each '
+        'condition no edge case states in one nested bullet under it.',
       ),
     );
     expect(verification.description, contains('Name no test file here'));
-    expect(
-      RegExp(r'\*\*Pass criteria:\*\*').allMatches(template),
-      hasLength(1),
-    );
     expect(
       template,
       isNot(matches(RegExp(r'_test\.|\.test\.|\.spec\.|\btests?/'))),
@@ -150,5 +152,67 @@ void main() {
       edgeCases.description,
       contains('List the triggers as nested items.'),
     );
+    for (final word in ['detect', 'report', 'handle', 'recover']) {
+      expect(edgeCases.description, isNot(contains(word)), reason: word);
+    }
+    expect(
+      '\n'.allMatches(edgeCases.description!).length + 1,
+      lessThanOrEqualTo(_maxSectionDescriptionLines),
+    );
   });
 }
+
+/// The edge case lines of the description, in the order it states them.
+const _edgeCaseLines = <String>[
+  _admissionLine,
+  _responseLine,
+  _leaveOutLine,
+  _knownLimitsLine,
+  _errorCodeLine,
+  _messageLine,
+];
+
+const _admissionLine =
+    'Write an edge case only for an outcome the Statement, an Input/Output '
+    'row, and a table leave unstated, such as a refusal, a limit, a default, '
+    "a fallback, or a \"no finding\" boundary another FR's finding takes.";
+
+const _responseLine =
+    'Write one edge case per distinct response; inputs that get the same '
+    'response are nested triggers of one case, one sample each, in the '
+    'shape the Edge cases template shows.';
+
+const _leaveOutLine =
+    'Leave out a case another FR or a spec rule owns, a case outside the '
+    "Statement's condition, and implementation or test detail.";
+
+const _knownLimitsLine =
+    "Put a case the product has no designed response for in the domain's "
+    '`known_limits`, with what happens then; with no domain doc, put it in '
+    "the feature's Out-of-scope as `<case> — not planned`. A designed "
+    'response, even "the file is left as it is", is an edge case.';
+
+const _errorCodeLine =
+    'In an error case, name the error code the person or caller sees and '
+    'whether the run stops. State no exit status: the error catalog '
+    'reaching the FR holds it, the one the nearest feature up its parent '
+    'chain holds in the target.';
+
+const _messageLine =
+    'Quote an error message only when it is part of the contract, and then '
+    'once, in the Output row that defines it; with no catalog reaching the '
+    'FR, state in words what the person sees.';
+
+const _splitLine =
+    'Split an FR that holds too many edge cases into new FRs in its story.';
+
+/// Fragments of the description lines the edge case lines replace.
+const _droppedFragments = [
+  'one Edge cases item per case',
+  'does not handle',
+  'Exercise each Statement clause',
+  'counts as exercised',
+  'So does a Statement clause',
+];
+
+const _maxSectionDescriptionLines = 5;

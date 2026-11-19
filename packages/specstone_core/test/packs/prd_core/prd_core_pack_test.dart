@@ -75,7 +75,7 @@ const _barFragments = [
 
 void main() {
   group('prd-core manifest', () {
-    test('prd-core ships at 1.17.0 with no extends', () {
+    test('prd-core ships at 1.18.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -83,8 +83,19 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.17.0');
+      expect(manifest.version.toString(), '1.18.0');
       expect(manifest.extendsPack, isNull);
+      final upgrades = selectUpgrades(
+        {
+          'prd-core': PackVersion.parse(
+            '1.17.0',
+            file: 'config',
+            key: 'prd-core',
+          ),
+        },
+        {'prd-core': manifest},
+      );
+      expect(upgrades.single.steps, isEmpty);
     });
 
     test('prd-core lists no migration entry with an empty step list', () {

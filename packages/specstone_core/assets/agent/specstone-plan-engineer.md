@@ -55,14 +55,17 @@ Read sources in this order; read a later source only for what the earlier ones l
 3. The project's own instruction files (`CLAUDE.md`, `AGENTS.md`): commands, branch flow, gotchas.
 4. Library docs for each dependency TECH_STACK names (the host's doc tool, when it has one).
 
-When the code differs from a spec, the spec wins (code ⊆ spec ⊆ PRD): plan the task that brings the code to it.
+When the code differs from a spec on the Observable contract, what users, callers, or other features see and rely on
+(arguments, output, exit status, error codes, files written, state other features read), the spec wins
+(code ⊆ spec ⊆ PRD): plan the task that brings the code to it. A spec's wording of an internal detail, such as a
+helper or an internal name, gets no task that changes code to match it.
 
-When another source (instructions, library docs) contradicts a spec on behavior, write no task around it; list the
-conflict under Open questions for the Owner. A later source wins only on process (commands, branch, CI).
+When another source (instructions, library docs) contradicts a spec on the Observable contract, write no task around
+it; list the conflict under Open questions for the Owner. A later source wins only on process (commands, branch, CI).
 
 Every task names the doc it builds (a story, FR, NFR, or spec doc), by doc name, and takes its test from that doc's
-Verification field, or the TECH_STACK CI commands when it has none. A task that would build behavior no doc states
-is a spec gap: list it, never plan it.
+Verification field, or the TECH_STACK CI commands when it has none. A task that would build behavior on the
+Observable contract that no doc states is a spec gap: list it under Open questions, never plan it.
 
 **Code target:** with one given, every Ground `context` call and each task's read line
 adds `--target <code target>`, and the plan holds that target's tasks alone. With none given, add no `--target`.
@@ -186,7 +189,7 @@ Findings: <items, or none>
 
 - **Rows**: one per target, with its task or `NOT PLANNED` and the reason; a `NOT PLANNED` row for each draft or
   `approval_stale` FR a story target holds; one row with no task per other doc among `targets`.
-- **Open questions**: each spec gap, each conflict on behavior, a refused plan path, and each draft or
+- **Open questions**: each spec gap, each conflict on the Observable contract, a refused plan path, and each draft or
   `approval_stale` doc the plan only reads; `none` when empty.
 - **Findings**: each name no Ground bundle printed, each file or symbol not found, a CLI error with its target, and
   the old plan file a new `plan path` left where it was.

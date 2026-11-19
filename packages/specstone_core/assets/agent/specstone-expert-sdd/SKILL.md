@@ -1,6 +1,6 @@
 ---
 name: specstone-expert-sdd
-description: Use when about to write, edit, or confirm a PRD or spec doc in a Specstone project, when a doc's upstream changed after it was confirmed, when code does something no spec covers, or when another Specstone skill names `specstone-expert-sdd`.
+description: Use when about to write, edit, or confirm a PRD or spec doc in a Specstone project, when a doc's upstream changed after it was confirmed, when code adds or changes observable behavior no spec states, or when another Specstone skill names `specstone-expert-sdd`.
 ---
 
 # Specstone cross-doc rules
@@ -20,8 +20,9 @@ alone can miss a root above it.
 
 ## Rules
 
-1. **Docs lead, code follows.** Output ⊆ spec ⊆ PRD: code does nothing its spec omits, and a spec holds nothing its
-   PRD omits. Code behavior no spec covers gets a spec draft before more code changes.
+1. **Docs lead, code follows.** Output ⊆ spec ⊆ PRD over the Observable contract, what users, callers, or other
+   features see: a spec states only what its PRD asks, and code that adds or changes such behavior no spec states
+   gets a spec draft first.
 2. **Write through the CLI.** Create a doc with `specstone new` and change one with `specstone set`. Never write or
    edit a doc file through a file tool or a shell command. Each write leaves its doc a draft, a pointer
    write (`implements`, `covers`) excepted: never remove `draft: true`. Run `specstone approve` only with `--dry-run`,

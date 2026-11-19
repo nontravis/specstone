@@ -297,6 +297,7 @@ final class ItemCountLint {
     this.max,
     this.perSubsection = false,
     this.prefixes = const [],
+    this.waitsForOwner = false,
   });
 
   /// The fewest items, when bounded.
@@ -310,6 +311,9 @@ final class ItemCountLint {
 
   /// The item counts required per line prefix.
   final List<({String linePrefix, int count})> prefixes;
+
+  /// Whether an out-of-range count waits for the Owner, not the agent.
+  final bool waitsForOwner;
 
   /// Returns the JSON object of these bounds, `min` and `max` only when set.
   Map<String, Object> toJson() => {

@@ -202,6 +202,63 @@ void main() {
     expect(found.single.toJson(), containsPair('actual', 2));
   });
 
+  test('nine edge cases over an owner cap give an owner finding', () async {
+    String cases(int count) =>
+        [for (var i = 1; i <= count; i++) '$i. E0$i — Case $i → refused.']
+            .join('\n');
+    Future<List<Finding>> foundFor(String lint, int count) => _found(
+      _frLayer,
+      _sectionLint('edge_cases', lint),
+      edits: _frWith(cases(count)),
+    );
+
+    final owner = await foundFor(
+      '      item_count:\n        max: 8\n        waits_for: owner\n',
+      9,
+    );
+    expect(owner.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
+    expect(owner.single.line, lineOfFirst(_project, loginFr, '## Edge cases'));
+    expect(
+      owner.single.toJson(),
+      allOf(
+        containsPair('limit', 8),
+        containsPair('actual', 9),
+        containsPair('waitsFor', 'owner'),
+      ),
+    );
+    expect(owner.single.message, isNot(contains('waits for')));
+    expect(owner.single.textLines.first, endsWith(' (waits for the Owner)'));
+
+    final agent = await foundFor('      item_count:\n        max: 8\n', 9);
+    expect(agent.single.toJson(), containsPair('waitsFor', 'agent'));
+    expect(agent.single.textLines.first, isNot(contains('waits for')));
+
+    expect(
+      await foundFor(
+        '      item_count:\n        max: 8\n        waits_for: owner\n',
+        8,
+      ),
+      isEmpty,
+    );
+
+    final under = await foundFor(
+      '      item_count:\n        min: 3\n        waits_for: owner\n',
+      2,
+    );
+    expect(under.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
+    expect(under.single.toJson(), containsPair('waitsFor', 'owner'));
+
+    final prefix = await foundFor('''
+      item_count:
+        waits_for: owner
+        prefixes:
+          - line_prefix: "1. E01"
+            count: 2
+''', 2);
+    expect(prefix.map((f) => f.kind), [FindingKind.prefixCountMismatch]);
+    expect(prefix.single.toJson(), containsPair('waitsFor', 'agent'));
+  });
+
   test('split why bullet gives item_count_out_of_range', () async {
     final found = await _found(
       '.specstone/templates/project.yaml',
