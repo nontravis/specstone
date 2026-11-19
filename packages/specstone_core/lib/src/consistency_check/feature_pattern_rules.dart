@@ -47,7 +47,7 @@ Iterable<Finding> checkFeaturePatterns(
 ) sync* {
   if (!context.typeHoldsField(context.typeOf(doc), _patternsFieldId)) return;
   final set = context.index.set;
-  for (final (:id, :line) in _patternEntries(context, doc)) {
+  for (final _PatternEntry(:id, :line) in _patternEntries(context, doc)) {
     if (set.featurePattern(id) != null) continue;
     yield context.finding(
       doc,
@@ -74,12 +74,18 @@ Iterable<Finding> checkFeaturePatterns(
   }
 }
 
+/// One string value of `patterns:`, and its file line.
+final class _PatternEntry {
+  const new({required this.id, required this.line});
+
+  final String id;
+  final int line;
+}
+
 /// Returns each string value of [doc]'s `patterns:` with its line; a value of
 /// any other type is the field check's to report.
-List<({String id, int line})> _patternEntries(
-  CheckContext context,
-  IndexedDoc doc,
-) => [
+List<_PatternEntry> _patternEntries(CheckContext context, IndexedDoc doc) => [
   for (final entry in context.linesOf(doc).entriesOf(_patternsFieldId))
-    if (entry.value case final String id) (id: id, line: entry.line),
+    if (entry.value case final String id)
+      _PatternEntry(id: id, line: entry.line),
 ];

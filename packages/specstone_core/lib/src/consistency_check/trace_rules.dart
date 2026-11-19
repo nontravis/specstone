@@ -200,7 +200,7 @@ Iterable<Finding> _unresolvedRole(
 
 Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) =>
     _goalSets(context, doc, switch (context.index.parentOf(doc)) {
-      final feature? => (doc: feature, label: 'feature'),
+      final feature? => _GoalHolder(doc: feature, label: 'feature'),
       null => null,
     });
 
@@ -209,7 +209,20 @@ Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) {
   if (parent == null || parent.docTypeId != doc.docTypeId) {
     return _goalSets(context, doc, null);
   }
-  return _goalSets(context, doc, (doc: parent, label: 'parent feature'));
+  return _goalSets(
+    context,
+    doc,
+    _GoalHolder(doc: parent, label: 'parent feature'),
+  );
+}
+
+/// The doc whose `vision` and `goals` bound a doc's own, and the name a message
+/// gives it.
+final class _GoalHolder {
+  const new({required this.doc, required this.label});
+
+  final IndexedDoc doc;
+  final String label;
 }
 
 /// Yields the unresolved and widened ids of [doc]; a null [holder] skips the
@@ -217,7 +230,7 @@ Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) {
 Iterable<Finding> _goalSets(
   CheckContext context,
   IndexedDoc doc,
-  ({IndexedDoc doc, String label})? holder,
+  _GoalHolder? holder,
 ) sync* {
   for (final key in _storyVisionKeys) {
     final line = context.linesOf(doc).keyLine(key);

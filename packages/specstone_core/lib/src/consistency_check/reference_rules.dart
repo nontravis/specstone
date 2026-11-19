@@ -73,7 +73,7 @@ Iterable<Finding> unresolvedTemplateReferences(CheckContext context) sync* {
   final names = {for (final doc in context.index.docs) doc.name};
   for (final file in files) {
     final path = '$_templatesFolder/${_baseName(file)}';
-    for (final (:value, :line) in _docEntries(file)) {
+    for (final _DocEntry(:value, :line) in _docEntries(file)) {
       if (names.contains(value)) continue;
       yield Finding(
         kind: FindingKind.referenceDocUnresolved,
@@ -129,7 +129,7 @@ Iterable<Finding> _unresolvedConcerns(
         end: see.start + target.length,
       );
       // The doc's markdown_unparsed already says its links go unchecked.
-      if (link case (href: null)) continue;
+      if (link case _SpanningLink(href: null)) continue;
       final resolves = _seeResolves(
         context,
         doc,
@@ -208,6 +208,14 @@ bool _seeResolves(
   return false;
 }
 
+/// The href `markdown` gives a link that spans a `see` target; null when it
+/// gives none or that is unknown.
+final class _SpanningLink {
+  const new({required this.href});
+
+  final String? href;
+}
+
 /// The link sources of a doc's body, read on first use by the link scan the
 /// link rule places its links from.
 final class _LinkSources {
@@ -234,14 +242,14 @@ final class _LinkSources {
   /// line [line], as the link rule reads it, with the href `markdown` gives
   /// it, null when it gives none or that is unknown; null when no link with a
   /// destination spans them.
-  ({String? href})? linkSpanning(
+  _SpanningLink? linkSpanning(
     int line, {
     required int start,
     required int end,
   }) {
     for (final (index, source) in _all.indexed) {
       if (source.line != line || !_spans(source, start, end)) continue;
-      return source.shown == null ? null : (href: _hrefs?[index]);
+      return source.shown == null ? null : _SpanningLink(href: _hrefs?[index]);
     }
     return null;
   }
@@ -294,9 +302,17 @@ bool _namesFileBeside(String folder, String path) =>
 bool _holds(DocAnchors? anchors, String anchor) =>
     anchors == null || anchors.holds(anchor);
 
+/// One `doc` value of a template reference entry, and its 1-based line.
+final class _DocEntry {
+  const new({required this.value, required this.line});
+
+  final String value;
+  final int line;
+}
+
 /// Returns each string `doc` value of the reference entries of [file], with
 /// its 1-based line.
-Iterable<({String value, int line})> _docEntries(File file) sync* {
+Iterable<_DocEntry> _docEntries(File file) sync* {
   final YamlNode root;
   try {
     root = loadYamlNode(file.readAsStringSync());
@@ -313,7 +329,7 @@ Iterable<({String value, int line})> _docEntries(File file) sync* {
     if (item is! YamlMap) continue;
     final value = item[_docKey];
     if (value is String) {
-      yield (value: value, line: item.span.start.line + 1);
+      yield _DocEntry(value: value, line: item.span.start.line + 1);
     }
   }
 }
