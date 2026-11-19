@@ -47,7 +47,8 @@ Sections, in order:
 Before the Docs to change table closes, find each decision's dependents:
 
 - Name its rule's owner doc (`specstone-expert-sdd` rule 7); the owner item's cited-by lines give the docs linking it.
-  Run `specstone check <feature> --repeats` for the repeat groups holding that item.
+  Run `specstone check <feature> --repeats --out "<folder>/reports/check.gate.<XXXXXX>.txt"` for the repeat groups
+  holding that item; search its file for the item's doc path.
 - Search the saved files, every section of each row's doc included, for the decision's terms and the wording it
   supersedes, in every written form: with and without a trailing `/`, in backticks or not, singular and plural, and a
   short form.

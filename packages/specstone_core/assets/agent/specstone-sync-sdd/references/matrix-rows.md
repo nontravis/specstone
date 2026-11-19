@@ -38,11 +38,12 @@ a blank line as the old passage and nothing after `==> new <==`.
   stamp nothing, so the row stays as written; report it under `Mismatches:` with the row, its FR or edge case, and its
   literals, and list it as waiting for its implementer.
 
-Under off, stamp no row. Under `fr` or `edge_case`, run `specstone check` and stamp: each row you wrote with no
-fingerprint, each `suspect` row, and each `unconfirmed` row with `waitsFor` `agent` ends in its finding's
-`fingerprint`, written the same way, but only when the re-read showed its tests still prove its upstream block. Never
-stamp a row whose FR carries `draft: true`, its `waitsFor` `owner`; list it as waiting for its FR's approval. Run
-`check` again until no `waitsFor` `agent` row finding is left on a row you wrote or stamped.
+Under off, stamp no row. Under `fr` or `edge_case`, run `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"`
+and stamp: each row you wrote with no fingerprint, each `suspect` row, and each `unconfirmed` row with `waitsFor`
+`agent` ends in its finding's `fingerprint`, found by searching that file and written the same way, but only when the
+re-read showed its tests still prove its upstream block. Never stamp a row whose FR carries `draft: true`, its
+`waitsFor` `owner`; list it as waiting for its FR's approval. Run `check` again, searching its file, until no
+`waitsFor` `agent` row finding is left on a row you wrote or stamped.
 
 Name a waiting row by its item, its edge case under `edge_case`, and its literals. Write no row for a new test: its
 implementer writes it.

@@ -1,6 +1,6 @@
 # Fix a doc over its size limit
 
-This covers the size findings `specstone check` raises, under `specstone-expert-sdd`'s rule 5.
+This covers the size findings `check` raises, under `specstone-expert-sdd`'s rule 5.
 
 ## The order
 
