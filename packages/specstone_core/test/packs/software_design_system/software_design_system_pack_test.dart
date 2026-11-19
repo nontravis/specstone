@@ -104,7 +104,7 @@ void main() {
   setUpAll(() async => set = await resolveSoftwareDesignSystem());
 
   group('manifest', () {
-    test('ships at 1.0.0, extends software-tech, and carries exactly the '
+    test('ships at 1.1.0, extends software-tech, and carries exactly the '
         'nineteen doc type files', () {
       final bytes = shippedPackFiles['software-design-system/pack.yaml'];
       expect(bytes, isNotNull);
@@ -113,7 +113,7 @@ void main() {
         file: 'packs/software-design-system/pack.yaml',
       );
       expect(manifest.name, 'software-design-system');
-      expect(manifest.version.toString(), '1.0.0');
+      expect(manifest.version.toString(), '1.1.0');
       expect(manifest.extendsPack, 'software-tech');
       expect(
         shippedPackFiles.keys.where(
@@ -345,6 +345,29 @@ void main() {
         after.where((spot) => spot.contains('app/lib/button.dart')),
         isEmpty,
       );
+    });
+
+    test('foundation guides hold no token literal', () {
+      const foundations = [
+        'color',
+        'typography',
+        'spacing',
+        'elevation',
+        'shape',
+        'motion',
+      ];
+      final literal = RegExp(r'#[0-9a-fA-F]{3,8}\b|\d');
+      final valueAsk = RegExp(r'\bvalues?\b', caseSensitive: false);
+      for (final id in foundations) {
+        final docType = prdCoreDocType(set, id);
+        final intro = docType.description ?? '';
+        expect(intro, isNot(contains(literal)), reason: id);
+        for (final section in docType.sections) {
+          final text = section.description ?? '';
+          expect(text, isNot(contains(literal)), reason: id);
+          expect(text, isNot(contains(valueAsk)), reason: id);
+        }
+      }
     });
 
     test('tokens holds one required section, token_list, and no per-target '

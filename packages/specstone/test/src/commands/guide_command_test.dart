@@ -1996,7 +1996,7 @@ items:
       expect(err.toString(), isEmpty);
     });
 
-    test('guide component prints its description, then the twelve sections in '
+    test('guide component prints its description, then the nine sections in '
         'order', () async {
       final runner = await runnerFor(packs: softwareDesignSystemConfig());
 
@@ -2014,9 +2014,6 @@ items:
         'Variants',
         'States',
         'Props',
-        'Tokens',
-        'Do',
-        "Don't",
         'Examples',
         'Keyboard',
         'Accessibility',

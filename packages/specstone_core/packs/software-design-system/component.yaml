@@ -40,42 +40,24 @@ sections:
     header: When to use
     required: true
     description: |-
-      Write when to use the component and when not, naming the component to use instead.
+      Write when to use the component, when not, and the component to use instead.
   - id: anatomy
     header: Anatomy
-    required: true
     description: |-
-      List the component's named parts.
+      List the named parts; write this section when the component has two or more.
   - id: variants
     header: Variants
-    required: true
     description: |-
-      List each variant with the prop value that picks it.
+      List each variant with the prop value that picks it; write this section when the component has more than one look.
   - id: states
     header: States
-    required: true
     description: |-
-      List each state the component takes and what shows in it.
+      List each state beyond default and what shows in it.
   - id: props
     header: Props
     required: true
     description: |-
       Write one row per prop, its type one of `text`, `number`, `boolean`, `choice`, and `on-tap`.
-  - id: tokens
-    header: Tokens
-    required: true
-    description: |-
-      List the tokens the component reads.
-  - id: do
-    header: Do
-    required: true
-    description: |-
-      List what to do with the component.
-  - id: dont
-    header: Don't
-    required: true
-    description: |-
-      List what never to do with the component.
   - id: examples
     header: Examples
     required: true
@@ -89,4 +71,4 @@ sections:
     header: Accessibility
     required: true
     description: |-
-      Write how the component meets the library-wide accessibility bar.
+      Write only what the component adds to the library-wide accessibility bar, or link to the bar.
