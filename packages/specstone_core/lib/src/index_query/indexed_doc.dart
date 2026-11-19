@@ -9,12 +9,16 @@ import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/tbr_marker.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
+import 'package:specstone_core/src/index_query/bare_item_ids.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show scenarioRefPrefix;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show mermaidSourcesOf;
+import 'package:specstone_core/src/index_query/models/cite_form.dart';
 import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/models/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
@@ -235,6 +239,13 @@ ParsedDoc parseIndexedDoc({
   final matrixLines = docType == null
       ? const <MatrixLine>[]
       : matrixLinesOfDoc(doc, lfText, docType);
+  final citeForms = docType == null
+      ? const <CiteForm>[]
+      : citeFormsOf(
+          lfText,
+          idPrefixes: idPrefixes,
+          skipLines: testRowLinesOf(matrixLines),
+        );
   final lineFacts = LineFacts.of(
     lfText: lfText,
     countedText: docType == null
@@ -246,12 +257,13 @@ ParsedDoc parseIndexedDoc({
     frontmatterErrorLine: yaml?.errorLine,
     bodyNumberLabels: numberLabelLinesInMarkdown(doc.afterFrontmatter),
     bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
-    citeCandidates: docType == null
+    citeCandidates: [for (final form in citeForms) form.candidate],
+    bareItemIds: docType == null
         ? const []
-        : citeCandidatesOf(
+        : bareItemIdsOf(
             lfText,
-            idPrefixes: idPrefixes,
-            skipLines: testRowLinesOf(matrixLines),
+            idPrefixes: idPrefixes.difference({scenarioRefPrefix}),
+            citeForms: citeForms,
           ),
     mermaidBlocks: docType == null
         ? const []
