@@ -37,6 +37,7 @@ void main() {
         'columns Code, Exit/HTTP, Category, Triggered by, Client guidance',
       ),
     );
+    expect(text, contains('an optional Details column'));
   });
 
   test('retry policy is optional', () {
