@@ -1638,7 +1638,7 @@ ItemCountLint? _parseItemCount(
   final keyPrefix = '${prefix}item_count.';
   checkKeys(
     count,
-    const {'min', 'max', 'per_subsection', 'prefixes'},
+    const {'min', 'max', 'per_subsection', 'prefixes', 'waits_for'},
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1653,6 +1653,20 @@ ItemCountLint? _parseItemCount(
       key: '${keyPrefix}min',
     );
   }
+  final waitsFor = optionalValue<String>(
+    count,
+    'waits_for',
+    file: file,
+    prefix: keyPrefix,
+  );
+  if (waitsFor != null && waitsFor != 'agent' && waitsFor != 'owner') {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key waits_for must be agent or owner',
+      file: file,
+      key: '${keyPrefix}waits_for',
+    );
+  }
   final prefixes = optionalValue<YamlList>(
     count,
     'prefixes',
@@ -1660,6 +1674,7 @@ ItemCountLint? _parseItemCount(
     prefix: keyPrefix,
   );
   return ItemCountLint(
+    waitsForOwner: waitsFor == 'owner',
     min: min,
     max: max,
     perSubsection:

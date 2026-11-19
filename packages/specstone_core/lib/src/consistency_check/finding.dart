@@ -13,6 +13,10 @@ enum WaitsFor {
   final String wire;
 }
 
+/// Returns [WaitsFor.owner] for an `item_count` lint's owner flag, else null.
+WaitsFor? itemCountWait({required bool waitsForOwner}) =>
+    waitsForOwner ? WaitsFor.owner : null;
+
 /// The tag the text line of an `owner` finding ends with.
 const _ownerTag = ' (waits for the Owner)';
 

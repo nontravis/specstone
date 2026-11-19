@@ -6,24 +6,24 @@ Ask the Owner nothing: list each gap in the report.
 - **Design document**: read it whole; list each decision, ruling, and Docs to change row.
 - **Drafts** (each pass after the first): the drafts list, the first author report's drafts plus each doc a later
   pass added; in a fix round, the audit's `Findings:` lines too. Before your first write, re-read the drafts in one
-  `specstone get <drafts list>`, rerun without each name a `doc_not_found` refusal names; list those under
-  `Findings:`, or as `Not landed:` when listed and never created. Through steps 2 to 4, write an amended design into
-  the drafts and fix those findings there; list each outside them under `Findings:`, unfixed.
+  `specstone get <drafts list>`, rerun without each name a `doc_not_found` refusal names; list each under
+  `Findings:`, or `Not landed:` if never created. In steps 2 to 4, write an amended design and fix those findings in
+  the drafts; list each outside them under `Findings:`, unfixed.
 
 ## 2. Place each decision
 
 Write each Docs to change row, one with no decision too, as a `design_references` link with a table row. Write a
-reason (Rationale, "since", "so") only in the design's words, whatever a `Required …`, `Optional …`, or `Limits:`
-line or a `check` finding asks; list one it lacks under `Findings:`.
+reason (Rationale, "since", "so") only in the design's words, whatever a guide line or `check` finding asks; list
+one it lacks under `Findings:`.
 
-- **Guide**: before your first write, run `specstone guide <type> … --out` once per type you write.
+- **Guide**: before writing, run `specstone guide <type> … --out` per type you write.
 - **Code target** (two or more `targets:`): pass a per-target spec doc's `new`, `get`, and `set` the
   `--target <name>` its design row names, or use an existing doc's DocPath.
 - **New doc**: pipe it to `specstone new <type>` (`--parent`, `--slug` as it takes them), parents first.
 - **Section or field**: pipe it to `specstone set <type>:<name>#<key> --base <hash>` (a field: `--field <id>` for
   `#<key>`; a passage: `--replace` with `==> old <==`, the passage, `==> new <==`, its replacement), its hash in
   `bases` of `specstone get <type>:<name> --json`.
-- **A removed decision's stub row**: follow section 2 of `removal.md`.
+- **A removed decision's stub row**: follow `removal.md` section 2.
 - **Several docs**: edit the blocks of `specstone get <names> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`, naming lines kept, one write per block; run
   `specstone set --batch "<file>"`. A ` · unchanged` block adds no draft.
@@ -51,18 +51,20 @@ doc; list any other under `Findings:`.
 ## 4. Check
 
 Run a bare `specstone check` before your first write and after your last. Before the second, walk each item you
-wrote against your saved guide's description lines (doc part, held sections, `Fields:`), not `Banned words:` lines,
-templates, or the `Required …`, `Optional …`, and `Limits:` lines (a field's `Limits:` line too); list a line you
-cannot meet under `Findings:`. Then run `specstone check <feature> --repeats` per feature of your drafts: a draft's
-new text repeating another doc's item links it instead. Save each `check` by `--out`, never a redirect.
+wrote against the saved guide's description lines (doc part, held sections, `Fields:`), not templates or
+`Banned words:`, `Required …`, `Optional …`, or any `Limits:` line; two edge cases of one response break `fr`'s
+distinct-response line. List a line you cannot meet under `Findings:`. Then run
+`specstone check <feature> --repeats` per feature of your drafts: new draft text repeating another doc's item links
+it instead. Save each `check` by `--out`, no redirect.
 
-Fix each second-run finding, even one the first run had, in a section your writes touched; list each in an untouched
-section, such as a doc you only confirmed again, under `Findings:`, unfixed. Two kinds differ:
+Fix each second-run finding, even a first-run one, in a section you wrote; list others, such as in a doc you only
+confirmed again, under `Findings:`, unfixed. Two kinds differ:
 
-- **A `suspect` link in another doc:** confirm it again per `specstone-expert-sdd`, that doc joining your drafts, or
-  list it under `Findings:` when you cannot.
-- **A finding whose `waitsFor` is `owner`**, its line ending `(waits for the Owner)`: leave it and list it; never
-  write around it.
+- **A `suspect` link in another doc:** confirm it again per `specstone-expert-sdd`, that doc joining your drafts, else
+  list it.
+- **A finding whose `waitsFor` is `owner`**, ending `(waits for the Owner)`: leave it and list it; never write around
+  it. An `item_count_out_of_range` on the edge cases of an FR you wrote takes
+  `../../specstone-expert-sdd/references/size-fix.md`'s split proposal; run none of its commands.
 
 ## 5. Report
 
@@ -84,9 +86,9 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 
 - **Design**: `<N>`, the last amend or `0`; the relay block's first line too.
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, step 1's list less dropped names, plus docs
-  added; names only, no `--target`. A moved doc and its children go by their new name.
-- **Counts**: take every count from one `specstone approve --dry-run --json` after your last write, your drafts being
+  added; names only, no `--target`. Moved docs and their children go by new names.
+- **Counts**: take each count from one `specstone approve --dry-run --json` after your last write, your drafts being
   your list's docs; it names a moved one by its old name until its `Move:` line runs. Name each other draft it lists
   under `Other drafts:`, never counted; one of yours it shows as no draft goes under `Findings:`.
-- **Move**: only for a moved doc, item, or scenario: one line per target parent or `--top`, copied into the relay
+- **Move**: only for a moved doc, item, or scenario: one line per target parent or `--top`, copied to the relay
   block. Run no `move`.
