@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:specstone_core/src/templates/layer_source.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_chain.dart';
 import 'package:specstone_core/src/templates/shared_entry.dart';
@@ -87,6 +88,27 @@ TypeMatcher<TemplateFault> _is(
 List<String> _ids(List<MergedSharedLine> lines) => [
   for (final line in lines) line.id,
 ];
+
+MergedSharedLine _line(String id, String text, int rank) =>
+    MergedSharedLine(id: id, text: text, printRank: rank);
+
+/// The shared lines each named type holds and the ids [sharedByAll] keeps.
+final class _SharedCase {
+  const new({required this.types, required this.ids});
+
+  final List<List<MergedSharedLine>> types;
+  final List<String> ids;
+}
+
+MergedDocType _typeHolding(String id, List<MergedSharedLine> lines) =>
+    MergedDocType(
+      id: id,
+      fields: const [],
+      sections: const [],
+      lint: const MergedLint(),
+      files: const [],
+      sharedLines: lines,
+    );
 
 String _text(SharedSet set, String id) =>
     set.lines.singleWhere((line) => line.id == id).text;
@@ -727,5 +749,61 @@ void main() {
       expect(set.shared.lines, isEmpty);
       expect(set.shared.fields, isEmpty);
     });
+  });
+
+  group('sharedByAll', () {
+    final tone = _line('tone', 'Be brief.', 0);
+    final cite = _line('cite', 'Cite by link.', 1);
+    final toneRewritten = _line('tone', 'Be very brief.', 0);
+
+    final cases = <String, _SharedCase>{
+      'a line every type holds with equal id and text is kept': _SharedCase(
+        types: [
+          [tone],
+          [tone],
+        ],
+        ids: ['tone'],
+      ),
+      'a line with a rewritten text in one type is dropped': _SharedCase(
+        types: [
+          [tone, cite],
+          [toneRewritten, cite],
+        ],
+        ids: ['cite'],
+      ),
+      'a line one type lacks is dropped': _SharedCase(
+        types: [
+          [tone, cite],
+          [cite],
+          [tone, cite],
+        ],
+        ids: ['cite'],
+      ),
+      'the lines keep the first type print order': _SharedCase(
+        types: [
+          [cite, tone],
+          [tone, cite],
+        ],
+        ids: ['cite', 'tone'],
+      ),
+      'no common line leaves none': _SharedCase(
+        types: [
+          [tone],
+          [cite],
+        ],
+        ids: [],
+      ),
+    };
+
+    for (final MapEntry(:key, :value) in cases.entries) {
+      test(key, () {
+        final types = [
+          for (final (i, lines) in value.types.indexed)
+            _typeHolding('type_$i', lines),
+        ];
+
+        expect(_ids(sharedByAll(types)), value.ids);
+      });
+    }
   });
 }

@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pack_chain.dart';
 import 'package:specstone_core/src/templates/shared_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -30,6 +31,25 @@ final class MergedSharedLine {
 
   /// The place of the line among the lines, set by its first defining layer.
   final int printRank;
+}
+
+/// Returns the lines every doc type of [types] holds with an equal id and
+/// text, in the first type's print order.
+///
+/// A line a layer rewrites or disables for one type is not shared by all, so
+/// each type that keeps it prints it in its own guide.
+List<MergedSharedLine> sharedByAll(List<MergedDocType> types) {
+  if (types.isEmpty) return const [];
+  final [first, ...others] = types;
+  return [
+    for (final line in first.sharedLines)
+      if (others.every(
+        (type) => type.sharedLines.any(
+          (held) => held.id == line.id && held.text == line.text,
+        ),
+      ))
+        line,
+  ];
 }
 
 /// A shared field after every layer merged.

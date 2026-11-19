@@ -1763,6 +1763,27 @@ shared_lines:
       },
     );
 
+    test('renderGuide leaves out the shared lines it is told the shared block '
+        'holds', () async {
+      final api = await resolveApi(projectLayer);
+
+      final guide = api.renderGuide(sharedOut: {'first', 'added'});
+
+      expect(
+        guide,
+        startsWith('$ownText\nName the status code.\n\nBanned words:'),
+      );
+      expect(guide, isNot(contains('Say each thing once')));
+      expect(guide, isNot(contains('Cite by link.')));
+      expect(api.toJson()['description'], contains('Say each thing once'));
+      expect(
+        api.renderGuide(
+          sharedOut: {for (final line in api.sharedLines) line.id},
+        ),
+        startsWith('$ownText\n\nBanned words:'),
+      );
+    });
+
     test('a type with no shared line prints its own text alone', () async {
       final api = await resolveApi({
         'shared.yaml':
