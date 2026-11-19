@@ -77,14 +77,16 @@ List<EntityRow> _entityRowsIn(String lf, String header) {
 /// [_statesDefault] accepts.
 ///
 /// A heading or a top-level paragraph closes the open item, as the check's
-/// field reader has it; a nested line that runs past one line states more
-/// than the default.
+/// field reader has it; a nested line that runs past one line, or that holds a
+/// deeper bullet of its own, states more than the default.
 Iterable<SectionItem> _defaultItemsOf(
   List<BodyLine> body,
   String? defaultEnforcer,
 ) sync* {
+  final items = sectionItemsOf(body);
   var isUnderItem = false;
-  for (final item in sectionItemsOf(body)) {
+  for (var i = 0; i < items.length; i++) {
+    final item = items[i];
     final closesItem =
         item.kind == SectionItemKind.heading ||
         (item.kind == SectionItemKind.paragraph && !item.nested);
@@ -94,11 +96,18 @@ Iterable<SectionItem> _defaultItemsOf(
       isUnderItem = true;
     } else if (isUnderItem &&
         !item.text.contains('\n') &&
+        !_holdsDeeperItem(item, i + 1 < items.length ? items[i + 1] : null) &&
         _statesDefault(item.head, defaultEnforcer)) {
       yield item;
     }
   }
 }
+
+bool _holdsDeeperItem(SectionItem item, SectionItem? next) =>
+    next != null && next.nested && _indentOf(next) > _indentOf(item);
+
+int _indentOf(SectionItem item) =>
+    item.firstLine.length - item.firstLine.trimLeft().length;
 
 bool _statesDefault(String head, String? defaultEnforcer) {
   final match = _fieldItem.firstMatch(head);

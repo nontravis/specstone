@@ -142,6 +142,31 @@ void main() {
       );
     });
 
+    test('a default line that holds a nested bullet stays with it', () {
+      final lf = _invariants(
+        '- **INV-1** One.\n'
+        '  - **Consistency:** immediate\n'
+        '    - a note on it\n'
+        '  - **Enforcer:** Account\n'
+        '    - another note\n'
+        '- **INV-2** Two.\n'
+        '  - **Enforcer:** Account\n'
+        '  - **Consistency:** immediate',
+      );
+
+      expect(
+        _dropped(lf),
+        _invariants(
+          '- **INV-1** One.\n'
+          '  - **Consistency:** immediate\n'
+          '    - a note on it\n'
+          '  - **Enforcer:** Account\n'
+          '    - another note\n'
+          '- **INV-2** Two.',
+        ),
+      );
+    });
+
     test('a default line outside the invariants section, outside fenced '
         'code, or not nested under an item stays', () {
       const stay =
