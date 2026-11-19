@@ -17,6 +17,7 @@ void main() {
   group('cli calls exist', _cliCallsExistTests);
   group('host renders match source', _hostRendersMatchSourceTests);
   group('runs on every host', _runsOnEveryHostTests);
+  group('approve step', _approveStepTests);
 }
 
 // MARK: - Fixtures and readers
@@ -1446,5 +1447,73 @@ void _runsOnEveryHostTests() {
       'the Latin script', () {
     expect(trackedFiles(agentAssetsRoot()), isNotEmpty);
     expect(nonLatinLetterLines(agentAssetsRoot()), isEmpty);
+  });
+}
+
+// MARK: - approve step
+
+const _expertSdd = 'specstone-expert-sdd/SKILL.md';
+
+const _approveHeading = '## Get the drafts approved';
+
+/// The text of [heading]'s section in [markdown], up to the next `## `
+/// heading, every whitespace run as one space; empty when no line is
+/// [heading].
+String _sectionOf(String markdown, String heading) {
+  final lines = markdown.split('\n');
+  final start = lines.indexOf(heading);
+  if (start < 0) return '';
+  final rest = lines.skip(start + 1).takeWhile((l) => !l.startsWith('## '));
+  return _oneLine(rest.join('\n'));
+}
+
+void _approveStepTests() {
+  test(
+    'expert-sdd holds one auto approve section ahead of Owner confirmation',
+    () {
+      final lines = _pluginText(_expertSdd).split('\n');
+      expect(lines.where((line) => line == _approveHeading), hasLength(1));
+      expect(
+        lines.indexOf(_approveHeading),
+        lessThan(lines.indexOf('## Owner confirmation')),
+      );
+      final section = _sectionOf(_pluginText(_expertSdd), _approveHeading);
+      for (final word in [
+        'specstone approve',
+        '--auto',
+        '--json',
+        '--audit',
+        '--author',
+        '--no-audit',
+      ]) {
+        expect(section, contains(word), reason: word);
+      }
+    },
+  );
+
+  test('no skill file names the approve-mode reference', () {
+    final files = contentFiles();
+    expect(files, isNotEmpty);
+    final problems = [
+      for (final file in files)
+        if (file.path.endsWith('approve-mode.md') ||
+            '${file.frontmatter ?? ''}${file.body}'.contains('approve-mode.md'))
+          file.path,
+    ];
+    expect(problems, isEmpty);
+  });
+
+  test('expert-sdd tells a subagent to run approve only as a dry run', () {
+    final section = _sectionOf(_pluginText(_expertSdd), _approveHeading);
+    final sentences = section.split(RegExp(r'(?<=[.;:])\s'));
+    expect(
+      sentences.where(
+        (sentence) =>
+            sentence.toLowerCase().contains('subagent') &&
+            sentence.contains('`approve`') &&
+            sentence.contains('only with `--dry-run`'),
+      ),
+      isNotEmpty,
+    );
   });
 }
