@@ -1837,6 +1837,65 @@ lint: {title_no_number: true}
       expect(fields.single.when, isNull);
     });
 
+    test('an added Enforcer entry drops the shipped default_from', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: Enforcer, default_from: entities}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: '
+        '{add: [{field: Enforcer}]}}}]',
+      );
+      final entry = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!
+          .single;
+      expect(entry.when, isNull);
+      expect(entry.optional, isFalse);
+      expect(entry.defaultFrom, isNull);
+    });
+
+    test('an added Corrective policy entry drops the shipped when', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: Corrective policy, when: {field: Consistency, '
+        'value: eventual}}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: '
+        '{add: [{field: Corrective policy}]}}}]',
+      );
+      final entry = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!
+          .single;
+      expect(entry.when, isNull);
+      expect(entry.optional, isFalse);
+      expect(entry.defaultFrom, isNull);
+    });
+
+    test('an optional entry keeps its optional under an upper layer that adds '
+        'another field', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: P, optional: true}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: {add: [{field: Q}]}}}]',
+      );
+      final fields = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!;
+      expect(fields.first.optional, isTrue);
+      expect(fields.last.optional, isFalse);
+    });
+
     test('a new section carries its guide-rule keys', () {
       final merged = project(
         base(),

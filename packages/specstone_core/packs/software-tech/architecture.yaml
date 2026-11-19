@@ -38,11 +38,11 @@ sections:
     header: Components
     required: true
     description: |-
-      Write one table of Component, Responsibility, Tech, Owns, and an optional Code path.
+      Write one table with the columns Component, Responsibility, Tech, Owns.
       Write one row per component, matching the diagram's boxes one to one.
       Write no line but a table line; put a component's detail in Component details.
+      Write no file, folder, or command list that code or another doc holds.
       Name the technology in Tech, so the Agent needs no tech stack lookup.
-      Fill Code path with the component's folder or file, so a file's owner is found.
     lint:
       max_sentences:
         - count: 1
@@ -82,47 +82,27 @@ sections:
       Add the log channels as `<name> - <events>`.
   - id: concerns
     header: Concerns
-    required: true
     description: |-
-      Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each.
-      End each line with `see <section or sibling doc>` or `N/A — <reason>`.
+      Write one line per concern that applies, among Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability.
+      End each line with `see <section or sibling doc>`.
+      Write no line for a concern that does not apply.
     lint:
       max_item_lines: 1
       banned_patterns:
         - id: concern_ending
-          pattern: '^(?!## |.*(?:\bsee\b[^—]*|N/A — .+)$)\s*\S'
-          message: 'concern line has no ending; guide line: End each line with `see <section or sibling doc>` or `N/A — <reason>`'
+          pattern: '^(?!## |.*\bsee\b[^—]*$)\s*\S'
+          message: 'concern line has no ending; guide line: End each line with `see <section or sibling doc>`'
           in: all
-      required_patterns:
-        - id: concern_integration
-          pattern: '^(?:[-*] )?\*{0,2}Integration\b'
-          message: 'no Integration concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
-        - id: concern_errors
-          pattern: '^(?:[-*] )?\*{0,2}Errors\b'
-          message: 'no Errors concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
-        - id: concern_auth
-          pattern: '^(?:[-*] )?\*{0,2}Auth\b'
-          message: 'no Auth concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
-        - id: concern_lifecycle
-          pattern: '^(?:[-*] )?\*{0,2}Lifecycle\b'
-          message: 'no Lifecycle concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
-        - id: concern_events
-          pattern: '^(?:[-*] )?\*{0,2}Events\b'
-          message: 'no Events concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
-        - id: concern_rollout
-          pattern: '^(?:[-*] )?\*{0,2}Rollout\b'
-          message: 'no Rollout concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
-        - id: concern_observability
-          pattern: '^(?:[-*] )?\*{0,2}Observability\b'
-          message: 'no Observability concern line; guide line: Cover Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability, one item each'
   - id: design_references
     header: Design references
     description: |-
-      List each design or ADR whose decisions this doc still states.
+      List each design or ADR whose decisions this doc still states, one link per line. Add the decision IDs the doc still relies on and no summary.
       Drop a link once no section relies on it.
       The section is the only home for rationale.
     lint:
       max_item_lines: 1
+      item_count:
+        max: 5
   - id: open_questions
     header: Open questions
     description: |-

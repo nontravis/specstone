@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/target_fixture.dart';
 
 const _frLayer = '.specstone/templates/fr.yaml';
 const Set<FindingKind> _fieldKinds = {
@@ -49,8 +50,7 @@ const _eventual =
 
 const _immediate =
     '- **INV-2** An email is unique.\n'
-    '  - **Enforcer:** Account\n'
-    '  - **Consistency:** immediate';
+    '  - **Enforcer:** Account';
 
 const _policy = '  - **Corrective policy:** Sweep expired links daily.';
 
@@ -380,6 +380,169 @@ sections:
         FindingKind.sectionUndeclared,
       ]);
       expect(found.last.line, domainLineOf('## Corrective policies'));
+    });
+  });
+
+  group('the shipped domain default enforcer', () {
+    const subPath = 'docs/specs/f01_login/f01_reset/DOMAIN.md';
+    const oneRoot =
+        '| Entity | Kind |\n|---|---|\n| Account | Aggregate root |';
+    const twoRoots = '$oneRoot\n| Session | Aggregate root |';
+    const bare = '- **INV-1** A reset link expires.';
+    const kinds = {FindingKind.itemFieldMissing, FindingKind.itemFieldUnneeded};
+
+    String domainText(String entities, String invariants) =>
+        '# Login domain\n\n## Entities\n$entities\n\n'
+        '## Invariants\n$invariants\n';
+
+    Future<List<Finding>> found(
+      Map<String, String> domains, {
+      bool twin = false,
+    }) async {
+      _project = twin
+          ? await writeTwinProject(extra: domains)
+          : await writeCheckProject(extra: domains);
+      return [
+        for (final f in (await checkOf(_project)).findings)
+          if (kinds.contains(f.kind)) f,
+      ];
+    }
+
+    int lineIn(String path, String needle) =>
+        File('${_project.path}/$path')
+            .readAsLinesSync()
+            .indexWhere((line) => line.contains(needle)) +
+        1;
+
+    test(
+      'a doc with a default needs neither Enforcer nor Consistency',
+      () async {
+        final result = await found({
+          _domainPath: domainText(
+            oneRoot,
+            '$bare\n'
+            '- **INV-2** A link is single use.\n'
+            '  - **Enforcer:** `Account` ([domain:login](DOMAIN.md))',
+          ),
+        });
+        expect(result, isEmpty);
+      },
+    );
+
+    test(
+      'a doc with no default reports each invariant lacking Enforcer',
+      () async {
+        final result = await found({
+          _domainPath: domainText(twoRoots, '$bare\n'),
+          subPath: domainText(
+            '- None of its own.',
+            '$bare\n- **INV-2** A link is single use.\n',
+          ),
+        });
+        expect(
+          result.map((f) => (f.kind, f.path, f.line, f.toJson()['field'])),
+          [
+            (
+              FindingKind.itemFieldMissing,
+              'specs/f01_login/DOMAIN.md',
+              lineIn(_domainPath, '- **INV-1**'),
+              'Enforcer',
+            ),
+            (
+              FindingKind.itemFieldMissing,
+              'specs/f01_login/f01_reset/DOMAIN.md',
+              lineIn(subPath, '- **INV-1**'),
+              'Enforcer',
+            ),
+            (
+              FindingKind.itemFieldMissing,
+              'specs/f01_login/f01_reset/DOMAIN.md',
+              lineIn(subPath, '- **INV-2**'),
+              'Enforcer',
+            ),
+          ],
+        );
+      },
+    );
+
+    test('a Consistency text outside the allowed values is reported', () async {
+      final result = await found({
+        _domainPath: domainText(
+          oneRoot,
+          '- **INV-1** A reset link expires.\n  - **Consistency:** soon',
+        ),
+      });
+      expect(result, hasLength(1));
+      expect(result.single.kind, FindingKind.itemFieldMissing);
+      expect(result.single.toJson(), containsPair('field', 'Consistency'));
+    });
+
+    test('an empty Enforcer line is reported even where the default frees '
+        'it', () async {
+      final result = await found({
+        _domainPath: domainText(
+          oneRoot,
+          '- **INV-1** A reset link expires.\n  - **Enforcer:**',
+        ),
+      });
+      expect(result, hasLength(1));
+      expect(result.single.kind, FindingKind.itemFieldMissing);
+      expect(result.single.toJson(), containsPair('field', 'Enforcer'));
+    });
+
+    test('a lone paragraph under the section starts no invariant', () async {
+      final result = await found({
+        _domainPath: domainText(
+          twoRoots,
+          'The parent domain holds every rule.',
+        ),
+      });
+      expect(result, isEmpty);
+    });
+
+    test('a paragraph between an invariant and its fields detaches '
+        'them', () async {
+      final result = await found({
+        _domainPath: domainText(
+          twoRoots,
+          '$bare\n\nA plain sentence.\n\n'
+          '  - **Enforcer:** Account\n  - **Consistency:** eventual',
+        ),
+      });
+      expect(result, hasLength(1));
+      expect(result.single.kind, FindingKind.itemFieldMissing);
+      expect(result.single.toJson(), containsPair('field', 'Enforcer'));
+      expect(result.single.line, lineIn(_domainPath, '- **INV-1**'));
+    });
+
+    test('a sub-feature domain reads its parent default within its target '
+        'only', () async {
+      const flutterParent = 'docs/specs/flutter/f01_login/DOMAIN.md';
+      const flutterSub = 'docs/specs/flutter/f01_login/f01_reset/DOMAIN.md';
+      const jasprParent = 'docs/specs/jaspr/f01_login/DOMAIN.md';
+      final inherits = await found(twin: true, {
+        flutterParent: domainText(oneRoot, '$bare\n'),
+        jasprParent: domainText(twoRoots, '$bare\n'),
+        flutterSub: domainText('- None of its own.', '$bare\n'),
+      });
+      expect(inherits.map((f) => f.path), ['specs/jaspr/f01_login/DOMAIN.md']);
+      final alone = await found(twin: true, {
+        flutterParent: domainText(twoRoots, '$bare\n'),
+        jasprParent: domainText(oneRoot, '$bare\n'),
+        flutterSub: domainText('- None of its own.', '$bare\n'),
+      });
+      expect(alone.map((f) => f.path).toSet(), {
+        'specs/flutter/f01_login/DOMAIN.md',
+        'specs/flutter/f01_login/f01_reset/DOMAIN.md',
+      });
+    });
+
+    test('a project domain never decides for a feature domain', () async {
+      final result = await found({
+        'docs/specs/DOMAIN.md': domainText(oneRoot, '$bare\n'),
+        _domainPath: domainText('- None of its own.', '$bare\n'),
+      });
+      expect(result.map((f) => f.path), ['specs/f01_login/DOMAIN.md']);
     });
   });
 

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/default_enforcer.dart'
+    show ancestorTwinPaths;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -22,6 +24,7 @@ import 'package:specstone_core/src/setup_migration/bullet_lines_step.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
+import 'package:specstone_core/src/setup_migration/drop_default_lines_step.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
     show caseBlindPath;
@@ -91,6 +94,11 @@ const _matrixRowsChange = 'fold matrix rows';
 const _codeStampChange = 'stamp code fingerprints';
 const _codeRestampChange = 'restamp code fingerprints';
 const _citeChange = 'convert cites';
+const _invariantsSectionId = 'invariants';
+const _entitiesSectionId = 'entities';
+const _enforcerField = 'Enforcer';
+const _consistencyField = 'Consistency';
+const _immediateValue = 'immediate';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -276,12 +284,22 @@ RunPlan _upgradeRunOf(
   final changedAt = <int, List<String>>{};
   final linkLines = <String>[];
   final renameCollisions = <MigrateFault>[];
+  final originals = {
+    for (final path in docPaths)
+      path: readDocFile(
+        fileOfDocPath(path, docsRoot: docsRoot, projectRoot: root),
+        docPath: path,
+      ),
+  };
+  // The pre-run text under the planned path: no step reads a twin another
+  // step has already rewritten, so the result needs no doc order.
+  final preRunTexts = {
+    for (final MapEntry(:key, :value) in originals.entries)
+      if (value != null) planned[key]!: value.lf,
+  };
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
-    final original = readDocFile(
-      fileOfDocPath(path, docsRoot: docsRoot, projectRoot: root),
-      docPath: path,
-    );
+    final original = originals[path];
     if (original == null) continue;
     final match = matcher.match(plannedPath);
     final docType = match is MatchedDocType ? match.docType : null;
@@ -325,6 +343,14 @@ RunPlan _upgradeRunOf(
           ),
           null => lf,
         },
+        DropDefaultLines() => _withDefaultLinesDropped(
+          lf,
+          docType: docType,
+          plannedPath: plannedPath,
+          target: target,
+          matcher: matcher,
+          preRunTexts: preRunTexts,
+        ),
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -342,6 +368,7 @@ RunPlan _upgradeRunOf(
           RestampCodeFingerprints() => false,
           StripSharedCopies() => false,
           BulletLines() => false,
+          DropDefaultLines() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -359,6 +386,7 @@ RunPlan _upgradeRunOf(
             RestampCodeFingerprints() => '',
             StripSharedCopies() => '',
             BulletLines() => '',
+            DropDefaultLines() => '',
           };
           renameCollisions.add(
             MigrateFault(
@@ -986,6 +1014,7 @@ List<_OverrideFile> _renamedOverrides(
         RestampCodeFingerprints() => file.lf,
         StripSharedCopies() => file.lf,
         BulletLines() => file.lf,
+        DropDefaultLines() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -1511,7 +1540,63 @@ String _describe(MigrationStep step) => switch (step) {
   RestampCodeFingerprints() => step.kind,
   StripSharedCopies() => step.kind,
   BulletLines() => '${step.kind} ${step.docType} ${step.section}',
+  DropDefaultLines() => step.kind,
 };
+
+/// Returns [lf] of the doc at [plannedPath] without the default lines of its
+/// invariants.
+///
+/// The default enforcer comes from the pre-run text of the doc and of each
+/// ancestor twin, nearest first, kept only when it has the doc's own type and
+/// target, so a project domain never feeds a feature domain. An Enforcer line
+/// goes only while the merged `Enforcer` entry holds `default_from`, and a
+/// Consistency line only while the merged `Consistency` entry is optional and
+/// lists no `immediate`.
+String _withDefaultLinesDropped(
+  String lf, {
+  required MergedDocType docType,
+  required String plannedPath,
+  required String? target,
+  required DocTypeMatcher matcher,
+  required Map<String, String> preRunTexts,
+}) {
+  final invariants = docType.sections
+      .where((section) => section.id == _invariantsSectionId)
+      .firstOrNull;
+  if (invariants == null) return lf;
+  final entities = docType.sections
+      .where((section) => section.id == _entitiesSectionId)
+      .firstOrNull;
+  final twinTexts = [
+    for (final path in ancestorTwinPaths(plannedPath))
+      if (matcher.match(path)
+          case MatchedDocType(
+            docType: MergedDocType(:final id),
+            target: final twinTarget,
+          )
+          when id == docType.id && twinTarget == target)
+        ?preRunTexts[path],
+  ];
+  final fields = invariants.itemFields ?? const <ItemFieldLint>[];
+  final enforcer = fields.where((f) => f.field == _enforcerField).firstOrNull;
+  final consistency = fields
+      .where((f) => f.field == _consistencyField)
+      .firstOrNull;
+  return withDefaultLinesDropped(
+    lf,
+    invariantsHeader: invariants.header,
+    defaultEnforcer: entities == null || enforcer?.defaultFrom == null
+        ? null
+        : defaultEnforcerAmong([
+            lf,
+            ...twinTexts,
+          ], entitiesHeader: entities.header),
+    dropsConsistency:
+        consistency != null &&
+        consistency.optional &&
+        !(consistency.values?.contains(_immediateValue) ?? false),
+  );
+}
 
 /// Returns the doc paths in code point order, then the override paths in the
 /// same order.

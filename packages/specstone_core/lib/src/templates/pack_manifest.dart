@@ -14,6 +14,9 @@ const _keys = {
   'shared_fields',
 };
 
+const _entitiesSection = 'entities';
+const _invariantsSection = 'invariants';
+
 /// The `pack.yaml` of one pack: its name, version, and optional base pack.
 final class PackManifest {
   new _({
@@ -102,6 +105,64 @@ final class PackManifest {
         );
       }
     }
+  }
+
+  /// Throws `unknown_value` for the first `drop_default_lines` doc type that
+  /// [layerLists] lacks, or whose `extends` chain defines no `entities` or no
+  /// `invariants` section, a layer that disables the section included.
+  ///
+  /// The key is `migrations[<i>].steps[<j>].drop_default_lines.doc_types`.
+  void checkDropDefaultLineTargets(Map<String, DocTypeLayers> layerLists) {
+    for (final (i, migration) in migrations.indexed) {
+      for (final (j, step) in migration.steps.indexed) {
+        if (step is! DropDefaultLines) continue;
+        for (final docType in step.docTypes) {
+          final problem = _dropTargetProblem(docType, layerLists);
+          if (problem == null) continue;
+          throw TemplateFault(
+            FaultCode.unknownValue,
+            problem,
+            file: file,
+            key: 'migrations[$i].steps[$j].drop_default_lines.doc_types',
+          );
+        }
+      }
+    }
+  }
+
+  String? _dropTargetProblem(
+    String docType,
+    Map<String, DocTypeLayers> layerLists,
+  ) {
+    if (!layerLists.containsKey(docType)) {
+      return 'the drop_default_lines doc type $docType is not a doc type '
+          'the packs define';
+    }
+    final defined = <String>{};
+    final visited = <String>{};
+    var layers = layerLists[docType];
+    while (layers != null) {
+      if (!visited.add(layers.first.layer.docTypeId)) break;
+      for (final entry in layers) {
+        defined.addAll(entry.layer.sections.map((s) => s.id));
+      }
+      layers = _extendsTargetLayers(layers, layerLists);
+    }
+    for (final section in const [_entitiesSection, _invariantsSection]) {
+      if (!defined.contains(section)) {
+        return 'the drop_default_lines doc type $docType has no $section '
+            'section';
+      }
+    }
+    return null;
+  }
+
+  DocTypeLayers? _extendsTargetLayers(
+    DocTypeLayers layers,
+    Map<String, DocTypeLayers> layerLists,
+  ) {
+    final target = topMostWriter(layers, wroteExtends)?.extendsId;
+    return target == null ? null : layerLists[target];
   }
 
   /// The pack name.

@@ -2,6 +2,24 @@ import 'package:specstone_core/src/doc_model/models/section_item.dart';
 
 final _fieldItem = RegExp(r'^\*\*(.+?)\:\*\*\s*(.*)$');
 
+/// A `**<field>:** <text>` head read by [readFieldHead].
+final class FieldHead {
+  const new({required this.name, required this.value});
+
+  final String name;
+
+  /// The text after the label, trimmed.
+  final String value;
+}
+
+/// Reads [head], an item's first line after its marker, as a field head; null
+/// when it opens with no `**<field>:**` label.
+FieldHead? readFieldHead(String head) {
+  final match = _fieldItem.firstMatch(head);
+  if (match == null) return null;
+  return FieldHead(name: match.group(1)!, value: match.group(2)!.trim());
+}
+
 /// Reads [items]: the nested field items under each top-level item, keyed by
 /// the item's line, and every field value the section holds, by field.
 ///
@@ -13,18 +31,17 @@ SectionFields readSectionFields(List<SectionItem> items) {
   final values = <String, Set<String>>{};
   var itemLine = -1;
   for (final item in items) {
-    final match = _fieldItem.firstMatch(item.head);
+    final field = readFieldHead(item.head);
     if (item.kind == SectionItemKind.heading ||
         (item.kind == SectionItemKind.paragraph && !item.nested)) {
       itemLine = -1;
     } else if (item.nested) {
-      if (itemLine >= 0 && match != null) {
-        final value = match.group(2)!.trim();
-        fieldsByItem[itemLine]!.putIfAbsent(match.group(1)!, () => value);
+      if (itemLine >= 0 && field != null) {
+        fieldsByItem[itemLine]!.putIfAbsent(field.name, () => field.value);
         values.update(
-          match.group(1)!,
-          (held) => held..add(value),
-          ifAbsent: () => {value},
+          field.name,
+          (held) => held..add(field.value),
+          ifAbsent: () => {field.value},
         );
       }
     } else {

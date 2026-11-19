@@ -782,6 +782,13 @@ final _leadingLinkTarget = RegExp(r'^\[[^\]]*\]\(([^)\s]*)');
 String? readLeadingLinkTarget(String text) =>
     _leadingLinkTarget.firstMatch(text)?.group(1);
 
+final _trailingLinkGroup = RegExp(r'\s*\(\[[^\]]*\]\([^)]*\)\)\s*$');
+
+/// Returns [text] without the parenthesized markdown link that closes it,
+/// `([label](target))`, and the space before it; [text] as is when none does.
+String withoutTrailingLinkGroup(String text) =>
+    text.replaceFirst(_trailingLinkGroup, '');
+
 /// Reads [text], whole, as `<doc type>:<name>#<item ID>`; null for any other
 /// text, a lettered or unreadable ID included.
 OverrideLabel? _readOverrideLabel(String text) {

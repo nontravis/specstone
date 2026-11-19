@@ -4,31 +4,17 @@ items:
   - id: launch_goal
     text: The launch states one goal with a number, so its results can be judged afterward.
   - id: shared_positioning
-    text: The launch reuses the project's positioning and messaging, and restates neither.
-  - id: ideal_customer
-    text: The launch names the ideal customer it addresses and the customers it leaves out.
-  - id: buying_roles
-    text: The launch names who starts, uses, influences, decides, and approves the purchase, since each role needs its own message.
-  - id: value_per_persona
-    text: Each persona gets its pain points, the value the product gives it, and the message that follows.
-  - id: proof_points
-    text: Each key message carries a proof point, so no claim stands alone.
+    text: The launch reuses positioning, messaging, audience, and proof by link and restates none.
   - id: price_and_sales_model
     text: The launch states the price and how the product is sold before it picks a channel.
-  - id: channel_fit
-    text: Each channel states why it fits the audience and the goal, with its format and effort.
   - id: owned_earned_paid
     text: Channels are grouped as owned, earned, or paid, so the plan shows where its reach comes from.
-  - id: launch_calendar
-    text: The calendar gives each piece a date, an owner, and a channel, from teaser to follow-up.
+  - id: launch_window
+    text: The launch names its launch date and the follow-up window.
   - id: metrics_per_channel
-    text: Each channel has a metric tied to the launch goal, and the plan names the acquisition and activation numbers that show it worked.
+    text: The launch names the acquisition and activation number that shows it worked.
   - id: after_purchase
     text: The plan covers what happens after purchase, so new buyers reach first use and can become advocates.
-  - id: budget_and_risks
-    text: The plan states its budget and each risk with its response.
-  - id: next_steps
-    text: The plan ends with next steps, each with an owner and a due date.
 reference:
   - title: Anthropic marketing plugin, campaign-plan
     url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md

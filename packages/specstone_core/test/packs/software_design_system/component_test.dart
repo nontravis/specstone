@@ -12,22 +12,16 @@ const _componentDoc =
     'specs/design_system/components/buttons/primary_button.md';
 const _looseDoc = 'specs/design_system/components/loose_button.md';
 
-const _sectionHeaders = [
+const _requiredHeaders = [
   'Purpose',
   'When to use',
-  'Anatomy',
-  'Variants',
-  'States',
   'Props',
-  'Tokens',
-  'Do',
-  "Don't",
   'Examples',
   'Accessibility',
 ];
 
 String _body({bool keyboard = false}) => [
-  for (final header in _sectionHeaders.take(10))
+  for (final header in _requiredHeaders.take(4))
     '## $header\n\nWrites one line.\n',
   if (keyboard) '## Keyboard\n\nPress Enter.\n',
   '## Accessibility\n\nMeets the bar.\n',
@@ -118,21 +112,28 @@ void main() {
       ]);
     });
 
-    test('carries the twelve sections in order, keyboard alone optional', () {
-      expectSections(component, [
-        for (final header in _sectionHeaders.take(10))
-          SectionSpec(
-            header == "Don't"
-                ? 'dont'
-                : header.toLowerCase().replaceAll(' ', '_'),
-            header,
-            required: true,
-          ),
-        const SectionSpec('keyboard', 'Keyboard'),
-        const SectionSpec('accessibility', 'Accessibility', required: true),
+    test('the component guide lists its sections in the read order', () {
+      expect(component.sections.map((s) => s.header), [
+        'Purpose',
+        'When to use',
+        'Anatomy',
+        'Variants',
+        'States',
+        'Props',
+        'Examples',
+        'Keyboard',
+        'Accessibility',
       ]);
       expect(sectionOf(component, 'purpose').summary, isTrue);
-      expect(component.sections, hasLength(12));
+    });
+
+    test('only anatomy, variants, states, and keyboard are optional', () {
+      final optional = [
+        for (final section in component.sections)
+          if (!section.required) section.id,
+      ];
+      expect(optional, ['anatomy', 'variants', 'states', 'keyboard']);
+      expect(component.sections, hasLength(9));
     });
 
     test('the description holds the intro and one line for each component '
@@ -156,6 +157,13 @@ void main() {
       expect(
         lines.singleWhere((l) => l.startsWith('The Agent writes Props')),
         contains('Specstone never generates props from it.'),
+      );
+    });
+
+    test("the when-to-use section folds in the Do and Don't points", () {
+      expect(
+        sectionOf(component, 'when_to_use').description,
+        contains("Fold the Do and Don't points into this section."),
       );
     });
 

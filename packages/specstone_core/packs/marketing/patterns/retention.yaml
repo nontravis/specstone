@@ -3,18 +3,8 @@ description: a program that keeps existing customers buying
 items:
   - id: retention_goal
     text: The program states one retention goal with a number, such as the share of customers who buy again.
-  - id: customer_stages
-    text: The program names the stages a customer passes after the first purchase, such as new, active, and lapsing.
   - id: lapse_definition
     text: The program defines when a customer counts as lapsed and what message follows.
-  - id: loyal_groups
-    text: The program names the customer groups it keeps, such as everyday customers and top advocates.
-  - id: reward_fit
-    text: Each reward matches what its customer group values.
-  - id: reward_tiers
-    text: Higher rewards go to the most loyal customers through tiers.
-  - id: delight
-    text: The program gives existing customers more than the product, such as help, early access, or content.
   - id: owned_channels
     text: Messages go through owned channels the customer already uses, and each channel states its cadence.
   - id: advocacy_path

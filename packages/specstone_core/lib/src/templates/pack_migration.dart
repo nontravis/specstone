@@ -171,6 +171,21 @@ final class BulletLines extends MigrationStep {
   String get kind => 'bullet_lines';
 }
 
+/// A `drop_default_lines` step: each invariant's nested line that states only
+/// the default the guide prints leaves the docs of [docTypes].
+final class DropDefaultLines extends MigrationStep {
+  const new({required this.docTypes});
+
+  /// The ids of the doc types whose docs this step rewrites.
+  final List<String> docTypes;
+
+  @override
+  bool touches(String docTypeId) => docTypes.contains(docTypeId);
+
+  @override
+  String get kind => 'drop_default_lines';
+}
+
 /// A `strip_shared_copies` step: `migrate` removes each project layer line and
 /// field that equals a merged shared entry reaching its doc type; the step
 /// takes no keys.
@@ -304,6 +319,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'bullet_lines' => _parseBulletLines(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
+    'drop_default_lines' => _parseDropDefaultLines(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -530,6 +551,30 @@ BulletLines _parseBulletLines(
     docType: requireValue<String>(map, 'doc_type', file: file, prefix: prefix),
     section: requireValue<String>(map, 'section', file: file, prefix: prefix),
     prefixes: prefixes,
+  );
+}
+
+DropDefaultLines _parseDropDefaultLines(
+  YamlMap map,
+  int i,
+  int j, {
+  required String file,
+}) {
+  final prefix = 'migrations[$i].steps[$j].drop_default_lines.';
+  checkKeys(
+    map,
+    const {'doc_types'},
+    file: file,
+    format: 'drop_default_lines step',
+    prefix: prefix,
+  );
+  return DropDefaultLines(
+    docTypes: stringsOf(
+      requireValue<YamlList>(map, 'doc_types', file: file, prefix: prefix),
+      'doc_types',
+      file: file,
+      prefix: prefix,
+    ),
   );
 }
 

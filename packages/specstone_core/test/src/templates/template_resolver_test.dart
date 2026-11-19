@@ -1040,6 +1040,156 @@ path: prds/notes/{slug}/NOTE.md
       });
     });
 
+    group('a drop_default_lines step', () {
+      const defining =
+          'id: ledger\ndescription: A ledger\npath: ledgers/{slug}.md\n'
+          'sections:\n  - id: entities\n    header: Entities\n'
+          '  - id: invariants\n    header: Invariants\n';
+
+      Map<String, Uint8List> files({
+        String docType = 'ledger',
+        String ledger = defining,
+        Map<String, String> more = const {},
+      }) => {
+        ...shipped(),
+        'prd-core/pack.yaml': _bytes(
+          'name: prd-core\nversion: 1.1.0\nmigrations:\n'
+          '  - from: 1.0.0\n    steps:\n'
+          '      - drop_default_lines: {doc_types: [$docType]}\n',
+        ),
+        'prd-core/ledger.yaml': _bytes(ledger),
+        for (final MapEntry(:key, :value) in more.entries) key: _bytes(value),
+      };
+
+      Future<MergedSet> resolveWith(
+        Map<String, Uint8List> shippedFiles, {
+        Map<String, String> project = const {},
+      }) async => TemplateResolver(shippedFiles: shippedFiles).resolve(
+        workingDirectory: await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          ...project,
+        }),
+        homeDirectory: await writeTree({}),
+      );
+
+      final unknownAtDocTypes = isA<TemplateFault>()
+          .having((f) => f.code, 'code', FaultCode.unknownValue)
+          .having(
+            (f) => f.code.exitStatus,
+            'exit',
+            FaultCode.unknownValue.exitStatus,
+          )
+          .having((f) => f.file, 'file', 'packs/prd-core/pack.yaml')
+          .having(
+            (f) => f.key,
+            'key',
+            'migrations[0].steps[0].drop_default_lines.doc_types',
+          );
+
+      test('a drop_default_lines doc type no layer defines is '
+          'unknown_value', () async {
+        await expectLater(
+          resolveWith(files(docType: 'ledgr')),
+          throwsA(unknownAtDocTypes),
+        );
+        expect(await resolveWith(files()), isA<MergedSet>());
+      });
+
+      test('a drop_default_lines doc type missing invariants or entities is '
+          'unknown_value', () async {
+        for (final present in ['entities', 'invariants']) {
+          await expectLater(
+            resolveWith(
+              files(
+                ledger:
+                    'id: ledger\ndescription: A ledger\n'
+                    'path: ledgers/{slug}.md\n'
+                    'sections:\n  - id: $present\n    header: Header\n',
+              ),
+            ),
+            throwsA(unknownAtDocTypes),
+            reason: 'only $present is defined',
+          );
+        }
+      });
+
+      test('a drop_default_lines section a project layer disables still '
+          'loads', () async {
+        for (final disabled in ['entities', 'invariants']) {
+          final merged = await resolveWith(
+            files(),
+            project: {
+              '.specstone/templates/ledger.yaml':
+                  'sections:\n  - id: $disabled\n    disabled: true\n',
+            },
+          );
+
+          expect(merged.lookup('ledger'), isNotNull, reason: disabled);
+        }
+      });
+
+      test('a drop_default_lines doc type finds its sections through '
+          'extends', () async {
+        final merged = await resolveWith(
+          files(
+            docType: 'child',
+            more: {
+              'prd-core/child.yaml':
+                  'id: child\nextends: ledger\npath: children/{slug}.md\n',
+            },
+          ),
+        );
+
+        expect(merged.lookup('child'), isNotNull);
+      });
+
+      test('a drop_default_lines doc type finds its sections two extends '
+          'hops up', () async {
+        final merged = await resolveWith(
+          files(
+            docType: 'grandchild',
+            more: {
+              'prd-core/child.yaml':
+                  'id: child\nextends: ledger\npath: children/{slug}.md\n',
+              'prd-core/grandchild.yaml':
+                  'id: grandchild\nextends: child\n'
+                  'path: grandchildren/{slug}.md\n',
+            },
+          ),
+        );
+
+        expect(merged.lookup('grandchild'), isNotNull);
+      });
+
+      test('a drop_default_lines extends cycle ends in a refusal, not a '
+          'hang', () async {
+        final result = await resolveWith(
+          files(
+            docType: 'left',
+            more: {
+              'prd-core/left.yaml':
+                  'id: left\nextends: right\npath: lefts/{slug}.md\n',
+              'prd-core/right.yaml':
+                  'id: right\nextends: left\npath: rights/{slug}.md\n',
+            },
+          ),
+        ).then<Object>((set) => set, onError: (Object e) => e);
+
+        expect(result, isA<TemplateFault>());
+      });
+
+      test('the shipped software-tech drop_default_lines entry loads '
+          'clean', () {
+        final merged = TemplateResolver().resolveCarried(
+          packNames: ['prd-core', 'software-tech'],
+          homeDirectory: null,
+        );
+
+        expect(merged.lookup('domain'), isNotNull);
+        expect(merged.lookup('project_domain'), isNotNull);
+      });
+    });
+
     test("an extends doc type keeps its target's "
         'generators', () async {
       final home = await writeTree({});
