@@ -155,6 +155,33 @@ void main() {
       expect(lines, contains('Removed ${binDir(sb)}'));
     });
 
+    pathTest('a user PATH that cannot be written is named and left as it '
+        'was; the folders go, exit 1', () async {
+      final sb = await installedSandbox();
+      final pathBefore = (await readUserPath())?.value;
+      // Registered after the lock's own teardowns, so it runs before the PATH
+      // is written back, which needs the right this test took away.
+      addTearDown(() => denyUserPathWrite(isDenied: false));
+      await denyUserPathWrite(isDenied: true);
+
+      final r = await sb.run('uninstall.ps1');
+
+      expect(r.exitCode, 1);
+      expect(
+        flat(r.stderr),
+        contains(
+          'specstone: could not write the user PATH: remove ${binDir(sb)} '
+          'from it yourself',
+        ),
+      );
+      expect(Directory(binDir(sb)).existsSync(), isFalse);
+      expect(Directory(libDir(sb)).existsSync(), isFalse);
+      expect((await readUserPath())?.value, pathBefore);
+      expect(pathBefore, contains(binDir(sb)));
+      final lines = (r.stdout as String).trimRight().split(RegExp(r'\r?\n'));
+      expect(lines, ['Removed ${binDir(sb)}', 'Removed ${libDir(sb)}']);
+    });
+
     pathTest('the PATH item is found in another case and with '
         'a trailing backslash', () async {
       final sb = await installedSandbox();

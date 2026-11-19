@@ -44,13 +44,16 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show codeFilesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart'
+    show MergedDocType;
 import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// Returns the mentions an item move leaves, by file path then line: each bare
 /// ID that names a moved item in its source doc, or right after that doc's
-/// address, in any file; each bare ID inside a moved item that names an item
-/// of its source doc that stays or that the move renumbers; and each reference
-/// definition left because it serves items that part ways.
+/// address, in any typed doc, code file, or agent file; each bare ID inside a
+/// moved item that names an item of its source doc that stays or that the move
+/// renumbers; and each reference definition left because it serves items that
+/// part ways.
 ///
 /// A mention in a code file or an agent file reads as a doc address and an ID.
 /// A doc the move writes is read as it reads after the write, so a line is
@@ -74,10 +77,14 @@ List<StaleMention> itemMentions(
   };
   final found = <StaleMention>[];
   for (final doc in index.docs) {
+    final type = index.typeOf(doc);
+    if (type == null) continue;
     final after = afters[doc.docPath]!;
     found
       ..addAll(_addressMentions(index, moves, doc.docPath, after, '.md'))
-      ..addAll(_bareMentions(index, moves, doc, after, landed[doc.docPath]!))
+      ..addAll(
+        _bareMentions(index, moves, doc, type, after, landed[doc.docPath]!),
+      )
       ..addAll(
         _listedMentions(
           index,
@@ -275,12 +282,13 @@ List<StaleMention> _bareMentions(
   DocIndex index,
   ItemMoves moves,
   IndexedDoc doc,
+  MergedDocType type,
   String lf,
   List<MovedSpan> spans,
 ) {
   final skippedHeads = <MovedSpan>{};
   final mentions = <StaleMention>[];
-  for (final id in _bareIdsOf(index, moves, doc, lf)) {
+  for (final id in _bareIdsOf(index, moves, type, lf)) {
     final span = spans
         .where((span) => span.first <= id.line && id.line <= span.last)
         .firstOrNull;
@@ -305,16 +313,15 @@ List<StaleMention> _bareMentions(
   return mentions;
 }
 
-/// Returns the bare IDs of [lf], the text [doc] holds after the write, as the
-/// index reads a typed doc; a scenario ref only when a scenario moves.
+/// Returns the bare IDs of [lf], the text a doc of [type] holds after the
+/// write, as the index reads a typed doc; a scenario ref only when a scenario
+/// moves.
 List<BareItemId> _bareIdsOf(
   DocIndex index,
   ItemMoves moves,
-  IndexedDoc doc,
+  MergedDocType type,
   String lf,
 ) {
-  final type = index.typeOf(doc);
-  if (type == null) return const [];
   final prefixes = itemIdPrefixesOf(index.set.docTypes);
   final forms = citeFormsOf(
     lf,

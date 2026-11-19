@@ -2519,6 +2519,38 @@ items:
       },
     );
 
+    test('guide journey states one persona, one goal, outcome-only branches, '
+        'and edge scenarios left to stories and requirements', () async {
+      final runner = await runnerFor();
+
+      expect(await runner.run(['guide', 'journey']), 0);
+      expect(
+        out.toString(),
+        stringContainsInOrder([
+          'the story scenarios one persona walks toward one goal',
+          'Run from the start to the result the persona wants.',
+          'Branch only on outcomes the persona sees;',
+          'test edge scenarios at story and requirement level.',
+        ]),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide journey tells the Agent to leave persona out when no human '
+        'persona is served', () async {
+      final runner = await runnerFor();
+
+      expect(await runner.run(['guide', 'journey']), 0);
+      expect(
+        out.toString(),
+        contains(
+          'Names the personas the journey serves; '
+          'leave it out when it serves no human persona.',
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
     test('guide glossary prints its rules, then terms with its template and '
         'the 300-character cap', () async {
       final runner = await runnerFor();

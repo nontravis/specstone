@@ -397,6 +397,43 @@ void main() {
         'message': '--paths takes no #<section key>',
       });
     });
+    test(
+      '--code with a section key is argument_conflict, exit 64, stdout empty '
+      'and no bundle written',
+      () async {
+        final dir = await project();
+        final (:runner, :out, :err) = readRunner(dir);
+        expect(
+          await runner.run([
+            'get',
+            'journey:sign_in#steps',
+            '--code',
+            '--json',
+          ]),
+          64,
+        );
+        expect(out.toString(), isEmpty);
+        expect((jsonDecode(err.toString()) as Map)['error'], {
+          'code': 'argument_conflict',
+          'message': '--code takes no #<section key>',
+        });
+        err.clear();
+        expect(
+          await runner.run(['get', 'journey:sign_in#steps', '--code', '--out']),
+          64,
+        );
+        expect(out.toString(), isEmpty);
+        expect(err.toString(), '--code takes no #<section key>\n');
+        final reports = Directory(
+          [dir.path, '.specstone', 'reports'].join(Platform.pathSeparator),
+        );
+        expect(
+          !reports.existsSync() || reports.listSync().isEmpty,
+          isTrue,
+          reason: 'no --out file',
+        );
+      },
+    );
     test('--paths reads a path holding # whole, so it is no section '
         'key and no argument_conflict', () async {
       final (:runner, :out, :err) = readRunner(

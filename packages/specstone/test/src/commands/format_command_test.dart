@@ -403,6 +403,7 @@ generators: [note_toc]
 sections:
   - id: contents
     header: Contents
+    required: true
 ''';
       final toc = generatedOpenMarker('note_toc');
       const end = generatedEndMarker;
@@ -454,6 +455,22 @@ sections:
           read(notes, notePath),
           '# A\n\n## Contents\n\n$toc\ntoc\n$end\n\nbody\n',
         );
+      });
+
+      test('new writes the doc with the generator text of the doc '
+          'type that lists generators', () async {
+        final project = await fixtureProject({});
+
+        expect(
+          await (await noteRunnerIn(project))
+              .run(['new', 'note', '--slug', 'a']),
+          0,
+        );
+
+        final written = read(project, notePath);
+        expect(written, contains('$toc\ntoc\n$end\n'));
+        expect(written, contains('## Contents'));
+        expect(written.indexOf('## Contents'), lessThan(written.indexOf(toc)));
       });
 
       test('a stale block gets '

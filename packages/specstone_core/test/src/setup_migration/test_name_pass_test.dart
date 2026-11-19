@@ -224,6 +224,23 @@ void main() {
       expect(pass.rewrittenFiles, [_testPath]);
     });
 
+    for (final (opening, line) in [
+      ('f01/us01/fr01', _frLine),
+      ('login/email_login', 'email_login:test/auth_test.dart'),
+    ]) {
+      test('an em-dash after the ID is removed with it and the name keeps '
+          'its words: $opening', () async {
+        final project = await _project(
+          files: {_testPath: _test('$opening — rejects a wrong password')},
+        );
+
+        final pass = _run(project, home: await _home()).pass;
+
+        expect(_testsOf(pass.recordCreates.single.text), [line]);
+        expect(_fileText(pass, _testPath), _test('rejects a wrong password'));
+      });
+    }
+
     test('two tests naming one FR make one line', () async {
       final project = await _project(
         files: {
