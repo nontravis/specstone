@@ -5,10 +5,10 @@ and fix only that target's record and `covers:` entries, and each `root: project
 
 ## 2. Take the work list
 
-Your gate `check` gives it: each `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
+Your gate file gives it: each `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
 `implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row
 finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that takes a state instead, a waiting code target's left
-out, each keeping its state.
+out.
 
 ## 3. Find the covering docs
 
@@ -47,13 +47,13 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
      each stale section as a spec draft (step 5); the fingerprint awaits its approval.
 3. Fix each record code-path or `covers:` finding of a covering doc: pipe the corrected list to
    `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (hash:
-   `bases.fields.<field>` of `get --json`; or `--field covers` on the spec doc), then rerun `specstone check` until
-   those docs hold none:
+   `bases.fields.<field>` of `get --json`; or `--field covers` on the spec doc), then rerun
+   `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"`, searching its file, until those docs hold none:
    - moved file: point each record entry naming it at its rename pair's new side, relative to that target's
-     code root; stories and FRs name no code and stay; find the pair with
+     code root; find the pair with
      `git log -1 -M --diff-filter=R --name-status --format= -- <old path>`, or `git diff -M --name-status HEAD` while
      uncommitted; write no fingerprint;
-   - deleted file: drop the entry, or point it at the code doing that work now;
+   - deleted file: drop the entry, or point it at the code doing that work;
    - `root: project` entry: fingerprint alone, never moved; its `covers_path_missing` is only reported as
      `<doc>: covers path missing: <path>`, ending its loop.
 4. A `tests_unresolved` line: repoint it with

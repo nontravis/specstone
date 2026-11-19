@@ -87,10 +87,11 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
    - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
      other targets.
-3. **Check**: run `specstone check` once, as
-   `{ specstone check 2>&1; echo "exit=$?"; } | grep -E 'approval_stale|^exit='`, and read only those lines. Exit 0 or
-   1 is a finished check: no `approval_stale` line means no doc is stale, and no finding is a stop. Any other exit is
-   an error, not findings: stop, name that exit under `Findings:`, and plan no target on a check you could not read.
+3. **Check**: run `specstone folder` once, then `specstone check --out "<folder>/reports/check.plan.<XXXXXX>.txt"`,
+   `<folder>` the path `specstone folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file
+   exists. Read its exit status, and search that file with `Grep` for `approval_stale` lines alone. Exit 0 or 1 is a
+   finished check: no `approval_stale` line means no doc is stale, and no finding is a stop. Any other exit is an
+   error, not findings: stop, name that exit under `Findings:`, and plan no target on a check you could not read.
    Match each `approval_stale` line to a doc by the file path a `==> ` header of a Ground saved bundle holds
    (`==> <name> (<type>) · <path> <==`).
 4. **Design document**: when given, read it whole for what changed and why; the docs, never the document, say what
@@ -134,7 +135,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      proves, in that record's `verification_matrix` section (`specstone set implementation:<feature>#verification_matrix`,
      with the same `--target`), as ``- <item> <edge case>: `<literal>` ``: the FR named relative to its feature, its
      edge case ID, and the first literal of the test's name, with no fingerprint. A later step stamps each row with the
-     fingerprint `specstone check` prints for it once the test passes, never one you compute. A row whose edge case sits
+     fingerprint `check` prints for it once the test passes, never one you compute. A row whose edge case sits
      in an FR carrying `draft: true` stays unstamped: the task names it as waiting on that FR's approval. A task that
      writes a new test for a row the sync reported, because its test proves none of its edge case, also rewrites that
      old row to the new test's literal and stamps it the same way, or removes it when a row of that literal already
@@ -168,9 +169,9 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 
 ## Output Format
 
-With no `report`, run `specstone folder` once, after the Ground's calls or at a stop before them, `<folder>` the path
-`specstone folder` prints, and name your own `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `XXXXXX` six `a-z0-9`
-characters, picked again while that file exists; every round reuses it.
+`specstone folder` runs once, in Workflow step 3, or at a stop before it. With no `report`, name your own
+`<folder>/reports/plan-engineer.plan.<XXXXXX>.md` there, `XXXXXX` six `a-z0-9` characters, picked again while that
+file exists; every round reuses it.
 
 Read the `report` file with the host's file read before each write to it, in every round, not only the first; a
 missing file's read error is no stop. Write the report, the block below,
@@ -202,9 +203,9 @@ Findings: <items, or none>
 
 **DO:**
 
-- Run `specstone context` for the Ground, `specstone get` only after searching its saved files with `Grep`, and one
-  `specstone check`, read through its `approval_stale` lines and its exit code (Workflow step 3), `specstone folder`
-  once with no `report` (Output Format), and no other specstone command.
+- Run `specstone context` for the Ground, `specstone get` only after searching its saved files with `Grep`, one
+  `check` saved with `--out`, read through its exit status and its `approval_stale` lines (Workflow step 3),
+  `specstone folder` once (Workflow step 3), and no other specstone command.
 - Read code, instruction files, and library docs read-only; follow the plan skill.
 - Beyond the `report:` file, write only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.

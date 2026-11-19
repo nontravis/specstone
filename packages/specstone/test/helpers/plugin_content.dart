@@ -10,6 +10,25 @@ import 'package:yaml/yaml.dart';
 import 'package_root.dart';
 
 final _specstoneCall = RegExp(r'\bspecstone\s+(\S+)');
+
+/// The roles a saved `check` file names, as the shipped agent text allows.
+const checkRoles = [
+  'gate',
+  'author',
+  'audit',
+  'sync',
+  'bootstrap',
+  'plan',
+  'update',
+  'done',
+];
+
+/// `--out`, then a path under the reports folder of a `check` role file, both
+/// quotes present or both absent.
+final _savedCheckFile = RegExp(
+  '--out\\s+("?)<folder>/reports/check\\.(?:${checkRoles.join('|')}|<role>)'
+  r'\.<XXXXXX>\.txt\1(?!\S)',
+);
 final _skillName = RegExp(r'^([a-z0-9-]+):[a-z0-9-]+$');
 final _nonLatinLetter = RegExp(r'[^\P{L}\p{Script=Latin}]', unicode: true);
 final _claudeVariable = RegExp(r'\$\{CLAUDE_\w*\}?');
@@ -201,6 +220,35 @@ List<String> unknownCliNames(
   }
   return problems.toList()..sort();
 }
+
+/// Returns every `specstone check` call in a body of [files] as `path: call`,
+/// sorted, a call wrapped over lines on one line.
+///
+/// Reads the code spans and code block lines [unknownCliNames] reads, bodies
+/// only.
+List<String> checkCalls(List<ContentFile> files) {
+  final calls = <String>{};
+  for (final file in _markdownFiles(files)) {
+    for (final scanned in _codeTexts(file.body)) {
+      for (final call in _specstoneCall.allMatches(scanned)) {
+        if (call.group(1) != 'check') continue;
+        final text = _callTextOf(scanned, call).replaceAll(RegExp(r'\s+'), ' ');
+        calls.add('${file.path}: $text');
+      }
+    }
+  }
+  return calls.toList()..sort();
+}
+
+/// Returns each call of [checkCalls] that lacks
+/// `--out <folder>/reports/check.<role>.<XXXXXX>.txt`.
+///
+/// `<role>` is one of [checkRoles] or the placeholder of a shared reference;
+/// the path may be double-quoted.
+List<String> checkCallsWithoutSavedFile(List<ContentFile> files) => [
+  for (final call in checkCalls(files))
+    if (!_savedCheckFile.hasMatch(call)) call,
+];
 
 /// Returns one problem per host-tied text in the body of a file of [files],
 /// sorted.
@@ -480,16 +528,16 @@ String? _problemOf(
 
 /// Returns the whitespace-split words of the call at [call], up to the next
 /// `specstone ` in the same span or line.
-List<String> _callTokens(String scanned, RegExpMatch call) {
+List<String> _callTokens(String scanned, RegExpMatch call) =>
+    _callTextOf(scanned, call).split(RegExp(r'\s+')).skip(1).toList();
+
+/// Returns the trimmed text of the call at [call], up to the next `specstone `
+/// in the same span or line.
+String _callTextOf(String scanned, RegExpMatch call) {
   final next = _specstoneCall
       .allMatches(scanned)
       .map((m) => m.start)
       .where((start) => start > call.start);
   final end = next.isEmpty ? scanned.length : next.first;
-  return scanned
-      .substring(call.start, end)
-      .trim()
-      .split(RegExp(r'\s+'))
-      .skip(1)
-      .toList();
+  return scanned.substring(call.start, end).trim();
 }

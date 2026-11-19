@@ -22,10 +22,11 @@ a blank line as the old passage and nothing after `==> new <==`.
 - **A test that proves none of the row's edge case:** write and stamp nothing; report the row under `Mismatches:` with
   the row, its edge case, and its literal, and list it as waiting for its implementer.
 
-Then run `specstone check` and stamp: each row you wrote with no fingerprint, each `suspect` row, and each `unconfirmed`
-row with `waitsFor` `agent` ends in its finding's `fingerprint`, written the same way, but only when the re-read showed
-its test still proves its edge case. Never stamp a row whose `waitsFor` is `owner`; list it as waiting for its FR's
-approval. Run `check` again until no `waitsFor` `agent` row finding is left on a row you wrote or stamped.
+Then run `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"` and stamp: each row you wrote with no
+fingerprint, each `suspect` row, and each `unconfirmed` row with `waitsFor` `agent` ends in its finding's `fingerprint`,
+found by searching that file and written the same way, but only when the re-read showed its test still proves its edge
+case. Never stamp a row whose `waitsFor` is `owner`; list it as waiting for its FR's approval. Run `check` again,
+searching its file, until no `waitsFor` `agent` row finding is left on a row you wrote or stamped.
 
 Name a waiting row by its item, edge case, and literal. Write no row for a test a change adds or moves: its implementer
 writes it.

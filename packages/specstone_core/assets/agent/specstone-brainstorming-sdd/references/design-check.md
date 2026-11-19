@@ -4,17 +4,18 @@ nothing but the agent's `report:` file; never edit the design document. Ask the 
 
 ## 1. Read
 
-1. **Inputs**: the design document's path, and `amend: <N>` when given. With no design document, make the
-   missing-input stop: its `OPEN QUESTIONS:` line names the design document.
-2. **Design document**: read it whole; list each decision by its ID or label. With `amend: <N>`, keep only the
-   decisions whose heading lists `Amend <N>`: `amend: 4` keeps a decision headed `(Amend 2, Amend 4)` and a stub
-   headed `(Amend 2, Amend 4, removed)`. Read the stub as an amended decision; another decision, ruling, or section
-   of the design still stating its removed rule is a gap of the stub's decision. When no heading lists it, make the
-   missing-input stop, its `OPEN QUESTIONS:` line naming `amend`. With no `amend`, keep every decision, a stub too.
-3. **Targets**: each doc that exists among the Docs to change rows; with `amend: <N>`, only the rows of the decisions
+1. **Inputs**: the design document's path, `amend: <N>[,<N> ...]` and `bundles` when given. With no design
+   document, make the missing-input stop: its `OPEN QUESTIONS:` line names the design document.
+2. **Design document**: read it whole; list each decision by its ID or label. With `amend`, keep only the decisions
+   whose heading lists a named `Amend <N>`: `amend: 4` keeps a decision headed `(Amend 2, Amend 4)` and a stub
+   headed `(Amend 2, Amend 4, removed)`; `amend: 3,4` keeps `(Amend 3)` and `(Amend 2, Amend 4)`. Read the stub as an
+   amended decision; another decision, ruling, or section of the design still stating its removed rule is a gap of
+   the stub's decision. When no heading lists an `<N>`, make the missing-input stop for the whole check, its
+   `OPEN QUESTIONS:` line naming `amend`. With no `amend`, keep every decision, a stub too.
+3. **Targets**: each doc that exists among the Docs to change rows; with `amend`, only the rows of the decisions
    step 2 kept, a stub's rows included. A row for a doc still to be created is no target.
-4. **Bundles**: ground the features the targets fall under as step 1.3 of `audit.md` does, one
-   `specstone context <feature> --for design --out` each. Run no `get`.
+4. **Bundles**: run one `specstone context <feature> --for design --out` per feature the targets fall under; a target
+   whose files `bundles` passes takes no call, so read those files in place. Run no `get`.
 
 ## 2. Compare
 
@@ -40,7 +41,7 @@ it names:
 ## 3. Report
 
 ```
-Design check: <design document path>; amend: <N, or none>
+Design check: <design document path>; amend: <N list, or none>
 Lenses: Input left open, Reader missed, Rule mismatch, Two builders, Design contradicts
 Findings:
 - D<n>: <gap>

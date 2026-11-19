@@ -9,7 +9,7 @@ Rewrite the cite as a link to the one doc or item its text means.
 
 ## A repeats batch
 
-`batch: repeats` holds the groups `specstone check --repeats` listed with an item in a doc your skill takes: under
+`batch: repeats` holds the groups `check --repeats` listed with an item in a doc your skill takes: under
 `prds/` or `measurements/` for `bootstrap-prd`, under `specs/` for `bootstrap-spec`.
 
 Per group, judge whether its items state one rule. If so, keep the item in the doc that owns the rule's subject,
