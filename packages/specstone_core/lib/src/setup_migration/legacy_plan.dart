@@ -157,7 +157,7 @@ RunPlan _legacyRunOf(
     carriedGnfr: carriedGnfr,
   );
   final overrides = _overridesOf(features, titled.gnfrSections, carriedGnfrIds);
-  final (set: projectSet, :pins) = templates.resolveCarriedPinned(
+  final PinnedSet(set: projectSet, :pins) = templates.resolveCarriedPinned(
     packNames: carriedPacks,
     homeDirectory: homeDirectory,
     projectLayers: parseOverrides(overrides),

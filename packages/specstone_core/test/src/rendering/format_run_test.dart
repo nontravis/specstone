@@ -11,6 +11,7 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/models/opened_resolver.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -152,7 +153,7 @@ GeneratorRun<String> _tocRun(
   open: () {
     calls.opened++;
     calls.onOpen?.call();
-    return (
+    return OpenedResolver(
       resolver: resolver,
       close: () {
         calls.closed++;

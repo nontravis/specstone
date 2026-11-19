@@ -1,15 +1,11 @@
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/models/checklist_item_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
-
-/// One checklist item as one layer writes it.
-///
-/// `text` is null for an entry that only disables an item.
-typedef ChecklistItemEntry = ({String id, String? text, bool disabled});
 
 const _topKeys = {'id', 'description', 'items', 'extends', 'reference'};
 const _itemKeys = {'id', 'text', 'disabled'};
@@ -166,5 +162,5 @@ ChecklistItemEntry _parseItem(
       key: '${prefix}text',
     );
   }
-  return (id: id, text: text, disabled: disabled);
+  return ChecklistItemEntry(id: id, text: text, disabled: disabled);
 }

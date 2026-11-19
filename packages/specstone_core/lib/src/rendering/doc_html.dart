@@ -3,8 +3,10 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/html_attributes.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
 import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 import 'package:specstone_core/src/rendering/link_rewrite.dart';
+import 'package:specstone_core/src/rendering/models/rendered_body.dart';
 
 /// Renders [doc] as html: its title, frontmatter table, draft label, body.
 ///
@@ -23,14 +25,14 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 /// one `<pre>`, the title, frontmatter table, and draft label render as above,
 /// and `bodyParsed` is false.
 ///
-/// The body is parsed once, and the anchor set the record returns comes from
+/// The body is parsed once, and the anchor set the result returns comes from
 /// that parse of the text after the frontmatter, title line included, as
 /// `check` reads it.
 ///
 /// - [docPath]: the path of [doc] relative to the docs root.
 /// - [anchors]: the section anchor of each doc in the build, by docPath.
 /// - [anchorsAt]: the anchor set of another doc in the build, by docPath.
-({String html, bool bodyParsed, DocAnchors anchors}) renderDocBody(
+RenderedBody renderDocBody(
   Doc doc, {
   required String docPath,
   required Map<String, String> anchors,
@@ -39,7 +41,7 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
   final title = shownTitle(doc);
   final anchor = anchors[docPath];
   final frontmatter = doc.frontmatter;
-  final (:body, :own, :titleSlug, :bodySlugs) = _parsedBody(doc);
+  final _ParsedBody(:body, :own, :titleSlug, :bodySlugs) = _parsedBody(doc);
   if (body != null) {
     _setHeadingIds(body, bodySlugs);
     rewriteLinks(
@@ -59,7 +61,7 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
     else
       _bodyHtml(body, anchor).trimRight(),
   ].where((part) => part.isNotEmpty).join('\n');
-  return (html: html, bodyParsed: body != null, anchors: own);
+  return RenderedBody(html: html, bodyParsed: body != null, anchors: own);
 }
 
 const _noAnchors = DocAnchors(headingSlugs: [], headingLevels: [], htmlIds: {});
@@ -67,12 +69,19 @@ const _titleTag = 'h1';
 
 /// The body nodes a doc renders, title line left out, its own anchor set, and
 /// the slugs of its title and its body headings.
-typedef _ParsedBody = ({
-  List<Node>? body,
-  DocAnchors own,
-  String? titleSlug,
-  List<String> bodySlugs,
-});
+final class _ParsedBody {
+  const new({
+    required this.body,
+    required this.own,
+    required this.titleSlug,
+    required this.bodySlugs,
+  });
+
+  final List<Node>? body;
+  final DocAnchors own;
+  final String? titleSlug;
+  final List<String> bodySlugs;
+}
 
 /// Parses [doc]'s body once when its title line opens the text after the
 /// frontmatter, or when it has none: the title's top-level `h1` is cut from
@@ -85,7 +94,12 @@ _ParsedBody _parsedBody(Doc doc) {
       : anchorsOf(full);
   final at = doc.titleLineIndex;
   if (at == null) {
-    return (body: full, own: own, titleSlug: null, bodySlugs: own.headingSlugs);
+    return _ParsedBody(
+      body: full,
+      own: own,
+      titleSlug: null,
+      bodySlugs: own.headingSlugs,
+    );
   }
   final headings = full == null ? const <Element>[] : _headings(full);
   final opensBody = doc.afterFrontmatter
@@ -95,7 +109,7 @@ _ParsedBody _parsedBody(Doc doc) {
   final title = headings.firstOrNull;
   if (opensBody && title?.tag == _titleTag && full!.remove(title)) {
     final slugs = own.headingSlugs;
-    return (
+    return _ParsedBody(
       body: full,
       own: own,
       titleSlug: slugs.firstOrNull,
@@ -104,10 +118,15 @@ _ParsedBody _parsedBody(Doc doc) {
   }
   final body = parseMarkdown(_withoutTitleLine(doc));
   if (body == null) {
-    return (body: null, own: own, titleSlug: null, bodySlugs: const []);
+    return _ParsedBody(
+      body: null,
+      own: own,
+      titleSlug: null,
+      bodySlugs: const [],
+    );
   }
   final split = _splitTitleSlug(doc, slugs: own.headingSlugs, body: body);
-  return (
+  return _ParsedBody(
     body: body,
     own: own,
     titleSlug: split.titleSlug,
@@ -126,24 +145,36 @@ String _bodyHtml(List<Node> body, String? anchor) {
   return anchor == null ? html : scopeIds(html, anchor: anchor);
 }
 
+/// The title line's slug, null when it made no heading, and the body
+/// headings' slugs.
+final class _TitleSplit {
+  const new({required this.titleSlug, required this.bodySlugs});
+
+  final String? titleSlug;
+  final List<String> bodySlugs;
+}
+
 // Splits the doc's slugs, in `anchorsOf` order, into the title line's
 // slug and the body headings' slugs. The title line made a heading only when
 // the doc's slugs outnumber the body's headings by one; its slug then sits
 // after the slugs of the headings that precede the title line in the source.
-({String? titleSlug, List<String> bodySlugs}) _splitTitleSlug(
+_TitleSplit _splitTitleSlug(
   Doc doc, {
   required List<String> slugs,
   required List<Node> body,
 }) {
   final at = doc.titleLineIndex;
   if (at == null || slugs.length != _headings(body).length + 1) {
-    return (titleSlug: null, bodySlugs: slugs);
+    return _TitleSplit(titleSlug: null, bodySlugs: slugs);
   }
   final head = doc.afterFrontmatter.split('\n').take(at).join('\n');
   final before = parseMarkdown(head);
-  if (before == null) return (titleSlug: null, bodySlugs: slugs);
+  if (before == null) return _TitleSplit(titleSlug: null, bodySlugs: slugs);
   final index = _headings(before).length;
-  return (titleSlug: slugs[index], bodySlugs: [...slugs]..removeAt(index));
+  return _TitleSplit(
+    titleSlug: slugs[index],
+    bodySlugs: [...slugs]..removeAt(index),
+  );
 }
 
 // Gives each heading of [body], in document order, its slug, so check and

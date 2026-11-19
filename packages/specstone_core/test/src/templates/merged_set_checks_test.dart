@@ -1,7 +1,6 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/layer.dart';
-import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
@@ -23,20 +22,17 @@ final class _NoFiles implements LayerFiles {
 }
 
 /// One layer of the doc type [id], writing [text].
-({LoadedPack? pack, DocTypeLayer layer}) layerOf(
-  String id,
-  String text, {
-  String file = _runbookFile,
-}) => (
-  pack: null,
-  layer: DocTypeLayer.parse(
-    text,
-    file: file,
-    docTypeId: id,
-    kind: LayerKind.project,
-    files: const _NoFiles(),
-  ),
-);
+PackLayer layerOf(String id, String text, {String file = _runbookFile}) =>
+    PackLayer(
+      pack: null,
+      layer: DocTypeLayer.parse(
+        text,
+        file: file,
+        docTypeId: id,
+        kind: LayerKind.project,
+        files: const _NoFiles(),
+      ),
+    );
 
 MergedDocType builtIn(String id) => MergedDocType(
   id: id,

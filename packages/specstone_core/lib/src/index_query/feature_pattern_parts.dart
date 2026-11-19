@@ -2,6 +2,7 @@ import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/feature_pattern.dart';
+import 'package:specstone_core/src/templates/models/checklist_item.dart';
 
 const _patternsField = 'patterns';
 

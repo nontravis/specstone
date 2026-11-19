@@ -251,7 +251,7 @@ Iterable<Finding> _countIn(
       keys: {'limit': bound, 'actual': actual},
     );
   }
-  for (final (:linePrefix, :count) in lint.prefixes) {
+  for (final LinePrefixCount(:linePrefix, :count) in lint.prefixes) {
     final held = block.items
         .where((held) => held.item.firstLine.startsWith(linePrefix))
         .length;

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/executable_lookup.dart';
+import 'package:specstone_core/src/models/git_floor.dart';
+import 'package:specstone_core/src/models/git_version.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 
 /// Runs `git` with [arguments] in [workingDirectory].
@@ -24,7 +26,7 @@ typedef RunGit = ProcessResult Function(
 const _explicitBareRepository = ['-c', 'safe.bareRepository=explicit'];
 
 /// The first git that honours `safe.bareRepository`.
-const ({int major, int minor}) _gitExplicitBare = (major: 2, minor: 38);
+const _gitExplicitBare = GitFloor(major: 2, minor: 38);
 
 /// The version `git --version` prints, as `git version 2.39.3 (Apple Git-145)`
 /// or `git version 2.45.1.windows.1` do.
@@ -32,10 +34,10 @@ final _gitVersion = RegExp(r'^git version ((\d+)\.(\d+)\S*)');
 
 /// Returns the version a `git --version` line names, or null when it names
 /// none; `text` is the full version, such as `2.39.3`.
-({String text, int major, int minor})? parseGitVersion(String printed) {
+GitVersion? parseGitVersion(String printed) {
   final match = _gitVersion.firstMatch(printed.trim());
   if (match == null) return null;
-  return (
+  return GitVersion(
     text: match[1]!,
     major: int.parse(match[2]!),
     minor: int.parse(match[3]!),
@@ -43,10 +45,7 @@ final _gitVersion = RegExp(r'^git version ((\d+)\.(\d+)\S*)');
 }
 
 /// Whether [version] is older than [floor].
-bool isGitBelow(
-  ({String text, int major, int minor}) version,
-  ({int major, int minor}) floor,
-) =>
+bool isGitBelow(GitVersion version, GitFloor floor) =>
     version.major < floor.major ||
     (version.major == floor.major && version.minor < floor.minor);
 
@@ -175,8 +174,7 @@ const List<String> _localEnvVarsArguments = [
   '--local-env-vars',
 ];
 
-/// What the one list query of this process returned: the names, or the failure.
-({List<String>? names, ProcessException? failure})? _localEnvVarsOutcome;
+_LocalEnvVars? _localEnvVarsOutcome;
 
 /// Returns the listed variable names, asking git once per process.
 ///
@@ -192,7 +190,7 @@ List<String> _localEnvVars() {
 
 /// Runs the query in the temp folder, not in a caller's folder: the outcome is
 /// cached for every folder, so it must depend on git alone.
-({List<String>? names, ProcessException? failure}) _queryLocalEnvVars() {
+_LocalEnvVars _queryLocalEnvVars() {
   try {
     final result = Process.runSync(
       _gitProgram(_localEnvVarsArguments),
@@ -200,9 +198,9 @@ List<String> _localEnvVars() {
       workingDirectory: Directory.systemTemp.path,
       stdoutEncoding: utf8,
     );
-    return (names: localEnvVarsFrom(result), failure: null);
+    return _LocalEnvVars(names: localEnvVarsFrom(result), failure: null);
   } on ProcessException catch (failure) {
-    return (names: null, failure: failure);
+    return _LocalEnvVars(names: null, failure: failure);
   }
 }
 
@@ -320,4 +318,12 @@ final class GitCommandFailed implements Exception {
 
   @override
   String toString() => 'git $verb failed: $line';
+}
+
+/// What the one list query of a process returned: the names, or the failure.
+final class _LocalEnvVars {
+  const new({required this.names, required this.failure});
+
+  final List<String>? names;
+  final ProcessException? failure;
 }

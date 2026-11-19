@@ -59,7 +59,7 @@ class CheckCommand extends SpecstoneCommand {
               target: target,
               codeTarget: codeTarget,
             );
-            return (
+            return _Output(
               project: project,
               json: repeats.json,
               text: repeats.text,
@@ -72,7 +72,7 @@ class CheckCommand extends SpecstoneCommand {
             target: target,
             codeTarget: codeTarget,
           );
-          return (
+          return _Output(
             project: project,
             json: report.json,
             text: report.text,
@@ -138,10 +138,19 @@ class CheckCommand extends SpecstoneCommand {
   }
 }
 
-typedef _Output = ({
-  DocsProject project,
-  Map<String, Object> json,
-  String text,
-  List<String> warnings,
-  int exitStatus,
-});
+/// What a check or `--repeats` run prints, and its exit status.
+final class _Output {
+  const new({
+    required this.project,
+    required this.json,
+    required this.text,
+    required this.warnings,
+    required this.exitStatus,
+  });
+
+  final DocsProject project;
+  final Map<String, Object> json;
+  final String text;
+  final List<String> warnings;
+  final int exitStatus;
+}

@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/journeys/journey_steps.dart';
+import 'package:specstone_core/src/journeys/models/step_edge.dart';
 import 'package:test/test.dart';
 
 JourneySteps _read(List<String> lines, {Set<String> blockKinds = const {}}) =>
@@ -41,8 +42,14 @@ void main() {
         [0, 1, 2, 3, 4],
         [0, 1, 5],
       ]);
-      expect(steps.edges.last, (1, 5));
-      expect(steps.edges, [(0, 1), (1, 2), (2, 3), (3, 4), (1, 5)]);
+      expect(steps.edges.last, const StepEdge(from: 1, to: 5));
+      expect(steps.edges, [
+        const StepEdge(from: 0, to: 1),
+        const StepEdge(from: 1, to: 2),
+        const StepEdge(from: 2, to: 3),
+        const StepEdge(from: 3, to: 4),
+        const StepEdge(from: 1, to: 5),
+      ]);
       expect(steps.offPathIndexes, isEmpty);
     });
 
