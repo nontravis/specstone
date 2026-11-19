@@ -120,7 +120,7 @@ sections:
     description: |-
       List each design or ADR whose decisions this doc still states.
       Drop a link once no section relies on it.
-      It is the only home for rationale.
+      The section is the only home for rationale.
     lint:
       max_item_lines: 1
   - id: open_questions
