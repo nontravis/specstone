@@ -18,6 +18,7 @@ import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/yaml_key_line.dart';
 
 /// The six per-feature spec doc types the one-file line reaches.
 const _perFeatureIds = [
@@ -398,13 +399,12 @@ void main() {
     });
 
     test('no description in the pack files holds a YAML key line', () {
-      final keyLine = RegExp(r'^[a-z_]+:(?: |$)', multiLine: true);
       for (final MapEntry(:key, :value) in shippedPackFiles.entries) {
         if (!key.startsWith('software-tech/') || key.contains('/patterns/')) {
           continue;
         }
         for (final text in _descriptionsIn(loadYaml(utf8.decode(value)))) {
-          expect(text, isNot(contains(keyLine)), reason: key);
+          expectNoYamlKeyLine(text, reason: key);
         }
       }
     });

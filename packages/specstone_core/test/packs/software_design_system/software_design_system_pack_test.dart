@@ -15,6 +15,7 @@ import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_design_system.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/yaml_key_line.dart';
 
 const _root = 'specs/design_system';
 
@@ -97,9 +98,6 @@ const _sharedLineIds = [
   'cite_by_link',
   'serve_library_builders',
 ];
-
-/// A line of a description or template that reads as a YAML key.
-final _yamlKeyLine = RegExp(r'^[a-z_]+:(?: |$)', multiLine: true);
 
 PackManifest _manifest() => PackManifest.parse(
   utf8.decode(shippedPackFiles['software-design-system/pack.yaml']!),
@@ -318,7 +316,7 @@ void main() {
           for (final section in type.sections) section.template,
         ];
         for (final text in texts) {
-          expect(text ?? '', isNot(contains(_yamlKeyLine)), reason: id);
+          expectNoYamlKeyLine(text, reason: id);
         }
       }
     });

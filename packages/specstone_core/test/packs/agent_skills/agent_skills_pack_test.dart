@@ -16,12 +16,10 @@ import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/yaml_key_line.dart';
 
 const _skillDoc = 'specs/skills/review.md';
 const _skillFile = '.claude/skills/review/SKILL.md';
-
-/// A line of a description or template that reads as a YAML key.
-final _yamlKeyLine = RegExp(r'^[a-z_]+:(?: |$)', multiLine: true);
 
 /// The description of [type], its declared fields, and its sections.
 List<String?> _descriptionsOf(MergedDocType type) => [
@@ -168,13 +166,10 @@ void main() {
     });
 
     test('no description or template holds a YAML key line', () {
-      final texts = [
+      [
         ..._descriptionsOf(skill),
         for (final section in skill.sections) section.template,
-      ];
-      for (final text in texts) {
-        expect(text ?? '', isNot(contains(_yamlKeyLine)));
-      }
+      ].forEach(expectNoYamlKeyLine);
     });
 
     test('lists beside the prd-core doc types', () {
