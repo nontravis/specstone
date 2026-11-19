@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/see_target.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
@@ -152,7 +153,7 @@ Iterable<Finding> _unresolvedConcerns(
 /// Returns the text after the last ` see ` of [line], less trailing
 /// punctuation and whitespace and one pair of backticks, with the index it
 /// starts at in [line]; null for a line that is `N/A — ` or holds no ` see `.
-({String text, int start})? seeTargetIn(String line) {
+SeeTarget? seeTargetIn(String line) {
   if (line.contains(_notApplicable)) return null;
   final at = line.lastIndexOf(_seeMarker);
   if (at < 0) return null;
@@ -165,7 +166,7 @@ Iterable<Finding> _unresolvedConcerns(
     text = text.substring(1, text.length - 1);
     start++;
   }
-  return text.isEmpty ? null : (text: text, start: start);
+  return text.isEmpty ? null : SeeTarget(text: text, start: start);
 }
 
 String _withoutTrailingDrops(String text) {

@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/skip_line.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 const _patternsFieldId = 'patterns';
@@ -7,12 +8,6 @@ const _outOfScopeSectionId = 'out_of_scope';
 
 /// A bullet that opens with the code span `<pattern>/<item>`, then ` — `.
 final _skipLine = RegExp('^[-*] `([^`/]+)/([^`/]+)` — ');
-
-/// One skip line of an `out_of_scope` section: the item a doc leaves out of
-/// the feature pattern it lists.
-///
-/// `span` is the code span's text as written, without its backticks.
-typedef SkipLine = ({int line, String pattern, String item, String span});
 
 /// Returns the skip lines of [doc]'s `out_of_scope` section, keyed by file
 /// line.
@@ -31,7 +26,7 @@ Map<int, SkipLine> skipLinesOf(CheckContext context, IndexedDoc doc) {
       if (!line.fenced)
         if (_skipLine.firstMatch(line.text) case final match?)
           if (listed.contains(match.group(1)))
-            line.line: (
+            line.line: SkipLine(
               line: line.line,
               pattern: match.group(1)!,
               item: match.group(2)!,
