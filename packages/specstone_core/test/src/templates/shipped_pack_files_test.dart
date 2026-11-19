@@ -614,6 +614,16 @@ void main() {
         final snapshot = section(docType, 'snapshot');
         expect((snapshot.minLines, snapshot.maxLines), (2, 4), reason: docType);
       }
+      final edgeCases = section('fr', 'edge_cases').itemCount!;
+      expect(
+        (
+          edgeCases.min,
+          edgeCases.max,
+          edgeCases.perSubsection,
+          edgeCases.waitsForOwner,
+        ),
+        (null, 8, false, true),
+      );
       final rules = section('user_story', 'rules').itemCount!;
       expect((rules.min, rules.max), (2, null));
       final alternatives = section('persona', 'alternatives').itemCount!;
@@ -678,6 +688,7 @@ void main() {
         'project.name',
         'project.roles',
         'fr.statement',
+        'fr.edge_cases',
         'user_story.acceptance_criteria',
         'user_story.rules',
         'persona.jobs',

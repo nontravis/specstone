@@ -32,6 +32,11 @@ Map<String, String> _storyWith(int scenarios) => doc(
   '${[for (var n = 3; n <= scenarios; n++) _scenario(n)].join()}',
 );
 
+String _edgeCases(int count) => [
+  for (var n = 1; n <= count; n++)
+    '$n. E${'$n'.padLeft(2, '0')} — Case $n → refused.',
+].join('\n');
+
 Map<String, String> _verification(String text) =>
     fr('Test: a wrong password is refused.', text);
 
@@ -60,6 +65,32 @@ void main() {
         await _found(_storyWith(6), FindingKind.subsectionsOverLimit),
         isEmpty,
       );
+    });
+  });
+
+  group('the fr edge case cap', () {
+    Future<List<Finding>> capped(int cases) => _found(
+      fr('1. E01 — An empty password → refused.', _edgeCases(cases)),
+      FindingKind.itemCountOutOfRange,
+    );
+
+    test('an FR of nine edge cases gives item_count_out_of_range for the '
+        'Owner', () async {
+      final found = await capped(9);
+
+      expect(found, hasLength(1));
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('limit', 8),
+          containsPair('actual', 9),
+          containsPair('waitsFor', 'owner'),
+        ),
+      );
+    });
+
+    test('an FR of eight edge cases gives none', () async {
+      expect(await capped(8), isEmpty);
     });
   });
 
