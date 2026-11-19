@@ -89,6 +89,7 @@ export 'src/rendering/format_run.dart'
     show FormatReport, GeneratorRun, runFormat;
 export 'src/rendering/generated_blocks.dart';
 export 'src/rendering/html_build.dart' show HtmlBuild, buildHtml;
+export 'src/rendering/models/opened_resolver.dart';
 export 'src/rendering/page_setup.dart' show PageSetup, Paper;
 export 'src/rendering/render_fault.dart';
 export 'src/setup_migration/init_project.dart' show InitRequest, runInit;

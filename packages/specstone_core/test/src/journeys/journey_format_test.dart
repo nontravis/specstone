@@ -13,6 +13,7 @@ import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
+import 'package:specstone_core/src/rendering/models/opened_resolver.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -64,7 +65,7 @@ FormatReport _format(Directory root, {bool check = false}) {
       registry: journeyGenerators(),
       open: () {
         final session = openSession(root);
-        return (resolver: session.index, close: session.close);
+        return OpenedResolver(resolver: session.index, close: session.close);
       },
     ),
   );
