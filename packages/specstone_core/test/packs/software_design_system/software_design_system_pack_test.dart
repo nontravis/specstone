@@ -304,7 +304,14 @@ void main() {
       for (final id in ['setup', 'contributing']) {
         expect(
           prdCoreDocType(set, id).description,
-          isNot(contains(RegExp('install page|references|copy'))),
+          isNot(
+            contains(
+              RegExp(
+                r'\b(install page|references|copy)\b',
+                caseSensitive: false,
+              ),
+            ),
+          ),
           reason: id,
         );
       }

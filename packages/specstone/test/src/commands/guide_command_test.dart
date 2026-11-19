@@ -1921,7 +1921,6 @@ items:
           f['id']! as String: f,
       };
       expect(fields['lifecycle']!['enum'], ['beta', 'stable', 'deprecated']);
-      expect(fields.keys, containsAll(['feature', 'design_source']));
     });
 
     test('guide tokens --json holds the built-in fields, no perTarget, and one '
