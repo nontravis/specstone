@@ -17,43 +17,11 @@ void main() {
   // with its whitespace runs folded to one space.
   String flat(Object? text) => '$text'.replaceAll(RegExp(r'\s+'), ' ');
 
-  // Denies (or allows again) every account the right to set a value under the
-  // user environment key, so the script's write of the user PATH fails while
-  // reading it still works.
-  Future<void> denyUserPathWrite({required bool isDenied}) async {
-    const script =
-        r'$hkcu = [Microsoft.Win32.Registry]::CurrentUser; '
-        r"$k = $hkcu.OpenSubKey('Environment', 'ReadWriteSubTree', "
-        "'ChangePermissions, ReadPermissions'); "
-        r'$sid = New-Object System.Security.Principal.SecurityIdentifier '
-        "'S-1-1-0'; "
-        r'$rule = New-Object '
-        'System.Security.AccessControl.RegistryAccessRule '
-        r"$sid, 'SetValue', 'None', 'None', 'Deny'; "
-        r'$acl = $k.GetAccessControl(); '
-        r"if ($env:SPECSTONE_TEST_DENY_PATH_WRITE -eq '1') { "
-        r'$acl.AddAccessRule($rule) } '
-        r'else { [void]$acl.RemoveAccessRule($rule) }; '
-        r'$k.SetAccessControl($acl); $k.Close()';
-    final result = await runPowerShell(
-      'deny-path-write',
-      ['-NoProfile', '-Command', script],
-      environment: {'SPECSTONE_TEST_DENY_PATH_WRITE': isDenied ? '1' : '0'},
-    );
-    expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
-  }
-
   // A test that can write the real user PATH holds the lock and gets the PATH
   // it found written back; a refusal before any removal writes nothing, so it
-  // is a plain `test`. On entry it lifts the deny rule the PATH-write test
-  // adds, so a run killed before that test's teardown cannot leave the key
-  // unwritable for the next run.
-  void pathTest(String name, Future<void> Function() body) => test(name, () {
-    return withUserPathLock(() async {
-      await denyUserPathWrite(isDenied: false);
-      await body();
-    });
-  });
+  // is a plain `test`.
+  void pathTest(String name, Future<void> Function() body) =>
+      test(name, () => withUserPathLock(body));
 
   String binDir(ScriptSandbox sb) => '${sb.home.path}\\.specstone\\bin';
   String libDir(ScriptSandbox sb) => '${sb.home.path}\\.specstone\\lib';

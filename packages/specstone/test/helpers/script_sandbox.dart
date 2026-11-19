@@ -449,6 +449,39 @@ Future<void> writeUserPath(UserPath? path) async {
   }
 }
 
+/// Denies, or with [isDenied] false allows again, every account the right to
+/// set a value under the user environment key.
+///
+/// With the rule in place the script's write of the user PATH fails while
+/// reading it still works. [withUserPathLock] lifts it on entry.
+Future<void> denyUserPathWrite({required bool isDenied}) async {
+  const script =
+      r'$hkcu = [Microsoft.Win32.Registry]::CurrentUser; '
+      r"$k = $hkcu.OpenSubKey('Environment', 'ReadWriteSubTree', "
+      "'ChangePermissions, ReadPermissions'); "
+      r'$sid = New-Object System.Security.Principal.SecurityIdentifier '
+      "'S-1-1-0'; "
+      r'$rule = New-Object '
+      'System.Security.AccessControl.RegistryAccessRule '
+      r"$sid, 'SetValue', 'None', 'None', 'Deny'; "
+      r'$acl = $k.GetAccessControl(); '
+      r"if ($env:SPECSTONE_TEST_DENY_PATH_WRITE -eq '1') { "
+      r'$acl.AddAccessRule($rule) } '
+      r'else { [void]$acl.RemoveAccessRule($rule) }; '
+      r'$k.SetAccessControl($acl); $k.Close()';
+  final result = await runPowerShell(
+    'deny-path-write',
+    ['-NoProfile', '-Command', script],
+    environment: {'SPECSTONE_TEST_DENY_PATH_WRITE': isDenied ? '1' : '0'},
+  );
+  if (result.exitCode != 0) {
+    throw StateError(
+      'changing the user PATH write rule failed: '
+      '${result.stdout}${result.stderr}',
+    );
+  }
+}
+
 /// Imports by name the modules of the cmdlets a test session calls before the
 /// script under test imports its own, such as `Get-Content` and
 /// `Invoke-Expression`: a sandbox child has no module analysis cache, so a
@@ -530,7 +563,9 @@ const _cacheFile = 'ModuleAnalysisCache';
 ///
 /// Several test files write the real user PATH, and the OS runs them in
 /// parallel; the lock is a file in the system temp folder. The PATH found
-/// on entry is written back before the lock is released.
+/// on entry is written back before the lock is released. A deny rule on the
+/// key that a killed run left behind is lifted on entry, so the write-back
+/// cannot fail.
 Future<T> withUserPathLock<T>(Future<T> Function() body) async {
   final lock = await File(
     '${Directory.systemTemp.path}${Platform.pathSeparator}'
@@ -540,6 +575,7 @@ Future<T> withUserPathLock<T>(Future<T> Function() body) async {
   // only teardowns still run, so a hung test cannot keep the lock or the PATH.
   addTearDown(lock.close);
   await lock.lock(FileLock.blockingExclusive);
+  await denyUserPathWrite(isDenied: false);
   final saved = await readUserPath();
   addTearDown(() => writeUserPath(saved));
   return body();

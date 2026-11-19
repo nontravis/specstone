@@ -36,6 +36,38 @@ final _itemShapeLine = RegExp(r'^Write one rule per\b');
 /// The doc types, as `<pack>/<id>`, whose shipped file holds no description.
 const _untitledTypes = {'personal-branding/voice'};
 
+/// The doc types, as `<pack>/<id>`, whose description holds an item-shape line.
+const _itemShapeTypes = {
+  'prd-core/anti_persona',
+  'prd-core/feature',
+  'prd-core/features',
+  'prd-core/glossary',
+  'prd-core/gnfr',
+  'prd-core/goal',
+  'prd-core/journey',
+  'prd-core/measurement',
+  'prd-core/nf',
+  'prd-core/persona',
+  'prd-core/project',
+  'prd-core/reference',
+  'prd-core/user_story',
+  'software-tech/api',
+  'software-tech/architecture',
+  'software-tech/auth',
+  'software-tech/domain',
+  'software-tech/error',
+  'software-tech/implementation',
+  'software-tech/integration',
+  'software-tech/project_api',
+  'software-tech/project_architecture',
+  'software-tech/project_auth',
+  'software-tech/project_domain',
+  'software-tech/project_error',
+  'software-tech/project_integration',
+  'software-tech/tech_stack',
+  'software-tech/topic',
+};
+
 /// One line of a description and where it sits in its doc type.
 final class _DescribedLine {
   const new(this.where, this.text);
@@ -281,7 +313,12 @@ List<String> _shapeStays(_Pack pack, Map<String, _Pack> packs) {
       found.add('${type.id}: an item-shape line is missing from the guide');
       continue;
     }
-    if (shapeLines.isEmpty) continue;
+    if (shapeLines.isEmpty) {
+      if (_itemShapeTypes.contains('${pack.name}/${type.id}')) {
+        found.add('${type.id}: no item-shape line in the description');
+      }
+      continue;
+    }
     final shapeAt = guide.indexOf(shapeLines.first);
     for (final id in _barIds) {
       final line = type.sharedLines.where((l) => l.id == id).firstOrNull;
@@ -367,14 +404,25 @@ void main() {
       isEmpty,
       reason: 'a readability bar id no pack ships',
     );
+    final shipped = {
+      for (final pack in packs.values)
+        for (final type in pack.ownTypes) '${pack.name}/${type.id}',
+    };
+    expect(
+      _itemShapeTypes.where((key) => !shipped.contains(key)),
+      isEmpty,
+      reason: 'an item-shape doc type no pack ships',
+    );
     expect(
       [
         for (final pack in packs.values)
           for (final type in pack.ownTypes)
-            ..._linesOf(type.description).where(_isItemShape),
+            if (_linesOf(type.description).any(_isItemShape) &&
+                !_itemShapeTypes.contains('${pack.name}/${type.id}'))
+              '${pack.name}/${type.id}',
       ],
-      isNotEmpty,
-      reason: 'no description holds an item-shape line',
+      isEmpty,
+      reason: 'a doc type with an item-shape line the list leaves out',
     );
   });
 }
