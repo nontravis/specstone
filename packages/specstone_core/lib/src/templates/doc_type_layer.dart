@@ -455,10 +455,10 @@ final class DocTypeLayer {
         key: 'id',
       );
     }
-    if (docTypeId == _reservedDocTypeId) {
+    if (docTypeId == reservedDocTypeId) {
       throw TemplateFault(
         FaultCode.unknownValue,
-        'doc type id $_reservedDocTypeId is reserved',
+        'doc type id $reservedDocTypeId is reserved',
         file: file,
         key: 'id',
       );
@@ -735,7 +735,7 @@ int? _parseMaxDepth(YamlMap map, {required String file}) {
 }
 
 /// The doc type id no file may take: `shared.yaml` holds shared lines.
-const _reservedDocTypeId = 'shared';
+const reservedDocTypeId = 'shared';
 
 const _topKeys = {
   'id',

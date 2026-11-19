@@ -2842,6 +2842,16 @@ path: features/{slug}/FEATURE.md
       expect(lines.single.file, sharedPath);
     });
 
+    test('a CRLF shared.yaml loads its line text without the CR', () async {
+      final project = await writeTree({
+        sharedPath: 'shared_lines:\r\n  - id: tone\r\n    text: Be brief.\r\n',
+      });
+
+      final lines = loadProjectSharedLines(project);
+
+      expect(lines.single.text, 'Be brief.');
+    });
+
     for (final (name, text) in [
       ('shared_fields', 'shared_fields:\n  - id: x\n    type: string\n'),
       ('notes', 'shared_lines:\n  - id: a\n    text: b\nnotes: x\n'),

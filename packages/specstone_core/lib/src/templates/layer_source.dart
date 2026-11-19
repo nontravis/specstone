@@ -15,7 +15,7 @@ import 'package:specstone_core/src/templates/yaml_reader.dart';
 const packManifestName = 'pack.yaml';
 
 /// The project's shared-lines file name, relative to `.specstone/templates`.
-const projectSharedFileName = 'shared.yaml';
+const projectSharedFileName = '$reservedDocTypeId.yaml';
 
 const _projectSharedKeys = {'shared_lines'};
 
