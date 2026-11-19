@@ -20,14 +20,18 @@ const citeNoteGuideLine = "Put a cite or an ownership note at the item's end.";
 ///
 /// Each item's sentences and trace notes are the facts the index stores, so
 /// nothing is recounted. A prose field's value is read as one item against its
-/// own caps.
+/// own caps. A record's matrix section takes none of these findings.
 Iterable<Finding> checkReadability(CheckContext context, IndexedDoc doc) sync* {
   final type = context.typeOf(doc);
   if (type == null) return;
   final content = context.contentOf(doc);
   final facts = content.itemFacts;
+  final matrixId = verificationMatrixOf(type)?.id;
   yield* _sectionFindings(context, doc, type.lint, leadKey, facts.leadItems);
   for (var i = 0; i < content.sections.length; i++) {
+    if (matrixId != null && context.templateSectionAt(doc, i)?.id == matrixId) {
+      continue;
+    }
     final sectionKey =
         context.templateSectionAt(doc, i)?.id ?? content.sections[i].key;
     yield* _sectionFindings(
