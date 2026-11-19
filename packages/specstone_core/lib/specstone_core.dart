@@ -13,6 +13,8 @@ export 'src/consistency_check/tree_rules.dart'
 export 'src/doc_model/models/doc_address.dart';
 export 'src/doc_model/reference_grammar.dart' show readDocAddress;
 export 'src/document_writing/approval.dart' show ApprovalHistory;
+export 'src/document_writing/approve_auto.dart'
+    show AutoApproveCall, approveAuto;
 export 'src/document_writing/approve_drafts.dart'
     show approveDrafts, approveDryRun, approveNamed;
 export 'src/document_writing/batch_fault.dart' show BatchEntry, BatchFault;

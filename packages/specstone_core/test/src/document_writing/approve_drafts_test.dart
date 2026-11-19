@@ -2066,6 +2066,36 @@ void main() {
       }
     });
 
+    test('the dry-run JSON names a shared typed name by its DocPath', () async {
+      final root = await writeTwinProject(
+        extra: {
+          'docs/$flutterArchitecture': draft,
+          'docs/$jasprArchitecture': draft,
+          ...check.edit(check.loginStory, [
+            ('goals:\n', 'draft: true\ngoals:\n'),
+          ]),
+        },
+      );
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(
+          s,
+          names: ['architecture:login', 'user_story:login/email_login'],
+        ),
+      );
+      expect(
+        [
+          for (final draft in answer.json['drafts']! as List)
+            (draft as Map)['name'],
+        ],
+        unorderedEquals([
+          flutterArchitecture,
+          jasprArchitecture,
+          'user_story:login/email_login',
+        ]),
+      );
+    });
+
     test(
       'a walk of a named doc under --target keeps that target twin only',
       () async {
