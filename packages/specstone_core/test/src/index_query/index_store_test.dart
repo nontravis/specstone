@@ -1328,7 +1328,7 @@ void main() {
     expect(store.readStamp(), stamp);
     final raw = sqlite3.open(file(r, indexFilePath).path);
     addTearDown(raw.close);
-    raw.execute('UPDATE meta SET layout = 31');
+    raw.execute('UPDATE meta SET layout = 32');
     expect(store.readStamp(), isNull);
   });
 
