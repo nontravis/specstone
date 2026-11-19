@@ -796,7 +796,8 @@ final class MergedDocType {
   /// The own description, then each shared line, one per line; null when none
   /// holds text.
   ///
-  /// The guide and the JSON schema both print it.
+  /// The JSON schema prints it whole. A many-type text guide leaves out the
+  /// lines shared by all its types.
   String? get descriptionWithSharedLines => _descriptionWithout(const {});
 
   /// Returns [descriptionWithSharedLines] without the lines whose ids are in
