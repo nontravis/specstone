@@ -2,8 +2,6 @@ import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show FieldType, PointerKind;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';

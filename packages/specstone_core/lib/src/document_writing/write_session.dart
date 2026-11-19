@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/check_report.dart';
+import 'package:specstone_core/src/consistency_check/check_run.dart';
+import 'package:specstone_core/src/consistency_check/mermaid_node_run.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
@@ -71,14 +74,7 @@ final class WriteSession {
     Duration busyTimeout = indexBusyTimeout,
   }) {
     for (var attempt = 1; ; attempt++) {
-      _refuseMigratePending(workingDirectory, homeDirectory: homeDirectory);
-      final session = WriteSession._(
-        _openReplayed(
-          templates: templates,
-          workingDirectory: workingDirectory,
-          homeDirectory: homeDirectory,
-          busyTimeout: busyTimeout,
-        ),
+      final session = _openAttempt(
         templates,
         workingDirectory,
         homeDirectory,
@@ -87,12 +83,66 @@ final class WriteSession {
       try {
         return body(session);
       } on _StaleSnapshot {
-        if (attempt == _runAttempts) {
-          throw IndexFault(IndexFaultCode.indexBusy, indexBusyMessage);
-        }
+        _requireAnotherAttempt(attempt);
       } finally {
         session._close();
       }
+    }
+  }
+
+  /// Opens a session as [run] does and returns what [body] awaits from it.
+  ///
+  /// Reruns [body] on a stale snapshot as [run] does, with the same limits on
+  /// what [body] does before its first [lockedAsync] call.
+  /// Throws [IndexFault] `index_busy` when every run was stale.
+  static Future<T> runAsync<T>(
+    Future<T> Function(WriteSession session) body, {
+    required TemplateResolver templates,
+    required Directory workingDirectory,
+    required Directory? homeDirectory,
+    Duration busyTimeout = indexBusyTimeout,
+  }) async {
+    for (var attempt = 1; ; attempt++) {
+      final session = _openAttempt(
+        templates,
+        workingDirectory,
+        homeDirectory,
+        busyTimeout,
+      );
+      try {
+        return await body(session);
+      } on _StaleSnapshot {
+        _requireAnotherAttempt(attempt);
+      } finally {
+        session._close();
+      }
+    }
+  }
+
+  static WriteSession _openAttempt(
+    TemplateResolver templates,
+    Directory workingDirectory,
+    Directory? homeDirectory,
+    Duration busyTimeout,
+  ) {
+    _refuseMigratePending(workingDirectory, homeDirectory: homeDirectory);
+    return WriteSession._(
+      _openReplayed(
+        templates: templates,
+        workingDirectory: workingDirectory,
+        homeDirectory: homeDirectory,
+        busyTimeout: busyTimeout,
+      ),
+      templates,
+      workingDirectory,
+      homeDirectory,
+      busyTimeout,
+    );
+  }
+
+  static void _requireAnotherAttempt(int attempt) {
+    if (attempt == _runAttempts) {
+      throw IndexFault(IndexFaultCode.indexBusy, indexBusyMessage);
     }
   }
 
@@ -103,6 +153,7 @@ final class WriteSession {
   ReadSession _read;
   bool _snapshotOpen = true;
   bool _closed = false;
+  bool _inLockedAsync = false;
 
   /// The DocPaths whose last [readDocBytes] began with a UTF-8 BOM.
   final _bomDocs = <String>{};
@@ -241,11 +292,7 @@ final class WriteSession {
   /// Throws [IndexFault] `index_busy` when another call holds the lock past
   /// the busy timeout.
   T locked<T>(T Function() act) {
-    final endsSnapshot = _snapshotOpen;
-    if (endsSnapshot) {
-      _read.store.endSnapshot();
-      _snapshotOpen = false;
-    }
+    final endsSnapshot = _endSnapshot();
     late T result;
     _read.store.write(() {
       if (endsSnapshot && _read.store.snapshotIsStale) {
@@ -254,6 +301,51 @@ final class WriteSession {
       result = act();
     });
     return result;
+  }
+
+  /// Runs [act] inside the index write lock, held across its awaits, and
+  /// returns its result.
+  ///
+  /// Behaves as [locked] does, for an [act] that awaits; [runAsync] reruns the
+  /// command on a stale snapshot. [act] may call [runProjectCheck].
+  /// Throws [IndexFault] `index_busy` when another call holds the lock past
+  /// the busy timeout.
+  Future<T> lockedAsync<T>(Future<T> Function() act) {
+    final endsSnapshot = _endSnapshot();
+    return _read.store.writeAsync(() async {
+      if (endsSnapshot && _read.store.snapshotIsStale) {
+        throw const _StaleSnapshot();
+      }
+      _inLockedAsync = true;
+      try {
+        return await act();
+      } finally {
+        _inLockedAsync = false;
+      }
+    });
+  }
+
+  /// Runs every check rule over the whole project on the session's snapshot.
+  ///
+  /// Call it inside [lockedAsync]; the parse results it stores join the open
+  /// write instead of ending it. Outside, its cache write would restart the
+  /// snapshot and hide a peer commit from the first lock.
+  /// Throws [StateError] when called outside [lockedAsync].
+  Future<CheckReport> runProjectCheck({MermaidNodeRun? mermaidRunner}) {
+    if (!_inLockedAsync) {
+      throw StateError('runProjectCheck runs only inside lockedAsync');
+    }
+    return runCheck(_read, mermaidRunner: mermaidRunner);
+  }
+
+  /// Ends the read snapshot when it is still open; returns whether it did.
+  bool _endSnapshot() {
+    final ends = _snapshotOpen;
+    if (ends) {
+      _read.store.endSnapshot();
+      _snapshotOpen = false;
+    }
+    return ends;
   }
 
   /// Returns the bytes of [docPath] for a write, or null when the file is gone.

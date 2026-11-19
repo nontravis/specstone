@@ -23,7 +23,7 @@ Uint8List _bytes(String text) => Uint8List.fromList(utf8.encode(text));
 List<SharedLine> _project(String yaml) => parseSharedEntries(
   readYamlMap(yaml, file: _sharedPath),
   file: _sharedPath,
-  allowsFields: false,
+  format: 'shared',
 ).lines;
 
 /// One pack: the `pack.yaml` keys after `name` and `version`, and the doc type

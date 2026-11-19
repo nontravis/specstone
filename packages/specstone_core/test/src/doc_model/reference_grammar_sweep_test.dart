@@ -75,6 +75,32 @@ final _allowed = <_Allowed>[
     """RegExp( '&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});'""",
     'HTML character reference such as `&#38;`, no reference.',
   ),
+  // Report lines of `approve --auto`: label and heading shapes of a report.
+  _core(
+    'document_writing/clean_draft_judge.dart',
+    r"""RegExp(r'^## Round [0-9]+[ \t]*$'""",
+    'Round heading line of an audit report, no reference.',
+  ),
+  _core(
+    'document_writing/clean_draft_judge.dart',
+    r"""RegExp(r'^(Audited|Styled): ([^\s@]+)@([0-9a-f]{12})$'""",
+    'Report label line; the name in it is read by readDocAddress.',
+  ),
+  _core(
+    'document_writing/clean_draft_judge.dart',
+    r"""RegExp(r'^(Findings|Outside the drafts):(?:[ \t]+(.*))?$'""",
+    'Report section label line, no reference.',
+  ),
+  _core(
+    'document_writing/clean_draft_judge.dart',
+    r'''RegExp(r"^[A-Z][A-Za-z ']*:(?: |$)"''',
+    'Report label line such as `Lenses:`, no reference.',
+  ),
+  _core(
+    'document_writing/clean_draft_judge.dart',
+    r"""RegExp(r'^#{1,6}(?:[ \t]|$)'""",
+    'ATX heading line of a report, no reference.',
+  ),
   // Frontmatter key block: the key line, not a reference.
   _core(
     'document_writing/key_block_values.dart',

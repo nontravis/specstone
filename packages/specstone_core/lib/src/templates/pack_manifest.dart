@@ -48,7 +48,7 @@ final class PackManifest {
       version: version,
       extendsPack: optionalValue<String>(map, 'extends', file: file),
       migrations: parseMigrations(map.nodes['migrations'], file: file),
-      shared: parseSharedEntries(map, file: file, allowsFields: true),
+      shared: parseSharedEntries(map, file: file, format: 'pack'),
       file: file,
     );
   }

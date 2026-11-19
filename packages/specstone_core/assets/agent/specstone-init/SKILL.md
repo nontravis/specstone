@@ -55,8 +55,8 @@ is and the folder is still missing; keep the entry either way.
 
 ## 3. Get the drafts approved
 
-Tell the Owner the six drafts are filled, then get each one approved through the `specstone-expert-sdd` skill's
-Owner confirmation (terminal or chat), which covers both the `ask` and the `auto` mode.
+Tell the Owner the six drafts are filled, then follow the `specstone-expert-sdd` skill's "Get the drafts approved",
+with `--no-audit`.
 
 ## 4. Features go to brainstorming
 
@@ -65,11 +65,11 @@ then, and for every later feature, follow the `specstone-brainstorming-sdd` skil
 
 ## Red flags
 
-| Thought                                          | Do instead                                                              |
-|--------------------------------------------------|-------------------------------------------------------------------------|
-| "Check for a project first, as other skills do." | Run `specstone init` first; it refuses on its own.                      |
-| "Already a project: I'll migrate it."            | Say it is a project already, and stop.                                  |
-| "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.                                 |
-| "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.                                |
-| "The Owner named a feature: `specstone new`."    | Note it; the `specstone-brainstorming-sdd` skill takes it.              |
-| "I'll run `specstone approve` without an `ok`."  | Under `ask`, show it and wait for the `ok`; `auto`: Owner confirmation. |
+| Thought                                          | Do instead                                                                    |
+|--------------------------------------------------|-------------------------------------------------------------------------------|
+| "Check for a project first, as other skills do." | Run `specstone init` first; it refuses on its own.                            |
+| "Already a project: I'll migrate it."            | Say it is a project already, and stop.                                        |
+| "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.                                       |
+| "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.                                      |
+| "The Owner named a feature: `specstone new`."    | Note it; the `specstone-brainstorming-sdd` skill takes it.                    |
+| "I'll run `specstone approve` without an `ok`."  | Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`. |

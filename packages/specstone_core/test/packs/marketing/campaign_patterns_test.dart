@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';

@@ -1,10 +1,11 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ImplementedWork;
-import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/consistency_check/models/goal_block.dart';
+import 'package:specstone_core/src/consistency_check/models/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';

@@ -2,8 +2,6 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -42,6 +40,7 @@ DraftView _draft({
   SentenceChanges sentences = _noSentences,
 }) => DraftView(
   name: name,
+  address: 'fr:$name',
   docType: 'fr',
   mergedType: mergedType,
   title: title,

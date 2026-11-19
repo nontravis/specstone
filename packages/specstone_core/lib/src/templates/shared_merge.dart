@@ -10,29 +10,6 @@ const _linesKey = 'shared_lines';
 const _fieldsKey = 'shared_fields';
 const _forDocTypesKey = 'for_doc_types';
 
-/// A shared guide line after every layer merged, as a guide prints it.
-final class MergedSharedLine {
-  const new({
-    required this.id,
-    required this.text,
-    this.forDocTypes,
-    required this.printRank,
-  });
-
-  /// The id the layers matched the line by.
-  final String id;
-
-  /// The one line of guide text.
-  final String text;
-
-  /// The doc type ids the line names; null reaches every doc type of the
-  /// merged set.
-  final List<String>? forDocTypes;
-
-  /// The place of the line among the lines, set by its first defining layer.
-  final int printRank;
-}
-
 /// Returns the lines every doc type of [types] holds with an equal id and
 /// text, in the first type's print order.
 ///
@@ -368,8 +345,10 @@ final class _SharedMerge {
         _disabledFieldIds.add(entry.id);
         return;
       }
+      final overlaid = _overlay(held.entry, entry);
+      _checkOutputRef(overlaid, field);
       _fields[entry.id] = MergedSharedField(
-        entry: _overlay(held.entry, entry),
+        entry: overlaid,
         forDocTypes: _frozen(field.forDocTypes) ?? held.forDocTypes,
         declaringPack: held.declaringPack,
         order: held.order,
@@ -387,15 +366,28 @@ final class _SharedMerge {
         missing: 'type',
       );
     }
-    final reach = field.forDocTypes;
-    if (reach == null) throw _missingFieldReach(field);
     _disabledFieldIds.remove(entry.id);
     _fields[entry.id] = MergedSharedField(
       entry: entry,
-      forDocTypes: List.unmodifiable(reach),
+      // `_checkNewFieldReach` refused a new field with no `for_doc_types`.
+      forDocTypes: List.unmodifiable(field.forDocTypes!),
       declaringPack: packName,
       order: _nextPlace++,
     );
+  }
+
+  /// Throws `unknown_value` at [field]'s own entry for a pointer or root the
+  /// `output_ref` [merged] cannot read.
+  ///
+  /// The doc-type format checks only what one entry writes, so a change entry
+  /// over a lower `output_ref` field is checked here, keyed by its index.
+  void _checkOutputRef(FieldEntry merged, SharedField field) {
+    if (merged.type != FieldType.outputRef) return;
+    final prefix = '$_fieldsKey[${field.index}].';
+    PointerKind.read(merged.pointer, file: field.file, prefix: prefix);
+    final root = merged.root;
+    if (root == null) return;
+    PointerRoot.read(root, file: field.file, prefix: prefix);
   }
 
   /// Returns [lower] with each property [upper] writes replacing the same one.

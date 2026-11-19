@@ -15,12 +15,12 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show itemKeyOfHead;
-import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/cited_section.dart';
 import 'package:specstone_core/src/index_query/models/classified_link.dart';
 import 'package:specstone_core/src/index_query/models/item_fact.dart';
 import 'package:specstone_core/src/index_query/models/item_link.dart';
 import 'package:specstone_core/src/index_query/models/item_range.dart';
+import 'package:specstone_core/src/index_query/models/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';

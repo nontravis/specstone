@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart' show sentencesOf;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/document_writing/approval_writes.dart';
 import 'package:specstone_core/src/document_writing/approved_copy_store.dart';
 import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
@@ -14,8 +14,6 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
-import 'package:specstone_core/src/rendering/doc_tree.dart';
-import 'package:specstone_core/src/rendering/docs_project.dart' show Target;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -60,7 +58,7 @@ void approveDrafts(
     out.write(_nothingWaits);
     return;
   }
-  _requireTrusted(session, drafts);
+  requireTrusted(session, drafts.first.doc);
   final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   for (final (at, _ShownDraft(:doc)) in drafts.indexed) {
     String viewOf(List<int> bytes) => _viewOf(
@@ -101,7 +99,7 @@ ReadAnswer approveDryRun(
   String? codeTarget,
   String? approveModeVariable,
 }) {
-  final _ApproveMode(:mode, :warnings) = _approveModeOf(approveModeVariable);
+  final ApproveMode(:mode, :warnings) = approveModeOf(approveModeVariable);
   final drafts = _shownDraftsUnder(session, names, codeTarget);
   if (drafts.isEmpty) {
     return ReadAnswer(
@@ -110,7 +108,7 @@ ReadAnswer approveDryRun(
       warnings: warnings,
     );
   }
-  _requireTrusted(session, drafts);
+  requireTrusted(session, drafts.first.doc);
   final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   final views = [
     for (final _ShownDraft(:doc, :bytes) in drafts)
@@ -136,30 +134,6 @@ ReadAnswer approveDryRun(
   );
 }
 
-const _approveModeVariableName = 'SPECSTONE_APPROVE_MODE';
-
-/// The approve mode a variable sets, and the warnings reading it raised.
-final class _ApproveMode {
-  const new({required this.mode, required this.warnings});
-
-  final String mode;
-  final List<String> warnings;
-}
-
-_ApproveMode _approveModeOf(String? value) {
-  switch (value) {
-    case null || '' || 'ask':
-      return const _ApproveMode(mode: 'ask', warnings: []);
-    case 'auto':
-      return const _ApproveMode(mode: 'auto', warnings: []);
-    default:
-      final warning =
-          '$_approveModeVariableName=$value is neither ask nor auto; '
-          'ask is used';
-      return _ApproveMode(mode: 'ask', warnings: [warning]);
-  }
-}
-
 /// Approves each draft in [seen] with no prompt, as `y` does.
 ///
 /// Each draft carries the hash its text had when read, under either mode. A
@@ -180,7 +154,7 @@ ReadAnswer approveNamed(
 }) {
   final hashesByPath = <String, Set<String>>{};
   for (final draft in seen) {
-    final doc = _draftAt(session, draft.name, codeTarget);
+    final doc = draftAt(session, draft.name, codeTarget);
     (hashesByPath[doc.docPath] ??= {}).add(draft.hash);
   }
   final drafts = [
@@ -194,52 +168,22 @@ ReadAnswer approveNamed(
     final changed = [
       for (final doc in drafts)
         if (hashesByPath[doc.docPath]!.any(
-          (hash) => hash != _docHashOf(current[doc.docPath]),
+          (hash) => hash != docHashOf(current[doc.docPath]),
         ))
           doc,
     ];
-    if (changed.isNotEmpty) throw _changedSinceHashed(changed);
+    if (changed.isNotEmpty) throw changedSinceHashed(changed);
     for (final doc in drafts) {
-      _writeApproval(session, doc, current[doc.docPath]!);
+      writeApproval(session, doc, current[doc.docPath]!);
     }
-    _pruneApprovedCopiesLocked(session);
-    return drafts.map(_addressOf).toList();
+    pruneApprovedCopiesLocked(session);
+    return drafts.map(addressOf).toList();
   });
   return ReadAnswer(
     text: approved.map((address) => 'approved $address\n').join(),
     json: {'approved': approved},
   );
 }
-
-/// Returns the draft [name] names as a write target.
-///
-/// Throws [IndexFault] for a name that is no write target, and [WriteFault]
-/// `draft_not_found` for a doc that is no draft.
-IndexedDoc _draftAt(WriteSession session, String name, String? codeTarget) {
-  final doc = session.target(name, codeTarget: codeTarget);
-  if (!_waitsForApproval(session, doc)) {
-    throw WriteFault(
-      WriteFaultCode.draftNotFound,
-      '$name is no draft waiting for approval',
-    );
-  }
-  return doc;
-}
-
-/// Returns the `bases.doc` hash of [bytes], or null for a file gone.
-String? _docHashOf(List<int>? bytes) =>
-    bytes == null ? null : baseHashOf(toLf(utf8.decode(bytes)));
-
-WriteFault _changedSinceHashed(List<IndexedDoc> changed) => WriteFault(
-  WriteFaultCode.baseMismatch,
-  'changed since their hash was taken: ${changed.map(_addressOf).join(', ')}; '
-  'read each again and approve it with its new hash',
-  file: changed.first.docPath,
-  key: 'doc',
-  relatedFiles: [for (final doc in changed.skip(1)) doc.docPath],
-);
-
-String _addressOf(IndexedDoc doc) => '${doc.docTypeId}:${doc.name}';
 
 /// Returns the typed docs that await approval in tree order: all of them when
 /// [names] is empty, else those under any of [names], each once; with a
@@ -263,25 +207,12 @@ List<IndexedDoc> _draftsUnder(
         };
   return [
     for (final doc in index.docs)
-      if (_waitsForApproval(session, doc) &&
+      if (waitsForApproval(session, doc) &&
           (selected?.contains(doc.docPath) ?? true) &&
           doc.inTarget(codeTarget))
         doc,
   ];
 }
-
-bool _waitsForApproval(WriteSession session, IndexedDoc doc) => awaitsApproval(
-  ApprovalFields.ofIndexed(doc),
-  doc.approvalHash,
-  stampsHaveRun: session.project.stampsHaveRun,
-);
-
-/// Throws `output_not_writable` unless the Owner trusts the roots, before git
-/// runs or a view shows: an approval written there would be refused anyway.
-void _requireTrusted(WriteSession session, List<_ShownDraft> drafts) => session
-    .project
-    .trust
-    .requireTrusted(session.projectPathOf(drafts.first.doc.docPath));
 
 /// A draft and the bytes of its file at selection.
 final class _ShownDraft {
@@ -473,7 +404,8 @@ DraftView _draftViewOf(
       index.hasTwins && codeTarget == null && isStatusTracked(doc);
   return DraftView(
     name: doc.name,
-    // `_waitsForApproval` kept only typed drafts, so the type id is set.
+    address: index.addressOf(doc),
+    // `waitsForApproval` kept only typed drafts, so the type id is set.
     docType: doc.docTypeId!,
     mergedType: type,
     title: doc.title,
@@ -532,73 +464,19 @@ bool _approveIfUnchanged(
     final current = session.readDocBytes(doc.docPath);
     if (current == null) return true;
     if (!_sameBytes(current, shown)) return false;
-    _writeApproval(session, doc, current);
+    writeApproval(session, doc, current);
     return true;
   });
 }
 
-/// Writes [bytes] of [doc] back without `draft`, with the ApprovalHash of its
-/// content as `approved:`; runs under the lock.
-void _writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
-  final text = utf8.decode(bytes);
-  final undrafted = withKeyBlock(toLf(text), 'draft', null);
-  final approved = withApprovalHash(
-    undrafted,
-    session.index.typeOf(doc),
-    statusesOutside: session.project.statusesOutsideApproval,
-  );
-  final written = session.writeDoc(doc.docPath, approved, LineEnding.of(text));
-  ApprovedCopyStore(session.project.projectRoot).save(written);
-}
-
 /// Takes the lock and prunes the saved approved copies (see
-/// [_pruneApprovedCopiesLocked]); a busy lock skips it, as the next run prunes.
+/// [pruneApprovedCopiesLocked]); a busy lock skips it, as the next run prunes.
 void _pruneApprovedCopies(WriteSession session) {
   try {
-    session.locked(() => _pruneApprovedCopiesLocked(session));
+    session.locked(() => pruneApprovedCopiesLocked(session));
   } on IndexFault catch (fault) {
     if (fault.code != IndexFaultCode.indexBusy) rethrow;
   }
-}
-
-/// Deletes each saved approved copy whose hash no doc on disk carries as its
-/// `approved:` value; runs under the lock.
-///
-/// The docs are listed and read as they are on disk now, not as the session's
-/// snapshot held them, so a doc another session made or approved meanwhile
-/// keeps its copy. A folder or doc that cannot be read, and a doc whose
-/// frontmatter is not valid YAML, leave every copy in place.
-void _pruneApprovedCopiesLocked(WriteSession session) {
-  final project = session.project;
-  final carried = <String>{};
-  for (final root in [
-    if (project.docsRoot.existsSync()) Target(project.docsRoot, ''),
-    ?project.recordsTarget,
-  ]) {
-    for (final entry in collectDocEntries(root, project.matcher)) {
-      switch (entry) {
-        case UnreadableFolder():
-          return;
-        case DocFile(:final file, :final docPath) when docPath.endsWith('.md'):
-          final String text;
-          try {
-            text = toLf(
-              utf8.decode(file.readAsBytesSync(), allowMalformed: true),
-            );
-          } on FileSystemException {
-            return;
-          }
-          final isReadable =
-              comparedApprovalHash(text, null, statusesOutside: true) != null;
-          if (!isReadable) return;
-          final mark = ApprovalFields.of(Doc.parse(text)).approvedValue;
-          if (mark is String) carried.add(mark);
-        case DocFile():
-          break;
-      }
-    }
-  }
-  ApprovedCopyStore(project.projectRoot).prune(carried);
 }
 
 bool _sameBytes(List<int> a, List<int> b) {

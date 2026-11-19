@@ -228,6 +228,11 @@ final class Finding {
   /// Who clears the finding: the rule's choice, else the kind's.
   WaitsFor get waitsFor => _waitsFor ?? kind.waitsFor;
 
+  /// Whether the Owner's approval of the doc clears the finding: an
+  /// `unconfirmed` finding that waits for the Owner.
+  bool get isClearedByApproval =>
+      kind == FindingKind.unconfirmed && waitsFor == WaitsFor.owner;
+
   /// Extra JSON members after `waitsFor`.
   final Map<String, Object> keys;
 

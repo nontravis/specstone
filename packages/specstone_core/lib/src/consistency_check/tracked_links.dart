@@ -1,9 +1,9 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/contract_block.dart';
-import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/consistency_check/override_lines.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';

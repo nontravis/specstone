@@ -1,14 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/models/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
-import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/banned_match.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
@@ -20,7 +22,6 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -239,6 +240,123 @@ void main() {
         file(r, '.specstone/.gitignore').readAsStringSync(),
         'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
+    });
+    List<String> storedPaths(IndexStore store) =>
+        [for (final doc in store.loadDocs()) doc.docPath]..sort();
+    test('a write inside an open write commits with the outer one', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      store.write(() {
+        store.putDoc(parsed('A.md', '# A\n'));
+        store.write(() => store.putDoc(parsed('B.md', '# B\n')));
+        expect(
+          () => store.write(() {
+            store.putDoc(parsed('X.md', '# X\n'));
+            throw StateError('inner');
+          }),
+          throwsStateError,
+        );
+      });
+      expect(storedPaths(store), ['A.md', 'B.md']);
+
+      expect(
+        () => store.write(() {
+          store.write(() => store.putDoc(parsed('C.md', '# C\n')));
+          throw StateError('outer');
+        }),
+        throwsStateError,
+      );
+      expect(storedPaths(store), ['A.md', 'B.md']);
+    });
+    test('writeAsync holds the lock across an await', () async {
+      final r = await root();
+      final first = IndexStore.open(r);
+      addTearDown(first.close);
+      final second = IndexStore.open(r, busyTimeout: Duration.zero);
+      addTearDown(second.close);
+      final gate = Completer<void>();
+      final held = first.writeAsync(() async {
+        await gate.future;
+        first.putDoc(parsed('A.md', '# A\n'));
+        return 7;
+      });
+      expect(
+        () => second.write(() {}),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.indexBusy,
+          ),
+        ),
+      );
+      gate.complete();
+      expect(await held, 7);
+      second.write(() {});
+      expect(storedPaths(second), ['A.md']);
+    });
+    test(
+      'a snapshot ended and begun inside a write leaves the write open',
+      () async {
+        final r = await root();
+        final first = IndexStore.open(r);
+        addTearDown(first.close);
+        final second = IndexStore.open(r, busyTimeout: Duration.zero);
+        addTearDown(second.close);
+        first.write(() {
+          first
+            ..endSnapshot()
+            ..beginSnapshot();
+          expect(
+            () => second.write(() {}),
+            throwsA(
+              isA<IndexFault>().having(
+                (f) => f.code,
+                'code',
+                IndexFaultCode.indexBusy,
+              ),
+            ),
+          );
+        });
+      },
+    );
+    test('a nested write that loses the outer write fails the outer one, '
+        'and no later write lands', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      // RAISE(ROLLBACK) ends the whole transaction, as SQLITE_FULL may.
+      sqlite3.open(file(r, indexFilePath).path)
+        ..execute(
+          'CREATE TRIGGER lose_hold BEFORE INSERT ON docs '
+          "WHEN NEW.doc_path = 'X.md' "
+          "BEGIN SELECT RAISE(ROLLBACK, 'lost'); END",
+        )
+        ..close();
+      void loseHoldThenWrite() {
+        store.putDoc(parsed('A.md', '# A\n'));
+        try {
+          store.write(() => store.putDoc(parsed('X.md', '# X\n')));
+        } on IndexFault {
+          // A caller that reads a failed nested write as not stored.
+        } on SqliteException {
+          // The same caller, for an error the store leaves unmapped.
+        }
+        store.putDoc(parsed('B.md', '# B\n'));
+      }
+
+      final lost = isA<IndexFault>().having(
+        (f) => f.code,
+        'code',
+        IndexFaultCode.indexNotWritable,
+      );
+      expect(() => store.write(loseHoldThenWrite), throwsA(lost));
+      await expectLater(
+        store.writeAsync(() async => loseHoldThenWrite()),
+        throwsA(lost),
+      );
+      expect(storedPaths(store), isEmpty);
     });
     test(
       'a read-only .specstone/.gitignore at a full rebuild is index_not_writable, exit 73, and leaves the index and the file as they were',
@@ -824,7 +942,7 @@ void main() {
           ..putDoc(parsed('A.md', text.replaceAll('\n', '\r\n')));
       });
       final stored = DocLines.from(store.loadContent('A.md'));
-      final direct = DocLines.of(text);
+      final direct = docLinesOf(text);
       expect(stored.lines, direct.lines);
       expect(stored.lineCount, direct.lineCount);
       expect(stored.charCount, direct.charCount);

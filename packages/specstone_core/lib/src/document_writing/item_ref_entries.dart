@@ -12,8 +12,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/renumber_entries.dart'
     show withBlockValues;
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _overridesKey = 'overrides';

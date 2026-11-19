@@ -1,7 +1,7 @@
 // The expected texts are plan literals kept as written.
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/templates/pattern_entry.dart';
+import 'package:specstone_core/src/templates/models/pattern_entry.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';

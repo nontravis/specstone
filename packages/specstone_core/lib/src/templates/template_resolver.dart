@@ -558,10 +558,8 @@ final class TemplateResolver {
   /// base is frozen as merged. The defining layer must carry `id` and
   /// `path`, plus `description` without `extends`.
   ///
-  /// The shared fields reaching the doc type apply right after the layer of
-  /// the pack declaring them, so a higher layer's own field of that id merges
-  /// over the shared one. A doc type with `extends` and no `description` of
-  /// its own also takes the shared lines reaching its target.
+  /// A doc type with `extends` and no `description` of its own also takes the
+  /// shared lines reaching its target.
   MergedDocType _mergeOne(
     String id,
     DocTypeLayers layers,
@@ -575,21 +573,10 @@ final class TemplateResolver {
         ? merger.builtInBase(id)
         : _extendsBase(id, target, merged, defining);
     _checkNewDocTypeKeys(defining);
-    final sharedFields = reach.placeFields(id, layers);
-    String? packName;
-    var mergedType = base;
-    for (final (index, PackLayer(:layer, :pack)) in layers.indexed) {
-      mergedType = merger.apply(mergedType, layer);
-      packName ??= pack?.manifest.name;
-      for (final field in sharedFields[index] ?? const <MergedSharedField>[]) {
-        mergedType = merger.applyFields(mergedType, [
-          field.entry,
-        ], file: reach.declaringFile(field));
-      }
-    }
+    final mergedType = _applyLayers(base, id, layers, merger, reach);
     final writesDescription = layers.any((l) => l.layer.description != null);
     return mergedType.copyWith(
-      pack: packName,
+      pack: layers.map((l) => l.pack).nonNulls.firstOrNull?.manifest.name,
       sharedLines: reach.linesFor(
         id,
         inheritedFrom: target == null || writesDescription
@@ -598,6 +585,53 @@ final class TemplateResolver {
       ),
     );
   }
+
+  /// Folds [layers] onto [base], each shared field reaching the doc type [id]
+  /// right after the layer of the pack declaring it.
+  ///
+  /// A layer's own entry of a shared field's id, at or below that place,
+  /// waits and merges over the shared field there; a higher layer's merges
+  /// over it in turn.
+  MergedDocType _applyLayers(
+    MergedDocType base,
+    String id,
+    DocTypeLayers layers,
+    DocTypeMerger merger,
+    _SharedReach reach,
+  ) {
+    final placed = reach.placeFields(id, layers);
+    final heldBy = <String, List<DocTypeLayer>>{};
+    var mergedType = base;
+    for (final (index, PackLayer(:layer)) in layers.indexed) {
+      final held = _fieldIdsPlacedFrom(placed, index);
+      mergedType = merger.apply(mergedType, layer, heldFieldIds: held);
+      for (final entry in layer.fields.where((e) => held.contains(e.id))) {
+        heldBy.putIfAbsent(entry.id, () => []).add(layer);
+      }
+      for (final field in placed[index] ?? const <MergedSharedField>[]) {
+        final fieldId = field.entry.id;
+        mergedType = merger.applyFields(mergedType, [
+          field.entry,
+        ], file: reach.declaringFile(field));
+        for (final own in heldBy.remove(fieldId) ?? const <DocTypeLayer>[]) {
+          mergedType = merger.applyFields(mergedType, [
+            ...own.fields.where((e) => e.id == fieldId),
+          ], file: own.file);
+        }
+      }
+    }
+    return mergedType;
+  }
+
+  /// The ids of the shared fields [placed] at layer [index] or above.
+  Set<String> _fieldIdsPlacedFrom(
+    Map<int, List<MergedSharedField>> placed,
+    int index,
+  ) => {
+    for (final MapEntry(key: at, value: fields) in placed.entries)
+      if (at >= index)
+        for (final field in fields) field.entry.id,
+  };
 
   /// Throws `missing_key` when the defining layer of a new doc type misses
   /// `id`, `path`, or `description` without `extends`.

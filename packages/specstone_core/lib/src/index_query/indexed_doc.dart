@@ -17,10 +17,11 @@ import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show mermaidSourcesOf;
 import 'package:specstone_core/src/index_query/models/cite_form.dart';
+import 'package:specstone_core/src/index_query/models/doc_content.dart';
 import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/models/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/indexed_section.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
-import 'package:specstone_core/src/index_query/models/rule_item_words.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
@@ -28,7 +29,9 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
 
+export 'package:specstone_core/src/index_query/models/doc_content.dart';
 export 'package:specstone_core/src/index_query/models/indexed_doc.dart';
+export 'package:specstone_core/src/index_query/models/indexed_section.dart';
 
 /// The id of the `feature` doc type.
 const featureType = 'feature';
@@ -91,84 +94,10 @@ String docNameOf(String docPath, MergedDocType? docType, {String? target}) {
 /// Returns [n] as the word a message uses: `two` for 2, else the digits.
 String countWord(int n) => n == 2 ? 'two' : '$n';
 
-/// One `##` section of an indexed doc.
-final class IndexedSection {
-  const new({required this.key, required this.headerLine, required this.body});
-
-  /// The template section id, else the [sectionKeyOf] key of the header.
-  final String key;
-
-  /// The `##` line as written, without its line ending.
-  final String headerLine;
-
-  /// Every line after the header line up to the next section header.
-  final String body;
-
-  /// The header line and the body, without the final line break.
-  String get text {
-    final whole = '$headerLine\n$body';
-    return whole.endsWith('\n') ? whole.substring(0, whole.length - 1) : whole;
-  }
-
-  /// The size of [text] in tokens.
+/// Adds its token size to an [IndexedSection].
+extension IndexedSectionTokens on IndexedSection {
+  /// The size of `text` in tokens.
   int get tokens => tokenSizeOf(text);
-}
-
-/// The text and structure of one doc, as `get` and `context` print it.
-final class DocContent {
-  /// Takes [text], [bannedMatches], and [itemFacts] through [readText],
-  /// [readBannedMatches], and [readItemFacts], each called on the first read
-  /// of its field.
-  new({
-    required String Function() readText,
-    this.frontmatterText,
-    required this.head,
-    required this.sections,
-    required this.links,
-    required this.lineFacts,
-    required List<BannedMatch> Function() readBannedMatches,
-    required ItemFacts Function() readItemFacts,
-    this.itemWords = const [],
-  }) : _readText = readText,
-       _readBannedMatches = readBannedMatches,
-       _readItemFacts = readItemFacts;
-
-  /// The whole file as decoded, in its own line endings.
-  late final String text = _readText();
-
-  final String Function() _readText;
-
-  /// The frontmatter lines, delimiters included, in LF; null without any.
-  final String? frontmatterText;
-
-  /// The text between the frontmatter and the first section, in LF.
-  final String head;
-
-  /// The sections in file order.
-  final List<IndexedSection> sections;
-
-  /// The docPaths of the other docs this one links to, each once in order.
-  final List<String> links;
-
-  /// The line facts of the file, stored by the refresh that parsed it.
-  final LineFacts lineFacts;
-
-  /// The banned-pattern matches of the file under its doc type, stored by the
-  /// refresh that parsed it.
-  late final List<BannedMatch> bannedMatches = _readBannedMatches();
-
-  final List<BannedMatch> Function() _readBannedMatches;
-
-  /// The items of the doc and its lead's counts, stored by the refresh that
-  /// parsed it; a read command that never reads them never decodes them.
-  late final ItemFacts itemFacts = _readItemFacts();
-
-  final ItemFacts Function() _readItemFacts;
-
-  /// The words of each item of a rule-bearing section, which the refresh that
-  /// parsed the doc writes to the `item_words` table; empty for an untyped
-  /// doc and for content read back from the index.
-  final List<RuleItemWords> itemWords;
 }
 
 /// One parsed file: its index entry, its content, and its content hash.
@@ -224,7 +153,7 @@ ParsedDoc parseIndexedDoc({
     );
   }
   final yaml = switch (doc.frontmatter) {
-    final blocks? => parseFrontmatterYaml(blocks.map((b) => b.text).join()),
+    final blocks? => FrontmatterYaml.parse(blocks.map((b) => b.text).join()),
     null => null,
   };
   final frontmatter = _frontmatterValues(yaml, docPath, warnings);
@@ -244,7 +173,7 @@ ParsedDoc parseIndexedDoc({
           idPrefixes: idPrefixes,
           skipLines: testRowLinesOf(matrixLines),
         );
-  final lineFacts = LineFacts.of(
+  final lineFacts = lineFactsOf(
     lfText: lfText,
     countedText: docType == null
         ? counted.text
@@ -334,11 +263,11 @@ ParsedDoc parseIndexedDoc({
 /// [parseIndexedDoc] keys them, and their section and fenced lines.
 ///
 /// No markdown parse, layout, or YAML read runs, so the content holds no
-/// links, banned matches, or section counts (see [LineFacts.structureOf]). Its
+/// links, banned matches, or section counts (see [lineStructureOf]). Its
 /// item facts count [lfText] as it is, with no layout.
 DocContent docStructureOf(String lfText, MergedDocType? docType) {
   final doc = Doc.parse(lfText);
-  final lineFacts = LineFacts.structureOf(lfText: lfText, doc: doc);
+  final lineFacts = lineStructureOf(lfText: lfText, doc: doc);
   return DocContent(
     readText: () => lfText,
     frontmatterText: doc.frontmatter == null
@@ -431,7 +360,7 @@ Map<String, Object?> frontmatterValuesOf(Doc doc) {
   final blocks = doc.frontmatter;
   final yaml = blocks == null
       ? null
-      : parseFrontmatterYaml(blocks.map((b) => b.text).join());
+      : FrontmatterYaml.parse(blocks.map((b) => b.text).join());
   return _frontmatterValues(yaml, '', []);
 }
 

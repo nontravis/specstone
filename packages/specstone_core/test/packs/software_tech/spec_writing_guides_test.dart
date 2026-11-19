@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 

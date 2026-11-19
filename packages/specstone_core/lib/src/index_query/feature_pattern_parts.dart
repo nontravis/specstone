@@ -1,18 +1,11 @@
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/feature_pattern_part.dart';
 import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/models/checklist_item.dart';
 
 const _patternsField = 'patterns';
-
-/// One feature pattern a design bundle prints right after its `lister`, the
-/// doc that names it, with the `items` that part prints.
-typedef FeaturePatternPart = ({
-  IndexedDoc lister,
-  FeaturePattern pattern,
-  List<ChecklistItem> items,
-});
 
 /// Returns the feature pattern parts of [bundle], in print order.
 ///
@@ -44,7 +37,9 @@ List<FeaturePatternPart> featurePatternParts(
           if (!seenItems.contains(item)) item,
       ];
       seenItems.addAll(pattern.items);
-      parts.add((lister: lister, pattern: pattern, items: items));
+      parts.add(
+        FeaturePatternPart(lister: lister, pattern: pattern, items: items),
+      );
     }
   }
   return parts;

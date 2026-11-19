@@ -15,6 +15,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 final class DraftView {
   new({
     required this.name,
+    required this.address,
     required this.docType,
     this.mergedType,
     this.title,
@@ -29,6 +30,10 @@ final class DraftView {
 
   /// The doc name, which heads the view when [title] is null.
   final String name;
+
+  /// The shortest address that picks only this draft: `<doc type>:<name>`, or
+  /// its DocPath when another doc holds that typed name.
+  final String address;
 
   /// The doc type the index gives.
   final String docType;
@@ -187,7 +192,7 @@ String renderApprovalView(
 
 /// Returns the draft as one JSON object: the cells of its view, as plain text.
 ///
-/// The keys are `name` (`<doc type>:<name>`), `docPath`, `title`, and `status`
+/// The keys are `name` ([DraftView.address]), `docPath`, `title`, and `status`
 /// or `statusByTarget` (each target's status, in config order; a target whose
 /// status is null shows none) when [draft] has them, `hash`, `lookup`
 /// (`found`, `none`, or `unknown`),
@@ -203,7 +208,7 @@ Map<String, Object> draftViewJson(DraftView draft) {
     docType: draft.mergedType,
   );
   return {
-    'name': '${draft.docType}:${draft.name}',
+    'name': draft.address,
     'docPath': draft.docPath,
     'title': ?draft.title,
     if (draft.heldStatusByTarget case final byTarget when byTarget.isNotEmpty)

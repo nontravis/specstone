@@ -9,7 +9,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/task_ref.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
+import 'package:specstone_core/src/templates/models/merged_field.dart'
     show FieldType;
 import 'package:specstone_core/src/templates/models/record_status.dart';
 

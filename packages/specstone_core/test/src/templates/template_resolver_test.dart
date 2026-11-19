@@ -2996,6 +2996,22 @@ path: features/{slug}/FEATURE.md
       });
     }
 
+    test(
+      'an unknown key in a shared.yaml line names the shared format',
+      () async {
+        final fault = await _resolveFault(
+          project: {
+            _configPath: config,
+            sharedPath: 'shared_lines:\n  - id: x\n    text: T\n    when: y\n',
+          },
+        );
+
+        expect(fault.code, FaultCode.unknownKey);
+        expect(fault.key, 'shared_lines[0].when');
+        expect(fault.message, 'the shared format defines no key when');
+      },
+    );
+
     for (final (name, files) in [
       ('no file', <String, String>{}),
       ('a file with no key', {sharedPath: ''}),

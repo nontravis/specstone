@@ -5,8 +5,7 @@ import 'package:specstone_core/src/document_writing/models/new_record.dart';
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     as rewrite_records;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/line_facts.dart'
-    show parseFrontmatterYaml;
+import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/index_query/record_entries.dart';
@@ -15,8 +14,6 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart'
     show PlannedCreate, draftNote;
 import 'package:specstone_core/src/templates/code_point_order.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show FieldType, PointerKind;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/record_status.dart';
@@ -372,7 +369,7 @@ bool _sameList(List<String> a, List<String> b) =>
 bool _hasValidFrontmatter(String lf) {
   final blocks = Doc.parse(lf).frontmatter;
   return blocks == null ||
-      parseFrontmatterYaml(blocks.map((b) => b.text).join()).errorLine == null;
+      FrontmatterYaml.parse(blocks.map((b) => b.text).join()).errorLine == null;
 }
 
 MigrateFault _fault(_Taken taken, String key, String why) => MigrateFault(

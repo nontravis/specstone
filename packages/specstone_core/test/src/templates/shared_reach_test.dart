@@ -159,6 +159,55 @@ void main() {
       expect(overridden.list, shared.list);
     });
 
+    for (final (name, ownEntry) in [
+      ('partial', '  - id: owner\n    description: Gadget owner.\n'),
+      (
+        'complete',
+        '  - id: owner\n    type: string\n    description: Gadget owner.\n',
+      ),
+    ]) {
+      test('is the field a $name own entry of the declaring pack changes, at '
+          'the shared place, for that type alone', () async {
+        final set = await _resolvePacks(
+          {
+            ..._shipped(),
+            'software-own/pack.yaml': _bytes('''
+name: software-own
+version: 1.0.0
+shared_fields:
+  - id: owner
+    type: string
+    list: true
+    description: Shared owner.
+    for_doc_types: [gadget, widget]
+'''),
+            'software-own/gadget.yaml': _bytes('''
+id: gadget
+description: Describes one gadget.
+path: gadgets/{slug}.md
+fields:
+  - id: gadget_name
+    type: string
+$ownEntry  - id: gadget_size
+    type: string
+'''),
+            'software-own/widget.yaml': _bytes('''
+id: widget
+description: Describes one widget.
+path: widgets/{slug}.md
+'''),
+          },
+          ['software-own'],
+        );
+
+        final gadget = _type(set, 'gadget');
+        expect(_fieldIds(gadget), ['gadget_name', 'gadget_size', 'owner']);
+        expect(_description(gadget, 'owner'), 'Gadget owner.');
+        expect(_field(gadget, 'owner').list, isTrue);
+        expect(_description(_type(set, 'widget'), 'owner'), 'Shared owner.');
+      });
+    }
+
     test('of an extending pack naming its own new doc type applies after the '
         'last pack layer', () async {
       final set = await _resolvePacks(
@@ -219,6 +268,47 @@ path: gizmos/{slug}.md
         ),
       );
     });
+
+    for (final key in ['pointer', 'root']) {
+      test('changed by a higher pack to an unknown $key is refused at that '
+          "pack's shared_fields entry", () async {
+        final shipped = {
+          ..._shipped(),
+          'software-base/pack.yaml': _bytes('''
+name: software-base
+version: 1.0.0
+shared_fields:
+  - id: artifact
+    type: output_ref
+    pointer: exact
+    for_doc_types: [gizmo]
+'''),
+          'software-base/gizmo.yaml': _bytes('''
+id: gizmo
+description: Describes one gizmo.
+path: gizmos/{slug}.md
+'''),
+          'software-top/pack.yaml': _bytes('''
+name: software-top
+version: 1.0.0
+extends: software-base
+shared_fields:
+  - id: artifact
+    $key: bogus
+'''),
+        };
+
+        await expectLater(
+          _resolvePacks(shipped, ['software-base', 'software-top']),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.unknownValue)
+                .having((f) => f.file, 'file', 'packs/software-top/pack.yaml')
+                .having((f) => f.key, 'key', 'shared_fields[0].$key'),
+          ),
+        );
+      });
+    }
 
     test(
       'is dropped from an extending project type that disables it',

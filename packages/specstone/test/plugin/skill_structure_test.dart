@@ -17,6 +17,7 @@ void main() {
   group('cli calls exist', _cliCallsExistTests);
   group('host renders match source', _hostRendersMatchSourceTests);
   group('runs on every host', _runsOnEveryHostTests);
+  group('approve step', _approveStepTests);
 }
 
 // MARK: - Fixtures and readers
@@ -47,6 +48,7 @@ const _procedures = <String>[
   'specstone-bootstrap-spec/references/procedure.md',
   _goalMove,
   'specstone-brainstorming-sdd/references/author.md',
+  'specstone-brainstorming-sdd/references/author-report.md',
   'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/design-check.md',
@@ -176,6 +178,20 @@ List<String>? _toolsOf(String agent, String key) {
   final frontmatter = _frontmatterBlock.firstMatch(agent)?.group(1) ?? '';
   final line = RegExp('^$key:(.*)\$', multiLine: true).firstMatch(frontmatter);
   return line?.group(1)?.split(',').map((tool) => tool.trim()).toList();
+}
+
+/// The entries of the frontmatter block list `skills:` in [frontmatter];
+/// null when it has none.
+List<String>? _skillsOf(String frontmatter) {
+  final block = RegExp(
+    r'^skills:\n((?:  - .+\n?)+)',
+    multiLine: true,
+  ).firstMatch(frontmatter)?.group(1);
+  return block
+      ?.split('\n')
+      .where((line) => line.isNotEmpty)
+      .map((line) => line.replaceFirst('  - ', '').trim())
+      .toList();
 }
 
 /// The base name of [entity]'s path, its `.md` ending cut.
@@ -345,10 +361,13 @@ void _frontmatterTests() {
     expect(tools, isNot(anyOf(contains('Write'), contains('Edit'))));
   });
 
-  test('the engineer has no skills key', () {
+  test('the engineer source preloads expert-sdd and read-sdd and lists no '
+      'Skill tool', () {
     final text = _pluginText('specstone-sdd-engineer.md');
     final head = text.substring(0, text.indexOf('\n---\n', 4));
-    expect(head, isNot(contains('\nskills:')));
+    final skills = _skillsOf(head);
+    expect(skills, ['specstone-expert-sdd', 'specstone-read-sdd']);
+    expect(_toolsOf(text, 'tools'), ['Bash', 'Read', 'Grep', 'Write', 'Edit']);
   });
 }
 
@@ -1178,7 +1197,8 @@ void _runsOnEveryHostTests() {
   });
 
   test('each render of the sdd-engineer holds one line telling it to follow '
-      'specstone-expert-sdd, and no preload', () {
+      'specstone-expert-sdd, and a skills preload only in the Claude Code '
+      'render', () {
     final renders = contentFiles()
         .where((file) => file.path.contains('specstone-sdd-engineer.'))
         .toList();
@@ -1192,10 +1212,24 @@ void _runsOnEveryHostTests() {
         reason: render.path,
       );
       expect(
-        render.frontmatter,
-        isNot(contains('\nskills:')),
+        'specstone-read-sdd/SKILL.md'.allMatches(render.body),
+        hasLength(1),
         reason: render.path,
       );
+      final isSource = !render.path.contains('/');
+      final isClaudeCodeRender = render.path.contains('.claude/agents/');
+      final frontmatter = render.frontmatter ?? '';
+      expect(
+        frontmatter.contains('\nskills:'),
+        isSource || isClaudeCodeRender,
+        reason: render.path,
+      );
+      if (isClaudeCodeRender) {
+        expect(_skillsOf(frontmatter), [
+          'specstone-expert-sdd',
+          'specstone-read-sdd',
+        ], reason: render.path);
+      }
     }
   });
 
@@ -1446,5 +1480,155 @@ void _runsOnEveryHostTests() {
       'the Latin script', () {
     expect(trackedFiles(agentAssetsRoot()), isNotEmpty);
     expect(nonLatinLetterLines(agentAssetsRoot()), isEmpty);
+  });
+}
+
+// MARK: - approve step
+
+const _expertSdd = 'specstone-expert-sdd/SKILL.md';
+
+const _approveHeading = '## Get the drafts approved';
+
+/// The report flags each runner skill's approval names, by skill file.
+const _runnerFlags = {
+  'specstone-brainstorming-sdd/SKILL.md': ['--audit', '--author'],
+  'specstone-update-sdd/SKILL.md': ['--no-audit'],
+  'specstone-sync-sdd/SKILL.md': ['--no-audit'],
+  'specstone-bootstrap-prd/SKILL.md': ['--no-audit'],
+  'specstone-bootstrap-spec/SKILL.md': ['--no-audit'],
+  'specstone-init/SKILL.md': ['--no-audit'],
+};
+
+const _reportFlags = ['--audit', '--author', '--no-audit'];
+
+/// The runner skills whose red flags hold an approve row.
+const _runnersWithApproveRedFlag = {
+  'specstone-update-sdd/SKILL.md',
+  'specstone-init/SKILL.md',
+};
+
+/// Words of the auto approve section's steps that no runner restates.
+const _approveStepWords = [
+  '--auto',
+  '--dry-run',
+  '`docPath`',
+  '`asked`',
+  '`Why:`',
+  'approve-mode',
+];
+
+/// One problem per way runner skill [file] fails to point to expert-sdd's
+/// auto approve section with exactly its [flags], holding no copy of it.
+List<String> _runnerPointerProblems(String file, List<String> flags) {
+  final text = _pluginText(file);
+  final body = _oneLine(
+    text.split('\n').where((line) => !line.startsWith('#')).join('\n'),
+  );
+  final title = _approveHeading.substring('## '.length);
+  bool isPointer(String span) =>
+      span.contains(title) && span.contains('specstone-expert-sdd');
+  final pointers = body
+      .split(RegExp(r'(?<=[.;])\s'))
+      .where(isPointer)
+      .join(' ');
+  final redFlagRows = text
+      .split('\n')
+      .skipWhile((line) => line != '## Red flags')
+      .where((line) => line.startsWith('|') && line.contains(title));
+  return [
+    if (pointers.isEmpty) '$file: no pointer to "$title"',
+    for (final flag in _reportFlags)
+      if (flags.contains(flag) && !pointers.contains(flag))
+        '$file: pointer lacks $flag'
+      else if (!flags.contains(flag) && body.contains(flag))
+        '$file: names $flag',
+    if (_runnersWithApproveRedFlag.contains(file) &&
+        !redFlagRows.any((row) => isPointer(row) && flags.every(row.contains)))
+      '$file: red flag lacks the pointer',
+    for (final word in _approveStepWords)
+      if (text.contains(word)) '$file: copies $word',
+  ];
+}
+
+/// The text of [heading]'s section in [markdown], up to the next `## `
+/// heading, every whitespace run as one space; empty when no line is
+/// [heading].
+String _sectionOf(String markdown, String heading) {
+  final lines = markdown.split('\n');
+  final start = lines.indexOf(heading);
+  if (start < 0) return '';
+  final rest = lines.skip(start + 1).takeWhile((l) => !l.startsWith('## '));
+  return _oneLine(rest.join('\n'));
+}
+
+void _approveStepTests() {
+  test(
+    'expert-sdd holds one auto approve section ahead of Owner confirmation',
+    () {
+      final lines = _pluginText(_expertSdd).split('\n');
+      expect(lines.where((line) => line == _approveHeading), hasLength(1));
+      expect(
+        lines.indexOf(_approveHeading),
+        lessThan(lines.indexOf('## Owner confirmation')),
+      );
+      final section = _sectionOf(_pluginText(_expertSdd), _approveHeading);
+      for (final word in [
+        'specstone approve',
+        '--auto',
+        '--json',
+        '--audit',
+        '--author',
+        '--no-audit',
+        '`approved`',
+        '`docPath`',
+        '`asked`',
+        'Exit 75',
+      ]) {
+        expect(section, contains(word), reason: word);
+      }
+    },
+  );
+
+  test('no skill file names the approve-mode reference', () {
+    final files = contentFiles();
+    expect(files, isNotEmpty);
+    final problems = [
+      for (final file in files)
+        if (file.path.endsWith('approve-mode.md') ||
+            '${file.frontmatter ?? ''}${file.body}'.contains('approve-mode.md'))
+          file.path,
+    ];
+    expect(problems, isEmpty);
+  });
+
+  test('expert-sdd tells a subagent to run approve only as a dry run', () {
+    final section = _sectionOf(_pluginText(_expertSdd), _approveHeading);
+    final sentences = section.split(RegExp(r'(?<=[.;:])\s'));
+    expect(
+      sentences.where(
+        (sentence) =>
+            sentence.toLowerCase().contains('subagent') &&
+            sentence.contains('`approve`') &&
+            sentence.contains('only with `--dry-run`'),
+      ),
+      isNotEmpty,
+    );
+    expect(
+      sentences.where(
+        (sentence) =>
+            sentence.contains('Only the main session') &&
+            sentence.contains('`--auto`'),
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test("each runner points to the auto approve section with its flow's report "
+      'flags', () {
+    final problems = [
+      for (final MapEntry(key: file, value: flags) in _runnerFlags.entries)
+        ..._runnerPointerProblems(file, flags),
+    ];
+    expect(problems, isEmpty);
   });
 }

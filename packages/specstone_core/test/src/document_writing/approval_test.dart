@@ -12,7 +12,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
@@ -959,6 +958,7 @@ void main() {
         final view = renderApprovalView(
           DraftView(
             name: 'recover_account',
+            address: 'fr:recover_account',
             docType: 'fr',
             mergedType: _docType,
             docPath: newPath,

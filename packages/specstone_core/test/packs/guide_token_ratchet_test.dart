@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';

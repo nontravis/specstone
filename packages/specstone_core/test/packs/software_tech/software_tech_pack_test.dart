@@ -2,8 +2,9 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/merged_field.dart'
+    show FieldType;
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';

@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/feature_pattern_parts.dart';
+import 'package:specstone_core/src/index_query/models/feature_pattern_part.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:test/test.dart';
 
