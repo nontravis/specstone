@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
 import 'package:test/test.dart';
 
@@ -21,9 +22,9 @@ void main() {
     ]);
 
     expect(rows, [
-      (cell: 'us01/fr01', line: 4),
-      (cell: 'us01/fr03', line: 9),
-      (cell: ' x ', line: 10),
+      const FrTraceRow(cell: 'us01/fr01', line: 4),
+      const FrTraceRow(cell: 'us01/fr03', line: 9),
+      const FrTraceRow(cell: ' x ', line: 10),
     ]);
   });
 }

@@ -4,7 +4,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_run.dart';
-import 'package:specstone_core/src/consistency_check/repeat_listing.dart';
+import 'package:specstone_core/src/consistency_check/models/repeat_group.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:test/test.dart';

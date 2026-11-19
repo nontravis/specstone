@@ -15,6 +15,7 @@ import '../../helpers/shipped_pins.dart';
 import '../../helpers/software_design_system.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart';
 import '../../helpers/yaml_key_line.dart';
 
 const _root = 'specs/design_system';
@@ -403,6 +404,24 @@ void main() {
       expect(tokens.sections.map((s) => s.id), ['token_list']);
       expect(tokens.sections.single.required, isTrue);
       expect(tokens.isPerTarget, isFalse);
+    });
+
+    test('the new command writes a motion doc whose headers are Durations '
+        'then Easings', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml': softwareDesignSystemConfig(),
+        'docs/.keep': '',
+      });
+
+      final answer = writeIn(root, (s) => answerNew(s, docTypeId: 'motion'));
+
+      const path = 'specs/design_system/foundations/MOTION.md';
+      expect(answer.text, startsWith('==> motion (motion) · $path <=='));
+      final headers = [
+        for (final line in readDoc(root, path).split('\n'))
+          if (line.startsWith('## ')) line,
+      ];
+      expect(headers, ['## Durations', '## Easings']);
     });
 
     test('a new motion doc is a skeleton with Durations then Easings', () {

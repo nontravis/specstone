@@ -67,6 +67,15 @@ final class _NoFiles implements LayerFiles {
   bool exists(String layerRelativePath) => false;
 }
 
+final class _OneFile implements LayerFiles {
+  const new(this.path);
+
+  final String path;
+
+  @override
+  bool exists(String layerRelativePath) => layerRelativePath == path;
+}
+
 const _merger = DocTypeMerger();
 
 DocTypeLayer _layer(String text, {LayerKind kind = LayerKind.shipped}) =>
@@ -872,6 +881,40 @@ sections:
       );
     });
 
+    test('allowed words that clear some of the doc-level banned words leave '
+        'the rest in the line', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'lint: {banned_words: [fast, small, robust], allowed_words: [small]}',
+      ).renderGuide();
+
+      expect(
+        guide,
+        'A.\n\nBanned words: `fast`, `robust`\n\n$_defaultLimits\n',
+      );
+    });
+
+    test('a section banned word list with no line prefix drops a word the '
+        'doc-level allowed list holds', () {
+      final guide = _merge('''
+description: A.
+path: a.md
+lint: {allowed_words: [small]}
+sections:
+  - id: s
+    header: S
+    lint:
+      banned_words: [fast, small, etc., and/or]
+      allowed_words: [etc.]
+''').renderGuide();
+
+      expect(
+        guide,
+        'A.\n\n$_defaultLimits\n\n'
+        '## S\n\nOptional section.\n\nBanned words: `fast`, `and/or`\n',
+      );
+    });
+
     test('a banned word list the allowed words empty prints '
         'no line', () {
       final guide = _merge(
@@ -986,6 +1029,48 @@ sections:
         );
       });
     }
+
+    test('a when_field of four values out of alphabetical order prints them '
+        'in declared order', () {
+      final guide = _merge(
+        'description: A.\npath: a.md\n'
+        'sections: [{id: s, header: S, required: true, '
+        'when_field: {field: kind, values: [c, a, d, b]}}]',
+      ).renderGuide();
+
+      expect(
+        guide,
+        contains(
+          'Required when `kind` is `c`, `a`, `d`, or `b`; left out '
+          'otherwise.\n',
+        ),
+      );
+    });
+
+    test('an optional section that sets both conditions prints the one '
+        'joined line', () {
+      final guide = _merge('''
+description: A.
+path: a.md
+fields:
+  - {id: kind, type: string}
+sections:
+  - {id: api, header: Interfaces}
+  - id: s
+    header: S
+    when_field: {field: kind, values: [a]}
+    lint:
+      required_when: {section: api, field: Kind, value: rest}
+''').renderGuide();
+
+      expect(
+        guide,
+        endsWith(
+          '## S\n\nRequired when `kind` is `a` and a `Interfaces` item holds '
+          '`Kind: rest`; left out otherwise.\n',
+        ),
+      );
+    });
 
     test('an empty doc description adds no blank paragraph', () {
       final guide = _merge(
@@ -1172,6 +1257,34 @@ fields:
       expect(
         guide,
         'A.\n\n$_defaultLimits\n\nGuide sources:\n- T, L: https://e.example/x\n',
+      );
+    });
+
+    test('a file entry prints its file, and two entries print in merged '
+        'order', () {
+      final layer = DocTypeLayer.parse(
+        'description: A.\npath: a.md\n'
+        'reference:\n'
+        '  - {title: Z, file: refs/handbook.md, locator: p. 3}\n'
+        '  - {title: B, url: "https://e.example/b"}\n'
+        '  - {title: A}\n',
+        file: _shippedFile,
+        docTypeId: 'feature',
+        kind: LayerKind.shipped,
+        files: const _OneFile('refs/handbook.md'),
+      );
+      final guide = _merger
+          .apply(_merger.builtInBase('feature'), layer)
+          .renderGuide();
+
+      expect(
+        guide,
+        endsWith(
+          '\n\nGuide sources:\n'
+          '- Z, p. 3: refs/handbook.md\n'
+          '- B: https://e.example/b\n'
+          '- A\n',
+        ),
       );
     });
 

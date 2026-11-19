@@ -1,7 +1,5 @@
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
-
-/// One tracked row of an FR trace table: its first cell and file line.
-typedef FrTraceRow = ({String cell, int line});
 
 final _separatorCell = RegExp(r'^:?-+:?$');
 
@@ -22,7 +20,7 @@ List<FrTraceRow> readFrTraceRows(List<BodyLine> body) {
       continue;
     }
     if (_separatorCell.hasMatch(cell)) continue;
-    rows.add((cell: _unquoted(cell), line: line.line));
+    rows.add(FrTraceRow(cell: _unquoted(cell), line: line.line));
   }
   return rows;
 }

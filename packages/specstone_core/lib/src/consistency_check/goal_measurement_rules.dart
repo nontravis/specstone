@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/goal_block.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart'
     show titleLineOf;
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
@@ -14,15 +15,48 @@ const _unlinkedMessage =
     "Metric line links no measurement; guide line: link the goal's measurement";
 
 /// A `### PG-` heading of a goal doc: its doc, file line, and ID.
-typedef _Goal = ({String docPath, int line, String key});
+final class _Goal {
+  const new({required this.docPath, required this.line, required this.key});
+
+  final String docPath;
+  final int line;
+  final String key;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _Goal &&
+      other.docPath == docPath &&
+      other.line == line &&
+      other.key == key;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(docPath, line, key);
+}
 
 /// What a goal doc's goal blocks and a measurement's goal links say, read once
 /// per check run.
-typedef _GoalLinks = ({
-  Map<_Goal, List<BodyLine>> goals,
-  Map<String, List<_Goal>> goalsOfMeasurement,
-  Map<_Goal, List<IndexedDoc>> measurementsOfGoal,
-});
+final class _GoalLinks {
+  const new({
+    required this.goals,
+    required this.goalsOfMeasurement,
+    required this.measurementsOfGoal,
+  });
+
+  final Map<_Goal, List<BodyLine>> goals;
+  final Map<String, List<_Goal>> goalsOfMeasurement;
+  final Map<_Goal, List<IndexedDoc>> measurementsOfGoal;
+
+  /// Returns the measurements whose head links [goal]; empty when none does.
+  List<IndexedDoc> measurementsOf(_Goal goal) =>
+      measurementsOfGoal[goal] ?? const [];
+
+  /// Returns the goals the head of the measurement at [measurementPath] links;
+  /// empty for a path it lacks.
+  List<_Goal> goalsLinkedBy(String measurementPath) =>
+      goalsOfMeasurement[measurementPath] ?? const [];
+}
 
 final _goalLinksOf = Expando<_GoalLinks>();
 
@@ -61,7 +95,7 @@ _GoalLinks _readGoalLinks(CheckContext context) {
       (measurementsOfGoal[goal] ??= []).add(measurement);
     }
   }
-  return (
+  return _GoalLinks(
     goals: goals,
     goalsOfMeasurement: goalsOfMeasurement,
     measurementsOfGoal: measurementsOfGoal,
@@ -69,8 +103,8 @@ _GoalLinks _readGoalLinks(CheckContext context) {
 }
 
 Map<_Goal, List<BodyLine>> _goalsOf(CheckContext context) => {
-  for (final (:docPath, :key, horizon: _, :lines) in context.goalBlocks())
-    (docPath: docPath, line: lines.first.line, key: key): lines,
+  for (final GoalBlock(:docPath, :key, :lines) in context.goalBlocks())
+    _Goal(docPath: docPath, line: lines.first.line, key: key): lines,
 };
 
 /// The goals of [known] that a link in the head of [measurement] names, each
@@ -117,7 +151,7 @@ Iterable<Finding> _goalFindings(CheckContext context, IndexedDoc doc) sync* {
   final links = _linksOf(context);
   for (final MapEntry(key: goal, value: lines) in links.goals.entries) {
     if (goal.docPath != doc.docPath) continue;
-    final named = links.measurementsOfGoal[goal] ?? const <IndexedDoc>[];
+    final named = links.measurementsOf(goal);
     yield* _coverageFinding(context, doc, goal, named);
     yield* _metricFindings(context, doc, goal, lines);
   }
@@ -169,12 +203,10 @@ Iterable<Finding> _metricFindings(
     );
     return;
   }
-  final goalsOfMeasurement = _linksOf(context).goalsOfMeasurement;
+  final links = _linksOf(context);
   final mismatched = [
     for (final measurement in linked)
-      if (!(goalsOfMeasurement[measurement.docPath] ?? const <_Goal>[])
-          .contains(goal))
-        measurement,
+      if (!links.goalsLinkedBy(measurement.docPath).contains(goal)) measurement,
   ];
   if (mismatched.isEmpty) return;
   yield context.finding(
@@ -214,7 +246,7 @@ Iterable<Finding> _measurementFindings(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  final linked = _linksOf(context).goalsOfMeasurement[doc.docPath] ?? const [];
+  final linked = _linksOf(context).goalsLinkedBy(doc.docPath);
   if (linked.isEmpty) {
     yield context.finding(
       doc,

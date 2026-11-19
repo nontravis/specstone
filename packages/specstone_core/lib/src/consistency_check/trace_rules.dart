@@ -3,6 +3,8 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ImplementedWork;
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
+import 'package:specstone_core/src/consistency_check/models/goal_block.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
@@ -198,7 +200,7 @@ Iterable<Finding> _unresolvedRole(
 
 Iterable<Finding> _storyGoalSets(CheckContext context, IndexedDoc doc) =>
     _goalSets(context, doc, switch (context.index.parentOf(doc)) {
-      final feature? => (doc: feature, label: 'feature'),
+      final feature? => _GoalHolder(doc: feature, label: 'feature'),
       null => null,
     });
 
@@ -207,7 +209,20 @@ Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) {
   if (parent == null || parent.docTypeId != doc.docTypeId) {
     return _goalSets(context, doc, null);
   }
-  return _goalSets(context, doc, (doc: parent, label: 'parent feature'));
+  return _goalSets(
+    context,
+    doc,
+    _GoalHolder(doc: parent, label: 'parent feature'),
+  );
+}
+
+/// The doc whose `vision` and `goals` bound a doc's own, and the name a message
+/// gives it.
+final class _GoalHolder {
+  const new({required this.doc, required this.label});
+
+  final IndexedDoc doc;
+  final String label;
 }
 
 /// Yields the unresolved and widened ids of [doc]; a null [holder] skips the
@@ -215,7 +230,7 @@ Iterable<Finding> _featureGoalSets(CheckContext context, IndexedDoc doc) {
 Iterable<Finding> _goalSets(
   CheckContext context,
   IndexedDoc doc,
-  ({IndexedDoc doc, String label})? holder,
+  _GoalHolder? holder,
 ) sync* {
   for (final key in _storyVisionKeys) {
     final line = context.linesOf(doc).keyLine(key);
@@ -362,7 +377,7 @@ Iterable<Finding> _unresolvedFrRows(
 ) sync* {
   final feature = context.index.parentOf(api);
   if (feature == null) return;
-  for (final (:cell, :line) in context.frTraceRowsOf(api)) {
+  for (final FrTraceRow(:cell, :line) in context.frTraceRowsOf(api)) {
     if (context.frNamed('${feature.name}/$cell') != null) continue;
     yield context.finding(
       api,
@@ -471,7 +486,7 @@ Iterable<Finding> checkImplementedStatus(
 ) sync* {
   final read = recordDocOf(context, doc);
   if (read == null) return;
-  final (:type, :feature, :lines) = read;
+  final RecordDoc(:type, :feature, :lines) = read;
   final statusField = recordStatusFieldOf(type);
   if (statusField == null) return;
   final index = context.index;

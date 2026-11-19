@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
@@ -44,8 +45,8 @@ final class _RecordWalk {
     this._lines,
   ) : _statusFieldId = recordStatusFieldOf(type)?.id,
       _codeFields = [
-        (id: recordCodeFieldOf(type)?.id, noun: 'code path'),
-        (id: recordTestFieldOf(type)?.id, noun: 'test'),
+        _CodeField(id: recordCodeFieldOf(type)?.id, noun: 'code path'),
+        _CodeField(id: recordTestFieldOf(type)?.id, noun: 'test'),
       ],
       _entries = {
         for (final entry in recordEntriesOf(_record, type)) entry.item: entry,
@@ -60,7 +61,7 @@ final class _RecordWalk {
   final IndexedDoc _feature;
   final DocLines _lines;
   final String? _statusFieldId;
-  final List<({String? id, String noun})> _codeFields;
+  final List<_CodeField> _codeFields;
   final Map<String, RecordEntry> _entries;
 
   /// The items the record may name, each relative to the feature: the
@@ -104,7 +105,7 @@ final class _RecordWalk {
   }
 
   Iterable<Finding> _codeFindings() sync* {
-    for (final (:id, :noun) in _codeFields) {
+    for (final _CodeField(:id, :noun) in _codeFields) {
       if (id != null) yield* _lineFindings(id, noun);
     }
     for (final row in _record.matrixLines.whereType<MatrixRow>()) {
@@ -116,7 +117,7 @@ final class _RecordWalk {
   }
 
   Iterable<Finding> _lineFindings(String fieldId, String noun) sync* {
-    for (final (:value, :line, text: _) in _lines.entriesOf(fieldId)) {
+    for (final YamlEntry(:value, :line) in _lines.entriesOf(fieldId)) {
       if (value is! String) continue;
       final parsed = recordCodeLineOf(value);
       if (parsed == null) {
@@ -192,4 +193,13 @@ final class _RecordWalk {
   /// The name an entry carries: its item, or the feature's name for the
   /// feature itself.
   String _nameOf(String item) => item == _featureItem ? _feature.name : item;
+}
+
+/// A record's code-path field, null when its type has none, and the noun a
+/// finding names its lines by.
+final class _CodeField {
+  const new({required this.id, required this.noun});
+
+  final String? id;
+  final String noun;
 }

@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/models/fr_trace_row.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/models/body_line.dart';
@@ -336,7 +337,7 @@ void _rewriteFrRows(
     for (var i = 0; i < bodyLines.length; i++)
       BodyLine(text: bodyLines[i], line: i, fenced: fenced[i]),
   ]);
-  for (final (:cell, :line) in rows) {
+  for (final FrTraceRow(:cell, :line) in rows) {
     final name = newCell(cell);
     if (name == null) continue;
     lines[start + line] = _withFirstCell(lines[start + line], cell, name);

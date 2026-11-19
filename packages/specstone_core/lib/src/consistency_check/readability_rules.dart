@@ -165,19 +165,39 @@ Iterable<Finding> _noteFindings(
 }
 
 /// One sentence's size against the cap of its language.
-typedef _Sized = ({String language, bool countsChars, int limit, int size});
+final class _Sized {
+  const new({
+    required this.language,
+    required this.countsChars,
+    required this.limit,
+    required this.size,
+  });
+
+  final String language;
+  final bool countsChars;
+  final int limit;
+  final int size;
+}
 
 /// The sentences of one item that share a language.
 ///
 /// `longest` is the most words or characters one holds; `over` counts the
 /// sentences past `limit`.
-typedef _Run = ({
-  String language,
-  bool countsChars,
-  int limit,
-  int longest,
-  int over,
-});
+final class _Run {
+  const new({
+    required this.language,
+    required this.countsChars,
+    required this.limit,
+    required this.longest,
+    required this.over,
+  });
+
+  final String language;
+  final bool countsChars;
+  final int limit;
+  final int longest;
+  final int over;
+}
 
 /// Returns one run per language of [facts]' sentences, in the order each
 /// language first appears.
@@ -192,7 +212,7 @@ List<_Run> _lengthRunsOf(ReadabilityFacts facts, _LengthCaps caps) {
   }
   return [
     for (final sizes in byLanguage.values)
-      (
+      _Run(
         language: sizes.first.language,
         countsChars: sizes.first.countsChars,
         limit: sizes.first.limit,
@@ -242,7 +262,7 @@ _Sized _sizedOf(SentenceFact sentence, _LengthCaps caps) {
           divisor: caps.runDivisorOf(sentence.language),
         )
       : sentence.words;
-  return (
+  return _Sized(
     language: sentence.language,
     countsChars: sentence.countsChars,
     limit: limit,

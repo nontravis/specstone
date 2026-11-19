@@ -524,29 +524,33 @@ void main() {
       );
     });
 
-    test('a repeated '
-        'id prints once at its first place under ==> lines', () async {
-      final runner = await runnerIn(await projectWith(_frLayer));
+    test(
+      'a repeated id prints once at its first place under ==> lines',
+      () async {
+        final runner = await runnerIn(await projectWith(_frLayer));
 
-      expect(await runner.run(['guide', 'fr', 'user_story', 'fr']), 0);
-      expect(
-        out.toString(),
-        '==> fr <==\n'
-        'One requirement.\n\n$_docLimits\n'
-        '==> user_story <==\n'
-        'One story\n\n$_docLimits\n',
-      );
-      expect(err.toString(), isEmpty);
-    });
+        expect(await runner.run(['guide', 'fr', 'user_story', 'fr']), 0);
+        expect(
+          out.toString(),
+          '==> fr <==\n'
+          'One requirement.\n\n$_docLimits\n'
+          '==> user_story <==\n'
+          'One story\n\n$_docLimits\n',
+        );
+        expect(err.toString(), isEmpty);
+      },
+    );
 
-    test('one id '
-        'named twice prints its guide once, with no ==> line', () async {
-      final runner = await runnerIn(await projectWith(_frLayer));
+    test(
+      'one id named twice prints its guide once, with no ==> line',
+      () async {
+        final runner = await runnerIn(await projectWith(_frLayer));
 
-      expect(await runner.run(['guide', 'fr', 'fr']), 0);
-      expect(out.toString(), 'One requirement.\n\n$_docLimits\n');
-      expect(err.toString(), isEmpty);
-    });
+        expect(await runner.run(['guide', 'fr', 'fr']), 0);
+        expect(out.toString(), 'One requirement.\n\n$_docLimits\n');
+        expect(err.toString(), isEmpty);
+      },
+    );
 
     test("read several doc types' guides in "
         'one call, each once in the order named under its own line', () async {
@@ -754,6 +758,65 @@ void main() {
     Map<String, Object?> errorOf() =>
         (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
             as Map<String, Object?>;
+
+    test('two unknown ids in text mode exit 64 with the message and the '
+        'usage alone, no code', () async {
+      final runner = await runnerIn(await projectWith({}));
+
+      expect(await runner.run(['guide', 'featur', 'stroy']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        startsWith(
+          'Could not find doc types named "featur", "stroy".\n\n$_guideUsage',
+        ),
+      );
+      expect(err.toString(), isNot(contains('doc_type_unknown')));
+    });
+
+    test('a config fault, a personal pack.yaml fault, and a multi-file fault '
+        'under a type id print the text message and exit 78', () async {
+      final configRunner = await runnerIn(
+        await writeTree({_configPath: 'packs: [\n'}),
+      );
+      expect(await configRunner.run(['guide', 'feature']), 78);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        matches(RegExp(r'^\.specstone/config\.yaml:\d+: ')),
+      );
+      expect(err.toString(), isNot(startsWith('{')));
+
+      err.clear();
+      final packRunner = runnerWithHome(
+        await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n',
+        }),
+        await writeTree({'.specstone/packs/nont-a/pack.yaml': 'name: [\n'}),
+      );
+      expect(await packRunner.run(['guide', 'feature']), 78);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        matches(RegExp(r'^~/\.specstone/packs/nont-a/pack\.yaml:\d+: ')),
+      );
+
+      err.clear();
+      final cycleRunner = runnerWithHome(
+        await writeTree({_configPath: _cycleConfig}),
+        await _cycleHome(),
+      );
+      expect(await cycleRunner.run(['guide', 'feature']), 78);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        startsWith('~/.specstone/packs/nont-b/pack.yaml: '),
+      );
+      expect(
+        err.toString(),
+        endsWith('; also ~/.specstone/packs/nont-a/pack.yaml\n'),
+      );
+    });
 
     test('a faulty config file or personal pack.yaml under guide with no type '
         'exits 78 with its code', () async {
@@ -1570,6 +1633,37 @@ items:
     });
   });
 
+  group(
+    'specstone guide in the built CLI after a layer disables the matrix',
+    () {
+      late String binary;
+
+      setUpAll(() async => binary = await buildSpecstone());
+
+      test('guide implementation prints no matrix section', () async {
+        final project = await writeTree({
+          _configPath: shippedPinsConfig(),
+          '.specstone/templates/implementation.yaml':
+              'sections:\n  - {id: verification_matrix, disabled: true}\n',
+        });
+
+        final result = await Process.run(binary, [
+          'guide',
+          'implementation',
+        ], workingDirectory: project.path);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(result.stdout, isNot(contains('## Verification matrix')));
+        final shipped = await writeTree({_configPath: shippedPinsConfig()});
+        final plain = await Process.run(binary, [
+          'guide',
+          'implementation',
+        ], workingDirectory: shipped.path);
+        expect(plain.stdout, contains('## Verification matrix'));
+      });
+    },
+  );
+
   group('specstone guide --pattern in the built CLI', () {
     late String binary;
 
@@ -2133,6 +2227,32 @@ items:
       expect(covers['root'], 'project');
     });
 
+    test('a project listing prd-core and marketing lists the fourteen and '
+        'the eleven doc types', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      expect(await runner.run(['guide']), 0);
+      expect(
+        const LineSplitter().convert(out.toString()),
+        [...prdCoreIds, ...marketingIds]..sort(),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide campaign --json prints the plan section as optional', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      final schema = await schemaOf(runner, 'campaign');
+      final plan = (schema['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .singleWhere((s) => s['id'] == 'plan');
+      expect(plan['required'], isNot(true));
+    });
+
     test('guide campaign prints both guide statements and no code_root '
         'line', () async {
       final runner = await runnerFor(
@@ -2185,6 +2305,34 @@ items:
         contains('Could not find a doc type named "story".\n\n$_guideUsage'),
       );
       expect(out.toString(), isEmpty);
+    });
+
+    test('a project listing prd-core, marketing, and personal-branding lists '
+        'the twenty-nine doc types', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(personalBrandingPacks),
+      );
+
+      expect(await runner.run(['guide']), 0);
+      final ids = const LineSplitter().convert(out.toString());
+      expect(
+        ids,
+        [...prdCoreIds, ...marketingIds, ...personalBrandingIds]..sort(),
+      );
+      expect(ids, hasLength(29));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide story --json in a project listing prd-core and marketing '
+        'exits 64 with doc_type_unknown', () async {
+      final runner = await runnerFor(
+        packs: shippedPinsConfig(['prd-core', 'marketing']),
+      );
+
+      expect(await runner.run(['guide', 'story', '--json']), 64);
+      expect(out.toString(), isEmpty);
+      expect(errorOf()['code'], 'doc_type_unknown');
+      expect(errorOf()['message'], 'Could not find a doc type named "story".');
     });
 
     test('guide proof --json prints the three optional sections and no '
@@ -2508,6 +2656,27 @@ items:
       expect(err.toString(), isEmpty);
     });
 
+    test('the header line counts the written lines and tokens and ends with '
+        'the report path', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'fr', 'user_story', '--out']), 0);
+      final file = File(
+        '${folder.path}/.specstone/reports/guide.fr.user_story.txt',
+      );
+      final header = RegExp(
+        r'^==> guide: (\d+) lines, (\d+) tokens · (.+) <==\n$',
+      ).firstMatch(out.toString());
+      expect(header, isNotNull, reason: out.toString());
+      expect(
+        int.parse(header![1]!),
+        const LineSplitter().convert(file.readAsStringSync()).length,
+      );
+      expect(int.parse(header[2]!), greaterThan(0));
+      expect(header[3], file.resolveSymbolicLinksSync());
+    });
+
     test('guide --pattern --out writes guide-pattern.all.txt', () async {
       final folder = await project();
       final runner = await runnerIn(folder);
@@ -2586,6 +2755,47 @@ items:
       expect(await runner.run(['guide', '--out']), 0, reason: err.toString());
       expect(reportOf(folder, 'guide.all.txt'), 'feature\nfr\nuser_story\n');
       expect(out.toString(), startsWith('==> guide: '));
+    });
+
+    test('a bare guide with a type id and --out outside a project exits 73 '
+        'with output_not_writable and writes nothing', () async {
+      final folder = await writeTree({});
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'feature', '--out']), 73);
+      expect(out.toString(), isEmpty);
+      expect(folder.listSync(), isEmpty);
+
+      err.clear();
+      expect(await runner.run(['guide', 'feature', '--json', '--out']), 73);
+      expect(out.toString(), isEmpty);
+      expect(folder.listSync(), isEmpty);
+      final error =
+          (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'output_not_writable');
+    });
+
+    test('an empty --out path exits 64 with argument_invalid in the json '
+        'envelope and writes nothing', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      for (final outArgs in [
+        ['--out', ''],
+        ['--out='],
+      ]) {
+        err.clear();
+        expect(await runner.run(['guide', 'fr', '--json', ...outArgs]), 64);
+        final error =
+            (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+                as Map<String, Object?>;
+        expect(error['code'], 'argument_invalid', reason: '$outArgs');
+        expect(
+          Directory('${folder.path}/.specstone/reports').existsSync(),
+          isFalse,
+        );
+      }
     });
 
     test('a path inside the docs root exits 73 and writes nothing', () async {

@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -641,6 +642,35 @@ void main() {
       expect(rules.description, contains('`**BR-NN** — <rule>`'));
       for (final text in [edge.description!, rules.description!]) {
         expect(text, isNot(matches(RegExp('in order|numbered'))));
+      }
+    });
+
+    test('every guide line a shared-lint finding message names is printed in '
+        'the guide of the doc type it lints', () async {
+      final set = await resolvePrdCore();
+      const marker = 'guide line: ';
+      final named = <String>[];
+      for (final docType in set.docTypes) {
+        final guide = docType.renderGuide();
+        for (final section in docType.sections) {
+          for (final pattern
+              in section.bannedPatterns ?? const <PatternEntry>[]) {
+            final at = pattern.message.indexOf(marker);
+            if (at < 0) continue;
+            final line = pattern.message.substring(at + marker.length);
+            named.add('${docType.id}.${section.id} ${pattern.id}');
+            expect(guide, contains(line), reason: named.last);
+          }
+        }
+      }
+      expect(named, contains('fr.statement second_shall'));
+      expect(named, contains('fr.verification test_file_named'));
+      for (final docType in set.docTypes) {
+        expect(
+          docType.renderGuide(),
+          contains(citeNoteGuideLine),
+          reason: docType.id,
+        );
       }
     });
 

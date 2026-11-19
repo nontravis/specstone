@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show skippedLineOf, writeRefusalOf;
@@ -220,7 +221,7 @@ Iterable<({String? target, String entry})> _codeEntriesOf(
     if (!match.docType.fields.any((field) => field.id == _codeField)) continue;
     final text = _decode(readPlanInput(docs[docPath]!));
     if (text == null) continue;
-    for (final (:value, line: _, text: _) in DocLines.of(
+    for (final YamlEntry(:value) in DocLines.of(
       toLf(text),
     ).entriesOf(_codeField)) {
       if (value is String) yield (target: match.target, entry: value);

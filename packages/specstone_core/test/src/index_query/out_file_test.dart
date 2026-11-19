@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/out_file.dart';
@@ -98,6 +99,45 @@ void main() {
         'check.all.flutter.json',
       );
     });
+
+    test('a name of 255 bytes stays whole', () {
+      final name = outFileName(
+        command: 'get',
+        args: ['a' * 247],
+        asJson: false,
+      );
+
+      expect(name, 'get.${'a' * 247}.txt');
+      expect(utf8.encode(name), hasLength(255));
+    });
+
+    for (final (label, args) in [
+      ('one byte past 255', ['a' * 248]),
+      ('of 13 targets', List.filled(13, 'index_query/shared_index/x')),
+      ('of multi-byte code points', ['ก' * 100]),
+    ]) {
+      test('a name $label keeps its head, a hash, and its tail', () {
+        final argPart = args.map((arg) => arg.replaceAll('/', '-')).join('.');
+        final full = 'get.$argPart.jaspr.json';
+        final hash = sha256.convert(utf8.encode(full)).toString();
+
+        final name = outFileName(
+          command: 'get',
+          args: args,
+          codeTarget: 'jaspr',
+          asJson: true,
+        );
+
+        // A code point is at most 4 bytes, so the head fills all but 3.
+        expect(utf8.encode(name).length, inInclusiveRange(252, 255));
+        expect(name, endsWith('-${hash.substring(0, 8)}.jaspr.json'));
+        final head = name.substring(
+          0,
+          name.length - '-12345678.jaspr.json'.length,
+        );
+        expect(full, startsWith(head));
+      });
+    }
   });
 
   group('bareOutFile', () {

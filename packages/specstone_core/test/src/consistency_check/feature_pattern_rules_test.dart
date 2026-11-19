@@ -7,6 +7,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/models/skip_line.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -106,13 +107,13 @@ void main() {
     final first = lineOfFirst(project, loginFeature, 'crud/paged_list');
 
     expect(_skipsOf(project), {
-      first: (
+      first: SkipLine(
         line: first,
         pattern: 'crud',
         item: 'paged_list',
         span: 'crud/paged_list',
       ),
-      first + 1: (
+      first + 1: SkipLine(
         line: first + 1,
         pattern: 'auth',
         item: 'lockout',

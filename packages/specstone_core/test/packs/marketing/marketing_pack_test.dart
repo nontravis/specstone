@@ -177,6 +177,21 @@ void main() {
       }
     });
 
+    test('a project that lists prd-core and marketing resolves with no '
+        'extends_target_unknown', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(['prd-core', 'marketing']),
+      });
+      final home = await writeTree({});
+
+      final merged = TemplateResolver().resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('campaign')?.pack, 'marketing');
+    });
+
     test('a project that lists marketing without prd-core is '
         'prd_core_missing', () async {
       final project = await writeTree({

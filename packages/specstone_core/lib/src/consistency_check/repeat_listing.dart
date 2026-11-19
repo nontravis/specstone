@@ -1,17 +1,12 @@
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
+import 'package:specstone_core/src/consistency_check/models/repeat_group.dart';
+import 'package:specstone_core/src/consistency_check/models/repeat_item.dart';
 import 'package:specstone_core/src/index_query/item_words.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 /// The fewest normalized words a shared run holds.
 const minRepeatRunWords = 8;
-
-/// One item that holds a repeated run.
-typedef RepeatItem = ({String docPath, String name, int line, String? item});
-
-/// One maximal run of normalized words and the items of two or more typed
-/// docs that hold it.
-typedef RepeatGroup = ({String run, List<RepeatItem> items});
 
 /// Returns the repeat groups of the rule-bearing items the index stores.
 ///
@@ -43,11 +38,11 @@ List<RepeatGroup> listRepeats(ReadSession session, CheckScope scope) {
     final text = run.words.join(' ');
     groups.putIfAbsent(
       '$text\u0000${run.items.join(',')}',
-      () => (
+      () => RepeatGroup(
         run: text,
         items: _sortedItems([
           for (final i in run.items)
-            (
+            RepeatItem(
               docPath: items[i].docPath,
               name: names[items[i].docPath] ?? items[i].docPath,
               line: items[i].line,
@@ -65,7 +60,14 @@ List<String> _windowsOf(List<String> words) => [
     words.sublist(p, p + minRepeatRunWords).join(' '),
 ];
 
-typedef _Run = ({List<String> words, List<int> items});
+/// One maximal run: its words, and the indexes of the items that hold it
+/// whole.
+final class _Run {
+  const new({required this.words, required this.items});
+
+  final List<String> words;
+  final List<int> items;
+}
 
 /// Finds the maximal runs of the words of many items.
 ///
@@ -126,7 +128,7 @@ final class _RunFinder {
       );
       if (!extendsRight && _spansDocs(places) && !_extendsLeft(places)) {
         final first = places.first;
-        yield (
+        yield _Run(
           words: _words[_itemOf(first)].sublist(
             _offsetOf(first),
             _offsetOf(first) + length,
