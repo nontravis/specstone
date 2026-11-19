@@ -84,29 +84,24 @@ final class SharedEntries {
 /// Reads `shared_lines` and `shared_fields` from the top-level [map] of [file].
 ///
 /// Checks only what one file shows. The keys of a fault are
-/// `shared_lines[<i>].<key>` and `shared_fields[<i>].<key>`. A file that
-/// allows no fields ([allowsFields] false) refuses `shared_fields` as
-/// `unknown_key`. The caller checks the other top-level keys.
+/// `shared_lines[<i>].<key>` and `shared_fields[<i>].<key>`. The caller
+/// checks the top-level keys.
+///
+/// - [format]: the file's format name an unknown line key's fault names.
 SharedEntries parseSharedEntries(
   YamlMap map, {
   required String file,
-  required bool allowsFields,
-}) {
-  if (!allowsFields && map.containsKey(_fieldsKey)) {
-    throw TemplateFault(
-      FaultCode.unknownKey,
-      'the shared format defines no key $_fieldsKey',
-      file: file,
-      key: _fieldsKey,
-    );
-  }
-  return SharedEntries(
-    lines: _parseLines(map, file: file),
-    fields: _parseFields(map, file: file),
-  );
-}
+  required String format,
+}) => SharedEntries(
+  lines: _parseLines(map, file: file, format: format),
+  fields: _parseFields(map, file: file),
+);
 
-List<SharedLine> _parseLines(YamlMap map, {required String file}) {
+List<SharedLine> _parseLines(
+  YamlMap map, {
+  required String file,
+  required String format,
+}) {
   final entries = optionalValue<YamlList>(map, _linesKey, file: file);
   if (entries == null) return <SharedLine>[];
   final seen = <String>{};
@@ -116,6 +111,7 @@ List<SharedLine> _parseLines(YamlMap map, {required String file}) {
         _entryMap(entry, '$_linesKey[$i]', file: file),
         index: i,
         file: file,
+        format: format,
         seen: seen,
       ),
   ];
@@ -125,11 +121,12 @@ SharedLine _parseLine(
   YamlMap entry, {
   required int index,
   required String file,
+  required String format,
   required Set<String> seen,
 }) {
   final prefix = '$_linesKey[$index].';
   final id = requireValue<String>(entry, 'id', file: file, prefix: prefix);
-  checkKeys(entry, _lineKeys, file: file, format: 'pack', prefix: prefix);
+  checkKeys(entry, _lineKeys, file: file, format: format, prefix: prefix);
   _claimId(seen, id, file: file, key: '${prefix}id');
   final text = optionalValue<String>(entry, 'text', file: file, prefix: prefix);
   return SharedLine(
