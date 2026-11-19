@@ -502,6 +502,7 @@ void main() {
         timingRuns,
         () => timed(call, exitCodes: {1}),
         label: 'check calls over bare item IDs',
+        metric: timingMetric,
       ),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
