@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -74,7 +75,6 @@ const _guideTokenRows = <String, int>{
   'software-tech/topic': 1040,
 };
 
-const _manifestFile = 'pack.yaml';
 const _yamlExtension = '.yaml';
 
 /// Maps each shipped pack to the ids of the doc types its own files carry.
@@ -82,7 +82,7 @@ Map<String, List<String>> _shippedTypeIds() {
   final ids = <String, List<String>>{};
   for (final key in shippedPackFiles.keys) {
     if (key.split('/') case [final pack, final file]
-        when file != _manifestFile && file.endsWith(_yamlExtension)) {
+        when file != packManifestName && file.endsWith(_yamlExtension)) {
       ids
           .putIfAbsent(pack, () => [])
           .add(file.substring(0, file.length - _yamlExtension.length));
@@ -125,7 +125,9 @@ Map<String, int> _guideTokenCounts(TemplateResolver resolver) {
 }
 
 void main() {
-  final counts = _guideTokenCounts(TemplateResolver());
+  late final Map<String, int> counts;
+
+  setUpAll(() => counts = _guideTokenCounts(TemplateResolver()));
 
   test('no shipped guide is above its recorded token count', () {
     final grown = [
