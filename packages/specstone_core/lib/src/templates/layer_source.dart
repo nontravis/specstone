@@ -212,8 +212,9 @@ List<SharedLine> loadProjectSharedLines(Directory root) {
     decodeYamlBytes(readPlanInput(file), file: display),
     file: display,
   );
-  checkKeys(map, _projectSharedKeys, file: display, format: 'shared');
-  return parseSharedEntries(map, file: display, allowsFields: false).lines;
+  const format = 'shared';
+  checkKeys(map, _projectSharedKeys, file: display, format: format);
+  return parseSharedEntries(map, file: display, format: format).lines;
 }
 
 /// Loads the project feature patterns under [root], in code point order.
