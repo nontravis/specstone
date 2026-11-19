@@ -215,6 +215,32 @@ migrations:
       expect(manifest.migrations.map((m) => '${m.from}'), ['1.0.0', '1.1.0']);
     });
 
+    test('a drop of a line the pack.yaml declares is unknown_value', () {
+      expect(
+        () => _parse('''
+name: p
+version: 1.0.0
+shared_lines:
+  - id: old_tone
+    text: Keep it short.
+migrations:
+  - from: 0.9.0
+    steps:
+      - drop_shared_lines: {ids: [gone, old_tone]}
+'''),
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'migrations[0].steps[0].drop_shared_lines.ids',
+          ).having(
+            (f) => f.message,
+            'message',
+            'drop_shared_lines names a line the pack defines: old_tone',
+          ),
+        ),
+      );
+    });
+
     test('migrations that is not a list is unknown_value', () {
       expect(
         () => _parse('name: p\nversion: 1.0.0\nmigrations: {}\n'),

@@ -281,6 +281,7 @@ RunPlan _upgradeRunOf(
         StampCodeFingerprints() => lf,
         RestampCodeFingerprints() => lf,
         StripSharedCopies() => lf,
+        DropSharedLines() => lf,
         BulletLines() => switch (docType.sections
             .where((section) => section.id == step.section)
             .firstOrNull) {
@@ -315,6 +316,7 @@ RunPlan _upgradeRunOf(
           StampCodeFingerprints() => false,
           RestampCodeFingerprints() => false,
           StripSharedCopies() => false,
+          DropSharedLines() => false,
           BulletLines() => false,
           DropDefaultLines() => false,
         };
@@ -333,6 +335,7 @@ RunPlan _upgradeRunOf(
             StampCodeFingerprints() => '',
             RestampCodeFingerprints() => '',
             StripSharedCopies() => '',
+            DropSharedLines() => '',
             BulletLines() => '',
             DropDefaultLines() => '',
           };
@@ -916,6 +919,7 @@ List<_OverrideFile> _renamedOverrides(
         StampCodeFingerprints() => file.lf,
         RestampCodeFingerprints() => file.lf,
         StripSharedCopies() => file.lf,
+        DropSharedLines() => file.lf,
         BulletLines() => file.lf,
         DropDefaultLines() => file.lf,
       };
@@ -1375,6 +1379,7 @@ String _describe(MigrationStep step) => switch (step) {
   StampCodeFingerprints() => step.kind,
   RestampCodeFingerprints() => step.kind,
   StripSharedCopies() => step.kind,
+  DropSharedLines() => step.kind,
   BulletLines() => '${step.kind} ${step.docType} ${step.section}',
   DropDefaultLines() => step.kind,
 };

@@ -43,14 +43,44 @@ final class PackManifest {
       file: file,
       key: 'version',
     );
+    final migrations = parseMigrations(map.nodes['migrations'], file: file);
+    final shared = parseSharedEntries(map, file: file, format: 'pack');
+    _checkDropsOfOwnLines(migrations, {
+      for (final line in shared.lines) line.id,
+    }, file: file);
     return PackManifest._(
       name: name,
       version: version,
       extendsPack: optionalValue<String>(map, 'extends', file: file),
-      migrations: parseMigrations(map.nodes['migrations'], file: file),
-      shared: parseSharedEntries(map, file: file, format: 'pack'),
+      migrations: migrations,
+      shared: shared,
       file: file,
     );
+  }
+
+  /// Throws `unknown_value` for the first `drop_shared_lines` id that
+  /// [declared] holds.
+  ///
+  /// The key is `migrations[<i>].steps[<j>].drop_shared_lines.ids`.
+  static void _checkDropsOfOwnLines(
+    List<PackMigration> migrations,
+    Set<String> declared, {
+    required String file,
+  }) {
+    for (final (i, migration) in migrations.indexed) {
+      for (final (j, step) in migration.steps.indexed) {
+        if (step is! DropSharedLines) continue;
+        for (final id in step.ids) {
+          if (!declared.contains(id)) continue;
+          throw TemplateFault(
+            FaultCode.unknownValue,
+            'drop_shared_lines names a line the pack defines: $id',
+            file: file,
+            key: 'migrations[$i].steps[$j].drop_shared_lines.ids',
+          );
+        }
+      }
+    }
   }
 
   /// Throws `unknown_value` for the first `move_to_record` step whose `to`

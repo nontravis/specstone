@@ -201,6 +201,23 @@ final class StripSharedCopies extends MigrationStep {
   String get kind => 'strip_shared_copies';
 }
 
+/// A `drop_shared_lines` step: the shared line [ids] this pack version no
+/// longer defines.
+///
+/// It reaches no doc: the plan reads it only to refuse a dangling override.
+final class DropSharedLines extends MigrationStep {
+  const new({required this.ids});
+
+  /// The ids of the shared lines the pack drops, as written.
+  final List<String> ids;
+
+  @override
+  bool touches(String docTypeId) => false;
+
+  @override
+  String get kind => 'drop_shared_lines';
+}
+
 /// Parses a `migrations:` [node] of a `pack.yaml` read from [file].
 ///
 /// A null node gives no entries; entries keep file order. A bad `from:` is
@@ -331,6 +348,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'strip_shared_copies' => _parseStripSharedCopies(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
+    'drop_shared_lines' => _parseDropSharedLines(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -576,6 +599,36 @@ DropDefaultLines _parseDropDefaultLines(
       prefix: prefix,
     ),
   );
+}
+
+DropSharedLines _parseDropSharedLines(
+  YamlMap map,
+  int i,
+  int j, {
+  required String file,
+}) {
+  final prefix = 'migrations[$i].steps[$j].drop_shared_lines.';
+  checkKeys(
+    map,
+    const {'ids'},
+    file: file,
+    format: 'drop_shared_lines step',
+    prefix: prefix,
+  );
+  requireValue<Object>(map, 'ids', file: file, prefix: prefix);
+  final value = map['ids'];
+  final ids = value is YamlList && value.every((id) => id is String)
+      ? [for (final id in value) id as String]
+      : const <String>[];
+  if (ids.isEmpty) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'drop_shared_lines holds no id',
+      file: file,
+      key: '${prefix}ids',
+    );
+  }
+  return DropSharedLines(ids: ids);
 }
 
 /// A `move_file` `to` pattern must hold the `from` placeholders in the same
