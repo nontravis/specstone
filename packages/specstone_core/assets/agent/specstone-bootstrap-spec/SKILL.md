@@ -69,10 +69,10 @@ in for item 4.
    one command naming each path once, each still quoted, with each path `specstone-bootstrap-prd` left waiting on a
    file this round merged, and get the Owner's word on it per `specstone-expert-sdd`. On exit 64, dispatch again each
    batch whose file a listed referrer names, with those referrers.
-5. Run `specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again. A finding this skill takes starts
-   another round at step 2 unless it is tagged `(waits for the Owner)`, the last reports name it as one that clears with
-   no write, it is an answered `code_uncovered` file, which starts a round only through a write-a-spec pick, or it waits
-   on `specstone-bootstrap-prd`. With none left, go to item 6.
+5. Run `specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again and search its file. A finding this
+   skill takes starts another round at step 2 unless it is tagged `(waits for the Owner)`, the last reports name it as
+   one that clears with no write, it is an answered `code_uncovered` file, which starts a round only through a
+   write-a-spec pick, or it waits on `specstone-bootstrap-prd`. With none left, go to item 6.
 6. Once per run, after the last round and `specstone-bootstrap-prd`'s repeats batch, run
    `specstone check --repeats --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"`, then dispatch the repeats batch
    (`../specstone-expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each group with an item

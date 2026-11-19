@@ -1010,7 +1010,7 @@ void _cliCallsExistTests() {
 
   test('every shipped check call saves to a check role file under reports', () {
     final files = contentFilesOf(agentAssetsRoot());
-    expect(files, isNotEmpty);
+    expect(checkCalls(files), isNotEmpty);
     expect(checkCallsWithoutSavedFile(files), isEmpty);
   });
 

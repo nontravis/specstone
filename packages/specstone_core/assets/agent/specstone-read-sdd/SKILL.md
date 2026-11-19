@@ -32,8 +32,7 @@ the docs folder, and never work from text a plan or brief quotes.
 
 ## Ground in one call
 
-Make this your first CLI call, before any other command or file read, with `--out` bare and last and no `--budget`,
-in every mode:
+Make this your first CLI call, before any other command or file read, with `--out` bare and last and no `--budget`:
 
 ```
 specstone context <target> --for <mode> --out
@@ -51,7 +50,7 @@ exit status:
    `## ` header; an `implement` refs head keeps its sections. The files are the task's docs: open no doc file. Where a
    plan words a requirement differently, the files win.
 2. **78 with `project_not_found`:** tell the Owner the project is still on the old format: `specstone migrate` moves it,
-   or they can keep using the old skills. Then stop: run no second command, and neither read nor write a doc.
+   or they keep the old skills. Then stop: run nothing more; read and write no doc.
 3. **Any other non-zero exit:** report the CLI's error to the Owner and stop.
 
 That call is also the project gate: never look for `.specstone/` first. The CLI searches each folder upward; to read
@@ -64,8 +63,9 @@ When the index does not show a fact the task needs, search the saved files with 
 `specstone get`. Never `get` a doc the files hold; in design work, ground a doc they lack with its own
 `specstone context <doc> --for design --out`, never `get`. A `get` only for a write's base hash before `set` is fine.
 Save a long `guide` or `get` output you read in parts with bare `--out`, a `check` one with `--out`
-`<folder>/reports/check.<role>.<XXXXXX>.txt`, `<role>` your caller's, then search its file. Change one passage with
-`set --replace`. Write no file by shell redirect, `sed -i`, `perl -pi`, or `tee`; hand edit no doc file.
+`<folder>/reports/check.<role>.<XXXXXX>.txt`, `<role>` your caller's, `<folder>` the path `specstone folder` prints,
+then search its file. Change one passage with `set --replace`. Write no file by shell redirect, `sed -i`, `perl -pi`, or
+`tee`; hand edit no doc file.
 
 ## Count the calls
 

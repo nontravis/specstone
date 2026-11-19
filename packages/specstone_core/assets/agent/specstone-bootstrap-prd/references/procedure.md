@@ -11,12 +11,13 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 ## 2. One finding at a time
 
 Fix the first unhandled finding under `prds/` or `measurements/`, then rerun
-`specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"`. Stop when each finding left goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an
-unanswered size finding.
+`specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` and search its file. Stop when each finding left
+goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an unanswered
+size finding.
 
 Write each fix as `../../specstone-expert-sdd/references/writes.md` says.
 
-Move every old statement to a home; never drop one on judgement. Where the old text lacks a value the guide needs,
+Move every old statement to a home. Where the old text lacks a value the guide needs,
 write `TBR — <why>` in its field or sub-field, never a value you propose. Ask the Owner only when no text bears on a
 whole section.
 

@@ -48,12 +48,12 @@ covering doc the doc its finding names: `specstone context <doc> --for implement
 3. Fix each record code-path or `covers:` finding of a covering doc: pipe the corrected list to
    `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (hash:
    `bases.fields.<field>` of `get --json`; or `--field covers` on the spec doc), then rerun
-   `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"` until those docs hold none:
+   `specstone check --out "<folder>/reports/check.sync.<XXXXXX>.txt"`, searching its file, until those docs hold none:
    - moved file: point each record entry naming it at its rename pair's new side, relative to that target's
      code root; find the pair with
      `git log -1 -M --diff-filter=R --name-status --format= -- <old path>`, or `git diff -M --name-status HEAD` while
      uncommitted; write no fingerprint;
-   - deleted file: drop the entry, or point it at the code doing that work now;
+   - deleted file: drop the entry, or point it at the code doing that work;
    - `root: project` entry: fingerprint alone, never moved; its `covers_path_missing` is only reported as
      `<doc>: covers path missing: <path>`, ending its loop.
 4. A `tests_unresolved` line: repoint it with

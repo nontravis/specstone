@@ -11,7 +11,7 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 ## 2. One finding at a time
 
 Fix this skill's first unhandled finding, then run
-`specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again.
+`specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again and search its file.
 Stop when each left is under `prds/` or `measurements/`, clears with no write, is a reported
 `code_uncovered`, or is tagged `(waits for the Owner)`, except an unanswered size finding.
 
@@ -49,7 +49,7 @@ the Owner only when no text bears on a whole section.
 
 An `untyped_doc` under `specs/`: merge it into the doc that takes it, else a new one:
 
-- one feature's old-named spec files: their type's doc (`--parent <feature>`);
+- one feature's old-named spec files: their type's doc;
 - an event or message schema: an internal one to the architecture doc's `## Interaction`, an
   outside system's to the integration doc's `## Events`;
 - a migration or rollout note: the architecture doc's `## Rollout`;

@@ -221,28 +221,34 @@ List<String> unknownCliNames(
   return problems.toList()..sort();
 }
 
-/// Returns one problem per `specstone check` call in a body of [files] that
-/// lacks `--out <folder>/reports/check.<role>.<XXXXXX>.txt`, as `path: call`,
-/// sorted.
+/// Returns every `specstone check` call in a body of [files] as `path: call`,
+/// sorted, a call wrapped over lines on one line.
 ///
 /// Reads the code spans and code block lines [unknownCliNames] reads, bodies
-/// only. `<role>` is one of [checkRoles] or the placeholder of a shared
-/// reference; the path may be double-quoted.
-List<String> checkCallsWithoutSavedFile(List<ContentFile> files) {
-  final problems = <String>{};
+/// only.
+List<String> checkCalls(List<ContentFile> files) {
+  final calls = <String>{};
   for (final file in _markdownFiles(files)) {
     for (final scanned in _codeTexts(file.body)) {
       for (final call in _specstoneCall.allMatches(scanned)) {
         if (call.group(1) != 'check') continue;
-        final text = _callTextOf(scanned, call);
-        if (!_savedCheckFile.hasMatch(text)) {
-          problems.add('${file.path}: ${text.replaceAll(RegExp(r'\s+'), ' ')}');
-        }
+        final text = _callTextOf(scanned, call).replaceAll(RegExp(r'\s+'), ' ');
+        calls.add('${file.path}: $text');
       }
     }
   }
-  return problems.toList()..sort();
+  return calls.toList()..sort();
 }
+
+/// Returns each call of [checkCalls] that lacks
+/// `--out <folder>/reports/check.<role>.<XXXXXX>.txt`.
+///
+/// `<role>` is one of [checkRoles] or the placeholder of a shared reference;
+/// the path may be double-quoted.
+List<String> checkCallsWithoutSavedFile(List<ContentFile> files) => [
+  for (final call in checkCalls(files))
+    if (!_savedCheckFile.hasMatch(call)) call,
+];
 
 /// Returns one problem per host-tied text in the body of a file of [files],
 /// sorted.
