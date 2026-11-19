@@ -40,9 +40,16 @@ Future<Directory> _draftsProject({bool frHasFinding = false}) =>
       },
     );
 
-/// Writes `audit.md` in [root], naming each of [addresses] at its current hash.
-String _writeAudit(Directory root, List<String> addresses) {
-  final file = File('${root.path}/audit.md')
+/// Writes the audit report [name] under [folder], default [root], naming each
+/// of [addresses] at its current hash.
+String _writeAudit(
+  Directory root,
+  List<String> addresses, {
+  String name = 'audit.md',
+  Directory? folder,
+}) {
+  final file = File('${(folder ?? root).path}/$name')
+    ..createSync(recursive: true)
     ..writeAsStringSync(
       [
         for (final address in addresses)
@@ -1645,10 +1652,11 @@ void main() {
       Directory root,
       List<String> args, {
       String? mode = 'auto',
+      Directory? from,
     }) => Process.run(
       binary,
       ['approve', ...args],
-      workingDirectory: root.path,
+      workingDirectory: (from ?? root).path,
       environment: {'SPECSTONE_APPROVE_MODE': ?mode},
     );
 
@@ -1719,27 +1727,29 @@ void main() {
         '--audit',
         audit,
         '--json',
-      ], mode: 'yes');
+      ]);
 
       expect(result.exitCode, 0, reason: '${result.stderr}');
       final json = jsonDecode(result.stdout as String) as Map<String, Object?>;
       expect(json.keys, ['approveMode', 'approved', 'asked', 'warnings']);
-      expect(json['approveMode'], 'ask');
-      expect(json['approved'], isEmpty);
-      expect(
-        (json['asked']! as List).cast<Map<String, Object?>>().map(
-          (a) => a['name'],
-        ),
-        [_story, _fr],
-      );
-      expect(json['warnings'], [
-        'SPECSTONE_APPROVE_MODE=yes is neither ask nor auto; ask is used',
+      expect(json['approveMode'], 'auto');
+      expect(json['approved'], [
+        {'name': _story, 'docPath': check.loginStory},
       ]);
+      expect(json['asked'], [
+        {
+          'name': _fr,
+          'docPath': check.loginFr,
+          'reason': 'check finding required_section_missing',
+        },
+      ]);
+      expect(json['warnings'], isEmpty);
     });
 
     test('reads an audit path relative to the working directory', () async {
       final root = await _draftsProject();
-      _writeAudit(root, [_story, _fr]);
+      final sub = Directory('${root.path}/reports');
+      _writeAudit(root, [_story, _fr], folder: sub);
 
       final result = await run(root, [
         _story,
@@ -1747,7 +1757,17 @@ void main() {
         '--auto',
         '--audit',
         'audit.md',
-      ]);
+      ], from: sub);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, 'mode: auto\napproved $_story\napproved $_fr\n');
+    });
+
+    test('reads an audit path holding a comma as one path', () async {
+      final root = await _draftsProject();
+      final audit = _writeAudit(root, [_story, _fr], name: 'audit,round1.md');
+
+      final result = await run(root, [_story, _fr, '--auto', '--audit', audit]);
 
       expect(result.exitCode, 0, reason: '${result.stderr}');
       expect(result.stdout, 'mode: auto\napproved $_story\napproved $_fr\n');

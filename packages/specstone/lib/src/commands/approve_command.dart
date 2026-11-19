@@ -44,11 +44,13 @@ class ApproveCommand extends WriteCommand {
       ..addMultiOption(
         'audit',
         valueHelp: 'path',
+        splitCommas: false,
         help: 'With --auto, an audit report of the run, oldest first.',
       )
       ..addMultiOption(
         'author',
         valueHelp: 'path',
+        splitCommas: false,
         help: 'With --auto, an author report of the run.',
       )
       ..addFlag(
@@ -71,7 +73,7 @@ class ApproveCommand extends WriteCommand {
   String get invocation =>
       'specstone approve [<name> …] [--target <name>] [--dry-run] '
       '[--context <n> | --json] | <name>@<hash> … --yes [--target <name>] | '
-      '<name> … --auto (--audit <path> … | --no-audit) [--author <path>] … '
+      '<name> … --auto [--audit <path> … | --no-audit] [--author <path>] … '
       '[--json] [--target <name>]';
 
   @override
@@ -154,9 +156,9 @@ class ApproveCommand extends WriteCommand {
     }, asJson: false);
   }
 
-  /// Throws a usage error for a call the `--auto` rows of the Calls table
-  /// refuse: report flags without [auto], and [auto] with no name, beside
-  /// another form ([mixesForm]), or with both `--audit` and `--no-audit`.
+  /// Throws a usage error for a call `--auto` refuses: report flags without
+  /// [auto], and [auto] with no name, beside another form ([mixesForm]), or
+  /// with both `--audit` and `--no-audit`.
   void _requireAutoCall({required bool auto, required bool mixesForm}) {
     final args = argResults!;
     final hasAudit = args.multiOption('audit').isNotEmpty;
