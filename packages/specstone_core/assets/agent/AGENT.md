@@ -6,7 +6,7 @@ PRD and spec are Specstone docs.
 - code ⊆ spec ⊆ PRD over observable behavior: specify each behavior users, callers, or features see, only as the
   PRD asks; when code adds or changes one, ask the Owner. Code and tests name no doc, path, or item ID.
 - Read docs with `specstone context <target> --for <mode> --out`; search saved files before any `specstone get`; in design work ground a doc they lack with `specstone context <doc> --for design --out`, never `get`; never open doc files.
-- With 2+ code targets, add `--target <code target>`.
+- With 2+ code targets, add `--target <code target>` (not with `--code`).
 - Change docs only with `specstone set`, `new`, `move`, `rename`; drafts await Owner's `specstone approve` (main session's when clean under `auto`).
 - Before writing a doc, have `specstone guide <type>` or this run's saved guide; write items in its shape,
   once, short, complete.

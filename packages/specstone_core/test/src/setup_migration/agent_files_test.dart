@@ -17,7 +17,8 @@ const _agentMd =
     'search saved files before any `specstone get`; in design work ground a '
     'doc they lack with `specstone context <doc> --for design --out`, never '
     '`get`; never open doc files.\n'
-    '- With 2+ code targets, add `--target <code target>`.\n'
+    '- With 2+ code targets, add `--target <code target>` (not with '
+    '`--code`).\n'
     '- Change docs only with `specstone set`, `new`, `move`, `rename`; '
     "drafts await Owner's `specstone approve` (main session's when clean "
     'under `auto`).\n'
@@ -35,8 +36,8 @@ const _agentMd =
     'finding ends `(waits for the Owner)` (`--json`: `waitsFor` `owner`).\n'
     '- Off PATH, run `~/.specstone/bin/specstone`.\n';
 
-const _agentMdWordBound = 210;
-const _targetClauseWordBound = 9;
+const _agentMdWordBound = 215;
+const _targetClauseWordBound = 12;
 const _targetFlag = '--target <code target>';
 
 final _asciiSpace = RegExp(r'[ \t\n\r\f\v]+');
