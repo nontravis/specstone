@@ -9,7 +9,7 @@ import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
-    show IndexedDoc, docNameOf, featureType, frType;
+    show IndexedDoc, docNameOf, frType;
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
 import 'package:specstone_core/src/index_query/parents.dart'
@@ -22,6 +22,7 @@ import 'package:specstone_core/src/setup_migration/bullet_lines_step.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
+import 'package:specstone_core/src/setup_migration/feature_relative.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
     show caseBlindPath;
@@ -809,14 +810,9 @@ Map<String, Set<String>> _frNamesByFeature(
   final names = <String, Set<String>>{};
   for (final doc in indexed.values) {
     if (doc.docTypeId != frType) continue;
-    var at = doc;
-    while (at.docTypeId != featureType) {
-      final parent = indexed[parents[at.docPath]];
-      if (parent == null) break;
-      at = parent;
-    }
-    if (at.docTypeId != featureType) continue;
-    (names[at.name] ??= {}).add(doc.name.substring(at.name.length + 1));
+    final landing = featureRelativeOf(doc, indexed, parents);
+    if (landing == null) continue;
+    (names[landing.feature.name] ??= {}).add(landing.relative);
   }
   return names;
 }

@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/line_facts.dart'
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/setup_migration/feature_relative.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart'
     show PlannedCreate, draftNote;
@@ -172,7 +173,7 @@ final class RecordMoves {
               (byFeature[landing.feature.docPath] ??= (
                 feature: landing.feature,
                 movers: [],
-              )).movers.add(_Mover(taken, landing.item, values));
+              )).movers.add(_Mover(taken, landing.relative, values));
           }
       }
     }
@@ -511,19 +512,13 @@ final class _Tree {
 
   /// Returns the feature a story or an FR of [taken] sits under and its name
   /// relative to that feature; null for any other doc and for an orphan.
-  ({IndexedDoc feature, String item})? landingOf(_Taken taken) {
+  FeatureRelative? landingOf(_Taken taken) {
     final doc = _byPath[taken.plannedPath];
     if (doc == null ||
         (doc.docTypeId != storyType && doc.docTypeId != frType)) {
       return null;
     }
-    var at = doc;
-    while (at.docTypeId != featureType) {
-      final parent = _byPath[_parents[at.docPath]];
-      if (parent == null) return null;
-      at = parent;
-    }
-    return (feature: at, item: doc.name.substring(at.name.length + 1));
+    return featureRelativeOf(doc, _byPath, _parents);
   }
 
   /// Returns the record of [feature] the run already holds, or null.
