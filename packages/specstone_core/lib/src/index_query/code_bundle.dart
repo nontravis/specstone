@@ -236,7 +236,7 @@ List<IndexedDoc> _longestCover(
   for (final doc in docs) {
     if (doc.docTypeId == null) continue;
     for (final covered in _coveredPaths(index, doc, fromProject: fromProject)) {
-      if (covered.isEmpty || !entryReaches(covered, path)) continue;
+      if (!entryReaches(covered, path)) continue;
       if (covered.length > longest) {
         longest = covered.length;
         matches

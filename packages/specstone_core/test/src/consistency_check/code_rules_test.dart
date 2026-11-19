@@ -1105,6 +1105,30 @@ void main() {
 
       expect(_of(report, FindingKind.codeUncovered), ['$techStack: $longer']);
     });
+
+    test('an entry naming the project root reaches nothing', () async {
+      const other = 'skills/other/SKILL.md';
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': skillPinsConfig(),
+            ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
+            ...skillDocFile(['./']),
+            other: skillText,
+          },
+        ),
+      );
+
+      expect(_of(report, FindingKind.codeUncovered), ['$techStack: $other']);
+    });
+  });
+
+  test('a code-root entry naming the code root reaches nothing', () async {
+    final report = await checkOf(await writeCheckProject(extra: narrow('./')));
+
+    expect(_of(report, FindingKind.codeUncovered), [
+      '$techStack: app/lib/login.dart',
+    ]);
   });
 
   test(

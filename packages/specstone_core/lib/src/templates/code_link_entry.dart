@@ -54,10 +54,10 @@ List<MergedField> coversFieldsOf(MergedDocType? type) => [
 bool readsFromProjectRoot(MergedField field) =>
     field.root == PointerRoot.project;
 
-/// Whether [entry] equals [path], names a folder that holds it, or names the
-/// root itself (`''`).
+/// Whether [entry] equals [path] or names a folder that holds it.
 ///
 /// Both are `/`-separated paths in one normal form, from the same root, and
 /// match by whole segment: `skills/rev` does not reach `skills/review/a.md`.
+/// An empty [entry], the root itself, reaches nothing.
 bool entryReaches(String entry, String path) =>
-    entry.isEmpty || path == entry || path.startsWith('$entry/');
+    entry.isNotEmpty && (path == entry || path.startsWith('$entry/'));

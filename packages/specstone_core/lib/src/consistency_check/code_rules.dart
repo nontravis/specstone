@@ -349,8 +349,7 @@ bool _isCoveredFromProject(
   return projectCovers.any((entry) => entryReaches(entry, fromProject));
 }
 
-/// Whether an entry equals [path], names a folder that holds it, or names
-/// the code root itself.
+/// Whether an entry equals [path] or names a folder that holds it.
 bool _isCovered(List<String> covers, String path) =>
     covers.any((entry) => entryReaches(entry, path));
 
