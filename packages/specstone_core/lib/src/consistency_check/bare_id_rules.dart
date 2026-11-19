@@ -7,9 +7,9 @@ import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 /// Returns an `item_mention_missing` finding for each bare item ID of the
 /// typed [doc] whose owner doc lacks that item.
 ///
-/// A run after a code-span cite is `cite_unlinked`'s, and a run after a link
-/// to no doc has no owner. The facts are the stored ones, so no doc text is
-/// read.
+/// A run after a code-span cite is `cite_unlinked`'s, and a run after a `.md`
+/// link to no doc has no owner. The facts are the stored ones, so no doc text
+/// is read.
 Iterable<Finding> checkBareItemIds(CheckContext context, IndexedDoc doc) sync* {
   for (final id in context.contentOf(doc).lineFacts.bareItemIds) {
     if (id.citation is CiteCitation) continue;

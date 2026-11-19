@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/models/item_id_at.dart';
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show itemIdRunAt, itemIdsInProse;
 import 'package:specstone_core/src/document_writing/body_scan.dart';
@@ -6,6 +7,7 @@ import 'package:specstone_core/src/index_query/item_words.dart'
     show scenarioRefPrefix;
 import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/cite_form.dart';
+import 'package:specstone_core/src/index_query/models/link_scan.dart';
 import 'package:specstone_core/src/index_query/models/link_source.dart';
 
 const _lineFeed = 0x0A;
@@ -28,7 +30,7 @@ List<BareItemId> bareItemIdsOf(
 }) {
   final body = BodyScan(lfText);
   final ids = itemIdsInProse(
-    _outsideLinks(body.scan.prose, body.scan.sources),
+    _outsideLinks(body.scan),
     prefixes: includeScenarioRefs
         ? idPrefixes
         : idPrefixes.difference({scenarioRefPrefix}),
@@ -49,20 +51,20 @@ List<BareItemId> bareItemIdsOf(
   ];
 }
 
-/// Returns the citation of each ID that follows a link in its run, by the
-/// body offset of the ID.
+/// Returns the citation of each ID that follows a link in its run, read on the
+/// line the link ends, by the body offset of the ID.
 Map<int, BareIdCitation> _linkCitationsOf(
   BodyScan body,
   Set<String> idPrefixes,
 ) {
   final lines = body.body.split('\n');
   final cited = <int, BareIdCitation>{};
-  for (final LinkSource(:offset, :end, :shown) in body.scan.sources) {
+  for (final LinkSource(:end, :shown) in body.scan.sources) {
     if (shown == null) continue;
-    final lineIndex = body.fileLineOf(offset) - body.firstLine;
-    final lineStart = body.starts[lineIndex];
+    final endIndex = body.fileLineOf(end) - body.firstLine;
+    final lineStart = body.starts[endIndex];
     final run = itemIdRunAt(
-      lines[lineIndex],
+      lines[endIndex],
       end - lineStart,
       prefixes: idPrefixes,
     );
@@ -95,13 +97,21 @@ Map<int, BareIdCitation> _citeCitationsOf(
   return cited;
 }
 
-/// Returns [prose] with each of [sources] blanked, line ends kept.
-String _outsideLinks(String prose, List<LinkSource> sources) {
-  final units = prose.codeUnits.toList();
-  for (final source in sources) {
-    for (var at = source.offset; at < source.end && at < units.length; at++) {
+/// Returns the prose of [scan] with each link source and each link reference
+/// definition label blanked, line ends kept.
+String _outsideLinks(LinkScan scan) {
+  final units = scan.prose.codeUnits.toList();
+  void blank(int start, int end) {
+    for (var at = start; at < end && at < units.length; at++) {
       if (units[at] != _lineFeed) units[at] = _space;
     }
+  }
+
+  for (final LinkSource(:offset, :end) in scan.sources) {
+    blank(offset, end);
+  }
+  for (final TextRange(:start, :end) in scan.definitionLabels) {
+    blank(start, end);
   }
   return String.fromCharCodes(units);
 }

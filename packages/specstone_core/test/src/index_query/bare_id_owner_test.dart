@@ -66,14 +66,10 @@ void main() {
     );
 
     test(
-      'an ID after a link to no doc, or to an untyped doc, gets null',
+      'an ID after a .md link to no doc, or to an untyped doc, gets null',
       () async {
         final index = await indexWith(_domainWithInvariants);
-        for (final destination in [
-          _readmeFromFr,
-          '../missing.md',
-          'https://example.com/',
-        ]) {
+        for (final destination in [_readmeFromFr, '../missing.md']) {
           expect(
             _ownerInFr(
               index,
@@ -82,6 +78,26 @@ void main() {
             isNull,
             reason: destination,
           );
+        }
+      },
+    );
+
+    test(
+      'an ID after a link that is no doc link belongs to its own doc',
+      () async {
+        final index = await indexWith(_domainWithInvariants);
+        for (final destination in [
+          'https://example.com/',
+          '../../../../diagram.png',
+          '../../../../../packages/specstone_core/lib/a.dart',
+          '../../../../specs/f01_login/',
+        ]) {
+          final owner = _ownerInFr(
+            index,
+            _id('E03', LinkCitation(destination: destination)),
+          );
+          expect(owner?.doc.docPath, _fr, reason: destination);
+          expect(owner?.isOwnDoc, isTrue, reason: destination);
         }
       },
     );

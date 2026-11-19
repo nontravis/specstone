@@ -152,6 +152,29 @@ void main() {
     expect(findings.map((f) => f.kind), [FindingKind.linkUnresolved]);
   });
 
+  test('an ID after a link spanning two lines is judged against the cited '
+      'doc', () async {
+    final findings = await _judgedIn(
+      await _featureWith(
+        '$_featureLine [domain\nlogin]($_domainFromFeature) INV-9.',
+      ),
+    );
+    expect(_targetsOf(findings), {'INV-9': _domain});
+  });
+
+  test('an ID after a link that is no doc link is judged in its own '
+      'doc', () async {
+    for (final destination in [
+      'https://example.com/rfc',
+      '../../../../diagram.png',
+    ]) {
+      final findings = await _judgedIn(
+        await _frWith('$_frLine See [it]($destination) E07.'),
+      );
+      expect(_targetsOf(findings), {'E07': loginFr}, reason: destination);
+    }
+  });
+
   test('an ID after a code-span cite gives no item_mention_missing', () async {
     final project = await _featureWith('$_featureLine `domain:login` INV-9.');
     expect(await _judgedIn(project), isEmpty);

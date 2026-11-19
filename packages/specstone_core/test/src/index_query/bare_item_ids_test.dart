@@ -136,8 +136,14 @@ void main() {
       ]);
     });
 
-    test('a link spanning two lines starts no run', () {
-      expect(_read('[a\nb](../DOMAIN.md) INV-3'), [_id(2, 17, 'INV-3')]);
+    test('a link spanning two lines starts its run on the line it ends', () {
+      expect(_read('[a\nb](../DOMAIN.md) INV-3'), [
+        _id(2, 17, 'INV-3', const LinkCitation(destination: '../DOMAIN.md')),
+      ]);
+    });
+
+    test('a link reference definition label is no bare ID', () {
+      expect(_read('See [INV-3].\n\n[INV-3]: ../DOMAIN.md#inv-3\n'), isEmpty);
     });
 
     test('a CRLF text gives the lines and columns of its LF text', () {

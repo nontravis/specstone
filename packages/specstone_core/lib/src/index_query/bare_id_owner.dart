@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, resolveDocLink;
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show markdownExtension;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show RelativeLink, readItemIdAt, readLinkTarget;
 import 'package:specstone_core/src/index_query/cite_resolution.dart';
@@ -32,7 +34,7 @@ OwnerDoc? ownerDocOf(
       ? OwnerDoc(doc: ownDoc, isOwnDoc: true)
       : null;
   final citation = id.citation;
-  if (citation == null || _isBareAnchor(citation)) return ownOwner();
+  if (citation == null || !_isDocCitation(citation)) return ownOwner();
   final cited = citedDocOf(index, citation, holderDocPath);
   if (cited == null || cited.docTypeId == null) return null;
   return _holdsPrefix(index, cited, id.id)
@@ -40,12 +42,16 @@ OwnerDoc? ownerDocOf(
       : ownOwner();
 }
 
-bool _isBareAnchor(BareIdCitation citation) =>
-    citation is LinkCitation &&
-    switch (readLinkTarget(citation.destination)) {
-      RelativeLink(:final segments) => segments.isEmpty,
-      _ => false,
-    };
+/// Whether [citation] cites a doc: a cite, or a link to a relative `.md` path
+/// that is not a bare anchor.
+bool _isDocCitation(BareIdCitation citation) => switch (citation) {
+  CiteCitation() => true,
+  LinkCitation(:final destination) => switch (readLinkTarget(destination)) {
+    RelativeLink(:final segments) =>
+      segments.isNotEmpty && segments.last.endsWith(markdownExtension),
+    _ => false,
+  },
+};
 
 /// Returns the doc [citation] names from [holderDocPath], or null when it
 /// names none or several.
