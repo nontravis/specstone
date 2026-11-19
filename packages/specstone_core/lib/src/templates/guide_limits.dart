@@ -98,7 +98,7 @@ List<String> _itemCountClauses(ItemCountLint? lint) {
   };
   return [
     if (range != null) '$range$suffix',
-    for (final (:linePrefix, :count) in lint.prefixes)
+    for (final LinePrefixCount(:linePrefix, :count) in lint.prefixes)
       _prefixClause(linePrefix, count, suffix),
   ];
 }

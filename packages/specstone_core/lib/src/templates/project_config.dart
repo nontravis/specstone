@@ -6,6 +6,7 @@ import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/models/matrix_mode.dart';
+import 'package:specstone_core/src/templates/models/root_match.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -72,7 +73,7 @@ Directory? findRootUpward(
 /// through the folder's `docs` link. Returns null when no folder up to the
 /// file-system root yields one; never throws, a folder that cannot be resolved
 /// stands for itself, absolute.
-({Directory folder, Directory root})? matchRootUpward(
+RootMatch? matchRootUpward(
   Directory start,
   bool Function(Directory candidate) isRoot,
 ) {
@@ -83,8 +84,10 @@ Directory? findRootUpward(
       dir,
     );
     final linked = _canonicalOr(() => rootThroughDocsLink(dir), dir);
-    if (isRoot(linked)) return (folder: own, root: linked);
-    if (own.path != linked.path && isRoot(own)) return (folder: own, root: own);
+    if (isRoot(linked)) return RootMatch(folder: own, root: linked);
+    if (own.path != linked.path && isRoot(own)) {
+      return RootMatch(folder: own, root: own);
+    }
     final parent = dir.parent;
     if (parent.path == dir.path) return null;
     dir = parent;
@@ -110,12 +113,11 @@ Directory? findProjectRoot(Directory start) => matchProjectRoot(start)?.root;
 ///
 /// The root is the first candidate holding `.specstone/config.yaml`. Never
 /// throws.
-({Directory folder, Directory root})? matchProjectRoot(Directory start) =>
-    matchRootUpward(
-      start,
-      (candidate) =>
-          File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
-    );
+RootMatch? matchProjectRoot(Directory start) => matchRootUpward(
+  start,
+  (candidate) =>
+      File.fromUri(candidate.uri.resolve(projectConfigPath)).existsSync(),
+);
 
 /// The project config: the pack version each pack is pinned to, the code
 /// targets code paths are written from, the repository tops already offered

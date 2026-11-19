@@ -8,6 +8,7 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/models/opened_resolver.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
 /// What a format run did with one doc.
@@ -147,7 +148,7 @@ final class GeneratorRun<R> {
   ///
   /// Called at most once per run, and only when a doc under the target has a
   /// doc type that lists generators. `close` runs after the last write.
-  final ({R resolver, void Function() close}) Function() open;
+  final OpenedResolver<R> Function() open;
 }
 
 /// Formats the docs under [target] to their templates; a [target] that is the
@@ -185,7 +186,7 @@ FormatReport runFormat<R>(
       check: check,
       blocks: run == null || opened == null
           ? null
-          : (run: run, resolver: opened.resolver),
+          : _Blocks(run: run, resolver: opened.resolver),
     );
   } finally {
     opened?.close();
@@ -196,7 +197,7 @@ FormatReport _formatReads<R>(
   DocsProject project,
   List<DocRead> reads, {
   required bool check,
-  required ({GeneratorRun<R> run, R resolver})? blocks,
+  required _Blocks<R>? blocks,
 }) {
   final files = <FileResult>[];
   final warnings = <String>[];
@@ -234,7 +235,7 @@ FileResult _formatReadable<R>(
   DocsProject project,
   ReadableDoc read, {
   required bool check,
-  required ({GeneratorRun<R> run, R resolver})? blocks,
+  required _Blocks<R>? blocks,
 }) {
   switch (formatDoc(read.doc, read.docType)) {
     case Refused(
@@ -296,4 +297,12 @@ void _write(DocsProject project, ReadableDoc read, String text) {
       file: read.path,
     );
   }
+}
+
+/// The generators of a run and the resolver they read from.
+final class _Blocks<R> {
+  const new({required this.run, required this.resolver});
+
+  final GeneratorRun<R> run;
+  final R resolver;
 }

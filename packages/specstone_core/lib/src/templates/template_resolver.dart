@@ -12,6 +12,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/models/matrix_mode.dart';
+import 'package:specstone_core/src/templates/models/ranked_fault_files.dart';
 import 'package:specstone_core/src/templates/pack_chain.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -61,7 +62,7 @@ final class TemplateResolver {
         ? _everyShippedPack()
         : _listedPacks(config!, homeDirectory);
     final ordered = orderPacks(packs, configFile: projectConfigPath);
-    final (:docTypes, :patterns) = _parsePacks(ordered);
+    final _ParsedPacks(:docTypes, :patterns) = _parsePacks(ordered);
     final projectLayers = root == null
         ? <DocTypeLayer>[]
         : loadProjectTemplates(root);
@@ -126,7 +127,7 @@ final class TemplateResolver {
 
   /// Resolves like [resolveCarried] and also returns each loaded pack's
   /// version, keyed by name, from the same load.
-  ({MergedSet set, Map<String, PackVersion> pins}) resolveCarriedPinned({
+  PinnedSet resolveCarriedPinned({
     required Iterable<String> packNames,
     required Directory? homeDirectory,
     List<DocTypeLayer> projectLayers = const [],
@@ -134,8 +135,8 @@ final class TemplateResolver {
   }) {
     final loaded = _availablePacks(packNames, homeDirectory);
     final ordered = orderPacks(loaded, configFile: projectConfigPath);
-    final (:docTypes, :patterns) = _parsePacks(ordered);
-    return (
+    final _ParsedPacks(:docTypes, :patterns) = _parsePacks(ordered);
+    return PinnedSet(
       set: _merge(
         docTypes,
         projectLayers,
@@ -151,16 +152,16 @@ final class TemplateResolver {
   /// Parses the doc-type files and then the feature pattern files of each pack
   /// of [ordered], pack by pack, so one pack's pattern fault never precedes
   /// its own doc-type fault.
-  ({List<ParsedPack> docTypes, List<_ParsedPatterns> patterns}) _parsePacks(
-    List<LoadedPack> ordered,
-  ) {
+  _ParsedPacks _parsePacks(List<LoadedPack> ordered) {
     final docTypes = <ParsedPack>[];
     final patterns = <_ParsedPatterns>[];
     for (final pack in ordered) {
-      docTypes.add((pack: pack, layers: pack.parseDocTypes()));
-      patterns.add((pack: pack, layers: pack.parseFeaturePatterns()));
+      docTypes.add(ParsedPack(pack: pack, layers: pack.parseDocTypes()));
+      patterns.add(
+        _ParsedPatterns(pack: pack, layers: pack.parseFeaturePatterns()),
+      );
     }
-    return (docTypes: docTypes, patterns: patterns);
+    return _ParsedPacks(docTypes: docTypes, patterns: patterns);
   }
 
   /// Loads the packs [names] at their available versions, by name in code
@@ -314,7 +315,7 @@ final class TemplateResolver {
     final layerLists = _docTypeLayers(packs, projectLayers);
     final patternLayers = _featurePatternLayers(patterns, projectPatterns);
     final loadOrder = [
-      for (final (pack: _, :layers) in packs) ...layers.values,
+      for (final ParsedPack(:layers) in packs) ...layers.values,
       ...projectLayers,
     ];
     final loadIndex = loadIndexOf(loadOrder);
@@ -323,16 +324,16 @@ final class TemplateResolver {
     _checkBulletLineTargets(packs, layerLists);
     _checkExtendsInOverride(loadOrder, layerLists);
     final shared = mergeSharedEntries(
-      ordered: [for (final (:pack, layers: _) in packs) pack],
+      ordered: [for (final ParsedPack(:pack) in packs) pack],
       projectLines: projectSharedLines,
       docTypeIdsByPack: {
-        for (final (:pack, :layers) in packs)
+        for (final ParsedPack(:pack, :layers) in packs)
           pack.manifest.name: layers.keys.toSet(),
       },
       mergedDocTypeIds: layerLists.keys.toSet(),
     );
     final reach = _SharedReach(shared, [
-      for (final (:pack, layers: _) in packs) pack,
+      for (final ParsedPack(:pack) in packs) pack,
     ]);
     final docTypes = _resolveInDependencyOrder(
       layerLists,
@@ -361,11 +362,11 @@ final class TemplateResolver {
   /// names no doc type its pack, or a pack its chain reaches, defines.
   void _checkRecordTargets(List<ParsedPack> packs) {
     final extendsOf = extendsMapOf([
-      for (final (:pack, layers: _) in packs) pack,
+      for (final ParsedPack(:pack) in packs) pack,
     ]);
-    for (final (:pack, layers: _) in packs) {
+    for (final ParsedPack(:pack) in packs) {
       pack.manifest.checkRecordTargets({
-        for (final (pack: other, :layers) in packs)
+        for (final ParsedPack(pack: other, :layers) in packs)
           if (other == pack || reaches(pack, other, extendsOf: extendsOf))
             ...layers.keys,
       });
@@ -378,7 +379,7 @@ final class TemplateResolver {
     List<ParsedPack> packs,
     Map<String, DocTypeLayers> layerLists,
   ) {
-    for (final (:pack, layers: _) in packs) {
+    for (final ParsedPack(:pack) in packs) {
       pack.manifest.checkBulletLineTargets(layerLists);
     }
   }
@@ -520,7 +521,7 @@ final class TemplateResolver {
     LoadIndex loadIndex,
   ) {
     final walkedPath = [...cycle, cycle.first].join(', ');
-    final (:file, :related) = rankFaultFiles([
+    final RankedFaultFiles(:file, :related) = rankFaultFiles([
       for (final member in cycle) _extendsWriter(member, layerLists),
     ], loadIndex);
     throw TemplateFault(
@@ -565,7 +566,7 @@ final class TemplateResolver {
     final sharedFields = reach.placeFields(id, layers);
     String? packName;
     var mergedType = base;
-    for (final (index, (:layer, :pack)) in layers.indexed) {
+    for (final (index, PackLayer(:layer, :pack)) in layers.indexed) {
       mergedType = merger.apply(mergedType, layer);
       packName ??= pack?.manifest.name;
       for (final field in sharedFields[index] ?? const <MergedSharedField>[]) {
@@ -659,13 +660,13 @@ final class TemplateResolver {
   ) {
     final lists = <String, DocTypeLayers>{};
     final extendsOf = extendsMapOf([
-      for (final (:pack, layers: _) in packs) pack,
+      for (final ParsedPack(:pack) in packs) pack,
     ]);
-    for (final (:pack, :layers) in packs) {
+    for (final ParsedPack(:pack, :layers) in packs) {
       for (final MapEntry(key: id, value: layer) in layers.entries) {
         final list = lists.putIfAbsent(id, () => []);
         // No project layer sits in `list` here: they append after this loop.
-        for (final (pack: priorPack!, layer: prior) in list) {
+        for (final PackLayer(pack: priorPack!, layer: prior) in list) {
           final upper = reaches(pack, priorPack, extendsOf: extendsOf);
           final lower = reaches(priorPack, pack, extendsOf: extendsOf);
           if (!upper && !lower) {
@@ -677,14 +678,13 @@ final class TemplateResolver {
             );
           }
         }
-        list.add((pack: pack, layer: layer));
+        list.add(PackLayer(pack: pack, layer: layer));
       }
     }
     for (final layer in projectLayers) {
-      lists.putIfAbsent(layer.docTypeId, () => []).add((
-        pack: null,
-        layer: layer,
-      ));
+      lists
+          .putIfAbsent(layer.docTypeId, () => [])
+          .add(PackLayer(pack: null, layer: layer));
     }
     return lists;
   }
@@ -696,7 +696,7 @@ final class TemplateResolver {
     List<FeaturePatternLayer> projectLayers,
   ) {
     final files = [
-      for (final (pack: _, :layers) in packs)
+      for (final _ParsedPatterns(:layers) in packs)
         for (final layer in layers.values) layer.file,
       for (final layer in projectLayers) layer.file,
     ];
@@ -717,14 +717,15 @@ final class TemplateResolver {
   ) {
     final lists = <String, List<WrittenPatternLayer>>{};
     final byName = {
-      for (final (:pack, layers: _) in packs) pack.manifest.name: pack,
+      for (final _ParsedPatterns(:pack) in packs) pack.manifest.name: pack,
     };
     final extendsOf = extendsMapOf(byName.values);
-    for (final (:pack, :layers) in packs) {
+    for (final _ParsedPatterns(:pack, :layers) in packs) {
       for (final MapEntry(key: id, value: layer) in layers.entries) {
         final list = lists.putIfAbsent(id, () => []);
         // No project layer sits in `list` here: they append after this loop.
-        for (final (pack: priorName!, layer: prior) in list) {
+        for (final WrittenPatternLayer(pack: priorName!, layer: prior)
+            in list) {
           final priorPack = byName[priorName]!;
           final upper = reaches(pack, priorPack, extendsOf: extendsOf);
           final lower = reaches(priorPack, pack, extendsOf: extendsOf);
@@ -737,14 +738,33 @@ final class TemplateResolver {
             );
           }
         }
-        list.add((pack: pack.manifest.name, layer: layer));
+        list.add(WrittenPatternLayer(pack: pack.manifest.name, layer: layer));
       }
     }
     for (final layer in projectLayers) {
-      lists.putIfAbsent(layer.id, () => []).add((pack: null, layer: layer));
+      lists
+          .putIfAbsent(layer.id, () => [])
+          .add(WrittenPatternLayer(pack: null, layer: layer));
     }
     return lists;
   }
+}
+
+/// A merged set and the version of each pack it loaded, keyed by name.
+final class PinnedSet {
+  const new({required this.set, required this.pins});
+
+  final MergedSet set;
+  final Map<String, PackVersion> pins;
+}
+
+/// The doc-type layers and the feature pattern layers of each pack, in pack
+/// order.
+final class _ParsedPacks {
+  const new({required this.docTypes, required this.patterns});
+
+  final List<ParsedPack> docTypes;
+  final List<_ParsedPatterns> patterns;
 }
 
 /// Decides where the shared entries of one resolve land in each doc type.
@@ -812,10 +832,12 @@ final class _SharedReach {
 }
 
 /// One pack with the feature pattern layers its folder parsed, by id.
-typedef _ParsedPatterns = ({
-  LoadedPack pack,
-  Map<String, FeaturePatternLayer> layers,
-});
+final class _ParsedPatterns {
+  const new({required this.pack, required this.layers});
+
+  final LoadedPack pack;
+  final Map<String, FeaturePatternLayer> layers;
+}
 
 /// Returns the `pack_pin_newer` fault for pack [name] pinned at [pin] while
 /// this Specstone carries [carried].

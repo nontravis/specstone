@@ -65,7 +65,10 @@ class FormatCommand extends SpecstoneCommand {
               busyTimeout: runner.busyTimeout,
             );
             sessionWarnings.addAll(session.indexWarnings);
-            return (resolver: session.index, close: session.close);
+            return OpenedResolver(
+              resolver: session.index,
+              close: session.close,
+            );
           },
         ),
       );

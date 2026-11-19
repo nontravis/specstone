@@ -11,6 +11,7 @@ import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/rendering/models/opened_resolver.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
@@ -89,7 +90,7 @@ FormatReport _format(Directory root) {
       registry: journeyGenerators(),
       open: () {
         final session = openSession(root);
-        return (resolver: session.index, close: session.close);
+        return OpenedResolver(resolver: session.index, close: session.close);
       },
     ),
   );
