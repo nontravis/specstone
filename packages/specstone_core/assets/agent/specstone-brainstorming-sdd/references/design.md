@@ -44,14 +44,14 @@ Sections, in order:
    A decision with no row gets a line on why no doc takes it. Each doc the design check finds restating a decision's
    rule gets a row: remove the copy and link the owner's item; when it owns a rule reading the decision's rule, rewrite
    it. An `architecture` doc gets a `design_references` row linking this document, per `specstone guide
-   architecture`, only when its section states a decision of this design after the change; a feature merely reached
-   takes none, nor does a doc whose only change swaps a copy for a link. With two or more `targets:`, a per-target
+   architecture`, only when its section states a decision of this design after the change, linking each design whose
+   decisions it still states; a feature merely reached takes none, nor does a doc whose only change swaps a copy for a link. With two or more `targets:`, a per-target
    spec doc's row names its code target; a row with none is an open question.
 7. **Open questions**: each gap neither the answers nor the saved files settle.
 
 The runner runs no dependents search: the design check sweeps every reader. An amend that adds or changes behavior, or
-removes a decision, names its owner doc and terms the same way, after the removal read in `removal.md`, before the
-author writes it.
+removes a decision, names its owner doc and terms the same way, after the removal read in `removal.md`, and adds its
+rows before the author writes it.
 
 Decide each point the answers leave open that a PRD or spec doc must state, such as a refusal or a name rule, naming
 the one owner item its rule takes, or list it as an open question; a design holding an open one goes to no author.
@@ -73,8 +73,8 @@ decision specific enough that two builders would build the same thing.
 Then the skill's step 3 runs the design check. Fix each finding in the document: an untagged one by an edit; a
 `[behavior]` one by deciding it, or asking the Owner if only they can, then naming its owner doc and terms.
 
-Ask for approval only once no design-check line is left naming a wording a decision supersedes outside the Docs to
-change rows, a removed decision's text included: each such line gets a row (a stub row for removed text). Each term
+Ask for approval only once no design-check line is left naming a reader or a wording a decision supersedes outside the
+Docs to change rows, a removed decision's text included: each such line gets a row (a stub row for removed text). Each term
 and wording is searched in every written form: with and without a trailing `/`, in backticks or not, singular and
 plural, and a short form. This document is outside the sweep: it quotes that wording.
 
