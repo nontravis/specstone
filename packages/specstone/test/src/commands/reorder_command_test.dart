@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart'
+    show fingerprintFor;
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/per_fr_row_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
@@ -27,6 +30,29 @@ void main() {
       startsWith(
         'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us01_reset_password/\n',
       ),
+    );
+  });
+
+  test('re-stamps a matched per-FR row after a reorder link rewrite', () async {
+    final root = await writePerFrProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:shop/cart/drop_item',
+        '--to',
+        '1',
+      ]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    final reordered = perFrDropEdge.replaceAll(
+      'us02_drop_item',
+      'us01_drop_item',
+    );
+    expect(
+      readDoc(root, cartRecord),
+      endsWith('${perFrRow(fingerprintFor(perFrContractOf(reordered)))}\n'),
     );
   });
 

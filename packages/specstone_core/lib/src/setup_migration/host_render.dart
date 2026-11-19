@@ -106,6 +106,7 @@ class _Agent {
     required this.description,
     required this.tools,
     required this.disallowedTools,
+    required this.memory,
     required this.body,
   });
 
@@ -133,6 +134,7 @@ class _Agent {
       description: '${fields['description']}',
       tools: _toolsOf(fields['tools']),
       disallowedTools: _toolsOf(fields['disallowedTools']),
+      memory: fields['memory'] as String?,
       body: text.substring(end + _frontmatterEnd.length),
     );
   }
@@ -141,6 +143,9 @@ class _Agent {
   final String description;
   final List<String>? tools;
   final List<String>? disallowedTools;
+
+  /// The Claude Code memory scope, such as `project`; null for none.
+  final String? memory;
   final String body;
 
   bool get isReadOnly => tools != null && !tools!.any(_writeToolNames.contains);
@@ -150,6 +155,7 @@ class _Agent {
     'description': description,
     'tools': ?tools?.join(', '),
     'disallowedTools': ?disallowedTools?.join(', '),
+    'memory': ?memory,
   }, body.replaceAll(_sourceSkillPrefix, _claudeSkillPrefix));
 
   String cursorText() => _markdown({

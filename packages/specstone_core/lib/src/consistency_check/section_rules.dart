@@ -74,7 +74,8 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   }
   final itemFacts = context.contentOf(doc).itemFacts;
   final itemLimit = type.lint.itemCharLimit;
-  // The matrix section answers to its own limits, never to the doc's.
+  // The matrix section answers to its own limits, never to the doc's or the
+  // item cap.
   final matrixId = verificationMatrixOf(type)?.id;
   yield* _itemFindings(context, doc, leadKey, itemFacts.leadItems, itemLimit);
   for (var i = 0; i < held.length; i++) {
@@ -136,13 +137,15 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         keys: {'section': sectionKey, 'limit': maxChars, 'actual': actualChars},
       );
     }
-    yield* _itemFindings(
-      context,
-      doc,
-      sectionKey,
-      itemFacts.sectionItems[i],
-      itemLimit,
-    );
+    if (matrixId == null || template?.id != matrixId) {
+      yield* _itemFindings(
+        context,
+        doc,
+        sectionKey,
+        itemFacts.sectionItems[i],
+        itemLimit,
+      );
+    }
     if (type.id == _projectType && template?.id == _visionSection) {
       yield* _visionQuoteFindings(context, doc, context.bodyLinesOf(doc, i));
     }

@@ -124,18 +124,43 @@ List<DocAddress> referencesWithoutLookupIn(String text) => [
   for (final token in addressTokensIn(text)) token.address,
 ];
 
-/// A line suffix such as `:12` or `:12:5` after a path written in prose.
-final _lineSuffix = RegExp(r'(?::\d+)+$');
-
-/// A closing mark that prose adds after a path.
-final _closingMark = RegExp(r'[.,;:]$');
+const _colonUnit = 0x3A;
+const _commaUnit = 0x2C;
+const _dotUnit = 0x2E;
+const _semicolonUnit = 0x3B;
+const _zeroUnit = 0x30;
+const _nineUnit = 0x39;
 
 /// Returns [path], a doc path written in prose, less the sentence mark and
-/// the line suffix that follow it there.
+/// the line suffix (`:12`, `:12:5`) that follow it there.
 ///
 /// [path] is the text of a [DocAddress] before any `#`.
-String proseTrimmedPath(String path) =>
-    path.replaceFirst(_closingMark, '').replaceFirst(_lineSuffix, '');
+String proseTrimmedPath(String path) {
+  // A backward scan: an end-anchored RegExp is tried from every start offset,
+  // which cost about 110 ms CPU per `check` on a comment-rich tree.
+  var end = path.length;
+  if (end > 0 && _isClosingMarkUnit(path.codeUnitAt(end - 1))) end--;
+  var cut = end;
+  while (true) {
+    var digitsStart = cut;
+    while (digitsStart > 0 && _isDigitUnit(path.codeUnitAt(digitsStart - 1))) {
+      digitsStart--;
+    }
+    final hasDigits = digitsStart < cut;
+    if (!hasDigits || digitsStart == 0) break;
+    if (path.codeUnitAt(digitsStart - 1) != _colonUnit) break;
+    cut = digitsStart - 1;
+  }
+  return path.substring(0, cut);
+}
+
+bool _isClosingMarkUnit(int unit) =>
+    unit == _dotUnit ||
+    unit == _commaUnit ||
+    unit == _semicolonUnit ||
+    unit == _colonUnit;
+
+bool _isDigitUnit(int unit) => unit >= _zeroUnit && unit <= _nineUnit;
 
 /// The prefix a `### Scenario <N>` heading's number carries in IDs:
 /// `Scenario `.
