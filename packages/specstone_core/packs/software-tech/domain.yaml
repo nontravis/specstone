@@ -1,10 +1,10 @@
 id: domain
 description: |-
-  The domain model of one feature: the concepts it owns, how they are shaped, and the invariants that hold.
+  One feature's domain model: its concepts, their shapes, and the invariants that hold.
   Title it `# <Feature name> domain`, such as `# Rendering domain`, with no number.
   Write one rule per ID: one bullet per invariant.
-  A DOMAIN cites its own ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#components)`.
-  Hold one feature's spec; put a rule every feature uses in the project's DOMAIN doc.
+  Cite this feature's ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#components)`.
+  Put a rule every feature uses in the project's DOMAIN doc.
 path: specs/f{nn}_{slug}/DOMAIN.md
 parent: feature
 per_target: true
@@ -13,9 +13,8 @@ sections:
     header: Entities
     required: true
     description: |-
-      Write one table with the columns Entity, Kind, Identity, Owns, Refers to (by id), and Notes; write one row per entity.
+      Write one table of Entity, Kind, Identity, Owns, an optional Refers to (by id) naming another aggregate, and Notes, one row per entity.
       Write Kind as Aggregate root, Entity, Service, or Repository.
-      Use the optional Refers to (by id) to name another aggregate by its id.
     lint:
       banned_patterns:
         - id: entity_kind
@@ -25,7 +24,7 @@ sections:
   - id: value_objects
     header: Value objects
     description: |-
-      Write a table with the columns VO, Backed by, Validation.
+      Write a table of VO, Backed by, Validation.
       Make each value object immutable.
   - id: invariants
     header: Invariants
@@ -36,7 +35,7 @@ sections:
       Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
       Under an eventual invariant, nest `- **Corrective policy:** <how the system restores the rule>` too.
       Keep a bound (`timeout 10 s`) in the invariant it bounds; mechanics to ARCHITECTURE, unhandled cases to `known_limits`.
-      Write no trace tag, since the `reference` field holds the trace; a cite or ownership note may close an invariant.
+      Write no trace tag, since `reference` holds the trace; a cite or ownership note may close an invariant.
     lint:
       max_sentences:
         - count: 1
@@ -56,21 +55,21 @@ sections:
   - id: known_limits
     header: Known limits
     description: |-
-      Write one bullet per case the system does not handle, and say what happens then.
-      Keep a bound an invariant enforces, such as `timeout 10 s`, in that invariant, not here.
+      Write one bullet per unhandled case, saying what happens then.
+      Keep a bound an invariant enforces in that invariant.
   - id: lifecycle
     header: Lifecycle
     description: |-
-      Write a Mermaid `stateDiagram-v2` only when an entity has a status with 4 or more states.
+      Draw a Mermaid `stateDiagram-v2` only for a status with 4 or more states.
   - id: data_touch
     header: Data touch
     description: |-
-      Write a table with the columns Table, Operation, Field / Change; write one row per table the feature touches.
+      Write a table of Table, Operation, Field / Change, one row per table the feature touches.
       Copy no column definitions; the schema file owns them.
   - id: commands_and_events
     header: Commands and events
     description: |-
-      Write one table with the columns Command, Aggregate, Event emitted.
+      Write one table of Command, Aggregate, Event emitted.
   - id: terms
     header: Terms
     description: |-

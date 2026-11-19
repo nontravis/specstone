@@ -31,4 +31,4 @@ sections:
         - count: 1
   - id: compatibility
     description: |-
-      Write what counts as breaking for every feature's operations, then point at the architecture doc's Rollout section.
+      Write what counts as breaking for every feature's operations; point at the architecture doc's Rollout.

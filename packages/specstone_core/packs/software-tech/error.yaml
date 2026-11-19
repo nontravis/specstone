@@ -4,7 +4,7 @@ description: |-
   Title it `# <Feature name> errors`, such as `# Rendering errors`, with no number.
   Put no stack trace or internals in any error body.
   Write one rule per ID: one catalog row per code.
-  Hold one feature's spec; put a rule every feature uses in the project's ERROR doc.
+  Put a rule every feature uses in the project's ERROR doc.
 path: specs/f{nn}_{slug}/ERROR.md
 parent: feature
 per_target: true

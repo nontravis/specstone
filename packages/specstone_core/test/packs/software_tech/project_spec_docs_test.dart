@@ -408,9 +408,9 @@ void main() {
     for (final project in _projectTypes.values) {
       expect(
         prdCoreDocType(set, project.base).description,
-        contains(
-          "Hold one feature's spec; put a rule every feature uses in the "
-          "project's",
+        allOf(
+          matches(RegExp(r'^[^\n]*one feature', caseSensitive: false)),
+          contains("Put a rule every feature uses in the project's"),
         ),
         reason: project.base,
       );

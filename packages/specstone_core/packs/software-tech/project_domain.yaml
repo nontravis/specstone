@@ -18,8 +18,8 @@ sections:
       Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
       Under an eventual invariant, nest `- **Corrective policy:** <how the system restores the rule>` too.
       Keep a bound (`timeout 10 s`) in the invariant it bounds; mechanics to ARCHITECTURE, unhandled cases to `known_limits`.
-      Write no trace tag, since the `reference` field holds the trace; a cite or ownership note may close an invariant.
+      Write no trace tag, since `reference` holds the trace; a cite or ownership note may close an invariant.
   - id: data_touch
     description: |-
-      Write a table with the columns Table, Operation, Field / Change; write one row per table the project touches.
+      Write a table of Table, Operation, Field / Change, one row per table the project touches.
       Copy no column definitions; the schema file owns them.

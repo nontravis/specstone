@@ -3,7 +3,7 @@ extends: architecture
 description: |-
   The project's architecture: the components, calls, and deployment that every feature uses.
   Title it `# <Project name> architecture`, such as `# Specstone architecture`, with no number.
-  Write no code samples; the doc describes structure, and code holds the implementation.
+  Write no code samples; code holds the implementation.
   Write one rule per ID: one Components row per component.
   The project's DOMAIN cites the project's ARCHITECTURE by a section link, such as `[architecture](ARCHITECTURE.md#components)`.
 path: specs/ARCHITECTURE.md
@@ -18,5 +18,5 @@ sections:
   - id: deployment
     description: |-
       Write it only when every feature runs somewhere the tech stack doc does not say.
-      Write a table of where each component runs, such as process, container, edge, or browser, with a one-clause Why per row.
-      Write one table per environment only when the environments differ.
+      Write a table of where each component runs, such as process, container, edge, or browser, each with a one-clause Why.
+      Split the table per environment only when environments differ.

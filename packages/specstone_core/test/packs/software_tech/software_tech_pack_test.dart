@@ -42,11 +42,11 @@ const _projectIds = [
 /// The shared lines `software-tech` ships, by id, in file order.
 const _sharedLines = <String, String>{
   'cite_spec_docs':
-      "Cite a rule of a project spec doc or an ancestor feature's spec doc by "
-      'a link to its item, never restate it.',
+      "Cite a project or ancestor-feature spec doc's rule by a link to its "
+      'item, never restate it.',
   'no_status':
-      "Never write `status:`; only a target's record, its `implementation` "
-      'docs, says whether code exists in that target.',
+      "Never write `status:`; only a target's `implementation` record says "
+      'whether its code exists.',
   'project_rules_only':
       'Hold only rules every feature uses; write any other rule in a '
       'per-feature spec doc, or in a `topic` when two or more features share '
@@ -54,14 +54,14 @@ const _sharedLines = <String, String>{
   'one_file_per_feature_folder': 'Keep one file per feature spec folder.',
   'one_file_per_spec_folder': 'Keep one file per spec folder.',
   'overrides_line':
-      'Right after an item that departs from a rule above, write '
+      'Right after an item departing from a rule above, write '
       '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
       '<why>` and record its `overrides` entry.',
   'overrides_line_table':
-      'Right after an item that departs from a rule above, or right under its '
-      'table when the item is a table row, write '
+      'Right after an item departing from a rule above, or right under its '
+      'table for a table row, write '
       '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
-      '<why>`, its how-clause naming the row, and record its `overrides` '
+      '<why>`, naming the row in the how-clause, and record its `overrides` '
       'entry.',
 };
 

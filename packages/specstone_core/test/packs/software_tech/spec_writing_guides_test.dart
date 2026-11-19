@@ -102,8 +102,8 @@ void main() {
       expect(
         type.renderGuide(),
         contains(
-          "Never write `status:`; only a target's record, its `implementation` "
-          'docs, says whether code exists in that target.',
+          "Never write `status:`; only a target's `implementation` record says "
+          'whether its code exists.',
         ),
         reason: id,
       );
@@ -175,16 +175,20 @@ void main() {
 
   test('the domain and architecture descriptions and their project twins say '
       'a DOMAIN cites its ARCHITECTURE by a section link', () {
-    for (final id in ['domain', 'architecture']) {
-      expect(
-        descriptionOf(id),
-        contains(
-          'A DOMAIN cites its own ARCHITECTURE by a section link, such as '
-          '`[architecture:rendering](ARCHITECTURE.md#components)`.',
-        ),
-        reason: id,
-      );
-    }
+    expect(
+      descriptionOf('architecture'),
+      contains(
+        'A DOMAIN cites its own ARCHITECTURE by a section link, such as '
+        '`[architecture:rendering](ARCHITECTURE.md#components)`.',
+      ),
+    );
+    expect(
+      descriptionOf('domain'),
+      contains(
+        "Cite this feature's ARCHITECTURE by a section link, such as "
+        '`[architecture:rendering](ARCHITECTURE.md#components)`.',
+      ),
+    );
     for (final id in ['project_domain', 'project_architecture']) {
       expect(
         descriptionOf(id),
@@ -203,7 +207,7 @@ void main() {
       descriptionOf('architecture'),
       contains(
         "The target's record holds each story's and FR's status and code "
-        "paths; `covers` names the target's own code only.",
+        "paths; `covers` names only the target's code.",
       ),
     );
     expect(
@@ -228,8 +232,8 @@ void main() {
         prdCoreDocType(set, id).renderGuide(),
         contains(
           'Cite a rule another doc owns by a link to its item, never restate '
-          "it.\nCite a rule of a project spec doc or an ancestor feature's "
-          'spec doc by a link to its item, never restate it.',
+          "it.\nCite a project or ancestor-feature spec doc's rule by a link "
+          'to its item, never restate it.',
         ),
         reason: id,
       );
@@ -295,9 +299,9 @@ void main() {
     expect(
       prdCoreDocType(set, 'auth').renderGuide(),
       contains(
-        'or right under its table when the item is a table row, write '
+        'or right under its table for a table row, write '
         '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
-        '<why>`, its how-clause naming the row, and record its `overrides` '
+        '<why>`, naming the row in the how-clause, and record its `overrides` '
         'entry.',
       ),
     );

@@ -4,7 +4,7 @@ description: |-
   Title it `# <Feature name> auth`, such as `# Rendering auth`, with no number.
   Write this doc only when the feature has access rules.
   Write one rule per ID: one matrix row per resource and operation, each rule one sentence.
-  Hold one feature's spec; put a rule every feature uses in the project's AUTH doc.
+  Put a rule every feature uses in the project's AUTH doc.
 path: specs/f{nn}_{slug}/AUTH.md
 parent: feature
 per_target: true
