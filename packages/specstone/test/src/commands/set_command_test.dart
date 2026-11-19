@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
@@ -762,6 +763,85 @@ void main() {
         run.err,
         'stamp_entry_unknown: no entry of $address reads app/lib/a,b.dart\n',
       );
+    });
+
+    test('set --stamp --json prints the doc and the stamped entries', () async {
+      final root = await project();
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run([
+          'set',
+          address,
+          '--stamp',
+          '$covered=$fingerprint',
+          '--json',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      expect(jsonDecode(out.toString()), {
+        'doc': address,
+        'stamped': [covered],
+        'warnings': <Object?>[],
+      });
+      expect(err.toString(), isEmpty);
+    });
+
+    test('the help and the invocation show the stamp form', () async {
+      final (:runner, :out, :err) = writeRunner(await project());
+
+      expect(await runner.run(['set', '--help']), 0);
+
+      final text = out.toString().replaceAll(RegExp(r'\s+'), ' ');
+      expect(
+        text,
+        contains('specstone set <doc address> --stamp <entry>=<fingerprint>'),
+      );
+      expect(text, contains('Ends a covers or implements entry'));
+    });
+
+    test('--target keeps the stamp to one code target', () async {
+      const folder = 'app/lib/';
+      const jasprFile = 'app/lib/login.dart';
+      final root = await writeTwinProject(
+        unfingerprinted: {
+          'docs/$flutterArchitecture',
+          'docs/$jasprArchitecture',
+        },
+      );
+      final flutterBefore = readDoc(root, flutterArchitecture);
+      final jasprFingerprint = folderCodeFingerprint([
+        FileFingerprint(
+          path: jasprFile,
+          fingerprint: fileCodeFingerprint(
+            File('${root.path}/jaspr_ws/$jasprFile').readAsBytesSync(),
+            path: jasprFile,
+          ),
+        ),
+      ]);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run([
+          'set',
+          address,
+          '--stamp',
+          '$folder=$jasprFingerprint',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      expect(out.toString(), '$jasprArchitecture: 1 stamped\n');
+      expect(
+        readDoc(root, jasprArchitecture),
+        contains('  - $folder $jasprFingerprint\n'),
+      );
+      expect(readDoc(root, flutterArchitecture), flutterBefore);
     });
   });
 
