@@ -1113,4 +1113,66 @@ void main() {
       skip: Platform.isWindows ? 'the stub git is a POSIX shell script' : null,
     );
   }, skip: hasGit ? null : 'git is not available');
+
+  group('the matrix fold pass', () {
+    const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const foldedRow =
+        '- email_login/validate_credentials: `rejects a wrong key`, '
+        '`rejects an empty key`';
+
+    Future<Directory> foldRoot() => gitFixture({
+      '.specstone/config.yaml':
+          "${shippedPinsOneMinorBelow('software-tech')}"
+          'verification_coverage: fr\n',
+      'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+      'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+          '# Email login\n',
+      'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
+          '# Validate credentials\n',
+      recordPath:
+          "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
+          '# Login implementation\n\n## Verification matrix\n\n'
+          '- email_login/validate_credentials E01: `rejects a wrong key`\n'
+          '- email_login/validate_credentials E02: `rejects an empty key`\n',
+    });
+
+    test('prints the folded records under the json matrixRows key', () async {
+      final root = await foldRoot();
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate', '--dry-run', '--json']), 0);
+
+      final object = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(object['matrixRows'], {
+        'folded': [recordPath],
+      });
+      expect(
+        object['plan'],
+        contains('  matrix rows: 2 rows folded into 1 rows in 1 records\n'),
+      );
+      expect(_bytesUnder(root), before);
+    });
+
+    test('plans no fold on a rerun after a fold', () async {
+      final root = await foldRoot();
+      final hash = await _dryRunPlanHash(root);
+      final applied = writeRunner(root);
+      expect(
+        await applied.runner.run(['migrate', '--yes', '--plan', hash]),
+        0,
+        reason: applied.err.toString(),
+      );
+      expect(
+        File('${root.path}/$recordPath').readAsStringSync(),
+        contains('$foldedRow\n'),
+      );
+
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['migrate', '--dry-run', '--json']), 0);
+
+      expect(out.toString(), isNot(contains('matrix rows:')));
+      expect(out.toString(), isNot(contains('matrixRows')));
+    });
+  }, skip: hasGit ? null : 'git is not available');
 }
