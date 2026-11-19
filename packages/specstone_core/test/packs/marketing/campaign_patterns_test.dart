@@ -148,6 +148,9 @@ void main() {
           .cast<YamlMap>()
           .map((e) => e['title'])
           .toSet();
+      for (final MapEntry(key: item, value: sources) in traces.entries) {
+        expect(sources, isNotEmpty, reason: '$id/$item');
+      }
       final traced = traces.values.expand((t) => t).toSet();
       expect(titles, traced, reason: id);
     }
