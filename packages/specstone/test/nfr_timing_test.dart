@@ -12,6 +12,7 @@ import '../../specstone_core/test/helpers/write_fixture.dart' show testHome;
 import 'helpers/baseline_tree.dart';
 import 'helpers/best_of.dart';
 import 'helpers/built_cli.dart';
+import 'helpers/children_cpu_time.dart';
 
 /// The files a busy project's `.specstone/bundles/` held when measured.
 const _savedBundleCount = 1221;
@@ -22,6 +23,10 @@ const _droppedPerDraft = 10;
 const _added = 'Added one. Added two. Added three. Added four. Added five.';
 const _filler = 'the amber birch cedar delta ember fjord grove haven iris';
 const _commit = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+const _busyLoop = r'i=0; while [ $i -lt 100000 ]; do i=$((i+1)); done';
+
+/// Clock granularity: one shell thread cannot spend more CPU than wall.
+const _tick = Duration(milliseconds: 20);
 
 /// Returns a doc body of the first [keep] of [_sentencesPerDoc] sentences, 5 KB
 /// in all.
@@ -586,4 +591,15 @@ void main() {
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
   });
+
+  test('childrenCpuTime counts a busy child once it is waited for', () {
+    final watch = Stopwatch()..start();
+    final before = childrenCpuTime();
+    final run = Process.runSync('/bin/sh', ['-c', _busyLoop]);
+    final cpu = childrenCpuTime() - before;
+    watch.stop();
+    expect(run.exitCode, 0);
+    expect(cpu, greaterThan(const Duration(milliseconds: 50)));
+    expect(cpu, lessThanOrEqualTo(watch.elapsed + _tick));
+  }, testOn: 'mac-os || linux');
 }
