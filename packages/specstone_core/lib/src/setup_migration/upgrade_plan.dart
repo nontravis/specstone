@@ -9,11 +9,9 @@ import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
-    show IndexedDoc, docNameOf, frType;
+    show IndexedDoc;
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
-import 'package:specstone_core/src/index_query/parents.dart'
-    show resolveParents;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/release_version.dart' show ReleaseVersion;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
@@ -22,14 +20,13 @@ import 'package:specstone_core/src/setup_migration/bullet_lines_step.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
-import 'package:specstone_core/src/setup_migration/feature_relative.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
     show caseBlindPath;
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
-import 'package:specstone_core/src/setup_migration/matrix_fold.dart';
+import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
@@ -51,7 +48,6 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart'
     show movePatternsAtEveryDepth;
 import 'package:specstone_core/src/templates/pack_migration.dart';
@@ -438,12 +434,15 @@ RunPlan _upgradeRunOf(
     }
     tested.add(text);
   }
-  final matrixFold = _matrixFoldOf(
-    config,
-    set: finalSet,
-    works: works,
-    texts: tested,
-  );
+  final matrixFold = MatrixFoldPass.plan(config.matrixMode, finalSet, [
+    for (final (index, work) in works.indexed)
+      (
+        plannedPath: work.plannedPath,
+        type: work.docType,
+        target: work.target,
+        lf: tested[index],
+      ),
+  ]);
   final recorded = <String>[];
   for (final (index, work) in works.indexed) {
     var text = tested[index];
@@ -729,92 +728,6 @@ TestNamePass _testNamesOf(
     isTaken: isTaken,
     pendingCreates: recordCreates,
   );
-}
-
-/// The records the matrix fold pass rewrites: their new text, the plan line,
-/// and the `matrixRows` object of the JSON plan.
-final class _MatrixFold {
-  const new({
-    required this.recordEdits,
-    required this.planLine,
-    required this.json,
-  });
-
-  /// The folded text of each record the pass rewrites, by DocPath.
-  final Map<String, String> recordEdits;
-
-  final String planLine;
-
-  final Map<String, Object?> json;
-}
-
-/// Plans the matrix fold pass over the record docs of [works] as the earlier
-/// passes left them in [texts]; null when the mode is `edge_case`, the merged
-/// set holds no record doc type, or no record holds a foldable row.
-_MatrixFold? _matrixFoldOf(
-  ProjectConfig config, {
-  required MergedSet set,
-  required List<_DocWork> works,
-  required List<String> texts,
-}) {
-  final recordType = set.recordDocType;
-  if (config.matrixMode == MatrixMode.edgeCase || recordType == null) {
-    return null;
-  }
-  final frNames = _frNamesByFeature(set, works);
-  final edits = <String, String>{};
-  var rowsBefore = 0;
-  var rowsAfter = 0;
-  for (final (index, work) in works.indexed) {
-    final type = work.docType;
-    if (type == null || type.id != recordType.id) continue;
-    final feature = docNameOf(work.plannedPath, type, target: work.target);
-    final folded = foldMatrixRows(
-      texts[index],
-      recordType,
-      frNames[feature] ?? const {},
-    );
-    if (folded == null) continue;
-    edits[work.plannedPath] = folded.text;
-    rowsBefore += folded.rowsBefore;
-    rowsAfter += folded.rowsAfter;
-  }
-  if (edits.isEmpty) return null;
-  return _MatrixFold(
-    recordEdits: edits,
-    planLine:
-        'matrix rows: $rowsBefore rows folded into $rowsAfter rows in '
-        '${edits.length} records',
-    json: {'folded': edits.keys.toList()..sort(compareCodePoints)},
-  );
-}
-
-/// Returns the FR names of each feature of the typed [works], each relative to
-/// its feature, by the feature's name.
-Map<String, Set<String>> _frNamesByFeature(
-  MergedSet set,
-  List<_DocWork> works,
-) {
-  final indexed = {
-    for (final work in works)
-      if (work.docType case final type?)
-        work.plannedPath: IndexedDoc(
-          docPath: work.plannedPath,
-          docTypeId: type.id,
-          name: docNameOf(work.plannedPath, type, target: work.target),
-          frontmatter: const {},
-          tokens: 0,
-        ),
-  };
-  final parents = resolveParents(indexed.values, set).parents;
-  final names = <String, Set<String>>{};
-  for (final doc in indexed.values) {
-    if (doc.docTypeId != frType) continue;
-    final landing = featureRelativeOf(doc, indexed, parents);
-    if (landing == null) continue;
-    (names[landing.feature.name] ??= {}).add(landing.relative);
-  }
-  return names;
 }
 
 /// Returns the mentions in code and agent files that [moves] stop resolving.

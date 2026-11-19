@@ -1120,9 +1120,9 @@ void main() {
         '- email_login/validate_credentials: `rejects a wrong key`, '
         '`rejects an empty key`';
 
-    Future<Directory> foldRoot() => gitFixture({
+    Future<Directory> foldRoot({String? pins}) => gitFixture({
       '.specstone/config.yaml':
-          "${shippedPinsOneMinorBelow('software-tech')}"
+          "${pins ?? shippedPinsOneMinorBelow('software-tech')}"
           'verification_coverage: fr\n',
       'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
       'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
@@ -1152,6 +1152,27 @@ void main() {
         contains('  matrix rows: 2 rows folded into 1 rows in 1 records\n'),
       );
       expect(_bytesUnder(root), before);
+    });
+
+    test('with every pin equal the first migrate folds and the rerun has '
+        'nothing to migrate', () async {
+      final root = await foldRoot(pins: shippedPinsConfig());
+      final hash = await _dryRunPlanHash(root);
+      final applied = writeRunner(root);
+      expect(
+        await applied.runner.run(['migrate', '--yes', '--plan', hash]),
+        0,
+        reason: applied.err.toString(),
+      );
+      expect(
+        File('${root.path}/$recordPath').readAsStringSync(),
+        contains('$foldedRow\n'),
+      );
+
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['migrate', '--dry-run']), 0);
+
+      expect(out.toString(), 'nothing to migrate\n');
     });
 
     test('the apply writes the folded row and no per-edge-case row', () async {
