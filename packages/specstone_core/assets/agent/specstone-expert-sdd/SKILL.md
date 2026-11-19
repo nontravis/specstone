@@ -16,7 +16,7 @@ description: Use when about to write, edit, or confirm a PRD or spec doc in a Sp
    never read it whole.
 4. Any other non-zero exit: report the CLI's error to the Owner and stop.
 
-A dispatch passing a fresh `check:` file skips steps 1 to 4: search it.
+A dispatch passing a fresh `check:` file skips steps 1 to 4: search it; `<folder>` is its folder's parent.
 Never look for `.specstone/` first: the working directory alone can miss a root above it.
 
 ## Rules
@@ -28,9 +28,9 @@ Never look for `.specstone/` first: the working directory alone can miss a root 
    edit a doc file through a file tool or a shell command. Each write leaves its doc a draft, a pointer
    write (`implements`, `covers`) excepted: never remove `draft: true`. Run `specstone approve` only with `--dry-run`,
    or with `--yes` as Owner confirmation below says.
-3. **Guide first.** Before you write a doc of a type, have its current guide: `specstone guide <type>` and
-   `specstone guide <type> --json`. One call naming several types counts for each type it names, and so does a saved
-   guide of this run. This skill keeps no guide.
+3. **Guide first.** Before you write a doc of a type, have its current guide, the CLI's output: `specstone guide <type>` and
+   `specstone guide <type> --json`. One call naming several types counts for each type, and so does a saved
+   guide of this run.
 4. **Confirm traced links.** To write an FR, an nf, an API row, or an `Overrides:` line, follow `references/confirm-links.md`.
 5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
    its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `check` prints it.

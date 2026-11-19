@@ -46,13 +46,13 @@ doc; list any other under `Findings:`.
 ## 4. Check
 
 Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your last
-(`Check:` names that file), searching each for your drafts. Before the second, walk each item you wrote against the
+(`Check:` names the last one), searching each for your drafts. Before the second, walk each item you wrote against the
 saved guide's description lines (doc part, held sections, `Fields:`) and each type's `==> shared <==` lines, not
 templates or `Banned words:`, `Required …`, `Optional …`, or `Limits:` lines. List a line you cannot meet under
 `Findings:`. Then run `specstone check <feature> --repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per
 feature of your drafts: new draft text repeating another doc's item links it instead.
 
-Fix each second-run finding, even a first-run one, in a section you wrote; list others under `Findings:`, unfixed:
+Fix each second-run finding, even a first-run one, in a section you wrote; list others under `Findings:`, unfixed. Two kinds differ:
 
 - **A `suspect` link in another doc:** confirm it again per `specstone-expert-sdd`, that doc joining your drafts, else
   list it.
