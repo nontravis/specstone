@@ -5569,6 +5569,22 @@ void _addedPinsTests() {
         expect(plan.lists.toJson()['typedByAdd'], ['specs/skills/review.md']);
       });
 
+      test('a path-only override of a type only the added pack defines '
+          'still plans', () async {
+        final root = await writeTree({
+          _configPath: shippedPinsConfig(const ['prd-core']),
+          '.specstone/templates/skill.yaml':
+              'path: specs/agent-skills/{slug}.md\n',
+          'docs/specs/agent-skills/review.md': skillDoc,
+        });
+
+        final plan = _planAdding(root, const ['agent-skills']);
+
+        expect(plan.lists.toJson()['typedByAdd'], [
+          'specs/agent-skills/review.md',
+        ]);
+      });
+
       test('a newly typed doc the run also moves is listed at its planned '
           'path', () async {
         final home = await writeTree({

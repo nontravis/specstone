@@ -515,7 +515,7 @@ final class TemplateResolver {
     final base = target == null
         ? merger.builtInBase(id)
         : _extendsBase(id, target, merged, defining);
-    _checkNewDocTypeKeys(defining, target);
+    _checkNewDocTypeKeys(defining);
     String? packName;
     var mergedType = base;
     for (final (:layer, :pack) in layers) {
@@ -527,31 +527,17 @@ final class TemplateResolver {
 
   /// Throws `missing_key` when the defining layer of a new doc type misses
   /// `id`, `path`, or `description` without `extends`.
-  void _checkNewDocTypeKeys(DocTypeLayer defining, String? target) {
-    if (defining.id == null) {
-      throw TemplateFault(
-        FaultCode.missingKey,
-        'the key id is required',
-        file: defining.file,
-        key: 'id',
-      );
-    }
-    if (defining.path == null) {
-      throw TemplateFault(
-        FaultCode.missingKey,
-        'the key path is required',
-        file: defining.file,
-        key: 'path',
-      );
-    }
-    if (target == null && defining.description == null) {
-      throw TemplateFault(
-        FaultCode.missingKey,
-        'the key description is required without extends',
-        file: defining.file,
-        key: 'description',
-      );
-    }
+  void _checkNewDocTypeKeys(DocTypeLayer defining) {
+    final key = defining.missingNewDocTypeKey;
+    if (key == null) return;
+    throw TemplateFault(
+      FaultCode.missingKey,
+      key == 'description'
+          ? 'the key description is required without extends'
+          : 'the key $key is required',
+      file: defining.file,
+      key: key,
+    );
   }
 
   /// The base of the doc type [id] extending [targetId]: every key of the

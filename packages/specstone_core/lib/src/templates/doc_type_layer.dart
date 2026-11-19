@@ -525,6 +525,15 @@ final class DocTypeLayer {
   /// The file pattern, when this layer writes it.
   final String? path;
 
+  /// The first key a layer defining a new doc type lacks, or null when it
+  /// holds them all: `id`, `path`, and `description` unless it extends a type.
+  String? get missingNewDocTypeKey {
+    if (id == null) return 'id';
+    if (path == null) return 'path';
+    if (extendsId == null && description == null) return 'description';
+    return null;
+  }
+
   /// The folder nesting cap, when this layer writes it; 0 keeps the type flat.
   final int? maxDepth;
 

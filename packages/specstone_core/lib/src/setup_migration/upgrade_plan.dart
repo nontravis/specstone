@@ -691,8 +691,8 @@ RunPlan _upgradeRunOf(
 }
 
 /// Resolves [pinned] with the [projectLayers] that stand without the added
-/// packs: a layer of a type no pinned pack defines is kept only when it
-/// defines the type itself, over a base the pins hold or none.
+/// packs: a layer of a type no pinned pack defines is kept only when it can
+/// define the type itself, over a base the pins hold or none.
 MergedSet _setWithoutAdds(
   TemplateResolver templates,
   Iterable<String> pinned, {
@@ -712,7 +712,7 @@ MergedSet _setWithoutAdds(
     projectLayers: [
       for (final layer in projectLayers)
         if (ids.contains(layer.docTypeId) ||
-            (layer.path != null &&
+            (layer.missingNewDocTypeKey == null &&
                 (layer.extendsId == null || ids.contains(layer.extendsId))))
           layer,
     ],
