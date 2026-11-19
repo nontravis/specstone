@@ -15,6 +15,8 @@ import 'package:specstone_core/src/templates/pack_chain.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
+import 'package:specstone_core/src/templates/shared_entry.dart';
+import 'package:specstone_core/src/templates/shared_merge.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
@@ -62,13 +64,16 @@ final class TemplateResolver {
     final projectLayers = root == null
         ? <DocTypeLayer>[]
         : loadProjectTemplates(root);
-    if (root != null) loadProjectSharedLines(root);
+    final projectSharedLines = root == null
+        ? <SharedLine>[]
+        : loadProjectSharedLines(root);
     final projectPatterns = root == null
         ? <FeaturePatternLayer>[]
         : loadProjectFeaturePatterns(root);
     return _merge(
       docTypes,
       projectLayers,
+      projectSharedLines: projectSharedLines,
       patterns: patterns,
       projectPatterns: projectPatterns,
       targetNames: config?.targetNames ?? const [],
@@ -95,15 +100,19 @@ final class TemplateResolver {
   ///
   /// The packs merge with [projectLayers] and nothing else: no
   /// `.specstone/config.yaml` is read and no pin is checked, so a tree with
-  /// no config resolves. Throws the first [TemplateFault] in load order.
+  /// no config resolves. [projectSharedLines] are the `shared.yaml` lines
+  /// merged on top of the packs'. Throws the first [TemplateFault] in load
+  /// order.
   MergedSet resolveCarried({
     required Iterable<String> packNames,
     required Directory? homeDirectory,
     List<DocTypeLayer> projectLayers = const [],
+    List<SharedLine> projectSharedLines = const [],
   }) => resolveCarriedPinned(
     packNames: packNames,
     homeDirectory: homeDirectory,
     projectLayers: projectLayers,
+    projectSharedLines: projectSharedLines,
   ).set;
 
   /// Resolves like [resolveCarried] and also returns each loaded pack's
@@ -112,12 +121,18 @@ final class TemplateResolver {
     required Iterable<String> packNames,
     required Directory? homeDirectory,
     List<DocTypeLayer> projectLayers = const [],
+    List<SharedLine> projectSharedLines = const [],
   }) {
     final loaded = _availablePacks(packNames, homeDirectory);
     final ordered = orderPacks(loaded, configFile: projectConfigPath);
     final (:docTypes, :patterns) = _parsePacks(ordered);
     return (
-      set: _merge(docTypes, projectLayers, patterns: patterns),
+      set: _merge(
+        docTypes,
+        projectLayers,
+        projectSharedLines: projectSharedLines,
+        patterns: patterns,
+      ),
       pins: {
         for (final pack in loaded) pack.manifest.name: pack.manifest.version,
       },
@@ -269,13 +284,16 @@ final class TemplateResolver {
   /// checked as one set after every merge, with [targetNames] gating a
   /// `targets:` config on the record doc type and [verificationCoverage] on
   /// its enabled matrix section. The one [LoadIndex]
-  /// built here ranks every file a fault names. The feature patterns merge
+  /// built here ranks every file a fault names. The shared entries of the
+  /// packs and [projectSharedLines] merge once, after the `extends` check and
+  /// before any doc type. The feature patterns merge
   /// last, from the layers `_featurePatternLayers` collects: pack layers in
   /// load order, then [projectPatterns].
   MergedSet _merge(
     List<ParsedPack> packs,
     List<DocTypeLayer> projectLayers, {
     required List<_ParsedPatterns> patterns,
+    List<SharedLine> projectSharedLines = const [],
     List<FeaturePatternLayer> projectPatterns = const [],
     List<String> targetNames = const [],
     bool verificationCoverage = false,
@@ -292,6 +310,15 @@ final class TemplateResolver {
     _checkRecordTargets(packs);
     _checkBulletLineTargets(packs, layerLists);
     _checkExtendsInOverride(loadOrder, layerLists);
+    final shared = mergeSharedEntries(
+      ordered: [for (final (:pack, layers: _) in packs) pack],
+      projectLines: projectSharedLines,
+      docTypeIdsByPack: {
+        for (final (:pack, :layers) in packs)
+          pack.manifest.name: layers.keys.toSet(),
+      },
+      mergedDocTypeIds: layerLists.keys.toSet(),
+    );
     final docTypes = _resolveInDependencyOrder(layerLists, merger, loadIndex);
     checkMergedSet(
       docTypes.values.toList(),
@@ -306,6 +333,7 @@ final class TemplateResolver {
         patternLayers,
         loadIndex: _patternLoadIndex(patterns, projectPatterns),
       ),
+      shared: shared,
     );
   }
 
