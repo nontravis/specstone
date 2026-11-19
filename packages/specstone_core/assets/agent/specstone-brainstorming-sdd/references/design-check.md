@@ -22,14 +22,14 @@ nothing but the agent's `report:` file; never edit the design document. Ask the 
 
 Before any lens, sweep each decision step 1.2 kept, in list order:
 
-1. **Terms**: search the saved files, the design document excluded, for each term, key, literal, state, refusal, and
+1. **Terms**: search the saved files for each term, key, literal, state, refusal, and
    finding the decision adds or changes, and each wording it supersedes, in every written form: with and without a
    trailing `/`, in backticks or not, singular and plural, and a short form ("five version spots" also as "five
    spots").
 2. **Readers**: read the owner item's cited-by lines. Run
-   `specstone check <feature> --repeats --out "<folder>/reports/check.audit.<XXXXXX>.txt"` once per target feature;
-   search its file for the item's doc path. With no cited-by line, the repeat groups and the term search carry the
-   decision.
+   `specstone check <feature> --repeats --out "<folder>/reports/check.audit.<XXXXXX>.txt"` once per target feature
+   for the whole sweep, reusing its file for later decisions; search it for the item's doc
+   path. With no cited-by line, the repeat groups and the term search carry the decision.
 3. **Reach**: ground each doc a cited-by line or repeat group names outside the grounded features by
    `specstone context <doc> --for design --out`, then run step 1 on its files. Run no `--repeats` on it and follow none
    of its cited-by lines: the reach stops one hop out.
@@ -55,9 +55,9 @@ it names:
 - **Design contradicts:** a decision that contradicts another decision, an Owner answer the design records, a
   constraint, or an owner item.
 - For each gap any lens finds, search the saved files for its wording and the rule or term it breaks, as the last
-  bullet of `audit.md`'s compare step does. Each hit in another doc or section that carries the same gap is a
-  sibling: its own `D<n>:` line under `Findings:`, never under `Outside the drafts:`. A hit that stays true
-  whatever answers the gap is no sibling.
+  bullet of `audit.md`'s compare step does, a reached doc's files included. Each hit in another doc or section that
+  carries the same gap is a sibling: its own `D<n>:` line under `Findings:`, never under `Outside the drafts:`. A hit
+  that stays true whatever answers the gap is no sibling.
 
 ## 4. Report
 
@@ -73,8 +73,9 @@ Findings:
 - **`Swept:`**: one line per decision step 1.2 kept, its own terms, written forms implied. A missing line shows a
   skipped sweep.
 - **`Lenses:`**: the label of each lens, in list order.
-- **`Findings:`**: one line per gap and per sibling, or `none`. End a line with `[behavior]` when its answer adds a
-  state, input, output, edge case, error, or reader of a rule; a line that only fixes the design's text stays
-  untagged.
+- **`Findings:`**: one line per gap and per sibling, or `none`; a gap in a doc names it `<type>:<name>#<key>`. End a
+  line with `[behavior]` when its answer adds a state, input, output, edge case, error, or reader of a rule; a line
+  that only fixes the design's text stays untagged.
 - **No `Audited:` line**: no draft exists yet.
-- **Reply**: `Report: <path>`, then the relay block, its `Swept:`, `Lenses:`, and `Findings:` lines copied from the report file.
+- **Reply**: `Report: <path>`, then the relay block, its `Swept:`, `Lenses:`, and `Findings:` lines
+  copied from the report file.

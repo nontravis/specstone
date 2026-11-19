@@ -139,7 +139,8 @@ finding.
   write), the `Guide:` line (the run's saved guide files, and each you saved for a type they lacked), the `Findings:`
   line.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
-  `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Swept:`, `Lenses:`, and `Findings:` lines.
+  `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Swept:`, `Lenses:`, and
+  `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
   one sentence on why it changed, never their text; each other draft; under `Pointers:`, each pointer or matrix row
   fixed, each code fingerprint written, each helper file joined to a caller doc's `covers`, and each pointer, row,
