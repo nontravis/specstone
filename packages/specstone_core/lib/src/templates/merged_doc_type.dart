@@ -2,17 +2,33 @@ import 'dart:math';
 
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/guide_limits.dart';
-import 'package:specstone_core/src/templates/models/line_prefix_count.dart';
+import 'package:specstone_core/src/templates/models/catalog_lint.dart';
+import 'package:specstone_core/src/templates/models/diagram_lint.dart';
+import 'package:specstone_core/src/templates/models/field_caps.dart';
+import 'package:specstone_core/src/templates/models/item_count_lint.dart';
+import 'package:specstone_core/src/templates/models/item_field_lint.dart';
 import 'package:specstone_core/src/templates/models/pattern_entry.dart';
 import 'package:specstone_core/src/templates/models/reference_entry.dart';
+import 'package:specstone_core/src/templates/models/required_when_lint.dart';
+import 'package:specstone_core/src/templates/models/sentence_caps.dart';
+import 'package:specstone_core/src/templates/models/sentence_limit.dart';
 import 'package:specstone_core/src/templates/models/summary_rows.dart';
 import 'package:specstone_core/src/templates/models/when_field.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/shared_merge.dart';
 
+export 'package:specstone_core/src/templates/models/catalog_lint.dart';
+export 'package:specstone_core/src/templates/models/diagram_lint.dart';
+export 'package:specstone_core/src/templates/models/field_caps.dart';
+export 'package:specstone_core/src/templates/models/item_count_lint.dart';
+export 'package:specstone_core/src/templates/models/item_field_lint.dart';
+export 'package:specstone_core/src/templates/models/item_field_when.dart';
 export 'package:specstone_core/src/templates/models/line_prefix_count.dart';
 export 'package:specstone_core/src/templates/models/pattern_entry.dart';
 export 'package:specstone_core/src/templates/models/reference_entry.dart';
+export 'package:specstone_core/src/templates/models/required_when_lint.dart';
+export 'package:specstone_core/src/templates/models/sentence_caps.dart';
+export 'package:specstone_core/src/templates/models/sentence_limit.dart';
 export 'package:specstone_core/src/templates/models/summary_rows.dart';
 export 'package:specstone_core/src/templates/models/when_field.dart';
 
@@ -142,213 +158,6 @@ final class MergedField {
     'export': ?export,
     'description': ?description,
     'lint': ?lint?.toJson(),
-  };
-}
-
-/// The sentence caps of one prose field, each key set or null.
-///
-/// A key an upper layer writes replaces the lower key whole; a key it leaves
-/// out stays. The two maps are written as a pair in one layer file.
-final class FieldCaps {
-  const new({this.maxSentences, this.maxSentenceWords, this.maxSentenceChars});
-
-  /// The most sentences the field's value may hold.
-  final int? maxSentences;
-
-  /// The most words of one sentence, by language key.
-  final Map<String, int>? maxSentenceWords;
-
-  /// The most characters of one sentence in a script with no spaces, by
-  /// language key.
-  final Map<String, int>? maxSentenceChars;
-
-  /// Whether the caps limit the length of a sentence.
-  bool get capsLength => maxSentenceWords != null || maxSentenceChars != null;
-
-  /// Returns these caps with each key [upper] writes replacing the same key.
-  FieldCaps mergedWith(FieldCaps upper) => FieldCaps(
-    maxSentences: upper.maxSentences ?? maxSentences,
-    maxSentenceWords: upper.maxSentenceWords ?? maxSentenceWords,
-    maxSentenceChars: upper.maxSentenceChars ?? maxSentenceChars,
-  );
-
-  /// Returns the JSON object of the keys set.
-  Map<String, Object> toJson() => {
-    'maxSentences': ?maxSentences,
-    'maxSentenceWords': ?maxSentenceWords,
-    'maxSentenceChars': ?maxSentenceChars,
-  };
-}
-
-/// A section table that is a code catalog.
-final class CatalogLint {
-  const new({required this.column});
-
-  /// The header of the column whose code spans are the catalog's codes.
-  final String column;
-
-  /// Returns the JSON object of this catalog.
-  Map<String, Object> toJson() => {'column': column};
-}
-
-/// A nested `- **<field>:** <text>` item every top-level item must hold.
-final class ItemFieldLint {
-  const new({
-    required this.field,
-    this.values,
-    this.when,
-    this.optional = false,
-    this.defaultFrom,
-  });
-
-  /// The nested item's label; the merge key.
-  final String field;
-
-  /// The texts the nested item may hold; any text when null.
-  final List<String>? values;
-
-  /// The condition under which the item must hold this field; always when null.
-  final ItemFieldWhen? when;
-
-  /// Whether an item may leave this field out.
-  final bool optional;
-
-  /// The id of the section whose items supply this field's default; none when
-  /// null.
-  final String? defaultFrom;
-
-  /// Returns whether an item with these nested [fields] must hold this field.
-  bool appliesTo(Map<String, String> fields) => when?.isMetBy(fields) ?? true;
-
-  /// Returns the JSON object of this item field, `values`, `when`, `optional`,
-  /// and `default_from` only when set.
-  Map<String, Object> toJson() => {
-    'field': field,
-    'values': ?values,
-    'when': ?when?.toJson(),
-    if (optional) 'optional': true,
-    'default_from': ?defaultFrom,
-  };
-}
-
-/// A condition on one nested field of an item: the field holds exactly a value.
-final class ItemFieldWhen {
-  const new({required this.field, required this.value});
-
-  /// The label of the nested item that is read.
-  final String field;
-
-  /// The text that nested item must hold, compared exactly.
-  final String value;
-
-  /// Returns whether [fields] holds [field] with exactly [value].
-  bool isMetBy(Map<String, String> fields) => fields[field] == value;
-
-  /// Returns the JSON object of this condition.
-  Map<String, Object> toJson() => {'field': field, 'value': value};
-}
-
-/// A section that is required while an item of another section holds a value.
-final class RequiredWhenLint {
-  const new({required this.section, required this.field, required this.value});
-
-  /// The id of the section whose items are read.
-  final String section;
-
-  /// The nested item label read in that section.
-  final String field;
-
-  /// The field value that makes this section required.
-  final String value;
-
-  /// Returns the JSON object of this rule.
-  Map<String, Object> toJson() => {
-    'section': section,
-    'field': field,
-    'value': value,
-  };
-}
-
-/// The checks on each `mermaid` flowchart in a section.
-final class DiagramLint {
-  const new({
-    this.title = false,
-    this.edgeLabels = false,
-    this.bannedLabels = const [],
-  });
-
-  /// Whether a diagram must carry a title.
-  final bool title;
-
-  /// Whether every edge must carry a label.
-  final bool edgeLabels;
-
-  /// The labels a diagram may not hold.
-  final List<String> bannedLabels;
-
-  /// Returns the JSON object of this diagram lint.
-  Map<String, Object> toJson() => {
-    'title': title,
-    'edgeLabels': edgeLabels,
-    'bannedLabels': bannedLabels,
-  };
-}
-
-/// The most sentences a line, or a table cell, may hold.
-final class SentenceLimit {
-  const new({required this.count, this.linePrefix, this.column});
-
-  /// The most sentences allowed.
-  final int count;
-
-  /// Limits the check to lines that start with it.
-  final String? linePrefix;
-
-  /// Limits the check to cells under this table header.
-  final String? column;
-
-  /// Returns the JSON object of this limit, each optional key only when set.
-  Map<String, Object> toJson() => {
-    'count': count,
-    'linePrefix': ?linePrefix,
-    'column': ?column,
-  };
-}
-
-/// The bounds on the number of items in a section.
-final class ItemCountLint {
-  const new({
-    this.min,
-    this.max,
-    this.perSubsection = false,
-    this.prefixes = const [],
-    this.waitsForOwner = false,
-  });
-
-  /// The fewest items, when bounded.
-  final int? min;
-
-  /// The most items, when bounded.
-  final int? max;
-
-  /// Whether each subsection is counted alone.
-  final bool perSubsection;
-
-  /// The item counts required per line prefix.
-  final List<LinePrefixCount> prefixes;
-
-  /// Whether an out-of-range count waits for the Owner, not the agent.
-  final bool waitsForOwner;
-
-  /// Returns the JSON object of these bounds, `min` and `max` only when set.
-  Map<String, Object> toJson() => {
-    'min': ?min,
-    'max': ?max,
-    'perSubsection': perSubsection,
-    'prefixes': [
-      for (final LinePrefixCount(:linePrefix, :count) in prefixes)
-        {'linePrefix': linePrefix, 'count': count},
-    ],
   };
 }
 
@@ -622,43 +431,6 @@ MergedSection? verificationMatrixOf(MergedDocType recordType) {
 
 /// The most characters one item may hold when no layer sets `max_item_chars`.
 const defaultMaxItemChars = 600;
-
-/// A language key mapped to a sentence cap, a whole number of 1 or more.
-///
-/// Every map holds `default`, which a language with no entry of its own takes.
-final class SentenceCaps {
-  const new(this.entries);
-
-  /// The cap of each language key.
-  final Map<String, int> entries;
-
-  /// Returns the cap of [language], else the `default` cap.
-  int capFor(String language) =>
-      entries[language] ??
-      entries[_defaultLanguage] ??
-      (throw StateError('a sentence cap map holds no $_defaultLanguage'));
-
-  /// Returns these caps with each entry of [upper] replacing the same entry.
-  SentenceCaps mergedWith(Map<String, int>? upper) =>
-      upper == null ? this : SentenceCaps({...entries, ...upper});
-
-  /// Returns the JSON object of every language key and its cap.
-  Map<String, Object> toJson() => {...entries};
-
-  static const _defaultLanguage = 'default';
-}
-
-/// The most words of one sentence when no layer sets `max_sentence_words`.
-const builtInSentenceWords = SentenceCaps({'default': 25, 'ko': 17});
-
-/// The most characters of one sentence in a script with no spaces when no
-/// layer sets `max_sentence_chars`.
-const builtInSentenceChars = SentenceCaps({
-  'default': 100,
-  'th': 100,
-  'ja': 60,
-  'zh': 45,
-});
 
 /// The language keys `max_sentence_words` takes.
 const sentenceWordLanguages = {'default', 'ko', 'ar', 'he', 'hi', 'el'};
