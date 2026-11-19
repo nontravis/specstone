@@ -275,7 +275,9 @@ final class _CodeJudge {
       bytesOf: (file) => _bytesOf(root, file),
       onUnlistable: (_) {},
     );
-    if (current == null) return _unresolved(pair, _unreadable);
+    if (current == null) {
+      return _unresolved(pair, FindingKind.fileUnreadable.wire);
+    }
     if (current == pair.fingerprint) return null;
     return StampRefusal(
       entry: pair.entry,
@@ -317,8 +319,6 @@ final class _CodeJudge {
         : FindingKind.implementsSymbolUnresolved;
   }
 }
-
-const _unreadable = 'its code cannot be read';
 
 StampRefusal _unresolved(StampPair pair, String reason) => StampRefusal(
   entry: pair.entry,

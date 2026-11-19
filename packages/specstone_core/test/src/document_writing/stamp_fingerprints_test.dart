@@ -1,3 +1,6 @@
+// A matrix row matches a test name as one literal, so long names stay whole.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,6 +17,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/write_fixture.dart' hide loginFeature;
@@ -163,8 +167,7 @@ void main() {
     },
   );
 
-  test('a stamp on a planned record entry writes its fingerprint and keeps it '
-      'planned', () async {
+  test('a stamp on a planned record entry writes its fingerprint and keeps it planned', () async {
     final root = await _project();
     final before = readDoc(root, loginRecord);
     const entry = '$_checkPassword:$_login:checkPassword';
@@ -178,8 +181,7 @@ void main() {
     expect(readDoc(root, loginRecord), contains("'$_checkPassword:planned'"));
   });
 
-  group('an entry whose path, Symbol, or implements folder does not resolve '
-      'refuses stamp_entry_unresolved', () {
+  group('an entry whose path, Symbol, or implements folder does not resolve refuses stamp_entry_unresolved', () {
     final cases = {
       'a covers path gone': (
         covers: ['app/lib/gone.dart'],
@@ -231,28 +233,52 @@ void main() {
     }
   });
 
-  test('several refused stamps write nothing and list each entry with its '
-      'code', () async {
-    final root = await _project();
-    final before = readDoc(root, loginArchitecture);
+  test(
+    'an entry whose code cannot be read refuses stamp_entry_unresolved as file_unreadable',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final root = await _project();
+      final path = '${root.path}/$_login';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+      final before = readDoc(root, loginArchitecture);
 
-    final fault = _refused(root, _archAddress, [
-      'app/lib/none.dart=$_old',
-      'app/lib/=$_old',
-      '$_login=$loginFingerprint',
-    ]);
+      final fault = _refused(root, _archAddress, ['$_login=$_old']);
 
-    expect(fault.exitStatus, 64);
-    expect(fault.toJson()['error'], {
-      'code': 'stamp_entry_unknown',
-      'message': 'no entry of $_archAddress reads app/lib/none.dart',
-      'refusals': [
-        {'entry': 'app/lib/none.dart', 'code': 'stamp_entry_unknown'},
-        {'entry': 'app/lib/', 'code': 'stamp_stale'},
-      ],
-    });
-    expect(readDoc(root, loginArchitecture), before);
-  });
+      expect(fault.exitStatus, 64);
+      expect(fault.refusals.single.code, WriteFaultCode.stampEntryUnresolved);
+      expect(
+        fault.refusals.single.message,
+        '$_login does not resolve: file_unreadable',
+      );
+      expect(readDoc(root, loginArchitecture), before);
+    },
+  );
+
+  test(
+    'several refused stamps write nothing and list each entry with its code',
+    () async {
+      final root = await _project();
+      final before = readDoc(root, loginArchitecture);
+
+      final fault = _refused(root, _archAddress, [
+        'app/lib/none.dart=$_old',
+        'app/lib/=$_old',
+        '$_login=$loginFingerprint',
+      ]);
+
+      expect(fault.exitStatus, 64);
+      expect(fault.toJson()['error'], {
+        'code': 'stamp_entry_unknown',
+        'message': 'no entry of $_archAddress reads app/lib/none.dart',
+        'refusals': [
+          {'entry': 'app/lib/none.dart', 'code': 'stamp_entry_unknown'},
+          {'entry': 'app/lib/', 'code': 'stamp_stale'},
+        ],
+      });
+      expect(readDoc(root, loginArchitecture), before);
+    },
+  );
 
   test('an entry holding = and : splits on its last =', () async {
     const path = 'app/lib/a=b.dart';
