@@ -45,6 +45,8 @@ const specstoneGitignoreLines = [
 const indexBusyMessage =
     'the index is busy; run the command again once the other call finishes';
 
+const _nestedWrite = 'nested_write';
+
 const _notWritableMessage =
     'cannot write the index under .specstone/; make it writable and run the '
     'command again';
@@ -336,6 +338,9 @@ final class IndexStore {
 
   int _snapshotDataVersion = 0;
 
+  // Whether an outermost write transaction is open; it is a read view already.
+  bool _holdsWrite = false;
+
   /// What went wrong while opening, one sentence each.
   final List<String> warnings;
 
@@ -449,23 +454,67 @@ final class IndexStore {
 
   /// Runs [body] in one write transaction.
   ///
-  /// Rolls back every change and rethrows when [body] throws.
+  /// Rolls back every change and rethrows when [body] throws. Inside an open
+  /// transaction, [body] runs in a savepoint instead: a throw undoes [body]
+  /// alone, and a return commits with the outer transaction.
   ///
   /// Throws [IndexFault] when another call holds the write lock or the index
   /// cannot be written.
   void write(void Function() body) {
+    final nested = !_db.autocommit;
     try {
-      _db.execute('BEGIN IMMEDIATE');
+      _db.execute(nested ? 'SAVEPOINT $_nestedWrite' : 'BEGIN IMMEDIATE');
+      if (!nested) _holdsWrite = true;
       try {
         body();
-        _db.execute('COMMIT');
+        _db.execute(nested ? 'RELEASE $_nestedWrite' : 'COMMIT');
       } on Object {
-        if (!_db.autocommit) _db.execute('ROLLBACK');
+        _undoWrite(nested);
         rethrow;
+      } finally {
+        if (!nested) _holdsWrite = false;
       }
     } on SqliteException catch (e) {
       throw _faultOf(e) ?? e;
     }
+  }
+
+  /// Runs [body] in one write transaction held across its awaits.
+  ///
+  /// Rolls back every change and rethrows when [body] throws. Holds the write
+  /// lock from the call until [body] completes, so use the store from nothing
+  /// else meanwhile.
+  ///
+  /// Throws [IndexFault] when another call holds the write lock or the index
+  /// cannot be written.
+  Future<T> writeAsync<T>(Future<T> Function() body) async {
+    try {
+      _db.execute('BEGIN IMMEDIATE');
+      _holdsWrite = true;
+      try {
+        final result = await body();
+        _db.execute('COMMIT');
+        return result;
+      } on Object {
+        _undoWrite(false);
+        rethrow;
+      } finally {
+        _holdsWrite = false;
+      }
+    } on SqliteException catch (e) {
+      throw _faultOf(e) ?? e;
+    }
+  }
+
+  void _undoWrite(bool nested) {
+    if (_db.autocommit) return;
+    if (!nested) {
+      _db.execute('ROLLBACK');
+      return;
+    }
+    _db
+      ..execute('ROLLBACK TO $_nestedWrite')
+      ..execute('RELEASE $_nestedWrite');
   }
 
   /// Checks the `.gitignore` lines, drops every table, recreates them empty in
@@ -792,8 +841,10 @@ final class IndexStore {
   /// Starts a read transaction so every later read sees one state.
   ///
   /// Records the data version, so [snapshotIsStale] can tell a later commit by
-  /// another connection.
+  /// another connection. Does nothing inside [write] or [writeAsync], whose
+  /// transaction is the read view.
   void beginSnapshot() {
+    if (_holdsWrite) return;
     _db
       ..execute('BEGIN')
       ..select('SELECT count(*) FROM meta');
@@ -810,7 +861,13 @@ final class IndexStore {
       _db.select('PRAGMA data_version').single['data_version'] as int;
 
   /// Ends the read transaction [beginSnapshot] started.
-  void endSnapshot() => _db.execute('COMMIT');
+  ///
+  /// Does nothing inside [write] or [writeAsync], so a nested index write
+  /// cannot commit the outer transaction.
+  void endSnapshot() {
+    if (_holdsWrite) return;
+    _db.execute('COMMIT');
+  }
 
   /// Returns every stored doc by tree order.
   ///

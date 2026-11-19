@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -240,6 +241,86 @@ void main() {
         'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
       );
     });
+    List<String> storedPaths(IndexStore store) =>
+        [for (final doc in store.loadDocs()) doc.docPath]..sort();
+    test('a write inside an open write commits with the outer one', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      store.write(() {
+        store.putDoc(parsed('A.md', '# A\n'));
+        store.write(() => store.putDoc(parsed('B.md', '# B\n')));
+        expect(
+          () => store.write(() {
+            store.putDoc(parsed('X.md', '# X\n'));
+            throw StateError('inner');
+          }),
+          throwsStateError,
+        );
+      });
+      expect(storedPaths(store), ['A.md', 'B.md']);
+
+      expect(
+        () => store.write(() {
+          store.write(() => store.putDoc(parsed('C.md', '# C\n')));
+          throw StateError('outer');
+        }),
+        throwsStateError,
+      );
+      expect(storedPaths(store), ['A.md', 'B.md']);
+    });
+    test('writeAsync holds the lock across an await', () async {
+      final r = await root();
+      final first = IndexStore.open(r);
+      addTearDown(first.close);
+      final second = IndexStore.open(r, busyTimeout: Duration.zero);
+      addTearDown(second.close);
+      final gate = Completer<void>();
+      final held = first.writeAsync(() async {
+        await gate.future;
+        first.putDoc(parsed('A.md', '# A\n'));
+        return 7;
+      });
+      expect(
+        () => second.write(() {}),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.indexBusy,
+          ),
+        ),
+      );
+      gate.complete();
+      expect(await held, 7);
+      second.write(() {});
+      expect(storedPaths(second), ['A.md']);
+    });
+    test(
+      'a snapshot ended and begun inside a write leaves the write open',
+      () async {
+        final r = await root();
+        final first = IndexStore.open(r);
+        addTearDown(first.close);
+        final second = IndexStore.open(r, busyTimeout: Duration.zero);
+        addTearDown(second.close);
+        first.write(() {
+          first
+            ..endSnapshot()
+            ..beginSnapshot();
+          expect(
+            () => second.write(() {}),
+            throwsA(
+              isA<IndexFault>().having(
+                (f) => f.code,
+                'code',
+                IndexFaultCode.indexBusy,
+              ),
+            ),
+          );
+        });
+      },
+    );
     test(
       'a read-only .specstone/.gitignore at a full rebuild is index_not_writable, exit 73, and leaves the index and the file as they were',
       skip: unreadablePathSkipReason(),

@@ -3,6 +3,9 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_report.dart';
+import 'package:specstone_core/src/consistency_check/check_run.dart';
+import 'package:specstone_core/src/consistency_check/mermaid_node_run.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -16,6 +19,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -157,6 +161,57 @@ void main() {
       ),
       throwsA(_faultCode(IndexFaultCode.argumentInvalid)),
     );
+  });
+
+  test('lockedAsync reruns the body on a stale snapshot', () async {
+    final root = await writeWriteProject();
+    writeIn(root, (_) {}); // creates the index
+    var runs = 0;
+    var writes = 0;
+    await WriteSession.runAsync(
+      (s) async {
+        runs++;
+        if (runs == 1) {
+          sqlite3.open('${root.path}/.specstone/index.sqlite')
+            ..execute('CREATE TABLE peer_commit (x)')
+            ..close();
+        }
+        await s.lockedAsync(() async {
+          await Future<void>.delayed(Duration.zero);
+          writes++;
+        });
+      },
+      templates: TemplateResolver(),
+      workingDirectory: root,
+      homeDirectory: testHome(),
+    );
+    expect((runs, writes), (2, 1));
+  });
+
+  test('runProjectCheck sees the findings a bare check sees', () async {
+    final root = await writeWriteProject();
+    final runner = MermaidNodeRun(
+      start: (_) async => throw const ProcessException('node', [], 'none', 2),
+    );
+    List<String> lines(CheckReport report) => [
+      for (final f in report.findings)
+        '${f.kind} ${f.path}:${f.line} ${f.message}',
+    ];
+    final bareSession = openSession(root);
+    final List<String> bare;
+    try {
+      bare = lines(await runCheck(bareSession, mermaidRunner: runner));
+    } finally {
+      bareSession.close();
+    }
+    final projectWide = await WriteSession.runAsync(
+      (s) async => lines(await s.runProjectCheck(mermaidRunner: runner)),
+      templates: TemplateResolver(),
+      workingDirectory: root,
+      homeDirectory: testHome(),
+    );
+    expect(bare, isNotEmpty);
+    expect(projectWide, bare);
   });
 
   test('a lock held past the busy timeout is index_busy, exit 75', () async {
