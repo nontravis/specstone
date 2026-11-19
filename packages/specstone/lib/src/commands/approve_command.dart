@@ -32,7 +32,31 @@ class ApproveCommand extends WriteCommand {
         negatable: false,
         help:
             'With --dry-run, print the drafts as one JSON object in place of '
-            'the views.',
+            'the views. With --auto, print the result as one JSON object.',
+      )
+      ..addFlag(
+        'auto',
+        negatable: false,
+        help:
+            'Judge the named drafts and approve the clean ones under the '
+            "Owner's auto approve mode; no terminal needed.",
+      )
+      ..addMultiOption(
+        'audit',
+        valueHelp: 'path',
+        splitCommas: false,
+        help: 'With --auto, an audit report of the run, oldest first.',
+      )
+      ..addMultiOption(
+        'author',
+        valueHelp: 'path',
+        splitCommas: false,
+        help: 'With --auto, an author report of the run.',
+      )
+      ..addFlag(
+        'no-audit',
+        negatable: false,
+        help: 'With --auto, the flow has no audit report.',
       );
     addTargetOption();
   }
@@ -48,7 +72,9 @@ class ApproveCommand extends WriteCommand {
   @override
   String get invocation =>
       'specstone approve [<name> …] [--target <name>] [--dry-run] '
-      '[--context <n> | --json] | <name>@<hash> … --yes [--target <name>]';
+      '[--context <n> | --json] | <name>@<hash> … --yes [--target <name>] | '
+      '<name> … --auto [--audit <path> … | --no-audit] [--author <path>] … '
+      '[--json] [--target <name>]';
 
   @override
   Future<int> run() async {
@@ -58,14 +84,19 @@ class ApproveCommand extends WriteCommand {
     final dryRun = args.flag('dry-run');
     final contextArg = args.option('context');
     final asJson = args.flag('json');
+    final auto = args.flag('auto');
+    _requireAutoCall(
+      auto: auto,
+      mixesForm: yes || dryRun || contextArg != null,
+    );
     if (dryRun && yes) {
       usageException('--dry-run goes without --yes.');
     }
     if (contextArg != null && yes) {
       usageException('--context goes without --yes.');
     }
-    if (asJson && !dryRun) {
-      usageException('--json goes only with --dry-run.');
+    if (asJson && !dryRun && !auto) {
+      usageException('--json goes only with --dry-run or --auto.');
     }
     if (asJson && contextArg != null) {
       usageException('--json goes without --context.');
@@ -80,6 +111,7 @@ class ApproveCommand extends WriteCommand {
         usageException('$name: a @<hash> goes only with --yes.');
       }
     }
+    if (auto) return _runAuto(names, codeTarget: targetOf(args));
     final color = console.stdoutIsTerminal && !console.noColor;
     if (dryRun) {
       return runWrite(
@@ -122,6 +154,47 @@ class ApproveCommand extends WriteCommand {
       );
       return const ReadAnswer(text: '', json: {});
     }, asJson: false);
+  }
+
+  /// Throws a usage error for a call `--auto` refuses: report flags without
+  /// [auto], and [auto] with no name, beside another form ([mixesForm]), or
+  /// with both `--audit` and `--no-audit`.
+  void _requireAutoCall({required bool auto, required bool mixesForm}) {
+    final args = argResults!;
+    final hasAudit = args.multiOption('audit').isNotEmpty;
+    final noAudit = args.flag('no-audit');
+    if (!auto) {
+      if (hasAudit || noAudit || args.multiOption('author').isNotEmpty) {
+        usageException('--audit, --author, and --no-audit need --auto.');
+      }
+      return;
+    }
+    if (args.rest.isEmpty) {
+      usageException('--auto needs the names of the drafts it approves.');
+    }
+    if (mixesForm) {
+      usageException('--auto takes no --yes, --dry-run, or --context.');
+    }
+    if (hasAudit && noAudit) {
+      usageException('--auto takes --audit <path> or --no-audit, not both.');
+    }
+  }
+
+  Future<int> _runAuto(List<String> names, {required String? codeTarget}) {
+    final args = argResults!;
+    final call = AutoApproveCall(
+      names: names,
+      auditPaths: args.multiOption('audit'),
+      authorPaths: args.multiOption('author'),
+      noAudit: args.flag('no-audit'),
+      workingDirectory: specstoneRunner.workingDirectory,
+      codeTarget: codeTarget,
+      approveModeVariable: console.approveModeVariable,
+    );
+    return runWriteAsync(
+      (session) => approveAuto(session, call),
+      asJson: args.flag('json'),
+    );
   }
 
   /// Returns the whole number from 0 in [text].

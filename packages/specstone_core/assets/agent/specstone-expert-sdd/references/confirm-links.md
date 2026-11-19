@@ -15,7 +15,8 @@ block, then its fingerprint; read the block, then write the entries with
 
 A `suspect` link's upstream block moved on since the entry was recorded: re-read it and confirm again the same way.
 Your approval request to the Owner then says what changed upstream.
-Under the `auto` mode, the approved list of `approve-mode.md` names the upstream change.
+Under the `auto` mode, the approved list of `specstone-expert-sdd`'s Get the drafts approved names the upstream
+change.
 
 ## Override lines (rule 4)
 

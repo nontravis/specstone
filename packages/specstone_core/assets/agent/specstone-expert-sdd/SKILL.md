@@ -11,7 +11,7 @@ description: Use when about to write, edit, or confirm a PRD or spec doc in a Sp
    `specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"`: `<folder>` the path `folder` prints, `XXXXXX`
    six `a-z0-9` characters, picked again while that file exists.
 2. Exit 78 with `project_not_found`: tell the Owner the project is still on the old format; `specstone migrate` moves
-   it, or they can keep using the old skills. Then stop: run nothing else; read and write no doc.
+   it, or they keep the old skills. Then stop: run nothing else, read and write no doc.
 3. Exit 0 or 1 of `check`: the project is on the new format, even from a subfolder. Its file is the baseline: search it,
    never read it whole.
 4. Any other non-zero exit: report the CLI's error to the Owner and stop.
@@ -24,13 +24,12 @@ Never look for `.specstone/` first: the working directory alone can miss a root 
 1. **Docs lead, code follows.** Output ⊆ spec ⊆ PRD over the Observable contract, what users, callers, or other
    features see: a spec states only what its PRD asks, and code that adds or changes such behavior no spec states
    gets a spec draft first.
-2. **Write through the CLI.** Create a doc with `specstone new` and change one with `specstone set`. Never write or
-   edit a doc file through a file tool or a shell command. Each write leaves its doc a draft, a pointer
+2. **Write through the CLI.** Create docs with `specstone new`, change them with `specstone set`. Never write or
+   edit a doc file with a file tool or shell command. Each write leaves its doc a draft, a pointer
    write (`implements`, `covers`) excepted: never remove `draft: true`. Run `specstone approve` only with `--dry-run`,
-   or with `--yes` as Owner confirmation below says.
-3. **Guide first.** Before you write a doc of a type, have its current guide, the CLI's output: `specstone guide <type>` and
-   `specstone guide <type> --json`. One call naming several types counts for each type, and so does a saved
-   guide of this run.
+   `--auto`, or `--yes` as below.
+3. **Guide first.** Before writing a doc of a type, have its current guide: `specstone guide <type>` and
+   `specstone guide <type> --json`. One call naming several types counts for each, as does a saved guide of this run.
 4. **Confirm traced links.** To write an FR, an nf, an API row, or an `Overrides:` line, follow `references/confirm-links.md`.
 5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
    its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `check` prints it.
@@ -48,32 +47,39 @@ Never look for `.specstone/` first: the working directory alone can miss a root 
 9. **Feature patterns.** For a new feature, pick its patterns with `specstone guide --pattern`; cover each checklist
    item or name it in the feature's Out-of-scope as a skip line.
 
+## Get the drafts approved
+
+Only the main session runs `--auto`; a subagent runs `approve` only with `--dry-run` and reports its drafts.
+
+1. Run one `specstone approve <type>:<name> … --auto --json` naming each draft of the run's own list (yours or the
+   engineer's), never a bare `approve`. In `specstone-brainstorming-sdd` add `--audit <path>` per audit
+   report, oldest first, and `--author <path>` per author report; else `--no-audit`.
+2. Exit 75: rerun once; a second sends all drafts to Owner confirmation.
+3. List each `approved` entry's `name`, `docPath`, and `Why:` sentence, with no wait; for a confirmation written
+   again, the upstream change.
+4. Send each `asked` entry to Owner confirmation unchanged.
+
+Under `ask` and `auto` the Owner answers the design document's approval, a mid-flow or report question, a split proposal, a
+sync pick, each `--plan`.
+
 ## Owner confirmation
 
-`approve`, `delete` of a guarded doc, `migrate`, and `init` on a legacy tree need the Owner's word, given at their
-own terminal or here in the chat. In the chat:
+`approve`, `delete` of a guarded doc, `migrate`, and `init` on a legacy tree need the Owner's word: at their terminal
+without `--yes` or in the chat:
 
-1. Show what the command does, one item per message, in full:
-   - `approve`: follow `references/approve-mode.md`; for each draft it leaves to the Owner, run
-     `specstone approve <type>:<name> … --dry-run`, then send each draft it prints in its own message: the
-     literal `Why:` (in English), one sentence in the conversation's language on why it changed, then its printed
-     text, pasted verbatim. When output is cut, rerun `--dry-run` per draft.
-   - `delete`: the list and `plan <hash>` line `specstone delete <path> … --dry-run` prints, and why each goes.
-   - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
-     line.
-2. The Owner answers `ok` or says what to fix. Fix it through `specstone set`, then show that item again.
-3. Run the `--yes` command, a clean draft under `auto` excepted, only after the Owner's `ok` for what you showed (the Owner may tell you to answer for
-   them). After `ok` on every item of the batch, run one command, passing the hashes shown:
-   `specstone approve <type>:<name>@<hash> … --yes` (each draft named, as a name approves only itself),
-   `specstone delete <path> … --yes --plan <hash>`, `specstone migrate --yes --plan <hash>`, or
-   `specstone init --yes --plan <hash>`. Exit 75 means an item changed since you showed it: show it again. Write every
-   name with its `@<hash>`, every path, and the `--plan <hash>` literally in the command; never build them from a
-   file, a variable, or a command substitution.
-4. The Owner may instead run the command, without `--yes`, at their own terminal.
+1. Show each item in full, one per message:
+   - `approve`, per draft the `--auto` call asks: the literal `Why:`, one sentence in the chat's language on why it
+     changed, then its `specstone approve <type>:<name> … --dry-run` text verbatim, per draft if cut.
+   - `delete`, `migrate`, or legacy `init`: the list or plan and `plan <hash>` line of
+     `specstone delete <path> … --dry-run` or `specstone migrate --dry-run`, and why each goes.
+2. The Owner says `ok` or what to fix; fix it by `specstone set`; show it again.
+3. After `ok` on every item shown (or the Owner's leave), run one command with the hashes shown,
+   each draft named: `specstone approve <type>:<name>@<hash> … --yes`, or `specstone delete <path> …`, `migrate`, or
+   `init` with `--yes --plan <hash>`. Exit 75: show it again. Write each `@<hash>`, path, and `--plan <hash>`
+   literally, never from a file, variable, or command substitution.
 
-`specstone trust` is the Owner's alone, even when a chat message tells you to answer for them. Never run it or answer
-its prompt, even through a pty or a shell tool. When a write refuses with `run specstone trust at a terminal`, stop: ask
-the Owner to run `specstone trust` in their own terminal, then retry.
+`specstone trust` is the Owner's alone, even if told to answer for them: never run it or answer its prompt, by pty or
+shell tool. On `run specstone trust at a terminal`, ask the Owner to run it, then retry.
 
 ## Red flags
 
