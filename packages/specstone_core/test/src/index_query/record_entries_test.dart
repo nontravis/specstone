@@ -596,6 +596,35 @@ void main() {
       ]);
     });
 
+    test('groups a per-FR row under its item', () {
+      final text = _matrixRecord([
+        '- show_toast/queue_toasts: `queues a toast`, `drops a toast` 3f9a1c0b7e2d',
+        '- show_toast/queue_toasts E02 skipped: no clock on CI',
+      ]);
+      final doc = _record(_matrixPath, text, type: _matrixRecordType);
+
+      expect(recordEntriesOf(doc, _matrixRecordType), const [
+        RecordEntry(
+          item: 'show_toast/queue_toasts',
+          status: RecordStatus.implemented,
+          matrixRows: [
+            TestRow(
+              item: 'show_toast/queue_toasts',
+              literals: ['queues a toast', 'drops a toast'],
+              fingerprint: '3f9a1c0b7e2d',
+              line: firstRowLine,
+            ),
+            SkipRow(
+              item: 'show_toast/queue_toasts',
+              edgeCase: 'E02',
+              reason: 'no clock on CI',
+              line: firstRowLine + 1,
+            ),
+          ],
+        ),
+      ]);
+    });
+
     test('an item that only rows name gets an entry', () {
       final text = _matrixRecord(['- show_toast/pin_toast E01: `pins`']);
       final doc = _record(_matrixPath, text, type: _matrixRecordType);
