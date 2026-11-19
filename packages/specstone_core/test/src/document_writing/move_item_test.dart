@@ -43,6 +43,10 @@ String _domain(List<String> items) =>
 
 String _inv(int number) => '- **INV-$number** Rule $number holds.';
 
+/// The config that reads the per-edge-case rows the row projects hold.
+String _edgeCaseConfig() =>
+    '${shippedPinsConfig()}verification_coverage: edge_case\n';
+
 Future<Directory> _project({
   List<String> shop = const [],
   List<String> cart = const [],
@@ -1331,6 +1335,7 @@ void main() {
 
     Future<Directory> project() => writeNestedProject(
       extra: {
+        '.specstone/config.yaml': _edgeCaseConfig(),
         ...nestedRecords(),
         'docs/$cartAddFr': fr([1, 2]),
         'docs/$dropFr': fr([1]),
@@ -1400,6 +1405,7 @@ void main() {
         bool holdsPayRecord = true,
       }) => writeNestedProject(
         extra: {
+          '.specstone/config.yaml': _edgeCaseConfig(),
           ...nestedRecords()
             ..removeWhere((path, _) => !holdsPayRecord && path == payRecord),
           'docs/$cartAddFr': fr([1, 2]),
@@ -1472,6 +1478,72 @@ void main() {
           );
         },
       );
+    });
+  });
+
+  group('an edge case move under fr or off leaves the record as written', () {
+    const dropFr =
+        'prds/features/f02_shop/f01_cart/us01_add_item/fr02_drop_stock.md';
+    const matrix = '\n## Verification matrix\n\n';
+
+    String contractOf(List<int> edgeCases) =>
+        '## Statement\n\n$checkStockStatement\n\n## Edge cases\n\n'
+        '${[for (final n in edgeCases) '$n. E0$n — Case $n → refused.'].join('\n')}\n';
+
+    String fr(List<int> edgeCases) =>
+        '---\ntraced_from:\n  - S1\nverify_method: test\n---\n\n'
+        '# Requirement\n\n${contractOf(edgeCases)}\n'
+        '## Rationale\n\nStock is finite.\n\n'
+        '## Verification\n\nTest: a case is refused.\n';
+
+    String frRow(String item, List<int> edgeCases) =>
+        '- add_item/$item: `refuses a case` '
+        '${fingerprintFor(contractOf(edgeCases))}';
+
+    Future<Directory> project(String coverage, String rows) =>
+        writeNestedProject(
+          extra: {
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}verification_coverage: $coverage\n',
+            ...nestedRecords(),
+            'docs/$cartAddFr': fr([1, 2]),
+            'docs/$dropFr': fr([1]),
+            cartRecord: '${nestedRecords()[cartRecord]}$matrix$rows\n',
+          },
+        );
+
+    void moveToDrop(Directory root) => writeIn(
+      root,
+      (session) => answerMove(session, [
+        'fr:shop/cart/add_item/check_stock#E01',
+      ], under: 'fr:shop/cart/add_item/drop_stock'),
+    );
+
+    Future<List<Object?>> suspectLinks(Directory root) async => [
+      for (final finding in (await checkOf(root, docPath: cartRecord)).findings)
+        if (finding.kind == FindingKind.suspect) finding.keys['link'],
+    ];
+
+    test('leaves per-FR rows and stamps as written when an edge case moves under fr', () async {
+      final rows =
+          '${frRow('check_stock', [1, 2])}\n${frRow('drop_stock', [1])}';
+      final root = await project('fr', rows);
+      expect(await suspectLinks(root), isEmpty);
+      moveToDrop(root);
+      expect(readDoc(root, dropFr), contains('1. E02 — Case 1 → refused.\n'));
+      expect(readDoc(root, cartRecord), endsWith('$matrix$rows\n'));
+      expect(
+        await suspectLinks(root),
+        unorderedEquals(['add_item/check_stock', 'add_item/drop_stock']),
+      );
+    });
+
+    test('leaves rows as written when an edge case moves under off', () async {
+      const row = '- add_item/check_stock E01: `refuses a case`';
+      final root = await project('false', row);
+      moveToDrop(root);
+      expect(readDoc(root, dropFr), contains('1. E02 — Case 1 → refused.\n'));
+      expect(readDoc(root, cartRecord), endsWith('$matrix$row\n'));
     });
   });
 

@@ -70,6 +70,7 @@ void main() {
       'link_unresolved',
       'link_anchor_missing',
       'link_item_missing',
+      'item_mention_missing',
       'link_self',
       'reference_malformed',
       'link_target_missing',

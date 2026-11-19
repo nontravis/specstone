@@ -29,7 +29,8 @@ Never look for `.specstone/`: the gate finds a root above the working directory.
 The work list is the gate file's `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
 `implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row findings,
 never a `tests_missing` one. A matrix-row finding is a `matrix_test_unresolved` one, or a `suspect` or `unconfirmed` one
-whose `waitsFor` is `agent`, on a Verification matrix row; one whose `waitsFor` is `owner` stays out. When the Owner
+whose `waitsFor` is `agent`, on a Verification matrix row, or, under `verification_coverage` `edge_case`, a per-FR
+row's `matrix_row_malformed`; one whose `waitsFor` is `owner` stays out. When the Owner
 names a feature, it is every code link of that feature that takes a state, findings or not. Take nothing from the task:
 code changed outside one is in the list too.
 

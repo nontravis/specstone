@@ -1416,8 +1416,9 @@ void main() {
       'A paragraph in the section.',
     ];
 
-    Future<Directory> matrixProject() => writeCheckProject(
+    Future<Directory> matrixProject({String config = ''}) => writeCheckProject(
       extra: {
+        '.specstone/config.yaml': '${shippedPinsConfig()}$config',
         loginRecord:
             "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
             '# Login implementation\n\n## Verification matrix\n\n${rows.join('\n')}\n',
@@ -1429,7 +1430,9 @@ void main() {
     );
 
     test('check prints matrix findings on the record, each waiting for the Agent', () async {
-      final project = await matrixProject();
+      final project = await matrixProject(
+        config: 'verification_coverage: edge_case\n',
+      );
 
       final text = readRunner(project);
       expect(await text.runner.run(['check']), 1);
@@ -1483,6 +1486,38 @@ void main() {
       expect({for (final f in findings) f['docPath']}, {loginRecord});
     });
 
+    test('tags a refused-form row as waiting for the Owner under off', () async {
+      final project = await matrixProject();
+      const formMessage =
+          'per-edge-case row; run specstone migrate to fold it into one row per FR';
+
+      final text = readRunner(project);
+      expect(await text.runner.run(['check']), 1);
+      expect(text.out.toString().split('\n').where((l) => l.contains(': matrix_')), [
+        '$loginRecord:12: matrix_row_malformed: $formMessage (waits for the Owner)',
+        '$loginRecord:13: matrix_row_malformed: $formMessage (waits for the Owner)',
+        '$loginRecord:14: matrix_row_malformed: ${rows[2]} is no matrix row; write "- <item>: `<test name>`" or "- <item> skipped: <reason>"',
+      ]);
+
+      final json = readRunner(project);
+      expect(await json.runner.run(['check', '--json']), 1);
+      final all =
+          (jsonDecode(json.out.toString()) as Map<String, Object?>)['findings']!
+              as List;
+      expect(
+        [
+          for (final f in all.cast<Map<String, Object?>>())
+            if ((f['kind']! as String).startsWith('matrix_'))
+              [f['kind'], f['line'], f['waitsFor']],
+        ],
+        [
+          ['matrix_row_malformed', 12, 'owner'],
+          ['matrix_row_malformed', 13, 'owner'],
+          ['matrix_row_malformed', 14, 'agent'],
+        ],
+      );
+    });
+
     test('check on the requirement alone prints none of them', () async {
       final (:runner, :out, :err) = readRunner(await matrixProject());
 
@@ -1490,7 +1525,8 @@ void main() {
       expect(out.toString(), '0 findings\n');
     });
 
-    test('the config key turns on the edge case coverage finding', () async {
+    test('the config key turns on the per-FR coverage finding, edge_case the '
+        'per-edge-case one', () async {
       Future<Directory> coverageProject(String config) => writeCheckProject(
         extra: {
           '.specstone/config.yaml': config,
@@ -1514,6 +1550,20 @@ void main() {
       );
       expect(await on.runner.run(['check']), 1, reason: on.out.toString());
       expect(missing(on.out.toString()), [
+        '$loginRecord:3: matrix_row_missing: $item is implemented and no matrix row names it',
+      ]);
+
+      final edgeCase = readRunner(
+        await coverageProject(
+          '${shippedPinsConfig()}verification_coverage: edge_case\n',
+        ),
+      );
+      expect(
+        await edgeCase.runner.run(['check']),
+        1,
+        reason: edgeCase.out.toString(),
+      );
+      expect(missing(edgeCase.out.toString()), [
         '$loginRecord:3: matrix_row_missing: $item#E01 is implemented and no matrix row names it',
       ]);
 
@@ -1538,6 +1588,8 @@ void main() {
         Map<String, String> extra = const {},
       }) => writeCheckProject(
         extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}verification_coverage: edge_case\n',
           loginRecord:
               "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
               '# Login implementation\n\n## Verification matrix\n\n'

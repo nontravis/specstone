@@ -24,6 +24,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 
 /// Where a story or FR entry goes: the feature whose record takes it, and its
 /// name relative to that feature.
@@ -140,14 +141,18 @@ final class _RowLeaving {
 /// lands in a requirement of another feature leaves its record for that
 /// feature's, in the same target, as [planRecordRewrites] carries an item's
 /// rows; a landing feature with no record in that target gets one, as a draft.
-/// A row that names an edge case which stays keeps its text. Throws
-/// [RenderFault] `output_not_writable` as [planRecordRewrites] does.
+/// A row that names an edge case which stays keeps its text. Plans nothing
+/// unless the matrix mode is `edge_case`, since only that mode reads rows that
+/// name an edge case. Throws [RenderFault] `output_not_writable` as
+/// [planRecordRewrites] does.
 RecordPlan planEdgeCaseRowMoves(
   WriteSession session,
   List<ItemLanding> landings,
 ) {
   final recordType = session.index.set.recordDocType;
-  final moves = _rowMovesOf(session.index, landings);
+  final moves = session.project.matrixMode == MatrixMode.edgeCase
+      ? _rowMovesOf(session.index, landings)
+      : const <String, Map<String, _RowMove>>{};
   if (recordType == null || moves.isEmpty) {
     return const RecordPlan(edits: {}, creates: []);
   }
@@ -195,12 +200,12 @@ _RowChanges _rowChangesOf(
   final rewritten = <int, String>{};
   final leaving = <int, _RowLeaving>{};
   for (final row in matrixLinesIn(lfText, recordType).whereType<MatrixRow>()) {
-    final move = moves['${row.item} ${row.edgeCase}'];
+    final edgeCase = row.edgeCase;
+    if (edgeCase == null) continue;
+    final move = moves['${row.item} $edgeCase'];
     if (move == null) continue;
     final at = row.line - 1;
-    final rest = lines[at].substring(
-      2 + row.item.length + 1 + row.edgeCase.length,
-    );
+    final rest = lines[at].substring(2 + row.item.length + 1 + edgeCase.length);
     final moved = '- ${move.target.name} ${move.edgeCase}$rest';
     if (move.target.feature.docPath == feature.docPath) {
       rewritten[at] = moved;

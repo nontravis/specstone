@@ -462,6 +462,52 @@ void main() {
     );
   });
 
+  test('a whole-project specstone check over a project whose FRs each hold a '
+      'bare item ID finishes within 2 s in the fastest of five calls', () {
+    const heldId = 'E900';
+    const lackedId = 'E901';
+    const section = '## Edge cases\n';
+    final frs = [
+      for (final file in Directory(
+        '${project.path}/docs/prds/features',
+      ).listSync(recursive: true).whereType<File>())
+        if (RegExp(r'fr\d+_req_\d+\.md$').hasMatch(file.path)) file,
+    ];
+    final originals = {for (final f in frs) f: f.readAsStringSync()};
+    addTearDown(() {
+      originals.forEach((file, text) => file.writeAsStringSync(text));
+    });
+    var count = 0;
+    for (final MapEntry(key: file, value: text) in originals.entries) {
+      count++;
+      final mentioned = count == 1 ? lackedId : heldId;
+      final held = text.replaceFirst(section, '$section- **$heldId** Held.\n');
+      file.writeAsStringSync('$held\nSee $mentioned here.\n');
+    }
+    expect(count, greaterThan(1000));
+    const call = ['check'];
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 1, reason: '${first.stderr}');
+    final missing = RegExp(
+      r'^.*: item_mention_missing: .*$',
+      multiLine: true,
+    ).allMatches(first.stdout.toString());
+    expect(missing, hasLength(1), reason: 'the rule ran over the bare IDs');
+    expect(
+      bestOf(
+        timingRuns,
+        () => timed(call, exitCodes: {1}),
+        label: 'check calls over bare item IDs',
+        metric: timingMetric,
+      ),
+      lessThanOrEqualTo(const Duration(seconds: 2)),
+    );
+  });
+
   test('a whole-project specstone check --repeats, '
       'with a current index, finishes within 2 s in the fastest of five '
       'calls', () {

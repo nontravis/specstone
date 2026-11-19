@@ -131,14 +131,27 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      more than one way.
    - **Tests line**: a task that adds or moves a test for an FR writes out a step that sets that FR's `tests` line in
      its target's record: `specstone set implementation:<feature> --field tests`, with `--target <code target>` when
-     one is given. Right after it, in the same bullet, a step writes one Verification matrix row per edge case the test
-     proves, in that record's `verification_matrix` section (`specstone set implementation:<feature>#verification_matrix`,
-     with the same `--target`), as ``- <item> <edge case>: `<literal>` ``: the FR named relative to its feature, its
-     edge case ID, and the first literal of the test's name, with no fingerprint. A later step stamps each row with the
-     fingerprint `check` prints for it once the test passes, never one you compute. A row whose edge case sits
-     in an FR carrying `draft: true` stays unstamped: the task names it as waiting on that FR's approval. A task that
-     writes a new test for a row the sync reported, because its test proves none of its edge case, also rewrites that
-     old row to the new test's literal and stamps it the same way, or removes it when a row of that literal already
+     one is given. Right after it, in the same bullet, steps write that record's Verification matrix rows, in its
+     `verification_matrix` section (`specstone set implementation:<feature>#verification_matrix`, with the same
+     `--target`), by the mode the top-level `verification_coverage` of `.specstone/config.yaml` names. `<item>` is the
+     FR named relative to its feature, `<literal>` the first literal of the test's name.
+     - **Off or `fr`, per-edge-case rows**: when the record holds rows ``- <item> <edge case>: …`` of the FR, write no
+       row, whatever the bullets below say; the step names `specstone migrate` for the Owner to run first.
+     - **Off** (absent, null, or `false`): no row; the `tests` line is all the task writes.
+     - **`fr`** (`true` or `fr`): the FR's one per-FR test row,
+       ``- <item>: `<literal>`[, `<literal>` ...][ <fingerprint>]``. No row: write ``- <item>: `<literal>` `` with no
+       fingerprint. A test row: append ``, `<literal>` `` and keep its fingerprint; one already holding the literal
+       stays unchanged. A skip row: replace it with ``- <item>: `<literal>` ``, no fingerprint, its reason dropped.
+     - **`edge_case`**: one row per edge case the test proves, ``- <item> <edge case>: `<literal>` ``, naming its
+       edge case ID, with no fingerprint; no row whose item, edge case, and literal already stand. A per-FR row of
+       the FR stays as written: the task's notes name its `matrix_row_malformed` for the Agent to rewrite.
+
+     A later step stamps each row this task wrote with no fingerprint, and each reported row, with the fingerprint
+     `check` prints for it once the test passes, never one you compute. A row of an FR carrying
+     `draft: true` stays unstamped: the task names it as waiting on that FR's approval. A task that writes a new test
+     for a row the sync reported, because its tests prove none of the FR's changed contract (under `edge_case`, none
+     of its edge case), also writes that row by the mode: under `fr`, the new literal into the FR's row as above;
+     under `edge_case`, the old row rewritten to the new test's literal, or removed when a row of that literal already
      stands. The sync writes no new `tests` line and no row for a new test.
 
    The plan's last task runs the `specstone-sync-sdd` skill with no path list; it builds no doc, so it carries no read
