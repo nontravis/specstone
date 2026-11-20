@@ -47,6 +47,7 @@ const _procedures = <String>[
   'specstone-sync-sdd/references/spec-drafts.md',
   'specstone-bootstrap-prd/references/procedure.md',
   'specstone-bootstrap-spec/references/procedure.md',
+  _trimRound,
   _goalMove,
   'specstone-brainstorming-sdd/references/author.md',
   'specstone-brainstorming-sdd/references/author-report.md',
@@ -1495,8 +1496,8 @@ const _runnerFlags = {
   'specstone-brainstorming-sdd/SKILL.md': ['--audit', '--author'],
   'specstone-update-sdd/SKILL.md': ['--no-audit'],
   'specstone-sync-sdd/SKILL.md': ['--no-audit'],
-  'specstone-bootstrap-prd/SKILL.md': ['--no-audit'],
-  'specstone-bootstrap-spec/SKILL.md': ['--no-audit'],
+  'specstone-bootstrap-prd/SKILL.md': ['--audit', '--no-audit'],
+  'specstone-bootstrap-spec/SKILL.md': ['--audit', '--no-audit'],
   'specstone-init/SKILL.md': ['--no-audit'],
 };
 
@@ -1632,7 +1633,129 @@ void _approveStepTests() {
     ];
     expect(problems, isEmpty);
   });
+
+  test(
+    'both bootstrap skills join a retrim mark to its feature folder batch',
+    () {
+      for (final skill in _bootstrapSkills) {
+        expect(
+          _hasSentenceWith(_pluginText(skill), [
+            '`retrim_due`',
+            'feature folder batch',
+          ]),
+          isTrue,
+          reason: skill,
+        );
+      }
+    },
+  );
+
+  test('a trim round dispatches a fresh audit with the round reports as '
+      'trims, then fix batches and re-audits, two rounds at most', () {
+    final sentences = _sentencesOf(_pluginText(_trimRound));
+    int indexWith(List<String> words) =>
+        sentences.indexWhere((sentence) => words.every(sentence.contains));
+    final dispatch = indexWith([
+      'fresh',
+      '`mode: audit`',
+      '`trims:`',
+      'bootstrap reports',
+    ]);
+    final fixBatch = indexWith(['fix batch', '`batch:`', 'finding lines']);
+    final reaudit = indexWith(['fresh audit', 'hash changed']);
+    final cap = indexWith(['two such rounds at most']);
+    expect(dispatch, isNonNegative, reason: 'audit dispatch');
+    expect(fixBatch, greaterThan(dispatch), reason: 'fix batch');
+    expect(reaudit, greaterThan(fixBatch), reason: 're-audit');
+    expect(cap, greaterThan(reaudit), reason: 'two rounds');
+  });
+
+  test('a bootstrap round with a trim batch approves with one audit flag per '
+      'audit report, not no-audit', () {
+    final approve = _sentencesOf(
+      _sectionOf(_pluginText(_expertSdd), _approveHeading),
+    );
+    final trimRound = approve.indexWhere(
+      (sentence) => [
+        'bootstrap round',
+        'trim batch',
+        'fix batch',
+        '`--audit <path>` per audit report of the round',
+        'oldest first',
+      ].every(sentence.contains),
+    );
+    expect(trimRound, isNonNegative);
+    expect(
+      approve.indexWhere((sentence) => sentence.contains('else `--no-audit`')),
+      greaterThan(trimRound),
+    );
+    expect(
+      _hasSentenceWith(_pluginText(_trimRound), [
+        '"Get the drafts approved"',
+        '`--audit` per audit report of the round',
+        'in place of `--no-audit`',
+      ]),
+      isTrue,
+    );
+    for (final skill in _bootstrapSkills) {
+      expect(
+        _hasSentenceWith(_pluginText(skill), [
+          '"Get the drafts approved"',
+          '`--no-audit`',
+          'trim batch',
+          '`--audit`',
+          'per audit report',
+        ]),
+        isTrue,
+        reason: skill,
+      );
+    }
+  });
+
+  test('handed citer and spec move lines start the next round, and a trim run '
+      'ends with sync', () {
+    final text = _pluginText(_trimRound);
+    for (final words in [
+      ['`Citers outside:`', '`Spec moves:`', 'starts another round'],
+      ['`specstone-sync-sdd`', 'trim', '`verification_coverage`'],
+    ]) {
+      expect(_hasSentenceWith(text, words), isTrue, reason: words.join(', '));
+    }
+    for (final skill in _bootstrapSkills) {
+      expect(
+        _hasSentenceWith(_pluginText(skill), [
+          '`Citers outside:`',
+          '`Spec moves:`',
+          'starts a round too when this skill takes its doc',
+        ]),
+        isTrue,
+        reason: skill,
+      );
+    }
+  });
+
+  test('both bootstrap skills point to trim-round.md once, in a round with a '
+      'trim batch, and it points to no trim.md', () {
+    for (final skill in _bootstrapSkills) {
+      final sentences = _sentencesOf(
+        _sectionOf(_pluginText(skill), _bootstrapAfterReports),
+      ).where((sentence) => sentence.contains('trim-round.md'));
+      expect(sentences, hasLength(1), reason: skill);
+      expect(
+        sentences.single,
+        allOf(contains('`../$_trimRound`'), contains('trim batch')),
+        reason: skill,
+      );
+    }
+    expect(_pluginText(_trimRound), isNot(contains('trim.md')));
+  });
 }
+
+/// The heading of the bootstrap skills' after-the-reports step.
+const _bootstrapAfterReports = '## 3. After the reports';
+
+/// The runner's steps for a bootstrap round with a trim batch.
+const _trimRound = 'specstone-expert-sdd/references/trim-round.md';
 
 // MARK: - trim reference
 
