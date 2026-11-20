@@ -8,6 +8,7 @@ import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
 import 'package:specstone_core/src/consistency_check/fingerprint.dart'
     show fingerprintOf, legacyFingerprintOf;
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
 import 'package:specstone_core/src/index_query/index_store.dart'
@@ -138,9 +139,10 @@ Future<Directory> _home({
   String version = '1.2.0',
   String migrations = _renameMigrations,
   String type = '',
+  String typeFile = 'runbook',
 }) => writeTree({
   '.specstone/packs/acme/pack.yaml': _pack(version, migrations),
-  '.specstone/packs/acme/runbook.yaml': type.isEmpty
+  '.specstone/packs/acme/$typeFile.yaml': type.isEmpty
       ? _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'procedure')
       : type,
 });
@@ -416,6 +418,113 @@ migrations:
         {'.specstone/config.yaml', domainPath},
       );
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+  });
+  group('mark_retrim step', () {
+    const migrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - mark_retrim: {doc_types: [fr], sections: [edge_cases, verification]}
+''';
+    const frType = '''
+id: fr
+description: An FR.
+path: prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md
+fields:
+  - {id: traced_from, type: string, list: true, required: true}
+sections:
+  - {id: statement, header: Statement, required: true}
+  - {id: edge_cases, header: Edge cases, required: true}
+  - {id: rationale, header: Rationale, required: true}
+  - {id: verification, header: Verification, required: true}
+''';
+
+    /// The merged `fr` type of the acme pack: the shipped one with the test's
+    /// sections, as `withApprovalHash` hashes it.
+    MergedDocType acmeFrType() => switch (DocTypeMatcher(
+      TemplateResolver().resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+      ),
+      targetNames: const [],
+    ).match('prds/features/f01_login/us01_email_login/fr01_validate.md')) {
+      MatchedDocType(:final docType) => docType,
+      _ => throw StateError('no doc type matches the fr path'),
+    };
+
+    String storyWithScenario() =>
+        '# Email login\n\n## Acceptance Criteria\n\n'
+        '### Scenario 1 — [happy] Sign in\n\n- **Given** an account\n';
+    const frPath =
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate.md';
+    const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+    const storyPath =
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const frBody =
+        '# Validate\n\n'
+        '## Statement\n\nThe system shall refuse a wrong password.\n\n'
+        '## Edge cases\n\n1. E01 — An empty password → refused.\n\n'
+        '## Rationale\n\nA wrong password must not sign in.\n\n'
+        '## Verification\n\nTest: a wrong password is refused.\n';
+    final frApproved = withApprovalHash(
+      '---\ntraced_from: [S1]\n---\n\n$frBody',
+      acmeFrType(),
+      statusesOutside: shippedStatusesOutside,
+    );
+
+    test('an upgrade with a mark_retrim entry marks FRs in commit 2 and '
+        'counts them on its plan line', () async {
+      final home = await _home(
+        migrations: migrations,
+        type: frType,
+        typeFile: 'fr',
+      );
+      final root = await _project(
+        files: {
+          frPath: frApproved,
+          featurePath: '# Login\n',
+          storyPath: storyWithScenario(),
+        },
+      );
+      final before = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run', '--json']);
+
+      expect(dry.status, 0, reason: dry.err);
+      final plan = jsonDecode(dry.out) as Map<String, Object?>;
+      expect(plan['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'mark_retrim',
+          'paths': [frPath.substring('docs/'.length)],
+        },
+      ]);
+      expect(_bytesUnder(root), before);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, contains('  from 1.0.0: mark_retrim: 1 docs\n'));
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(
+        _read(root, frPath),
+        withApprovalHash(
+          '---\nretrim:\n  - edge_cases\n  - verification\n'
+          'traced_from: [S1]\n---\n\n$frBody',
+          acmeFrType(),
+          statusesOutside: shippedStatusesOutside,
+        ),
+      );
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      final check = await _run(root, home, ['check', '--json']);
+      final kinds = _findingKinds(
+        check.out,
+        docPath: 'prds/features/f01_login/us01_email_login/fr01_validate.md',
+      );
+      expect(kinds, contains('retrim_due'));
+      expect(kinds, isNot(contains('approval_stale')));
     });
   });
   group('prd-core 1.9.0 pin upgrade', () {
@@ -2143,7 +2252,8 @@ agent_file_roots:
           contains('USER_STORY.md#scenario-9--edge-lettered\n'),
         );
         final after = await findings(root, home);
-        expect(after.difference(before), isEmpty);
+        final trimMarkedByUpgrade = {'retrim_due specs/f01_a/DOMAIN.md'};
+        expect(after.difference(before), trimMarkedByUpgrade);
         expect(
           after.where((finding) => finding.startsWith('item_id_lettered')),
           isEmpty,

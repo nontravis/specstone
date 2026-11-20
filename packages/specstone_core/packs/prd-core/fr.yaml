@@ -13,7 +13,7 @@ description: |-
   Put a case with no designed response in the domain's `known_limits`, with what happens then, or with no domain doc in the feature's Out-of-scope as `<case> — not planned`. A designed response, even "the file is left as it is", is an edge case.
   In an error case, name the error code the person or caller sees and whether the run stops. State no exit status: the error catalog of the nearest feature up the FR's parent chain in the target holds it.
   Quote an error message only when it is part of the contract, once, in the Output row that defines it; with no catalog reaching the FR, state in words what the person sees.
-  Split an FR that holds too many edge cases into new FRs in its story.
+  Trim edge cases the rules above leave out; split an FR still past the cap into new FRs in its story.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md
 parent: user_story
 fields:

@@ -1,9 +1,14 @@
 name: prd-core
-version: 1.19.0
+version: 1.20.0
 migrations:
   - from: 1.7.0
     steps:
       - strip_shared_copies: {}
+  - from: 1.19.0
+    steps:
+      - mark_retrim:
+          doc_types: [fr]
+          sections: [edge_cases, verification]
 shared_lines:
   - id: present_truth
     text: State the present truth; history lives in git.

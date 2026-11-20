@@ -1190,6 +1190,98 @@ path: prds/notes/{slug}/NOTE.md
       });
     });
 
+    group('a mark_retrim step', () {
+      Map<String, Uint8List> files({
+        String docTypes = '[feature]',
+        String sections = '[goal]',
+        Map<String, String> more = const {},
+      }) => {
+        ...shipped(),
+        'prd-core/pack.yaml': _bytes(
+          'name: prd-core\nversion: 1.1.0\nmigrations:\n'
+          '  - from: 1.0.0\n    steps:\n'
+          '      - mark_retrim: {doc_types: $docTypes,'
+          ' sections: $sections}\n',
+        ),
+        'prd-core/feature.yaml': _bytes(
+          'id: feature\ndescription: A feature\n'
+          'path: features/f{nn}_{slug}/FEATURE.md\n'
+          'sections:\n  - id: goal\n    header: Goal\n',
+        ),
+        for (final MapEntry(:key, :value) in more.entries) key: _bytes(value),
+      };
+
+      Future<MergedSet> resolveWith(
+        Map<String, Uint8List> shippedFiles, {
+        Map<String, String> project = const {},
+      }) async => TemplateResolver(shippedFiles: shippedFiles).resolve(
+        workingDirectory: await writeTree({
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          ...project,
+        }),
+        homeDirectory: await writeTree({}),
+      );
+
+      test('a mark_retrim id outside the merged set is refused at its '
+          'index', () async {
+        for (final (docTypes, sections, key) in [
+          ('[feature, featur]', '[goal]', 'doc_types[1]'),
+          ('[feature]', '[goall]', 'sections[0]'),
+        ]) {
+          await expectLater(
+            resolveWith(files(docTypes: docTypes, sections: sections)),
+            throwsA(
+              isA<TemplateFault>()
+                  .having((f) => f.code, 'code', FaultCode.unknownValue)
+                  .having(
+                    (f) => f.code.exitStatus,
+                    'exit',
+                    FaultCode.unknownValue.exitStatus,
+                  )
+                  .having((f) => f.file, 'file', 'packs/prd-core/pack.yaml')
+                  .having(
+                    (f) => f.key,
+                    'key',
+                    'migrations[0].steps[0].mark_retrim.$key',
+                  ),
+            ),
+            reason: key,
+          );
+        }
+        expect(await resolveWith(files()), isA<MergedSet>());
+      });
+
+      test(
+        'a mark_retrim section a later layer disables still loads',
+        () async {
+          final merged = await resolveWith(
+            files(),
+            project: {
+              '.specstone/templates/feature.yaml':
+                  'sections:\n  - id: goal\n    disabled: true\n',
+            },
+          );
+
+          expect(merged.lookup('feature'), isNotNull);
+        },
+      );
+
+      test('a mark_retrim doc type finds its sections through '
+          'extends', () async {
+        final merged = await resolveWith(
+          files(
+            docTypes: '[saga]',
+            more: {
+              'prd-core/saga.yaml':
+                  'id: saga\nextends: feature\npath: sagas/{slug}/SAGA.md\n',
+            },
+          ),
+        );
+
+        expect(merged.lookup('saga'), isNotNull);
+      });
+    });
+
     test("an extends doc type keeps its target's "
         'generators', () async {
       final home = await writeTree({});
@@ -1323,6 +1415,7 @@ sections:
         'draft',
         'approved',
         'reference',
+        'retrim',
       ]);
       expect(runbook.sections.single.id, 'steps');
     });

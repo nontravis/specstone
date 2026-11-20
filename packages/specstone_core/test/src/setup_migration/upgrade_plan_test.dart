@@ -171,6 +171,7 @@ void main() {
   _addedPinsTests();
   _dropDefaultLinesTests();
   _dropSharedLinesTests();
+  _markRetrimTests();
   _sharedCopiesTests();
   _matrixFoldTests();
 
@@ -3563,6 +3564,7 @@ void _moveToRecordTests() {
             'unreadable': <String>[],
           },
           {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
+          {'from': '1.14.0', 'step': 'mark_retrim', 'paths': <String>[]},
         ]);
       });
 
@@ -4702,6 +4704,7 @@ void _codeStampTests() {
           'unreadable': <String>[],
         },
         {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
+        {'from': '1.14.0', 'step': 'mark_retrim', 'paths': <String>[]},
       ]);
     });
 
@@ -5703,6 +5706,48 @@ migrations:
         isNot(contains('docs/prds/runbooks/deploy/RUNBOOK.md')),
       );
       expect(rewritten, isNot(contains(_overridePath)));
+    });
+  });
+}
+
+void _markRetrimTests() {
+  group('mark_retrim step', () {
+    test('a pin at the from of a mark_retrim entry selects its step', () async {
+      const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - mark_retrim: {doc_types: [domain], sections: [invariants]}
+''';
+      final plan = _plan(
+        await _fixture(
+          packYaml: packYaml,
+          overrides: const {},
+          docs: {_loginPath: _loginDoc},
+        ),
+      );
+
+      expect(
+        plan.toText(),
+        contains(
+          'commit 2, rewrites:\n'
+          '  from 1.0.0: mark_retrim: 1 docs\n',
+        ),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'mark_retrim',
+          'paths': [_loginPath],
+        },
+      ]);
+      expect(
+        _rewriteAt(plan, 'docs/$_loginPath').text,
+        '---\nretrim:\n  - invariants\n---\n\n$_loginDoc',
+      );
     });
   });
 }

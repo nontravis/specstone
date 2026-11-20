@@ -100,12 +100,13 @@ void main() {
       file: 'packs/software-tech/pack.yaml',
     );
 
-    expect(manifest.version.toString(), '1.14.0');
+    expect(manifest.version.toString(), '1.15.0');
     expect(manifest.migrations.map((m) => m.from.toString()), [
       '1.4.0',
       '1.6.0',
       '1.7.0',
       '1.13.0',
+      '1.14.0',
     ]);
   });
 

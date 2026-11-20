@@ -268,6 +268,39 @@ void main() {
     },
   );
 
+  test(
+    'check --json lists a retrim mark with its section key and agent wait',
+    () async {
+      final project = await writeCheckProject(
+        extra: fr(
+          '${fingerprintFor(loginScenario2)}\n---',
+          '${fingerprintFor(loginScenario2)}\nretrim:\n  - edge_cases\n---',
+        ),
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(await runner.run(['check', '--json']), 1);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final finding = (json['findings']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere((f) => f['kind'] == 'retrim_due');
+      expect(finding['docPath'], loginFr);
+      expect(
+        finding['line'],
+        File('${project.path}/docs/$loginFr')
+                .readAsLinesSync()
+                .indexWhere((text) => text == '## Edge cases') +
+            1,
+      );
+      expect(
+        finding['message'],
+        'edge_cases waits for a trim against its guide',
+      );
+      expect(finding['waitsFor'], 'agent');
+      expect(finding['section'], 'edge_cases');
+      expect(err.toString(), isEmpty);
+    },
+  );
+
   group('code link', () {
     final current = fileCodeFingerprint(
       utf8.encode(checkProjectFiles()['app/lib/login.dart']!),
