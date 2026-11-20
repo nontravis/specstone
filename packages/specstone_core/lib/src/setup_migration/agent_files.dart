@@ -5,6 +5,7 @@ import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_text.g.dart';
+import 'package:specstone_core/src/setup_migration/models/marker_scan.dart';
 
 /// The AGENT.md text, ending in one line feed, embedded from
 /// `assets/agent/AGENT.md` by `tool/generate_agent_text.dart`.
@@ -62,20 +63,6 @@ String inlineBlock({required String cliVersion}) =>
 String cursorRulesText({required String cliVersion}) =>
     '---\nalwaysApply: true\n---\n${inlineBlock(cliVersion: cliVersion)}';
 
-/// The Specstone marker lines of a text, numbered from 1.
-///
-/// `firstMarkerLine` is the first BEGIN or END line, or the opening line of
-/// the code fence still open at the end, null without either.
-/// `openFenceLine` is that fence's opening line alone, null when every fence
-/// closes.
-typedef MarkerScan = ({
-  int? beginLine,
-  int? endLine,
-  int? firstMarkerLine,
-  int? openFenceLine,
-  bool isMalformed,
-});
-
 /// Finds the marker lines of [text] outside fenced code.
 ///
 /// A marker is a whole line: BEGIN with a Version, or END. The text
@@ -108,7 +95,7 @@ MarkerScan scanMarkers(String text) {
     if (openFenceLine == null) ...begins,
     if (openFenceLine == null) ...ends,
   ]..sort();
-  return (
+  return MarkerScan(
     beginLine: begins.firstOrNull,
     endLine: ends.firstOrNull,
     firstMarkerLine: markers.firstOrNull,

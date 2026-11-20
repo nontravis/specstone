@@ -17,6 +17,10 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_drift.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
+import 'package:specstone_core/src/setup_migration/models/code_file.dart';
+import 'package:specstone_core/src/setup_migration/models/marker_scan.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
@@ -138,7 +142,7 @@ List<Directory> codeFoldersOf(
 /// own belongs to that target. A shared doc's entries count for no target when
 /// [targets] holds two or more. A doc [moves] moves is read where the move
 /// puts it.
-List<({Directory root, String path})> codeFilesOf(
+List<CodeFile> codeFilesOf(
   Directory projectRoot,
   MergedSet set, {
   required List<CodeTarget> targets,
@@ -154,7 +158,7 @@ List<({Directory root, String path})> codeFilesOf(
         docsRoot: docsRoot,
         nestedRoots: nestedRootsOf(projectRoot, target, targets),
       ))
-        (root: codeRootFolderOf(projectRoot, target), path: path),
+        CodeFile(root: codeRootFolderOf(projectRoot, target), path: path),
   ];
 }
 
@@ -167,7 +171,7 @@ Map<CodeTarget, Set<String>> _entriesByTarget(
   List<PathMove> moves = const [],
 ]) {
   final entriesOf = <CodeTarget, Set<String>>{};
-  for (final (:target, :entry) in _codeEntriesOf(
+  for (final _CodeEntry(:target, :entry) in _codeEntriesOf(
     projectRoot,
     set,
     targetNames: targetNamesOf(targets),
@@ -188,6 +192,15 @@ CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
   return targets.where((target) => target.name == name).firstOrNull;
 }
 
+/// A `code:` entry of a doc, and the target its path names; null for a shared
+/// doc.
+final class _CodeEntry {
+  const new({required this.target, required this.entry});
+
+  final String? target;
+  final String entry;
+}
+
 /// Returns the `code:` entries of each doc whose type holds the `code` field,
 /// in doc path order, with the target the doc's path names; null for a shared
 /// doc.
@@ -195,7 +208,7 @@ CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
 /// A per-target doc still at its one-target path is read where the tree move
 /// puts it ([treeMovesOf]), so the run that moves it already counts its
 /// entries for the first target; a doc [moves] moves is read at its new path.
-Iterable<({String? target, String entry})> _codeEntriesOf(
+Iterable<_CodeEntry> _codeEntriesOf(
   Directory projectRoot,
   MergedSet set, {
   required List<String> targetNames,
@@ -225,7 +238,7 @@ Iterable<({String? target, String entry})> _codeEntriesOf(
     for (final YamlEntry(:value) in docLinesOf(
       toLf(text),
     ).entriesOf(_codeField)) {
-      if (value is String) yield (target: match.target, entry: value);
+      if (value is String) yield _CodeEntry(target: match.target, entry: value);
     }
   }
 }
@@ -252,31 +265,6 @@ final class AgentFileInputs {
   final List<String> agentFileRoots;
 }
 
-/// The reasons an agent file differs from what the CLI writes.
-enum AgentDriftKind {
-  /// A block, or a rules file, differs from what the CLI writes.
-  blockStale,
-
-  /// `.specstone/AGENT.md` holds other bytes.
-  agentMdStale,
-
-  /// An import block names a `.specstone/AGENT.md` that is missing.
-  agentMdMissing,
-
-  /// A repository top that `agent_file_roots` does not list.
-  topUnlisted,
-
-  /// The Specstone marker lines of a file are malformed.
-  markersMalformed,
-
-  /// A code fence of a file is still open at its end.
-  codeFenceOpen,
-}
-
-/// One drift: its path from the project root, `/`-separated, its 1-based
-/// line, and its kind.
-typedef AgentDrift = ({String path, int line, AgentDriftKind kind});
-
 /// Returns every drift of the agent files at the project root and at each
 /// repository top, in the order of the files.
 ///
@@ -291,22 +279,26 @@ List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
   if (survey.agentMd.exists &&
       !survey.agentMd.matches &&
       _isWritable(root, survey.agentMd.realPath)) {
-    drifts.add((
-      path: _agentMdPath,
-      line: 1,
-      kind: AgentDriftKind.agentMdStale,
-    ));
+    drifts.add(
+      const AgentDrift(
+        path: _agentMdPath,
+        line: 1,
+        kind: AgentDriftKind.agentMdStale,
+      ),
+    );
   }
   for (final folder in survey.folders) {
     // A top outside the project root is never listed, and a file no run
     // may write (outside the root or under `.git`) has no drift a run could
     // fix; a file that links into the project still has.
     if (folder.isUnlisted && !_isOutside(folder.path)) {
-      drifts.add((
-        path: folder.path,
-        line: 1,
-        kind: AgentDriftKind.topUnlisted,
-      ));
+      drifts.add(
+        AgentDrift(
+          path: folder.path,
+          line: 1,
+          kind: AgentDriftKind.topUnlisted,
+        ),
+      );
     }
     for (final file in folder.files.where(
       (file) => file.exists && _isWritable(root, file.realPath),
@@ -320,33 +312,6 @@ List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
     }
   }
   return drifts;
-}
-
-/// One agent file write.
-final class AgentWrite {
-  const new({
-    required this.path,
-    required this.text,
-    required this.isNew,
-    required this.before,
-    required this.isAtTop,
-  });
-
-  /// The path from the project root; it may name a symbolic link, which the
-  /// writer must write through to the link's target.
-  final String path;
-
-  /// The whole new file text, in the file's own line ending.
-  final String text;
-
-  /// Whether the file does not exist yet.
-  final bool isNew;
-
-  /// The [textHashOf] of the existing file's text; null for a new file.
-  final String? before;
-
-  /// Whether the file lies at a repository top, outside the project's commits.
-  final bool isAtTop;
 }
 
 /// The agent file writes of one run.
@@ -564,7 +529,7 @@ bool _endsCurrent(AgentFileInputs inputs, AgentWritePlan plan) {
   final fixed = {...plan.paths, ...plan.trash, ...plan.trashFiles};
   final listed = plan.addedRoots.toSet();
   final left = [
-    for (final (:path, line: _, :kind) in agentFileDrifts(inputs))
+    for (final AgentDrift(:path, :kind) in agentFileDrifts(inputs))
       if (!switch (kind) {
         // The importing file stays as it is; writing AGENT.md fixes it.
         AgentDriftKind.topUnlisted => listed.contains(path),
@@ -702,7 +667,7 @@ final class _AgentFile {
   }) sync* {
     final marker = scan!;
     if (marker.isMalformed) {
-      yield (
+      yield AgentDrift(
         path: path,
         line: marker.firstMarkerLine!,
         kind: marker.openFenceLine == null
@@ -714,14 +679,18 @@ final class _AgentFile {
     if (!isChecked) return;
     final begin = marker.beginLine;
     if (nextText(isUpsert: false) != null) {
-      yield (
+      yield AgentDrift(
         path: path,
         line: _staleLine(begin),
         kind: AgentDriftKind.blockStale,
       );
     }
     if (isImport && begin != null && isAgentMdMissing) {
-      yield (path: path, line: begin, kind: AgentDriftKind.agentMdMissing);
+      yield AgentDrift(
+        path: path,
+        line: begin,
+        kind: AgentDriftKind.agentMdMissing,
+      );
     }
   }
 
@@ -824,7 +793,7 @@ final class _Survey {
   /// reach keeps its first name only, so no two writes land on it.
   factory of(AgentFileInputs inputs) {
     final root = _canonicalOf(inputs.projectRoot);
-    final (:folders, :topUpserted) = _eachFileOnce([
+    final _FilesOnce(:folders, :topUpserted) = _eachFileOnce([
       for (final base in agentFileBasesOf(inputs))
         _Folder(
           base: base,
@@ -886,11 +855,18 @@ final class _Survey {
   }
 }
 
+/// The folders with each real file kept once, and the real paths a later
+/// unlisted top names too.
+final class _FilesOnce {
+  const new({required this.folders, required this.topUpserted});
+
+  final List<_Folder> folders;
+  final Set<String> topUpserted;
+}
+
 /// Returns [folders] with each real file in the first folder that names it,
 /// and the real paths of the kept files a later unlisted top names too.
-({List<_Folder> folders, Set<String> topUpserted}) _eachFileOnce(
-  List<_Folder> folders,
-) {
+_FilesOnce _eachFileOnce(List<_Folder> folders) {
   final seen = <String>{};
   final topUpserted = <String>{};
   final kept = <_Folder>[];
@@ -905,7 +881,7 @@ final class _Survey {
     }
     kept.add(folder.withFiles(files));
   }
-  return (folders: kept, topUpserted: topUpserted);
+  return _FilesOnce(folders: kept, topUpserted: topUpserted);
 }
 
 /// Returns the qualifying repository tops of [folders], by their path from

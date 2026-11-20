@@ -43,6 +43,7 @@ import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show codeFilesOf;
+import 'package:specstone_core/src/setup_migration/models/code_file.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedDocType;
@@ -390,7 +391,7 @@ Map<String, File> _mentionFiles(MentionScope scope) {
     projectRoot: scope.projectRoot,
     docsRoot: scope.docsRoot,
   );
-  for (final (root: codeRoot, path: codePath) in codeFilesOf(
+  for (final CodeFile(root: codeRoot, path: codePath) in codeFilesOf(
     scope.projectRoot,
     scope.set,
     targets: scope.targets,

@@ -5,6 +5,7 @@ import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:test/test.dart';
 

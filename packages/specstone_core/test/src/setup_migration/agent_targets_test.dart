@@ -8,6 +8,9 @@ import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_drift.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
+import 'package:specstone_core/src/setup_migration/models/code_file.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
     show planSkillAndAgentFiles;
 import 'package:specstone_core/src/templates/code_target.dart';
@@ -706,14 +709,11 @@ void main() {
   });
 
   group('codeFilesOf', () {
-    List<String> listed(List<({Directory root, String path})> files) => [
+    List<String> listed(List<CodeFile> files) => [
       for (final file in files) '${file.root.path}|${file.path}',
     ];
 
-    Future<List<({Directory root, String path})>> filesOf(
-      Directory base,
-      List<CodeTarget> targets,
-    ) {
+    Future<List<CodeFile>> filesOf(Directory base, List<CodeTarget> targets) {
       final set = TemplateResolver().resolve(
         workingDirectory: _at(base, 'proj/'),
         homeDirectory: null,
@@ -1756,7 +1756,11 @@ void main() {
         expect(_paths(plan), ['AGENTS.md']);
         expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n${_inline()}');
         expect(agentFileDrifts(inputs), [
-          (path: 'AGENTS.md', line: 2, kind: AgentDriftKind.blockStale),
+          const AgentDrift(
+            path: 'AGENTS.md',
+            line: 2,
+            kind: AgentDriftKind.blockStale,
+          ),
         ]);
       });
 
@@ -1827,7 +1831,11 @@ void main() {
       });
 
       expect(agentFileDrifts(_inputs(base)), [
-        (path: 'AGENTS.md', line: 2, kind: AgentDriftKind.blockStale),
+        const AgentDrift(
+          path: 'AGENTS.md',
+          line: 2,
+          kind: AgentDriftKind.blockStale,
+        ),
       ]);
     });
 
@@ -1845,7 +1853,11 @@ void main() {
       final base = await _base({'proj/CLAUDE.md': 'x\n${_imports('')}'});
 
       expect(agentFileDrifts(_inputs(base)), [
-        (path: 'CLAUDE.md', line: 2, kind: AgentDriftKind.agentMdMissing),
+        const AgentDrift(
+          path: 'CLAUDE.md',
+          line: 2,
+          kind: AgentDriftKind.agentMdMissing,
+        ),
       ]);
     });
 
@@ -1857,7 +1869,11 @@ void main() {
       });
 
       expect(agentFileDrifts(_inputs(base)), [
-        (path: _agentMd, line: 1, kind: AgentDriftKind.agentMdStale),
+        const AgentDrift(
+          path: _agentMd,
+          line: 1,
+          kind: AgentDriftKind.agentMdStale,
+        ),
       ]);
     });
 
@@ -1868,7 +1884,11 @@ void main() {
       });
 
       expect(agentFileDrifts(_inputs(base)), [
-        (path: 'AGENTS.md', line: 2, kind: AgentDriftKind.markersMalformed),
+        const AgentDrift(
+          path: 'AGENTS.md',
+          line: 2,
+          kind: AgentDriftKind.markersMalformed,
+        ),
       ]);
     });
 
@@ -1902,10 +1922,18 @@ void main() {
       });
 
       expect(agentFileDrifts(_inputs(frontmatter)), [
-        (path: _cursor, line: 1, kind: AgentDriftKind.blockStale),
+        const AgentDrift(
+          path: _cursor,
+          line: 1,
+          kind: AgentDriftKind.blockStale,
+        ),
       ]);
       expect(agentFileDrifts(_inputs(both)), [
-        (path: _cursor, line: 4, kind: AgentDriftKind.blockStale),
+        const AgentDrift(
+          path: _cursor,
+          line: 4,
+          kind: AgentDriftKind.blockStale,
+        ),
       ]);
     });
 
@@ -1918,7 +1946,13 @@ void main() {
 
       expect(
         agentFileDrifts(_inputs(base, code: ['proj/other/'], roots: ['other'])),
-        [(path: 'other/AGENTS.md', line: 1, kind: AgentDriftKind.blockStale)],
+        [
+          const AgentDrift(
+            path: 'other/AGENTS.md',
+            line: 1,
+            kind: AgentDriftKind.blockStale,
+          ),
+        ],
       );
     });
 
@@ -1932,7 +1966,13 @@ void main() {
 
       expect(
         agentFileDrifts(_inputs(base, code: ['proj/other/', 'proj/other/'])),
-        [(path: 'other', line: 1, kind: AgentDriftKind.topUnlisted)],
+        [
+          const AgentDrift(
+            path: 'other',
+            line: 1,
+            kind: AgentDriftKind.topUnlisted,
+          ),
+        ],
       );
     });
 

@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_drift.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/version.dart';
@@ -108,7 +109,7 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
     waitsFor: text.isHandRepair ? WaitsFor.agent : WaitsFor.owner,
   );
   final drifts = agentFileDrifts(inputs);
-  for (final (:path, :line, :kind) in drifts) {
+  for (final AgentDrift(:path, :line, :kind) in drifts) {
     yield findingOf(path, line, _textOf(kind));
   }
   // An unlisted top is one finding whatever its files hold.

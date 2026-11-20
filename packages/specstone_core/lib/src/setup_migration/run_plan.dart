@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/stale_mentions.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 
 /// Returns whether a ProjectPath under [root] holds an entry once [moves], as
