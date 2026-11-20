@@ -39,7 +39,7 @@ import 'package:specstone_core/src/setup_migration/record_placement.dart'
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart'
+import 'package:specstone_core/src/templates/models/migration_step.dart'
     show MoveToRecord;
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';

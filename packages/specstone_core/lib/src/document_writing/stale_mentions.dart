@@ -23,6 +23,7 @@ import 'package:specstone_core/src/rendering/doc_reader.dart'
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show codeFilesOf;
+import 'package:specstone_core/src/setup_migration/models/code_file.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart' show CodeTarget;
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -347,7 +348,7 @@ Map<String, File> _filesToRead(MentionScope scope) {
     projectRoot: scope.projectRoot,
     docsRoot: scope.docsRoot,
   );
-  for (final (root: codeRoot, path: codePath) in codeFilesOf(
+  for (final CodeFile(root: codeRoot, path: codePath) in codeFilesOf(
     scope.projectRoot,
     scope.set,
     targets: scope.targets,

@@ -18,13 +18,16 @@ import 'package:specstone_core/src/document_writing/write_session.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
+import 'package:specstone_core/src/setup_migration/models/doc_text.dart';
 import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
     show LabelConversion;
 import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
     show LabelTree;
+import 'package:specstone_core/src/setup_migration/models/labeled_rewrite.dart';
 
 final _humanLine = RegExp(r'^- \*\*Human:\*\* (.+)$', multiLine: true);
 
@@ -62,14 +65,10 @@ const _headerRenames = <LegacyKind, (String, String)>{
   LegacyKind.api: ('FR ↔ endpoint trace', 'FR trace'),
 };
 
-/// A doc file as LF text with the line style and byte order mark it came with,
-/// and the [textHashOf] its text had.
-typedef DocText = ({String lf, LineEnding ending, bool bom, String hash});
-
 /// Reads UTF-8 [bytes] into LF text, the byte order mark dropped from it.
 DocText readDocText(List<int> bytes) {
   final text = utf8.decode(bytes);
-  return (
+  return DocText(
     lf: toLf(text),
     ending: LineEnding.of(text),
     bom: startsWithUtf8Bom(bytes),
@@ -187,14 +186,14 @@ DocRewrite rewriteLegacyDoc(
 /// [docPath] is where the doc sits before the moves; a link that leaves the
 /// docs root follows a doc that changes depth. The label is `1 link` or
 /// `<n> links`, and null when no link changes.
-({String lf, String? label}) rewriteLinks(
+LabeledRewrite rewriteLinks(
   String lf, {
   required String docPath,
   required List<PathMove> moves,
 }) {
   final result = rewriteDocLinksCounted(lf, docPath: docPath, moves: moves);
-  if (result == null) return (lf: lf, label: null);
-  return (
+  if (result == null) return LabeledRewrite(lf: lf, label: null);
+  return LabeledRewrite(
     lf: result.lfText,
     label: result.count == 1 ? '1 link' : '${result.count} links',
   );
@@ -206,7 +205,7 @@ DocRewrite rewriteLegacyDoc(
 /// [docPath] is where the doc sits before the moves, and [exists] reads the
 /// legacy tree as it stands before them, from the docs root. The label is
 /// `1 mention` or `<n> mentions`, and null when no mention changes.
-({String lf, String? label}) rewriteMentions(
+LabeledRewrite rewriteMentions(
   String lf, {
   required String docPath,
   required List<PathMove> moves,
@@ -218,8 +217,8 @@ DocRewrite rewriteLegacyDoc(
     moves: moves,
     exists: (projectPath) => exists(_docsRootPathOf(projectPath)),
   );
-  if (result == null) return (lf: lf, label: null);
-  return (
+  if (result == null) return LabeledRewrite(lf: lf, label: null);
+  return LabeledRewrite(
     lf: result.lfText,
     label: result.count == 1 ? '1 mention' : '${result.count} mentions',
   );

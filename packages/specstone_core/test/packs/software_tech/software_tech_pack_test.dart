@@ -6,8 +6,8 @@ import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/merged_field.dart'
     show FieldType;
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';

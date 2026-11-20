@@ -5,6 +5,7 @@ import 'package:markdown/markdown.dart';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
 import 'package:yaml/yaml.dart';
 
 import 'package_root.dart';

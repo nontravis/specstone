@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/templates/layer_source.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 

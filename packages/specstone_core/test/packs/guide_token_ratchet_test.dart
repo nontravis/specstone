@@ -30,7 +30,7 @@ const _guideTokenRows = <String, int>{
   'prd-core/anti_persona': 997,
   'prd-core/feature': 1738,
   'prd-core/features': 468,
-  'prd-core/fr': 1807,
+  'prd-core/fr': 1834,
   'prd-core/glossary': 342,
   'prd-core/gnfr': 2799,
   'prd-core/goal': 698,

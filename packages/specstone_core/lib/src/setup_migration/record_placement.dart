@@ -11,39 +11,20 @@ import 'package:specstone_core/src/index_query/parents.dart'
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/setup_migration/feature_relative.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/placement_doc.dart';
+import 'package:specstone_core/src/setup_migration/models/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart'
     show PlannedCreate, draftNote;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/models/record_status.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart';
 
 // MARK: - Constants
 
 const _statusKey = 'status';
 const _fixThenMigrate = 'fix it, then run specstone migrate again';
-
-// MARK: - Types
-
-/// A typed doc of the run as the placement reads it: its DocPath after the
-/// moves, its doc type, the code target whose pattern set matched it (null for
-/// a shared doc), and its LF text after the steps so far.
-typedef PlacementDoc = ({
-  String plannedPath,
-  MergedDocType? type,
-  String? target,
-  String lf,
-});
-
-/// Where the values a `move_to_record` step took land: the `value_unplaced`
-/// faults when any value has no place, else the new text of each existing
-/// record by its planned DocPath and each record to create.
-typedef RecordPlacement = ({
-  List<MigrateFault> unplaced,
-  Map<String, String> edits,
-  List<NewRecord> creates,
-});
 
 // MARK: - Before the steps
 
@@ -131,10 +112,10 @@ final class RecordMoves {
     required bool Function(String docPath) isTaken,
   }) {
     if (_taken.isEmpty) {
-      return (unplaced: const [], edits: const {}, creates: const []);
+      return const RecordPlacement(unplaced: [], edits: {}, creates: []);
     }
     if (recordType == null) {
-      return (
+      return RecordPlacement(
         unplaced: [
           for (final taken in _taken)
             _fault(
@@ -180,16 +161,16 @@ final class RecordMoves {
       final landed = _land(tree, recordType, feature, movers, isTaken);
       unplaced.addAll(landed.unplaced);
       switch (landed.record) {
-        case (:final docPath, :final text, isNew: true):
+        case _LandedRecord(:final docPath, :final text, isNew: true):
           creates.add(NewRecord(docPath: docPath, text: text));
-        case (:final docPath, :final text, isNew: false):
+        case _LandedRecord(:final docPath, :final text, isNew: false):
           edits[docPath] = text;
         case null:
           break;
       }
     }
     unplaced.sort((a, b) => compareCodePoints(a.file!, b.file!));
-    return (unplaced: unplaced, edits: edits, creates: creates);
+    return RecordPlacement(unplaced: unplaced, edits: edits, creates: creates);
   }
 }
 
@@ -232,10 +213,22 @@ List<PlannedCreate> recordCreatesOf(RecordPlacement placement) => [
 
 /// The record of one feature after its movers land: its DocPath and text, and
 /// whether it is new; null when nothing lands.
-typedef _Landed = ({
-  List<MigrateFault> unplaced,
-  ({String docPath, String text, bool isNew})? record,
-});
+final class _Landed {
+  const new({required this.unplaced, required this.record});
+
+  final List<MigrateFault> unplaced;
+  final _LandedRecord? record;
+}
+
+/// A record's DocPath and text once its movers land, and whether the record is
+/// new.
+final class _LandedRecord {
+  const new({required this.docPath, required this.text, required this.isNew});
+
+  final String docPath;
+  final String text;
+  final bool isNew;
+}
 
 _Landed _land(
   _Tree tree,
@@ -255,7 +248,7 @@ _Landed _land(
   ];
   final held = tree.recordOf(feature);
   if (held != null && !_hasValidFrontmatter(held.lf)) {
-    return (
+    return _Landed(
       unplaced: refuseAll(
         'the record of ${feature.name} has frontmatter that is not valid YAML',
       ),
@@ -297,9 +290,9 @@ _Landed _land(
     }
   }
   if (statuses.isEmpty && code.isEmpty) {
-    return (unplaced: unplaced, record: null);
+    return _Landed(unplaced: unplaced, record: null);
   }
-  _Landed refused(String why, {bool codeOnly = false}) => (
+  _Landed refused(String why, {bool codeOnly = false}) => _Landed(
     unplaced: [
       ...unplaced,
       ...refuseAll(why, codeOnly: codeOnly),
@@ -324,9 +317,13 @@ _Landed _land(
         codeOnly: error.field == recordCodeFieldOf(recordType)?.id,
       );
     }
-    return (
+    return _Landed(
       unplaced: unplaced,
-      record: (docPath: held.plannedPath, text: added ?? held.lf, isNew: false),
+      record: _LandedRecord(
+        docPath: held.plannedPath,
+        text: added ?? held.lf,
+        isNew: false,
+      ),
     );
   }
   final created = tree.newRecordOf(feature, lines);
@@ -339,9 +336,13 @@ _Landed _land(
       'a file the run cannot read as a record',
     );
   }
-  return (
+  return _Landed(
     unplaced: unplaced,
-    record: (docPath: created.docPath, text: created.text, isNew: true),
+    record: _LandedRecord(
+      docPath: created.docPath,
+      text: created.text,
+      isNew: true,
+    ),
   );
 }
 

@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/setup_migration/claude_settings.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
 
 /// The path of the Claude Code settings file a full run writes with the
 /// Claude Code folder group.

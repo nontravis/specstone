@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/migrate_root.dart';
 import 'package:specstone_core/src/templates/models/root_match.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 
@@ -18,9 +19,7 @@ const legacyContextPath = 'docs/prds/d01_context.md';
 /// candidate. `linkFolder` is null when the root is the folder the walk
 /// stopped at; both are canonical. Throws [RenderFault] `project_not_found`
 /// when no folder up to the file-system root holds one.
-({Directory root, Directory? linkFolder}) locateMigrateRoot(
-  Directory workingDirectory,
-) {
+MigrateRoot locateMigrateRoot(Directory workingDirectory) {
   final match = matchRootUpward(workingDirectory, _isMarked);
   if (match == null) {
     throw RenderFault(
@@ -31,7 +30,10 @@ const legacyContextPath = 'docs/prds/d01_context.md';
     );
   }
   final RootMatch(:folder, :root) = match;
-  return (root: root, linkFolder: folder.path == root.path ? null : folder);
+  return MigrateRoot(
+    root: root,
+    linkFolder: folder.path == root.path ? null : folder,
+  );
 }
 
 /// Returns the trust of the roots a write command, `init`, or `migrate` run
@@ -82,11 +84,13 @@ String? relativeFolderPath(Directory from, Directory to) {
 ///
 /// On Windows the root is the drive (`c:`) or the share (`\\host\share`),
 /// lowercased, as Windows matches them in any case; elsewhere it is `/`.
-({String root, List<String> names}) _rootedNames(String path) {
-  if (!Platform.isWindows) return (root: '/', names: _namesOf(path.split('/')));
+_RootedNames _rootedNames(String path) {
+  if (!Platform.isWindows) {
+    return _RootedNames(root: '/', names: _namesOf(path.split('/')));
+  }
   final parts = path.replaceAll('/', r'\').split(r'\');
   final rootLength = path.startsWith(r'\\') || path.startsWith('//') ? 4 : 1;
-  return (
+  return _RootedNames(
     root: parts.take(rootLength).join(r'\').toLowerCase(),
     names: _namesOf(parts.skip(rootLength)),
   );
@@ -102,3 +106,11 @@ bool _isMarked(Directory folder) => const [
   legacyContextPath,
   MoveJournal.journalPath,
 ].any((marker) => File.fromUri(folder.uri.resolve(marker)).existsSync());
+
+/// An absolute path's root and its folder names.
+final class _RootedNames {
+  const new({required this.root, required this.names});
+
+  final String root;
+  final List<String> names;
+}

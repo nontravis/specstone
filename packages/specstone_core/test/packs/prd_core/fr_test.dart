@@ -121,7 +121,8 @@ void main() {
     );
     final long = template.indexOf(
       '- **Pass criteria:** each edge case holds.\n'
-      '  - <a condition no edge case states>\n'
+      '  - <a condition no edge case, the Statement, or an Input / Output row '
+      'states>\n'
       '- **Level:** <level>',
     );
 
@@ -131,7 +132,8 @@ void main() {
       verification.description,
       contains(
         'Write `- **Pass criteria:** each edge case holds.`, with one nested '
-        'bullet per condition no edge case states.',
+        'bullet per condition that no edge case, the Statement, or an Input / '
+        'Output row states; state no exit status.',
       ),
     );
     expect(verification.description, contains('Name no test file here'));

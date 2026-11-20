@@ -537,12 +537,14 @@ String _spotsNotHolding(String root, String version) =>
 
 /// Bumps the four spots on `release/<version>`, commits, and tags.
 ///
-/// Returns the tagged commit. A spot left behind or a failed
-/// `dart pub get` undoes the bump and refuses before the commit.
+/// Returns the tagged commit. A failed `dart pub get` undoes the bump and
+/// refuses before the commit.
 Future<String> _bumpAndTag(String root, String version) async {
   await _git(['switch', '-c', 'release/$version']);
   _writeSpots(root, version);
 
+  // Guards `_writeSpots` and `_readSpot` drifting apart: no spot that passed
+  // `_checkSpotsParse` reaches this refusal.
   final behind = _spotsNotHolding(root, version);
   if (behind.isNotEmpty) {
     await _undoBump(

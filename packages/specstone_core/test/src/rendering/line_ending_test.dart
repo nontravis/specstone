@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:test/test.dart';
 
 void main() {

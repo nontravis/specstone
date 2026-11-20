@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/models/git_floor.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/git_commit.dart';
 
 // `git log` prints these control characters for `%x01` and `%x02`; neither
 // appears in a commit message.
@@ -112,11 +113,7 @@ String headSha(Directory root, RunGit runGit) =>
 /// Returns every commit from [base] to HEAD, oldest first.
 ///
 /// `subject` is the first paragraph; `message` is the whole text.
-List<({String sha, String subject, String message})> commitsSince(
-  Directory root,
-  String base,
-  RunGit runGit,
-) {
+List<GitCommit> commitsSince(Directory root, String base, RunGit runGit) {
   final log = runGit([
     'log',
     '--reverse',
@@ -128,7 +125,11 @@ List<({String sha, String subject, String message})> commitsSince(
       if (record.trim().isNotEmpty)
         () {
           final fields = record.split(_fieldSeparator);
-          return (sha: fields[0], subject: fields[1], message: fields[2]);
+          return GitCommit(
+            sha: fields[0],
+            subject: fields[1],
+            message: fields[2],
+          );
         }(),
   ];
 }

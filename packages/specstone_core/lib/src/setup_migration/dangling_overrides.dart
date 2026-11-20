@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/layer_source.dart'
     show projectSharedFileName;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shared_entry.dart';
 
@@ -47,14 +47,14 @@ void refuseDanglingOverrides(
     for (final upgrade in upgrades)
       for (final entry in upgrade.steps) entry.step,
   ];
-  final renamedSections = {
-    for (final step in steps.whereType<RenameSection>())
-      (step.docType, step.fromId),
-  };
-  final renamedFields = {
-    for (final step in steps.whereType<RenameField>())
-      (step.docType, step.from),
-  };
+  final renamedSections = _RenamedIds();
+  for (final step in steps.whereType<RenameSection>()) {
+    renamedSections.add(step.docType, step.fromId);
+  }
+  final renamedFields = _RenamedIds();
+  for (final step in steps.whereType<RenameField>()) {
+    renamedFields.add(step.docType, step.from);
+  }
 
   final sharedFaults = _sharedDanglingOf(
     sharedLines,
@@ -105,8 +105,8 @@ List<MigrateFault> _danglingOf(
   DocTypeLayer layer,
   MergedDocType? defined,
   Map<String, PackVersion> targetVersions, {
-  required Set<(String, String)> renamedSections,
-  required Set<(String, String)> renamedFields,
+  required _RenamedIds renamedSections,
+  required _RenamedIds renamedFields,
 }) {
   final docTypeId = layer.docTypeId;
   if (defined == null) {
@@ -136,12 +136,12 @@ List<MigrateFault> _danglingOf(
     for (final section in layer.sections)
       if ((section.disabled || section.header == null) &&
           !sectionIds.contains(section.id) &&
-          !renamedSections.contains((docTypeId, section.id)))
+          !renamedSections.holds(docTypeId, section.id))
         fault('section', section.id),
     for (final field in layer.fields)
       if ((field.disabled || field.type == null) &&
           !fieldIds.contains(field.id) &&
-          !renamedFields.contains((docTypeId, field.id)))
+          !renamedFields.holds(docTypeId, field.id))
         fault('field', field.id),
   ];
 }
@@ -268,3 +268,34 @@ List<MigrateFault> _recordOverrideFaults(RecordPathOverride? override) =>
           key: 'path',
         ),
       ];
+
+/// A doc type id and the id of one of its entries.
+final class _RenamedId {
+  const new({required this.docTypeId, required this.id});
+
+  final String docTypeId;
+  final String id;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _RenamedId && other.docTypeId == docTypeId && other.id == id;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(docTypeId, id);
+}
+
+/// The (doc type id, entry id) pairs a selected step renames.
+final class _RenamedIds {
+  new();
+
+  final _ids = <_RenamedId>{};
+
+  void add(String docTypeId, String id) {
+    _ids.add(_RenamedId(docTypeId: docTypeId, id: id));
+  }
+
+  bool holds(String docTypeId, String id) =>
+      _ids.contains(_RenamedId(docTypeId: docTypeId, id: id));
+}

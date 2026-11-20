@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/setup_migration/models/pack_step.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
@@ -23,7 +24,7 @@ final class PackUpgrade {
   final PackVersion target;
 
   /// The steps to apply, each with the `from:` of the entry that holds it.
-  final List<({PackVersion from, MigrationStep step})> steps;
+  final List<PackStep> steps;
 }
 
 /// Whether [upgrade] moves a pin from below the version [since] holds for its
@@ -79,7 +80,7 @@ List<PackUpgrade> selectUpgrades(
   return upgrades;
 }
 
-List<({PackVersion from, MigrationStep step})> _stepsBetween(
+List<PackStep> _stepsBetween(
   List<PackMigration> migrations,
   PackVersion pin,
   PackVersion target,
@@ -97,7 +98,8 @@ List<({PackVersion from, MigrationStep step})> _stepsBetween(
       });
   return [
     for (final (:migration, index: _) in inRange)
-      for (final step in migration.steps) (from: migration.from, step: step),
+      for (final step in migration.steps)
+        PackStep(from: migration.from, step: step),
   ];
 }
 
