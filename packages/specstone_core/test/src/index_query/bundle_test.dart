@@ -1220,6 +1220,30 @@ void main() {
       expect(withTarget.docPaths, isNot(contains(flutterArch)));
     });
 
+    test(
+      'query with no --target maps every target spec doc and no tech stack',
+      () async {
+        final index = await toastIndex();
+        final query = pickBundle(
+          index,
+          'feedback/toast/show',
+          BundleMode.query,
+          noProject: false,
+        );
+        expect(query.joinedPaths, isEmpty);
+        final text = answerContext(
+          index,
+          query,
+          label: 'feedback/toast/show',
+          byCode: false,
+        ).text;
+        expect(text, isNot(contains('(tech_stack)')));
+        expect(text, isNot(contains('TECH_STACK.md')));
+        expect(text, isNot(contains('Flutter stack')));
+        expect(text, isNot(contains('Jaspr stack')));
+      },
+    );
+
     test('query on one target lists its spec docs in the map with no --target', () async {
       final session = openSession(
         await writeTree({
