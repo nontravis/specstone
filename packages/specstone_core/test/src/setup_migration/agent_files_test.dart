@@ -9,6 +9,9 @@ const _agentMd =
     'PRD and spec are Specstone docs.\n'
     '\n'
     '## Rules\n'
+    '- Rank choices by project vision served; for work serving none, against '
+    "one, or in PROJECT's Out-of-scope, ask Owner, or flag and go on if "
+    'asked.\n'
     '- code ⊆ spec ⊆ PRD over observable behavior: specify each behavior '
     'users, callers, or features see, only as the\n'
     '  PRD asks; when code adds or changes one, ask the Owner. Code and '
@@ -36,7 +39,7 @@ const _agentMd =
     'finding ends `(waits for the Owner)` (`--json`: `waitsFor` `owner`).\n'
     '- Off PATH, run `~/.specstone/bin/specstone`.\n';
 
-const _agentMdWordBound = 215;
+const _agentMdWordBound = 240;
 const _targetClauseWordBound = 13;
 const _targetFlag = '--target <code target>';
 
@@ -78,6 +81,16 @@ void main() {
 
     test('the AGENT.md text counts at most $_agentMdWordBound words', () {
       expect(_wordsOf(agentMdText), lessThanOrEqualTo(_agentMdWordBound));
+    });
+
+    test('the vision rule holds its pinned literals', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text).singleWhere((r) => r.startsWith('- Rank'));
+
+        for (final literal in ['vision', 'Owner', 'Out-of-scope', 'go on']) {
+          expect(rule, contains(literal));
+        }
+      }
     });
 
     test('one clause adds the target flag, at most '

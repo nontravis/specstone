@@ -3,6 +3,7 @@
 PRD and spec are Specstone docs.
 
 ## Rules
+- Rank choices by project vision served; for work serving none, against one, or in PROJECT's Out-of-scope, ask Owner, or flag and go on if asked.
 - code ⊆ spec ⊆ PRD over observable behavior: specify each behavior users, callers, or features see, only as the
   PRD asks; when code adds or changes one, ask the Owner. Code and tests name no doc, path, or item ID.
 - Read docs with `specstone context <target> --for <mode> --out`; search saved files before any `specstone get`; in design work ground a doc they lack with `specstone context <doc> --for design --out`, never `get`; never open doc files.
