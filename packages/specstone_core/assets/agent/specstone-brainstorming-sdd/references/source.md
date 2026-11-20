@@ -69,5 +69,6 @@ Follow this at each write and amend of the design document for a change from a s
 - **A ticket list, a task list, or a plan**: one row, "not taken", its reason that task management is out of scope.
 - **An item no shape matches** and no Owner answer places: an open question in the design document, as for any gap.
 - **The source** the document records is the Source line, as kept.
-- Never edit, move, or delete the source; write only the copy and the one design document.
+- Never edit, move, or delete the source; write only the copy, the one design document, and the snapshot
+  `rounds.md` section 1 saves.
 - A change with no source gets no Source map.
