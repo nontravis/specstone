@@ -35,6 +35,7 @@ import 'package:specstone_core/src/setup_migration/label_pass.dart'
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
+import 'package:specstone_core/src/setup_migration/models/doc_text.dart';
 import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
     show KeptLabel;
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
