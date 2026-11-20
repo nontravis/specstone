@@ -41,6 +41,7 @@ import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
     show LabelDoc;
 import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
     show LabelTree;
+import 'package:specstone_core/src/setup_migration/models/pack_step.dart';
 import 'package:specstone_core/src/setup_migration/models/placement_doc.dart';
 import 'package:specstone_core/src/setup_migration/models/stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
@@ -59,13 +60,12 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/models/pattern_move.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart'
     show movePatternsAtEveryDepth;
 import 'package:specstone_core/src/templates/pack_manifest.dart'
     show PackManifest;
-import 'package:specstone_core/src/templates/pack_migration.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -104,8 +104,6 @@ const _entitiesSectionId = 'entities';
 const _enforcerField = 'Enforcer';
 const _consistencyField = 'Consistency';
 const _immediateValue = 'immediate';
-
-typedef _Step = ({PackVersion from, MigrationStep step});
 
 /// Plans the pack upgrade of the project at [root].
 ///
@@ -244,7 +242,7 @@ RunPlan _upgradeRunOf(
     finalSet,
     targetNames: config.targetNames,
     olderPatterns: [
-      for (final (:step, from: _) in steps)
+      for (final PackStep(:step) in steps)
         if (step is MoveFile && _isPerTargetStep(step, finalSet, firstTarget))
           for (final pair in _movePatternsOf(step, finalSet)) pair.from,
     ],
@@ -318,7 +316,7 @@ RunPlan _upgradeRunOf(
       lf = markDraft(lf, docType);
       changes.add(_draftChange);
     }
-    for (final (index, (:step, from: _)) in steps.indexed) {
+    for (final (index, PackStep(:step)) in steps.indexed) {
       if (docType == null || !step.touches(docType.id)) continue;
       final renamed = switch (step) {
         RenameSection() => withHeaderRenamed(
@@ -689,7 +687,7 @@ RunPlan _upgradeRunOf(
   }
 
   final stepLines = [
-    for (final (index, (:from, :step)) in steps.indexed)
+    for (final (index, PackStep(:from, :step)) in steps.indexed)
       if (step is StampCodeFingerprints && codeStamp != null)
         codeStamp.stepLine(from: '$from', step: _describe(step))
       else if (step is RestampCodeFingerprints && codeRestamp != null)
@@ -1018,7 +1016,7 @@ final class _OverrideFile {
 List<_OverrideFile> _renamedOverrides(
   Directory root,
   List<DocTypeLayer> layers,
-  List<_Step> steps,
+  List<PackStep> steps,
 ) {
   final files = <_OverrideFile>[];
   for (final layer in layers) {
@@ -1026,7 +1024,7 @@ List<_OverrideFile> _renamedOverrides(
       layer.file,
       readDocText(readPlanInput(File.fromUri(root.uri.resolve(layer.file)))),
     );
-    for (final (index, (:step, from: _)) in steps.indexed) {
+    for (final (index, PackStep(:step)) in steps.indexed) {
       if (!step.touches(layer.docTypeId)) continue;
       final renamed = switch (step) {
         RenameSection() => _withScalarsRenamed(
@@ -1425,7 +1423,7 @@ final class _PlannedPaths {
 /// doc type moves the docs of each target's folder by that target's patterns.
 _PlannedPaths _plannedPaths(
   List<String> docPaths,
-  List<_Step> steps, {
+  List<PackStep> steps, {
   required List<PathMove> treeMoves,
   required MergedSet set,
   required List<String> targetNames,
@@ -1439,7 +1437,7 @@ _PlannedPaths _plannedPaths(
     treeMoved.add(from);
   }
   final firstTarget = twinNamesOf(targetNames).firstOrNull;
-  for (final (index, (:step, from: _)) in steps.indexed) {
+  for (final (index, PackStep(:step)) in steps.indexed) {
     if (step is! MoveFile) continue;
     final patterns = [
       for (final target
@@ -1495,7 +1493,7 @@ List<MigrateFault> _moveCollisions(
   required Map<String, String> planned,
   required Map<String, int> movedBy,
   required Set<String> treeMoved,
-  required List<_Step> steps,
+  required List<PackStep> steps,
   required String? firstTarget,
 }) {
   bool isMoved(String path) =>

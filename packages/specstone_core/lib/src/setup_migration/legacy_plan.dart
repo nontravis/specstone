@@ -59,10 +59,10 @@ import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedDocType;
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart'
+    show MoveToRecord;
 import 'package:specstone_core/src/templates/pack_manifest.dart'
     show PackManifest;
-import 'package:specstone_core/src/templates/pack_migration.dart'
-    show MoveToRecord;
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';

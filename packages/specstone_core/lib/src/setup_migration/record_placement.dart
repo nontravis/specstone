@@ -18,8 +18,8 @@ import 'package:specstone_core/src/setup_migration/run_plan.dart'
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/models/record_status.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart';
 
 // MARK: - Constants
 
