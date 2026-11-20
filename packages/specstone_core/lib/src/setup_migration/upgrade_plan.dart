@@ -35,6 +35,7 @@ import 'package:specstone_core/src/setup_migration/mark_retrim_step.dart';
 import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/setup_migration/models/code_stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/models/doc_text.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
     show LabelDoc;
@@ -858,7 +859,7 @@ CodeStampStep _codeStampOf(
 }) => CodeStampStep.plan(
   [
     for (final work in works)
-      (
+      CodeStampDoc(
         docPath: work.plannedPath,
         lf: after[work.plannedPath] ?? work.lf,
         type: work.docType,
@@ -866,7 +867,7 @@ CodeStampStep _codeStampOf(
       ),
     for (final create in recordCreates)
       if (docPathOfProjectPath(create.path) case final docPath?)
-        (
+        CodeStampDoc(
           docPath: docPath,
           lf: after[docPath] ?? create.text,
           type: set.recordDocType,

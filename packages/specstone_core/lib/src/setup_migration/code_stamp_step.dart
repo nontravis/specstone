@@ -16,25 +16,16 @@ import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/index_query/status_tree.dart';
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/setup_migration/models/code_stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart'
     show UpgradeStepLine;
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/record_status.dart';
 
 // MARK: - Types
-
-/// A doc of the run: DocPath, LF text, merged doc type (null when untyped),
-/// and the code target whose pattern set matched it (null for a shared doc).
-typedef CodeStampDoc = ({
-  String docPath,
-  String lf,
-  MergedDocType? type,
-  String? target,
-});
 
 /// One value a doc's field takes.
 final class _Stamp {
@@ -103,7 +94,7 @@ final class CodeStampStep {
     final entries = {for (final target in targets) target: 0};
     for (final doc in docs) {
       final stamps = _stampsOf(read, work, reader, doc, restamp: restamp);
-      final (:lf, :applied) = _withStamps(doc.lf, stamps);
+      final _StampedText(:lf, :applied) = _withStamps(doc.lf, stamps);
       if (lf != doc.lf) rewrites[doc.docPath] = lf;
       for (final stamp in applied) {
         if (stamp.target case final target?) {
@@ -322,10 +313,7 @@ final class _CodeReader {
 
 /// Returns [lf] with each value of [stamps] rewritten in its field through
 /// the list writer, and the stamps that landed.
-({String lf, List<_Stamp> applied}) _withStamps(
-  String lf,
-  List<_Stamp> stamps,
-) {
+_StampedText _withStamps(String lf, List<_Stamp> stamps) {
   var text = lf;
   final applied = <_Stamp>[];
   final byField = <String, List<_Stamp>>{};
@@ -354,5 +342,13 @@ final class _CodeReader {
       listBlockOf(field, stamped, onDisk: block),
     );
   }
-  return (lf: text, applied: applied);
+  return _StampedText(lf: text, applied: applied);
+}
+
+/// A doc's text with its stamps written, and the stamps that landed.
+final class _StampedText {
+  const new({required this.lf, required this.applied});
+
+  final String lf;
+  final List<_Stamp> applied;
 }
