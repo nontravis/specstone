@@ -94,7 +94,7 @@ const _barFragments = [
 
 void main() {
   group('prd-core manifest', () {
-    test('prd-core ships at 1.20.0 with no extends', () {
+    test('prd-core ships at 1.21.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -102,10 +102,10 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.20.0');
+      expect(manifest.version.toString(), '1.21.0');
       expect(manifest.extendsPack, isNull);
       final upgrade = _upgradeFrom('1.7.0', manifest);
-      expect(upgrade.target.toString(), '1.20.0');
+      expect(upgrade.target.toString(), '1.21.0');
     });
 
     test('the pack lists a mark_retrim entry for fr edge cases and '
@@ -125,7 +125,7 @@ void main() {
 
     test('a pin past both entries gets the pin change only', () {
       final upgrade = _upgradeFrom('1.19.1', _prdCoreManifest());
-      expect(upgrade.target.toString(), '1.20.0');
+      expect(upgrade.target.toString(), '1.21.0');
       expect(upgrade.steps, isEmpty);
     });
 
