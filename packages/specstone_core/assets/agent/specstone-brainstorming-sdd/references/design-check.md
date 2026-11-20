@@ -1,6 +1,6 @@
-`specstone-sdd-engineer` runs this in `mode: audit` with `stage: design`, its gate made, the first line of `audit.md`
-routing it; so does the runner of `specstone-brainstorming-sdd` with no subagent or after a failed dispatch. Write
-nothing but the agent's `report:` file; never edit the design document. Ask the Owner nothing.
+`specstone-sdd-auditor` runs this with `stage: design`, its gate made, the first line of `audit.md` routing it; so
+does the runner of `specstone-brainstorming-sdd` with no subagent or after a failed dispatch. Write nothing but the
+agent's `report:` file; never edit the design document. Ask the Owner nothing.
 
 ## 1. Read
 

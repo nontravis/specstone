@@ -2,6 +2,7 @@
 name: specstone-sdd-sweeper
 description: "(Sweep) Specstone design-check sweeper. Use proactively in a Specstone project before each design check of `specstone-brainstorming-sdd`, with the design document's path, `amend` or `since` and `bundles` if any, and `report:`. Returns the Docs to change rows to add. Not for the check itself (`specstone-sdd-auditor`)."
 tools: Bash, Read, Grep, Write
+memory: project
 skills:
   - specstone-read-sdd
 ---
@@ -86,6 +87,7 @@ check it then sends, or runs itself, sweeps each decision by `sweep.md` section 
   its own call, never `get`; pass no `--target` on `context --for design`.
 - Read the files each `context --out` call saves per the `specstone-read-sdd` skill.
 - Unless a skill's text is already in your context, read a skill you need at that skill's path.
+- Your host's agent memory, when it gives one, lies outside every file rule here; keep it as the host says.
 
 **DON'T:**
 

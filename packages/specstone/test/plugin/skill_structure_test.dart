@@ -103,6 +103,7 @@ const _agentFileNames = <String, List<String>>{
   'specstone-plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
   'specstone-sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
   'specstone-sdd-sweeper.md': ['sdd-sweeper.sweep.<XXXXXX>.md'],
+  'specstone-sdd-auditor.md': ['sdd-auditor.audit.<XXXXXX>.md'],
 };
 
 const _reportsFolder = '<folder>/reports/';
@@ -432,9 +433,91 @@ void _frontmatterTests() {
     expect(indices.toSet(), hasLength(indices.length));
     expect(section, contains('Rows: none'));
   });
+
+  test('the auditor preloads expert-sdd and read-sdd', () {
+    final text = _pluginText(_auditor);
+    final head = text.substring(0, text.indexOf('\n---\n', 4));
+    expect(_skillsOf(head), ['specstone-expert-sdd', 'specstone-read-sdd']);
+    expect(_toolsOf(text, 'tools'), ['Bash', 'Read', 'Grep', 'Write']);
+  });
+
+  test('the auditor sends an engineer mode to specstone-sdd-engineer', () {
+    final contract = _sectionOf(_pluginText(_auditor), '## Input Contract');
+    for (final words in [
+      [
+        '`author`',
+        '`sync`',
+        '`bootstrap`',
+        'OPEN QUESTIONS:',
+        '`specstone-sdd-engineer`',
+      ],
+      ['OPEN QUESTIONS:', '`mode`', '`audit`'],
+    ]) {
+      expect(
+        _hasSentenceWith(contract, words),
+        isTrue,
+        reason: words.join(', '),
+      );
+    }
+  });
+
+  test('the engineer sends mode: audit to specstone-sdd-auditor', () {
+    final text = _pluginText(_engineer);
+    final contract = _sectionOf(text, '## Input Contract');
+    expect(contract, contains('`author`, `sync`, or `bootstrap`'));
+    expect(
+      _hasSentenceWith(contract, [
+        '`mode: audit`',
+        'OPEN QUESTIONS:',
+        '`specstone-sdd-auditor`',
+      ]),
+      isTrue,
+    );
+    expect(
+      text,
+      isNot(
+        contains(
+          '.agents/skills/specstone-brainstorming-sdd/references/audit.md',
+        ),
+      ),
+    );
+  });
+
+  test('the auditor runs approve only as a dry run, the sweeper never', () {
+    final spans = _approveSpans(_pluginText(_auditor));
+    expect(spans, isNotEmpty);
+    for (final span in spans) {
+      expect(span, contains('--dry-run'), reason: span);
+    }
+    expect(_approveSpans(_pluginText(_sweeper)), isEmpty);
+  });
+
+  test('audit.md and design-check.md name the auditor as runner', () {
+    for (final file in [_auditReference, _designCheckReference]) {
+      final text = _pluginText(file);
+      expect(
+        text.split('\n').first,
+        contains('`specstone-sdd-auditor`'),
+        reason: file,
+      );
+      expect(text, isNot(contains('`specstone-sdd-engineer`')), reason: file);
+    }
+  });
 }
 
 const _sweeper = 'specstone-sdd-sweeper.md';
+
+const _auditor = 'specstone-sdd-auditor.md';
+
+const _designCheckReference =
+    'specstone-brainstorming-sdd/references/design-check.md';
+
+/// Each `specstone approve` code span of [markdown], a span wrapped over lines
+/// read whole.
+List<String> _approveSpans(String markdown) => [
+  for (final span in _inlineSpans(markdown))
+    if (span.contains('specstone approve')) span,
+];
 
 const _sweepReference = 'specstone-brainstorming-sdd/references/sweep.md';
 
@@ -2003,17 +2086,18 @@ void _trimReferenceTests() {
     expect(text, isNot(contains('Drop or merge no edge case')));
   });
 
-  test('the engineer takes trims in audit mode and audit finding lines as a '
-      'bootstrap batch', () {
-    final contract = _sectionOf(_pluginText(_engineer), '## Input Contract');
-    for (final words in [
-      ['`trims`', 'audit', 'bootstrap reports'],
-      ['fix batch', '`Findings:` lines', 'trim round'],
+  test("the auditor takes trims, the engineer an audit's fix batch", () {
+    for (final (file, words) in [
+      (_auditor, ['`trims`', 'audit', 'bootstrap reports']),
+      (_engineer, ['fix batch', '`Findings:` lines', 'trim round']),
     ]) {
       expect(
-        _hasSentenceWith(contract, words),
+        _hasSentenceWith(
+          _sectionOf(_pluginText(file), '## Input Contract'),
+          words,
+        ),
         isTrue,
-        reason: words.join(', '),
+        reason: '$file: ${words.join(', ')}',
       );
     }
   });
