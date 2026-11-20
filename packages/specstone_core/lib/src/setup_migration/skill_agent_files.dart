@@ -15,6 +15,7 @@ import 'package:specstone_core/src/setup_migration/claude_settings.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _ownedPrefix = 'specstone-';

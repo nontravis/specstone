@@ -9,6 +9,7 @@ import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
     show runsOneTimePasses;
