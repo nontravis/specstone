@@ -1,6 +1,6 @@
-`specstone-sdd-engineer` runs this in `mode: audit` with `stage: design`, its gate made, the first line of `audit.md`
-routing it; so does the runner of `specstone-brainstorming-sdd` with no subagent or after a failed dispatch. Write
-nothing but the agent's `report:` file; never edit the design document. Ask the Owner nothing.
+`specstone-sdd-auditor` runs this with `stage: design`, its gate made, the first line of `audit.md` routing it; so
+does the runner of `specstone-brainstorming-sdd` with no subagent or after a failed dispatch. Write nothing but the
+agent's `report:` file; never edit the design document. Ask the Owner nothing.
 
 ## 1. Read
 
@@ -74,8 +74,8 @@ Findings:
 - **`Held:`**: the `held` lines over every hit list.
 - **`Lenses:`**: the label of each lens, in list order.
 - **`Findings:`**: one line per gap and per sibling, or `none`; a gap in a doc names it `<type>:<name>#<key>`. End a
-  line with `[behavior]` when its answer adds a state, input, output, edge case, error, or reader of a rule; a line
-  that only fixes the design's text stays untagged.
+  line with `[behavior]` when its answer adds a state, input, output, edge case, error, or reader of a rule, or
+  removes a decision; a line that only fixes the design's text stays untagged.
 - **No `Audited:` line**: no draft exists yet.
 - **Reply**: `Report: <path>`, then the relay block, its `Swept:` lines with no hit list, `Held:`, `Lenses:`,
   and `Findings:` lines copied from the report file.

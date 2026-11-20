@@ -20,6 +20,7 @@ void main() {
   group('runs on every host', _runsOnEveryHostTests);
   group('approve step', _approveStepTests);
   group('trim reference', _trimReferenceTests);
+  group('brainstorm rounds', _brainstormRoundTests);
 }
 
 // MARK: - Fixtures and readers
@@ -36,7 +37,13 @@ const _skillNames = [
   'update-sdd',
 ];
 
-const _agentNames = ['plan-engineer', 'sdd-engineer', 'sdd-reader'];
+const _agentNames = [
+  'plan-engineer',
+  'sdd-auditor',
+  'sdd-engineer',
+  'sdd-reader',
+  'sdd-sweeper',
+];
 
 const _procedures = <String>[
   'specstone-sync-sdd/references/procedure.md',
@@ -84,7 +91,11 @@ const _agentFileNames = <String, List<String>>{
   _goalMove: ['sdd-engineer.bootstrap.batch.<XXXXXX>.txt'],
   _glossaryMove: ['sdd-engineer.bootstrap.batch.<XXXXXX>.txt'],
   'specstone-bootstrap-spec/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
-  'specstone-brainstorming-sdd/SKILL.md': ['sdd-engineer.<mode>.<XXXXXX>.md'],
+  'specstone-brainstorming-sdd/SKILL.md': [
+    'sdd-engineer.author.<XXXXXX>.md',
+    'sdd-auditor.audit.<XXXXXX>.md',
+    'sdd-sweeper.sweep.<XXXXXX>.md',
+  ],
   'specstone-brainstorming-sdd/references/author.md': [
     'sdd-engineer.author.batch.<XXXXXX>.txt',
   ],
@@ -92,16 +103,22 @@ const _agentFileNames = <String, List<String>>{
     'sdd-engineer.design.source.<XXXXXX>.md',
   ],
   'specstone-brainstorming-sdd/references/rounds.md': [
-    'sdd-engineer.audit.snapshot.<XXXXXX>.md',
+    'sdd-auditor.audit.snapshot.<XXXXXX>.md',
   ],
   'specstone-plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
   'specstone-sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
+  'specstone-expert-sdd/references/trim-round.md': [
+    'sdd-auditor.audit.<XXXXXX>.md',
+  ],
+  'specstone-sdd-sweeper.md': ['sdd-sweeper.sweep.<XXXXXX>.md'],
+  'specstone-sdd-auditor.md': ['sdd-auditor.audit.<XXXXXX>.md'],
 };
 
 const _reportsFolder = '<folder>/reports/';
 
 final _agentFilePath =
-    r'<folder>/reports/(?:(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
+    '<folder>/reports/(?:(?:sdd-engineer|sdd-sweeper|sdd-auditor|'
+    r'plan-engineer)\.(?:<mode>|[a-z]+)\.'
     r'(?:(?:batch|source|snapshot)\.)?<XXXXXX>\.(?:md|txt)|check\.'
     '(?:${checkRoles.join('|')}|<role>)'
     r'\.<XXXXXX>\.txt|guide\.<XXXXXX>\.(?:txt|json))';
@@ -377,7 +394,149 @@ void _frontmatterTests() {
     expect(skills, ['specstone-expert-sdd', 'specstone-read-sdd']);
     expect(_toolsOf(text, 'tools'), ['Bash', 'Read', 'Grep', 'Write', 'Edit']);
   });
+
+  test('the sweeper preloads read-sdd alone and writes its report', () {
+    final text = _pluginText(_sweeper);
+    final head = text.substring(0, text.indexOf('\n---\n', 4));
+    expect(_skillsOf(head), ['specstone-read-sdd']);
+    expect(_toolsOf(text, 'tools'), ['Bash', 'Read', 'Grep', 'Write']);
+  });
+
+  test('the sweeper reads sweep.md and design-check section 1 alone', () {
+    final text = _pluginText(_sweeper);
+    expect(text, contains('references/sweep.md'));
+    expect(text, contains('references/design-check.md'));
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Bootstrap'), [
+        'section 1',
+        'references/design-check.md',
+      ]),
+      isTrue,
+    );
+    for (final other in [
+      'references/author.md',
+      'references/audit.md',
+      'references/reaudit.md',
+      'specstone-sync-sdd/references/procedure.md',
+      'specstone-bootstrap-prd/references/procedure.md',
+      'specstone-bootstrap-spec/references/procedure.md',
+    ]) {
+      expect(text, isNot(contains(other)), reason: other);
+    }
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Input Contract'), [
+        '`since`',
+        '`amend`',
+        'OPEN QUESTIONS:',
+      ]),
+      isTrue,
+    );
+  });
+
+  test("sweep.md orders the sweeper's Sweep, Ignored, Swept, Rows", () {
+    final text = _pluginText(_sweepReference);
+    final start = text.indexOf(_sweeperReportHeading);
+    expect(start, isNonNegative);
+    final section = text.substring(start);
+    final block = _fencedBlock.firstMatch(section)!.group(1)!;
+    final indices = [
+      for (final line in ['Sweep: ', 'Ignored: ', 'Swept: ', 'Rows:'])
+        block.indexOf(line),
+    ];
+    expect(indices.first, isNonNegative);
+    expect(indices, [...indices]..sort());
+    expect(indices.toSet(), hasLength(indices.length));
+    expect(section, contains('Rows: none'));
+  });
+
+  test('the auditor preloads expert-sdd and read-sdd', () {
+    final text = _pluginText(_auditor);
+    final head = text.substring(0, text.indexOf('\n---\n', 4));
+    expect(_skillsOf(head), ['specstone-expert-sdd', 'specstone-read-sdd']);
+    expect(_toolsOf(text, 'tools'), ['Bash', 'Read', 'Grep', 'Write']);
+  });
+
+  test('the auditor sends an engineer mode to specstone-sdd-engineer', () {
+    final contract = _sectionOf(_pluginText(_auditor), '## Input Contract');
+    for (final words in [
+      [
+        '`author`',
+        '`sync`',
+        '`bootstrap`',
+        'OPEN QUESTIONS:',
+        '`specstone-sdd-engineer`',
+      ],
+      ['OPEN QUESTIONS:', '`mode`', '`audit`'],
+    ]) {
+      expect(
+        _hasSentenceWith(contract, words),
+        isTrue,
+        reason: words.join(', '),
+      );
+    }
+  });
+
+  test('the engineer sends mode: audit to specstone-sdd-auditor', () {
+    final text = _pluginText(_engineer);
+    final contract = _sectionOf(text, '## Input Contract');
+    expect(contract, contains('`author`, `sync`, or `bootstrap`'));
+    expect(
+      _hasSentenceWith(contract, [
+        '`mode: audit`',
+        'OPEN QUESTIONS:',
+        '`specstone-sdd-auditor`',
+      ]),
+      isTrue,
+    );
+    expect(
+      text,
+      isNot(
+        contains(
+          '.agents/skills/specstone-brainstorming-sdd/references/audit.md',
+        ),
+      ),
+    );
+  });
+
+  test('the auditor runs approve only as a dry run, the sweeper never', () {
+    final spans = _approveSpans(_pluginText(_auditor));
+    expect(spans, isNotEmpty);
+    for (final span in spans) {
+      expect(span, contains('--dry-run'), reason: span);
+    }
+    expect(_approveSpans(_pluginText(_sweeper)), isEmpty);
+  });
+
+  test('audit.md and design-check.md name the auditor as runner', () {
+    for (final file in [_auditReference, _designCheckReference]) {
+      final text = _pluginText(file);
+      expect(
+        text.split('\n').first,
+        contains('`specstone-sdd-auditor`'),
+        reason: file,
+      );
+      expect(text, isNot(contains('`specstone-sdd-engineer`')), reason: file);
+    }
+  });
 }
+
+const _sweeper = 'specstone-sdd-sweeper.md';
+
+const _auditor = 'specstone-sdd-auditor.md';
+
+const _designCheckReference =
+    'specstone-brainstorming-sdd/references/design-check.md';
+
+/// Each `specstone approve` code span of [markdown], a span wrapped over lines
+/// read whole.
+List<String> _approveSpans(String markdown) => [
+  for (final span in _inlineSpans(markdown))
+    if (span.contains('specstone approve')) span,
+];
+
+const _sweepReference = 'specstone-brainstorming-sdd/references/sweep.md';
+
+const _sweeperReportHeading = "## 5. The sweeper's report";
 
 // MARK: - token budget
 
@@ -511,7 +670,7 @@ void _referencesResolveTests() {
   });
 
   test(
-    'the source walk sees the twelve sources and leaves AGENT.md out',
+    'the source walk sees the fourteen sources and leaves AGENT.md out',
     () async {
       final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
       expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
@@ -535,7 +694,7 @@ void _referencesResolveTests() {
     },
   );
 
-  test('the nine skills and three agents are all there', () {
+  test('the nine skills and five agents are all there', () {
     expect(
       _skillFolders().map(_baseNameOf),
       unorderedEquals([for (final name in _skillNames) 'specstone-$name']),
@@ -1489,7 +1648,30 @@ void _runsOnEveryHostTests() {
     expect(trackedFiles(agentAssetsRoot()), isNotEmpty);
     expect(nonLatinLetterLines(agentAssetsRoot()), isEmpty);
   });
+
+  test('dispatch.md names five agents and gives a sweep no main rung', () {
+    final text = _pluginText(_dispatchReference);
+    for (final agent in [
+      '`specstone-sdd-engineer`',
+      '`specstone-sdd-sweeper`',
+      '`specstone-sdd-auditor`',
+      '`specstone-sdd-reader`',
+      '`specstone-plan-engineer`',
+    ]) {
+      expect(text, contains(agent), reason: agent);
+    }
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Main session'), [
+        'sweep',
+        'no main-session rung',
+      ]),
+      isTrue,
+    );
+  });
 }
+
+/// The rungs every dispatching skill points to.
+const _dispatchReference = 'specstone-expert-sdd/references/dispatch.md';
 
 // MARK: - approve step
 
@@ -1657,23 +1839,23 @@ void _approveStepTests() {
   );
 
   test('a trim round dispatches a fresh audit with the round reports as '
-      'trims, then fix batches and re-audits, two rounds at most', () {
+      'trims, then fix batches and re-audits, one round at most', () {
     final sentences = _sentencesOf(_pluginText(_trimRound));
     int indexWith(List<String> words) =>
         sentences.indexWhere((sentence) => words.every(sentence.contains));
     final dispatch = indexWith([
       'fresh',
-      '`mode: audit`',
+      '`specstone-sdd-auditor`',
       '`trims:`',
       'bootstrap reports',
     ]);
     final fixBatch = indexWith(['fix batch', '`batch:`', 'finding lines']);
     final reaudit = indexWith(['fresh audit', 'hash changed']);
-    final cap = indexWith(['two such rounds at most']);
+    final cap = indexWith(['one such round']);
     expect(dispatch, isNonNegative, reason: 'audit dispatch');
     expect(fixBatch, greaterThan(dispatch), reason: 'fix batch');
     expect(reaudit, greaterThan(fixBatch), reason: 're-audit');
-    expect(cap, greaterThan(reaudit), reason: 'two rounds');
+    expect(cap, greaterThan(reaudit), reason: 'one round');
   });
 
   test('a bootstrap round with a trim batch approves with one audit flag per '
@@ -1942,17 +2124,18 @@ void _trimReferenceTests() {
     expect(text, isNot(contains('Drop or merge no edge case')));
   });
 
-  test('the engineer takes trims in audit mode and audit finding lines as a '
-      'bootstrap batch', () {
-    final contract = _sectionOf(_pluginText(_engineer), '## Input Contract');
-    for (final words in [
-      ['`trims`', 'audit', 'bootstrap reports'],
-      ['fix batch', '`Findings:` lines', 'trim round'],
+  test("the auditor takes trims, the engineer an audit's fix batch", () {
+    for (final (file, words) in [
+      (_auditor, ['`trims`', 'audit', 'bootstrap reports']),
+      (_engineer, ['fix batch', '`Findings:` lines', 'trim round']),
     ]) {
       expect(
-        _hasSentenceWith(contract, words),
+        _hasSentenceWith(
+          _sectionOf(_pluginText(file), '## Input Contract'),
+          words,
+        ),
         isTrue,
-        reason: words.join(', '),
+        reason: '$file: ${words.join(', ')}',
       );
     }
   });
@@ -2047,5 +2230,131 @@ void _trimReferenceTests() {
         reason: skill,
       );
     }
+  });
+}
+
+// MARK: - brainstorm rounds
+
+const _brainstormSkill = 'specstone-brainstorming-sdd/SKILL.md';
+
+const _roundsReference = 'specstone-brainstorming-sdd/references/rounds.md';
+
+const _designReference = 'specstone-brainstorming-sdd/references/design.md';
+
+const _reauditReference = 'specstone-brainstorming-sdd/references/reaudit.md';
+
+/// The heading of the rounds reference's Owner-decision section.
+const _roundsDecisions = '## 1. Route each Owner decision';
+
+void _brainstormRoundTests() {
+  test('the runner sweeps before each design check, then snapshots', () {
+    final sentences = _sentencesOf(
+      _sectionOf(_pluginText(_roundsReference), _roundsDecisions),
+    );
+    int indexWith(String word) =>
+        sentences.indexWhere((sentence) => sentence.contains(word));
+    final sweep = indexWith('`specstone-sdd-sweeper`');
+    final rows = indexWith('Rows:');
+    final snapshot = indexWith('sdd-auditor.audit.snapshot');
+    expect(sweep, isNonNegative, reason: 'sweep');
+    expect(rows, greaterThan(sweep), reason: 'rows');
+    expect(snapshot, greaterThan(rows), reason: 'snapshot');
+  });
+
+  test('a design-check scope takes one delta check at most', () {
+    final text = _oneLine(_pluginText(_roundsReference));
+    expect(text, contains('one delta check'));
+    for (final word in [
+      'third delta check',
+      'Third delta check',
+      'next delta check',
+    ]) {
+      expect(text, isNot(contains(word)), reason: word);
+    }
+  });
+
+  test('no subagent or a failed sweep adds no rows', () {
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_roundsReference), _roundsDecisions),
+        ['no subagent', 'failed', 'sweep', 'no rows'],
+      ),
+      isTrue,
+    );
+  });
+
+  test("design.md takes readers from the sweeper's Rows lines", () {
+    final text = _oneLine(_pluginText(_designReference));
+    expect(text, contains('`Rows:`'));
+    expect(text, isNot(contains('the design check sweeps every reader')));
+  });
+
+  test('each brainstorm dispatch follows dispatch.md by its report', () {
+    final text = _pluginText(_brainstormSkill);
+    for (final words in [
+      [
+        '../specstone-expert-sdd/references/dispatch.md',
+        'sdd-engineer.author',
+        'sdd-auditor.audit',
+        'sdd-sweeper.sweep',
+      ],
+      ['`Report:`', 'word for word'],
+    ]) {
+      expect(_hasSentenceWith(text, words), isTrue, reason: words.join(', '));
+    }
+  });
+  test('the drafts audit takes one fix round or amend pass', () {
+    final text = _pluginText(_roundsReference);
+    expect(_sectionOf(text, '## 2. Run the fix round'), contains('one round'));
+    for (final word in [
+      'two rounds',
+      'both rounds',
+      'after the second',
+      'third round',
+    ]) {
+      expect(_oneLine(text), isNot(contains(word)), reason: word);
+    }
+  });
+
+  test('an amend past the spent round takes one author pass', () {
+    expect(
+      _hasSentenceWith(_pluginText(_roundsReference), [
+        'round is spent',
+        'amend',
+        'one author pass',
+      ]),
+      isTrue,
+    );
+  });
+
+  test('every brainstorm audit dispatch names specstone-sdd-auditor', () {
+    for (final file in [
+      _brainstormSkill,
+      _roundsReference,
+      _reauditReference,
+    ]) {
+      expect(
+        _inlineSpans(_pluginText(file)),
+        isNot(contains('mode: audit')),
+        reason: file,
+      );
+    }
+    for (final file in [_brainstormSkill, _reauditReference]) {
+      expect(
+        _pluginText(file),
+        contains('`specstone-sdd-auditor`'),
+        reason: file,
+      );
+    }
+  });
+
+  test("the design check tags a decision's removal [behavior]", () {
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_designCheckReference), '## 4. Report'),
+        ['`[behavior]`', 'removes a decision'],
+      ),
+      isTrue,
+    );
   });
 }

@@ -573,7 +573,7 @@ void main() {
       expect(readonly, ['specstone-sdd-reader.md']);
     });
 
-    test('gives Claude Code project memory to the two engineers alone', () {
+    test('gives Claude Code project memory to all but the reader', () {
       final withMemory = [
         for (final file in files)
           if (file.folder == AgentFolder.claudeAgents &&
@@ -582,7 +582,9 @@ void main() {
       ]..sort();
       expect(withMemory, [
         'specstone-plan-engineer.md',
+        'specstone-sdd-auditor.md',
         'specstone-sdd-engineer.md',
+        'specstone-sdd-sweeper.md',
       ]);
     });
 

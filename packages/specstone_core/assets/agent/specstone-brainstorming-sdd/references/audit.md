@@ -1,6 +1,6 @@
-With `stage: design`, follow `design-check.md` instead. `specstone-sdd-engineer` runs this in `mode: audit` with no
-`stage` or `stage: drafts`, its gate made; so does the runner of `specstone-brainstorming-sdd`. Write only the
-agent's `report:` file, no fix. Ask the Owner nothing.
+With `stage: design`, follow `design-check.md` instead. `specstone-sdd-auditor` runs this with no `stage` or
+`stage: drafts`, its gate made; so does the runner of `specstone-brainstorming-sdd`. Write only the agent's `report:`
+file, no fix. Ask the Owner nothing.
 
 ## 1. Read
 

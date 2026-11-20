@@ -9,8 +9,8 @@ Items 1 to 3 run before each audit after the first; item 4 gives every audit's `
 3. For each changed draft, one whose `bases.doc` differs from its last `Audited:` hash or that has none (a split's
    new FR), run `specstone refs <changed draft>`. Its `Inbound` lines give its citers: a draft of the list that links to it or
    names it in `traced_from`, one hop only.
-4. Send every re-audit as a fresh `mode: audit`, never a resumed one, with the document's path, `check:` the last
-   author pass's `Check:` file with no doc write since it and no split since the last audit, and these targets:
+4. Send every re-audit as a fresh `specstone-sdd-auditor`, never a resumed one, with the document's path, `check:`
+   the last author pass's `Check:` file with no doc write since it and no split since the last audit, and these targets:
    - A changed draft.
    - Each doc the round or pass added.
    - An unchanged draft that cites a changed draft.

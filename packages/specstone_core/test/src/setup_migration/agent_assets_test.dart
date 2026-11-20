@@ -24,8 +24,10 @@ void main() {
         paths,
         containsAll([
           'specstone-plan-engineer.md',
+          'specstone-sdd-auditor.md',
           'specstone-sdd-engineer.md',
           'specstone-sdd-reader.md',
+          'specstone-sdd-sweeper.md',
         ]),
       );
     });
