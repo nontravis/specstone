@@ -142,6 +142,7 @@ void main() {
       'override_not_in_chain',
       'task_item_missing',
       'task_ref_leftover',
+      'retrim_due',
       'singular_doc_missing',
     ]);
     // document_writing/s05_errors.md's catalog, whose code F-04 does not import.

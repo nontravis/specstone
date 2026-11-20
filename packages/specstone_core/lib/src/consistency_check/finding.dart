@@ -169,6 +169,7 @@ enum FindingKind {
   overrideNotInChain('override_not_in_chain'),
   taskItemMissing('task_item_missing'),
   taskRefLeftover('task_ref_leftover'),
+  retrimDue('retrim_due'),
   singularDocMissing('singular_doc_missing');
 
   new(this.wire);

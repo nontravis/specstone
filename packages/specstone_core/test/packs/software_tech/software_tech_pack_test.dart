@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/merged_field.dart'
     show FieldType;
@@ -103,7 +104,14 @@ const _fieldIds = <String, List<String>>{
   'topic': [..._builtIns, 'covers', 'overrides', 'tasks'],
 };
 
-const _builtIns = ['slug', 'status', 'draft', 'approved', 'reference'];
+const _builtIns = [
+  'slug',
+  'status',
+  'draft',
+  'approved',
+  'reference',
+  'retrim',
+];
 
 /// The file rule a doc type no shared one-file line reaches keeps on a line of
 /// its own, in place of a line target.
@@ -128,7 +136,7 @@ const _itemShapeLines = <String, String>{
 
 void main() {
   group('software-tech manifest', () {
-    test('software-tech ships at 1.14.0 and extends prd-core', () {
+    test('software-tech ships at 1.15.0 and extends prd-core', () {
       final bytes = shippedPackFiles['software-tech/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -136,7 +144,7 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.14.0');
+      expect(manifest.version.toString(), '1.15.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 
@@ -179,7 +187,7 @@ void main() {
       );
     });
 
-    test('software-tech keeps its four migration entries and adds none for '
+    test('software-tech keeps its five migration entries and adds none for '
         'the shared entries', () {
       final migrations = _softwareTechManifest().migrations;
       expect(
@@ -192,7 +200,52 @@ void main() {
           '1.6.0: stamp_code_fingerprints',
           '1.7.0: move_file, restamp_code_fingerprints',
           '1.13.0: drop_default_lines',
+          '1.14.0: mark_retrim',
         ],
+      );
+    });
+
+    test('the pack lists a mark_retrim entry for domain invariants and value '
+        'objects last', () async {
+      final migrations = _softwareTechManifest().migrations;
+      expect(migrations.map((m) => m.from.toString()), [
+        '1.4.0',
+        '1.6.0',
+        '1.7.0',
+        '1.13.0',
+        '1.14.0',
+      ]);
+      final mark = migrations.last.steps.single as MarkRetrim;
+      expect(mark.docTypes, ['domain', 'project_domain']);
+      expect(mark.sections, ['invariants', 'value_objects']);
+
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsOneMinorBelow('software-tech'),
+        'docs/specs/DOMAIN.md':
+            '# Project domain\n\n## Invariants\n\n'
+            '- **INV-1** An email is unique.\n\n## Value objects\n\n'
+            '| VO | Backed by | Validation |\n|---|---|---|\n'
+            '| Email | String | an inbox and a host |\n',
+      });
+      final home = await writeTree({});
+      final plan = planUpgradeRun(
+        project,
+        templates: TemplateResolver(),
+        homeDirectory: home,
+      );
+
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.14.0',
+          'step': 'mark_retrim',
+          'paths': ['specs/DOMAIN.md'],
+        },
+      ]);
+      expect(
+        plan.rewrites
+            .singleWhere((rewrite) => rewrite.path == 'docs/specs/DOMAIN.md')
+            .text,
+        startsWith('---\nretrim:\n  - invariants\n  - value_objects\n---\n'),
       );
     });
 
@@ -215,7 +268,10 @@ void main() {
       );
 
       expect(upgrades.single.target, shipped);
-      expect(upgrades.single.steps.single.step, isA<DropDefaultLines>());
+      expect(
+        [for (final s in upgrades.single.steps) s.step.kind],
+        ['mark_retrim'],
+      );
       expect(
         shippedPackFiles.keys.where(
           (k) => k.startsWith('software-tech/patterns/'),

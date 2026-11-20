@@ -68,7 +68,7 @@ void main() {
   });
 
   test('the description states the item shape, the edge case lines, and the'
-      ' split line', () {
+      ' cap line', () {
     final description = fr.description!;
 
     expect(
@@ -87,7 +87,7 @@ void main() {
       ),
     );
     final positions = [
-      for (final line in [..._edgeCaseLines, _splitLine])
+      for (final line in [..._edgeCaseLines, _capLine])
         description.indexOf(line),
     ];
     expect(positions, everyElement(isNonNegative));
@@ -95,7 +95,21 @@ void main() {
     for (final fragment in _droppedFragments) {
       expect(description, isNot(contains(fragment)), reason: fragment);
     }
-    expect(_splitLine, isNot(matches(RegExp(r'\d'))));
+    expect(_capLine, isNot(matches(RegExp(r'\d'))));
+  });
+
+  test('the fr description carries the cap line its lint row names', () {
+    expect(
+      fr.description!.split('\n'),
+      contains(
+        'Trim edge cases the rules above leave out; split an FR still past '
+        'the cap into new FRs in its story.',
+      ),
+    );
+    expect(
+      fr.description,
+      isNot(contains('Split an FR that holds too many edge cases')),
+    );
   });
 
   test('the verification shows the short Pass criteria first and names no'
@@ -200,8 +214,9 @@ const _messageLine =
     'the Output row that defines it; with no catalog reaching the FR, state '
     'in words what the person sees.';
 
-const _splitLine =
-    'Split an FR that holds too many edge cases into new FRs in its story.';
+const _capLine =
+    'Trim edge cases the rules above leave out; split an FR still past the '
+    'cap into new FRs in its story.';
 
 /// Fragments of the description lines the edge case lines replace.
 const _droppedFragments = [

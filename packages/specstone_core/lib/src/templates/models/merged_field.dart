@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/templates/models/field_caps.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-/// The five fields every doc type carries below its lowest layer.
+/// The six fields every doc type carries below its lowest layer.
 const builtInFields = <MergedField>[
   MergedField(id: 'slug', type: FieldType.string, list: true),
   MergedField(
@@ -12,6 +12,7 @@ const builtInFields = <MergedField>[
   MergedField(id: 'draft', type: FieldType.boolean),
   MergedField(id: 'approved', type: FieldType.string),
   MergedField(id: 'reference', type: FieldType.docRef, list: true),
+  MergedField(id: 'retrim', type: FieldType.string, list: true),
 ];
 
 /// One enabled frontmatter field of a merged doc type.

@@ -218,6 +218,24 @@ final class DropSharedLines extends MigrationStep {
   String get kind => 'drop_shared_lines';
 }
 
+/// A `mark_retrim` step: the docs of [docTypes] take [sections] in their
+/// `retrim` field.
+final class MarkRetrim extends MigrationStep {
+  const new({required this.docTypes, required this.sections});
+
+  /// The ids of the doc types whose docs this step marks.
+  final List<String> docTypes;
+
+  /// The ids of the sections this step marks for a trim.
+  final List<String> sections;
+
+  @override
+  bool touches(String docTypeId) => docTypes.contains(docTypeId);
+
+  @override
+  String get kind => 'mark_retrim';
+}
+
 /// Parses a `migrations:` [node] of a `pack.yaml` read from [file].
 ///
 /// A null node gives no entries; entries keep file order. A bad `from:` is
@@ -354,6 +372,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'drop_shared_lines' => _parseDropSharedLines(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
+    'mark_retrim' => _parseMarkRetrim(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -629,6 +653,39 @@ DropSharedLines _parseDropSharedLines(
     );
   }
   return DropSharedLines(ids: ids);
+}
+
+MarkRetrim _parseMarkRetrim(YamlMap map, int i, int j, {required String file}) {
+  final prefix = 'migrations[$i].steps[$j].mark_retrim.';
+  checkKeys(
+    map,
+    const {'doc_types', 'sections'},
+    file: file,
+    format: 'mark_retrim step',
+    prefix: prefix,
+  );
+  List<String> listOf(String key) {
+    final list = stringsOf(
+      requireValue<YamlList>(map, key, file: file, prefix: prefix),
+      key,
+      file: file,
+      prefix: prefix,
+    );
+    if (list.isEmpty) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key $key must hold at least one id',
+        file: file,
+        key: '$prefix$key',
+      );
+    }
+    return list;
+  }
+
+  return MarkRetrim(
+    docTypes: listOf('doc_types'),
+    sections: listOf('sections'),
+  );
 }
 
 /// A `move_file` `to` pattern must hold the `from` placeholders in the same
