@@ -27,7 +27,9 @@ With `since: <snapshot path>`, compare the design document with that snapshot:
 1. **Terms**: run one search per term over every saved file of the check, a reached doc's files included: each term,
    key, literal, state, refusal, and finding the decision adds or changes, and each wording it supersedes, in every
    written form: with and without a trailing `/`, in backticks or not, singular and plural, and a short form ("five
-   version spots" also as "five spots").
+   version spots" also as "five spots"). Then search the ID of each item the decision changes inside that item's own doc
+   block, and search each other name a hit gives the changed thing, such as a role label ("its split line"), once more
+   over every saved file. A hit naming the changed thing by any name is a hit of the decision.
 2. **Readers**: read the owner item's cited-by lines. Run
    `specstone check <feature> --repeats --out "<folder>/reports/check.audit.<XXXXXX>.txt"` once per target feature
    for the whole sweep, reusing its file for later decisions; search it for the item's doc path. With no cited-by
@@ -35,11 +37,11 @@ With `since: <snapshot path>`, compare the design document with that snapshot:
 3. **Reach**: ground each doc a cited-by line or repeat group names outside the grounded features, and each cited doc
    of step 2.3, by `specstone context <doc> --for design --out`, then run step 3.1 on its files. Run no `--repeats` on
    it and follow none of its cited-by lines: the reach stops one hop out.
-4. **Covered**: a hit is `covered` only when one target row of step 1.3 of `design-check.md` names its doc and
-   section, lists the hit's decision in its Decisions cell, and either names the hit item in its item list, gives the section as `whole`, or
-   names the section by a bare key (the author reads that block whole; the row's Row mismatch line stands). Any other
-   hit is a `gap`: a row naming other items of the same doc or section, or listing the item for another decision only,
-   does not cover it.
+4. **Covered**: a hit is `covered` only when one target row of step 1.3 of `design-check.md` names its doc and section,
+   lists the hit's decision in its Decisions cell, and either names the hit item in its item list, gives the section as
+   `whole`, or names the section by a bare key (the author reads that block whole; the row's Row mismatch line stands).
+   Any other hit is a `gap`: a row naming other items of the same doc or section, or listing the item for another
+   decision only, does not cover it.
 5. **Hit list**: under the decision's `Swept:` line, in the report file only, write one
    `  <type>:<name>#<section> <item>: covered|gap` line per hit. Name an item with no ID by a table row's first cell, a
    diagram line's node ID, or a sentence's quoted words.
