@@ -189,16 +189,31 @@ void main() {
       }
     },
   );
-  test(
-    'an item that links to a rule appends the rule after it, each once',
-    () async {
-      final parts = await followed('The system shall lock, by $inv14.');
-      expect(parts.map(_id), [
-        'specs/f02_signup/DOMAIN.md#invariants INV-14',
-        'specs/topics/doc_model.md#rules RULE-3',
-      ]);
-    },
-  );
+  test("an appended invariant's topic-rule link appends nothing", () async {
+    final parts = await followed('The system shall lock, by $inv14.');
+    expect(parts.map(_id), ['specs/f02_signup/DOMAIN.md#invariants INV-14']);
+  });
+  test('a rule an appended part links is appended when a picked part links it too', () async {
+    final parts = await followed(
+      'The system shall lock, by $inv14, and by [RULE-3]($_specs/topics/doc_model.md#rules).',
+    );
+    expect(parts.map(_id), [
+      'specs/f02_signup/DOMAIN.md#invariants INV-14',
+      'specs/topics/doc_model.md#rules RULE-3',
+    ]);
+  });
+  test("a picked part and an appended part that link one item append it once, and the appended part's other links stay unfollowed", () async {
+    final parts = await followed(
+      'See [hub]($_specs/topics/hub.md#purpose) and [RULE-2]($_specs/topics/ranges.md#rules).',
+      extra: {
+        'docs/specs/topics/hub.md': '# Hub\n\n## Purpose\nSee [RULE-2](ranges.md#rules) and [model](doc_model.md#purpose).\n',
+      },
+    );
+    expect(parts.map(_id), [
+      'specs/topics/hub.md#purpose',
+      'specs/topics/ranges.md#rules RULE-2',
+    ]);
+  });
   test(
     'an item link to an ID-headed ### heading appends its whole block',
     () async {
@@ -284,11 +299,7 @@ void main() {
             '| 2026-11-14 | [ranges](../../specs/topics/ranges.md#purpose) |\n'
             '| 2026-11-01 | [guide](../../specs/topics/guide.md#purpose) |\n',
       });
-      expect(parts.map(_id), [
-        '$_measurementDoc summary',
-        'specs/topics/ranges.md#purpose',
-        'specs/topics/doc_model.md#purpose',
-      ]);
+      expect(parts.map(_id), ['$_measurementDoc summary']);
     },
   );
   group('in a design bundle', () {
@@ -393,24 +404,21 @@ void main() {
       final parts = await followed(
         'See the [story](USER_STORY.md), $inv14, and $inv14 again.',
       );
-      expect(parts.map(_id), [
-        'specs/f02_signup/DOMAIN.md#invariants INV-14',
-        'specs/topics/doc_model.md#rules RULE-3',
-      ]);
+      expect(parts.map(_id), ['specs/f02_signup/DOMAIN.md#invariants INV-14']);
     },
   );
-  test('two parts that link to each other are each appended once', () async {
+  test('two picked links to two parts append both, in source order', () async {
     final parts = await followed(
-      'See [doc model]($_specs/topics/doc_model.md#purpose).',
+      'See [doc model]($_specs/topics/doc_model.md#purpose) and [ranges]($_specs/topics/ranges.md#purpose).',
     );
     expect(parts.map(_id), [
       'specs/topics/doc_model.md#purpose',
       'specs/topics/ranges.md#purpose',
     ]);
   });
-  test('a chain into a summary doc appends no part twice and none the summary prints', () async {
+  test('a section a picked link and an appended part both cite appends no part twice and none the summary prints', () async {
     final parts = await followed(
-      'See [guide]($_specs/topics/guide.md#purpose), [reset]($_resetStory), and [reset]($_resetStory#use-case).',
+      'See [guide]($_specs/topics/guide.md#purpose), [reset]($_resetStory), [reset]($_resetStory#use-case), and [criteria]($_resetStory#acceptance-criteria).',
       mode: BundleMode.design,
     );
     expect(parts.map(_id), [
@@ -493,16 +501,10 @@ void main() {
   );
   test('the links of one line append their parts in source order', () async {
     final parts = await followed(
-      'See [doc model]($_specs/topics/doc_model.md#purpose).',
-      extra: {
-        'docs/specs/topics/doc_model.md':
-            '# Doc model\n\n## Purpose\nSee [examples](#examples), '
-            '[RULE-2](ranges.md#rules), and [ranges](ranges.md#purpose).\n\n'
-            '## Examples\nOne link.\n',
-      },
+      'See [examples]($_specs/topics/doc_model.md#examples), '
+      '[RULE-2]($_specs/topics/ranges.md#rules), and [ranges]($_specs/topics/ranges.md#purpose).',
     );
     expect(parts.map(_id), [
-      'specs/topics/doc_model.md#purpose',
       'specs/topics/doc_model.md#examples',
       'specs/topics/ranges.md#rules RULE-2',
       'specs/topics/ranges.md#purpose',
@@ -523,28 +525,30 @@ void main() {
       isEmpty,
     );
   });
-  test(
-    'a part is cut from the stored text; the follow reads no file',
-    () async {
-      final project = await writeLoginProject(
-        extra: {..._cited, _fr: _frWith('The system shall lock, by $inv14.')},
-      );
-      final session = openSession(project);
-      addTearDown(session.close);
-      final bundle = pickBundle(
-        session.index,
-        'login/email_login/validate_credentials',
-        BundleMode.implement,
-        noProject: false,
-      );
-      File('${project.path}/docs/specs/f02_signup/DOMAIN.md').deleteSync();
-      File('${project.path}/docs/specs/topics/doc_model.md').deleteSync();
-      expect(followLinks(session.index, bundle).map(_id), [
-        'specs/f02_signup/DOMAIN.md#invariants INV-14',
-        'specs/topics/doc_model.md#rules RULE-3',
-      ]);
-    },
-  );
+  test('a part is cut from the stored text; the follow reads no file', () async {
+    final project = await writeLoginProject(
+      extra: {
+        ..._cited,
+        _fr: _frWith(
+          'The system shall lock, by $inv14, and by [RULE-3]($_specs/topics/doc_model.md#rules).',
+        ),
+      },
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    final bundle = pickBundle(
+      session.index,
+      'login/email_login/validate_credentials',
+      BundleMode.implement,
+      noProject: false,
+    );
+    File('${project.path}/docs/specs/f02_signup/DOMAIN.md').deleteSync();
+    File('${project.path}/docs/specs/topics/doc_model.md').deleteSync();
+    expect(followLinks(session.index, bundle).map(_id), [
+      'specs/f02_signup/DOMAIN.md#invariants INV-14',
+      'specs/topics/doc_model.md#rules RULE-3',
+    ]);
+  });
   test(
     "a link into another code target's doc is appended, with --target",
     () async {
@@ -701,14 +705,10 @@ void main() {
       expect(parts.single.text, isEmpty);
       expect(parts.single.summary, isFalse);
     });
-    test("the project bundle gets the measurement in summary, and the summary's links are followed", () async {
+    test("the project bundle gets the measurement in summary, and the summary's links are not followed", () async {
       final parts = await followedFrom('project', linkedFromProject);
 
-      expect(parts.map(_id), [
-        '$_measurementDoc summary',
-        'specs/topics/ranges.md#purpose',
-        'specs/topics/doc_model.md#purpose',
-      ]);
+      expect(parts.map(_id), ['$_measurementDoc summary']);
     });
     test("the measurement's own bundle prints it whole, so a link to it appends nothing", () async {
       final parts = await followedFrom(
@@ -873,7 +873,7 @@ void main() {
       final parts = await followedFrom('goal', goalLayers);
 
       expect(_measurementParts(parts), ['$_measurementDoc summary']);
-      expect(parts.map(_id), contains('specs/topics/ranges.md#purpose'));
+      expect(parts.map(_id), isNot(contains('specs/topics/ranges.md#purpose')));
     });
   });
 

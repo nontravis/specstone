@@ -186,6 +186,34 @@ void main() {
     expect(err.toString(), 'no doc carries the name logn\n');
     expect(out.toString(), isEmpty);
   });
+  test('two names of no doc exit 64 with one doc_not_found line each and print no tree', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(await runner.run(['structure', 'logn', 'resett']), 64);
+    expect(
+      err.toString(),
+      'no doc carries the name logn\nno doc carries the name resett\n',
+    );
+    expect(out.toString(), isEmpty);
+  });
+  test('--target applies to each of two targets', () async {
+    final (:runner, :out, :err) = readRunner(await writeTargetedTree());
+    expect(
+      await runner.run([
+        'structure',
+        'feedback/toast/show',
+        'feedback/toast/swipe',
+        '--target',
+        'jaspr',
+      ]),
+      0,
+    );
+    final lines = out.toString().trim().split('\n');
+    expect(lines, hasLength(2));
+    expect(lines.first, contains(' · planned · '));
+    expect(lines.last, contains(' · skipped · '));
+    expect(out.toString(), isNot(contains('flutter')));
+    expect(err.toString(), isEmpty);
+  });
   test('outside a project exits 78', () async {
     final (:runner, :out, :err) = readRunner(await writeTree({}));
     expect(await runner.run(['structure']), 78);
@@ -203,11 +231,6 @@ void main() {
     expect(await runner.run(['structure', '--json']), 78);
     expect(errorOf(err)['code'], 'pack_pin_newer');
     expect(out.toString(), isEmpty);
-  });
-  test('a surplus positional prints usage and exits 64', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(await runner.run(['structure', 'a', 'b']), 64);
-    expect(err.toString(), contains('Usage: specstone structure'));
   });
   test(
     'a read-only .specstone/ exits 73 with the JSON envelope',

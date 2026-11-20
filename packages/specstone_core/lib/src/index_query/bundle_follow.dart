@@ -102,9 +102,12 @@ final class AppendedPart {
   bool get pathOnly => !doc.isTyped;
 }
 
-/// Returns the parts the links of [bundle]'s printed docs cite, then those
-/// the links of each part cite, in the order a breadth-first walk first
-/// reaches them, each once.
+/// Returns the parts the links of [bundle]'s picked parts cite, one level
+/// deep, in print order, each once.
+///
+/// A link inside an appended part is not followed. A doc keyed in
+/// [ancestorPieceRanges] counts as printed whole, so no link into it appends,
+/// and only the listed ranges of its own links are followed.
 ///
 /// `query` follows no link. A file no doc type describes, an untyped doc or
 /// any other linked file on disk, adds its path alone. A target the bundle
@@ -118,11 +121,17 @@ List<AppendedPart> followLinks(
   DocIndex index,
   Bundle bundle, {
   CitedByIndex? citedBy,
+  Map<String, List<LineRange>> ancestorPieceRanges = const {},
 }) {
   if (bundle.mode == BundleMode.query) return const [];
   final walk = _Walk(index, bundle, citedBy);
   for (final doc in bundle.printOrder(index)) {
-    walk.addPrinted(doc, summary: bundle.summaryOnly.contains(doc.docPath));
+    final pieces = ancestorPieceRanges[doc.docPath];
+    if (pieces != null) {
+      walk.addAncestor(doc, pieces);
+    } else {
+      walk.addPrinted(doc, summary: bundle.summaryOnly.contains(doc.docPath));
+    }
   }
   return walk.run();
 }
@@ -167,7 +176,7 @@ final class _Printed {
   final List<LineRange> ranges;
 }
 
-/// One breadth-first walk over the links of a bundle and its parts.
+/// One walk over the links of a bundle's picked parts.
 final class _Walk {
   new(this.index, this.bundle, this.citedBy);
 
@@ -196,11 +205,18 @@ final class _Walk {
     }
   }
 
-  /// Follows each queued doc and part in turn, the parts it appends joining
-  /// the queue's end, and returns the parts.
+  /// Queues the [pieces] of [doc], an ancestor spec doc whose whole text the
+  /// bundle prints elsewhere: the doc counts as printed whole, and only the
+  /// links inside [pieces] are followed.
+  void addAncestor(IndexedDoc doc, List<LineRange> pieces) {
+    _whole.add(doc.docPath);
+    _queue.add(_Printed(view: _viewOf(doc), ranges: pieces));
+  }
+
+  /// Follows each queued picked part in turn and returns the parts it
+  /// appends. An appended part is never queued.
   List<AppendedPart> run() {
-    for (var i = 0; i < _queue.length; i++) {
-      final _Printed(:view, :ranges) = _queue[i];
+    for (final _Printed(:view, :ranges) in _queue) {
       for (final range in ranges) {
         _followRange(view, range);
       }
@@ -215,8 +231,12 @@ final class _Walk {
   );
 
   void _queuePrinted(_DocView view, List<LineRange> ranges) {
-    (_printedRanges[view.doc.docPath] ??= []).addAll(ranges);
+    _recordPrinted(view, ranges);
     _queue.add(_Printed(view: view, ranges: ranges));
+  }
+
+  void _recordPrinted(_DocView view, List<LineRange> ranges) {
+    (_printedRanges[view.doc.docPath] ??= []).addAll(ranges);
   }
 
   void _followRange(_DocView view, LineRange range) {
@@ -567,7 +587,7 @@ final class _Walk {
 
   void _add(AppendedPart part, _DocView view, List<LineRange> ranges) {
     _parts.add(part);
-    _queuePrinted(view, ranges);
+    _recordPrinted(view, ranges);
   }
 
   /// Whether the bundle already prints every line of [range] of [view]'s doc:

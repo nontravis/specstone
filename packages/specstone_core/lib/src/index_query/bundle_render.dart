@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/feature_pattern_part.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
 String _summaryNextStep(BundleMode mode) =>
@@ -202,7 +203,12 @@ ContextAnswer answerContext(
     for (final part in patternParts) featurePatternBlock(part),
   ];
   final slots = _slotsOf(ordered, patternParts);
-  final parts = followLinks(index, bundle, citedBy: citedBy);
+  final parts = followLinks(
+    index,
+    bundle,
+    citedBy: citedBy,
+    ancestorPieceRanges: ancestors.pieceRanges,
+  );
   final partBlocks = [for (final part in parts) _partBlock(part)];
   final pieces = [
     ..._docSidePieces(
@@ -378,13 +384,22 @@ int readFirstTokensOf(DocIndex index, Bundle bundle) {
 /// The ancestor spec docs of a split design bundle, which the refs text holds
 /// whole, and the pieces of them the read-first text prints.
 final class _AncestorSpecs {
-  const new({required this.paths, required this.piecesByDoc});
+  const new({
+    required this.paths,
+    required this.piecesByDoc,
+    required this.pieceRanges,
+  });
 
-  /// The DocPaths of the docs; empty when the bundle has none to move.
+  /// The DocPaths of the docs the refs text holds; empty when the bundle has
+  /// none to move.
   final Set<String> paths;
 
   /// The pieces of each doc by DocPath, in file order.
   final Map<String, List<AncestorPiece>> piecesByDoc;
+
+  /// The file lines of each ancestor spec doc's pieces by DocPath, with or
+  /// without a split; a doc with no piece maps to none.
+  final Map<String, List<LineRange>> pieceRanges;
 
   bool holds(IndexedDoc doc) => paths.contains(doc.docPath);
 
@@ -392,7 +407,8 @@ final class _AncestorSpecs {
       piecesByDoc[doc.docPath] ?? const [];
 }
 
-/// Returns the ancestor spec docs of [bundle] when [splits], else none.
+/// Returns the ancestor spec docs of [bundle]; with [splits] the refs text
+/// holds them, else only their [_AncestorSpecs.pieceRanges] are set.
 ///
 /// A doc the target subtree also holds, as a multi-target call gives, keeps
 /// its print, as [ancestorPiecesOf] reads it.
@@ -401,16 +417,32 @@ _AncestorSpecs _ancestorSpecsOf(
   Bundle bundle, {
   required bool splits,
 }) {
-  if (!splits || !bundle.hasAncestorSpecs) {
-    return const _AncestorSpecs(paths: {}, piecesByDoc: {});
+  if (!bundle.hasAncestorSpecs) {
+    return const _AncestorSpecs(paths: {}, piecesByDoc: {}, pieceRanges: {});
   }
   final piecesByDoc = <String, List<AncestorPiece>>{};
   for (final piece in ancestorPiecesOf(index, bundle)) {
     (piecesByDoc[piece.doc.docPath] ??= []).add(piece);
   }
+  final paths = bundle.ancestorSpecPaths.difference(bundle.targetSubtreePaths);
+  final pieceRanges = {
+    for (final path in paths)
+      path: [
+        for (final piece in piecesByDoc[path] ?? const <AncestorPiece>[])
+          LineRange(first: piece.first, last: piece.last),
+      ],
+  };
+  if (!splits) {
+    return _AncestorSpecs(
+      paths: const {},
+      piecesByDoc: const {},
+      pieceRanges: pieceRanges,
+    );
+  }
   return _AncestorSpecs(
-    paths: bundle.ancestorSpecPaths.difference(bundle.targetSubtreePaths),
+    paths: paths,
     piecesByDoc: piecesByDoc,
+    pieceRanges: pieceRanges,
   );
 }
 

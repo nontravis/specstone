@@ -40,11 +40,37 @@ final String _leadFr = _e09Fr.replaceFirst(
 
 /// The `sections` of the doc [target] names, as `--json` prints them.
 List<Map<String, Object?>> _jsonSections(DocIndex index, String target) =>
-    ((answerStructure(index, target: target).json['docs']! as List)
+    ((answerStructure(index, targets: [target]).json['docs']! as List)
                 .cast<Map<String, Object?>>()
                 .single['sections']!
             as List)
         .cast<Map<String, Object?>>();
+
+/// Returns the index of a two-target project: `feedback/toast` with one
+/// architecture doc per target.
+Future<DocIndex> _toastIndex() async {
+  const featureText = '# Toast\n\n## Problem\nBurnt toast.\n';
+  final session = openSession(
+    await writeTree({
+      '.specstone/templates/architecture.yaml':
+          'id: architecture\nper_target: true\n',
+      '.specstone/config.yaml':
+          '${shippedPinsConfig()}targets:\n'
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+      'flutter_lib/.keep': '',
+      'jaspr_lib/.keep': '',
+      'docs/prds/features/f02_feedback/FEATURE.md': featureText,
+      'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': featureText,
+      'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+          '# Toast architecture\n',
+      'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+          '# Toast architecture\n',
+    }),
+  );
+  addTearDown(session.close);
+  return session.index;
+}
 
 void main() {
   late DocIndex index;
@@ -83,37 +109,37 @@ void main() {
   test('login prints the feature subtree once, spec docs inside it', () async {
     final lines = answerStructure(
       index,
-      target: 'login',
+      targets: ['login'],
     ).text.trim().split('\n');
     expect(lines, hasLength(11));
     expect(lines.first, startsWith('login (feature)'));
   });
   test('a feature line shows the computed status', () async {
     expect(
-      answerStructure(index, target: 'signup').text,
+      answerStructure(index, targets: ['signup']).text,
       startsWith('signup (feature) — Sign up · implemented · '),
     );
   });
   test('a target no doc carries is doc_not_found', () async {
     expect(
-      () => answerStructure(index, target: 'logn'),
+      () => answerStructure(index, targets: ['logn']),
       throwsA(isA<IndexFault>()),
     );
   });
   test('an unknown doc type prefix is doc_type_unknown', () async {
     expect(
-      () => answerStructure(index, target: 'featur:login'),
+      () => answerStructure(index, targets: ['featur:login']),
       throwsA(isA<TemplateFault>()),
     );
   });
   test('an untyped DocPath target prints its one line', () async {
     expect(
-      answerStructure(index, target: 'prds/d01_context.md').text,
+      answerStructure(index, targets: ['prds/d01_context.md']).text,
       'prds/d01_context.md — D-01 — Project context · ${tokensOf('docs/prds/d01_context.md')} tokens\n',
     );
   });
   test('--json nests children and lists untyped docs by folder', () async {
-    final json = answerStructure(index, target: 'login/email_login').json;
+    final json = answerStructure(index, targets: ['login/email_login']).json;
     final story = (json['docs']! as List).single as Map<String, Object?>;
     expect(story.keys.toList(), [
       'name',
@@ -165,7 +191,7 @@ void main() {
   });
   test('structure shop prints shop, cart and its two stories, then pay and its two', () async {
     final nested = await nestedIndexWith();
-    final lines = answerStructure(nested, target: 'shop').text.split('\n');
+    final lines = answerStructure(nested, targets: ['shop']).text.split('\n');
     expect(
       [
         for (final line in lines)
@@ -184,6 +210,94 @@ void main() {
     );
   });
 
+  group('several targets', () {
+    List<String> namesOf(String text) => [
+      for (final line in text.trim().split('\n')) line.split(' (').first.trim(),
+    ];
+
+    test('two stories of one feature as targets print one tree', () {
+      const stories = ['login/reset_password', 'login/email_login'];
+      final answer = answerStructure(index, targets: stories);
+      final names = namesOf(answer.text);
+      final wholeOrder = [
+        for (final name in namesOf(answerStructure(index).text))
+          if (name.startsWith('login/')) name,
+      ];
+
+      expect(names, wholeOrder);
+      expect(names.toSet(), hasLength(names.length));
+      expect(names.first, 'login/email_login');
+      expect(answer.text, isNot(contains(' chars')));
+    });
+
+    test('a feature and its story as targets print the feature tree alone', () {
+      final answer = answerStructure(
+        index,
+        targets: ['login', 'login/email_login'],
+      );
+
+      expect(answer.text, answerStructure(index, targets: ['login']).text);
+      expect(answer.json['docs'], hasLength(1));
+    });
+
+    test('an untyped DocPath beside a feature target prints in the folders part', () {
+      final text = answerStructure(
+        index,
+        targets: ['login', 'prds/d01_context.md'],
+      ).text;
+
+      expect(
+        text,
+        '${answerStructure(index, targets: ['login']).text}'
+        'prds/\n  prds/d01_context.md — D-01 — Project context · ${tokensOf('docs/prds/d01_context.md')} tokens\n',
+      );
+    });
+
+    test(
+      'the same target twice faults once and prints as the target alone',
+      () {
+        expect(
+          () => answerStructure(index, targets: ['nope', 'nope']),
+          throwsA(isA<IndexFault>()),
+        );
+        expect(
+          answerStructure(
+            index,
+            targets: ['login/email_login', 'login/email_login'],
+          ).text,
+          answerStructure(index, targets: ['login/email_login']).text,
+        );
+      },
+    );
+
+    test('--target keeps a named doc of another target that the tree hides below its parent', () async {
+      const flutterArch =
+          'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md';
+      final toast = await _toastIndex();
+      final answer = answerStructure(
+        toast,
+        targets: ['feedback/toast', flutterArch],
+        codeTarget: 'jaspr',
+      );
+
+      expect(RegExp(r'\(architecture\)').allMatches(answer.text), hasLength(2));
+    });
+
+    test('--json with two targets matches the whole-tree shape and has no sections key', () {
+      final json = answerStructure(
+        index,
+        targets: ['login/email_login', 'signup'],
+      ).json;
+
+      expect(json.keys.toList(), ['docs', 'untyped']);
+      expect(
+        [for (final doc in json['docs']! as List) (doc as Map)['name']],
+        ['login/email_login', 'signup'],
+      );
+      expect(jsonEncode(json), isNot(contains('"sections"')));
+    });
+  });
+
   group('Print the docs tree', () {
     late DocIndex e09;
     setUpAll(
@@ -192,7 +306,7 @@ void main() {
 
     test('a typed doc target prints each section and item with its characters', () async {
       expect(
-        answerStructure(e09, target: _frTarget).text,
+        answerStructure(e09, targets: [_frTarget]).text,
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_e09Fr)} tokens\n'
         '  statement · 166 chars\n'
         '    line 11 · 165 chars\n'
@@ -205,7 +319,7 @@ void main() {
     test(
       '--json gives the doc object sections with key, chars, and items',
       () async {
-        final json = answerStructure(e09, target: _frTarget).json;
+        final json = answerStructure(e09, targets: [_frTarget]).json;
         final doc = (json['docs']! as List).single as Map<String, Object?>;
 
         expect(doc.keys.toList(), [
@@ -252,7 +366,7 @@ void main() {
         });
         final lines = answerStructure(
           index,
-          target: _frTarget,
+          targets: [_frTarget],
         ).text.split('\n');
 
         expect(lines.skip(1).take(2), [
@@ -272,7 +386,7 @@ void main() {
     test('a lead prints first as _lead with its items, as text', () async {
       final index = await indexWith({...loginRecords, _frKey: _leadFr});
       expect(
-        answerStructure(index, target: _frTarget).text,
+        answerStructure(index, targets: [_frTarget]).text,
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_leadFr)} tokens\n'
         '  _lead · 681 chars\n'
         '    line 9 · 681 chars\n'
@@ -307,7 +421,7 @@ void main() {
     test(
       'a lead that holds no text prints no _lead line and no _lead entry',
       () async {
-        final text = answerStructure(e09, target: _frTarget).text;
+        final text = answerStructure(e09, targets: [_frTarget]).text;
 
         expect(text, isNot(contains('_lead')));
         expect(
@@ -325,7 +439,7 @@ void main() {
       final index = await indexWith({...loginRecords, _frKey: blank});
 
       expect(
-        answerStructure(index, target: _frTarget).text,
+        answerStructure(index, targets: [_frTarget]).text,
         isNot(contains('_lead')),
       );
     });
@@ -424,7 +538,10 @@ void main() {
     test('a lettered item ID prints as a line, never as an ID', () async {
       final lettered = _e09Fr.replaceFirst('2. E02 —', '2. E02a —');
       final index = await indexWith({...loginRecords, _frKey: lettered});
-      final lines = answerStructure(index, target: _frTarget).text.split('\n');
+      final lines = answerStructure(
+        index,
+        targets: [_frTarget],
+      ).text.split('\n');
 
       expect(lines, contains('    E01 · 106 chars'));
       expect(lines, contains(matches(RegExp(r'^    line 16 · \d+ chars$'))));
@@ -434,12 +551,12 @@ void main() {
     test(
       'a name that several docs carry prints the tree with no section line',
       () async {
-        final text = answerStructure(e09, target: 'login').text;
+        final text = answerStructure(e09, targets: ['login']).text;
 
         expect(text, isNot(contains(' chars')));
         expect(answerStructure(e09).text, isNot(contains(' chars')));
         expect(
-          answerStructure(e09, target: 'login').json.toString(),
+          answerStructure(e09, targets: ['login']).json.toString(),
           isNot(contains('sections')),
         );
       },
@@ -450,7 +567,7 @@ void main() {
       () async {
         final lines = answerStructure(
           e09,
-          target: 'feature:login',
+          targets: ['feature:login'],
         ).text.trim().split('\n');
 
         expect(lines.first, startsWith('login (feature)'));
@@ -472,7 +589,7 @@ void main() {
           section.key: content.lineFacts.sectionCounts[i].chars,
       };
       final sections =
-          (answerStructure(e09, target: _frTarget).json['docs']! as List)
+          (answerStructure(e09, targets: [_frTarget]).json['docs']! as List)
                   .cast<Map<String, Object?>>()
                   .single['sections']!
               as List;
@@ -493,7 +610,7 @@ void main() {
         });
         final lines = answerStructure(
           index,
-          target: 'user_story:login/email_login',
+          targets: ['user_story:login/email_login'],
         ).text.split('\n');
 
         expect(lines[1], startsWith('  acceptance_criteria · '));
@@ -514,7 +631,7 @@ void main() {
         index.typeOf(doc),
       ).split('\n');
       final json =
-          (answerStructure(index, target: _frTarget).json['docs']! as List)
+          (answerStructure(index, targets: [_frTarget]).json['docs']! as List)
                   .cast<Map<String, Object?>>()
                   .single['sections']!
               as List;
@@ -538,7 +655,7 @@ void main() {
       final disk = refused.split('\n');
       final content = index.contentOf(doc);
       final sections =
-          (answerStructure(index, target: _frTarget).json['docs']! as List)
+          (answerStructure(index, targets: [_frTarget]).json['docs']! as List)
                   .cast<Map<String, Object?>>()
                   .single['sections']!
               as List;
@@ -571,7 +688,7 @@ void main() {
       final doc = index.resolve(_frTarget).single;
       final stored = index.contentOf(doc).lineFacts.sectionCounts;
       final sections =
-          (answerStructure(index, target: _frTarget).json['docs']! as List)
+          (answerStructure(index, targets: [_frTarget]).json['docs']! as List)
                   .cast<Map<String, Object?>>()
                   .single['sections']!
               as List;
@@ -596,7 +713,7 @@ void main() {
         _frKey: _e09Fr.replaceFirst(RegExp(r'2\. E02.*\n'), '$item\n'),
       });
       final sections =
-          (answerStructure(index, target: _frTarget).json['docs']! as List)
+          (answerStructure(index, targets: [_frTarget]).json['docs']! as List)
                   .cast<Map<String, Object?>>()
                   .single['sections']!
               as List;
@@ -614,7 +731,7 @@ void main() {
       });
       final lines = answerStructure(
         index,
-        target: 'user_story:login/email_login',
+        targets: ['user_story:login/email_login'],
       ).text.split('\n');
 
       expect(lines[2], matches(RegExp(r'^    line \d+ · \d+ chars$')));
@@ -692,7 +809,7 @@ void main() {
       );
 
       expect(
-        answerStructure(index, target: 'feedback/toast').text,
+        answerStructure(index, targets: ['feedback/toast']).text,
         'feedback/toast (feature) — Toast · flutter: implemented, jaspr: '
         'planned · ${tokenSizeOf(featureText)} tokens\n'
         '  feedback/toast/show (user_story) — Agent sees a toast · flutter: '
@@ -721,7 +838,7 @@ void main() {
       );
 
       expect(
-        answerStructure(index, target: 'feedback/toast').text.split('\n'),
+        answerStructure(index, targets: ['feedback/toast']).text.split('\n'),
         contains(
           '    feedback/toast/show/render (fr) — Render it · flutter: '
           'implemented, jaspr: skipped · ${tokenSizeOf(frText)} tokens',
@@ -738,7 +855,7 @@ void main() {
         );
 
         final doc =
-            (answerStructure(index, target: 'feedback/toast').json['docs']!
+            (answerStructure(index, targets: ['feedback/toast']).json['docs']!
                     as List)
                 .cast<Map<String, Object?>>()
                 .single;
@@ -773,7 +890,7 @@ void main() {
 
         final lines = answerStructure(
           index,
-          target: 'feedback/toast',
+          targets: ['feedback/toast'],
           codeTarget: 'jaspr',
         ).text.split('\n');
         expect(
@@ -800,13 +917,13 @@ void main() {
         expect(
           answerStructure(
             single,
-            target: 'feedback/toast',
+            targets: ['feedback/toast'],
             codeTarget: 'flutter',
           ).text.split('\n').first,
           startsWith('feedback/toast (feature) — Toast · implemented · '),
         );
         expect(
-          answerStructure(plain, target: 'login').text.split('\n').first,
+          answerStructure(plain, targets: ['login']).text.split('\n').first,
           startsWith('login (feature) — Login · planned · '),
         );
       },
@@ -850,7 +967,7 @@ void main() {
           '  feedback/toast/show (user_story) — Agent sees a toast · '
           'implemented · ${tokenSizeOf(showText)} tokens';
       expect(
-        answerStructure(index, target: 'feature:feedback/toast').text,
+        answerStructure(index, targets: ['feature:feedback/toast']).text,
         '$featureLine\n'
         '  problem · 13 chars\n'
         '    line 9 · 12 chars\n'
@@ -942,12 +1059,12 @@ void main() {
     test(
       'a feature prints its subtree with no record line and the same statuses',
       () {
-        final text = answerStructure(underRoot, target: 'login').text;
+        final text = answerStructure(underRoot, targets: ['login']).text;
 
         expect(text, isNot(contains('(implementation)')));
         expect(
           text.split('\n'),
-          withoutRecordLines(answerStructure(index, target: 'login').text),
+          withoutRecordLines(answerStructure(index, targets: ['login']).text),
         );
       },
     );
@@ -959,8 +1076,21 @@ void main() {
       expect(jsonEncode(docs), isNot(contains(recordsRoot)));
     });
 
+    test('a record and a feature as two targets print no record line', () {
+      final text = answerStructure(
+        underRoot,
+        targets: ['implementation:login', 'signup'],
+      ).text;
+
+      expect(text, isNot(contains('(implementation)')));
+      expect(text, startsWith('signup (feature) — Sign up'));
+    });
+
     test('the record target prints the record lines', () {
-      final answer = answerStructure(underRoot, target: 'implementation:login');
+      final answer = answerStructure(
+        underRoot,
+        targets: ['implementation:login'],
+      );
 
       expect(
         answer.text.split('\n').first,
