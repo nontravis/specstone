@@ -1,4 +1,4 @@
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/merged_doc_type.dart';
 
 /// A doc of the run: planned DocPath, LF text, and merged doc type, null for
 /// an untyped doc.
