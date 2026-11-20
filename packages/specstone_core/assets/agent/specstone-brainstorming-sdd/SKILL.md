@@ -52,29 +52,29 @@ document holds no open question; approval of an approach is not approval of the 
 
 ## 3. Write the document
 
-Write the one design document by `references/design.md`, from step 1's saved files and the Owner's
-answers, at the brainstorm skill's own design path, else
-`docs/designs/<YYYY-MM-DD>-<topic>-design.md`. A refused path is an open question; write at the Owner's new path.
-Dispatch nothing to write it.
+Write the one design document by `references/design.md`, from step 1's saved files and the Owner's answers, at the
+brainstorm skill's own design path, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. Dispatch nothing to write it.
 
-Before the approval ask, dispatch the design check as step 4 dispatches: a fresh `mode: audit` with `stage: design`,
-the document's path, and `bundles:` your saved bundle files with no doc write since, never after an author pass.
-Amends adding or changing behavior before the ask share one check, `amend: <N>[,<N> ...]`; a later one gets its own,
-`amend: <N>`. Fix each finding by `references/design.md`; a `[behavior]` fix takes the delta check of
-`references/rounds.md` section 1. Then ask for approval, or, after an author pass, go on to the amend's pass unasked.
+Before the approval ask, dispatch the design check: a fresh `specstone-sdd-auditor` with `stage: design`, the
+document's path, and `bundles:` your saved bundle files with no doc write since. Amends adding or changing behavior
+before the ask share one check, `amend: <N>[,<N> ...]`; a later one gets its own, `amend: <N>`. A fresh
+`specstone-sdd-sweeper` runs before each check, and a `[behavior]` fix takes one delta check, both by
+`references/rounds.md` section 1. Fix each finding by `references/design.md`, then ask for approval, or, after an
+author pass, go on to the amend's pass unasked.
 
 Route each later Owner answer or change per `references/rounds.md`.
 
 ## 4. Write the drafts, then audit them
 
-After step 1's calls, take `<folder>` the path `specstone folder` prints, run once. Each dispatch of
-`specstone-sdd-engineer` in steps 3 and 4 follows `../specstone-expert-sdd/references/dispatch.md` and passes
-`report:` `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that
-file exists; show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
+After step 1's calls, take `<folder>` the path `specstone folder` prints, run once. Each dispatch in steps 3 and 4
+follows `../specstone-expert-sdd/references/dispatch.md` and passes `report:`
+`<folder>/reports/sdd-engineer.author.<XXXXXX>.md`, `<folder>/reports/sdd-auditor.audit.<XXXXXX>.md`, or
+`<folder>/reports/sdd-sweeper.sweep.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that file
+exists; show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 Write no brief and run no `context` call again on a target already grounded before a dispatch; a claim your saved files
 do not ground is an open question.
 
-1. After approval, dispatch `mode: author` with the document's path. Pass no doc or design text.
+1. After approval, dispatch `specstone-sdd-engineer`, `mode: author`, with only the document's path.
 2. Run the author's `Move:` commands, if any, then the amend compare of `references/rounds.md` section 2. Dispatch a
    fresh `mode: audit` with the document's path, the drafts list as its targets, and `check:` as
    `references/reaudit.md` item 4 gives.

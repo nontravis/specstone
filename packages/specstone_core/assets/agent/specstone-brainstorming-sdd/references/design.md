@@ -44,7 +44,7 @@ Sections, in order:
    words; `new E19` if added; `E24: <note>`), `<key> whole` for one rewritten whole, or `whole` for a new doc or a
    rewrite of every section; decision IDs. A key with neither: a design-check line. Each amend's rows form an
    `Amend <N> rows` table; a landed one is no later target. A decision with no row gets a line on why. Each doc the
-   design check finds restating a decision's rule gets a row: remove the copy and link the owner's item; when it owns
+   sweep finds restating a decision's rule gets a row: remove the copy and link the owner's item; when it owns
    a rule reading the decision's rule, rewrite it. An `architecture` doc gets a `design_references` row linking this
    document, per `specstone guide architecture`, only when its section states a decision of this design after the
    change, linking each design whose decisions it still states; a feature merely reached takes none, nor does a doc
@@ -52,7 +52,7 @@ Sections, in order:
    target; a row with none is an open question.
 7. **Open questions**: each gap neither the answers nor the saved files settle.
 
-Run no dependents search: the design check sweeps every reader. An amend that adds or changes behavior, or removes a
+Run no reader search: each reader comes from a sweeper's `Rows:` lines. An amend that adds or changes behavior, or removes a
 decision, names its owner doc and terms the same way, after the removal read in `removal.md`, and adds its rows
 before the author writes it.
 
