@@ -43,8 +43,10 @@ With `since: <snapshot path>`, compare the design document with that snapshot:
    Any other hit is a `gap`: a row naming other items of the same doc or section, or listing the item for another
    decision only, does not cover it.
 5. **Hit list**: under the decision's `Swept:` line, in the report file only, write one
-   `  <type>:<name>#<section> <item>: covered|gap` line per hit. Name an item with no ID by a table row's first cell, a
-   diagram line's node ID, or a sentence's quoted words.
+   `  <type>:<name>#<section> <item>: covered|gap` line per search hit in a reader doc. A hit judged to stay true
+   whatever the decision says, such as a history or design-reference line or a generic mention, is still a line, and a
+   `gap` unless step 3.4 covers it: the runner rules it out, not the check. Name an item with no ID by a table row's
+   first cell, a diagram line's node ID, or a sentence's quoted words.
 6. **Gaps**: each `gap` hit, and each superseded wording left outside the rows, is a `D<n>: <gap>` line under
    `Findings:`. A doc written before its rule, restating it instead of citing its owner, is one too. Name a doc gap
    `<type>:<name>#<key>`, an item `<type>:<name>#<section>`.
