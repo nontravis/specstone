@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_text.g.dart';
 
 /// The AGENT.md text, ending in one line feed, embedded from

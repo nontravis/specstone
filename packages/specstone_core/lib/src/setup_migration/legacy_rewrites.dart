@@ -18,6 +18,7 @@ import 'package:specstone_core/src/document_writing/write_session.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
