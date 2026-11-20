@@ -99,7 +99,8 @@ void main() {
       'IDs are append-only, never reused.\n'
       'Write an invariant only for a rule two or more FRs rely on; a '
       'behavior one FR states stays there. Delete an existing invariant '
-      "one FR's Statement or edge case states.\n"
+      "one FR's Statement or edge case states; one no single FR states is "
+      'kept.\n'
       'Keep a bound (`timeout 10 s`) in the invariant it bounds; a lock, '
       'retry, or parser mechanism the rule still needs moves to '
       'ARCHITECTURE, an unhandled case to `known_limits`.\n'
