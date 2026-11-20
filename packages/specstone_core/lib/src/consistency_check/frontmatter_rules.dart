@@ -9,6 +9,8 @@ import 'package:specstone_core/src/templates/models/record_status.dart';
 const _statusKey = 'status';
 // `approval_stale` alone reads this value, so the value rule skips it.
 const _approvedKey = 'approved';
+// Its ids name sections, so past the shape rule each id is checked alone.
+const _retrimKey = 'retrim';
 final _isoDate = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
 
 /// Returns the frontmatter findings of a typed [doc]; an untyped doc has none.
@@ -94,9 +96,46 @@ Iterable<Finding> checkFrontmatter(CheckContext context, IndexedDoc doc) sync* {
         message: '$key is ${_written(value)}; it takes ${_takes(field)}',
         keys: {'field': key, 'value': _written(value)},
       );
+    } else if (key == _retrimKey && value is List && _fits(field, value)) {
+      yield* _undefinedRetrimIds(
+        context,
+        doc,
+        type,
+        value.cast<Object?>(),
+        lineOf,
+      );
     }
   }
 }
+
+/// Returns one mismatch per distinct id of [ids] no layer of [type] defines,
+/// each at [line], the line of the `retrim` key.
+Iterable<Finding> _undefinedRetrimIds(
+  CheckContext context,
+  IndexedDoc doc,
+  MergedDocType type,
+  List<Object?> ids,
+  int Function() line,
+) sync* {
+  final reported = <String>{};
+  for (final id in ids) {
+    if (id is! String || !reported.add(id)) continue;
+    if (definesSectionId(type, id)) continue;
+    yield context.finding(
+      doc,
+      FindingKind.fieldValueMismatch,
+      line: line(),
+      message: '$id is no section of the ${type.id} doc type',
+      keys: {'field': _retrimKey, 'value': id},
+    );
+  }
+}
+
+/// Whether a layer of [type] defines the section [id]: it holds the section or
+/// disabled it.
+bool definesSectionId(MergedDocType type, String id) =>
+    type.disabledSectionIds.contains(id) ||
+    type.sections.any((section) => section.id == id);
 
 bool _fits(MergedField field, Object value) {
   if (!field.list) return value is! List && fieldTakesItem(field, value);

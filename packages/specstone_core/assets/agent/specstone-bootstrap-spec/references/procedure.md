@@ -30,6 +30,7 @@ the Owner only when no text bears on a whole section.
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
+| `retrim_due`, `field_value_mismatch` on `retrim` | `../../specstone-expert-sdd/references/trim.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
 | `words_over_limit`, `sentence_chars_over_limit`, `trace_note_not_last`, `sentences_over_limit`, `item_lines_over_limit` | `../../specstone-expert-sdd/references/readability-fix.md` |
 | any other of this skill | rewrite what it names per the loaded guide; one clearing with no write goes to step 6 |

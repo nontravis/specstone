@@ -31,6 +31,7 @@ import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show prunesOf;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
+import 'package:specstone_core/src/setup_migration/mark_retrim_step.dart';
 import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
@@ -352,6 +353,11 @@ RunPlan _upgradeRunOf(
           matcher: matcher,
           preRunTexts: preRunTexts,
         ),
+        MarkRetrim() => withRetrimMarked(
+          lf,
+          docType: docType,
+          sections: step.sections,
+        ),
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -371,6 +377,7 @@ RunPlan _upgradeRunOf(
           DropSharedLines() => false,
           BulletLines() => false,
           DropDefaultLines() => false,
+          MarkRetrim() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -390,6 +397,7 @@ RunPlan _upgradeRunOf(
             DropSharedLines() => '',
             BulletLines() => '',
             DropDefaultLines() => '',
+            MarkRetrim() => '',
           };
           renameCollisions.add(
             MigrateFault(
@@ -1027,6 +1035,7 @@ List<_OverrideFile> _renamedOverrides(
         DropSharedLines() => file.lf,
         BulletLines() => file.lf,
         DropDefaultLines() => file.lf,
+        MarkRetrim() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -1554,6 +1563,7 @@ String _describe(MigrationStep step) => switch (step) {
   DropSharedLines() => step.kind,
   BulletLines() => '${step.kind} ${step.docType} ${step.section}',
   DropDefaultLines() => step.kind,
+  MarkRetrim() => step.kind,
 };
 
 /// Returns [lf] of the doc at [plannedPath] without the default lines of its

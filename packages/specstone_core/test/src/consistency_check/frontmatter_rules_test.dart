@@ -416,6 +416,90 @@ void main() {
     });
   });
 
+  group('retrim', () {
+    const layer = '.specstone/templates/fr.yaml';
+    const disableVerification =
+        'sections:\n  - id: verification\n    disabled: true\n';
+
+    /// The fixture FR with [retrimLines] under `retrim:`, under a project
+    /// layer that disables the shipped `verification` section.
+    Map<String, String> projectWith(String retrimLines) => {
+      layer: disableVerification,
+      ..._frWithKey('retrim:\n$retrimLines'),
+    };
+
+    test(
+      'a retrim id no layer defines gives one value mismatch naming it',
+      () async {
+        final report = await checkOf(
+          await writeCheckProject(extra: projectWith('  - edge_case')),
+        );
+        final mismatch = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.fieldValueMismatch,
+        );
+        expect('${mismatch.path}:${mismatch.line}', '$loginFr:8');
+        expect(mismatch.toJson()['field'], 'retrim');
+        expect(mismatch.toJson()['value'], 'edge_case');
+      },
+    );
+
+    test('a retrim id of a disabled section gives no field finding', () async {
+      final report = await checkOf(
+        await writeCheckProject(extra: projectWith('  - verification')),
+      );
+      expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+    });
+
+    test(
+      'a retrim id listed twice that no layer defines gives one finding',
+      () async {
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: projectWith('  - edge_case\n  - edge_case'),
+          ),
+        );
+        final mismatches = report.findings
+            .where((f) => f.kind == FindingKind.fieldValueMismatch)
+            .toList();
+        expect(mismatches, hasLength(1));
+        expect(mismatches.single.toJson()['value'], 'edge_case');
+      },
+    );
+
+    test('a retrim scalar gives only the type finding', () async {
+      final report = await checkOf(
+        await writeCheckProject(extra: _frWithKey('retrim: edge_case')),
+      );
+      final mismatch = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.fieldValueMismatch,
+      );
+      expect(
+        mismatch.message,
+        'retrim is edge_case; it takes a list of: a string',
+      );
+    });
+
+    test(
+      'a retrim item that is not a string gives only the type finding',
+      () async {
+        final report = await checkOf(
+          await writeCheckProject(extra: _frWithKey('retrim:\n  - a: b')),
+        );
+        final mismatch = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.fieldValueMismatch,
+        );
+        expect(mismatch.toJson()['field'], 'retrim');
+      },
+    );
+
+    test('a retrim list of defined ids gives no finding', () async {
+      final report = await checkOf(
+        await writeCheckProject(extra: projectWith('  - edge_cases')),
+      );
+      expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+    });
+  });
+
   test('an FR that still writes implements under the shipped pack, which declares no such field on fr, is field_undeclared naming the field', () async {
     final report = await checkOf(
       await writeCheckProject(

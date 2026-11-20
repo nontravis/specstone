@@ -368,6 +368,7 @@ void main() {
       'draft',
       'approved',
       'reference',
+      'retrim',
       'vision',
       'goals',
       'persona',
