@@ -643,18 +643,12 @@ void main() {
       expect(upsertBlock(first!, _importBlock()), isNull);
     });
 
-    test(
-      'the first rule says code and tests name no doc, path, or item ID',
-      () {
-        final firstRule = _rules(agentMdText)
-            .singleWhere((rule) => rule.startsWith('- code ⊆ spec'));
+    test('the code rule says code and tests name no doc, path, or item ID', () {
+      final codeRule = _rules(agentMdText)
+          .singleWhere((rule) => rule.startsWith('- code ⊆ spec'));
 
-        expect(
-          firstRule,
-          contains('Code and tests name no doc, path, or item'),
-        );
-        expect(firstRule, contains('ID.'));
-      },
-    );
+      expect(codeRule, contains('Code and tests name no doc, path, or item'));
+      expect(codeRule, contains('ID.'));
+    });
   });
 }
