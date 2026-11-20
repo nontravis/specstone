@@ -3,6 +3,7 @@ import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/setup_migration/models/stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_entries.dart'
     show withBlockValues;
@@ -15,12 +16,6 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 // MARK: - Constants
 
 const _confirmedKey = 'confirmed';
-
-// MARK: - Types
-
-/// A doc of the run: planned DocPath, LF text, and merged doc type, null for
-/// an untyped doc.
-typedef StampDoc = ({String docPath, String lf, MergedDocType? type});
 
 // MARK: - StampPass
 
@@ -231,7 +226,7 @@ _Restamps? _restampRule(
   if (citedFrom.isEmpty) return null;
   final uncited = _World([
     for (final doc in after)
-      (
+      StampDoc(
         docPath: doc.docPath,
         lf: citedFrom[doc.docPath] ?? doc.lf,
         type: doc.type,

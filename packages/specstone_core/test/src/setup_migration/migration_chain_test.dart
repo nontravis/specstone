@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/setup_migration/models/pack_step.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:test/test.dart';
 
@@ -29,7 +30,7 @@ PackManifest _manifest(
 }
 
 List<String> _froms(PackUpgrade upgrade) => [
-  for (final (:from, step: _) in upgrade.steps) from.toString(),
+  for (final PackStep(:from) in upgrade.steps) from.toString(),
 ];
 
 void main() {
@@ -74,7 +75,7 @@ migrations:
     );
 
     expect(
-      [for (final (from: _, :step) in upgrades.single.steps) step.kind],
+      [for (final PackStep(:step) in upgrades.single.steps) step.kind],
       ['rename_field', 'rename_field'],
     );
     expect(_froms(upgrades.single), ['1.0.0', '1.0.0']);

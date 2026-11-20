@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/migrate_root.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:test/test.dart';
@@ -238,7 +239,7 @@ void main() {
       final code = _canonical(Directory('${tree.path}/ws/code'));
 
       for (final start in ['ws/code', 'ws/code/lib']) {
-        final (:root, :linkFolder) = locateMigrateRoot(
+        final MigrateRoot(:root, :linkFolder) = locateMigrateRoot(
           Directory('${tree.path}/$start'),
         );
 
@@ -255,7 +256,7 @@ void main() {
       final ws = _canonical(Directory('${tree.path}/ws'));
 
       for (final start in ['ws', 'ws/lib']) {
-        final (:root, :linkFolder) = locateMigrateRoot(
+        final MigrateRoot(:root, :linkFolder) = locateMigrateRoot(
           Directory('${tree.path}/$start'),
         );
 

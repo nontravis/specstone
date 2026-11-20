@@ -1,8 +1,9 @@
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
-import 'package:specstone_core/src/setup_migration/agent_assets.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_asset.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -248,7 +249,8 @@ String _skillHead(String name, String description) =>
 String _unresolved(String file, String span) =>
     '$file: $span names no rendered file';
 
-AgentAsset _asset(String path, String text) => (path: path, text: text);
+AgentAsset _asset(String path, String text) =>
+    AgentAsset(path: path, text: text);
 
 List<ContentFile> _rendersOf(List<AgentAsset> assets) =>
     renderedContentFiles(renderHostFilesOf(assets));

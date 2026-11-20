@@ -13,6 +13,7 @@ import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
+import 'package:specstone_core/src/setup_migration/models/code_stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
     show docPathsOf;
 import 'package:test/test.dart';
@@ -103,7 +104,7 @@ CodeStampStep _planAt(Directory project, {bool restamp = false}) {
 
 CodeStampDoc _docOf(DocTypeMatcher matcher, String docPath, File file) {
   final match = matcher.match(docPath);
-  return (
+  return CodeStampDoc(
     docPath: docPath,
     lf: toLf(file.readAsStringSync()),
     type: match is MatchedDocType ? match.docType : null,

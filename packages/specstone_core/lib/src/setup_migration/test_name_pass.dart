@@ -24,8 +24,9 @@ import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/feature_relative.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
-    show DocText, readDocText, writtenText;
+    show readDocText, writtenText;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/doc_text.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart'
     show PlannedCreate, PlannedRewrite, draftNote;
 import 'package:specstone_core/src/templates/code_point_order.dart';

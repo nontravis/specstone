@@ -17,7 +17,7 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText, importBlock;
 import 'package:specstone_core/src/setup_migration/record_placement.dart'
     show typeBeforeMoves;
-import 'package:specstone_core/src/templates/pack_migration.dart'
+import 'package:specstone_core/src/templates/models/migration_step.dart'
     show MoveToRecord;
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;

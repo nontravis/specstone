@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/setup_migration/agent_assets.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_asset.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -14,9 +16,12 @@ const _tomlBody =
     'Read `.agents/skills/specstone-expert-sdd/SKILL.md`.\n';
 
 final _fixtureAssets = <AgentAsset>[
-  (path: 'specstone-demo/SKILL.md', text: 'skill text\n'),
-  (path: 'specstone-demo/references/more.md', text: 'more text\n'),
-  (
+  const AgentAsset(path: 'specstone-demo/SKILL.md', text: 'skill text\n'),
+  const AgentAsset(
+    path: 'specstone-demo/references/more.md',
+    text: 'more text\n',
+  ),
+  const AgentAsset(
     path: 'specstone-looker.md',
     text:
         '---\n'
@@ -32,7 +37,7 @@ final _fixtureAssets = <AgentAsset>[
         'Read `.agents/skills/specstone-demo/SKILL.md` and '
         '`.agents/skills/specstone-demo/references/more.md`.\n',
   ),
-  (
+  const AgentAsset(
     path: 'specstone-reader.md',
     text:
         '---\n'
@@ -43,7 +48,7 @@ final _fixtureAssets = <AgentAsset>[
         '\n'
         'Body keeps `.agents/skills/specstone-demo/SKILL.md`.\n',
   ),
-  (
+  const AgentAsset(
     path: 'specstone-planner.md',
     text:
         '---\n'
@@ -55,7 +60,7 @@ final _fixtureAssets = <AgentAsset>[
         '\n'
         'Plan body.\n',
   ),
-  (
+  const AgentAsset(
     path: 'specstone-quoter.md',
     text: '---\nname: specstone-quoter\ndescription: Quotes\n---\n$_tomlBody',
   ),
@@ -248,7 +253,7 @@ void main() {
 
     test('renders no skills line for a source with an empty skills list', () {
       final rendered = renderHostFilesOf([
-        (
+        const AgentAsset(
           path: 'specstone-empty.md',
           text:
               '---\nname: specstone-empty\ndescription: D\nskills: []\n'
@@ -265,7 +270,10 @@ void main() {
         (asset) => asset.path == 'specstone-looker.md',
       );
       final rendered = renderHostFilesOf([
-        (path: looker.path, text: looker.text.replaceAll('\n', '\r\n')),
+        AgentAsset(
+          path: looker.path,
+          text: looker.text.replaceAll('\n', '\r\n'),
+        ),
       ]);
       final claude = _file(
         rendered,
@@ -374,7 +382,7 @@ void main() {
   });
 
   group('renderHostFilesOf frontmatter scalars', () {
-    AgentAsset describedAs(String description) => (
+    AgentAsset describedAs(String description) => AgentAsset(
       path: 'specstone-one.md',
       text:
           '---\nname: specstone-one\ndescription: ${jsonEncode(description)}\n'
@@ -481,7 +489,7 @@ void main() {
 
   group('renderHostFilesOf agent names', () {
     AgentAsset agent(String path, String frontmatter) =>
-        (path: path, text: '---\n$frontmatter---\n\nBody.\n');
+        AgentAsset(path: path, text: '---\n$frontmatter---\n\nBody.\n');
 
     test('throws naming the asset when the name differs from the path', () {
       expect(

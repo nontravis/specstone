@@ -1,49 +1,9 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/setup_migration/agent_assets.dart';
+import 'package:specstone_core/src/setup_migration/models/agent_asset.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
 import 'package:yaml/yaml.dart';
-
-/// A folder at a project or repository root that one host reads skills or
-/// agents from.
-enum AgentFolder {
-  claudeSkills('.claude/skills', AgentFolderGroup.claudeCode),
-  agentsSkills('.agents/skills', AgentFolderGroup.shared),
-  claudeAgents('.claude/agents', AgentFolderGroup.claudeCode),
-  cursorAgents('.cursor/agents', AgentFolderGroup.cursorAgents),
-  codexAgents('.codex/agents', AgentFolderGroup.codexAgents),
-  agentsAgents('.agents/agents', AgentFolderGroup.shared);
-
-  new(this.path, this.group);
-
-  /// The folder's path from the root, with `/` separators.
-  final String path;
-
-  /// The group that opts in or out as one.
-  final AgentFolderGroup group;
-}
-
-/// Folders that stay together: a skill copy's relative agent path must resolve.
-enum AgentFolderGroup {
-  claudeCode,
-  shared,
-  codexAgents,
-  cursorAgents;
-
-  /// The group's folders, in [AgentFolder] order.
-  List<AgentFolder> get folders => [
-    for (final folder in AgentFolder.values)
-      if (folder.group == this) folder,
-  ];
-}
-
-/// One file a host reads: `entry` is the `specstone-<name>` folder or file name
-/// in `folder`, and `path` runs from the folder's parent with `/` separators.
-typedef RenderedFile = ({
-  AgentFolder folder,
-  String entry,
-  String path,
-  String text,
-});
 
 const _sourceSkillPrefix = '.agents/skills/';
 const _claudeSkillPrefix = '.claude/skills/';
@@ -77,7 +37,7 @@ List<RenderedFile> renderHostFilesOf(List<AgentAsset> assets) {
   ];
 }
 
-RenderedFile _skillFile(AgentFolder folder, AgentAsset skill) => (
+RenderedFile _skillFile(AgentFolder folder, AgentAsset skill) => RenderedFile(
   folder: folder,
   entry: skill.path.substring(0, skill.path.indexOf('/')),
   path: '${folder.path}/${skill.path}',
@@ -87,7 +47,7 @@ RenderedFile _skillFile(AgentFolder folder, AgentAsset skill) => (
 RenderedFile _agentFile(AgentFolder folder, _Agent agent) {
   final isToml = folder == AgentFolder.codexAgents;
   final entry = '${agent.name}${isToml ? '.toml' : '.md'}';
-  return (
+  return RenderedFile(
     folder: folder,
     entry: entry,
     path: '${folder.path}/$entry',
