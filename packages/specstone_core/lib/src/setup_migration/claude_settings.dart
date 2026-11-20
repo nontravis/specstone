@@ -113,16 +113,14 @@ String? _shapeFailure(Map<String, Object?> root) {
 }
 
 /// Each matcher group holding a Specstone handler, with its event.
-List<({String event, Map<String, Object?> group})> _specstoneGroups(
-  Map<String, Object?> root,
-) {
+List<_OwnedGroup> _specstoneGroups(Map<String, Object?> root) {
   final hooks = root[_hooksKey];
   if (hooks is! Map<String, Object?>) return const [];
   return [
     for (final MapEntry(:key, :value) in hooks.entries)
       for (final group in value! as List<Object?>)
         if (_handlersOf(group).any(isSpecstoneHandler))
-          (event: key, group: group! as Map<String, Object?>),
+          _OwnedGroup(event: key, group: group! as Map<String, Object?>),
   ];
 }
 
@@ -213,11 +211,11 @@ void _writeValue(
     case final Map<String, Object?> map when map.isNotEmpty:
       _writeContainer(out, '{', '}', unit, lineEnding, depth, [
         for (final MapEntry(:key, :value) in map.entries)
-          (label: '${jsonEncode(key)}: ', value: value),
+          _Member(label: '${jsonEncode(key)}: ', value: value),
       ]);
     case final List<Object?> list when list.isNotEmpty:
       _writeContainer(out, '[', ']', unit, lineEnding, depth, [
-        for (final item in list) (label: '', value: item),
+        for (final item in list) _Member(label: '', value: item),
       ]);
     default:
       out.write(jsonEncode(value));
@@ -231,7 +229,7 @@ void _writeContainer(
   String unit,
   String lineEnding,
   int depth,
-  List<({String label, Object? value})> members,
+  List<_Member> members,
 ) {
   out
     ..write(open)
@@ -246,4 +244,20 @@ void _writeContainer(
   out
     ..write(unit * depth)
     ..write(close);
+}
+
+/// A matcher group that holds a Specstone handler, and the event it sits under.
+final class _OwnedGroup {
+  const new({required this.event, required this.group});
+
+  final String event;
+  final Map<String, Object?> group;
+}
+
+/// One member of a JSON container: the text before its value, and the value.
+final class _Member {
+  const new({required this.label, required this.value});
+
+  final String label;
+  final Object? value;
 }

@@ -488,14 +488,12 @@ final class RunPlan {
   ///
   /// The place is the entry itself below its real folder, so a linked folder
   /// above it is resolved and a link entry stays a link.
-  List<({String place, List<String> files, bool isAtTop})> _trashedEntries(
-    Directory projectRoot,
-  ) {
+  List<_TrashedEntry> _trashedEntries(Directory projectRoot) {
     final plan = agentFiles;
     if (plan == null) return const [];
     return [
       for (final entry in plan.trash)
-        (
+        _TrashedEntry(
           place: _placeOf(entry, projectRoot),
           files: [
             _placeOf(entry, projectRoot),
@@ -586,4 +584,14 @@ final class RunPlan {
 
   static String _shown(String projectPath) =>
       docPathOfProjectPath(projectPath) ?? projectPath;
+}
+
+/// One skill or agent entry the run trashes: its place, what a commit stages
+/// for it, and whether it lies at a repository top.
+final class _TrashedEntry {
+  const new({required this.place, required this.files, required this.isAtTop});
+
+  final String place;
+  final List<String> files;
+  final bool isAtTop;
 }
