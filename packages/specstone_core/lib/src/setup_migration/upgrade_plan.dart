@@ -249,7 +249,7 @@ RunPlan _upgradeRunOf(
           for (final pair in _movePatternsOf(step, finalSet)) pair.from,
     ],
   );
-  final (:planned, :movedAt, :movedBy, :treeMoved) = _plannedPaths(
+  final _PlannedPaths(:planned, :movedAt, :movedBy, :treeMoved) = _plannedPaths(
     docPaths,
     steps,
     treeMoves: treeMoves,
@@ -733,13 +733,13 @@ RunPlan _upgradeRunOf(
     ...upgraded,
     if (treeMovesTo != null) 'spec tree to $treeMovesTo',
   ];
-  final (:header, :commit2Message) = arePinsUnchanged
+  final _PlanTitles(:header, :commit2Message) = arePinsUnchanged
       ? _pinsUnchangedTitles(
           laysOut: laidOutPaths.isNotEmpty,
           writesAgentFiles: !agentFiles.isEmpty,
           treeMovesTo: treeMovesTo,
         )
-      : (
+      : _PlanTitles(
           header: 'pack upgrade: ${headerParts.join(', ')}',
           commit2Message: _commit2Message,
         );
@@ -957,29 +957,37 @@ List<StaleMention> _staleMentionsOf(
   );
 }
 
+/// A plan's header and its commit 2 message.
+final class _PlanTitles {
+  const new({required this.header, required this.commit2Message});
+
+  final String header;
+  final String commit2Message;
+}
+
 /// Returns the plan header and commit 2 message of a run that moves no pin.
 ///
 /// A run that moves the spec tree to [treeMovesTo] is titled by that move,
 /// whatever else it writes; a run with neither the layout pass nor an agent
 /// file write is titled as layout only.
-({String header, String commit2Message}) _pinsUnchangedTitles({
+_PlanTitles _pinsUnchangedTitles({
   required bool laysOut,
   required bool writesAgentFiles,
   required String? treeMovesTo,
 }) => switch ((laysOut, writesAgentFiles)) {
-  _ when treeMovesTo != null => (
+  _ when treeMovesTo != null => _PlanTitles(
     header: 'pack upgrade: pins unchanged, spec tree to $treeMovesTo',
     commit2Message: _treeMoveCommit2Message,
   ),
-  (true, true) => (
+  (true, true) => const _PlanTitles(
     header: _layoutAndAgentHeader,
     commit2Message: _layoutAndAgentCommit2Message,
   ),
-  (false, true) => (
+  (false, true) => const _PlanTitles(
     header: _agentOnlyHeader,
     commit2Message: _agentOnlyCommit2Message,
   ),
-  (_, false) => (
+  (_, false) => const _PlanTitles(
     header: _layoutOnlyHeader,
     commit2Message: _layoutOnlyCommit2Message,
   ),
@@ -1111,17 +1119,28 @@ String _withScalarsRenamed(
         for (final key in keys)
           if (entry.nodes[key] case final YamlScalar scalar
               when scalar.value == from)
-            (scalar, to),
+            _ScalarEdit(scalar: scalar, replacement: to),
   ]);
+}
+
+/// A scalar of a YAML text, and the text that replaces it.
+final class _ScalarEdit {
+  const new({required this.scalar, required this.replacement});
+
+  final YamlScalar scalar;
+  final String replacement;
 }
 
 /// Returns [lf] with each scalar of [edits] replaced by its new text, written
 /// in the quote style the scalar had.
-String _withScalarsReplaced(String lf, List<(YamlScalar, String)> edits) {
+String _withScalarsReplaced(String lf, List<_ScalarEdit> edits) {
   final ordered = [...edits]
-    ..sort((a, b) => b.$1.span.start.offset.compareTo(a.$1.span.start.offset));
+    ..sort(
+      (a, b) =>
+          b.scalar.span.start.offset.compareTo(a.scalar.span.start.offset),
+    );
   var text = lf;
-  for (final (scalar, replacement) in ordered) {
+  for (final _ScalarEdit(:scalar, :replacement) in ordered) {
     final start = scalar.span.start.offset;
     final end = scalar.span.end.offset;
     final quote = switch (text[start]) {
@@ -1234,7 +1253,10 @@ PlannedRewrite? _configRewriteOf(
       (loadYamlNode(original.lf) as YamlMap).nodes['packs']! as YamlMap;
   var text = _withScalarsReplaced(original.lf, [
     for (final upgrade in upgrades)
-      (packs.nodes[upgrade.pack]! as YamlScalar, '${upgrade.target}'),
+      _ScalarEdit(
+        scalar: packs.nodes[upgrade.pack]! as YamlScalar,
+        replacement: '${upgrade.target}',
+      ),
   ]);
   text = withPinsAppended(text, addedPins);
   if (agentFileRoots != null) text = _withAgentFileRoots(text, agentFileRoots);
@@ -1376,6 +1398,22 @@ List<PatternMove> _movePatternsOf(MoveFile step, MergedSet set) {
   return movePatternsAtEveryDepth(step.from, step.to, nesting);
 }
 
+/// The final path of each doc, the paths each move step's docs end at, the last
+/// move step that touched each doc, and the docs the tree move moved.
+final class _PlannedPaths {
+  const new({
+    required this.planned,
+    required this.movedAt,
+    required this.movedBy,
+    required this.treeMoved,
+  });
+
+  final Map<String, String> planned;
+  final Map<int, List<String>> movedAt;
+  final Map<String, int> movedBy;
+  final Set<String> treeMoved;
+}
+
 /// Returns the final path of each doc of [docPaths], the final paths each
 /// move step's docs end at, the last move step that touched each doc, and the
 /// docs the tree move moved.
@@ -1385,13 +1423,7 @@ List<PatternMove> _movePatternsOf(MoveFile step, MergedSet set) {
 /// moves chain: a doc at `A` under `A` → `B` then `B` → `C` ends at `C`.
 /// With two or more [targetNames], a step of a per-target
 /// doc type moves the docs of each target's folder by that target's patterns.
-({
-  Map<String, String> planned,
-  Map<int, List<String>> movedAt,
-  Map<String, int> movedBy,
-  Set<String> treeMoved,
-})
-_plannedPaths(
+_PlannedPaths _plannedPaths(
   List<String> docPaths,
   List<_Step> steps, {
   required List<PathMove> treeMoves,
@@ -1433,7 +1465,7 @@ _plannedPaths(
       }
     }
   }
-  return (
+  return _PlannedPaths(
     planned: planned,
     movedAt: movedAt,
     movedBy: movedBy,
