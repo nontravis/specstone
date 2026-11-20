@@ -13,6 +13,8 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/git_commit.dart';
+import 'package:specstone_core/src/setup_migration/models/migrate_root.dart';
 import 'package:specstone_core/src/setup_migration/old_plugin.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
@@ -141,7 +143,9 @@ MigrateFault _gitFailed(String command, String line) => MigrateFault(
 );
 
 Future<int> _migrate(MigrateRequest request) async {
-  final (:root, :linkFolder) = locateMigrateRoot(request.workingDirectory);
+  final MigrateRoot(:root, :linkFolder) = locateMigrateRoot(
+    request.workingDirectory,
+  );
   _warnOldPlugin(request, root);
   final trust = _trustOf(root, linkFolder, request);
   requireSpecstoneFolder(root);
@@ -600,7 +604,7 @@ void _printCommits(
 ) {
   final firstNumber = 3 - steps.length;
   final commits = commitsSince(root, steps.first.base, request.runGit);
-  for (final (:sha, :subject, :message) in commits) {
+  for (final GitCommit(:sha, :subject, :message) in commits) {
     final index = steps.indexWhere((step) => step.carriedBy(message));
     if (index < 0) continue;
     _say(request, 'commit ${firstNumber + index} $sha: $subject');
