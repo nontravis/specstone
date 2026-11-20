@@ -2252,7 +2252,8 @@ agent_file_roots:
           contains('USER_STORY.md#scenario-9--edge-lettered\n'),
         );
         final after = await findings(root, home);
-        expect(after.difference(before), isEmpty);
+        final trimMarkedByUpgrade = {'retrim_due specs/f01_a/DOMAIN.md'};
+        expect(after.difference(before), trimMarkedByUpgrade);
         expect(
           after.where((finding) => finding.startsWith('item_id_lettered')),
           isEmpty,
