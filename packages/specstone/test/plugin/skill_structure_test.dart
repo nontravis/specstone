@@ -406,6 +406,13 @@ void _frontmatterTests() {
     final text = _pluginText(_sweeper);
     expect(text, contains('references/sweep.md'));
     expect(text, contains('references/design-check.md'));
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Bootstrap'), [
+        'section 1',
+        'references/design-check.md',
+      ]),
+      isTrue,
+    );
     for (final other in [
       'references/author.md',
       'references/audit.md',
@@ -663,7 +670,7 @@ void _referencesResolveTests() {
   });
 
   test(
-    'the source walk sees the twelve sources and leaves AGENT.md out',
+    'the source walk sees the fourteen sources and leaves AGENT.md out',
     () async {
       final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
       expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
@@ -1654,7 +1661,10 @@ void _runsOnEveryHostTests() {
       expect(text, contains(agent), reason: agent);
     }
     expect(
-      _hasSentenceWith(_sectionOf(text, '## Main session'), ['sweep', 'no']),
+      _hasSentenceWith(_sectionOf(text, '## Main session'), [
+        'sweep',
+        'no main-session rung',
+      ]),
       isTrue,
     );
   });
@@ -2267,7 +2277,7 @@ void _brainstormRoundTests() {
     expect(
       _hasSentenceWith(
         _sectionOf(_pluginText(_roundsReference), _roundsDecisions),
-        ['no subagent', 'failed', 'sweep'],
+        ['no subagent', 'failed', 'sweep', 'no rows'],
       ),
       isTrue,
     );

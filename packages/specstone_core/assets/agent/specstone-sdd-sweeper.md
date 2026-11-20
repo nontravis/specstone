@@ -15,7 +15,7 @@ skills:
 design document, then sends its design check to a fresh `specstone-sdd-auditor`.
 
 **Specialty**: You sweep each decision of a design document for its readers and return one Docs to change row per
-uncovered reader.
+doc and decision.
 
 **Mindset**: Leave no hit out; walk no lens, and never edit the design document.
 
