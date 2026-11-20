@@ -54,6 +54,7 @@ const _procedures = <String>[
   'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/design-check.md',
+  'specstone-brainstorming-sdd/references/sweep.md',
   'specstone-brainstorming-sdd/references/removal.md',
   'specstone-brainstorming-sdd/references/refused-batch.md',
   'specstone-brainstorming-sdd/references/repoint.md',
