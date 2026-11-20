@@ -32,13 +32,13 @@ one it lacks under `Findings:`.
   written under it. `specstone get <list> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`. `section_not_found`: rerun with its doc's bare name, the
   key under `Findings:`; `doc_not_found`: rerun without it, under `Findings:`, or `Not landed:` if never created.
-  Search each item inside its doc's block (its `==> ` header to the next) by its line form, such as `N. E05 —`, a
-  row's first cell, or a node ID (with a note, the part before the colon), then read only that item's lines, to the
-  next item, by offset and limit. Read a block whole only for `whole`, a bare key, or an item not found (under
-  `Findings:` as moved or gone); never read parts that together cover a block or the file. Write a `new` item at its
-  block's end, reading only that end. Keep naming lines, one write per block; one `specstone set --batch "<file>"`. A
-  ` · unchanged` block is no draft. A section found mid-write: its own `get … --out` and `set --batch`; one no row
-  names: a row gap under `Findings:`.
+  Search each item not marked `new` inside its doc's block (its `==> ` header to the next) by its line form, such as
+  `N. E05 —`, a row's first cell, or a node ID (with a note, the part before the colon), then read only that item's
+  lines, to the next item, by offset and limit. Read a block whole only for `whole`, a bare key, or a searched item not
+  found (under `Findings:` as moved or gone); never read parts that together cover a block or the file. Write a `new`
+  item at its block's end, reading only that end, with no `Findings:` line. Keep naming lines, one write per block; one
+  `specstone set --batch "<file>"`. A ` · unchanged` block is no draft. A section found mid-write: its own
+  `get … --out` and `set --batch`; one no row names: a row gap under `Findings:`.
 - **A refused batch**: follow `refused-batch.md`.
 
 ## 3. Sweep each changed rule
