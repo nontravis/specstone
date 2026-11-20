@@ -31,12 +31,12 @@ rule, or removes a decision; every other decision only words or records one.
 - **Before the author**: after an append, or an amend and its check, ask for approval again. When the design
   document holds open questions, gather the Owner's answers: append each that only words or records one, send the
   rest to one amend and its check, then ask.
-- **Once two rounds are spent**, a decision that adds or changes behavior, the Owner's decision on a finding past the
-  cap included, takes an amend and its check, then one author pass that carries the amend alone, the one pass beyond
-  the cap, then a re-audit (`reaudit.md`) whose findings reach the Owner with the drafts, with no further round. Fix an
-  Owner change that only corrects text per the `specstone-expert-sdd` skill, with no amend.
+- **Once the round is spent**, a decision that adds or changes behavior, the Owner's on a finding past the cap
+  included, takes an amend and its check, then one author pass beyond the cap carrying the amend alone, then a
+  re-audit (`reaudit.md`) whose findings reach the Owner with the drafts, with no further round. Fix an Owner change
+  that only corrects text per the `specstone-expert-sdd` skill, with no amend.
 
-## 2. Run the fix rounds
+## 2. Run the fix round
 
 The drafts list is the first author report's drafts plus each doc a fix round or pass added, renamed or dropped as
 `reaudit.md` says.
@@ -48,18 +48,18 @@ The drafts list is the first author report's drafts plus each doc a fix round or
   The author reads their sections before its first write, then fixes them and each same-class hit, `[style]` ones
   included, by `author.md`'s Sweep each changed rule.
 - **A `[behavior]` line**, or an Owner decision adding behavior, never goes to a fix round: take it to an amend and its
-  own check (section 1). The one fresh author pass after, counted toward the cap, takes the amended design, the drafts
+  own check (section 1). The one fresh author pass after, counted as the one round, takes the amended design, the drafts
   list, and that audit's other lines.
 - **A `[style]`-only audit** spends no round and gets no re-audit: fix each line in place by `specstone set --replace`.
   Run `specstone approve <drafts list> --dry-run --json`, then append one `Styled: <type>:<name>@<hash>` line per fixed
   draft to that audit's report file, `hash` as that call prints it, for `--auto`.
 - **A split proposal** the Owner okays: run its `new` and `move` commands in order, as an author's `Move:` lines. The
   new FRs join the drafts list, and a fresh author pass, the fill pass, fills them before any audit. It takes the
-  proposal's lines and joins the next round when one is due; else it is no round and carries no findings. Past both
-  rounds it still runs, and its re-audit's findings reach the Owner with the drafts, with no further round. Then the
+  proposal's lines and joins the next round when one is due; else it is no round and carries no findings. Past the round
+  it still runs, and its re-audit's findings reach the Owner with the drafts, with no further round. Then the
   amend compare below.
-- **The cap**: run at most two rounds, fix rounds and amend passes alike; no design check counts. Lines left after the
-  second get no third round: the Owner sees them with the drafts before any is approved, `--auto` asks each draft they
+- **The cap**: run at most one round, a fix round or an amend pass; no design check or sweep counts. Lines left after
+  it get no second round: the Owner sees them with the drafts before any is approved, `--auto` asks each draft they
   name, and a decision on one takes section 1's route.
 - After each fix round or amend pass, re-audit as `reaudit.md` says; its item 4 sends each re-audit.
 - **Before every audit dispatch**, the first included, compare the design's last amend, the highest `Amend <N>` its

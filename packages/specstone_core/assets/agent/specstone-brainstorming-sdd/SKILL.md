@@ -76,9 +76,9 @@ do not ground is an open question.
 
 1. After approval, dispatch `specstone-sdd-engineer`, `mode: author`, with only the document's path.
 2. Run the author's `Move:` commands, if any, then the amend compare of `references/rounds.md` section 2. Dispatch a
-   fresh `mode: audit` with the document's path, the drafts list as its targets, and `check:` as
+   fresh `specstone-sdd-auditor` with the document's path, the drafts list as its targets, and `check:` as
    `references/reaudit.md` item 4 gives.
-3. Run fix rounds on its `Findings:` lines per `references/rounds.md`.
+3. Run the fix round on its `Findings:` lines per `references/rounds.md`.
 4. Show each author reply and the last audit's relay block; follow the `specstone-expert-sdd` skill's
    "Get the drafts approved", with `--audit` and `--author`.
 

@@ -2208,6 +2208,8 @@ const _roundsReference = 'specstone-brainstorming-sdd/references/rounds.md';
 
 const _designReference = 'specstone-brainstorming-sdd/references/design.md';
 
+const _reauditReference = 'specstone-brainstorming-sdd/references/reaudit.md';
+
 /// The heading of the rounds reference's Owner-decision section.
 const _roundsDecisions = '## 1. Route each Owner decision';
 
@@ -2266,6 +2268,50 @@ void _brainstormRoundTests() {
       ['`Report:`', 'word for word'],
     ]) {
       expect(_hasSentenceWith(text, words), isTrue, reason: words.join(', '));
+    }
+  });
+  test('the drafts audit takes one fix round or amend pass', () {
+    final text = _pluginText(_roundsReference);
+    expect(_sectionOf(text, '## 2. Run the fix round'), contains('one round'));
+    for (final word in [
+      'two rounds',
+      'both rounds',
+      'after the second',
+      'third round',
+    ]) {
+      expect(_oneLine(text), isNot(contains(word)), reason: word);
+    }
+  });
+
+  test('an amend past the spent round takes one author pass', () {
+    expect(
+      _hasSentenceWith(_pluginText(_roundsReference), [
+        'round is spent',
+        'amend',
+        'one author pass',
+      ]),
+      isTrue,
+    );
+  });
+
+  test('every brainstorm audit dispatch names specstone-sdd-auditor', () {
+    for (final file in [
+      _brainstormSkill,
+      _roundsReference,
+      _reauditReference,
+    ]) {
+      expect(
+        _inlineSpans(_pluginText(file)),
+        isNot(contains('mode: audit')),
+        reason: file,
+      );
+    }
+    for (final file in [_brainstormSkill, _reauditReference]) {
+      expect(
+        _pluginText(file),
+        contains('`specstone-sdd-auditor`'),
+        reason: file,
+      );
     }
   });
 }
