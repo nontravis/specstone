@@ -222,6 +222,7 @@ Findings: <items, or none>
 - Read code, instruction files, and library docs read-only; follow the plan skill.
 - Beyond the `report:` file, write only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.
+- Your host's agent memory, when it gives one, lies outside every file rule here; keep it as the host says.
 
 **DON'T:**
 

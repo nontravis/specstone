@@ -168,6 +168,7 @@ finding.
   path names none; audit passes no `--target` on `context --for design`.
 - Beyond the `report:` file, write or edit only a batch file: made by `specstone get … --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, and passed to `specstone set --batch "<file>"`.
+- Your host's agent memory, when it gives one, lies outside every file rule here; keep it as the host says.
 
 **DON'T:**
 
