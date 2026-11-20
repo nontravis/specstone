@@ -20,7 +20,7 @@ words or records one.
   - **Chain**: an untagged line takes no check. A check's fixed `[behavior]` lines take one delta check,
     `since:` its snapshot and no `amend`. A check with no `[behavior]` line ends the chain. A scope is the first check
     before the ask, or one amend's check (shared amends count as one), plus its delta checks.
-  - **Who decides**: decide a `[behavior]` line only when its answer stays inside the Owner's goals, rulings, and
+  - **Who decides**: decide a `[behavior]` line only when its answer stays inside the Intent, Rulings, and
     picked approach; any other line is the Owner's. Your answer opens no scope: its fix, as the Owner's answer to a
     line of any check before the third delta check, takes the scope's next delta check.
   - **Third delta check**: its `[behavior]` lines are the Owner's, whatever the answer, listed with the ask or

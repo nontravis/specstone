@@ -17,8 +17,10 @@ nothing but the agent's `report:` file; never edit the design document. Ask the 
    `OPEN QUESTIONS:` line naming `amend`. With `since`, keep the decisions section 1 of `sweep.md` gives. With
    neither, keep every decision, a stub too.
 3. **Targets**: each doc that exists among the Docs to change rows; with `amend` or `since`, only the rows of the
-   decisions step 1.2 kept, a stub's rows included. With `since`, the snapshot gives the rows of a decision kept by
-   its snapshot text and each row deleted since it. A row for a doc still to be created is no target.
+   decisions step 1.2 kept, a stub's rows included: with `amend`, only in its `Amend <N> rows` tables; with `since`,
+   in the table of the newest amend a kept decision's heading lists, else the first table. A row in any other table
+   has landed: no target, and it covers no hit. With `since`, the snapshot gives the rows of a decision kept by its
+   snapshot text and each row deleted since it. A row for a doc still to be created is no target.
 4. **Bundles**: ground the targets as section 2 of `sweep.md` gives. Run no `get`.
 
 ## 2. Sweep
@@ -34,9 +36,9 @@ it names:
 
 - **Input left open:** a decision taking inputs or states with no input table, or with a table missing a form the
   targets already handle, such as a bare `#anchor` link beside a relative link.
-- **Reader missed:** an item of the saved files that reads or writes what a decision changes, with no Docs to change
-  row. Find it by the sweep and by the item's Input, Output, and rule nouns, not only by the decision's terms.
-- **Row mismatch:** a Docs to change row whose named sections and items hold none of its decision's terms; a row
+- **Reader missed:** an item of the saved files that reads or writes what a decision changes, with no target row
+  (step 1.3). Find it by the sweep and by the item's Input, Output, and rule nouns, not only by the decision's terms.
+- **Row mismatch:** a target row whose named sections and items hold none of its decision's terms; a row
   section with neither an item list nor `whole`; a decision's change that no named item holds. A
   `design_references` row and a row that only swaps a copy for a link are exempt from the first test: they hold no
   decision's term by nature.

@@ -14,7 +14,7 @@
 - **No author pass read it**: delete it with its rows. Never reuse an ID, stub or deleted.
 - **Stub rows**: a row naming only the removed decision stays as a stub row; a row naming others too loses that ID
   from its Decisions cell, and a new stub row names the same doc. A stub row reads `take out the D<n> text: <sections>`
-  in Sections, the sections the read found the text in, each with its item list or `whole` as `design.md` step 6
+  in Sections, the sections the read found the text in, each with its item list or `whole` as step 3.6 of `design.md`
   gives, never `all`, and `D<n> (Amend <N>, removed)` in Decisions. No
   stub row asks to delete a doc.
 - **A later amend** removing or adding a decision that names a doc the read covered runs the read and question again.

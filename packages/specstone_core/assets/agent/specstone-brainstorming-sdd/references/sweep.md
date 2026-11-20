@@ -35,8 +35,8 @@ With `since: <snapshot path>`, compare the design document with that snapshot:
 3. **Reach**: ground each doc a cited-by line or repeat group names outside the grounded features, and each cited doc
    of step 2.3, by `specstone context <doc> --for design --out`, then run step 3.1 on its files. Run no `--repeats` on
    it and follow none of its cited-by lines: the reach stops one hop out.
-4. **Covered**: a hit is `covered` only when one Docs to change row names its doc and section, lists the hit's
-   decision in its Decisions cell, and either names the hit item in its item list, gives the section as `whole`, or
+4. **Covered**: a hit is `covered` only when one target row of step 1.3 of `design-check.md` names its doc and
+   section, lists the hit's decision in its Decisions cell, and either names the hit item in its item list, gives the section as `whole`, or
    names the section by a bare key (the author reads that block whole; the row's Row mismatch line stands). Any other
    hit is a `gap`: a row naming other items of the same doc or section, or listing the item for another decision only,
    does not cover it.
