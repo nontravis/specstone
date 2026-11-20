@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/feature_pattern_part.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
 String _summaryNextStep(BundleMode mode) =>
@@ -202,7 +203,12 @@ ContextAnswer answerContext(
     for (final part in patternParts) featurePatternBlock(part),
   ];
   final slots = _slotsOf(ordered, patternParts);
-  final parts = followLinks(index, bundle, citedBy: citedBy);
+  final parts = followLinks(
+    index,
+    bundle,
+    citedBy: citedBy,
+    ancestorPieceRanges: ancestors.pieceRanges,
+  );
   final partBlocks = [for (final part in parts) _partBlock(part)];
   final pieces = [
     ..._docSidePieces(
@@ -387,6 +393,16 @@ final class _AncestorSpecs {
   final Map<String, List<AncestorPiece>> piecesByDoc;
 
   bool holds(IndexedDoc doc) => paths.contains(doc.docPath);
+
+  /// The file lines of each doc's pieces by DocPath; a doc with no piece maps
+  /// to none.
+  Map<String, List<LineRange>> get pieceRanges => {
+    for (final path in paths)
+      path: [
+        for (final piece in piecesByDoc[path] ?? const <AncestorPiece>[])
+          LineRange(first: piece.first, last: piece.last),
+      ],
+  };
 
   List<AncestorPiece> piecesOf(IndexedDoc doc) =>
       piecesByDoc[doc.docPath] ?? const [];

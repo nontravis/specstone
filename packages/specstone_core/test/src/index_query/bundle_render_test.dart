@@ -899,7 +899,11 @@ void main() {
     );
 
     test('an item part prints after the picked docs, named, with its own lines, and closes the list', () async {
-      final a = implement(await citing('Lock, by $inv14.'));
+      final a = implement(
+        await citing(
+          'Lock, by $inv14 and [purpose]($specs/topics/rules.md#purpose).',
+        ),
+      );
       expect(
         a.text,
         contains(
@@ -923,22 +927,6 @@ void main() {
       );
       expect(a.text, isNot(contains('INV-13')));
       expect(a.json['tokens'], tokenSizeOf(shown(a)));
-    });
-    test('a part reached only through another part prints after every part the picked docs reach', () async {
-      final a = implement(
-        await citing(
-          'Lock, by $inv14; see [terms]($specs/topics/terms.md#purpose).',
-        ),
-      );
-      final parts = RegExp(
-        r'^==> (\S+) \S+ · (\S+) .*· cited <==$',
-        multiLine: true,
-      ).allMatches(a.text).map((m) => m[2]).toList();
-      expect(parts, [
-        'specs/f02_signup/DOMAIN.md#invariants',
-        'specs/topics/terms.md#purpose',
-        'specs/topics/rules.md#purpose',
-      ]);
     });
     test('a doc part prints marked summary and cited, and the list names it with the next step', () async {
       final a = implement(await citing('See [terms]($specs/topics/terms.md).'));
@@ -967,7 +955,11 @@ void main() {
       );
     });
     test('under --json each part is a docs object with cited, section, and item after text', () async {
-      final a = implement(await citing('Lock, by $inv14.'));
+      final a = implement(
+        await citing(
+          'Lock, by $inv14 and [purpose]($specs/topics/rules.md#purpose).',
+        ),
+      );
       final docs = (a.json['docs']! as List).cast<Map<String, Object?>>();
       final item = docs.firstWhere((d) => d['cited'] == true);
       expect(item.keys.toList(), [
@@ -3182,6 +3174,25 @@ void main() {
         expect(a.text, isNot(contains(rule)));
         expect(piece.allMatches(a.text), hasLength(1));
         expect(a.refs!.text, isNot(contains(piece)));
+        expect(
+          [for (final d in a.json['docs']! as List) (d as Map)['item']]
+              .nonNulls,
+          ['RULE-1'],
+        );
+      });
+
+      test("an ancestor DOMAIN's link outside its pieces appends nothing in a split design bundle", () async {
+        final a = await splitNested({
+          'docs/$cartAddFr': fr('Holds [INV-1]($toDomain#invariants).'),
+          'docs/$shopDomain': domainOf([
+            '## Invariants',
+            '- **INV-1** An order holds a line, by [RULE-1](../topics/ordering.md#rules).',
+            '- **INV-2** An order ships, by [RULE-2](../topics/ordering.md#rules).',
+          ]),
+          'docs/specs/topics/ordering.md': '# Ordering\n\n## Rules\n- **RULE-1** Orders ship in order.\n- **RULE-2** Orders pay first.\n',
+        });
+
+        expect(a.refs!.text, contains('· item RULE-1 · cited <=='));
         expect(
           [for (final d in a.json['docs']! as List) (d as Map)['item']]
               .nonNulls,
