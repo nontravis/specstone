@@ -80,9 +80,10 @@ batch's findings into drafts.
   `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
 - **Missing input**: an input this contract requires of your mode is absent, or a value lies outside the set your
   mode gives that input, such as `stage: uncovered` in audit, an `amend` `<N>` the design holds no `Amend <N>` of, or a
-  `since` path that does not exist, a snapshot equal to the design document, or differences that keep no decision; or
-  `since` and `amend` in one dispatch, the line naming both: write `OPEN QUESTIONS:`, one line per gap naming its
-  input and, for a set, the set's values, as the report and its relay block; overwrite no other file; stop.
+  `since` path that does not exist, a snapshot equal to the design document, or differences that keep no decision:
+  write `OPEN QUESTIONS:`, one line per gap naming its input and, for a set, the set's values, as the report and its
+  relay block; overwrite no other file; stop. `since` and `amend` in one dispatch get the same stop, its line naming
+  both.
 - **No `mode`**: a message that names no `mode`, a later round included, gets the missing-input stop: write only
   `OPEN QUESTIONS:` naming the missing `mode` and asking for a fresh dispatch with it, as the report and its relay
   block; overwrite no other file.

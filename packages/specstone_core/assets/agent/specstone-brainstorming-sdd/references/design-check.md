@@ -17,12 +17,13 @@ nothing but the agent's `report:` file; never edit the design document. Ask the 
    `OPEN QUESTIONS:` line naming `amend`. With `since`, keep the decisions section 1 of `sweep.md` gives. With
    neither, keep every decision, a stub too.
 3. **Targets**: each doc that exists among the Docs to change rows; with `amend` or `since`, only the rows of the
-   decisions step 1.2 kept, a stub's rows included. A row for a doc still to be created is no target.
+   decisions step 1.2 kept, a stub's rows included. With `since`, the snapshot gives the rows of a decision kept by
+   its snapshot text and each row deleted since it. A row for a doc still to be created is no target.
 4. **Bundles**: ground the targets as section 2 of `sweep.md` gives. Run no `get`.
 
 ## 2. Sweep
 
-Before any lens, follow `sweep.md` for each decision step 1.2 kept, in list order.
+Before any lens, follow section 3 of `sweep.md` for each decision step 1.2 kept, in list order.
 
 ## 3. Compare
 

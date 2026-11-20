@@ -43,8 +43,8 @@ one it lacks under `Findings:`.
 
 ## 3. Sweep each changed rule
 
-Run `specstone search "<term>"`, `--limit` above its hit count, per term in each written form that item 1 of section 2 of
-`design-check.md` lists, the short form the key noun alone:
+Run `specstone search "<term>"`, `--limit` above its hit count, per term in each written form that the Terms item, step 3.1
+of `sweep.md`, lists, the short form the key noun alone:
 
 - **First pass, or after an amend** (its decisions only): each added term, key, or literal; each ruling's superseded
   wording; each changed rule's owner item's words and every key or literal of the set the new one joins.
