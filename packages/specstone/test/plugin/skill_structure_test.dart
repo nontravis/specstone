@@ -1643,6 +1643,13 @@ const _bootstrapProcedures = [
   'specstone-bootstrap-spec/references/procedure.md',
 ];
 
+const _sizeFix = 'specstone-expert-sdd/references/size-fix.md';
+
+const _bootstrapSkills = [
+  'specstone-bootstrap-prd/SKILL.md',
+  'specstone-bootstrap-spec/SKILL.md',
+];
+
 /// The sentences of [markdown], every whitespace run as one space.
 List<String> _sentencesOf(String markdown) =>
     _oneLine(markdown).split(RegExp(r'(?<=[.;])\s'));
@@ -1718,6 +1725,48 @@ void _trimReferenceTests() {
       ]) {
         expect(lines.single, contains(word), reason: '$procedure: $word');
       }
+    }
+  });
+
+  test('size-fix trims an FR past a cap before it proposes a split', () {
+    final text = _pluginText(_sizeFix);
+    final lines = text.split('\n');
+    final trimLines = lines.where((line) => line.contains('`trim.md`'));
+    expect(trimLines, hasLength(1));
+    final trimLine = lines.indexOf(trimLines.single);
+    for (final splitStep in ['**Split.**', '`specstone new fr']) {
+      expect(
+        trimLine,
+        lessThan(lines.indexWhere((line) => line.contains(splitStep))),
+        reason: splitStep,
+      );
+    }
+    expect(
+      _hasSentenceWith(text, [
+        '`item_count_out_of_range`',
+        '`chars_over_limit` on an FR',
+        '`trim.md`',
+      ]),
+      isTrue,
+    );
+    expect(text, isNot(contains('Drop or merge no edge case')));
+  });
+
+  test('both bootstrap skills join an unmarked FR past a cap only when the '
+      'Owner named its kind', () {
+    for (final skill in _bootstrapSkills) {
+      expect(
+        _hasSentenceWith(_pluginText(skill), [
+          '`item_over_limit`',
+          '`item_count_out_of_range`',
+          '`chars_over_limit`',
+          'no `retrim_due`',
+          'joins its doc',
+          'Owner named its kind',
+        ]),
+        isTrue,
+        reason: skill,
+      );
     }
   });
 }

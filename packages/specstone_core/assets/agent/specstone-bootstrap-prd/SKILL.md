@@ -42,9 +42,9 @@ does.
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
 
-An `item_over_limit` finding joins its doc's batch only when the Owner named `item_over_limit` when starting the run;
-that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item. In any other
-run the finding waits for the Owner.
+An `item_over_limit`, or an FR's `item_count_out_of_range` on edge cases or `chars_over_limit` with no `retrim_due`,
+joins its doc's batch, named in its `batch:`, only if the Owner named its kind for the run; else it waits for the
+Owner.
 
 The procedure for the main session is `references/procedure.md` beside this file: with no subagent at all, over every
 finding this skill takes; after a failed dispatch, over that dispatch's one batch.
