@@ -578,6 +578,25 @@ void main() {
       ]);
     });
 
+    test(
+      'lets each agent with project memory write it past its file rules',
+      () {
+        for (final file in files) {
+          if (file.folder == AgentFolder.claudeAgents &&
+              _frontmatterOf(file.text)['memory'] == 'project') {
+            expect(
+              file.text,
+              contains(
+                "Your host's agent memory, when it gives one, lies "
+                'outside every file rule here',
+              ),
+              reason: file.entry,
+            );
+          }
+        }
+      },
+    );
+
     test('renders text that is valid UTF-8 with LF lines', () {
       for (final file in files) {
         expect(file.text, isNot(contains('\r')));
