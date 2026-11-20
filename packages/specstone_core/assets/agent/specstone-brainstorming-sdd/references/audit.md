@@ -4,20 +4,17 @@ agent's `report:` file, no fix. Ask the Owner nothing.
 
 ## 1. Read
 
-1. **Targets**: the dispatch's `targets` (the drafts list, a later audit's targets, or the doc the Owner named),
-   each read whole and audited again.
+1. **Targets**: the dispatch's `targets`, each read whole and audited again.
 2. **Hashes**: run one `specstone approve <targets> --dry-run --json`, the drafts list's names with no `--target`: it
    gives each draft's `hash` and changed units. A target it does not list is no draft; only it takes `specstone get <target> --json`.
-   On `doc_not_found` (never created, moved, or deleted), drop each name it names and list it under
-   `Outside the drafts:`, with no `Audited:` line; any other refusal, such as `doc_type_unknown`, is a finding and
-   drops its names too. Rerun on the rest; no target left: skip it and the steps below.
+   On `doc_not_found`, drop each name it names and list it under `Outside the drafts:`, with no `Audited:` line; any
+   other refusal is a finding and drops its names too. Rerun on the rest; no target left: skip it and the steps below.
 3. **Bundles**: run one `specstone context <doc> --for design --out` on the smallest doc holding every target when
    they sit in one feature, else once per top-level feature (the project doc for a project-level one), with no
-   `--budget` or `--target`, so it takes every code target's spec docs. Read the saved files per
-   `specstone-read-sdd`, the read-first one whole; ground a doc they lack with its own
-   `specstone context <doc> --for design --out`, never `get`. On a non-zero exit, report the CLI's error as a
-   finding and go on.
-4. **Design document**, when given: read it whole; list each decision and ruling by ID or label. Then run
+   `--budget` or `--target`. Read the saved files per `specstone-read-sdd`, the read-first one whole; ground a doc
+   they lack with its own `specstone context <doc> --for design --out`, never `get`. On a non-zero exit, report its
+   error as a finding and go on.
+4. **Design document**, when given: read it whole; list each decision and ruling. Then run
    `specstone list <type> --draft` for `user_story`, `fr`, and `nf`: the drafts among the targets are this
    change's.
 5. **Check**: search the `check:` file per target; with none, run one bare
@@ -29,16 +26,16 @@ agent's `report:` file, no fix. Ask the Owner nothing.
 ## 2. Compare
 
 Walk each lens, a bold-labeled bullet, over every target in list order; the other bullets are its steps.
-Record one gap per line, `<type>:<name>#<section>: <gap>`, for each lens:
+Record one gap per line for each lens:
 
 - **Decision dropped:** a decision, ruling, or Docs to change row of the design document no target doc carries, or a
   draft that departs from its decision. Report one gap in each doc it misses, naming the draft (or the design's owner
-  doc) and the decision; no other lens repeats it there, and a drop in another doc is a sibling (last bullet).
+  doc) and the decision; no other lens repeats it there, and a drop in another doc is a sibling.
   A draft still stating a removed decision's rule is a gap of that decision's stub row. A stub row whose sections
   hold none of its text is no gap.
 - **Requirement invented:** a draft story, FR, NFR, or section of one tracing to no decision.
 - **PRD and spec apart:** a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for.
-- **Docs contradict:** two docs that state different values or behavior for one thing; name both.
+- **Docs contradict:** two docs stating different values or behavior for one thing; name both.
 - **Edge case admission:** an edge case in step 1.2's changed units that breaks one of the first four edge case lines
   of `specstone guide fr`'s doc description; name that line; its fix is the drop, nested trigger, or move to the
   owner it gives.
@@ -50,11 +47,14 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each lens:
   its feature's spec folder for covering text or a skip line in that doc's `out_of_scope`; else report
   `<type>:<name>#out_of_scope: <pattern>/<item> neither covered nor skipped`, `<type>:<name>` the listing doc, typed
   as the part's bundle line.
+- **Trim:** with `trims:`, judge each deleted, moved, and cut item its reports list by its guide line, and each
+  rewritten cite by the cite table of `../../specstone-expert-sdd/references/trim.md`. A removed item stating behavior
+  no other doc states is a gap whose fix restores it.
 - **Repoint:** with no `check:` passed after an author pass, a move may have run; follow `repoint.md`.
 - Read each draft item for two gaps `check` never names, each a `[style]` `Findings:` line naming its ID or first words:
   - **No example:** a non-obvious rule whose result on one concrete input you cannot state after one read.
   - **Clause order:** a condition after its rule, or clauses nested inside one sentence.
-- For each gap any lens finds, search the step 1.3 bundle files for its wording and the rule or term it breaks.
+- For each gap any lens finds, search the bundle files for its wording and the rule or term it breaks.
   Each hit in another doc or section is its own gap; one no draft fixes goes under `Outside the drafts:`.
 
 ## 3. Report
@@ -77,8 +77,8 @@ Outside the drafts:
 - <name>: names no doc
 ```
 
-- **`Audited:`**: one per target that names a doc, `<docType>:<name>@<hash>`, the hash from step 1.2; it replaces an
-  earlier audit's line for that draft.
+- **`Audited:`**: one per target that names a doc, the hash from step 1.2; it replaces an earlier audit's line for
+  that draft.
 - **`Findings:`**: each gap or `check` finding a draft fixes. Tag `[behavior]` a line whose fix brings a new state,
   input, output, edge case, error, or reader of a rule the design does not state; tag `[style]` each No example and
   Clause order line; a text-only correction against the design stays untagged.

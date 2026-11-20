@@ -1768,6 +1768,10 @@ const _bootstrapProcedures = [
 
 const _sizeFix = 'specstone-expert-sdd/references/size-fix.md';
 
+const _engineer = 'specstone-sdd-engineer.md';
+
+const _auditReference = 'specstone-brainstorming-sdd/references/audit.md';
+
 const _bootstrapSkills = [
   'specstone-bootstrap-prd/SKILL.md',
   'specstone-bootstrap-spec/SKILL.md',
@@ -1873,6 +1877,66 @@ void _trimReferenceTests() {
       isTrue,
     );
     expect(text, isNot(contains('Drop or merge no edge case')));
+  });
+
+  test('the engineer takes trims in audit mode and audit finding lines as a '
+      'bootstrap batch', () {
+    final contract = _sectionOf(_pluginText(_engineer), '## Input Contract');
+    for (final words in [
+      ['`trims`', 'audit', 'bootstrap reports'],
+      ['fix batch', '`Findings:` lines', 'trim round'],
+    ]) {
+      expect(
+        _hasSentenceWith(contract, words),
+        isTrue,
+        reason: words.join(', '),
+      );
+    }
+  });
+
+  test('the engineer reports each trimmed item with its guide line and the '
+      'trim report lines', () {
+    final text = _pluginText(_engineer);
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Workflow'), [
+        '`retrim_due`',
+        'trim.md',
+      ]),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Output Format'), [
+        'deleted, moved, and cut item',
+        'guide line',
+        'rewritten cite',
+        '`kept: top ID`',
+        '`Citers outside:`',
+        '`Spec moves:`',
+      ]),
+      isTrue,
+    );
+  });
+
+  test('the audit reads each trimmed item against the guide line its trims '
+      'report names', () {
+    final compare = _sectionOf(_pluginText(_auditReference), '## 2. Compare');
+    for (final words in [
+      [
+        '**Trim:**',
+        '`trims:`',
+        'deleted, moved, and cut item',
+        'guide line',
+        'rewritten cite',
+        '`../../$_trimReference`',
+      ],
+      ['removed item', 'no other doc states', 'restor'],
+    ]) {
+      expect(
+        _hasSentenceWith(compare, words),
+        isTrue,
+        reason: words.join(', '),
+      );
+    }
   });
 
   test('both bootstrap skills join an unmarked FR past a cap only when the '

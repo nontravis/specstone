@@ -1,6 +1,6 @@
 ---
 name: specstone-sdd-engineer
-description: "(Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path) or `audit` (`stage: drafts` or none, with targets and the design path if any; `stage: design`, with the design path and `amend` if any). Sync and bootstrap enter through `specstone-sync-sdd` and `specstone-bootstrap-prd`/`-spec`. Not for plans (`specstone-plan-sdd`) or one-section edits (`specstone-update-sdd`)."
+description: "(Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path) or `audit` (`stage: drafts` or none, with targets, the design path if any, and `trims` after a trim round; `stage: design`, with the design path and `amend` if any). Sync and bootstrap enter through `specstone-sync-sdd` and `specstone-bootstrap-prd`/`-spec`. Not for plans (`specstone-plan-sdd`) or one-section edits (`specstone-update-sdd`)."
 tools: Bash, Read, Grep, Write, Edit
 memory: project
 skills:
@@ -48,6 +48,8 @@ batch's findings into drafts.
   own `context` call for their target.
 - **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
   docs to read.
+- **`trims`** (audit, optional): after a bootstrap round with a trim batch, the paths of the round's bootstrap reports;
+  read each whole for the Trim lens of the audit reference.
 - **`check`** (audit with no `stage: design`, bootstrap, sync; optional): audit: the last author pass's `Check:` file,
   passed with no doc write since it and no split since the last audit; search it per target; absent, run one bare
   `check --out`. Bootstrap: main's latest check file, never a `--repeats` one, passed with no doc write since; take
@@ -65,7 +67,7 @@ batch's findings into drafts.
   `Uncovered:` file.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, and
   `item_over_limit` when the Owner named it for the run and a `batch` path holds one; or `batch: repeats` and the
-  repeat groups to merge; write any doc a fix needs.
+  repeat groups to merge; or a fix batch, the `Findings:` lines of a trim round's audit; write any doc a fix needs.
 - **`report`** (every mode, optional): the file for your whole report,
   `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
 - **Missing input**: an input this contract requires of your mode is absent, or a value lies outside the set your
@@ -105,7 +107,10 @@ A failed load: report it and stop; never search.
    `index_busy`; it is no CLI error. Then Workflow step 5.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`'s lines of your gate file, its step 6 only for docs `batch` names,
    each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
-   `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.
+   `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5. Trim each
+   section a `retrim_due` line names, and each FR `size-fix.md` sends to a trim, by
+   `.agents/skills/specstone-expert-sdd/references/trim.md`. A fix batch fixes each line's gap in the doc it names,
+   each write through `--base`, then Workflow step 5.
 4. **Author, audit**: follow the On-Demand reference through its report; then stop.
 5. **Check and report**: after writing, run
    `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`, in sync mode with a `scope` as step 1 scopes
@@ -147,7 +152,9 @@ finding.
   fingerprint, or helper that waits on an approval or its implementer; each task whose refs the sync removed; each
   `Mismatches:` point and each `Uncovered:` file; each behavior handed to `specstone-brainstorming-sdd`; open
   questions; then `Findings:`.
-- **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
+- **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; for a trim
+  batch, each deleted, moved, and cut item with the guide line that decided it, each rewritten cite, and the
+  `kept: top ID`, `Citers outside:`, and `Spec moves:` lines of `trim.md`'s report; open questions;
   under `Pointers:`, each helper file joined or waiting; each `Uncovered:` file; one `specstone delete …` line; each
   repeat group kept; findings outside `batch`, and each untyped referrer outside it with the file it names; `Waits on the Owner:`, each `item_over_limit` finding on a
   `batch` path when `batch` does not name `item_over_limit`; then `Findings:`, each finding left in `batch` or added
