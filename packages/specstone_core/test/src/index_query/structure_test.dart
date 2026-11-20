@@ -46,6 +46,32 @@ List<Map<String, Object?>> _jsonSections(DocIndex index, String target) =>
             as List)
         .cast<Map<String, Object?>>();
 
+/// Returns the index of a two-target project: `feedback/toast` with one
+/// architecture doc per target.
+Future<DocIndex> _toastIndex() async {
+  const featureText = '# Toast\n\n## Problem\nBurnt toast.\n';
+  final session = openSession(
+    await writeTree({
+      '.specstone/templates/architecture.yaml':
+          'id: architecture\nper_target: true\n',
+      '.specstone/config.yaml':
+          '${shippedPinsConfig()}targets:\n'
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+      'flutter_lib/.keep': '',
+      'jaspr_lib/.keep': '',
+      'docs/prds/features/f02_feedback/FEATURE.md': featureText,
+      'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': featureText,
+      'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
+          '# Toast architecture\n',
+      'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
+          '# Toast architecture\n',
+    }),
+  );
+  addTearDown(session.close);
+  return session.index;
+}
+
 void main() {
   late DocIndex index;
   setUpAll(() async => index = await indexWith(loginRecords));
@@ -225,6 +251,36 @@ void main() {
         '${answerStructure(index, targets: ['login']).text}'
         'prds/\n  prds/d01_context.md — D-01 — Project context · ${tokensOf('docs/prds/d01_context.md')} tokens\n',
       );
+    });
+
+    test(
+      'the same target twice faults once and prints as the target alone',
+      () {
+        expect(
+          () => answerStructure(index, targets: ['nope', 'nope']),
+          throwsA(isA<IndexFault>()),
+        );
+        expect(
+          answerStructure(
+            index,
+            targets: ['login/email_login', 'login/email_login'],
+          ).text,
+          answerStructure(index, targets: ['login/email_login']).text,
+        );
+      },
+    );
+
+    test('--target keeps a named doc of another target that the tree hides below its parent', () async {
+      const flutterArch =
+          'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md';
+      final toast = await _toastIndex();
+      final answer = answerStructure(
+        toast,
+        targets: ['feedback/toast', flutterArch],
+        codeTarget: 'jaspr',
+      );
+
+      expect(RegExp(r'\(architecture\)').allMatches(answer.text), hasLength(2));
     });
 
     test('--json with two targets matches the whole-tree shape and has no sections key', () {

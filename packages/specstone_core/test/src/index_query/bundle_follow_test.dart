@@ -407,7 +407,7 @@ void main() {
       expect(parts.map(_id), ['specs/f02_signup/DOMAIN.md#invariants INV-14']);
     },
   );
-  test('two parts that link to each other are each appended once', () async {
+  test('two picked links to two parts append both, in source order', () async {
     final parts = await followed(
       'See [doc model]($_specs/topics/doc_model.md#purpose) and [ranges]($_specs/topics/ranges.md#purpose).',
     );
@@ -525,27 +525,30 @@ void main() {
       isEmpty,
     );
   });
-  test(
-    'a part is cut from the stored text; the follow reads no file',
-    () async {
-      final project = await writeLoginProject(
-        extra: {..._cited, _fr: _frWith('The system shall lock, by $inv14.')},
-      );
-      final session = openSession(project);
-      addTearDown(session.close);
-      final bundle = pickBundle(
-        session.index,
-        'login/email_login/validate_credentials',
-        BundleMode.implement,
-        noProject: false,
-      );
-      File('${project.path}/docs/specs/f02_signup/DOMAIN.md').deleteSync();
-      File('${project.path}/docs/specs/topics/doc_model.md').deleteSync();
-      expect(followLinks(session.index, bundle).map(_id), [
-        'specs/f02_signup/DOMAIN.md#invariants INV-14',
-      ]);
-    },
-  );
+  test('a part is cut from the stored text; the follow reads no file', () async {
+    final project = await writeLoginProject(
+      extra: {
+        ..._cited,
+        _fr: _frWith(
+          'The system shall lock, by $inv14, and by [RULE-3]($_specs/topics/doc_model.md#rules).',
+        ),
+      },
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    final bundle = pickBundle(
+      session.index,
+      'login/email_login/validate_credentials',
+      BundleMode.implement,
+      noProject: false,
+    );
+    File('${project.path}/docs/specs/f02_signup/DOMAIN.md').deleteSync();
+    File('${project.path}/docs/specs/topics/doc_model.md').deleteSync();
+    expect(followLinks(session.index, bundle).map(_id), [
+      'specs/f02_signup/DOMAIN.md#invariants INV-14',
+      'specs/topics/doc_model.md#rules RULE-3',
+    ]);
+  });
   test(
     "a link into another code target's doc is appended, with --target",
     () async {

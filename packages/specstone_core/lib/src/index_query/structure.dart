@@ -55,12 +55,11 @@ ReadAnswer answerStructure(
   String? codeTarget,
 }) {
   index.checkCodeTarget(codeTarget);
-  final resolved = targets.isEmpty
-      ? null
-      : _resolveAll(index, targets, codeTarget);
+  final names = {...targets}.toList();
+  final resolved = names.isEmpty ? null : _resolveAll(index, names, codeTarget);
   final named = resolved == null
       ? index.docs
-      : _inTreeOrder(index, _withoutNested(index, resolved));
+      : _inTreeOrder(index, _withoutNested(index, resolved, codeTarget));
   final namesRecords =
       resolved != null && resolved.isNotEmpty && resolved.every(_isRecord);
   final shown = [
@@ -68,14 +67,14 @@ ReadAnswer answerStructure(
       if (namesRecords || !_isRecord(doc)) doc,
   ];
   final sized = switch (resolved) {
-    [final doc] when targets.length == 1 && doc.isTyped => doc,
+    [final doc] when names.length == 1 && doc.isTyped => doc,
     _ => null,
   };
   final sizes = sized == null ? null : _sectionSizesOf(index, sized);
   final roots = [
     for (final doc in shown)
       if (doc.isTyped &&
-          (targets.isNotEmpty ||
+          (names.isNotEmpty ||
               (index.parentOf(doc) == null && doc.inTarget(codeTarget))))
         doc,
   ];
@@ -83,7 +82,7 @@ ReadAnswer answerStructure(
     for (final doc in shown)
       if (!doc.isTyped) doc,
   ]);
-  final showsFolders = targets.length != 1;
+  final showsFolders = names.length != 1;
 
   final text = StringBuffer();
   for (final root in roots) {
@@ -163,15 +162,33 @@ List<IndexedDoc> _inTreeOrder(DocIndex index, List<IndexedDoc> docs) {
     ..sort((a, b) => position[a.docPath]!.compareTo(position[b.docPath]!));
 }
 
-List<IndexedDoc> _withoutNested(DocIndex index, List<IndexedDoc> resolved) {
+/// Returns [resolved] less each doc the tree prints under another of them,
+/// reading the children as [_childrenShown] does.
+List<IndexedDoc> _withoutNested(
+  DocIndex index,
+  List<IndexedDoc> resolved,
+  String? codeTarget,
+) {
   final nested = {
     for (final doc in resolved)
-      for (final member in index.subtreeOf(doc).skip(1)) member.docPath,
+      ..._shownBelow(index, doc, codeTarget).map((member) => member.docPath),
   };
   return [
     for (final doc in resolved)
       if (!nested.contains(doc.docPath)) doc,
   ];
+}
+
+/// Returns every doc the tree prints below [doc].
+Iterable<IndexedDoc> _shownBelow(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) sync* {
+  for (final child in _childrenShown(index, doc, codeTarget)) {
+    yield child;
+    yield* _shownBelow(index, child, codeTarget);
+  }
 }
 
 Map<String, List<IndexedDoc>> _untypedByFolder(List<IndexedDoc> docs) {

@@ -3200,6 +3200,33 @@ void main() {
         );
       });
 
+      test("an ancestor DOMAIN's link outside its pieces appends nothing in an unsplit design bundle either", () async {
+        final i = await nestedIndex({
+          'docs/$cartAddFr': fr('Holds [INV-1]($toDomain#invariants).'),
+          'docs/$shopDomain': domainOf([
+            '## Invariants',
+            '- **INV-1** An order holds a line, by [RULE-1](../topics/ordering.md#rules).',
+            '- **INV-2** An order ships, by [RULE-2](../topics/ordering.md#rules).',
+          ]),
+          'docs/specs/topics/ordering.md': '# Ordering\n\n## Rules\n- **RULE-1** Orders ship in order.\n- **RULE-2** Orders pay first.\n',
+        });
+        List<Object?> appendedOf(bool split) {
+          final a = answerContext(
+            i,
+            pickBundle(i, target, BundleMode.design, noProject: false),
+            label: target,
+            byCode: false,
+            split: split,
+          );
+          return [for (final d in a.json['docs']! as List) (d as Map)['item']]
+              .nonNulls
+              .toList();
+        }
+
+        expect(appendedOf(false), ['RULE-1']);
+        expect(appendedOf(false), appendedOf(true));
+      });
+
       test('a doc in both the target subtree and the ancestor set keeps its whole print in the read-first text', () async {
         final i = await nestedIndex({
           'docs/$cartAddFr': fr('Holds [INV-1]($toDomain#invariants).'),
