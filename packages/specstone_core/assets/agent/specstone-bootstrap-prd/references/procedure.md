@@ -3,7 +3,7 @@ As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your
 
 Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming canonicalization
 sections go to `specstone-bootstrap-spec`. Follow `specstone-expert-sdd` for every write; before the first,
-run `specstone guide <type> …` once, naming every type you write; a type met later gets its call before its first write.
+run `specstone guide <type> …` once, naming every type you write; a later type gets its call before its first write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
 doc carries `--target <name>`, the finding DocPath's code target, else the first listed.
@@ -18,7 +18,7 @@ size finding.
 Write each fix as `../../specstone-expert-sdd/references/writes.md` says.
 
 Move every old statement to a home. Where the old text lacks a value the guide needs,
-write `TBR — <why>` in its place, never a value you propose. Ask the Owner only when no text bears on a
+write `TBR — <why>`, never your own value. Ask the Owner only when no text bears on a
 whole section.
 
 | Finding | Fix |
@@ -33,16 +33,17 @@ whole section.
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `feature_status_written` | drop its `status` key |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit`, `subsections_over_limit`, `item_count_out_of_range` on FR edge cases | `../../specstone-expert-sdd/references/size-fix.md` |
+| `retrim_due`, `field_value_mismatch` on `retrim` | `../../specstone-expert-sdd/references/trim.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
 | `words_over_limit`, `sentence_chars_over_limit`, `trace_note_not_last`, `sentences_over_limit`, `item_lines_over_limit` | `../../specstone-expert-sdd/references/readability-fix.md` |
-| any other under `prds/` or `measurements/` | rewrite what it names per the loaded guide; one clearing with no write goes to step 6 |
+| any other under `prds/` or `measurements/` | rewrite what it names per its guide; one clearing with no write goes to step 6 |
 
 ## 3. Move a feature's code pointers
 
-Give each `implements:` entry of a `FEATURE.md` to the record entry of the story or FR whose behavior that code does, in
-the first listed code target, unless it holds it; drop an entry no one doc takes as a
-proposal named in step 6. Pipe that record's whole new list, as YAML `- item` lines, to
-`specstone set implementation:<feature> --field implements --base <hash>`. Then drop the feature's `implements` key.
+Give each `implements:` entry of a `FEATURE.md` to the record entry of the story or FR whose behavior it codes,
+unless it holds it; drop an entry no one doc takes as a proposal named in step 6. Pipe that record's whole new list,
+as `- item` lines, to `specstone set implementation:<feature> --field implements --base <hash>`, then drop the
+feature's `implements` key.
 
 ## 4. Merge an old file, or split a full one
 
@@ -72,7 +73,7 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval
 
-`check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote: read each with `specstone get` and fill it with the Owner. Set a goal, glossary, or features doc's title to
+`check` misses an unfilled `<…>` placeholder in a migration skeleton: read each with `specstone get`, fill it with the Owner. Set a goal, glossary, or features doc's title to
 its guide's with `--title` when it differs. In the features doc, `set` an empty `## Features` header on the base `get` prints, then
 run `specstone format`.
 

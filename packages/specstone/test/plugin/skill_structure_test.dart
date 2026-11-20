@@ -18,6 +18,7 @@ void main() {
   group('host renders match source', _hostRendersMatchSourceTests);
   group('runs on every host', _runsOnEveryHostTests);
   group('approve step', _approveStepTests);
+  group('trim reference', _trimReferenceTests);
 }
 
 // MARK: - Fixtures and readers
@@ -1630,5 +1631,93 @@ void _approveStepTests() {
         ..._runnerPointerProblems(file, flags),
     ];
     expect(problems, isEmpty);
+  });
+}
+
+// MARK: - trim reference
+
+const _trimReference = 'specstone-expert-sdd/references/trim.md';
+
+const _bootstrapProcedures = [
+  'specstone-bootstrap-prd/references/procedure.md',
+  'specstone-bootstrap-spec/references/procedure.md',
+];
+
+/// The sentences of [markdown], every whitespace run as one space.
+List<String> _sentencesOf(String markdown) =>
+    _oneLine(markdown).split(RegExp(r'(?<=[.;])\s'));
+
+/// Whether some sentence of [markdown] holds every one of [words].
+bool _hasSentenceWith(String markdown, List<String> words) =>
+    _sentencesOf(markdown).any((sentence) => words.every(sentence.contains));
+
+void _trimReferenceTests() {
+  test('trim.md names the four outcomes, the cite rewrite through refs, and '
+      'the report lines', () {
+    final text = _pluginText(_trimReference);
+    for (final word in [
+      '| keep |',
+      '| cut |',
+      '| move |',
+      '| delete |',
+      '`specstone refs <doc>`',
+      '`specstone guide <type>`',
+      'a range link',
+      'a matrix row',
+      '`overrides`',
+      '`Citers outside:`',
+      '`Spec moves:`',
+      '`kept: top ID`',
+    ]) {
+      expect(text, contains(word), reason: word);
+    }
+  });
+
+  test('trim.md keeps IDs and the top ID, and removes every copy of the '
+      'mark', () {
+    final text = _pluginText(_trimReference);
+    for (final words in [
+      ['Renumber no item'],
+      ['highest ID', '`kept: top ID`'],
+      ['every copy', '`retrim`'],
+      ['no id left', 'drop the field'],
+      ['`field_value_mismatch`', '`retrim`'],
+    ]) {
+      expect(_hasSentenceWith(text, words), isTrue, reason: words.join(', '));
+    }
+  });
+
+  test('a PRD batch trim writes no spec doc and names its moves for the spec '
+      'batch', () {
+    final section = _sectionOf(_pluginText(_trimReference), '## A PRD batch');
+    for (final words in [
+      ['writes no spec doc'],
+      ['`known_limits`', '`Spec moves:`', 'spec batch'],
+      ['Mechanism text', 'never move it'],
+      ['Only a spec batch', 'ARCHITECTURE', '`known_limits`'],
+    ]) {
+      expect(
+        _hasSentenceWith(section, words),
+        isTrue,
+        reason: words.join(', '),
+      );
+    }
+  });
+
+  test('both bootstrap procedures point to trim.md by one line', () {
+    for (final procedure in _bootstrapProcedures) {
+      final lines = _pluginText(procedure)
+          .split('\n')
+          .where((line) => line.contains('trim.md'))
+          .toList();
+      expect(lines, hasLength(1), reason: procedure);
+      for (final word in [
+        '`../../$_trimReference`',
+        '`retrim_due`',
+        '`field_value_mismatch` on `retrim`',
+      ]) {
+        expect(lines.single, contains(word), reason: '$procedure: $word');
+      }
+    }
   });
 }
