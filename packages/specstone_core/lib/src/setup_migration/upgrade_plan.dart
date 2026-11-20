@@ -41,6 +41,7 @@ import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
     show LabelDoc;
 import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
     show LabelTree;
+import 'package:specstone_core/src/setup_migration/models/placement_doc.dart';
 import 'package:specstone_core/src/setup_migration/models/stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
@@ -442,7 +443,7 @@ RunPlan _upgradeRunOf(
     isTaken: (docPath) => taken(projectPathOfDocPath(docPath)),
     docs: [
       for (final work in works)
-        (
+        PlacementDoc(
           plannedPath: work.plannedPath,
           type: work.docType,
           target: work.target,

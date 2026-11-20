@@ -42,6 +42,7 @@ import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
     show LabelDoc, LegacyLabelDoc;
 import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
     show LabelTree;
+import 'package:specstone_core/src/setup_migration/models/placement_doc.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
@@ -741,7 +742,7 @@ List<PlannedCreate> _moveToRecords(
     isTaken: isTaken,
     docs: [
       for (final (index, work) in works.indexed)
-        (
+        PlacementDoc(
           plannedPath: work.newPath,
           type: matches[index]?.docType,
           target: matches[index]?.target,
