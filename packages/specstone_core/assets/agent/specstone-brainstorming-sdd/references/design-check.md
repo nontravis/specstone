@@ -59,8 +59,9 @@ it names:
 
 ```
 Design check: <design document path>; amend: <N list, or none>; since: <snapshot path, or none>
-Swept: D<n>: <term>, <term>; <n> items hit, <m> with no row
-  <type>:<name>#<section> <item>: covered|gap
+Swept: D<n>: <term>, <term>; <n> items hit, <m> with no row, <h> held
+  <type>:<name>#<section> <item>: covered|gap|held: <why>
+Held: <n> hits, listed in the report file
 Lenses: Input left open, Reader missed, Row mismatch, Rule mismatch, Two builders, Design contradicts
 Findings:
 - D<n>: <gap>
@@ -68,12 +69,13 @@ Findings:
 ```
 
 - **`Swept:`**: one line per decision step 1.2 kept, its own terms, written forms implied. A missing line shows a
-  skipped sweep. Under it, in the report file only, its hit list, one `covered|gap` line per hit, as step 3.5 of
-  `sweep.md` gives, so a dropped hit shows; each `gap` line is also a `Findings:` line.
+  skipped sweep; its counts and hit list are steps 3.7 and 3.5 of `sweep.md`. Under it, in the report file only,
+  the hit list, so a dropped hit shows; each `gap` line is also a `Findings:` line, a `held` line none.
+- **`Held:`**: the `held` lines over every hit list.
 - **`Lenses:`**: the label of each lens, in list order.
 - **`Findings:`**: one line per gap and per sibling, or `none`; a gap in a doc names it `<type>:<name>#<key>`. End a
   line with `[behavior]` when its answer adds a state, input, output, edge case, error, or reader of a rule; a line
   that only fixes the design's text stays untagged.
 - **No `Audited:` line**: no draft exists yet.
-- **Reply**: `Report: <path>`, then the relay block, its `Swept:` lines with no hit list, `Lenses:`, and `Findings:`
-  lines copied from the report file.
+- **Reply**: `Report: <path>`, then the relay block, its `Swept:` lines with no hit list, `Held:`, `Lenses:`,
+  and `Findings:` lines copied from the report file.
