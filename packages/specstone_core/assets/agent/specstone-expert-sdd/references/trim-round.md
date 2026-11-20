@@ -6,16 +6,16 @@ says when each step runs and which skill's batch takes a handed line.
 
 ## Audit the round
 
-Once the round's reports are shown, dispatch one fresh `specstone-sdd-engineer` as the skill's step 2 does, with
-`mode: audit`, every draft of the round as its targets, `trims:` the round's bootstrap reports, no `check:`, since
-every check file predates some write of the round, and `report:` `<folder>/reports/sdd-engineer.audit.<XXXXXX>.md`,
-a new name per audit.
+Once the round's reports are shown, dispatch one fresh `specstone-sdd-auditor` as the skill's step 2 does, with every
+draft of the round as its targets, `trims:` the round's bootstrap reports, no `check:`, since every check file
+predates some write of the round, and `report:` `<folder>/reports/sdd-auditor.audit.<XXXXXX>.md`, a new name per
+audit.
 
 ## Fix and audit again
 
-Send the audit's findings to a bootstrap engineer as a fix batch, dispatched as the skill's step 2 does, with
-`batch:` the finding lines. Then dispatch a fresh audit, never a resumed one, of each draft whose hash changed. Run two
-such rounds at most; a finding still left waits for the Owner.
+Send the audit's findings to a bootstrap engineer as one fix batch, dispatched as the skill's step 2 does, with
+`batch:` the finding lines. Then dispatch a fresh audit, never a resumed one, of each draft whose hash changed. Run
+one such round; each line of that re-audit waits for the Owner.
 
 ## Approve
 

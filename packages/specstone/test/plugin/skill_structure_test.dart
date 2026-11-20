@@ -107,6 +107,9 @@ const _agentFileNames = <String, List<String>>{
   ],
   'specstone-plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
   'specstone-sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
+  'specstone-expert-sdd/references/trim-round.md': [
+    'sdd-auditor.audit.<XXXXXX>.md',
+  ],
   'specstone-sdd-sweeper.md': ['sdd-sweeper.sweep.<XXXXXX>.md'],
   'specstone-sdd-auditor.md': ['sdd-auditor.audit.<XXXXXX>.md'],
 };
@@ -1638,7 +1641,27 @@ void _runsOnEveryHostTests() {
     expect(trackedFiles(agentAssetsRoot()), isNotEmpty);
     expect(nonLatinLetterLines(agentAssetsRoot()), isEmpty);
   });
+
+  test('dispatch.md names five agents and gives a sweep no main rung', () {
+    final text = _pluginText(_dispatchReference);
+    for (final agent in [
+      '`specstone-sdd-engineer`',
+      '`specstone-sdd-sweeper`',
+      '`specstone-sdd-auditor`',
+      '`specstone-sdd-reader`',
+      '`specstone-plan-engineer`',
+    ]) {
+      expect(text, contains(agent), reason: agent);
+    }
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Main session'), ['sweep', 'no']),
+      isTrue,
+    );
+  });
 }
+
+/// The rungs every dispatching skill points to.
+const _dispatchReference = 'specstone-expert-sdd/references/dispatch.md';
 
 // MARK: - approve step
 
@@ -1806,23 +1829,23 @@ void _approveStepTests() {
   );
 
   test('a trim round dispatches a fresh audit with the round reports as '
-      'trims, then fix batches and re-audits, two rounds at most', () {
+      'trims, then fix batches and re-audits, one round at most', () {
     final sentences = _sentencesOf(_pluginText(_trimRound));
     int indexWith(List<String> words) =>
         sentences.indexWhere((sentence) => words.every(sentence.contains));
     final dispatch = indexWith([
       'fresh',
-      '`mode: audit`',
+      '`specstone-sdd-auditor`',
       '`trims:`',
       'bootstrap reports',
     ]);
     final fixBatch = indexWith(['fix batch', '`batch:`', 'finding lines']);
     final reaudit = indexWith(['fresh audit', 'hash changed']);
-    final cap = indexWith(['two such rounds at most']);
+    final cap = indexWith(['one such round']);
     expect(dispatch, isNonNegative, reason: 'audit dispatch');
     expect(fixBatch, greaterThan(dispatch), reason: 'fix batch');
     expect(reaudit, greaterThan(fixBatch), reason: 're-audit');
-    expect(cap, greaterThan(reaudit), reason: 'two rounds');
+    expect(cap, greaterThan(reaudit), reason: 'one round');
   });
 
   test('a bootstrap round with a trim batch approves with one audit flag per '
