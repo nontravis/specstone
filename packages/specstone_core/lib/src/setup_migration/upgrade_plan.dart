@@ -40,6 +40,7 @@ import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
     show LabelDoc;
 import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
     show LabelTree;
+import 'package:specstone_core/src/setup_migration/models/stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
@@ -603,7 +604,7 @@ RunPlan _upgradeRunOf(
   final stamps = StampPass.plan(
     [
       for (final work in works)
-        (
+        StampDoc(
           docPath: work.plannedPath,
           lf: work.original.lf,
           type: switch (work.docType) {
@@ -614,7 +615,11 @@ RunPlan _upgradeRunOf(
     ],
     [
       for (final (index, work) in works.indexed)
-        (docPath: work.plannedPath, lf: laidOut[index], type: work.docType),
+        StampDoc(
+          docPath: work.plannedPath,
+          lf: laidOut[index],
+          type: work.docType,
+        ),
     ],
     pins: pins,
     pinsAfter: {

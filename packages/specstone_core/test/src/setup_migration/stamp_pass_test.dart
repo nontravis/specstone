@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/setup_migration/models/stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -55,7 +56,7 @@ MergedDocType? _typeAt(String docPath) =>
 
 List<StampDoc> _docs(Map<String, String> texts) => [
   for (final MapEntry(key: docPath, value: lf) in texts.entries)
-    (docPath: docPath, lf: lf, type: _typeAt(docPath)),
+    StampDoc(docPath: docPath, lf: lf, type: _typeAt(docPath)),
 ];
 
 /// The pass over [before] and [after], applied to each doc of [after].
@@ -442,7 +443,7 @@ void main() {
       final nf =
           '---\nkind: tighten\noverrides: NFR-U01\nconfirmed:\n'
           '  - NFR-U01 ${fingerprintOf(statement)}\n---\n# D\n';
-      StampDoc doc(String path, String lf) => (
+      StampDoc doc(String path, String lf) => StampDoc(
         docPath: path,
         lf: lf,
         type: path == _gnfrPath ? type : _typeAt(path),
@@ -495,8 +496,8 @@ void main() {
       final approved = _stamped(written, held);
 
       final pass = StampPass.plan(
-        [(docPath: _storyPath, lf: approved, type: held)],
-        [(docPath: _storyPath, lf: moved, type: dropped)],
+        [StampDoc(docPath: _storyPath, lf: approved, type: held)],
+        [StampDoc(docPath: _storyPath, lf: moved, type: dropped)],
         pins: _belowBoth,
         pinsAfter: _belowBoth,
         restampsFingerprints: false,
