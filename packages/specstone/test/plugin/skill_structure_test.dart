@@ -1721,17 +1721,74 @@ void _approveStepTests() {
     ]) {
       expect(_hasSentenceWith(text, words), isTrue, reason: words.join(', '));
     }
-    for (final skill in _bootstrapSkills) {
-      expect(
-        _hasSentenceWith(_pluginText(skill), [
+    for (final MapEntry(key: skill, value: sentences) in {
+      'specstone-bootstrap-prd/SKILL.md': [
+        [
           '`Citers outside:`',
-          '`Spec moves:`',
           'starts a round too when this skill takes its doc',
-        ]),
+        ],
+        ['`Spec moves:`', 'waits on `specstone-bootstrap-spec`'],
+      ],
+      'specstone-bootstrap-spec/SKILL.md': [
+        [
+          '`Spec moves:`',
+          '`Citers outside:` line on a doc this skill takes',
+          'starts a round too',
+        ],
+      ],
+    }.entries) {
+      for (final words in sentences) {
+        expect(
+          _hasSentenceWith(_pluginText(skill), words),
+          isTrue,
+          reason: '$skill: ${words.join(', ')}',
+        );
+      }
+    }
+  });
+
+  test('a spec move goes to its feature folder spec batch, and a line left '
+      'for the other bootstrap skill is listed before the stop', () {
+    final trimRound = _pluginText(_trimRound);
+    for (final (section, words) in [
+      (
+        '## Handed lines',
+        ['`Spec moves:`', 'feature folder, not a doc', 'spec batch'],
+      ),
+      ('## Handed lines', ['`Citers outside:`', 'else the rest batch']),
+      (
+        '## Before you stop',
+        [
+          '`Waits on specstone-bootstrap-spec:`',
+          '`Waits on specstone-bootstrap-prd:`',
+          'the report that names it',
+        ],
+      ),
+      ('## Before you stop', ['next round', 'Handed lines']),
+    ]) {
+      expect(
+        _hasSentenceWith(_sectionOf(trimRound, section), words),
         isTrue,
-        reason: skill,
+        reason: '$section: ${words.join(', ')}',
       );
     }
+    expect(
+      _hasSentenceWith(
+        _sectionOf(
+          _pluginText('specstone-bootstrap-prd/SKILL.md'),
+          _bootstrapAfterReports,
+        ),
+        ['`../$_trimRound`', 'waits and sync before you stop'],
+      ),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(_pluginText('specstone-bootstrap-spec/SKILL.md'), [
+        '`batch:`',
+        'each line handed to it, by either skill',
+      ]),
+      isTrue,
+    );
   });
 
   test('both bootstrap skills point to trim-round.md once, in a round with a '
@@ -1892,6 +1949,35 @@ void _trimReferenceTests() {
         reason: words.join(', '),
       );
     }
+  });
+
+  test('the engineer takes handed citer and spec move lines in a bootstrap '
+      'batch and applies them by trim.md', () {
+    final text = _pluginText(_engineer);
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Input Contract'), [
+        'each line a trim round handed',
+        '`Citers outside:`',
+        '`Spec moves:`',
+      ]),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Workflow'), [
+        'apply each handed',
+        '`Citers outside:`',
+        '`Spec moves:`',
+        'trim.md',
+      ]),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(_pluginText(_trimReference), [
+        'handed a `Citers outside:` line',
+        'rewritten cite',
+      ]),
+      isTrue,
+    );
   });
 
   test('the engineer reports each trimmed item with its guide line and the '

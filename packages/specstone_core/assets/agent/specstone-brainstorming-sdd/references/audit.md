@@ -14,7 +14,7 @@ agent's `report:` file, no fix. Ask the Owner nothing.
    `--budget` or `--target`. Read the saved files per `specstone-read-sdd`, the read-first one whole; ground a doc
    they lack with its own `specstone context <doc> --for design --out`, never `get`. On a non-zero exit, report its
    error as a finding and go on.
-4. **Design document**, when given: read it whole; list each decision and ruling. Then run
+4. **Design document**, when given: read it whole; list each decision and ruling by ID or label. Then run
    `specstone list <type> --draft` for `user_story`, `fr`, and `nf`: the drafts among the targets are this
    change's.
 5. **Check**: search the `check:` file per target; with none, run one bare
@@ -49,7 +49,7 @@ Record one gap per line for each lens:
   as the part's bundle line.
 - **Trim:** with `trims:`, judge each deleted, moved, and cut item its reports list by its guide line, and each
   rewritten cite by the cite table of `../../specstone-expert-sdd/references/trim.md`. A removed item stating behavior
-  no other doc states is a gap whose fix restores it.
+  no other doc states is a gap whose fix restores it; a `Spec moves:` case awaiting its spec batch is none.
 - **Repoint:** with no `check:` passed after an author pass, a move may have run; follow `repoint.md`.
 - Read each draft item for two gaps `check` never names, each a `[style]` `Findings:` line naming its ID or first words:
   - **No example:** a non-obvious rule whose result on one concrete input you cannot state after one read.
@@ -80,7 +80,7 @@ Outside the drafts:
 - **`Audited:`**: one per target that names a doc, the hash from step 1.2; it replaces an earlier audit's line for
   that draft.
 - **`Findings:`**: each gap or `check` finding a draft fixes. Tag `[behavior]` a line whose fix brings a new state,
-  input, output, edge case, error, or reader of a rule the design does not state; tag `[style]` each No example and
-  Clause order line; a text-only correction against the design stays untagged.
+  input, output, edge case, error, or reader of a rule the design does not state; a text-only correction against the
+  design stays untagged.
 - **`Outside the drafts:`**: also each name dropped in step 1.2; a stub row is never a deletion.
 - **An empty heading:** write `none` under it.

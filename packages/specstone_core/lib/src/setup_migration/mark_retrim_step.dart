@@ -11,10 +11,10 @@ const _retrimKey = 'retrim';
 /// content, that the merged type of [docType] enables, appended once to its
 /// `retrim` list, in list order, or [lf] when none joins.
 ///
-/// A section matches by [headerKey]; held entries keep their quotes and form
-/// byte for byte, and a `retrim` value that is no list stays as written, so
-/// its frontmatter finding names it. Decided on the text the step reads, so a
-/// second run changes nothing.
+/// A section matches by [headerKey]; held entries keep their values, and in
+/// block form their quotes and lines. A `retrim` value that is no list stays
+/// as written, so its frontmatter finding names it. Decided on the text the
+/// step reads, so a second run changes nothing.
 String withRetrimMarked(
   String lf, {
   required MergedDocType docType,

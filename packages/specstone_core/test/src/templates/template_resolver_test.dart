@@ -1194,6 +1194,7 @@ path: prds/notes/{slug}/NOTE.md
       Map<String, Uint8List> files({
         String docTypes = '[feature]',
         String sections = '[goal]',
+        Map<String, String> more = const {},
       }) => {
         ...shipped(),
         'prd-core/pack.yaml': _bytes(
@@ -1207,6 +1208,7 @@ path: prds/notes/{slug}/NOTE.md
           'path: features/f{nn}_{slug}/FEATURE.md\n'
           'sections:\n  - id: goal\n    header: Goal\n',
         ),
+        for (final MapEntry(:key, :value) in more.entries) key: _bytes(value),
       };
 
       Future<MergedSet> resolveWith(
@@ -1263,6 +1265,21 @@ path: prds/notes/{slug}/NOTE.md
           expect(merged.lookup('feature'), isNotNull);
         },
       );
+
+      test('a mark_retrim doc type finds its sections through '
+          'extends', () async {
+        final merged = await resolveWith(
+          files(
+            docTypes: '[saga]',
+            more: {
+              'prd-core/saga.yaml':
+                  'id: saga\nextends: feature\npath: sagas/{slug}/SAGA.md\n',
+            },
+          ),
+        );
+
+        expect(merged.lookup('saga'), isNotNull);
+      });
     });
 
     test("an extends doc type keeps its target's "

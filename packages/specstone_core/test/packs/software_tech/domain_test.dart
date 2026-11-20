@@ -107,7 +107,7 @@ void main() {
       'Nest a field as `- **<field>:** <text>`. The default enforcer is '
       'the one Aggregate root of the entities table, else the one '
       'Service; nest `- **Enforcer:** <entity>` only off it, and under '
-      'every invariant when there is none.\n'
+      'every invariant when there is none. '
       'Nest `- **Consistency:** eventual` and `- **Corrective policy:** '
       '<how the system restores the rule>` only for an eventual rule; no '
       'Consistency line means immediate.\n'

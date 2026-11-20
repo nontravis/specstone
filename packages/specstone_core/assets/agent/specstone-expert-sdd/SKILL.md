@@ -31,11 +31,11 @@ Never look for `.specstone/`: it can sit above the working directory.
 3. **Guide first.** Before writing a doc, have its type's current guide: `specstone guide <type>` and
    `specstone guide <type> --json`. One call naming several types counts for each, as does this run's saved guide.
 4. **Confirm traced links.** To write an FR, an nf, an API row, or an `Overrides:` line, follow `references/confirm-links.md`.
-5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
-   its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `check` prints it.
-   Steps: `references/size-fix.md`.
-6. **Check after edits.** After your edits, run `specstone check <target> --out "<folder>/reports/check.done.<XXXXXX>.txt"`
-   once per doc you touched, and fix each finding your edits added to the baseline; leave each whose `waitsFor` is
+5. **Size in one order.** Over a size limit: layout, then an FR edge-case trim, then a sub-feature split the Owner
+   approves, then text moved to its home; drop nothing else. Cite a size only as `specstone structure <doc>` or `check`
+   prints it. Steps: `references/size-fix.md`.
+6. **Check after edits.** Run `specstone check <target> --out "<folder>/reports/check.done.<XXXXXX>.txt"`
+   once per doc you touched, and fix each finding you added to the baseline; leave each whose `waitsFor` is
    `owner`, its line ending `(waits for the Owner)`.
 7. **Cite, never restate.** A rule has one owner doc. Every other doc cites it by a link to the item that holds it,
    `[<ID>](<path>#<section heading anchor>)`, or by a section or doc link when none does, and states nothing

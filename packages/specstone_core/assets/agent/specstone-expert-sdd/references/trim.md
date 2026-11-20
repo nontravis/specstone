@@ -51,7 +51,9 @@ Rewrite each cite inside your batch's feature folder, in the batch:
 | a matrix row `- <fr> E<nn>: …` naming a deleted or moved edge case | drop the row |
 
 Write no cite outside the folder: name each under `Citers outside:`, with its doc and the rewrite. The main session
-hands it to that doc's folder batch, a record's matrix row to that feature's spec batch.
+hands it to that doc's batch (its feature folder's, else the rest batch), a record's matrix row to that feature's spec
+batch. A batch handed a `Citers outside:` line writes its rewrite in the doc it names and reports it as a rewritten
+cite.
 
 ## The report
 

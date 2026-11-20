@@ -66,7 +66,8 @@ batch's findings into drafts.
   per `Mismatches:` point or a write-a-spec pick per `Uncovered:` file. Bootstrap: a write-a-spec pick per
   `Uncovered:` file.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, and
-  `item_over_limit` when the Owner named it for the run and a `batch` path holds one; or `batch: repeats` and the
+  `item_over_limit` when the Owner named it for the run and a `batch` path holds one, and each line a trim round
+  handed (`Citers outside:`, `Spec moves:`); or `batch: repeats` and the
   repeat groups to merge; or a fix batch, the `Findings:` lines of a trim round's audit; write any doc a fix needs.
 - **`report`** (every mode, optional): the file for your whole report,
   `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
@@ -108,8 +109,8 @@ A failed load: report it and stop; never search.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`'s lines of your gate file, its step 6 only for docs `batch` names,
    each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
    `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5. Trim each
-   section a `retrim_due` line names, and each FR `size-fix.md` sends to a trim, by
-   `.agents/skills/specstone-expert-sdd/references/trim.md`. A fix batch fixes each line's gap in the doc it names,
+   section a `retrim_due` line names, and each FR `size-fix.md` sends to a trim, and apply each handed
+   `Citers outside:` or `Spec moves:` line, by `.agents/skills/specstone-expert-sdd/references/trim.md`. A fix batch fixes each line's gap in the doc it names,
    each write through `--base`, then Workflow step 5.
 4. **Author, audit**: follow the On-Demand reference through its report; then stop.
 5. **Check and report**: after writing, run

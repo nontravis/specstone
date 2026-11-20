@@ -55,7 +55,7 @@ in for item 4.
 
 1. Show the Owner each agent's `Report:` line, then its relay block word for word, before your own notes. In a round
    with a trim batch, follow `../specstone-expert-sdd/references/trim-round.md`: its audit before item 2, its handed
-   lines in item 5, and its sync before you stop.
+   lines in item 5, and its waits and sync before you stop.
 2. Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`, or with `--audit` per audit report
    in a round with a trim batch; ask the Owner to approve each proposal, then run each of its commands in run order
    (`../specstone-expert-sdd/references/size-fix.md`).
@@ -71,8 +71,8 @@ in for item 4.
    skill takes starts another round at step 2 unless it is tagged `(waits for the Owner)`, the last reports name it as
    one that clears with no write, it is the `section_undeclared` on PROJECT's goals or glossary section after a
    move kept an entry there, or it waits on `specstone-bootstrap-spec`, such as a finding on a path item 4 left out.
-   A handed `Citers outside:` or `Spec moves:` line starts a round too when this skill takes its doc; one on a doc
-   under `specs/` waits on `specstone-bootstrap-spec`. No later batch holds that goals or glossary finding, and no
+   A handed `Citers outside:` line starts a round too when this skill takes its doc; a `Spec moves:` line, or one on a
+   doc under `specs/`, waits on `specstone-bootstrap-spec`. No later batch holds that goals or glossary finding, and no
    question asks a kept goal's horizon again. With none left, go to item 6.
 6. Once per run, after the last round, run
    `specstone check --repeats --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"`, then dispatch the repeats batch
