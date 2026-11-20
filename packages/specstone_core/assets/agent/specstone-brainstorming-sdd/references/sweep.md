@@ -1,5 +1,6 @@
-The design check of `design-check.md` runs this before any lens: section 1 when given `since`, section 2 once,
-section 3 per decision step 1.2 of `design-check.md` kept, in list order. Write nothing but the agent's `report:` file.
+Before each design check, `specstone-sdd-sweeper` runs sections 1 to 3, then 5; the check of `design-check.md` runs
+1 to 3 before any lens. Both run section 1 when given `since`, section 2 once, section 3 per decision step 1.2 of
+`design-check.md` kept, in list order. Write nothing but the agent's `report:` file.
 
 ## 1. Keep since a snapshot
 
@@ -57,3 +58,28 @@ With `since: <snapshot path>`, compare the design document with that snapshot:
 
 The sibling search of each gap, in section 3 of `design-check.md`, also runs over the other decisions' input tables:
 a form one decision's table lacks is checked in each table taking the same input.
+
+## 5. The sweeper's report
+
+The sweeper walks no lens and writes no `Findings:` line: each line of step 3.6 is a `Rows:` row. Its
+`report:` file, in this order, the hit lists in the file only:
+
+```
+Sweep: <design document path>; amend: <N list, or none>; since: <snapshot path, or none>
+Ignored: <keys, or none>
+Swept: D<n>: <term>, <term>; <n> items hit, <m> with no row, <h> held
+  <type>:<name>#<section> <item>: covered|gap|held: <why>
+Rows:
+| <Doc cell> | <Sections cell> | <Decisions cell> |
+```
+
+- **`Ignored:`**: each of `mode`, `stage`, `targets`, `check`, `trims` the brief gives, or `none`.
+- **`Rows:`**: one Docs to change row per doc and decision, in the table's form, which the runner adds word for word;
+  a `held` hit takes none; `Rows: none` when none.
+  - **Doc:** `<type>:<name>`; with two or more code targets, a per-target spec doc adds `(target: <name>)`.
+  - **Sections:** each section the hits fall in, by its `get` key, its items in parentheses; a hit restating the
+    decision's rule adds `; copy: remove, link the owner item` inside them, such as
+    `edge_cases (E07, E17; copy: remove, link the owner item)`.
+  - **Decisions:** `D<n>`.
+  - **A removed decision's stub:** Sections `take out the D<n> text: <sections>`, each by its `get` key with its
+    items, never `all`; Decisions `D<n> (Amend <N>, removed)`.

@@ -36,7 +36,13 @@ const _skillNames = [
   'update-sdd',
 ];
 
-const _agentNames = ['plan-engineer', 'sdd-engineer', 'sdd-reader'];
+const _agentNames = [
+  'plan-engineer',
+  'sdd-auditor',
+  'sdd-engineer',
+  'sdd-reader',
+  'sdd-sweeper',
+];
 
 const _procedures = <String>[
   'specstone-sync-sdd/references/procedure.md',
@@ -96,12 +102,14 @@ const _agentFileNames = <String, List<String>>{
   ],
   'specstone-plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
   'specstone-sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
+  'specstone-sdd-sweeper.md': ['sdd-sweeper.sweep.<XXXXXX>.md'],
 };
 
 const _reportsFolder = '<folder>/reports/';
 
 final _agentFilePath =
-    r'<folder>/reports/(?:(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
+    '<folder>/reports/(?:(?:sdd-engineer|sdd-sweeper|sdd-auditor|'
+    r'plan-engineer)\.(?:<mode>|[a-z]+)\.'
     r'(?:(?:batch|source|snapshot)\.)?<XXXXXX>\.(?:md|txt)|check\.'
     '(?:${checkRoles.join('|')}|<role>)'
     r'\.<XXXXXX>\.txt|guide\.<XXXXXX>\.(?:txt|json))';
@@ -377,7 +385,60 @@ void _frontmatterTests() {
     expect(skills, ['specstone-expert-sdd', 'specstone-read-sdd']);
     expect(_toolsOf(text, 'tools'), ['Bash', 'Read', 'Grep', 'Write', 'Edit']);
   });
+
+  test('the sweeper preloads read-sdd alone and writes its report', () {
+    final text = _pluginText(_sweeper);
+    final head = text.substring(0, text.indexOf('\n---\n', 4));
+    expect(_skillsOf(head), ['specstone-read-sdd']);
+    expect(_toolsOf(text, 'tools'), ['Bash', 'Read', 'Grep', 'Write']);
+  });
+
+  test('the sweeper reads sweep.md and design-check section 1 alone', () {
+    final text = _pluginText(_sweeper);
+    expect(text, contains('references/sweep.md'));
+    expect(text, contains('references/design-check.md'));
+    for (final other in [
+      'references/author.md',
+      'references/audit.md',
+      'references/reaudit.md',
+      'specstone-sync-sdd/references/procedure.md',
+      'specstone-bootstrap-prd/references/procedure.md',
+      'specstone-bootstrap-spec/references/procedure.md',
+    ]) {
+      expect(text, isNot(contains(other)), reason: other);
+    }
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## Input Contract'), [
+        '`since`',
+        '`amend`',
+        'OPEN QUESTIONS:',
+      ]),
+      isTrue,
+    );
+  });
+
+  test("sweep.md orders the sweeper's Sweep, Ignored, Swept, Rows", () {
+    final text = _pluginText(_sweepReference);
+    final start = text.indexOf(_sweeperReportHeading);
+    expect(start, isNonNegative);
+    final section = text.substring(start);
+    final block = _fencedBlock.firstMatch(section)!.group(1)!;
+    final indices = [
+      for (final line in ['Sweep: ', 'Ignored: ', 'Swept: ', 'Rows:'])
+        block.indexOf(line),
+    ];
+    expect(indices.first, isNonNegative);
+    expect(indices, [...indices]..sort());
+    expect(indices.toSet(), hasLength(indices.length));
+    expect(section, contains('Rows: none'));
+  });
 }
+
+const _sweeper = 'specstone-sdd-sweeper.md';
+
+const _sweepReference = 'specstone-brainstorming-sdd/references/sweep.md';
+
+const _sweeperReportHeading = "## 5. The sweeper's report";
 
 // MARK: - token budget
 
@@ -535,7 +596,7 @@ void _referencesResolveTests() {
     },
   );
 
-  test('the nine skills and three agents are all there', () {
+  test('the nine skills and five agents are all there', () {
     expect(
       _skillFolders().map(_baseNameOf),
       unorderedEquals([for (final name in _skillNames) 'specstone-$name']),

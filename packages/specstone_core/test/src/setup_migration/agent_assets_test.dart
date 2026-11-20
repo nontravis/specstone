@@ -26,6 +26,7 @@ void main() {
           'specstone-plan-engineer.md',
           'specstone-sdd-engineer.md',
           'specstone-sdd-reader.md',
+          'specstone-sdd-sweeper.md',
         ]),
       );
     });
