@@ -115,7 +115,7 @@ void main() {
 
     test('structure answer on a feature with a summary omits it', () async {
       final withSummary = await withSummaries('Grounds a task in one call.');
-      final answer = answerStructure(withSummary, target: 'login');
+      final answer = answerStructure(withSummary, targets: ['login']);
       expect(answer.text.split('\n').first, startsWith('login (feature)'));
       expect(answer.text, isNot(contains('Grounds a task')));
       expect(answer.json.toString(), isNot(contains('Grounds a task')));

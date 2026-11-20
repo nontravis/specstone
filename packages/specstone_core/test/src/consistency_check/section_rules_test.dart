@@ -850,7 +850,7 @@ void main() {
       final finding = (await runCheck(session)).findings
           .singleWhere((f) => f.kind == FindingKind.itemOverLimit);
       final sections =
-          (answerStructure(session.index, target: loginFr).json['docs']!
+          (answerStructure(session.index, targets: [loginFr]).json['docs']!
                       as List)
                   .cast<Map<String, Object?>>()
                   .single['sections']!
