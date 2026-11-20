@@ -2337,4 +2337,14 @@ void _brainstormRoundTests() {
       );
     }
   });
+
+  test("the design check tags a decision's removal [behavior]", () {
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_designCheckReference), '## 4. Report'),
+        ['`[behavior]`', 'removes a decision'],
+      ),
+      isTrue,
+    );
+  });
 }
