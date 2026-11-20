@@ -684,31 +684,31 @@ void main() {
   });
 
   group('the agent files of reports', () {
-    test(
-      'reports prune a report, a batch file, and a source copy by age alone',
-      () {
-        final report = put('reports', 'check.all.txt', modified: _day * 8);
-        final batch = put(
-          'reports',
-          'get.feature-login.txt',
-          modified: _day * 8,
-        );
-        final copy = put('reports', 'sources/spec.md', modified: _day * 8);
-        final inUse = put(
-          'reports',
-          'check.feature-login.json',
-          modified: _day * 8,
-          read: _day,
-        );
+    test('reports prune a report, a batch file, a source copy, and a design '
+        'snapshot by age alone', () {
+      final report = put('reports', 'check.all.txt', modified: _day * 8);
+      final batch = put('reports', 'get.feature-login.txt', modified: _day * 8);
+      final copy = put('reports', 'sources/spec.md', modified: _day * 8);
+      final snapshot = put(
+        'reports',
+        'sdd-engineer.audit.snapshot.a1b2c3.md',
+        modified: _day * 8,
+      );
+      final inUse = put(
+        'reports',
+        'check.feature-login.json',
+        modified: _day * 8,
+        read: _day,
+      );
 
-        prune();
+      prune();
 
-        expect(report.existsSync(), isFalse);
-        expect(batch.existsSync(), isFalse);
-        expect(copy.existsSync(), isFalse);
-        expect(inUse.existsSync(), isTrue);
-      },
-    );
+      expect(report.existsSync(), isFalse);
+      expect(batch.existsSync(), isFalse);
+      expect(copy.existsSync(), isFalse);
+      expect(snapshot.existsSync(), isFalse);
+      expect(inUse.existsSync(), isTrue);
+    });
 
     test('a run prunes both folders in one pass', () {
       final bundle = put('bundles', 'a.txt', modified: _day * 2);

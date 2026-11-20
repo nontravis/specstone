@@ -13,13 +13,19 @@ words or records one.
 - **Adds or changes behavior**, or needs more PRD or spec grounding: ground a doc newly reached by its own
   `specstone context <doc> --for design --out`, never `get`, then amend the same file. When the amend adds or
   changes behavior, dispatch the design check per the skill's step 3, `amend: <N>`. Your fix of its findings is no
-  amend unless it edits a decision an author pass read. An untagged line takes no check; a `[behavior]` fix takes one
-  second check, the first's scope plus any amend the fix opened, never a third. Decide a `[behavior]` line of either
-  check only when its answer stays inside the Owner's goals, rulings, and picked approach; any other line is the
-  Owner's. The Owner's answer to a first check's line is fixed and takes the same-scope second check; to a second
-  check's line, when it adds behavior, a numbered amend and its check. List a second check's
-  `[behavior]` line, decided or the Owner's, with the ask or before the author pass; only the Owner's line waits
-  for the Owner there.
+  amend unless it edits a decision an author pass read.
+  - **Snapshot**: before each design-check dispatch, first or delta, copy the design to
+    `<folder>/reports/sdd-engineer.audit.snapshot.<XXXXXX>.md` by the host's file write, `XXXXXX` that check's
+    `report:` characters, `<folder>` as in the skill's step 4.
+  - **Chain**: an untagged line takes no check. A check's fixed `[behavior]` lines take one delta check,
+    `since:` its snapshot and no `amend`. A check with no `[behavior]` line ends the chain. A scope is the first check
+    before the ask, or one amend's check (shared amends count as one), plus its delta checks.
+  - **Who decides**: decide a `[behavior]` line only when its answer stays inside the Intent, Rulings, and
+    picked approach; any other line is the Owner's. Your answer opens no scope: its fix, as the Owner's answer to a
+    line of any check before the third delta check, takes the scope's next delta check.
+  - **Third delta check**: its `[behavior]` lines are the Owner's, whatever the answer, listed with the ask or
+    before the amend's author pass, with no further check. An answer adding behavior takes a numbered amend and its
+    `amend: <N>` check, a new scope; one that only words or records goes to Rulings, with no check.
 - **Before the author**: after an append, or an amend and its check, ask for the approval again. When the design
   document holds open questions, gather the Owner's answers, append each that only words or records one, send the
   rest to one amend and its check, and ask for the approval only after it.

@@ -55,6 +55,7 @@ const _procedures = <String>[
   'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/design-check.md',
+  'specstone-brainstorming-sdd/references/sweep.md',
   'specstone-brainstorming-sdd/references/removal.md',
   'specstone-brainstorming-sdd/references/refused-batch.md',
   'specstone-brainstorming-sdd/references/repoint.md',
@@ -90,6 +91,9 @@ const _agentFileNames = <String, List<String>>{
   'specstone-brainstorming-sdd/references/source.md': [
     'sdd-engineer.design.source.<XXXXXX>.md',
   ],
+  'specstone-brainstorming-sdd/references/rounds.md': [
+    'sdd-engineer.audit.snapshot.<XXXXXX>.md',
+  ],
   'specstone-plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
   'specstone-sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
 };
@@ -98,7 +102,7 @@ const _reportsFolder = '<folder>/reports/';
 
 final _agentFilePath =
     r'<folder>/reports/(?:(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
-    r'(?:(?:batch|source)\.)?<XXXXXX>\.(?:md|txt)|check\.'
+    r'(?:(?:batch|source|snapshot)\.)?<XXXXXX>\.(?:md|txt)|check\.'
     '(?:${checkRoles.join('|')}|<role>)'
     r'\.<XXXXXX>\.txt|guide\.<XXXXXX>\.(?:txt|json))';
 

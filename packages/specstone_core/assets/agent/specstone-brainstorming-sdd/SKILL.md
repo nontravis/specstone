@@ -58,10 +58,10 @@ answers, at the brainstorm skill's own design path, else
 Dispatch nothing to write it.
 
 Before the approval ask, dispatch the design check as step 4 dispatches: a fresh `mode: audit` with `stage: design`,
-the document's path, and `bundles:` your saved bundle files with no doc write since, so never after an author pass.
+the document's path, and `bundles:` your saved bundle files with no doc write since, never after an author pass.
 Amends adding or changing behavior before the ask share one check, `amend: <N>[,<N> ...]`; a later one gets its own,
-`amend: <N>`. Fix each finding by `references/design.md`; a `[behavior]` fix follows `references/rounds.md` section 1.
-Then ask for approval, or, once an author pass has run, go on to the amend's author pass with no ask.
+`amend: <N>`. Fix each finding by `references/design.md`; a `[behavior]` fix takes the delta check of
+`references/rounds.md` section 1. Then ask for approval, or, after an author pass, go on to the amend's pass unasked.
 
 Route each later Owner answer or change per `references/rounds.md`.
 

@@ -25,28 +25,35 @@ one it lacks under `Findings:`.
   `#<key>`; a passage: `--replace` with `==> old <==`, the passage, `==> new <==`, the new one), its hash in
   `base` of `specstone get <type>:<name>#<key> --json`.
 - **A removed decision's stub row**: follow `removal.md` section 2.
-- **Several docs**: one name list, step 1's names too: `#input--output` as `input_output`; item or note: its section
-  key; whole or new doc: its bare name; a finding naming a doc with no key: its bare name, the gap under `Findings:`;
-  key the doc lacks: its naming line, the section written under it. `specstone get <list> --out "<file>"`, `<file>`
+- **Several docs**: one name list, step 1's names too, from this pass's rows only (after an amend, its `Amend <N> rows`
+  table; a landed table is none): `<key> (<items>)`, `<key> whole`, or a bare `<key>`: that key; `#input--output` as
+  `input_output`; a finding's key with an item or note: the key alone; `whole` or a new doc: its bare name; a finding
+  naming a doc with no key: its bare name, the gap under `Findings:`; key the doc lacks: its naming line, the section
+  written under it. `specstone get <list> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`. `section_not_found`: rerun with its doc's bare name, the
-  key under `Findings:`; `doc_not_found`: rerun without it, under `Findings:`, or `Not landed:` if never created. Find
-  each block by text search; read a block only when you edit it, never the whole file; keep naming lines, one write per
-  block; one `specstone set --batch "<file>"`. A ` · unchanged` block is no draft. A section found mid-write: its own
+  key under `Findings:`; `doc_not_found`: rerun without it, under `Findings:`, or `Not landed:` if never created.
+  Search each item not marked `new` inside its doc's block (its `==> ` header to the next) by its line form, such as
+  `N. E05 —`, a row's first cell, or a node ID (with a note, the part before the colon), then read only that item's
+  lines, to the next item, by offset and limit. Read a block whole only for `whole`, a bare key, or a searched item not
+  found (under `Findings:` as moved or gone); never read parts that together cover a block or the file. Write a `new`
+  item at its block's end, reading only that end, with no `Findings:` line. Keep naming lines, one write per block; one
+  `specstone set --batch "<file>"`. A ` · unchanged` block is no draft. A section found mid-write: its own
   `get … --out` and `set --batch`; one no row names: a row gap under `Findings:`.
 - **A refused batch**: follow `refused-batch.md`.
 
 ## 3. Sweep each changed rule
 
-Run `specstone search "<term>"`, `--limit` above its hit count, per term in each written form that item 1 of section 2 of
-`design-check.md` lists, the short form the key noun alone:
+Run `specstone search "<term>"`, `--limit` above its hit count, per term in each written form that the Terms item, step 3.1
+of `sweep.md`, lists, the short form the key noun alone:
 
 - **First pass, or after an amend** (its decisions only): each added term, key, or literal; each ruling's superseded
   wording; each changed rule's owner item's words and every key or literal of the set the new one joins.
 - **Fix round**, or any taken finding after an amend: each taken finding's rule and terms.
 
 A hit stating the rule without the decision's new text is a reader. One in a draft or a Docs to change row's doc: its
-section goes in a second name list with its own `get … --out` and `set --batch`; link the owner's item for a restated
-copy, rewrite a reader owning a rule. List any other under `Findings:` only.
+section goes in a second name list with its own `get … --out` and `set --batch`, its item searched and read as in
+section 2; link the owner's item for a restated copy, rewrite a reader owning a rule. List any other under
+`Findings:` only.
 
 ## 4. Check
 

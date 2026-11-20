@@ -40,18 +40,21 @@ Sections, in order:
    author runs: a row per input or state, its result, and each command or skill reading it; a refusal's row quotes its
    message literal.
 6. **Docs to change**: one row per doc: `<type>:<name>` (new: its type and parent), each changed section by its `get`
-   key (an item list in parentheses is a hint), or `whole` for a new doc or a rewrite of every section, decision IDs.
-   A decision with no row gets a line on why no doc takes it. Each doc the design check finds restating a decision's
-   rule gets a row: remove the copy and link the owner's item; when it owns a rule reading the decision's rule, rewrite
-   it. An `architecture` doc gets a `design_references` row linking this document, per `specstone guide
-   architecture`, only when its section states a decision of this design after the change, linking each design whose
-   decisions it still states; a feature merely reached takes none, nor does a doc whose only change swaps a copy for a link. With two or more `targets:`, a per-target
-   spec doc's row names its code target; a row with none is an open question.
+   key and its required item list in parentheses (item IDs, a row's first cell, a node ID, a scenario number, quoted
+   words; `new E19` if added; `E24: <note>`), `<key> whole` for one rewritten whole, or `whole` for a new doc or a
+   rewrite of every section; decision IDs. A key with neither: a design-check line. Each amend's rows form an
+   `Amend <N> rows` table; a landed one is no later target. A decision with no row gets a line on why. Each doc the
+   design check finds restating a decision's rule gets a row: remove the copy and link the owner's item; when it owns
+   a rule reading the decision's rule, rewrite it. An `architecture` doc gets a `design_references` row linking this
+   document, per `specstone guide architecture`, only when its section states a decision of this design after the
+   change, linking each design whose decisions it still states; a feature merely reached takes none, nor does a doc
+   whose only change swaps a copy for a link. With two or more `targets:`, a per-target spec doc's row names its code
+   target; a row with none is an open question.
 7. **Open questions**: each gap neither the answers nor the saved files settle.
 
-The runner runs no dependents search: the design check sweeps every reader. An amend that adds or changes behavior, or
-removes a decision, names its owner doc and terms the same way, after the removal read in `removal.md`, and adds its
-rows before the author writes it.
+Run no dependents search: the design check sweeps every reader. An amend that adds or changes behavior, or removes a
+decision, names its owner doc and terms the same way, after the removal read in `removal.md`, and adds its rows
+before the author writes it.
 
 Decide each point the answers leave open that a PRD or spec doc must state, such as a refusal or a name rule, naming
 the one owner item its rule takes, or list it as an open question; a design holding an open one goes to no author.
@@ -63,7 +66,8 @@ removes lists it in its heading, earlier amends kept: `(Amend 2, Amend 4)`.
 
 For an amend that removes a decision, follow section 1 of `removal.md`: its read, stub, and stub rows.
 
-Write or amend the file with your host's file write; write no other file, and no PRD or spec doc.
+Write or amend the file by the host's file write; write no other file here (save its snapshot before each design
+check, the first too, by `rounds.md` section 1), and no PRD or spec doc.
 
 ## 4. Check before you ask
 
@@ -71,7 +75,8 @@ No placeholder, no empty section but Open questions, no contradiction between se
 decision specific enough that two builders would build the same thing.
 
 Then the skill's step 3 runs the design check. Fix each finding in the document: an untagged one by an edit; a
-`[behavior]` one by deciding it, or asking the Owner if only they can, then naming its owner doc and terms.
+`[behavior]` one by deciding it, or asking the Owner if only they can, then naming its owner doc and terms; that fix
+takes `rounds.md` section 1's delta check.
 
 Ask for approval only once no design-check line is left naming a reader or a wording a decision supersedes outside the
 Docs to change rows, a removed decision's text included: each such line gets a row (a stub row for removed text). This document is outside the sweep: it quotes that wording.
