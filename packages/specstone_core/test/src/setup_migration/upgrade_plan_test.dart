@@ -3564,6 +3564,7 @@ void _moveToRecordTests() {
             'unreadable': <String>[],
           },
           {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
+          {'from': '1.14.0', 'step': 'mark_retrim', 'paths': <String>[]},
         ]);
       });
 
@@ -4703,6 +4704,7 @@ void _codeStampTests() {
           'unreadable': <String>[],
         },
         {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
+        {'from': '1.14.0', 'step': 'mark_retrim', 'paths': <String>[]},
       ]);
     });
 

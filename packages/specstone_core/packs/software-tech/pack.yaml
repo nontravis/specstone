@@ -1,5 +1,5 @@
 name: software-tech
-version: 1.14.0
+version: 1.15.0
 extends: prd-core
 migrations:
   - from: 1.4.0
@@ -22,6 +22,11 @@ migrations:
     steps:
       - drop_default_lines:
           doc_types: [domain, project_domain]
+  - from: 1.14.0
+    steps:
+      - mark_retrim:
+          doc_types: [domain, project_domain]
+          sections: [invariants, value_objects]
 shared_lines:
   - id: cite_spec_docs
     text: Cite a project or ancestor-feature spec doc's rule by a link to its item, never restate it.

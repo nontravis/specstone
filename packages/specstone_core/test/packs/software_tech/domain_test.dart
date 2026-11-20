@@ -78,7 +78,7 @@ void main() {
       allOf(
         contains('Make each value object immutable'),
         contains('Validation'),
-        contains('link an invariant for any rule on it'),
+        contains('link an invariant for a rule on it two or more FRs rely on'),
       ),
     );
     final lifecycle = sectionOf(domain, 'lifecycle').description!;
@@ -88,6 +88,41 @@ void main() {
         contains('`stateDiagram-v2` alone, no prose'),
         contains('4 or more states'),
       ),
+    );
+  });
+
+  test('the invariants description carries the mechanism and delete '
+      'clauses', () {
+    expect(
+      sectionOf(domain, 'invariants').description,
+      'Write each invariant as `- **INV-<N>** <rule>`, never a numbered item; '
+      'IDs are append-only, never reused.\n'
+      'Write an invariant only for a rule two or more FRs rely on; a '
+      'behavior one FR states stays there. Delete an existing invariant '
+      "one FR's Statement or edge case states.\n"
+      'Keep a bound (`timeout 10 s`) in the invariant it bounds; a lock, '
+      'retry, or parser mechanism the rule still needs moves to '
+      'ARCHITECTURE, an unhandled case to `known_limits`.\n'
+      'Nest a field as `- **<field>:** <text>`. The default enforcer is '
+      'the one Aggregate root of the entities table, else the one '
+      'Service; nest `- **Enforcer:** <entity>` only off it, and under '
+      'every invariant when there is none.\n'
+      'Nest `- **Consistency:** eventual` and `- **Corrective policy:** '
+      '<how the system restores the rule>` only for an eventual rule; no '
+      'Consistency line means immediate.\n'
+      'Write no trace tag, since `reference` holds the trace; a cite or '
+      'ownership note may close an invariant.',
+    );
+  });
+
+  test('the value objects description states the one-FR and shared-rule '
+      'split', () {
+    expect(
+      sectionOf(domain, 'value_objects').description,
+      'Write a table of VO, Backed by, Validation.\n'
+      'Make each value object immutable; state its shape in Validation, '
+      'and link an invariant for a rule on it two or more FRs rely on; a '
+      'rule one FR states stays in that FR.',
     );
   });
 
