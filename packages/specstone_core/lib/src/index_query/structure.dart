@@ -1,8 +1,11 @@
 import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/item_fact.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 
 const _indent = '  ';
 
@@ -16,18 +19,23 @@ final class _SectionSize {
   final List<ItemFact> items;
 }
 
-/// Returns the docs tree, or the subtree of every doc [target] addresses.
+/// Returns the docs tree, or the union of the subtrees of every doc [targets]
+/// address.
 ///
-/// Without [target] it holds each typed doc that has no parent, with its
-/// subtree, then each folder of untyped docs. With one, [target] is resolved
-/// as [DocIndex.resolve] does and each resolved doc that another resolved
-/// doc's subtree already holds is left out. An untyped target prints its one
-/// line with no folder line. [codeTarget], when given, keeps a name to that
-/// code target's docs and the shared docs, and the tree holds no other
-/// target's doc.
+/// Without [targets] it holds each typed doc that has no parent, with its
+/// subtree, then each folder of untyped docs. With some, each is resolved as
+/// [DocIndex.resolve] does, each resolved doc that another resolved doc's
+/// subtree already holds is left out, and the rest print in tree order. A
+/// lone untyped target prints its one line with no folder line; among several
+/// targets an untyped doc prints under its folder. [codeTarget], when given,
+/// keeps a name to that code target's docs and the shared docs, and the tree
+/// holds no other target's doc.
+///
+/// Throws an [IndexFault], or an [IndexFaults] holding one fault per target
+/// that names no doc, in argument order; nothing prints then.
 ///
 /// The tree holds no record, whether a subtree or the whole tree reaches it,
-/// unless every doc [target] resolves to is a record, as `implementation:login`
+/// unless every doc [targets] resolve to is a record, as `implementation:login`
 /// does; each status still reads from the records.
 ///
 /// Each feature, story, and FR line holds its status in each code target, in
@@ -35,21 +43,24 @@ final class _SectionSize {
 /// one status alone with one target or with [codeTarget]; any other doc holds
 /// the status it writes, or none.
 ///
-/// When [target] resolves to one typed doc, that doc's line is followed by one
-/// line per section, its lead first when it holds text, and, under each, one
-/// per item, each with the characters the index stores for it, as `check`
-/// counts them in the doc as `format` lays it out; the doc's JSON object gains
-/// `sections`. No doc is laid out or counted again.
+/// When [targets] hold one name and it resolves to one typed doc, that doc's
+/// line is followed by one line per section, its lead first when it holds
+/// text, and, under each, one per item, each with the characters the index
+/// stores for it, as `check` counts them in the doc as `format` lays it out;
+/// the doc's JSON object gains `sections`. No doc is laid out or counted
+/// again.
 ReadAnswer answerStructure(
   DocIndex index, {
-  String? target,
+  List<String> targets = const [],
   String? codeTarget,
 }) {
   index.checkCodeTarget(codeTarget);
-  final resolved = target == null
+  final resolved = targets.isEmpty
       ? null
-      : index.resolve(target, codeTarget: codeTarget);
-  final named = resolved == null ? index.docs : _withoutNested(index, resolved);
+      : _resolveAll(index, targets, codeTarget);
+  final named = resolved == null
+      ? index.docs
+      : _inTreeOrder(index, _withoutNested(index, resolved));
   final namesRecords =
       resolved != null && resolved.isNotEmpty && resolved.every(_isRecord);
   final shown = [
@@ -57,14 +68,14 @@ ReadAnswer answerStructure(
       if (namesRecords || !_isRecord(doc)) doc,
   ];
   final sized = switch (resolved) {
-    [final doc] when doc.isTyped => doc,
+    [final doc] when targets.length == 1 && doc.isTyped => doc,
     _ => null,
   };
   final sizes = sized == null ? null : _sectionSizesOf(index, sized);
   final roots = [
     for (final doc in shown)
       if (doc.isTyped &&
-          (target != null ||
+          (targets.isNotEmpty ||
               (index.parentOf(doc) == null && doc.inTarget(codeTarget))))
         doc,
   ];
@@ -72,16 +83,17 @@ ReadAnswer answerStructure(
     for (final doc in shown)
       if (!doc.isTyped) doc,
   ]);
+  final showsFolders = targets.length != 1;
 
   final text = StringBuffer();
   for (final root in roots) {
     _writeTree(text, index, root, 0, codeTarget, root == sized ? sizes : null);
   }
   for (final MapEntry(key: folder, value: docs) in folders.entries) {
-    if (target == null) text.writeln(folder);
+    if (showsFolders) text.writeln(folder);
     for (final doc in docs) {
       text.writeln(
-        '${target == null ? _indent : ''}${_docLine(index, doc, codeTarget)}',
+        '${showsFolders ? _indent : ''}${_docLine(index, doc, codeTarget)}',
       );
     }
   }
@@ -112,6 +124,44 @@ bool _isRecord(IndexedDoc doc) => isRecordsDocPath(doc.docPath);
 /// Returns [doc]'s line with each code target's status [index] computes.
 String _docLine(DocIndex index, IndexedDoc doc, String? codeTarget) =>
     docLineWithStatus(doc, statusPartOf(index, doc, codeTarget));
+
+/// Returns the docs every target of [targets] resolves to, each doc once.
+///
+/// Resolves every target before returning; a target that names no doc adds
+/// its fault, and any fault is thrown with the rest, in argument order.
+List<IndexedDoc> _resolveAll(
+  DocIndex index,
+  List<String> targets,
+  String? codeTarget,
+) {
+  final resolved = <IndexedDoc>[];
+  final faults = <SpecstoneFault>[];
+  for (final target in targets) {
+    try {
+      resolved.addAll(index.resolve(target, codeTarget: codeTarget));
+    } on IndexFault catch (fault) {
+      faults.add(fault);
+    } on TemplateFault catch (fault) {
+      faults.add(fault);
+    }
+  }
+  return switch (faults) {
+    [] => _distinct(resolved),
+    [final fault] => throw fault,
+    _ => throw IndexFaults(faults),
+  };
+}
+
+List<IndexedDoc> _distinct(List<IndexedDoc> docs) => [
+  ...{for (final doc in docs) doc.docPath: doc}.values,
+];
+
+/// Returns [docs] in the order of [DocIndex.docs].
+List<IndexedDoc> _inTreeOrder(DocIndex index, List<IndexedDoc> docs) {
+  final position = {for (final (i, doc) in index.docs.indexed) doc.docPath: i};
+  return [...docs]
+    ..sort((a, b) => position[a.docPath]!.compareTo(position[b.docPath]!));
+}
 
 List<IndexedDoc> _withoutNested(DocIndex index, List<IndexedDoc> resolved) {
   final nested = {

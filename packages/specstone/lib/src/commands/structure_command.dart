@@ -1,7 +1,7 @@
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Prints the docs tree, or the subtree of one doc.
+/// Prints the docs tree, or the union of the subtrees of the named docs.
 ///
 /// Without a target it prints every doc; untyped docs follow under their
 /// folder.
@@ -23,19 +23,15 @@ class StructureCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone structure [<target>] [--target <name>] [--json]';
+      'specstone structure [<target> ...] [--target <name>] [--json]';
 
   @override
   Future<int> run() {
     final args = argResults!;
-    final rest = args.rest;
-    if (rest.length > 1) {
-      usageException('Expected at most one target, got ${rest.length}.');
-    }
     return runRead(
       (session) => answerStructure(
         session.index,
-        target: rest.firstOrNull,
+        targets: args.rest,
         codeTarget: targetOf(args),
       ),
       asJson: args.flag('json'),
