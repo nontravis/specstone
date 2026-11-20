@@ -3,6 +3,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_drift.dart';
+import 'package:specstone_core/src/setup_migration/models/skill_file_drift.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/version.dart';
@@ -117,7 +118,7 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
     for (final drift in drifts)
       if (drift.kind == AgentDriftKind.topUnlisted) '${drift.path}/',
   };
-  for (final (:path, :kind) in skillAndAgentFileDrifts(inputs)) {
+  for (final SkillFileDrift(:path, :kind) in skillAndAgentFileDrifts(inputs)) {
     if (unlistedTops.any(path.startsWith)) continue;
     yield findingOf(path, 1, _skillTextOf(kind));
   }

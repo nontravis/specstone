@@ -20,7 +20,9 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_drift.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
 import 'package:specstone_core/src/setup_migration/models/code_file.dart';
+import 'package:specstone_core/src/setup_migration/models/malformed_settings_file.dart';
 import 'package:specstone_core/src/setup_migration/models/marker_scan.dart';
+import 'package:specstone_core/src/setup_migration/models/skill_file_drift.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
@@ -537,7 +539,7 @@ bool _endsCurrent(AgentFileInputs inputs, AgentWritePlan plan) {
         _ => fixed.contains(path),
       })
         path,
-    for (final (:path, kind: _) in skillAndAgentFileDrifts(inputs))
+    for (final SkillFileDrift(:path) in skillAndAgentFileDrifts(inputs))
       if (!fixed.contains(path)) path,
   ];
   return left.isEmpty;
@@ -821,9 +823,7 @@ final class _Survey {
 
   /// Throws the `agent_block_malformed` fault when any file is malformed, or
   /// when any of [settings] is.
-  void throwIfMalformed({
-    List<({String path, String failure})> settings = const [],
-  }) {
+  void throwIfMalformed({List<MalformedSettingsFile> settings = const []}) {
     final faults = [
       for (final folder in folders)
         for (final file in folder.files)
@@ -836,7 +836,7 @@ final class _Survey {
               file: file.path,
               line: file.scan!.firstMarkerLine,
             ),
-      for (final (:path, :failure) in settings)
+      for (final MalformedSettingsFile(:path, :failure) in settings)
         MigrateFault(
           MigrateFaultCode.agentBlockMalformed,
           '$failure; repair the file by hand so it is one JSON '

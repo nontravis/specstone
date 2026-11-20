@@ -15,60 +15,15 @@ import 'package:specstone_core/src/setup_migration/claude_settings.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
+import 'package:specstone_core/src/setup_migration/models/malformed_settings_file.dart';
 import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
+import 'package:specstone_core/src/setup_migration/models/skill_file_drift.dart';
+import 'package:specstone_core/src/setup_migration/models/skill_file_plan.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _ownedPrefix = 'specstone-';
 const _claudeFolder = '.claude';
 const _settingsPath = '$_claudeFolder/settings.json';
-
-/// Why a skill or agent file needs a run.
-enum SkillFileDriftKind {
-  /// The file's bytes differ from what the CLI writes.
-  differs,
-
-  /// The file is missing from a folder of a group in use.
-  missing,
-
-  /// The CLI no longer ships the file.
-  unshipped,
-
-  /// `.claude/settings.json` does not hold the Specstone hook group alone.
-  settingsStale,
-
-  /// `.claude/settings.json` is missing from a Claude Code folder group in use.
-  settingsMissing,
-
-  /// `.claude/settings.json` is no JSON object a run can merge into.
-  settingsMalformed,
-}
-
-/// One drift: its path from the project root, `/`-separated, and its kind.
-typedef SkillFileDrift = ({String path, SkillFileDriftKind kind});
-
-/// The skill and agent file changes of one run, every path from the project
-/// root with `/` separators.
-///
-/// `writes` holds `.claude/settings.json` beside the skill and agent files when
-/// the Claude Code folder group takes part and the file is not current;
-/// `malformedSettings` holds, for each such file that no run can merge into,
-/// its path, why it does not parse, and whether it is no file at all, and
-/// plans no write for it.
-///
-/// `trash` lists each path to move to the trash: the folder or file of a
-/// `specstone-*` entry the CLI ships nothing of, which moves whole, and each
-/// unshipped file inside an entry it ships; `topTrash` holds those of it that
-/// lie at a repository top. `skipped` holds the warning line
-/// for each folder or file the run leaves because its real path lies outside
-/// the project root or under `.git`.
-typedef SkillFilePlan = ({
-  List<AgentWrite> writes,
-  List<({String path, String failure})> malformedSettings,
-  List<String> trash,
-  List<String> topTrash,
-  List<String> skipped,
-  Set<String> writeSet,
-});
 
 /// Whether [upgrades] first ship the skill and agent files: the pack upgrade
 /// that writes every one of them once.
@@ -98,7 +53,7 @@ SkillFilePlan planSkillAndAgentFiles(
     planner.plan(base, full: full, includesListedTops: includesListedTops);
   }
   planner.trashUnclaimed();
-  return (
+  return SkillFilePlan(
     writes: planner.writes,
     malformedSettings: planner.malformedSettings,
     trash: planner.trash,
@@ -127,11 +82,12 @@ String? skillFolderOf(String path) {
 List<SkillFileDrift> skillAndAgentFileDrifts(AgentFileInputs inputs) {
   final plan = planSkillAndAgentFiles(inputs, full: false);
   return [
-    for (final write in plan.writes) (path: write.path, kind: _kindOf(write)),
-    for (final (:path, failure: _) in plan.malformedSettings)
-      (path: path, kind: SkillFileDriftKind.settingsMalformed),
+    for (final write in plan.writes)
+      SkillFileDrift(path: write.path, kind: _kindOf(write)),
+    for (final MalformedSettingsFile(:path) in plan.malformedSettings)
+      SkillFileDrift(path: path, kind: SkillFileDriftKind.settingsMalformed),
     for (final path in plan.trash)
-      (path: path, kind: SkillFileDriftKind.unshipped),
+      SkillFileDrift(path: path, kind: SkillFileDriftKind.unshipped),
   ];
 }
 
@@ -158,13 +114,13 @@ final class _Planner {
   late final Set<String> _shipped;
 
   final writes = <AgentWrite>[];
-  final malformedSettings = <({String path, String failure})>[];
+  final malformedSettings = <MalformedSettingsFile>[];
   final trash = <String>[];
   final topTrash = <String>[];
   final skipped = <String>[];
   final writeSet = <String>{};
   final _planned = <String>{};
-  final _entriesToTrash = <(AgentFileBase, String)>[];
+  final _entriesToTrash = <_TrashEntry>[];
 
   /// Plans the writes of [base]; the entries to trash wait for
   /// [trashUnclaimed], so every group has claimed its files by then.
@@ -217,7 +173,9 @@ final class _Planner {
     if (group == AgentFolderGroup.claudeCode) _planSettings(base);
     for (final MapEntry(key: folder, value: names) in entries.entries) {
       for (final name in names) {
-        _entriesToTrash.add((base, '${folder.path}/$name'));
+        _entriesToTrash.add(
+          _TrashEntry(base: base, entry: '${folder.path}/$name'),
+        );
       }
     }
   }
@@ -226,7 +184,7 @@ final class _Planner {
   /// claimed their files: a folder linked to another host's folder lists that
   /// host's files as unshipped, and they are claimed, not trash.
   void trashUnclaimed() {
-    for (final (base, entry) in _entriesToTrash) {
+    for (final _TrashEntry(:base, :entry) in _entriesToTrash) {
       _planTrash(base, entry);
     }
   }
@@ -354,8 +312,9 @@ final class _Planner {
     }
   }
 
-  void _recordMalformed(String path, String failure) =>
-      malformedSettings.add((path: path, failure: failure));
+  void _recordMalformed(String path, String failure) => malformedSettings.add(
+    MalformedSettingsFile(path: path, failure: failure),
+  );
 
   void _addSettingsWrite(
     AgentFileBase base,
@@ -455,6 +414,15 @@ final class _Planner {
 
   String _rootPath(AgentFileBase base, String relative) =>
       base.path.isEmpty ? relative : '${base.path}/$relative';
+}
+
+/// An entry a group listed, and the folder that holds it, waiting for the trash
+/// check.
+final class _TrashEntry {
+  const new({required this.base, required this.entry});
+
+  final AgentFileBase base;
+  final String entry;
 }
 
 String _relativeOf(FileSystemEntity entity, int prefixLength) =>

@@ -10,6 +10,8 @@ import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
+import 'package:specstone_core/src/setup_migration/models/skill_file_drift.dart';
+import 'package:specstone_core/src/setup_migration/models/skill_file_plan.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
     show runsOneTimePasses;
@@ -674,7 +676,7 @@ void main() {
       expect(plan.trash, [unshipped]);
       expect(plan.writes, isEmpty);
       expect(skillAndAgentFileDrifts(_inputs(base)), [
-        (path: unshipped, kind: SkillFileDriftKind.unshipped),
+        SkillFileDrift(path: unshipped, kind: SkillFileDriftKind.unshipped),
       ]);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
   });
@@ -923,7 +925,10 @@ void main() {
       final drifts = skillAndAgentFileDrifts(_inputs(base));
 
       expect(drifts, [
-        (path: settingsFilePath, kind: SkillFileDriftKind.settingsMissing),
+        const SkillFileDrift(
+          path: settingsFilePath,
+          kind: SkillFileDriftKind.settingsMissing,
+        ),
       ]);
       _expectDriftsMatchPlan(
         _inputs(base),
@@ -941,7 +946,10 @@ void main() {
       final plan = planSkillAndAgentFiles(_inputs(base), full: false);
 
       expect(skillAndAgentFileDrifts(_inputs(base)), [
-        (path: settingsFilePath, kind: SkillFileDriftKind.settingsStale),
+        const SkillFileDrift(
+          path: settingsFilePath,
+          kind: SkillFileDriftKind.settingsStale,
+        ),
       ]);
       expect(plan.writes.single.before, isNotNull);
       expect(plan.writeSet, {settingsFilePath});
@@ -964,7 +972,10 @@ void main() {
       expect(plan.malformedSettings.single.failure, isNotEmpty);
       expect(plan.writes, isEmpty);
       expect(skillAndAgentFileDrifts(_inputs(base)), [
-        (path: settingsFilePath, kind: SkillFileDriftKind.settingsMalformed),
+        const SkillFileDrift(
+          path: settingsFilePath,
+          kind: SkillFileDriftKind.settingsMalformed,
+        ),
       ]);
     });
 
