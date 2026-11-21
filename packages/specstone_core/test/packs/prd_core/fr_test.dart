@@ -201,8 +201,12 @@ void main() {
     for (final place in _places) {
       test('${place.section} flags each trace form and passes the links the '
           'story rules and other FRs take', () async {
+        final forms = [
+          ..._traceHits,
+          if (place.flagsCodeSpanId) _codeSpanIdHit,
+        ];
         final hits = await bannedLines(
-          place.put([for (final form in _traceHits) place.line(form)]),
+          place.put([for (final form in forms) place.line(form)]),
           check.loginFr,
           'trace_outside_field',
         );
@@ -212,10 +216,34 @@ void main() {
           'trace_outside_field',
         );
 
-        expect(hits, [for (final form in _traceHits) place.line(form)]);
+        expect(hits, [for (final form in forms) place.line(form)]);
         expect(passes, isEmpty);
       });
     }
+
+    test(
+      'an edge case quoting a scenario ID as a code span value is no trace',
+      () async {
+        const values = [
+          '1. E01 — A move of `shop/cart#S2` under another story → the link stays.',
+          '2. E02 — Two entries `S6` and `S06` naming one block → one finding.',
+          '3. E03 — A step holding `traced_from: [S1, shop/cart#S3]` → it is listed.',
+        ];
+        const traced =
+            '4. E04 — A value `S2` is kept, though prose cites (S2) → refused.';
+
+        final found = await bannedLines(
+          check.fr(
+            '1. E01 — An empty password → refused.',
+            [...values, traced].join('\n'),
+          ),
+          check.loginFr,
+          'trace_outside_field',
+        );
+
+        expect(found, [traced]);
+      },
+    );
 
     test('the same trace forms in an Input / Output row and in a fenced '
         'block give no finding', () async {
@@ -263,6 +291,12 @@ void main() {
           await flagged('1. E01 — A crash → the run stops, code E_RUN.'),
           isEmpty,
         );
+        for (final pointer in _exitStatusPointers) {
+          expect(await flagged(pointer), [pointer], reason: pointer);
+        }
+        for (final mention in _exitStatusMentions) {
+          expect(await flagged(mention), isEmpty, reason: mention);
+        }
         expect(await flagged(crash.replaceFirst('exit', 'Exit')), hasLength(1));
         expect(
           await flagged(
@@ -316,11 +350,15 @@ void main() {
 /// One FR section the `trace_outside_field` entry reads: how a form reads as a
 /// line of it, and the fixture FR holding those lines in it.
 final class _Place {
-  const new(this.section, this.line, this.put);
+  const new(this.section, this.line, this.put, {required this.flagsCodeSpanId});
 
   final String section;
   final String Function(String form) line;
   final Map<String, String> Function(List<String> lines) put;
+
+  /// Whether a scenario ID in a code span reads as a trace here; an edge case
+  /// quotes one as a value.
+  final bool flagsCodeSpanId;
 }
 
 final _places = [
@@ -328,23 +366,26 @@ final _places = [
     'statement',
     (form) => form,
     (lines) => check.fr(check.checkPasswordStatement, lines.join('\n')),
+    flagsCodeSpanId: true,
   ),
   _Place(
     'edge_cases',
     (form) => '1. E01 — $form → refused.',
     (lines) =>
         check.fr('1. E01 — An empty password → refused.', lines.join('\n')),
+    flagsCodeSpanId: false,
   ),
   _Place(
     'rationale',
     (form) => form,
     (lines) => check.fr('A wrong password must not sign in.', lines.join('\n')),
+    flagsCodeSpanId: true,
   ),
 ];
 
 /// The forms of a scenario trace outside `traced_from`.
 const _traceHits = <String>[
-  'A wrong password is refused, as `S2` states.',
+  'A wrong password is refused (S2).',
   'It traces Scenario 2.',
   'It traces Scenarios 2 and 3.',
   'Traces from [Scenario 2](USER_STORY.md#scenario-2--wrong-password).',
@@ -353,12 +394,30 @@ const _traceHits = <String>[
   'A wrong password is refused ([Scenario 2](USER_STORY.md#scenario-2)).',
 ];
 
+/// A scenario ID in a code span, a trace in a Statement or the Rationale.
+const _codeSpanIdHit = 'A wrong password is refused, as `S2` states.';
+
 /// The links and words that name no scenario.
 const _tracePasses = <String>[
   'It follows [BR-02](USER_STORY.md#rules).',
   'It extends [Lock the account](fr02_lock_account.md#edge-cases).',
   'A scenario with a wrong password is refused.',
   'The system shall report which story a requirement traces from.',
+  'A step that names Scenario 9 of a five-scenario story gives no block.',
+];
+
+/// Edge case lines that lean on another FR's exit status.
+const _exitStatusPointers = <String>[
+  '1. E01 — A lock held too long → as the exit status row of another FR gives.',
+  '1. E01 — A fault → no finding line ([exit status](fr02_other.md#output)).',
+];
+
+/// Edge case lines that mention an exit status and give none.
+const _exitStatusMentions = <String>[
+  '1. E01 — An error case → it states no exit status, since the catalog does.',
+  '1. E01 — A saved file → the caller acts on the exit status.',
+  '1. E01 — A trim → it cuts a message text and an exit status.',
+  '1. E01 — A run → the shim passes on the exit status of the program.',
 ];
 
 /// The edge case lines of the description, in the order it states them.

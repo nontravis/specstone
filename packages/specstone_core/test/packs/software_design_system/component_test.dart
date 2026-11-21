@@ -230,28 +230,30 @@ void main() {
       expect(lines, isEmpty);
     });
 
-    test('a Prop, Description, Type table flags its type column, since the '
-        'guide names the second column', () async {
-      final lines = await flaggedProps(
-        '## Props\n\n| Prop | Description | Type |\n|---|---|---|\n'
-        '| label | the caption | text |\n',
-      );
-      expect(lines, [
-        '| Prop | Description | Type |',
-        '| label | the caption | text |',
-      ]);
-      final component = prdCoreDocType(
-        await resolveSoftwareDesignSystem(),
-        'component',
-      );
-      expect(
-        component.renderGuide(),
-        contains(
-          'Write one row per prop, its type one of `text`, `number`, '
-          '`boolean`, `choice`, and `on-tap` in the second column.',
-        ),
-      );
-    });
+    test(
+      'a table with Type in the third column flags its second cell',
+      () async {
+        final lines = await flaggedProps(
+          '## Props\n\n| Prop | Description | Type |\n|---|---|---|\n'
+          '| label | the caption | text |\n',
+        );
+        expect(lines, [
+          '| Prop | Description | Type |',
+          '| label | the caption | text |',
+        ]);
+        final component = prdCoreDocType(
+          await resolveSoftwareDesignSystem(),
+          'component',
+        );
+        expect(
+          component.renderGuide(),
+          contains(
+            'Write one row per prop, its type one of `text`, `number`, '
+            '`boolean`, `choice`, and `on-tap` in the second column.',
+          ),
+        );
+      },
+    );
 
     test('the message reads the guide line', () async {
       final component = prdCoreDocType(
