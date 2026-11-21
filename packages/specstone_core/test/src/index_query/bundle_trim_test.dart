@@ -19,8 +19,7 @@ void main() {
         answerContext(
           index,
           pickBundle(index, [target], mode, noProject: false),
-          label: target,
-          byCode: false,
+          targets: [target],
         ).text;
 
     Future<DocIndex> recordWith(String rows) => indexWith({

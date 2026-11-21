@@ -115,8 +115,7 @@ ContextAnswer _answerOf(DocIndex index, String name, {required bool summary}) =>
         noProject: false,
         summary: summary,
       ),
-      label: name,
-      byCode: false,
+      targets: [name],
       split: true,
     );
 

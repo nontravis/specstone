@@ -137,8 +137,7 @@ void main() {
         BundleMode.implement,
         noProject: false,
       ),
-      label: 'grounding_cost',
-      byCode: false,
+      targets: ['grounding_cost'],
     ).text;
     expect(text, contains('## Scope'));
     expect(text, isNot(contains('## Open causes')));

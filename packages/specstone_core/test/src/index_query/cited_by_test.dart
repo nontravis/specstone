@@ -253,8 +253,7 @@ void main() {
       final a = answerContext(
         i,
         pickBundle(i, [_frName], BundleMode.design, noProject: false),
-        label: _frName,
-        byCode: false,
+        targets: [_frName],
       );
 
       const head = '==> glossary (glossary) · prds/GLOSSARY.md <==\n';
@@ -502,8 +501,7 @@ void main() {
     ContextAnswer design(DocIndex index) => answerContext(
       index,
       pickBundle(index, [_frName], BundleMode.design, noProject: false),
-      label: _frName,
-      byCode: false,
+      targets: [_frName],
     );
 
     List<Map<String, Object?>> docsOf(ContextAnswer answer) =>
@@ -775,8 +773,7 @@ void main() {
       return answerContext(
         i,
         pickBundle(i, [_frName], BundleMode.design, noProject: false),
-        label: _frName,
-        byCode: false,
+        targets: [_frName],
         split: true,
       );
     }
@@ -810,8 +807,7 @@ void main() {
       final a = answerContext(
         i,
         pickBundle(i, [_frName], BundleMode.design, noProject: false),
-        label: _frName,
-        byCode: false,
+        targets: [_frName],
       );
 
       expect(a.text, contains('$edge\n$citedLine\n'));

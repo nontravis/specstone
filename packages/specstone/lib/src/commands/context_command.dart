@@ -191,11 +191,10 @@ class ContextCommand extends SpecstoneCommand {
             '${codePath.target.name}, not $given',
           );
         }
-        final answer = answerContext(
+        final answer = answerCodeContext(
           session.index,
           pickCodeBundle(session.index, codePath, mode, noProject: noProject),
           label: codePath.label,
-          byCode: true,
           budget: budget,
           split: splits,
         );
@@ -213,8 +212,6 @@ class ContextCommand extends SpecstoneCommand {
           summary: summary,
           codeTarget: targetOf(args),
         ),
-        label: rest.join(' '),
-        byCode: false,
         targets: rest,
         budget: budget,
         split: splits,

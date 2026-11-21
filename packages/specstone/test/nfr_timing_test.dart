@@ -187,8 +187,7 @@ void main() {
         BundleMode.implement,
         noProject: false,
       ),
-      label: 'feature_1/story_1',
-      byCode: false,
+      targets: ['feature_1/story_1'],
     );
     session.close();
     // ignore: avoid_print, the gate reports the in-process call so a slow run shows where the time went.

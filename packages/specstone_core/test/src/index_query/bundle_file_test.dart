@@ -1022,8 +1022,7 @@ void main() {
             BundleMode.implement,
             noProject: false,
           ),
-          label: 'login/email_login',
-          byCode: false,
+          targets: ['login/email_login'],
         );
         expectPlaced(answer);
         final feature = answer.entries.singleWhere(
@@ -1068,8 +1067,7 @@ void main() {
             noProject: false,
             summary: true,
           ),
-          label: 'login',
-          byCode: false,
+          targets: ['login'],
         );
         expectPlaced(answer);
         expectIndexLine(
@@ -1094,8 +1092,7 @@ void main() {
           BundleMode.implement,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
       );
       expectPlaced(answer);
       expectIndexLine(
@@ -1120,8 +1117,7 @@ void main() {
       final answer = answerContext(
         index,
         pickBundle(index, ['project'], BundleMode.implement, noProject: false),
-        label: 'project',
-        byCode: false,
+        targets: ['project'],
       );
       expectPlaced(answer);
       expectIndexLine(
@@ -1145,8 +1141,7 @@ void main() {
           BundleMode.implement,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
         budget: 1,
       );
       expect(answer.exitStatus, 1);
@@ -1181,8 +1176,7 @@ void main() {
           BundleMode.design,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
         split: split,
       );
     }
@@ -1229,8 +1223,7 @@ void main() {
             BundleMode.design,
             noProject: false,
           ),
-          label: 'login/email_login',
-          byCode: false,
+          targets: ['login/email_login'],
           split: true,
         );
         final lines = bundleIndex(
@@ -1339,11 +1332,10 @@ void main() {
         noProject: false,
       );
 
-      final answer = answerContext(
+      final answer = answerCodeContext(
         session.index,
         bundle,
         label: path,
-        byCode: true,
         split: true,
       );
 
@@ -1416,8 +1408,7 @@ void main() {
           BundleMode.design,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
         split: true,
       );
     }
@@ -1518,8 +1509,7 @@ void main() {
           BundleMode.implement,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
       );
       expect(
         () => answerBundleFile(
@@ -1556,8 +1546,7 @@ void main() {
         BundleMode.implement,
         noProject: false,
       ),
-      label: 'login/email_login',
-      byCode: false,
+      targets: ['login/email_login'],
       split: true,
     );
 
@@ -1742,8 +1731,7 @@ void main() {
     }) => answerContext(
       index,
       pickBundle(index, ['login/email_login'], mode, noProject: noProject),
-      label: 'login/email_login',
-      byCode: false,
+      targets: ['login/email_login'],
       split: true,
     );
 

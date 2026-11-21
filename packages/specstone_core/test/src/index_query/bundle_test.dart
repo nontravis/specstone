@@ -1216,8 +1216,7 @@ void main() {
       final queryAnswer = answerContext(
         index,
         query,
-        label: 'feedback/toast/show',
-        byCode: false,
+        targets: ['feedback/toast/show'],
       );
       expect(
         queryAnswer.text
@@ -1236,8 +1235,7 @@ void main() {
           noProject: false,
           codeTarget: 'jaspr',
         ),
-        label: 'feedback/toast/show',
-        byCode: false,
+        targets: ['feedback/toast/show'],
       );
       expect(
         queryTargeted.text
@@ -1273,8 +1271,7 @@ void main() {
         final text = answerContext(
           index,
           query,
-          label: 'feedback/toast/show',
-          byCode: false,
+          targets: ['feedback/toast/show'],
         ).text;
         expect(text, isNot(contains('(tech_stack)')));
         expect(text, isNot(contains('TECH_STACK.md')));
@@ -1303,8 +1300,7 @@ void main() {
           BundleMode.query,
           noProject: false,
         ),
-        label: 'feedback/toast/show',
-        byCode: false,
+        targets: ['feedback/toast/show'],
       );
       expect(
         answer.text
@@ -1367,7 +1363,7 @@ void main() {
         codeTarget: 'jaspr',
       );
       expect(b.nameListTops, {'prds/features/f02_feedback/FEATURE.md'});
-      final answer = answerContext(index, b, label: 'feedback', byCode: false);
+      final answer = answerContext(index, b, targets: ['feedback']);
       expect(
         answer.text
             .split('\n')
@@ -1435,12 +1431,7 @@ void main() {
         noProject: false,
         codeTarget: 'jaspr',
       );
-      final answer = answerContext(
-        index,
-        b,
-        label: 'feedback/toast/show',
-        byCode: false,
-      );
+      final answer = answerContext(index, b, targets: ['feedback/toast/show']);
       expect(
         answer.text
             .split('\n')
@@ -1468,8 +1459,7 @@ void main() {
           noProject: false,
           codeTarget: 'flutter',
         ),
-        label: 'feedback/toast/show',
-        byCode: false,
+        targets: ['feedback/toast/show'],
         budget: 1,
       );
       final jasprAnswer = answerContext(
@@ -1481,8 +1471,7 @@ void main() {
           noProject: false,
           codeTarget: 'jaspr',
         ),
-        label: 'feedback/toast/show',
-        byCode: false,
+        targets: ['feedback/toast/show'],
         budget: 1,
       );
       expect(flutterAnswer.exitStatus, 1);

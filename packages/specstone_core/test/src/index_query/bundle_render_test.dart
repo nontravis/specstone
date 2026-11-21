@@ -168,8 +168,7 @@ void _expectReadFirstSizes(DocIndex index) {
         final answer = answerContext(
           index,
           bundle,
-          label: doc.name,
-          byCode: false,
+          targets: [doc.name],
           split: true,
         );
         expect(
@@ -194,8 +193,7 @@ void main() {
   }) => answerContext(
     i,
     pickBundle(i, [t], m, noProject: noProject),
-    label: t,
-    byCode: false,
+    targets: [t],
     budget: budget,
   );
   ReadAnswer ctx(
@@ -576,7 +574,7 @@ void main() {
       BundleMode.query,
       noProject: false,
     );
-    final a = answerContext(session.index, bundle, label: path, byCode: true);
+    final a = answerCodeContext(session.index, bundle, label: path);
     expect(a.text, isNot(contains('# Validate credentials')));
     expect(a.text, isNot(contains('# Login\n')));
   });
@@ -1421,8 +1419,7 @@ void main() {
           noProject: false,
           summary: true,
         ),
-        label: 'login',
-        byCode: false,
+        targets: ['login'],
         budget: 1,
       );
       expect(answer.exitStatus, 1);
@@ -1503,8 +1500,7 @@ void main() {
           noProject: false,
           summary: true,
         ),
-        label: 'login',
-        byCode: false,
+        targets: ['login'],
         split: true,
       );
 
@@ -1577,8 +1573,7 @@ void main() {
     }) => answerContext(
       i,
       pickBundle(i, [target], mode, noProject: noProject, summary: summary),
-      label: target,
-      byCode: false,
+      targets: [target],
       budget: budget,
     );
 
@@ -1733,8 +1728,7 @@ void main() {
           BundleMode.design,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
         split: true,
       );
 
@@ -1758,8 +1752,7 @@ void main() {
           noProject: false,
           summary: true,
         ),
-        label: 'login',
-        byCode: false,
+        targets: ['login'],
         split: true,
       );
 
@@ -1819,8 +1812,7 @@ void main() {
           BundleMode.design,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
         split: true,
       );
       final index = bundleIndex(a, '/p/b.txt', refsPath: '/p/b.refs.txt');
@@ -1896,7 +1888,7 @@ void main() {
       final session = openSession(project);
       addTearDown(session.close);
       const path = '$shared/form.dart';
-      final a = answerContext(
+      final a = answerCodeContext(
         session.index,
         pickCodeBundle(
           session.index,
@@ -1912,7 +1904,6 @@ void main() {
           noProject: false,
         ),
         label: path,
-        byCode: true,
       );
 
       expect(
@@ -2248,8 +2239,7 @@ void main() {
     }) => answerContext(
       i,
       pickBundle(i, [target], mode, noProject: noProject, summary: summary),
-      label: target,
-      byCode: false,
+      targets: [target],
       split: true,
     );
     String beforeClosing(String text) =>
@@ -2535,7 +2525,7 @@ void main() {
       () async {
         final session = openSession(await writeTwinProject());
         addTearDown(session.close);
-        final a = answerContext(
+        final a = answerCodeContext(
           session.index,
           pickBundle(
             session.index,
@@ -2545,7 +2535,6 @@ void main() {
             codeTarget: 'jaspr',
           ),
           label: 'jaspr_ws/login.dart',
-          byCode: true,
           split: true,
         );
 
@@ -2678,8 +2667,7 @@ void main() {
           BundleMode.design,
           noProject: false,
         ),
-        label: 'shop/cart/add_item',
-        byCode: false,
+        targets: ['shop/cart/add_item'],
         split: split,
       );
       const citedLine = '  · cited by guide (topic) — #purpose';
@@ -2714,8 +2702,7 @@ void main() {
           BundleMode.design,
           noProject: false,
         ),
-        label: 'shop/cart/add_item',
-        byCode: false,
+        targets: ['shop/cart/add_item'],
       );
 
       expect(a.text, _shopDesignUnsplit);
@@ -3096,8 +3083,7 @@ void main() {
         final a = answerContext(
           i,
           pickBundle(i, [target], BundleMode.design, noProject: false),
-          label: target,
-          byCode: false,
+          targets: [target],
         );
 
         for (final doc in ['api', 'architecture', 'domain']) {
@@ -3150,13 +3136,7 @@ void main() {
             BundleMode.design,
             noProject: false,
           );
-          final a = answerContext(
-            i,
-            bundle,
-            label: target,
-            byCode: false,
-            split: true,
-          );
+          final a = answerContext(i, bundle, targets: [target], split: true);
 
           expect(a.text, contains('· cites <=='));
           expect(a.text, contains('· cited <=='));
@@ -3225,8 +3205,7 @@ void main() {
           final a = answerContext(
             i,
             pickBundle(i, [target], BundleMode.design, noProject: false),
-            label: target,
-            byCode: false,
+            targets: [target],
             split: split,
           );
           return [for (final d in a.json['docs']! as List) (d as Map)['item']]
@@ -3250,13 +3229,7 @@ void main() {
           ..addTarget(i, i.at(shopFeature)!, marksSpecs: true)
           ..addTarget(i, i.resolve(target).single, marksSpecs: true)
           ..join(i, noProject: false);
-        final a = answerContext(
-          i,
-          bundle,
-          label: target,
-          byCode: false,
-          split: true,
-        );
+        final a = answerContext(i, bundle, targets: [target], split: true);
 
         const whole = '==> shop (domain) · $shopDomain <==\n';
         expect(a.text, contains(whole));
@@ -3987,8 +3960,7 @@ void main() {
           final a = answerContext(
             i,
             pickBundle(i, [target], BundleMode.design, noProject: false),
-            label: target,
-            byCode: false,
+            targets: [target],
           );
 
           expect(
@@ -4108,8 +4080,7 @@ void main() {
           BundleMode.query,
           noProject: false,
         ),
-        label: 'implementation:login',
-        byCode: false,
+        targets: ['implementation:login'],
       );
 
       for (final row in [validateRow, lockRow, resetRow]) {
@@ -4149,13 +4120,7 @@ void main() {
         ('login/email_login', BundleMode.implement),
       ]) {
         final bundle = pickBundle(i, [target], mode, noProject: false);
-        final fresh = answerContext(
-          i,
-          bundle,
-          label: target,
-          byCode: false,
-          split: true,
-        );
+        final fresh = answerContext(i, bundle, targets: [target], split: true);
 
         expect(
           readFirstTokensOf(i, bundle),
