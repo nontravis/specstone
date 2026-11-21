@@ -615,7 +615,8 @@ void main() {
       final lines = text.out.toString().split('\n');
       expect(lines[0], '==> code target: jaspr <==');
       expect(lines[1], startsWith('==> bundle: '));
-      expect(lines[2], startsWith('- '));
+      expect(lines[2], startsWith('read whole, in '));
+      expect(lines[3], startsWith('- '));
       final file = File(
         '${project.path}/.specstone/bundles/'
         'code-jaspr_lib-lib-toast.dart.implement.txt',
@@ -1072,7 +1073,8 @@ void main() {
       expect(head.group(3), '${fileLines.length}');
       expect(head.group(4), file.resolveSymbolicLinksSync());
       final refsHeader = lines.indexWhere((line) => line.contains('.refs.txt'));
-      expect(lines.take(refsHeader).skip(1), everyElement(startsWith('- ')));
+      expect(lines[1], 'read whole, in 1 read: lines 1-${fileLines.length}');
+      expect(lines.take(refsHeader).skip(2), everyElement(startsWith('- ')));
       final storyLine = lines.singleWhere(
         (line) => line.startsWith('- $story (user_story) · '),
       );
@@ -1835,6 +1837,17 @@ void main() {
         }
       }
       expect(Directory('${nested.path}/.specstone').existsSync(), isFalse);
+    });
+
+    test('context --out prints its plan as the second stdout line', () async {
+      final project = await writeReadProject();
+      final text = await saved(project, [story, '--for', 'design', '--out']);
+      final headers = headersOf(text);
+      final lines = text.split('\n');
+      final fileLines = headers.first.group(3);
+      expect(lines.first, headers.first.group(0));
+      expect(lines[1], 'read whole, in 1 read: lines 1-$fileLines');
+      expect('read whole'.allMatches(text), hasLength(1));
     });
 
     test(

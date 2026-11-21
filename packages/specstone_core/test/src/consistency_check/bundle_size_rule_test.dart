@@ -18,7 +18,7 @@ import '../../helpers/nested_fixture.dart';
 
 /// Letters that put a story or doc over the bound by a margin of 2,000 est.
 /// tokens (characters / 4).
-const int _overBound = (bundleTokenLimit + 2000) * 4;
+const int _overBound = (readRangeTokenLimit + 2000) * 4;
 
 const _otherStory = 'prds/features/f01_login/us02_reset_password/USER_STORY.md';
 const _emptyFeature = 'prds/features/f03_empty/FEATURE.md';
@@ -177,7 +177,7 @@ void main() {
         'shop',
         summary: true,
       ).readFirst.tokens;
-      expect(actual, greaterThan(bundleTokenLimit));
+      expect(actual, greaterThan(readRangeTokenLimit));
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.bundleOverLimit);
       expect(found.single.path, shopFeature);
@@ -222,7 +222,7 @@ void main() {
     });
 
     test('exactly the bound gets none, and one more token gets one', () async {
-      final chars = await _criteriaFor(bundleTokenLimit);
+      final chars = await _criteriaFor(readRangeTokenLimit);
       final exact = openSession(
         await writeCheckProject(extra: _padded(story: chars)),
       );
@@ -236,7 +236,7 @@ void main() {
       addTearDown(over.close);
       final found = _sizeFindings(over, loginFeature).single;
       expect(found.keys['doc'], 'login/email_login');
-      expect(found.keys['actual'], bundleTokenLimit + 1);
+      expect(found.keys['actual'], readRangeTokenLimit + 1);
     });
 
     test('the size equals the context --out header', () async {
@@ -326,10 +326,10 @@ void main() {
         found.keys['actual'],
         _headerSizeOf(session, project, 'shop/cart/add_item', summary: false),
       );
-      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      expect(found.keys['actual'], greaterThan(readRangeTokenLimit));
       expect(
         _answerOf(session.index, 'shop/cart', summary: true).readFirst.tokens,
-        lessThanOrEqualTo(bundleTokenLimit),
+        lessThanOrEqualTo(readRangeTokenLimit),
       );
     });
 
@@ -349,7 +349,7 @@ void main() {
         found.keys['actual'],
         _headerSizeOf(session, project, 'shop/cart', summary: true),
       );
-      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      expect(found.keys['actual'], greaterThan(readRangeTokenLimit));
       expect(found.keys['actual'], lessThan(_overBound));
     });
 
@@ -398,7 +398,7 @@ void main() {
           _headerSizeOf(session, project, 'shop/cart/add_item', summary: false),
           reason: name,
         );
-        expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+        expect(found.keys['actual'], greaterThan(readRangeTokenLimit));
       }
       final fix = _sizeFix.split('## A bundle over its limit').last;
       expect(
@@ -434,7 +434,7 @@ void main() {
         'limit': 24000,
         'actual': _headerSizeOf(session, project, 'shop', summary: true),
       });
-      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      expect(found.keys['actual'], greaterThan(readRangeTokenLimit));
       final fix = _sizeFix.split('## A bundle over its limit').last;
       expect(
         fix,
@@ -481,7 +481,7 @@ void main() {
         'limit': 24000,
         'actual': actual,
       });
-      expect(actual, greaterThan(bundleTokenLimit));
+      expect(actual, greaterThan(readRangeTokenLimit));
       final fix = _sizeFix.split('## A bundle over its limit').last;
       expect(
         fix,
@@ -521,7 +521,7 @@ void main() {
         found.keys['actual'],
         _headerSizeOf(session, project, 'shop/cart/express', summary: true),
       );
-      expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+      expect(found.keys['actual'], greaterThan(readRangeTokenLimit));
       expect(
         session.index.childrenOf(session.index.at(express)!),
         hasLength(1),
@@ -556,7 +556,7 @@ void main() {
           session.index.childrenOf(cart).where(session.index.isChainDoc),
           hasLength(3),
         );
-        expect(found.keys['actual'], greaterThan(bundleTokenLimit));
+        expect(found.keys['actual'], greaterThan(readRangeTokenLimit));
         final fix = _sizeFix.split('## A bundle over its limit').last;
         expect(fix, contains('whose children are fewer than 4 stories'));
       },

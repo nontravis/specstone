@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
+import 'package:specstone_core/src/doc_model/doc.dart' show fencedLines;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
@@ -11,6 +12,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show tokenSizeOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/bundle_text.dart';
+import 'package:specstone_core/src/index_query/models/read_plan.dart';
 import 'package:specstone_core/src/index_query/out_file.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
@@ -39,6 +41,18 @@ const _refsMark = '.refs';
 const _cutNameByteCap = 250;
 
 const _refsIsReadFirst = 'the refs file is the read-first file';
+
+/// The most est. tokens one read of a read-first file holds.
+///
+/// Est. tokens are characters / 4. One Read counted a file of about 64,100 est.
+/// tokens at 63,968 tokens, so 24,000 stays about 4% under the 25,000-token cap
+/// of a Read.
+const readRangeTokenLimit = 24000;
+
+/// The code points an est. token counts, the divisor of [tokenSizeOf].
+const _runesPerToken = 4;
+
+const _headingMark = '## ';
 
 // MARK: - Name
 
@@ -169,7 +183,7 @@ ReadAnswer answerBundleFile(
   return ReadAnswer(
     text: bundleIndex(answer, shownPath, refsPath: refsPath),
     json: bundleIndexJson(answer, shownPath, refsPath: refsPath),
-    warnings: answer.warnings,
+    warnings: [...answer.warnings, ..._overLimitWarnings(answer, shownPath)],
   );
 }
 
@@ -234,6 +248,138 @@ BundleEntry _shifted(BundleEntry entry, int lines) => BundleEntry(
   ],
 );
 
+// MARK: - Read plan
+
+/// Returns the reads that take [readFirst] whole, each within
+/// [readRangeTokenLimit] est. tokens, contiguous from line 1 to its last line.
+///
+/// A range ends on the line before an entry's first line, the last one that
+/// keeps it within the limit. A part too large from the range's start ends it
+/// before the part's last `## ` heading that fits and lies outside fenced code,
+/// else on its last fitting line. A line over the limit is a range alone and
+/// joins [ReadPlan.overLimitLines].
+ReadPlan readPlanOf(BundleText readFirst) => _RangeCutter(readFirst).plan();
+
+/// Cuts one file's lines into reads; sizes come from prefix sums, so a plan
+/// costs one pass over the lines.
+final class _RangeCutter {
+  new(BundleText file)
+    : _lines = const LineSplitter().convert(file.text),
+      _starts = ({for (final entry in file.entries) entry.first}.toList()
+        ..sort()) {
+    var runes = 0;
+    for (final line in _lines) {
+      runes += line.runes.length;
+      _runesThrough.add(runes);
+    }
+  }
+
+  final List<String> _lines;
+  final List<int> _starts;
+  final List<int> _runesThrough = [0];
+
+  int get _total => _lines.length;
+
+  /// Est. tokens of lines [first] to [last] joined by line feeds, as
+  /// [tokenSizeOf] counts the joined text.
+  int _tokens(int first, int last) {
+    final runes = _runesThrough[last] - _runesThrough[first - 1];
+    return (runes + last - first) ~/ _runesPerToken;
+  }
+
+  bool _fits(int first, int last) =>
+      _tokens(first, last) <= readRangeTokenLimit;
+
+  ReadPlan plan() {
+    final ranges = <ReadRange>[];
+    final overLimitLines = <int>[];
+    var start = 1;
+    while (start <= _total) {
+      final end = _endFrom(start);
+      if (end == start && !_fits(start, start)) overLimitLines.add(start);
+      ranges.add(ReadRange(first: start, last: end));
+      start = end + 1;
+    }
+    return ReadPlan(ranges: ranges, overLimitLines: overLimitLines);
+  }
+
+  int _endFrom(int start) {
+    if (_fits(start, _total)) return _total;
+    return _lastEntryEnd(start) ?? _cutInsidePart(start);
+  }
+
+  /// The line before the last entry start that keeps the range from [start]
+  /// within the limit; null when none does.
+  int? _lastEntryEnd(int start) {
+    int? end;
+    for (final entryStart in _starts) {
+      if (entryStart <= start) continue;
+      if (!_fits(start, entryStart - 1)) break;
+      end = entryStart - 1;
+    }
+    return end;
+  }
+
+  /// The end of a range from [start] cut inside its part: before the last
+  /// fitting `## ` heading outside fenced code, else on the last fitting line,
+  /// else [start] alone.
+  int _cutInsidePart(int start) {
+    final isFenced = _fencedInPartOf(start);
+    var lastFit = start;
+    int? beforeHeading;
+    for (var line = start + 1; line <= _total; line++) {
+      if (!_fits(start, line - 1)) break;
+      lastFit = line - 1;
+      if (_lines[line - 1].startsWith(_headingMark) && !isFenced(line)) {
+        beforeHeading = line - 1;
+      }
+    }
+    return beforeHeading ?? lastFit;
+  }
+
+  /// Returns whether a line of the part that holds [line] is fenced code, the
+  /// fences read from the part's own first line.
+  bool Function(int line) _fencedInPartOf(int line) {
+    final first = _starts.lastWhere((s) => s <= line, orElse: () => 1);
+    final next = _starts.firstWhere((s) => s > line, orElse: () => _total + 1);
+    final fenced = fencedLines(_lines.sublist(first - 1, next - 1));
+    return (number) => fenced[number - first];
+  }
+}
+
+/// Returns the plan line: `read whole, in <n> read(s): lines <a>-<b>, …`.
+String _readPlanLine(ReadPlan plan) {
+  final count = plan.ranges.length;
+  final ranges = [
+    for (final range in plan.ranges) 'lines ${range.first}-${range.last}',
+  ].join(', ');
+  return 'read whole, in $count ${count == 1 ? 'read' : 'reads'}: $ranges';
+}
+
+/// Whether [answer] gives its read-first file a read plan: `implement` and
+/// `design` do; `query` and an answer with no mode do not.
+bool _hasReadPlan(ContextAnswer answer) => switch (answer.json['for']) {
+  final String mode =>
+    mode == BundleMode.implement.wire || mode == BundleMode.design.wire,
+  _ => false,
+};
+
+/// Returns one warning per line of the read-first file over one read.
+List<String> _overLimitWarnings(ContextAnswer answer, String path) {
+  if (!_hasReadPlan(answer)) return const [];
+  final lines = const LineSplitter().convert(answer.text);
+  String warningOf(int number) {
+    final tokens = tokenSizeOf(lines[number - 1]);
+    return '⚠️ WARNING: line $number of $path holds $tokens est. tokens, '
+        'more than one read holds';
+  }
+
+  return [
+    for (final number in readPlanOf(answer.readFirst).overLimitLines)
+      warningOf(number),
+  ];
+}
+
 // MARK: - Index
 
 /// Returns the stdout index of [answer]'s bundle saved at [shownPath] and, for
@@ -242,20 +388,30 @@ BundleEntry _shifted(BundleEntry entry, int lines) => BundleEntry(
 /// It prints the code target line when the answer has one, then per file, the
 /// read-first file's first, a header line and one line per doc, appended
 /// part, cited-by part, names block, and feature pattern part with its line
-/// range in that file. An `implement` answer prints the refs file's header
-/// line alone, its index heading the refs file. Each line lists its sections'
-/// first lines while the counted index stays within 200 lines and 8 KiB, header
-/// lines and the code target line counted with it, both files' for `design`
-/// and the read-first file's for `implement`; past either bound no line lists
-/// a section, and every doc still prints.
+/// range in that file. The read-first header is followed by the read plan line
+/// of an `implement` or `design` answer. An `implement` answer prints the refs
+/// file's header line alone, its index heading the refs file. Each line lists
+/// its sections' first lines while the counted index stays within 200 lines and
+/// 8 KiB, header lines, the read plan line, and the code target line counted
+/// with it, both files' for `design` and the read-first file's for
+/// `implement`; past either bound no line lists a section, and every doc still
+/// prints.
 String bundleIndex(ContextAnswer answer, String shownPath, {String? refsPath}) {
   final files = _filesOf(answer, shownPath, refsPath);
   final isImplement = answer.json['for'] == BundleMode.implement.wire;
+  final planLine = _hasReadPlan(answer)
+      ? '${_readPlanLine(readPlanOf(answer.readFirst))}\n'
+      : '';
   String index({required bool withSections, bool forCap = false}) => [
     codeTargetLine(answer.codeTarget),
     for (final (i, saved) in files.indexed)
       if (i == 0 || !isImplement)
-        _fileIndex(saved.file, saved.path, withSections: withSections)
+        _fileIndex(
+          saved.file,
+          saved.path,
+          withSections: withSections,
+          plan: i == 0 ? planLine : '',
+        )
       else if (!forCap)
         _fileHeader(saved.file, saved.path),
   ].join();
@@ -270,12 +426,13 @@ String bundleIndex(ContextAnswer answer, String shownPath, {String? refsPath}) {
 /// [shownPath], with its `codeTarget` when it has one; each doc lists its
 /// sections whatever the index's size.
 ///
-/// The object describes the read-first file. A split answer adds a `refs`
-/// object of the same shape, `{out, tokens, lines, docs}`, for the file saved
-/// at [refsPath]. A design answer also lists its feature pattern parts under
-/// `featurePatterns`, as `{id, doc, lines}`; `docs` lists no part but an
-/// appended one or an ancestor spec piece, whose entry has `cited: false` and
-/// `cites: true` when inbound.
+/// The object describes the read-first file; an `implement` or `design` answer
+/// adds its `reads`, one `[first, last]` pair per read range. A split answer
+/// adds a `refs` object of the same shape, `{out, tokens, lines, docs}`, for
+/// the file saved at [refsPath]. A design answer also lists its feature pattern
+/// parts under `featurePatterns`, as `{id, doc, lines}`; `docs` lists no part
+/// but an appended one or an ancestor spec piece, whose entry has
+/// `cited: false` and `cites: true` when inbound.
 Map<String, Object> bundleIndexJson(
   ContextAnswer answer,
   String shownPath, {
@@ -284,6 +441,11 @@ Map<String, Object> bundleIndexJson(
   final [readFirst, ...refs] = _filesOf(answer, shownPath, refsPath);
   return {
     ..._fileJson(readFirst.file, readFirst.path, codeTarget: answer.codeTarget),
+    if (_hasReadPlan(answer))
+      'reads': [
+        for (final range in readPlanOf(readFirst.file).ranges)
+          [range.first, range.last],
+      ],
     if (answer.json['for'] == BundleMode.design.wire)
       'featurePatterns': [
         for (final entry in answer.entries)
@@ -324,10 +486,16 @@ final class _SavedFile {
   final String path;
 }
 
-/// Returns the header line of [file] saved at [path], then one index line per
-/// entry.
-String _fileIndex(BundleText file, String path, {required bool withSections}) =>
+/// Returns the header line of [file] saved at [path], then [plan], then one
+/// index line per entry.
+String _fileIndex(
+  BundleText file,
+  String path, {
+  required bool withSections,
+  String plan = '',
+}) =>
     _fileHeader(file, path) +
+    plan +
     [
       for (final entry in file.entries)
         _indexLine(entry, withSections: withSections),
