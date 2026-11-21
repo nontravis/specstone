@@ -35,16 +35,17 @@ type's writing guide says it needs; a gap goes to the Owner.
    Owner gave. The CLI opens none. Never edit, move, or delete the
    source.
 4. **The narrow call.** A source that adds a feature has the project doc as its target: the gate's bundle is the
-   grounding, and no second narrow call runs. Otherwise target the doc the source decides, by the skill's step 1
-   target rule.
+   grounding, and no second narrow call runs. Otherwise target the doc the source decides, by the target rule of
+   `ground.md`.
    `--no-project` leaves out the project's docs, which the gate's bundle already holds:
 
    ```
    specstone context <target> --for design --no-project --out
    ```
 
-   - **0:** both saved bundles are the grounding, whatever their size: read them per the `specstone-read-sdd`
-     skill, searching them before any `get`. Ground a doc they lack by its own
+   - **0:** both saved bundles are the grounding, whatever their size: read each read-first file whole by its read
+     plan, as the `specstone-read-sdd` skill's read-plan rule gives, and search both before any `get`. Keep each
+     read plan line with its files for `bundles`. Ground a doc they lack by its own
      `specstone context <doc> --for design --out`, never `get`.
    - **Any other exit:** report the CLI's error and stop.
 5. **Match and ask.** Match each item by the shapes above. Ask the Owner only what the source leaves open, one
