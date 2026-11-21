@@ -49,12 +49,12 @@ The parts the `fr` guide's item shape line names for a skill or agent are its co
 what it reports, its limits, and what it may write. An audit restores a removed contract part no other doc states, and
 never a removed step.
 
-In a Behavior diagram, keep only the contract nodes, each stating a part the `fr` guide's item shape line names for a
-skill or agent. Join each removed node's in-edges to its out-edges, and drop from a joined edge the labels of a
-removed decision node. In an Interaction sequence diagram, keep only the contract messages: a question to the Owner,
-a dispatch's inputs, a report, a CLI write call with its flags, or a limit. Drop a CLI read call unless it states a
-limit, such as one call with no `--budget`. Drop a read or a step order between the plugin's own parts. A diagram
-trim that leaves no node or message deletes the diagram's optional section.
+In a Behavior diagram, keep only the contract nodes, each stating a contract part. Join each removed node's in-edges
+to its out-edges, and drop from a joined edge the labels of a removed decision node. In an Interaction sequence
+diagram, keep only the contract messages: a question to the Owner, a dispatch's inputs, a report, a CLI write call
+with its flags, or a limit. Drop a CLI read call unless it states a limit, such as one call with no `--budget`. Drop a
+read or a step order between the plugin's own parts. A diagram trim that leaves no node or message deletes the
+diagram's optional section.
 
 ## A PRD batch
 

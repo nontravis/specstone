@@ -2080,14 +2080,14 @@ void _trimReferenceTests() {
         'move them nowhere',
         "skill's or agent's own files",
       ],
-      ['only steps', '`kept: top ID`'],
+      ['Delete an item', 'only steps', '`kept: top ID`'],
       [
         'Components row',
         'Responsibility',
         "component's role",
         'never delete the row',
       ],
-      ['Behavior diagram', 'contract nodes', '`fr` guide', 'skill or agent'],
+      ['Behavior diagram', 'contract nodes', 'contract part'],
       ['in-edges', 'out-edges', 'labels', 'decision node'],
       [
         'Interaction sequence diagram',
