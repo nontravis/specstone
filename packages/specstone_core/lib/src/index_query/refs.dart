@@ -293,20 +293,6 @@ Iterable<IndexedDoc> _carrying(
   }
 }
 
-/// Returns the docs of type [typeId] that a `doc_ref` value of [doc] names,
-/// through the fields whose doc types list [typeId], in field order.
-List<IndexedDoc> referencedDocsOf(
-  DocIndex index,
-  IndexedDoc doc,
-  String typeId,
-) => [
-  for (final field in _docRefFields(index, doc))
-    if (field.docTypes?.contains(typeId) ?? false)
-      for (final value in doc.valuesOf(field.id))
-        for (final named in _carrying(index, field, value))
-          if (named.docTypeId == typeId) named,
-];
-
 /// Returns the docs each `bundle_with` field of [holder] names, in field
 /// order, each once.
 ///

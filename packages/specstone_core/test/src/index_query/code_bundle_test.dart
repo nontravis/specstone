@@ -856,21 +856,31 @@ void main() {
       expect(bundle.docPaths, contains(agentDoc));
       expect(bundle.docPaths, isNot(contains(skillDoc)));
     });
-    test('a skill doc that names a feature brings that feature doc', () async {
-      final skill = skillDocFile(['.claude/skills/review/']);
-      final agent = agentDocFile(['.claude/skills/review/']);
+
+    /// A skill doc over [covers] and an agent doc over [agentCovers], each
+    /// naming the login feature.
+    Map<String, String> featureNaming(
+      List<String> covers, {
+      List<String> agentCovers = const ['.claude/skills/review/'],
+    }) {
+      final skill = skillDocFile(covers);
+      final agent = agentDocFile(agentCovers);
+      return {
+        'docs/$skillDoc': skill['docs/$skillDoc']!.replaceFirst(
+          'covers:',
+          'feature: login\ncovers:',
+        ),
+        'docs/$agentDoc': agent['docs/$agentDoc']!.replaceFirst(
+          'covers:',
+          'feature: login\ncovers:',
+        ),
+        skillFile: skillText,
+      };
+    }
+
+    test('a skill doc match joins the feature its bundle_with field names, in every mode', () async {
       final project = await openSkillProject(
-        files: {
-          'docs/$skillDoc': skill['docs/$skillDoc']!.replaceFirst(
-            'covers:',
-            'feature: login\ncovers:',
-          ),
-          'docs/$agentDoc': agent['docs/$agentDoc']!.replaceFirst(
-            'covers:',
-            'feature: login\ncovers:',
-          ),
-          skillFile: skillText,
-        },
+        files: featureNaming(['.claude/skills/review/']),
       );
 
       for (final mode in BundleMode.values) {
@@ -878,10 +888,102 @@ void main() {
 
         expect(
           bundle.docPaths,
-          containsAll([skillDoc, agentDoc, featureDoc]),
+          containsAll([skillDoc, agentDoc]),
+          reason: '$mode',
+        );
+        expect(bundle.docPaths, isNot(contains(featureDoc)), reason: '$mode');
+        expect(bundle.linkedDocs.keys, [featureDoc], reason: '$mode');
+        expect(
+          bundle.linkedDocs[featureDoc]!.direction,
+          JoinDirection.outward,
           reason: '$mode',
         );
       }
+    });
+    test('the joined feature of a code match in design', () async {
+      final project = await openSkillProject(
+        files: featureNaming(['.claude/skills/review/']),
+      );
+
+      final bundle = project.pick(skillFile, mode: BundleMode.design);
+
+      expect(bundle.linkedDocs.keys, [featureDoc]);
+      expect(
+        bundle.docPaths,
+        isNot(contains('$f/us01_email_login/USER_STORY.md')),
+      );
+      expect(bundle.patternListerPaths, contains(featureDoc));
+    });
+    test(
+      'a design code bundle joins holders inward from each matched feature',
+      () async {
+        final project = await openSkillProject(
+          files: featureNaming(['.claude/skills/review/']),
+        );
+
+        final bundle = project.pick(
+          'app/lib/src/login/credential_validator.dart',
+          mode: BundleMode.design,
+        );
+
+        expect(bundle.docPaths, contains(featureDoc));
+        expect(bundle.linkedDocs.keys, containsAll([skillDoc, agentDoc]));
+        expect(bundle.linkedDocs[skillDoc]!.direction, JoinDirection.inward);
+        expect(bundle.linkedDocs[skillDoc]!.anchorPath, featureDoc);
+        expect(bundle.patternListerPaths, containsAll([skillDoc, agentDoc]));
+
+        final implement = project.pick(
+          'app/lib/src/login/credential_validator.dart',
+        );
+        expect(implement.linkedDocs, isEmpty);
+      },
+    );
+    test('a spec-matched feature that a skill doc also names', () async {
+      final project = await openSkillProject(
+        files: featureNaming(
+          ['app/lib/src/login/'],
+          agentCovers: ['elsewhere/'],
+        ),
+      );
+
+      for (final mode in BundleMode.values) {
+        final bundle = project.pick(
+          'app/lib/src/login/credential_validator.dart',
+          mode: mode,
+        );
+
+        expect(
+          bundle.docPaths,
+          containsAll([skillDoc, featureDoc]),
+          reason: '$mode',
+        );
+        expect(
+          bundle.linkedDocs.keys,
+          isNot(contains(featureDoc)),
+          reason: '$mode',
+        );
+      }
+    });
+    test('no doc type id keys the code join', () async {
+      final skill = skillDocFile(['.claude/skills/review/']);
+      final project = await openSkillProject(
+        files: {
+          '.specstone/templates/skill.yaml':
+              'id: skill\nfields:\n  - id: reviewer\n    type: doc_ref\n'
+              '    doc_types: [agent]\n    bundle_with: true\n',
+          'docs/$skillDoc': skill['docs/$skillDoc']!.replaceFirst(
+            'covers:',
+            'reviewer: reviewer\ncovers:',
+          ),
+          ...agentDocFile(['elsewhere/']),
+          skillFile: skillText,
+        },
+      );
+
+      final bundle = project.pick(skillFile);
+
+      expect(bundle.docPaths, contains(skillDoc));
+      expect(bundle.linkedDocs.keys, [agentDoc]);
     });
     test(
       'a skill doc owned by another target is bundled for the first target',

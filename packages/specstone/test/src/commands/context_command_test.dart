@@ -2846,4 +2846,34 @@ void main() {
       expect(naming[at + 1], startsWith('==> login (feature)'));
     },
   );
+  test('context --code on a shipped agent file gives the agent doc and its feature', () async {
+    final project = await writeReadProject(
+      extra: {
+        '.specstone/config.yaml': skillPinsConfig(),
+        'docs/specs/agents/reviewer.md':
+            '---\nfeature:\n  - login\ncovers:\n  - .claude/agents/reviewer.md\n---\n\n'
+            '# reviewer\n\n## Role\n\nReviews a diff.\n',
+        '.claude/agents/reviewer.md': '# Reviewer\n',
+      },
+    );
+    final run = readRunner(project);
+    expect(
+      await run.runner.run([
+        'context',
+        '--code',
+        '.claude/agents/reviewer.md',
+        '--for',
+        'implement',
+      ]),
+      0,
+      reason: run.err.toString(),
+    );
+    final naming = [
+      for (final line in run.out.toString().split('\n'))
+        if (line.startsWith('==> ') && !line.startsWith('==> bundle: ')) line,
+    ];
+    final at = naming.indexWhere((l) => l.startsWith('==> reviewer (agent)'));
+    expect(at, isNonNegative);
+    expect(naming[at + 1], startsWith('==> login (feature)'));
+  });
 }

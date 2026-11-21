@@ -207,13 +207,22 @@ final class Bundle {
 
   /// Adds [target] as [addTarget] does with specs marked, and returns what
   /// that target alone picks.
-  TargetPicks pickTarget(DocIndex index, IndexedDoc target) {
+  ///
+  /// A [forCode] pick marks no specs in this bundle and names no target doc,
+  /// so no outward join runs from it.
+  TargetPicks pickTarget(
+    DocIndex index,
+    IndexedDoc target, {
+    bool forCode = false,
+  }) {
     final own = Bundle(mode, summary: summary, codeTarget: codeTarget)
       ..addTarget(index, target, marksSpecs: true);
     docPaths.addAll(own.docPaths);
     summaryPaths.addAll(own.summaryPaths);
-    ancestorSpecPaths.addAll(own.ancestorSpecPaths);
-    targetSubtreePaths.addAll(own.targetSubtreePaths);
+    if (!forCode) {
+      ancestorSpecPaths.addAll(own.ancestorSpecPaths);
+      targetSubtreePaths.addAll(own.targetSubtreePaths);
+    }
     patternListerPaths.addAll(own.patternListerPaths);
     mapTops.addAll(own.mapTops);
     nameListTops.addAll(own.nameListTops);
@@ -226,7 +235,7 @@ final class Bundle {
       wholePaths: own.docPaths,
       summaryPaths: own.summaryPaths,
       subtreePaths: own.targetSubtreePaths,
-      targetPath: target.docPath,
+      targetPath: forCode ? null : target.docPath,
     );
   }
 

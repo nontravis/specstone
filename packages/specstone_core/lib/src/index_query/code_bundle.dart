@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:specstone_core/src/canonical_path.dart'
     show absoluteFrom, pathInside;
 import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_join.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/refs.dart' show referencedDocsOf;
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
@@ -108,7 +108,9 @@ String? _pathFrom(String root, String path) =>
 /// The spec match is the doc of [code]'s target whose `covers:` entry is the
 /// longest prefix of [code]; the traced docs are the stories and FRs whose
 /// record entries in that target name [code] or a path under it. Both need a
-/// code root that holds [code]. The project-root match joins beside them.
+/// code root that holds [code]. The project-root match joins beside them,
+/// and each doc a matched doc's `bundle_with` fields name joins by
+/// `joinLinkedDocs`.
 /// Docs of another target never join. `--no-project` drops the docs that join
 /// through `bundle:` lists; no match still joins them and warns.
 Bundle pickCodeBundle(
@@ -118,6 +120,7 @@ Bundle pickCodeBundle(
   required bool noProject,
 }) {
   final bundle = Bundle(mode, codeTarget: code.target.name);
+  final picks = <TargetPicks>[];
   final path = code.path;
   final projectPath = code.projectPath;
   final traced = path == null
@@ -135,15 +138,20 @@ Bundle pickCodeBundle(
     _addImplement(index, bundle, traced, specMatch);
   } else {
     for (final doc in [...traced, ...specMatch]) {
-      bundle.addTarget(index, index.chainOf(doc).last);
+      picks.add(
+        bundle.pickTarget(index, index.chainOf(doc).last, forCode: true),
+      );
     }
   }
-  _addProjectRootMatch(index, bundle, projectMatch);
+  bundle.docPaths.addAll([for (final doc in projectMatch) doc.docPath]);
   bundle.join(index, noProject: noProject);
+  joinLinkedDocs(index, bundle, picks);
+  joinNamedBy(index, bundle, projectMatch);
   if (mode == BundleMode.design) {
     bundle.patternListerPaths.addAll([
       ...bundle.docPaths,
       ...bundle.joinedPaths,
+      ...bundle.linkedDocs.keys,
     ]);
   }
   return bundle;
@@ -181,22 +189,6 @@ void _addImplement(
 /// entry belongs to the project root, not to a code target.
 List<IndexedDoc> projectRootMatch(DocIndex index, String projectPath) =>
     _longestCover(index, index.docs, projectPath, fromProject: true);
-
-/// Adds the [docs] a project-root match picks, and the feature docs they name
-/// through a `doc_ref` field to the `feature` doc type, in every mode.
-///
-/// The docs trace no story, so no story list follows.
-void _addProjectRootMatch(
-  DocIndex index,
-  Bundle bundle,
-  List<IndexedDoc> docs,
-) {
-  for (final doc in docs) {
-    for (final picked in [doc, ...referencedDocsOf(index, doc, featureType)]) {
-      bundle.docPaths.add(picked.docPath);
-    }
-  }
-}
 
 /// Returns [code]'s target's docs and the shared docs of [index].
 Iterable<IndexedDoc> _docsOf(DocIndex index, CodePath code) =>

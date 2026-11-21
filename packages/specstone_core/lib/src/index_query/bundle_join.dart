@@ -37,6 +37,17 @@ void joinLinkedDocs(DocIndex index, Bundle bundle, List<TargetPicks> picks) {
   }
 }
 
+/// Adds to [bundle] the docs each of [holders] names, in every mode.
+///
+/// A holder that is no target has no pick: a doc another rule makes
+/// summary moves to whole, and a joined doc joins nothing further.
+void joinNamedBy(DocIndex index, Bundle bundle, Iterable<IndexedDoc> holders) {
+  final join = _Join(index, bundle);
+  for (final holder in holders) {
+    join.namedBy(holder, const {});
+  }
+}
+
 final class _Join {
   new(this.index, this.bundle);
 
@@ -56,7 +67,7 @@ final class _Join {
         continue;
       }
       for (final holder in holdersNaming(index, named)) {
-        _admit(holder, named, JoinDirection.inward, target);
+        _admit(holder, named, JoinDirection.inward, target.summaryPaths);
       }
     }
   }
@@ -67,9 +78,14 @@ final class _Join {
       final path? => index.at(path),
       null => null,
     };
-    if (holder == null) return;
+    if (holder != null) namedBy(holder, target.summaryPaths);
+  }
+
+  /// Joins each doc [holder] names; [summaryPaths] are the docs the holder's
+  /// own target prints in summary, which stay summary.
+  void namedBy(IndexedDoc holder, Set<String> summaryPaths) {
     for (final named in linkedDocsOf(index, holder)) {
-      _admit(named, holder, JoinDirection.outward, target);
+      _admit(named, holder, JoinDirection.outward, summaryPaths);
     }
   }
 
@@ -77,7 +93,7 @@ final class _Join {
     IndexedDoc doc,
     IndexedDoc anchor,
     JoinDirection direction,
-    TargetPicks target,
+    Set<String> targetSummary,
   ) {
     final path = doc.docPath;
     if (!bundle.keepsTarget(doc) ||
@@ -86,7 +102,7 @@ final class _Join {
       return;
     }
     if (bundle.summaryPaths.contains(path)) {
-      if (!target.summaryPaths.contains(path)) bundle.docPaths.add(path);
+      if (!targetSummary.contains(path)) bundle.docPaths.add(path);
       return;
     }
     final held = bundle.linkedDocs[path];
