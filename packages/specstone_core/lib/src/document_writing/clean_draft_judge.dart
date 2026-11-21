@@ -9,6 +9,7 @@ const _styleToken = '[style]';
 const _notLandedLead = 'Not landed:';
 const _notLandedNone = 'Not landed: none';
 const _noAuditReason = 'no audit report names it';
+const _addressedLead = 'ADDRESSED:';
 
 /// Round heading, a part break of an audit file.
 final _roundHeading = RegExp(r'^## Round [0-9]+[ \t]*$');
@@ -17,8 +18,14 @@ final _roundHeading = RegExp(r'^## Round [0-9]+[ \t]*$');
 /// grammar reads the name, which must be typed.
 final _draftLine = RegExp(r'^(Audited|Styled): ([^\s@]+)@([0-9a-f]{12})$');
 
-/// A `Findings:` or `Outside the drafts:` line, with an optional first item.
-final _sectionLine = RegExp(r'^(Findings|Outside the drafts):(?:[ \t]+(.*))?$');
+/// A `Findings:`, `Outside the drafts:`, or `Outside the round:` line, with an
+/// optional first item.
+final _sectionLine = RegExp(
+  r'^(Findings|Outside the drafts|Outside the round):(?:[ \t]+(.*))?$',
+);
+
+/// A bare `Verdicts:` line; one with text after the colon is a label line.
+final _verdictsLine = RegExp(r'^Verdicts:$');
 
 /// Any label line: a capital, then letters, spaces, or `'`, then a colon.
 final _labelLine = RegExp(r"^[A-Z][A-Za-z ']*:(?: |$)");
@@ -127,6 +134,7 @@ final class AuditSequence {
       final styleItemsSkipped = part.styled.containsKey(address);
       for (final item in part.items) {
         if (styleItemsSkipped && item.isStyle) continue;
+        if (item.isAddressed) continue;
         if (name.hasMatch(item.text)) {
           return 'named in ${item.section.label} of ${part.fileName}';
         }
@@ -138,7 +146,9 @@ final class AuditSequence {
 
 enum _Section {
   findings('Findings'),
-  outsideTheDrafts('Outside the drafts');
+  outsideTheDrafts('Outside the drafts'),
+  outsideTheRound('Outside the round'),
+  verdicts('Verdicts');
 
   new(this.label);
 
@@ -146,10 +156,13 @@ enum _Section {
 }
 
 final class _Item {
-  new(this.section, this.text);
+  new(this.section, this.text, {this.isAddressed = false});
 
   final _Section section;
   String text;
+
+  /// Whether a `Verdicts:` item opens with `ADDRESSED:`; it names no finding.
+  final bool isAddressed;
 
   bool get isStyle => text.contains(_styleToken);
 }
@@ -210,7 +223,11 @@ _Part _readPart(String fileName, List<String> lines) {
   _Item? last;
 
   void addItem(String text) {
-    last = _Item(open!, text);
+    last = _Item(
+      open!,
+      text,
+      isAddressed: open == _Section.verdicts && text.startsWith(_addressedLead),
+    );
     part.items.add(last!);
   }
 
@@ -220,7 +237,7 @@ _Part _readPart(String fileName, List<String> lines) {
       if (last case final item?) {
         item.text = '${item.text}\n$line';
       } else {
-        addItem(line);
+        addItem(_dashItem.firstMatch(line)?[1] ?? line);
       }
       continue;
     }
@@ -233,12 +250,13 @@ _Part _readPart(String fileName, List<String> lines) {
       open = null;
       last = null;
     } else if (_sectionLine.firstMatch(line) case final match?) {
-      open = match[1] == _Section.findings.label
-          ? _Section.findings
-          : _Section.outsideTheDrafts;
+      open = _Section.values.firstWhere((s) => s.label == match[1]);
       last = null;
       final first = match[2];
       if (first != null && first.isNotEmpty && first != 'none') addItem(first);
+    } else if (_verdictsLine.hasMatch(line)) {
+      open = _Section.verdicts;
+      last = null;
     } else if (_labelLine.hasMatch(line) || _atxHeading.hasMatch(line)) {
       open = null;
       last = null;

@@ -3,10 +3,10 @@ Ask the Owner nothing; list gaps in the report.
 ## 1. Read
 
 - Read the design document whole; list each decision, ruling, and Docs to change row.
-- A later pass also reads the drafts list and: in a fix round, the audit's `Findings:` lines not tagged `[behavior]`
-  (`[style]` too); after an amend, untagged design-check lines naming a draft; in a fill pass, the split proposal's
-  lines, each new FR whole, the old FR's `edge_cases`. Read their sections before the first write; in steps 2 to 4,
-  write the amended design and fix them; list each outside them under `Findings:`, unfixed.
+- A later pass also reads the drafts list and: in a fix round, the audit's untagged `Findings:` lines; after an amend,
+  untagged design-check lines naming a draft; in a fill pass, the split proposal's lines, each new FR whole, the old
+  FR's `edge_cases`. Read their sections before the first write; in steps 2 to 4, write the amended design and fix
+  them; list each outside them under `Findings:`, unfixed.
 
 ## 2. Place each decision
 
@@ -49,7 +49,7 @@ trailing `/`, backticked or not, singular and plural, the short form: the key no
 
 - **First pass, or after an amend** (its decisions only): each added term, key, or literal; each superseded wording;
   each changed rule's owner item's words and every key or literal of the set the new one joins.
-- **Fix round**, or a taken finding after an amend: each taken finding's rule and terms.
+- **Fix round**, or a taken finding after an amend: each taken finding's rule and terms, the untagged lines alone.
 
 A hit stating the rule without the decision's new text is a reader. One in a draft or a row's doc: its section goes
 in a second name list, with its own `get … --out` and `set --batch`, searched and read as in section 2; link the

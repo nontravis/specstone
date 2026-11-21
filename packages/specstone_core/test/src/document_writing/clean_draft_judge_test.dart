@@ -352,6 +352,94 @@ void main() {
       ].join('\n');
       expect(_reasonForAudit(text), isNull);
     });
+
+    _reportTest('reads a NOT ADDRESSED item under Verdicts as a finding', () {
+      final text = [
+        _audited(_name, _hash),
+        'Verdicts:',
+        '- NOT ADDRESSED: $_name#statement: x',
+      ].join('\n');
+      expect(_reasonForAudit(text), _namedIn('Verdicts', 'audit1.md'));
+    });
+
+    _reportTest('reads a bare or unknown item under Verdicts as a finding', () {
+      for (final item in ['- $_name#statement: x', '- MAYBE: $_name x']) {
+        final text = [_audited(_name, _hash), 'Verdicts:', item].join('\n');
+        expect(
+          _reasonForAudit(text),
+          _namedIn('Verdicts', 'audit1.md'),
+          reason: item,
+        );
+      }
+    });
+
+    _reportTest(
+      'an ADDRESSED item names nothing, its continuation included',
+      () {
+        final text = [
+          _audited(_name, _hash),
+          'Verdicts:',
+          '- ADDRESSED: fr:b x',
+          '  $_name#statement',
+        ].join('\n');
+        expect(_reasonForAudit(text), isNull);
+
+        final indented = [
+          _audited(_name, _hash),
+          'Verdicts:',
+          '  - ADDRESSED: $_name x',
+        ].join('\n');
+        expect(_reasonForAudit(indented), isNull);
+
+        final underFindings = [
+          _audited(_name, _hash),
+          'Findings:',
+          '- ADDRESSED: $_name x',
+        ].join('\n');
+        expect(
+          _reasonForAudit(underFindings),
+          _namedIn('Findings', 'audit1.md'),
+        );
+      },
+    );
+
+    _reportTest('opens Outside the round as a finding section', () {
+      final items = [
+        _audited(_name, _hash),
+        'Outside the round:',
+        '- $_name#edge_cases: x',
+      ].join('\n');
+      expect(
+        _reasonForAudit(items),
+        _namedIn('Outside the round', 'audit1.md'),
+      );
+
+      final first = [
+        _audited(_name, _hash),
+        'Outside the round: $_name x',
+      ].join('\n');
+      expect(
+        _reasonForAudit(first),
+        _namedIn('Outside the round', 'audit1.md'),
+      );
+    });
+
+    _reportTest('a label line inside Verdicts closes it', () {
+      final unDashed = [
+        _audited(_name, _hash),
+        'Verdicts:',
+        'NOT ADDRESSED: $_name x',
+        '- $_name x',
+      ].join('\n');
+      expect(_reasonForAudit(unDashed), isNull);
+
+      final oneLine = [
+        _audited(_name, _hash),
+        'Verdicts: - NOT ADDRESSED: $_name x',
+        '- $_name x',
+      ].join('\n');
+      expect(_reasonForAudit(oneLine), isNull);
+    });
   });
 
   group('Names', () {

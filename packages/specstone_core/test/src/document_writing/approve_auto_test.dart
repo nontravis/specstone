@@ -125,6 +125,31 @@ void main() {
     expect(_isDraft(root, check.loginFr), isTrue);
   });
 
+  // ignore: lines_longer_than_80_chars, the matrix row matches this name as one literal
+  test('auto call asks a draft a NOT ADDRESSED item names and approves one an ADDRESSED item names', () async {
+    final root = await _draftsProject();
+    final audit = await _auditNaming(
+      root,
+      [_story, _fr],
+      findings: [
+        'Verdicts:',
+        '- ADDRESSED: $_story#goals: x',
+        '- NOT ADDRESSED: $_fr#statement: x',
+      ].join('\n'),
+    );
+
+    final answer = await _approveAuto(root, _call(root, audits: [audit]));
+
+    expect(
+      answer.text,
+      'mode: auto\n'
+      'approved $_story\n'
+      'ask $_fr: named in Verdicts of audit.md\n',
+    );
+    expect(_isApproved(root, check.loginStory), isTrue);
+    expect(_isDraft(root, check.loginFr), isTrue);
+  });
+
   test(
     'the ask mode writes no approval and warns on an unknown value',
     () async {

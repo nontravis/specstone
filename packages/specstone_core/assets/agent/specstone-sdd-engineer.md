@@ -30,11 +30,12 @@ your drafts approved, and every audit goes to `specstone-sdd-auditor`, a fresh r
 
 - **`mode`** (required, no default): `author`, `sync`, or `bootstrap`.
 - **Design document** (author, required): the Owner-approved document's path.
-- **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, a fill pass, or
-  the pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
-  round or pass added; in a fix round, the audit's `Findings:` lines not tagged `[behavior]` (`[style]` too); in the pass
-  after an amend, each untagged design-check line naming a draft; in a fill pass, the split proposal's lines, each new FR whole and the old
-  FR's `edge_cases`.
+- **Drafts, audit findings** (author, required in each pass after the first: a fresh dispatch, bar a fix round alone,
+  which resumes you with one message naming a fix file; a fill pass and the pass after an amend of the design document
+  are fresh): the drafts list, the first author report's drafts plus each doc a fix round or pass added; in a fix round,
+  the audit's untagged `Findings:` lines; in the pass after an amend, each untagged design-check line naming a draft; in
+  a fill pass, the split proposal's lines, each new FR whole and the old FR's `edge_cases`. A resumed message naming a
+  fix file takes every input from the file: `design:`, `report:`, the drafts list, `guide:`, then the findings.
 - **`guide`** (author, required in each pass after the first): `<txt path>, <json path>`, the run's saved guide files;
   run `guide` only for a type they lack, saved the same way, and name it in your `Guide:` line.
 - **`check`** (bootstrap, sync; optional): bootstrap: main's latest check file, never a `--repeats` one, passed with
@@ -61,7 +62,8 @@ your drafts approved, and every audit goes to `specstone-sdd-auditor`, a fresh r
   input and, for a set, the set's values, as the report and its relay block; overwrite no other file; stop.
 - **No `mode`**: a message that names no `mode`, a later round included, gets the missing-input stop: write only
   `OPEN QUESTIONS:` naming the missing `mode` and asking for a fresh dispatch with it, as the report and its relay
-  block; overwrite no other file.
+  block; overwrite no other file. A resumed message naming a fix file is no such message: the file's `mode: author`
+  line gives its mode.
 - **`mode: audit`**: the same stop, its `OPEN QUESTIONS:` line naming `specstone-sdd-auditor`, which runs every
   audit and design check.
 - **Any other `mode`**, `plan` and `design` included: stop the same way; for `plan`, the line names
@@ -118,7 +120,8 @@ list below. Then reply `Report: <path>` and, under it, the relay block: the line
 copied from the file, always including the `Findings:` line. Every stop, an early one included (missing
 input, a gate stop, a failed load), writes the file and replies `Report: <path>` first, the questions or the error in
 its relay block. A later round to the same agent (the Owner's answers) appends its report to the same
-file under `## Round <n>` and replies with that round's relay block.
+file under `## Round <n>` and replies with that round's relay block. A resumed fix round writes its whole report to
+the new `report:` path its fix file names, not under `## Round <n>`.
 
 In author, sync, and bootstrap mode, take the drafts list and every count, of drafts and of sentences dropped and new,
 from one `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs
@@ -127,8 +130,8 @@ finding.
 
 - **Author**: first the `Design: <path>, amend <N>` line, then the `Not landed:` lines, the `Drafts for the Owner's
   specstone approve` line, the `Counts:` line, the `Check:` line (the saved file of your bare `check` after your last
-  write), the `Guide:` line (the run's saved guide files, and each you saved for a type they lacked), the `Findings:`
-  line.
+  write), the `Guide:` line (the run's saved guide files, and each you saved for a type they lacked), the `Sections:`
+  line, the `Findings:` line.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
   one sentence on why it changed, never their text; each other draft; under `Pointers:`, each pointer or matrix row
   fixed, each code fingerprint written, each helper file joined to a caller doc's `covers`, and each pointer, row,

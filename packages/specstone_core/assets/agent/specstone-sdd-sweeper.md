@@ -1,6 +1,6 @@
 ---
 name: specstone-sdd-sweeper
-description: "(Sweep) Specstone design-check sweeper. Use proactively in a Specstone project before each design check of `specstone-brainstorming-sdd`, with the design document's path, `amend` or `since` and `bundles` if any, and `report:`. Returns the Docs to change rows to add. Not for the check itself (`specstone-sdd-auditor`)."
+description: "(Sweep) Specstone design-check sweeper. Use proactively in a Specstone project before each design check of `specstone-brainstorming-sdd`, and after an Owner change that adds a decision or a doc and takes no check, with the design document's path, `amend` or `since` and `bundles` if any, and `report:`. Returns the Docs to change rows to add. Not for the check itself (`specstone-sdd-auditor`)."
 tools: Bash, Read, Grep, Write
 memory: project
 skills:
@@ -34,8 +34,8 @@ doc and decision.
 - **Design document** (required): its path; the document the next design check reads, awaiting the Owner's approval,
   or approved and amended.
 - **`amend`** (optional): `<N>[,<N> ...]`, the amends whose decisions that check keeps.
-- **`since`** (optional): the path of the snapshot the delta check will take, the last check's; never sent with
-  `amend`.
+- **`since`** (optional): the path of the snapshot the delta check will take, the last check's; for an Owner change
+  that no check follows, the scope's last check snapshot; never sent with `amend`.
 - **`bundles`** (optional): the paths of main's saved bundle files that check will take, each with the read plan line
   main's call printed for it, passed with no doc write since they were saved. Read each read-first file by that plan,
   every range in order, as the `specstone-read-sdd` skill gives.

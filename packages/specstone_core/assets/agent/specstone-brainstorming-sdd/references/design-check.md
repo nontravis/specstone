@@ -5,7 +5,8 @@ file; never edit the design document; ask the Owner nothing.
 ## 1. Read
 
 1. **Inputs**: the design document's path, `amend: <N>[,<N> ...]`, `since: <snapshot path>`, and `bundles`, each
-   with its read plan line, when given. Make the missing-input stop, its `OPEN QUESTIONS:` line naming:
+   with its read plan line, when given; `amend` only after an author pass has run. Make the missing-input stop, its
+   `OPEN QUESTIONS:` line naming:
    - the design document, when none is given;
    - `since`, for a `since:` path that does not exist, a snapshot equal to the design document, or differences that
      keep no decision (a fix outside every decision and Docs to change row);
