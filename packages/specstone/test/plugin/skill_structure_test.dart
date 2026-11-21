@@ -2306,6 +2306,35 @@ void _trimReferenceTests() {
     }
   });
 
+  test('the audit trim lens restores contract parts and no removed step', () {
+    final lines = _pluginText(_auditReference).split('\n');
+    final start = lines.indexWhere((line) => line.startsWith('- **Trim:**'));
+    expect(start, isNonNegative);
+    final lens = lines
+        .skip(start + 1)
+        .takeWhile((line) => line.startsWith('  '))
+        .fold(lines[start], (bullet, line) => '$bullet\n$line');
+    expect(
+      _hasSentenceWith(lens, ['a removed step, per trim.md,', 'is none']),
+      isTrue,
+    );
+    final steps = _sectionOf(_pluginText(_trimReference), _trimStepsHeading);
+    for (final words in [
+      [
+        "`fr` guide's item shape line",
+        'contract',
+        'when it asks',
+        'what it takes',
+        'what it reports',
+        'its limits',
+        'what it may write',
+      ],
+      ['audit restores a removed contract part', 'never a removed step'],
+    ]) {
+      expect(_hasSentenceWith(steps, words), isTrue, reason: words.join(', '));
+    }
+  });
+
   test('both bootstrap skills join an unmarked FR past a cap only when the '
       'Owner named its kind', () {
     for (final skill in _bootstrapSkills) {

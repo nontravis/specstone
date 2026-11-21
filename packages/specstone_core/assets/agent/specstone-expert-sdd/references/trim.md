@@ -45,6 +45,10 @@ own files hold them. Delete an item that states only steps, unless it holds the 
 Components row, cut the Responsibility to the component's role, and never delete the row: its box stays in the
 unmarked component diagram.
 
+The parts the `fr` guide's item shape line names for a skill or agent are its contract: when it asks, what it takes,
+what it reports, its limits, and what it may write. An audit restores a removed contract part no other doc states, and
+never a removed step.
+
 In a Behavior diagram, keep only the contract nodes, each stating a part the `fr` guide's item shape line names for a
 skill or agent. Join each removed node's in-edges to its out-edges, and drop from a joined edge the labels of a
 removed decision node. In an Interaction sequence diagram, keep only the contract messages: a question to the Owner,
