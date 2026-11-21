@@ -297,12 +297,13 @@ Iterable<IndexedDoc> _carrying(
 /// order, each once.
 ///
 /// A value resolves among the docs of the field's `doc_types` alone, so one
-/// that names a doc of another type, such as a story, names none.
+/// that names a doc of another type, such as a story, names none, and a field
+/// with no `doc_types` names none.
 List<IndexedDoc> linkedDocsOf(DocIndex index, IndexedDoc holder) {
   final seen = <String>{};
   return [
     for (final field in _docRefFields(index, holder))
-      if (field.bundleWith ?? false)
+      if ((field.bundleWith ?? false) && (field.docTypes?.isNotEmpty ?? false))
         for (final value in holder.valuesOf(field.id))
           for (final named in _carrying(index, field, value))
             if (seen.add(named.docPath)) named,

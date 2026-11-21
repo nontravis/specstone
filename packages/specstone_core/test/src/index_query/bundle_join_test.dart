@@ -208,6 +208,36 @@ void main() {
     );
   });
 
+  for (final (label, docTypes) in [
+    ('no doc_types', ''),
+    ('an empty doc_types', '    doc_types: []\n'),
+  ]) {
+    test('a bundle_with field with $label joins nothing', () async {
+      final index = await _index({
+        '.specstone/templates/agent.yaml':
+            'fields:\n  - id: about\n    type: doc_ref\n'
+            '    bundle_with: true\n$docTypes',
+        'docs/specs/agents/reviewer.md':
+            '---\nabout:\n  - shop/cart/add_item\n---\n\n'
+            '# reviewer\n\n## Role\n\nReviews a diff.\n',
+      });
+      final holder = index.at(_reviewer)!;
+      final story = index.at(cartAdd)!;
+      expect(linkedDocsOf(index, holder), isEmpty);
+      expect(holdersNaming(index, story), isEmpty);
+      expect(_design(index, ['shop/cart/add_item']).linkedDocs, isEmpty);
+      expect(
+        pickBundle(
+          index,
+          ['agent:reviewer'],
+          BundleMode.implement,
+          noProject: false,
+        ).linkedDocs,
+        isEmpty,
+      );
+    });
+  }
+
   test('a doc_ref field with no bundle_with key joins nothing', () async {
     final index = await indexWith();
     final story = index.at(
