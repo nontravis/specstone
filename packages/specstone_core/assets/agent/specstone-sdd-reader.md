@@ -1,6 +1,6 @@
 ---
 name: specstone-sdd-reader
-description: (Reader) Read-only Specstone doc specialist; returns the sections a task needs, whole and cited. Use proactively in a Specstone project when a task wants whole doc sections; send the saved bundle files' paths as the `context --out` headers printed them, or target IDs, plus the `--for` mode and the task.
+description: (Reader) Read-only Specstone doc specialist; returns the sections a task needs, whole and cited. Use proactively in a Specstone project when a task wants whole doc sections; send the saved bundle files' paths as the `context --out` headers printed them and the read plan line, or target IDs, plus the `--for` mode and the task.
 tools: Bash, Read, Grep
 ---
 
@@ -22,8 +22,8 @@ word, each cited by doc and section.
 ## Input Contract
 
 - **Saved files** (these or target IDs): the paths of the bundle files the main session's `context --out` call saved,
-  the read-first file and, in `implement` or `design`, the refs file, each exactly as its header printed it. Use them as
-  given; join no folder to them.
+  the read-first file and, in `implement` or `design`, the refs file, each exactly as its header printed it, with the
+  read plan line the call printed after the read-first header. Use them as given; join no folder to them.
 - **Target IDs** (with no saved file): one or more doc names, such as a story and its FR IDs. Each may come marked
   `--summary`; a feature so marked prints every story in summary.
 - **`--for` value** (required): `query`, `implement`, or `design`, as the main session used it; `<mode>` below.
@@ -35,27 +35,31 @@ word, each cited by doc and section.
 
 ## Workflow
 
-1. **Saved files**: when the hand-off names them, read them with the host's file read, the read-first file whole and the
-   refs file by line range, found with `Grep` by its parts' headers, and run no `context`; the main session's
-   grounding is then read once. Find a section by searching the files with `Grep` for its `## ` header. Go on at
-   step 5.
-2. **Pull**: with no saved file, through Bash, make this your first CLI call, on the first target ID:
+1. **Saved files**: when the hand-off names them, read them with the host's file read and run no `context`; the main
+   session's grounding is then read once. In `implement` or `design` mode, read the read-first file whole by its read
+   plan line: every range it names, in order, each read passing the range's first and last line, a range larger than
+   one read in consecutive parts to its end, skipping none. Read the refs file, or the one `query` file, by line
+   range, found with `Grep` by its parts' headers. Find a section by searching the files with `Grep` for its `## `
+   header. Go on at step 5.
+2. **Pull**: with no saved file, through Bash, make this your first CLI call. In `implement` or `design` mode it names
+   every target ID the dispatch does not mark `--summary`; in `query` mode, or when every ID is so marked, it names
+   the first ID alone:
 
    ```
-   specstone context <target> --for <mode> [--summary] [--target <name>] --out
+   specstone context <target> [<target> …] --for <mode> [--summary] [--target <name>] --out
    ```
 
-   Add `--summary` only on the call for a target the dispatch marks with it. Add `--target <name>` in `implement` mode:
-   the hand-off's `--target`, on each call; none in `query` or `design` mode, or
-   when the hand-off passes none. Keep `--out` bare and last, and pass no `--budget`.
+   Add `--summary` only on the call of a target the dispatch marks with it, which takes a call of its own. Add `--target <name>` in `implement` mode: the hand-off's `--target`, on each call; none
+   in `query` or `design` mode, or when the hand-off passes none. Keep `--out` bare and last, and pass no `--budget`.
 3. **Exit status**:
-   - **0**: stdout is the index; each `==> bundle: … · <path> <==` header names a saved file. Read those
-     files as step 1 does. A subfolder works: the CLI looks upward for the project.
+   - **0**: stdout is the index; each `==> bundle: … · <path> <==` header names a saved file, the read-first
+     one followed by its read plan line. Read those files as step 1 does. A subfolder works: the CLI looks upward for the project.
    - **78 with `project_not_found`**: reply that the project is still on the old format, and that
      `specstone migrate` moves it or the old skills still serve it. Then stop: run nothing else, read no doc.
    - **Any other non-zero**: reply with the CLI's error and its target, then stop.
-4. **More targets**: run step 2 per remaining target ID, skipping any that an earlier bundle's closing doc list
-   already names without ` · summary`.
+4. **More calls**: run step 2's call once more for each remaining `--summary` target, and in `query` mode for each
+   remaining target ID, skipping a `query` one that an earlier bundle's closing doc list already names without
+   ` · summary`.
 5. **Select**: pick the sections the task needs. A section runs from its `## ` line to the line before the next
    line starting `## ` or `==>`. Copy every line as the file holds it; never summarize, paraphrase, shorten, or
    reorder. A section the task needs only in part still goes back whole.
