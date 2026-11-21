@@ -15,6 +15,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/skill_doc_fixture.dart';
 
 /// Letters that put a story or doc over the bound by a margin of 2,000 est.
 /// tokens (characters / 4).
@@ -160,6 +161,38 @@ Future<int> _criteriaFor(int target) async {
   throw StateError('no padding gives exactly $target tokens');
 }
 
+/// Returns the nested project where an agent doc of [joined] letters names the
+/// feature `shop/cart` in its `feature` field, and the story `shop/cart/add_item`
+/// holds [story] letters of Acceptance Criteria.
+Map<String, String> _withJoinedAgent({
+  required int story,
+  required int joined,
+}) => {
+  '.specstone/config.yaml': skillPinsConfig(),
+  'docs/$agentDoc':
+      '---\nfeature:\n  - shop/cart\n---\n\n# reviewer\n\n'
+      '## Role\n\n${'a' * joined}\n',
+  'docs/$cartAdd': nestedFiles()['docs/$cartAdd']!.replaceFirst(
+    '## Acceptance Criteria\n',
+    '## Acceptance Criteria\n${'b' * story}\n',
+  ),
+};
+
+/// Returns the story letters that leave `shop/cart/add_item` at [target] est.
+/// tokens before any join.
+Future<int> _storyLettersFor(int target) async {
+  final session = openSession(
+    await writeNestedProject(extra: _withJoinedAgent(story: 0, joined: 0)),
+  );
+  addTearDown(session.close);
+  final base = _answerOf(
+    session.index,
+    'shop/cart/add_item',
+    summary: false,
+  ).readFirst.tokens;
+  return (target - base) * 4;
+}
+
 void main() {
   group('checkBundleSize', () {
     test('a feature over the bound gets one finding on line 1, waiting for the '
@@ -284,6 +317,57 @@ void main() {
         _headerSizeOf(citedSession, cited, 'shop/cart', summary: true),
       );
     });
+
+    test("joined docs push a story's read-first file over the limit", () async {
+      const ownTokens = 22000;
+      const joinedTokens = 3257;
+      final story = await _storyLettersFor(ownTokens);
+      final alone = openSession(
+        await writeNestedProject(
+          extra: _withJoinedAgent(story: story, joined: 0),
+        ),
+      );
+      addTearDown(alone.close);
+      expect(_sizeFindings(alone, cartFeature), isEmpty);
+
+      final session = openSession(
+        await writeNestedProject(
+          extra: _withJoinedAgent(story: story, joined: joinedTokens * 4),
+        ),
+      );
+      addTearDown(session.close);
+
+      final found = _sizeFindings(session, cartFeature).single;
+
+      expect(found.kind, FindingKind.bundleOverLimit);
+      expect(found.path, cartFeature);
+      expect(found.waitsFor, WaitsFor.owner);
+      expect(found.keys['doc'], 'shop/cart/add_item');
+      expect(found.keys['limit'], readRangeTokenLimit);
+      expect(found.keys['actual'], greaterThan(readRangeTokenLimit));
+      expect(found.keys['actual'], closeTo(ownTokens + joinedTokens, 100));
+    });
+
+    test(
+      "the checked size equals the --out header's count with joined docs",
+      () async {
+        final project = await writeNestedProject(
+          extra: _withJoinedAgent(
+            story: await _storyLettersFor(22000),
+            joined: 3257 * 4,
+          ),
+        );
+        final session = openSession(project);
+        addTearDown(session.close);
+
+        final found = _sizeFindings(session, cartFeature).single;
+
+        expect(
+          found.keys['actual'],
+          _headerSizeOf(session, project, 'shop/cart/add_item', summary: false),
+        );
+      },
+    );
 
     test(
       'the size is taken with no doc file read and no file written',
