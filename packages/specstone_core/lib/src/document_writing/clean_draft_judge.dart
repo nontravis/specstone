@@ -237,7 +237,7 @@ _Part _readPart(String fileName, List<String> lines) {
       if (last case final item?) {
         item.text = '${item.text}\n$line';
       } else {
-        addItem(line);
+        addItem(_dashItem.firstMatch(line)?[1] ?? line);
       }
       continue;
     }

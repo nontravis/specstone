@@ -383,6 +383,23 @@ void main() {
           '  $_name#statement',
         ].join('\n');
         expect(_reasonForAudit(text), isNull);
+
+        final indented = [
+          _audited(_name, _hash),
+          'Verdicts:',
+          '  - ADDRESSED: $_name x',
+        ].join('\n');
+        expect(_reasonForAudit(indented), isNull);
+
+        final underFindings = [
+          _audited(_name, _hash),
+          'Findings:',
+          '- ADDRESSED: $_name x',
+        ].join('\n');
+        expect(
+          _reasonForAudit(underFindings),
+          _namedIn('Findings', 'audit1.md'),
+        );
       },
     );
 

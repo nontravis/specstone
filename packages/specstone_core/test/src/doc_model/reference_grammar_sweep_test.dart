@@ -88,7 +88,12 @@ final _allowed = <_Allowed>[
   ),
   _core(
     'document_writing/clean_draft_judge.dart',
-    r"""RegExp(r'^(Findings|Outside the drafts):(?:[ \t]+(.*))?$'""",
+    r"""RegExp( r'^(Findings|Outside the drafts|Outside the round):(?:[ \t]+(.*))?$'""",
+    'Report section label line, no reference.',
+  ),
+  _core(
+    'document_writing/clean_draft_judge.dart',
+    r"""RegExp(r'^Verdicts:$'""",
     'Report section label line, no reference.',
   ),
   _core(
