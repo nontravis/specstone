@@ -36,14 +36,21 @@ const _itemShapes = <String, String>{
   'project_auth': 'one matrix row per resource and operation',
 };
 
-/// The doc types whose item-shape line still says each rule is one sentence.
-const _sentenceRuleIds = {
-  'api',
-  'integration',
-  'auth',
-  'implementation',
-  'project_integration',
-  'project_auth',
+const _eachRuleOneSentence = ', each rule one sentence';
+
+/// The tail of the item-shape line of each doc type whose line says more than
+/// the shape: each rule one sentence, or one `###` filled as a section gives.
+const _itemShapeTails = <String, String>{
+  'api': ', filled as Operations gives; state every other rule in one sentence',
+  'integration':
+      ', filled as Contract per system gives; state every other rule in one '
+      'sentence',
+  'project_integration':
+      ', filled as Contract per system gives; state every other rule in one '
+      'sentence',
+  'auth': _eachRuleOneSentence,
+  'implementation': _eachRuleOneSentence,
+  'project_auth': _eachRuleOneSentence,
 };
 
 void main() {
@@ -172,15 +179,34 @@ void main() {
         expect(
           descriptionOf(id),
           contains(
-            'Write one rule per ID: $shape'
-            '${_sentenceRuleIds.contains(id) ? ', each rule one sentence' : ''}'
-            '.',
+            'Write one rule per ID: $shape${_itemShapeTails[id] ?? ''}.',
           ),
           reason: id,
         );
       }
     },
   );
+
+  test('the api, integration, and project_integration descriptions state one '
+      '### per operation or system, filled as its section gives', () {
+    expect(
+      descriptionOf('api'),
+      contains(
+        'Write one rule per ID: one `###` per operation, filled as Operations '
+        'gives; state every other rule in one sentence.',
+      ),
+    );
+    for (final id in ['integration', 'project_integration']) {
+      expect(
+        descriptionOf(id),
+        contains(
+          'Write one rule per ID: one `###` per system, filled as Contract per '
+          'system gives; state every other rule in one sentence.',
+        ),
+        reason: id,
+      );
+    }
+  });
 
   test('the domain and architecture descriptions and their project twins say '
       'a DOMAIN cites its ARCHITECTURE by a section link', () {
@@ -271,12 +297,12 @@ void main() {
           'per-feature spec doc, or in a `topic` when two or more features '
           'share it.',
         ),
-        contains('Keep one file per spec folder.'),
+        contains('Keep one file per doc type in each spec folder.'),
       ),
     );
     expect(
       prdCoreDocType(set, 'domain').renderGuide(),
-      contains('Keep one file per feature spec folder.'),
+      contains('Keep one file per doc type in each feature spec folder.'),
     );
   });
 

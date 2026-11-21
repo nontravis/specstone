@@ -19,7 +19,7 @@ sections:
     required: true
     description: |-
       Write a table with the columns Code, Exit/HTTP, Category, Triggered by, Client guidance.
-      Add an optional Details column holding machine fields per code, such as `file`, `key`, `retry_after`.
+      Add an optional Details column holding machine fields per code, such as `file`, `key`, `retry_after`. Add an optional Group column, a slug naming codes that several operations return together, such as `template_fault`; keep each slug unique in the catalog.
       Keep codes stable, never reused for a different error.
       Write Triggered by as the general condition that raises the code in that feature, such as a flag out of range.
       List no raising site there. Write Client guidance as one line: the action the client takes, not user copy.
@@ -44,6 +44,7 @@ sections:
       Write the graceful-degradation path: the code and its trigger, such as persisting past max retries.
       Write the degraded behavior as bullets, such as a read-only mode, a disabled control, or an emitted metric.
 lint:
+  title_no_number: true
   max_chars: 50000
   max_lines: 300
 reference:

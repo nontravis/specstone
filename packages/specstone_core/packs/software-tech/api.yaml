@@ -3,7 +3,7 @@ description: |-
   One feature's API: its operations, how each is called, and where the source of truth declares it.
   Title it `# <Feature name> API`, such as `# Rendering API`, with no number.
   Copy no request or response schema; the source of truth owns it.
-  Write one rule per ID: one `###` per operation, each rule one sentence.
+  Write one rule per ID: one `###` per operation, filled as Operations gives; state every other rule in one sentence.
   Put a rule every feature uses in the project's API doc.
 path: specs/f{nn}_{slug}/API.md
 parent: feature
@@ -34,8 +34,8 @@ sections:
     description: |-
       Write one `###` per operation, headed `` `<operation>` `` alone with no FR label, holding a Request example.
       Write a success and an error Response example, valid against the source of truth, only in a doc that holds that section.
-      Write one Errors line, `**Errors:** <codes>; see <links>`. List every code the operation returns as a code span, then one link per error doc that owns them. Hold no per-code text, and hand off to no other operation's list. Write `**Errors:** none` when the operation returns no code.
-      Write Auth as a scope or `none`, and Idempotent on every mutating operation: `yes` with the key, or `no`.
+      Write one Errors line, `**Errors:** <codes>; see <links>`. List every code the operation returns as a code span, then one link per error doc that owns them. Hold no per-code text, and hand off to no other operation's list. Write `**Errors:** none` when the operation returns no code. When the codes would pass the sentence word cap, name each group of codes the error doc defines in place of its codes, ``**Errors:** the `<group>` codes, `<code>`, …; see <links>``, only when the operation returns all its codes.
+      Write Auth as `**Auth:** <scope or none>`, and Idempotent on every mutating operation: `yes` with the key, or `no`.
       Write no Why line; a legacy Why's reason goes to the traced FR's `Rationale`.
     lint:
       banned_patterns:
@@ -43,11 +43,25 @@ sections:
           pattern: '^### `[^`]+`\s*\S'
           message: 'operation heading has text after its code span; guide line: alone with no FR label'
           in: all
+        - id: why_line
+          pattern: '^(?:- )?\*\*Why:\*\*'
+          message: 'operation holds a Why line; guide line: Write no Why line'
+          in: all
+      required_patterns:
+        - id: errors_line
+          pattern: '^(?:- )?\*\*Errors:\*\*'
+          message: 'no Errors line in the colon form; guide line: Write one Errors line'
+          per_subsection: true
+        - id: auth_line
+          pattern: '^(?:- )?\*\*Auth:\*\*'
+          message: 'no Auth line in the colon form; guide line: **Auth:** <scope or none>'
+          per_subsection: true
   - id: compatibility
     header: Compatibility
     description: |-
       Write what counts as breaking for the feature's operations; point at the architecture doc's Rollout.
 lint:
+  title_no_number: true
   max_chars: 50000
   max_lines: 300
 reference:

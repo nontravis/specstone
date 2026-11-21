@@ -54,8 +54,9 @@ const _sharedLines = <String, String>{
       'Hold only rules every feature uses; write any other rule in a '
       'per-feature spec doc, or in a `topic` when two or more features share '
       'it.',
-  'one_file_per_feature_folder': 'Keep one file per feature spec folder.',
-  'one_file_per_spec_folder': 'Keep one file per spec folder.',
+  'one_file_per_feature_folder':
+      'Keep one file per doc type in each feature spec folder.',
+  'one_file_per_spec_folder': 'Keep one file per doc type in each spec folder.',
   'overrides_line':
       'Right after an item departing from a rule above, write '
       '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
@@ -425,6 +426,20 @@ void main() {
         isEmpty,
       );
     });
+
+    test(
+      'each of the fifteen doc types, the project spec types through '
+      'extends, titles with no number, so each sets lint.title_no_number',
+      () {
+        for (final id in softwareTechIds) {
+          expect(
+            prdCoreDocType(set, id).lint.titleNoNumber,
+            isTrue,
+            reason: id,
+          );
+        }
+      },
+    );
 
     test('no description states a line target or a sentence length', () {
       final target = RegExp(

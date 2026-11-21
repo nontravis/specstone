@@ -237,28 +237,43 @@ void main() {
         },
         {
           'architecture.components': ['table_only'],
-          'architecture.concerns': ['concern_ending'],
-          'api.operations': ['operation_heading'],
-          'topic.interface': ['interface_pointer'],
+          'architecture.observability': ['log_channel_form'],
+          'architecture.concerns': ['concern_ending', 'concern_name'],
+          'api.operations': ['operation_heading', 'why_line'],
+          'integration.events': ['action_value'],
+          'topic.interface': ['interface_pointer', 'signature_copy'],
           'auth.scopes': ['scope_form'],
           'auth.resource_matrix': ['matrix_cell'],
           'domain.entities': ['entity_kind'],
           'domain.invariants': ['numbered_invariant'],
+          'domain.lifecycle': ['lifecycle_prose'],
           'project_architecture.components': ['table_only'],
-          'project_architecture.concerns': ['concern_ending'],
+          'project_architecture.observability': ['log_channel_form'],
+          'project_architecture.concerns': ['concern_ending', 'concern_name'],
           'project_auth.scopes': ['scope_form'],
           'project_auth.resource_matrix': ['matrix_cell'],
           'project_domain.entities': ['entity_kind'],
           'project_domain.invariants': ['numbered_invariant'],
+          'project_domain.lifecycle': ['lifecycle_prose'],
+          'project_integration.events': ['action_value'],
         },
       );
-      expect({
-        for (final (docType, s) in specSections())
-          if (s.requiredPatterns != null)
-            '${docType.id}.${s.id}': [
-              for (final p in s.requiredPatterns!) p.id,
-            ],
-      }, isEmpty);
+      expect(
+        {
+          for (final (docType, s) in specSections())
+            if (s.requiredPatterns != null)
+              '${docType.id}.${s.id}': [
+                for (final p in s.requiredPatterns!) p.id,
+              ],
+        },
+        {
+          'api.operations': ['errors_line', 'auth_line'],
+          'integration.contract_per_system': ['endpoints_used'],
+          'auth.resource_matrix': ['default_deny'],
+          'project_auth.resource_matrix': ['default_deny'],
+          'project_integration.contract_per_system': ['endpoints_used'],
+        },
+      );
     });
 
     for (final rule in _specGuideRules) {
@@ -372,6 +387,7 @@ void main() {
         'domain.invariants',
         'topic.rules',
         'topic.purpose',
+        'topic.used_by',
         'tech_stack.stack',
         'error.error_catalog',
         'project_architecture.component_diagram',
@@ -884,6 +900,8 @@ final _specGuideRules = <_GuideRule>[
       '|---|---|',
       '',
       '## Components',
+      'Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
+      '- Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
     ],
   ),
   const _GuideRule(
@@ -901,6 +919,78 @@ final _specGuideRules = <_GuideRule>[
       '- Auth — see AUTH.md#roles',
       '',
       '## Concerns',
+      'Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
+      '- Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
+    ],
+  ),
+  const _GuideRule(
+    'architecture',
+    'concerns',
+    'concern_name',
+    hits: [
+      '- Security: see Components',
+      'Notes: see Components',
+      '- see Components',
+    ],
+    misses: [
+      '- Integration: see Components',
+      '- Errors — see API.md',
+      'Observability: see Components',
+      '',
+      '## Concerns',
+      'Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
+      '- Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
+    ],
+  ),
+  const _GuideRule(
+    'architecture',
+    'observability',
+    'log_channel_form',
+    hits: ['- audit log: sign-in', '- audit-log', '- audit-log - '],
+    misses: [
+      '- audit-log - sign-in, sign-out',
+      '- `audit` - sign-in',
+      '| Signal | SLI |',
+      '',
+      '## Observability',
+      'A plain line',
+      '- Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
+    ],
+  ),
+  const _GuideRule(
+    'api',
+    'operations',
+    'why_line',
+    hits: ['**Why:** users wait', '- **Why:** users wait'],
+    misses: ['**Errors:** none', 'Why users wait', '', '## Operations'],
+  ),
+  const _GuideRule(
+    'integration',
+    'events',
+    'action_value',
+    hits: [
+      '| mail.sent | mail | publish | schema | id | v1 |',
+      '| mail.sent | mail |  | schema | id | v1 |',
+      '| mail.sent | mail | Send | schema | id | v1 |',
+    ],
+    misses: [
+      '| mail.sent | mail | send | schema | id | v1 |',
+      '| mail.sent | mail | `receive` | schema | id | v1 |',
+      '| Event type | Channel | Action | Payload schema |',
+      '|---|---|---|---|',
+      '',
+    ],
+  ),
+  const _GuideRule(
+    'domain',
+    'lifecycle',
+    'lifecycle_prose',
+    hits: ['A session opens, then closes.', '- open', '| from | to |'],
+    misses: [
+      '',
+      '## Lifecycle',
+      'Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
+      '- Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches',
     ],
   ),
   const _GuideRule(

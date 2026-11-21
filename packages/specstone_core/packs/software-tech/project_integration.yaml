@@ -4,7 +4,7 @@ description: |-
   The outside systems the project's features call: why, over which protocol, and the contract with each.
   Title it `# <Project name> integrations`, such as `# Specstone integrations`, with no number.
   Write this doc only when every feature follows one rule for outside calls.
-  Write one rule per ID: one `###` per system, each rule one sentence.
+  Write one rule per ID: one `###` per system, filled as Contract per system gives; state every other rule in one sentence.
 path: specs/INTEGRATION.md
 parent:
 bundle: [implement, design]

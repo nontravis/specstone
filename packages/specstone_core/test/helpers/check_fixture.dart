@@ -174,6 +174,7 @@ Map<String, String> checkProjectFiles() => {
       '---\nconfirmed:\n  - email_login/check_password ${fingerprintFor('\n$checkPasswordStatement')}\n---\n\n'
       '# Login API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'
       '| email_login/check_password | `signIn` |\n\n## Operations\n\n### signIn\n\nSigns the Agent in.\n\n'
+      '**Errors:** none\n**Auth:** none\n\n'
       '**Response example — success**\n\n**Response example — error**\n',
   'app/lib/login.dart': 'class SignInPage {}\n\nbool checkPassword(String password) => password.isNotEmpty;\n',
 };

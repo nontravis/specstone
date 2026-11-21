@@ -63,6 +63,12 @@ sections:
     header: Lifecycle
     description: |-
       Write a Mermaid `stateDiagram-v2` alone, no prose, only when an entity has a status with 4 or more states.
+    lint:
+      banned_patterns:
+        - id: lifecycle_prose
+          pattern: '^(?!## |\s*(?:- )?Overrides:)\s*\S'
+          message: 'Lifecycle holds a line outside the Mermaid fence; guide line: Write a Mermaid `stateDiagram-v2` alone, no prose'
+          in: all
   - id: data_touch
     header: Data touch
     description: |-
@@ -77,6 +83,7 @@ sections:
     description: |-
       List only the terms beyond the project glossary.
 lint:
+  title_no_number: true
   max_chars: 50000
   max_lines: 300
 reference:
