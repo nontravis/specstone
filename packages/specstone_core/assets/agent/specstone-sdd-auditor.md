@@ -49,6 +49,10 @@ the main session that dispatched you fixes what you find.
   bootstrap reports; read each whole for the Trim lens of the audit reference.
 - **`check`** (no `stage: design`, optional): the last author pass's `Check:` file, passed with no doc write since it
   and no split since the last audit; search it per target; absent, run one bare `check --out`.
+- **`findings`** (no `stage: design`, optional): a re-audit's, the lines the round took; the audit gives each a verdict.
+- **`sections`** (no `stage: design`, optional): a re-audit's, the author pass's `Sections:` line; the audit reads those
+  sections.
+- **`citers`** (no `stage: design`, optional): a re-audit's, the drafts citing a changed draft.
 - **`report`** (optional): the file for your whole report, `<folder>/reports/sdd-auditor.audit.<XXXXXX>.md`; absent,
   name your own there (Output Format).
 - **No doc text**: a brief carries paths and names; doc text in it is no source.
@@ -94,7 +98,8 @@ line. Every stop, an early one included (missing input, a gate stop, a failed lo
 answers) appends its report to the same file under `## Round <n>` and replies with that round's relay block.
 
 - **Drafts audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
-  `owner`), and `Outside the drafts:`, each with its items.
+  `owner`), and `Outside the drafts:`, each with its items; a re-audit adds `Verdicts:` after `Findings:`, then
+  `Outside the round:`.
 - **Design check**: the `Swept:` lines with no hit list, `Held:`, `Lenses:`, and `Findings:` lines.
 
 ## Scope Boundaries

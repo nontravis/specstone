@@ -21,6 +21,7 @@ void main() {
   group('approve step', _approveStepTests);
   group('trim reference', _trimReferenceTests);
   group('brainstorm rounds', _brainstormRoundTests);
+  group('re-audit reading', _reauditReadingTests);
 }
 
 // MARK: - Fixtures and readers
@@ -2770,4 +2771,68 @@ String _bulletOf(String markdown, String lead) {
   if (start < 0) return '';
   final rest = lines.skip(start + 1).takeWhile((line) => line.startsWith('  '));
   return _oneLine([lines[start], ...rest].join('\n'));
+}
+
+// MARK: - re-audit reading
+
+void _reauditReadingTests() {
+  test('a re-audit reads the sections the round names', () {
+    expect(
+      _hasSentenceWith(_sectionOf(_pluginText(_auditReference), '## 1. Read'), [
+        '`findings:`',
+        '`sections:`',
+        '`reaudit.md`',
+      ]),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(_pluginText(_reauditReference), [
+        '`sections:`',
+        'citer',
+        'anchored or not',
+      ]),
+      isTrue,
+    );
+  });
+
+  test('a re-audit reports Verdicts and Outside the round after Findings', () {
+    final report = _sectionOf(_pluginText(_auditReference), '## 3. Report');
+    final findings = report.indexOf('Findings:');
+    final verdicts = report.indexOf('Verdicts:');
+    expect(findings, isNonNegative);
+    expect(verdicts, greaterThan(findings));
+    expect(report.indexOf('Outside the round:'), greaterThan(verdicts));
+    expect(report, contains('- ADDRESSED:'));
+    expect(report, contains('- NOT ADDRESSED:'));
+  });
+
+  test(
+    'a re-audit sibling outside its sections goes under Outside the round',
+    () {
+      expect(
+        _hasSentenceWith(_pluginText(_auditReference), [
+          'hit',
+          '`Outside the round:`',
+        ]),
+        isTrue,
+      );
+    },
+  );
+
+  test('a re-audit writes an Audited line per findings-named draft', () {
+    expect(
+      _hasSentenceWith(_pluginText(_auditReference), [
+        'Audited:',
+        '`findings:`',
+      ]),
+      isTrue,
+    );
+  });
+
+  test('the auditor takes findings, sections, and citers', () {
+    final text = _pluginText(_auditor);
+    for (final input in ['**`findings`**', '**`sections`**', '**`citers`**']) {
+      expect(text, contains(input), reason: input);
+    }
+  });
 }

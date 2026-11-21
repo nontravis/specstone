@@ -19,3 +19,7 @@ an amend pass, or a split's fill pass.
    - `sections:` the last author pass's `Sections:` line.
    - `citers:` item 3's citers, drafts of the list alone.
 6. In the round note to the Owner, name each doc approved between rounds and each name item 2 renamed or dropped.
+
+The auditor of a re-audit reads only each `sections:` section, each finding's section, and each citer section linking
+a changed draft, anchored or not (a `traced_from` citer: that field and Statement). A new FR with no `Audited:` hash is
+read whole.
