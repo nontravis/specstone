@@ -3,7 +3,7 @@ extends: architecture
 description: |-
   The project's architecture: the components, calls, and deployment that every feature uses.
   Title it `# <Project name> architecture`, such as `# Specstone architecture`, with no number.
-  Write no code samples; code holds the implementation.
+  Write no code samples or skill and agent steps; code holds the implementation.
   Write one rule per ID: one Components row per component.
   The project's DOMAIN cites the project's ARCHITECTURE by a section link, such as `[architecture](ARCHITECTURE.md#components)`.
 path: specs/ARCHITECTURE.md

@@ -98,6 +98,25 @@ void main() {
     expect(_capLine, isNot(matches(RegExp(r'\d'))));
   });
 
+  test('fr item shape and behavior lines carry the step contract', () {
+    expect(
+      fr.description!.split('\n'),
+      contains(
+        'State what the product does, never how; leave mechanics to the spec '
+        "docs, and assign no task to a person. A skill's or agent's steps are "
+        'code. An FR states only when it asks, what it reports, what it takes, '
+        'its limits, and what it may write.',
+      ),
+    );
+    expect(
+      sectionOf(fr, 'behavior').description!.split('\n'),
+      contains(
+        'State a required order of functions as a requirement, and an assumed '
+        "order as an assumption. A skill's or agent's step order is neither.",
+      ),
+    );
+  });
+
   test('the fr description carries the cap line its lint row names', () {
     expect(
       fr.description!.split('\n'),

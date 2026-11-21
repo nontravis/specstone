@@ -137,7 +137,14 @@ void main() {
   test('descriptions hold the rules that have no section: no code sample, no '
       'stack trace, no secret', () {
     for (final id in ['architecture', 'project_architecture']) {
-      expect(descriptionOf(id), contains('Write no code samples;'), reason: id);
+      expect(
+        descriptionOf(id),
+        contains(
+          'Write no code samples or skill and agent steps; code holds the '
+          'implementation.',
+        ),
+        reason: id,
+      );
     }
     for (final id in ['error', 'project_error']) {
       expect(

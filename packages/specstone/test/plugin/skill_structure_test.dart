@@ -2006,6 +2006,22 @@ const _trimRound = 'specstone-expert-sdd/references/trim-round.md';
 
 const _trimReference = 'specstone-expert-sdd/references/trim.md';
 
+const _trimStepsHeading = "## A skill's or agent's steps";
+
+const _trimMapHeading = '## The guide lines per section';
+
+/// The table rows under [heading] of [markdown], up to the next `## ` heading.
+List<String> _tableRowsOf(String markdown, String heading) {
+  final lines = markdown.split('\n');
+  final start = lines.indexOf(heading);
+  if (start < 0) return [];
+  return lines
+      .skip(start + 1)
+      .takeWhile((line) => !line.startsWith('## '))
+      .where((line) => line.startsWith('|'))
+      .toList();
+}
+
 const _bootstrapProcedures = [
   'specstone-bootstrap-prd/references/procedure.md',
   'specstone-bootstrap-spec/references/procedure.md',
@@ -2050,6 +2066,82 @@ void _trimReferenceTests() {
     ]) {
       expect(text, contains(word), reason: word);
     }
+  });
+
+  test('trim.md cuts steps, keeps component roles, and prunes diagrams to '
+      'contract', () {
+    final text = _pluginText(_trimReference);
+    final cutRow = text.split('\n').singleWhere((l) => l.startsWith('| cut |'));
+    expect(cutRow, contains("a skill's or agent's steps"));
+    final section = _sectionOf(text, _trimStepsHeading);
+    for (final words in [
+      [
+        'Outside a Components row and a diagram',
+        'move them nowhere',
+        "skill's or agent's own files",
+      ],
+      ['Delete an item', 'only steps', 'unless the IDs section keeps it'],
+      [
+        'Components row',
+        'Responsibility',
+        "component's role",
+        'never delete the row',
+      ],
+      ['Behavior diagram', 'contract nodes', 'contract part'],
+      ['in-edges', 'out-edges', 'labels', 'decision node'],
+      [
+        'Interaction sequence diagram',
+        'contract messages',
+        'a question to the Owner',
+        "a dispatch's inputs",
+        'a report',
+        'a CLI write call with its flags',
+        'a limit',
+      ],
+      ['CLI read call', 'unless', '`--budget`'],
+      ["plugin's own parts", 'step order'],
+      ['no node or message', 'optional section'],
+    ]) {
+      expect(
+        _hasSentenceWith(section, words),
+        isTrue,
+        reason: words.join(', '),
+      );
+    }
+  });
+
+  test('trim.md maps each marked section to its guide lines', () {
+    final rows = _tableRowsOf(_pluginText(_trimReference), _trimMapHeading);
+    for (final words in [
+      [
+        '`fr` Input / Output and Behavior',
+        'item shape line',
+        'skill and agent sentences',
+        '`behavior`',
+      ],
+      ['`fr` Edge cases', 'four edge-case lines'],
+      ['`fr` Verification', '`verification`'],
+      [
+        '`architecture` Components, Component details, and Interaction',
+        '`architecture` description line',
+        "section's own lines",
+      ],
+      ['`domain` and `project_domain` Invariants', '`invariants`'],
+      ['Value objects', '`value_objects`'],
+    ]) {
+      expect(
+        rows.where((row) => words.every(row.contains)),
+        hasLength(1),
+        reason: words.join(', '),
+      );
+    }
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_trimReference), _trimMapHeading),
+        ['delete each item', 'except a Components row'],
+      ),
+      isTrue,
+    );
   });
 
   test('trim.md keeps IDs and the top ID, and removes every copy of the '
@@ -2214,6 +2306,35 @@ void _trimReferenceTests() {
     }
   });
 
+  test('the audit trim lens restores contract parts and no removed step', () {
+    final lines = _pluginText(_auditReference).split('\n');
+    final start = lines.indexWhere((line) => line.startsWith('- **Trim:**'));
+    expect(start, isNonNegative);
+    final lens = lines
+        .skip(start + 1)
+        .takeWhile((line) => line.startsWith('  '))
+        .fold(lines[start], (bullet, line) => '$bullet\n$line');
+    expect(
+      _hasSentenceWith(lens, ['a removed step, per trim.md,', 'is none']),
+      isTrue,
+    );
+    final steps = _sectionOf(_pluginText(_trimReference), _trimStepsHeading);
+    for (final words in [
+      [
+        "`fr` guide's item shape line",
+        'contract',
+        'when it asks',
+        'what it takes',
+        'what it reports',
+        'its limits',
+        'what it may write',
+      ],
+      ['audit restores a removed contract part', 'never a removed step'],
+    ]) {
+      expect(_hasSentenceWith(steps, words), isTrue, reason: words.join(', '));
+    }
+  });
+
   test('both bootstrap skills join an unmarked FR past a cap only when the '
       'Owner named its kind', () {
     for (final skill in _bootstrapSkills) {
@@ -2357,4 +2478,171 @@ void _brainstormRoundTests() {
       isTrue,
     );
   });
+
+  test('the Reader missed lens takes gap hits alone', () {
+    final lens = _bulletOf(
+      _pluginText(_designCheckReference),
+      '- **Reader missed:**',
+    );
+    expect(lens, contains('`gap` hit'));
+    expect(_hasSentenceWith(lens, ['`held` hit', 'none']), isTrue);
+  });
+
+  test('the sweep marks each hit by three marks and the check prints a Held '
+      'line', () {
+    final sweep = _pluginText(_sweepReference);
+    final marks = _sectionOf(sweep, '## 3. Sweep each decision');
+    expect(marks, contains('covered|gap|held: <why>'));
+    for (final words in [
+      ['`covered` only', 'Decisions cell', '`whole`', 'bare key'],
+      ['stay true', '`held: <why>`'],
+      ['with no covering row', '(`gap` and `held`)'],
+    ]) {
+      expect(_hasSentenceWith(marks, words), isTrue, reason: words.join(', '));
+    }
+    expect(
+      sweep,
+      contains(
+        'Swept: D<n>: <term>, <term>; <n> items hit, <m> with no row, <h> held',
+      ),
+    );
+    expect(
+      _hasSentenceWith(_sectionOf(sweep, '## 2. Ground'), [
+        "A story's",
+        "an FR's",
+        '`--summary`',
+        '`context project`',
+        'several-target bundle',
+        'stands in for none',
+      ]),
+      isTrue,
+    );
+  });
+
+  test('the design check prints its Held line after the Swept lines', () {
+    final check = _pluginText(_designCheckReference);
+    final block = _fencedBlock
+        .firstMatch(check.substring(check.indexOf('## 4. Report')))!
+        .group(1)!;
+    expect(block.indexOf('Swept: '), isNonNegative);
+    expect(block.indexOf('Held: '), greaterThan(block.indexOf('Swept: ')));
+  });
+
+  test('the design check and auditor relays copy Held after Swept', () {
+    for (final (file, heading) in [
+      (_designCheckReference, '## 4. Report'),
+      (_auditor, '## Output Format'),
+    ]) {
+      final relay = _sentencesOf(_sectionOf(_pluginText(file), heading))
+          .firstWhere(
+            (sentence) =>
+                sentence.contains('`Swept:`') && sentence.contains('`Held:`'),
+            orElse: () => '',
+          );
+      expect(
+        relay.indexOf('`Held:`'),
+        greaterThan(relay.indexOf('`Swept:`')),
+        reason: file,
+      );
+    }
+  });
+
+  test("the sweeper's Rows lines take no row for a held hit", () {
+    final rows = _bulletOf(_pluginText(_sweepReference), '- **`Rows:`**');
+    expect(_hasSentenceWith(rows, ['a `held` hit takes none']), isTrue);
+  });
+
+  test('design.md gives each Docs to change row form', () {
+    final text = _pluginText(_designReference);
+    final step = _bulletOf(text, '6. **Docs to change**');
+    for (final (form, words) in [
+      (
+        'changed section',
+        [
+          'by its `get` key',
+          'item list in parentheses',
+          '`new E19` if added',
+          '`E24: <note>`',
+        ],
+      ),
+      (
+        'item in the list',
+        [
+          "item IDs, a row's first cell, a node ID,",
+          'a scenario number, quoted words',
+        ],
+      ),
+      ('section rewritten whole', ['`<key> whole` for one rewritten whole']),
+      (
+        'new doc or every section',
+        ['`whole` for a new doc or a rewrite of every section'],
+      ),
+      ('bare key', ['A key with neither: a design-check line']),
+      ("amend's rows", ["Each amend's rows form an `Amend <N> rows` table"]),
+    ]) {
+      for (final word in words) {
+        expect(step, contains(word), reason: '$form: $word');
+      }
+    }
+  });
+
+  test("design.md sends a removed decision's stub rows to removal.md", () {
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_designReference), '## 3. Write the document'),
+        ['removes a decision', '`removal.md`', 'stub rows'],
+      ),
+      isTrue,
+    );
+  });
+
+  test('removal.md writes a stub row by key with its item list or whole', () {
+    final bullet = _bulletOf(_pluginText(_removalReference), '- **Stub rows**');
+    for (final word in [
+      '`take out the D<n> text: <sections>` in Sections',
+      'each with its item list or `whole`',
+      '`design.md`',
+      'never `all`',
+      '`D<n> (Amend <N>, removed)` in Decisions',
+    ]) {
+      expect(bullet, contains(word), reason: word);
+    }
+  });
+
+  test('author.md names each section a stub row cell lists', () {
+    final list = _bulletOf(_pluginText(_authorReference), '- **Several docs**');
+    for (final (form, phrase) in [
+      ('row cell with items', '`<key> (<items>)`'),
+      ('key whole', '`<key> whole`'),
+      ('whole or new doc', '`whole` or a new doc: its bare name'),
+      (
+        'stub row cell',
+        'a stub row cell `take out the D<n> text: <sections>`: each '
+            'section it names',
+      ),
+      ('audit or check line', 'a bare `<key>`: that key'),
+      ('anchor', '`#input--output` as `input_output`'),
+      ('item or note', "a finding's key with an item or note: the key"),
+      ('doc with no key', 'a finding naming a doc with no key: its bare name'),
+      ('key no template defines', "`section_not_found`: rerun with its doc's"),
+      ('key the doc lacks', 'key the doc lacks: its naming line'),
+    ]) {
+      expect(list, contains(phrase), reason: form);
+    }
+  });
+}
+
+const _authorReference = 'specstone-brainstorming-sdd/references/author.md';
+
+const _removalReference = 'specstone-brainstorming-sdd/references/removal.md';
+
+/// The text of the bullet of [markdown] whose first line starts with [lead],
+/// with its indented lines, every whitespace run as one space; empty when no
+/// line starts with [lead].
+String _bulletOf(String markdown, String lead) {
+  final lines = markdown.split('\n');
+  final start = lines.indexWhere((line) => line.startsWith(lead));
+  if (start < 0) return '';
+  final rest = lines.skip(start + 1).takeWhile((line) => line.startsWith('  '));
+  return _oneLine([lines[start], ...rest].join('\n'));
 }

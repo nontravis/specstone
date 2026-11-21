@@ -40,8 +40,8 @@ it names:
 
 - **Input left open:** a decision taking inputs or states with no input table, or with a table missing a form the
   targets already handle, such as a bare `#anchor` link beside a relative link.
-- **Reader missed:** an item of the saved files that reads or writes what a decision changes, with no target row
-  (step 1.3). Find it by the sweep and by the item's Input, Output, and rule nouns, not only by the decision's terms.
+- **Reader missed:** a `gap` hit of the sweep, an item of the saved files that reads or writes what a decision
+  changes; find it by the decision's terms and by the item's Input, Output, and rule nouns. A `held` hit is none.
 - **Row mismatch:** a target row whose named sections and items hold none of its decision's terms; a row
   section with neither an item list nor `whole`; a decision's change that no named item holds. A
   `design_references` row and a row that only swaps a copy for a link are exempt from the first test: they hold no

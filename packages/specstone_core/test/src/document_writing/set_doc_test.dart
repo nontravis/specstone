@@ -1458,6 +1458,35 @@ void main() {
       ),
     );
   });
+  test(
+    'set --field retrim writes the marks and empty stdin removes them',
+    () async {
+      final root = await writeWriteProject();
+      const target = 'fr:login/email_login/validate_credentials';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'retrim', emptyBaseHash),
+          '- statement\n- behavior\n',
+        ),
+      );
+      expect(readDoc(root, fr11), contains('draft: true\n'));
+      expect(
+        readDoc(root, fr11),
+        contains('retrim:\n  - statement\n  - behavior\n'),
+      );
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'retrim', fieldBase(root, target, 'retrim')),
+          '',
+        ),
+      );
+      expect(readDoc(root, fr11), isNot(contains('retrim:')));
+    },
+  );
   test('a new title keeps the folder and the name, and marks the doc draft', () async {
     final root = await writeWriteProject();
     final base =
