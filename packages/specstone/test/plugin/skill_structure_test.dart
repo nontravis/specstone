@@ -2373,6 +2373,7 @@ const _roundsDecisions = '## 1. Route each Owner decision';
 /// The heading of the rounds reference's fix-round section.
 const _roundsFixRound = '## 2. Run the fix round';
 
+/// The re-audit reference of the brainstorm skill, under the plugin folder.
 const _reauditReference = 'specstone-brainstorming-sdd/references/reaudit.md';
 
 void _brainstormRoundTests() {
@@ -2512,7 +2513,7 @@ void _brainstormRoundTests() {
       ]),
       isTrue,
     );
-    for (final input in ['mode: author', 'design:', 'report:', 'guide:']) {
+    for (final input in ['mode: author', 'report:', 'guide:']) {
       expect(section, contains(input), reason: input);
     }
   });
@@ -2570,10 +2571,10 @@ void _brainstormRoundTests() {
 
   test('the pass beyond the cap re-audits only its own lines', () {
     expect(
-      [_reauditReference, _roundsReference].any(
-        (file) =>
-            _hasSentenceWith(_pluginText(file), ['beyond the cap', 'only']),
-      ),
+      _hasSentenceWith(_pluginText(_reauditReference), [
+        'beyond the cap',
+        'only',
+      ]),
       isTrue,
     );
   });

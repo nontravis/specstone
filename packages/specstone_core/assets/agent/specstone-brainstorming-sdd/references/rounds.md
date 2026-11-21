@@ -10,10 +10,11 @@ decision; any other only words or records one.
   lists every amend it keeps, `amend: <N>[,<N> ...]`.
 - **Sweep**: before each design check, send a fresh `specstone-sdd-sweeper` the document's path, the check's `amend`
   or `since`, and `bundles`. An Owner change adding a decision or a doc gets one `specstone-sdd-sweeper` sweep,
-  `since:` the scope's last check snapshot, no snapshot saved. Add each sweep's `Rows:` lines word for word to the scope's table
-  (the first, or the newest `Amend <N> rows` a kept decision lists); one sweep per check; no cap counts it.
-  With no subagent or after a failed sweep, add no rows; after a failed one, tell the Owner it did not run.
-- **Snapshot**: then copy the design to `<folder>/reports/sdd-auditor.audit.snapshot.<XXXXXX>.md`, `XXXXXX` that check's `report:` characters.
+  `since:` the scope's last check snapshot, no snapshot saved. Add each sweep's `Rows:` lines word for word to the
+  scope's table (the first, or the newest `Amend <N> rows` a kept decision lists); one sweep per check; no cap counts
+  it. With no subagent or after a failed sweep, add no rows; after a failed one, tell the Owner it did not run.
+- **Snapshot**: then copy the design to `<folder>/reports/sdd-auditor.audit.snapshot.<XXXXXX>.md`, `XXXXXX` that
+  check's `report:` characters.
 - **Chain**: an untagged line takes no check. Fixed `[behavior]` lines of a first or amend check take one delta
   check, `since:` its snapshot, no `amend`. A scope: the first check, or one amend's check (shared amends as one),
   plus at most one delta check.
@@ -40,12 +41,13 @@ Drafts list: the first author report's drafts plus docs a round or pass added, r
   path, the drafts list, and `guide:` the first author's `Guide:` files, then the audit's untagged `Findings:` lines
   and each untagged line of a design check after an author pass naming a draft by `<type>:<name>#<key>`, siblings too.
   A line naming a doc outside the list is a Docs to change row.
-- **Fresh author**: a fresh author takes the fix pass, with the fix file's inputs, when the host cannot resume an
-  agent, that agent has ended, or the resumed one answers with no tool call and its old report. The fill pass of a
-  split and the pass after an amend are fresh, joined to a fix round or not, since an amend or a split changes what
-  the author read.
+- **Fresh author**: a fresh author takes the fix pass when the host cannot resume an agent, that agent has ended, or
+  the resumed one answers with no tool call and its old report; main writes the fix file, then dispatches the fresh
+  author naming it. The fill pass of a split and the pass after an amend are fresh, joined to a fix round or not,
+  since an amend or a split changes what the author read.
 - **`[behavior]` line** or behavior decision: never a fix round; an amend and its own check. The one fresh author
-  pass after it is the round: amended design, drafts list, the audit's untagged lines.
+  pass after it is the round: the amended design's path, the drafts list, `guide:`, the audit's untagged lines, and
+  its design check's untagged lines naming a draft by `<type>:<name>#<key>`, siblings too.
 - **Split proposal** the Owner okays: run its `new` and `move` commands in order. Its new FRs join the drafts list;
   a fresh fill pass, with the proposal's lines, fills them before any audit. It joins the next round when due, else
   it is no round and carries no findings; past the round it still runs, its re-audit findings going to the Owner
