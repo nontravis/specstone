@@ -154,7 +154,7 @@ sections:
           in: all
         - id: exit_status
           # An exit status given as a number or a zero word, or pointed to as a row or a link; a line that names the words only is free.
-          pattern: '\b[Ee]xit status(?: rows?\b|:? (?:(?:is|of|=) )?`?(?:[0-9]|(?:non-)?zero\b))|\[[Ee]xit status\]'
+          pattern: '\b[Ee]xit status(?: rows?\b|:? (?:(?:is|of|=) )?`?(?:[0-9]|(?:non-?)?zero\b))|\b(?:[Nn]on-?)?[Zz]ero [Ee]xit status\b|\[[Ee]xit status\]'
           message: 'edge case states an exit status; guide line: State no exit status'
           in: all
         - id: trace_outside_field

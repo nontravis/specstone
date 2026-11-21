@@ -410,6 +410,8 @@ const _exitStatusPointers = <String>[
   '1. E01 — A crash → the run stops, exit status is non-zero.',
   '1. E01 — A crash → the run stops, exit status: non-zero.',
   '1. E01 — A crash → the run stops, exit status of zero.',
+  '1. E01 — A crash → the run stops with exit status nonzero.',
+  '1. E01 — A crash → it ends with a non-zero exit status.',
 ];
 
 /// Edge case lines that mention an exit status and give none.

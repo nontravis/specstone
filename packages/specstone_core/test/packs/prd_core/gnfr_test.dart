@@ -130,5 +130,25 @@ void main() {
         isEmpty,
       );
     });
+
+    test('Interface and Design standards take a standard cite', () async {
+      const cite =
+          '- **Statement:** The system shall answer a sign-in within 2 s '
+          'per ISO 8601.';
+      Future<List<String>> flaggedIn(String header) => bannedLines(
+        check.edit(check.gnfrDoc, [
+          (
+            '## $header\n\nN/A — none applies.\n',
+            '## $header\n\n### NFR-X01 — Cite\n\n$cite\n',
+          ),
+        ]),
+        check.gnfrDoc,
+        'trace_outside_field',
+      );
+
+      expect(await flaggedIn('Interface'), isEmpty);
+      expect(await flaggedIn('Design standards'), isEmpty);
+      expect(await flaggedIn('Security'), [cite]);
+    });
   });
 }
