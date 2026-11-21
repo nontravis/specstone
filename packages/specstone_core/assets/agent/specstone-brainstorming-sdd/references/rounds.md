@@ -4,17 +4,16 @@ A behavior decision adds or changes a state, input, output, edge case, error, or
 decision; any other only words or records one.
 
 - **Refused design path** (no document yet): append nothing; write at the Owner's new path by `design.md`.
-- **Words or records only**: append to Rulings by `design.md`, no design check; the author or fix round goes on.
-- **Behavior, or more grounding needed**: ground a newly reached doc by its own
-  `specstone context <doc> --for design --out`, never `get`; amend the same file. After an author pass, a behavior
-  amend is a new scope, its check `amend: <N>`; a later amend's check takes `amend: <N>[,<N> ...]`.
+- **Words or records only**: append to Rulings by `design.md`, no check; the author or fix round goes on.
+- **Behavior, or more grounding needed**: ground a newly reached doc per `SKILL.md`
+  step 0; amend the same file. After an author pass, a behavior
+  amend is a new scope, its check `amend: <N>`; a later amend's check lists every amend it keeps, `amend: <N>[,<N> ...]`.
 - **Sweep**: before each design check, send a fresh `specstone-sdd-sweeper` the document's path, the check's `amend`
-  or `since`, and `bundles`, and an Owner change adding a decision or a doc gets one `since:` the scope's last check
-  snapshot, no snapshot saved. Add its `Rows:` lines word for word to the scope's table (the first, or the newest
-  `Amend <N> rows` a kept decision lists); no second sweep; no cap counts it. With no subagent or after a failed
-  sweep, add no rows; after a failed one, tell the Owner it did not run.
-- **Snapshot**: then copy the design to `<folder>/reports/sdd-auditor.audit.snapshot.<XXXXXX>.md` by the host's
-  file write, `XXXXXX` that check's `report:` characters.
+  or `since`, and `bundles`. An Owner change adding a decision or a doc gets one `specstone-sdd-sweeper` sweep,
+  `since:` the scope's last check snapshot, no snapshot saved. Add its `Rows:` lines word for word to the scope's table
+  (the first, or the newest `Amend <N> rows` a kept decision lists); one sweep per check; no cap counts it.
+  With no subagent or after a failed sweep, add no rows; after a failed one, tell the Owner it did not run.
+- **Snapshot**: copy the design to `<folder>/reports/sdd-auditor.audit.snapshot.<XXXXXX>.md`, `XXXXXX` that check's `report:` characters.
 - **Chain**: an untagged line takes no check. Fixed `[behavior]` lines of a first or amend check take one delta
   check, `since:` its snapshot, no `amend`. A scope: the first check, or one amend's check (shared amends as one),
   plus at most one delta check.

@@ -2408,16 +2408,18 @@ void _brainstormRoundTests() {
     expect(_oneLine(text), isNot(contains('amends before the ask share one')));
   });
 
-  test('an Owner change at the ask sweeps since the last snapshot and saves '
-      'none', () {
-    expect(
-      _hasSentenceWith(
-        _sectionOf(_pluginText(_roundsReference), _roundsDecisions),
-        ['`specstone-sdd-sweeper`', '`since:`', 'no snapshot'],
-      ),
-      isTrue,
-    );
-  });
+  test(
+    'an Owner change at the ask sweeps since the last snapshot and saves none',
+    () {
+      expect(
+        _hasSentenceWith(
+          _sectionOf(_pluginText(_roundsReference), _roundsDecisions),
+          ['`specstone-sdd-sweeper`', '`since:`', 'no snapshot'],
+        ),
+        isTrue,
+      );
+    },
+  );
 
   test('no subagent or a failed sweep adds no rows', () {
     expect(
