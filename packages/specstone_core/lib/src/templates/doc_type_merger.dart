@@ -317,6 +317,7 @@ final class DocTypeMerger {
             docTypes: _frozen(entry.docTypes),
             pointer: _pointerOf(entry, type, file),
             root: _rootOf(entry, type, file),
+            bundleWith: entry.bundleWith,
             description: entry.description,
             lint: entry.lint,
           ),
@@ -338,6 +339,7 @@ final class DocTypeMerger {
         docTypes: _frozen(entry.docTypes),
         pointer: _pointerOf(entry, entry.type ?? current.type, file),
         root: _rootOf(entry, entry.type ?? current.type, file),
+        bundleWith: entry.bundleWith,
         description: entry.description,
         lint: _mergedCaps(current.lint, entry.lint),
       );
