@@ -358,6 +358,7 @@ const _tracePasses = <String>[
   'It follows [BR-02](USER_STORY.md#rules).',
   'It extends [Lock the account](fr02_lock_account.md#edge-cases).',
   'A scenario with a wrong password is refused.',
+  'The system shall report which story a requirement traces from.',
 ];
 
 /// The edge case lines of the description, in the order it states them.

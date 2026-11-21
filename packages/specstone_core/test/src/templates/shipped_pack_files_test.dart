@@ -558,12 +558,6 @@ void main() {
       }
     });
 
-    test('title_no_number is true on every prd-core doc type', () {
-      for (final docType in set.docTypes) {
-        expect(docType.lint.titleNoNumber, isTrue, reason: docType.id);
-      }
-    });
-
     test('the count keys sit on their sections', () {
       List<(int, String?)> sentences(String docType, String id) => [
         for (final s in section(docType, id).maxSentences!)

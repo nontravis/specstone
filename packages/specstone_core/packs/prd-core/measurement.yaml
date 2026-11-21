@@ -42,6 +42,7 @@ sections:
           in: text
         - id: method_numbered
           # \S skips a blank line and an indented wrapped line; the lookahead's second branch skips the section header line.
+          # The engine reads one line at a time, so an unindented lazy continuation of a step is flagged; indent a wrapped line.
           pattern: '^(?!\d+\. |## )\S.*$'
           message: 'Method line does not open with a step number; guide line: Write numbered steps, one per action'
           in: all
