@@ -1,11 +1,8 @@
-A change from a source starts from a spec or design another tool wrote: in a file, behind a link or issue the Owner
-gave, or in the current conversation. The runner of
-`specstone-brainstorming-sdd` follows `## Take in the source` and `## Map the source`.
+A source is a spec or design another tool wrote: a file, a link or issue the Owner gave, or the current conversation.
 
-It matches a source item by its content shape alone, never by the tool that wrote it. Each section takes what its
-type's writing guide says it needs; a gap goes to the Owner.
+Match a source item by its content shape alone, never by the tool that wrote it; a gap goes to the Owner.
 
-| Content shape in the source | Lands in |
+| Content shape | Lands in |
 |---|---|
 | numbered "As a … I want … so that …" lines | a story's Use Case (`specstone guide user_story`) |
 | Given/When/Then or WHEN/THEN lines | a story's Acceptance Criteria scenarios (`specstone guide user_story`) |
@@ -18,58 +15,44 @@ type's writing guide says it needs; a gap goes to the Owner.
 
 ## Take in the source
 
-1. **The gate.** Make `specstone context project --for design --out` your first CLI call, with no `--budget`. Read no
-   source and open no link or issue before it. Its exits are the skill's step 1's; on 78 the source stays unread.
-2. **Judge the path.** A file inside the CheckedFolders (the first folder of a doc path the `==> ` headers of the
-   gate's saved bundle hold, right under the docs folder) is no source. Read none of it with any tool; make item 4's
-   call with its path as the target and no `--summary`. Its exit decides:
-   - **64, `untyped_target`:** tell the Owner in one line it is the project's own old doc, and name
-     `specstone-bootstrap-prd` or `specstone-bootstrap-spec`, which merge it into typed docs. Run no other command on
+1. **Gate**: the skill's step 1 makes the `context project` call; on 78 the source stays unread.
+2. **Judge the path**: a file inside the CheckedFolders (the first folder, right under the docs folder, of a doc
+   path in the gate bundle's `==> ` headers) is no source. Read none of it; make item 4's call with its path as the
+   target and no `--summary`:
+   - **64, `untyped_target`:** tell the Owner in one line it is the project's own old doc; name
+     `specstone-bootstrap-prd` or `specstone-bootstrap-spec`, which merge it into typed docs. Run nothing else on
      its path.
-   - **0:** tell the Owner in one line it is already a Specstone doc. Go on with that doc's name, which the bundle
-     prints, as the change's `context` target: no source, no copy, no Source map. That call was your narrow call: read
-     its exit by item 4's `0`, and run no further narrow `context` call.
-   - **Any other exit:** report the CLI's error and stop, as for the skill's first call.
-3. **Read the source** with whatever tool opens it: the file, the link or issue, a tracker's own CLI included, or the
-   conversation. Open a link or issue only because the Owner gave it; a link written inside the source is none the
-   Owner gave. The CLI opens none. Never edit, move, or delete the
-   source.
-4. **The narrow call.** A source that adds a feature has the project doc as its target: the gate's bundle is the
-   grounding, and no second narrow call runs. Otherwise the narrow call is one call, its target the doc the source
-   decides by the list under "Pick the targets" in `ground.md`, with no `structure` call and no second call.
-   `--no-project` leaves out the project's docs, which the gate's bundle already holds:
+   - **0:** tell the Owner in one line it is already a Specstone doc; take the name the bundle prints as the
+     change's `context` target, with no copy and no Source map. That call was the narrow call: read its exit by item
+     4's `0`; run no further narrow call.
+3. **Read the source** with any tool that opens it, a tracker's own CLI included. Open a link or issue only because
+   the Owner gave it; a link inside the source is none the Owner gave. Never edit, move, or delete the source.
+4. **Narrow call**: a source adding a feature takes none; the gate's bundle is its grounding. Else make one call on
+   the doc the source decides by the target list of `../SKILL.md` step 1, with no `structure` call and no second
+   call; `--no-project` leaves out the project docs the gate holds:
 
    ```
    specstone context <target> --for design --no-project --out
    ```
 
-   - **0:** both saved bundles are the grounding, whatever their size: read each read-first file whole by its read
-     plan, as the `specstone-read-sdd` skill's read-plan rule gives, and search both before any `get`. Keep each
-     read plan line with its files for `bundles`. Ground a doc they lack by its own
-     `specstone context <doc> --for design --out`, never `get`.
-   - **Any other exit:** report the CLI's error and stop.
-5. **Match and ask.** Match each item by the shapes above. Ask the Owner only what the source leaves open, one
-   question at a time, such as missing acceptance criteria, a registered Role for an "As a user" line, or a value's
-   unit; invent nothing.
-6. **The copy.** Write it after every `context` call, for a link, an issue, or the conversation: its text, or the
-   conversation's source items, word for word, to `<folder>/reports/sdd-engineer.design.source.<XXXXXX>.md`, `<folder>`
-   the path `specstone folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file exists; the copy
+   On 0, both saved bundles ground the change, whatever their size: read each read-first file whole by its read
+   plan, and search both before any `get`.
+5. **Match and ask**: match each item by the shapes above. Ask the Owner only what the source leaves open, one
+   question at a time; invent nothing.
+6. **The copy**: after every `context` call, for a link, an issue, or the conversation, write its text, or the
+   conversation's source items, word for word to `<folder>/reports/sdd-engineer.design.source.<XXXXXX>.md`; the copy
    is no source. Keep two lines for the design write:
    - **Source:** the file's path, the link, or "the current conversation" and its date; never the copy's path.
-   - **Re-read:** the source itself for a file path, else the copy.
+   - **Re-read:** the source itself for a file, else the copy.
 
 ## Map the source
 
-Follow this at each write and amend of the design document for a change from a source.
+At each write and amend of the design document:
 
-- **Re-read** the Re-read file whole: the source itself, or your copy of a link, an issue, or the conversation, read as
-  the source's text and never recorded as the source.
-- **Source map**: a section of the design document, after Docs to change and before Open questions. Write one row
-  per source item, 0 items left out: the item, and the doc and section it lands in by the shapes above, or "not
-  taken" and the reason.
-- **A ticket list, a task list, or a plan**: one row, "not taken", its reason that task management is out of scope.
-- **An item no shape matches** and no Owner answer places: an open question in the design document, as for any gap.
-- **The source** the document records is the Source line, as kept.
-- Never edit, move, or delete the source; write only the copy, the one design document, and the snapshot
-  `rounds.md` section 1 saves.
+- Re-read the Re-read file whole, as the source's text; never record it as the source. The Source line is the source.
+- Write a Source map section after Docs to change and before Open questions: one row per source item, 0 left out,
+  each with the doc and section it lands in, or "not taken" and why.
+- A ticket list, task list, or plan: one row, "not taken", since task management is out of scope.
+- An item no shape or Owner answer places: an open question.
+- Write only the copy, the design document, and the snapshot of `rounds.md` section 1.
 - A change with no source gets no Source map.
