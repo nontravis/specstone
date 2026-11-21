@@ -40,6 +40,9 @@ sections:
     description: |-
       Write one table with the columns Feature, What it uses.
       List each feature, and each component of it, that applies the topic.
+    lint:
+      item_count:
+        min: 2
   - id: rules
     header: Rules
     prefix_id: RULE-
@@ -61,6 +64,9 @@ sections:
           pattern: '^- (?!`[^`]+:[^`]+`)'
           message: 'interface item does not open with a `path:Symbol` code span; guide line: List the public entry points as `path:Symbol` pointers'
           in: all
+        - id: signature_copy
+          pattern: '^- {5,}[^(]*\('
+          message: 'interface item copies a signature after its pointer; guide line: Copy no signature'
   - id: model
     header: Model
     description: |-
@@ -74,6 +80,7 @@ sections:
     description: |-
       List the unresolved decisions.
 lint:
+  title_no_number: true
   max_chars: 50000
   max_lines: 300
 reference:

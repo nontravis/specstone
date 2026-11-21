@@ -24,7 +24,9 @@ ignored. An item with no leading bold span has no term and always moves.
   Pipe the `terms` section's whole body to `specstone set glossary:glossary#terms --base <hash>`, the base `get` prints
   for it (the base of empty text for a section the doc lacks): first the entries it already held, verbatim and in
   place, then the moved ones in PROJECT's order. An empty glossary doc takes the same path. An entry over 300
-  characters gets `item_over_limit` there and waits as the procedure's size row says.
+  characters gets `item_over_limit` there and waits as the procedure's size row says. One off the `terms` template form
+  gets `pattern_banned`, id `term_bullet_form`, left as written, which waits for the agent until a later fill round of
+  `bootstrap-prd` takes it.
 - **Its in-file links** (`#<anchor>`, no path): one to a heading PROJECT keeps, the glossary section while an entry
   stays in it included, gains `PROJECT.md` as its path, its anchor unchanged; one to the glossary section the move drops
   links to `GLOSSARY.md` with no anchor; one to a goal the batch's goal move moved (`#pg-…`) links to `GOAL.md#pg-…`,

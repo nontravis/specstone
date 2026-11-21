@@ -12,6 +12,8 @@ sections:
     header: Groups
     description: |-
       List each community or group to join or build, and what the person offers it.
+lint:
+  title_no_number: true
 reference:
   - title: Scribblers, core elements of a personal brand
     url: https://www.scribblersindia.com/blog/core-elements-of-a-personal-brand/

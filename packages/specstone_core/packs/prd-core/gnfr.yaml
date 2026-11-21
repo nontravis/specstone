@@ -67,6 +67,11 @@ sections:
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
           in: all
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
+          in: all
   - id: security
     header: Security
     prefix_id: NFR-Sec
@@ -122,6 +127,11 @@ sections:
         - id: statement_number
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
           in: all
   - id: reliability
     header: Reliability
@@ -179,6 +189,11 @@ sections:
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
           in: all
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
+          in: all
   - id: maintainability
     header: Maintainability
     prefix_id: NFR-M
@@ -234,6 +249,11 @@ sections:
         - id: statement_number
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
           in: all
   - id: interface
     header: Interface
@@ -291,6 +311,11 @@ sections:
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
           in: all
+        - id: trace_outside_field
+          # A scenario ID or an NFR or PG ID; the guide line asks the Statement to name a standard.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
+          in: all
   - id: environment
     header: Environment
     prefix_id: NFR-E
@@ -346,6 +371,11 @@ sections:
         - id: statement_number
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
           in: all
   - id: safety
     header: Safety
@@ -403,6 +433,11 @@ sections:
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
           in: all
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
+          in: all
   - id: operability
     header: Operability
     prefix_id: NFR-O
@@ -458,6 +493,11 @@ sections:
         - id: statement_number
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
           in: all
   - id: design_standards
     header: Design standards
@@ -515,7 +555,13 @@ sections:
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
           in: all
+        - id: trace_outside_field
+          # A scenario ID or an NFR or PG ID; the guide line asks the Statement to name a standard.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b'
+          message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
+          in: all
 lint:
+  title_no_number: true
   banned_patterns:
     - id: doc_citation
       # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.

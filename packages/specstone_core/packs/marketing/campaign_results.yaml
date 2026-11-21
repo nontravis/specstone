@@ -22,6 +22,8 @@ sections:
     required: true
     description: |-
       Write what the campaign cost, by channel.
+lint:
+  title_no_number: true
 reference:
   - title: Anthropic marketing plugin, campaign-plan
     url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md

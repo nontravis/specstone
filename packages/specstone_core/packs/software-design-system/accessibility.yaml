@@ -9,3 +9,5 @@ sections:
     required: true
     description: |-
       Write one checkable rule per item every component meets, such as a contrast ratio or a focus rule.
+lint:
+  title_no_number: true

@@ -54,7 +54,14 @@ sections:
     header: Props
     required: true
     description: |-
-      Write one row per prop, its type one of `text`, `number`, `boolean`, `choice`, and `on-tap`.
+      Write one row per prop, its type one of `text`, `number`, `boolean`, `choice`, and `on-tap` in the second column.
+    lint:
+      banned_patterns:
+        - id: prop_type_value
+          # A table row whose second cell is none of the five types, the `Type` header, or a separator.
+          pattern: '^\|[^|]*\|(?!\s*(?:`?(?:text|number|boolean|choice|on-tap)`?|[Tt]ype|:?-+:?)\s*\|)'
+          message: 'prop type is not text, number, boolean, choice, or on-tap; guide line: Write one row per prop, its type one of `text`, `number`, `boolean`, `choice`, and `on-tap` in the second column.'
+          in: all
   - id: examples
     header: Examples
     required: true
@@ -69,3 +76,5 @@ sections:
     required: true
     description: |-
       Write only what the component adds to the library-wide accessibility bar, or link to the bar.
+lint:
+  title_no_number: true

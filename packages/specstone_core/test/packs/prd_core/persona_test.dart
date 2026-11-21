@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 
 void main() {
@@ -63,5 +64,80 @@ void main() {
   test('alternatives carries its item floor', () {
     final items = sectionOf(persona, 'alternatives').itemCount!;
     expect((items.min, items.max), (1, null));
+  });
+
+  test('the description keeps the bound, the research trace, and the '
+      'Vocabulary exception in one line', () {
+    expect(
+      persona.description!.split('\n'),
+      contains(
+        'Keep a bound in the item it limits; keep the research trace in '
+        "`basis:` and the Sources section, out of a narrative section's "
+        'prose; a Vocabulary item names its own source.',
+      ),
+    );
+  });
+
+  group('the required lines of a section', () {
+    const path = 'prds/personas/buyer/PERSONA.md';
+
+    Future<List<String>> missing(String header, List<String> lines) =>
+        missingPatterns({
+          'docs/$path':
+              '---\nrole: Parent\npriority: primary\nbasis: proto\n---\n\n'
+              '# Parents of kids\n\n## Snapshot\n\nA parent.\nOf two kids.\n\n'
+              '## $header\n\n${lines.join('\n')}\n',
+        }, path);
+
+    const contextLines = {
+      'setting_line': '- **Setting:** at home',
+      'tools_line': '- **Tools or devices:** a phone',
+      'frequency_line': '- **Frequency:** daily',
+      'use_line': '- **Use:** chosen',
+    };
+    const barrierLines = {
+      'anxiety_line': '- **Anxiety:** a lost account',
+      'habit_line': '- **Habit:** a saved password',
+    };
+    const talkLines = {
+      'voice_guide_line': '- **Voice guide:** [Voice](../../voice.md)',
+      'tone_shift_line': '- **Tone shift:** calmer',
+    };
+
+    for (final MapEntry(key: header, value: lines) in {
+      'Context of use': contextLines,
+      'Barriers': barrierLines,
+      'How we talk to': talkLines,
+    }.entries) {
+      test('$header holds all its lines with no finding, and misses each '
+          'line by its own id', () async {
+        expect(await missing(header, lines.values.toList()), isEmpty);
+        for (final MapEntry(key: id) in lines.entries) {
+          expect(
+            await missing(header, [
+              for (final MapEntry(key: other, :value) in lines.entries)
+                if (other != id) value,
+            ]),
+            [id],
+            reason: id,
+          );
+        }
+      });
+    }
+
+    test('a Voice guide line with no link, and a line held in a fenced '
+        'block, give the line as missing', () async {
+      expect(
+        await missing('How we talk to', [
+          '- **Voice guide:** the brand guide',
+          talkLines['tone_shift_line']!,
+        ]),
+        ['voice_guide_line'],
+      );
+      expect(
+        await missing('Barriers', ['```text', ...barrierLines.values, '```']),
+        unorderedEquals(barrierLines.keys),
+      );
+    });
   });
 }

@@ -9,3 +9,12 @@ sections:
     required: true
     description: |-
       Write one row per step of the scale: its name, its use, and a link to its row in the tokens doc.
+    lint:
+      banned_patterns:
+        - id: token_value
+          # A hex color, or a number with a unit; a token name or a link to a token row holds neither.
+          pattern: '(?<![\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\w-])|(?<![\w.#])(?:\d+(?:\.\d+)?|\.\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\w%])'
+          message: 'token value in a foundation doc; guide line: it links the tokens doc and writes no token value'
+          in: all
+lint:
+  title_no_number: true

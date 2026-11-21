@@ -50,3 +50,5 @@ sections:
     header: Inputs
     description: |-
       List the arguments the skill takes, or the files and docs it must read first.
+lint:
+  title_no_number: true

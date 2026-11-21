@@ -54,8 +54,9 @@ const _sharedLines = <String, String>{
       'Hold only rules every feature uses; write any other rule in a '
       'per-feature spec doc, or in a `topic` when two or more features share '
       'it.',
-  'one_file_per_feature_folder': 'Keep one file per feature spec folder.',
-  'one_file_per_spec_folder': 'Keep one file per spec folder.',
+  'one_file_per_feature_folder':
+      'Keep one file per doc type in each feature spec folder.',
+  'one_file_per_spec_folder': 'Keep one file per doc type in each spec folder.',
   'overrides_line':
       'Right after an item departing from a rule above, write '
       '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
@@ -136,7 +137,7 @@ const _itemShapeLines = <String, String>{
 
 void main() {
   group('software-tech manifest', () {
-    test('software-tech ships at 1.15.0 and extends prd-core', () {
+    test('software-tech ships at 1.16.0 and extends prd-core', () {
       final bytes = shippedPackFiles['software-tech/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -144,7 +145,7 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.15.0');
+      expect(manifest.version.toString(), '1.16.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 
@@ -220,7 +221,10 @@ void main() {
       expect(mark.sections, ['invariants', 'value_objects']);
 
       final project = await writeTree({
-        '.specstone/config.yaml': shippedPinsOneMinorBelow('software-tech'),
+        '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
+          'software-tech: ${shippedPackVersions()['software-tech']}',
+          'software-tech: ${migrations.last.from}',
+        ),
         'docs/specs/DOMAIN.md':
             '# Project domain\n\n## Invariants\n\n'
             '- **INV-1** An email is unique.\n\n## Value objects\n\n'
@@ -257,7 +261,7 @@ void main() {
       );
       final shipped = manifest.version;
       final below = PackVersion.parse(
-        '${shipped.major}.${shipped.minor - 1}.0',
+        '1.14.0',
         file: 'test',
         key: 'software-tech',
       );
@@ -425,6 +429,20 @@ void main() {
         isEmpty,
       );
     });
+
+    test(
+      'each of the fifteen doc types, the project spec types through '
+      'extends, titles with no number, so each sets lint.title_no_number',
+      () {
+        for (final id in softwareTechIds) {
+          expect(
+            prdCoreDocType(set, id).lint.titleNoNumber,
+            isTrue,
+            reason: id,
+          );
+        }
+      },
+    );
 
     test('no description states a line target or a sentence length', () {
       final target = RegExp(

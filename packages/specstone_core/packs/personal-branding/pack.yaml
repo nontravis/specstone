@@ -1,5 +1,5 @@
 name: personal-branding
-version: 1.0.0
+version: 1.1.0
 extends: marketing
 shared_lines:
   - id: person_stable_facts

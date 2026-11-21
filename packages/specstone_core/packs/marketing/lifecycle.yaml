@@ -12,6 +12,8 @@ sections:
     header: Triggers
     description: |-
       Write what moves a customer from one stage to the next.
+lint:
+  title_no_number: true
 reference:
   - title: marketingskills, product-marketing
     url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

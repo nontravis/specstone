@@ -19,6 +19,8 @@ sections:
     header: Plan
     description: |-
       Write the campaign's objective, audience, key messages, channels, and success metrics.
+lint:
+  title_no_number: true
 reference:
   - title: Anthropic marketing plugin, campaign-plan
     url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md

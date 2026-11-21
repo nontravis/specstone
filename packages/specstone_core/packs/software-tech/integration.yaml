@@ -3,7 +3,7 @@ description: |-
   The outside systems one feature calls: why, over which protocol, and the contract with each.
   Title it `# <Feature name> integrations`, such as `# Rendering integrations`, with no number.
   Write this doc only when the feature calls an outside system.
-  Write one rule per ID: one `###` per system, each rule one sentence.
+  Write one rule per ID: one `###` per system, filled as Contract per system gives; state every other rule in one sentence.
   Put a rule every feature uses in the project's INTEGRATION doc.
 path: specs/f{nn}_{slug}/INTEGRATION.md
 parent: feature
@@ -25,6 +25,12 @@ sections:
       Write Failure handling in numbers: connect and request timeouts, the one layer that retries, backoff with jitter,
       max attempts, and a circuit breaker when used; add provider rate limits as an optional row.
       Write Idempotency as key source, duplicate behavior, and expiry.
+    lint:
+      required_patterns:
+        - id: endpoints_used
+          pattern: '^\|\s*Direction\s*\|\s*Method / Event\s*\|\s*Purpose\s*\|\s*$'
+          message: 'no Endpoints used table with the columns Direction, Method / Event, Purpose; guide line: Write one `###` per system, with Endpoints used as a table'
+          per_subsection: true
   - id: translation
     header: Translation
     description: |-
@@ -35,7 +41,14 @@ sections:
       Write a table with the columns Event type, Channel, Action, Payload schema, Dedup key, Version rule.
       Write Action as send or receive.
       Write Payload schema as a pointer to the source of truth; copy no payload schema.
+    lint:
+      banned_patterns:
+        - id: action_value
+          pattern: '^\|[^|]*\|[^|]*\|(?! *`?(?:Action|send|receive|:?-+:?)`? *\|)[^|]*\|'
+          message: 'Action is not send or receive; guide line: Write Action as send or receive'
+          in: all
 lint:
+  title_no_number: true
   max_chars: 50000
   max_lines: 300
 reference:

@@ -17,6 +17,8 @@ sections:
     header: Per audience
     description: |-
       Write how the wording shifts for each audience, with the core message and pillars unchanged.
+lint:
+  title_no_number: true
 reference:
   - title: Bare Strategy, B2B messaging house
     url: https://barestrategy.com/blog/messaging-house-framework

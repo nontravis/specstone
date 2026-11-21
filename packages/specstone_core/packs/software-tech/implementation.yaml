@@ -50,6 +50,7 @@ sections:
       Copy each fingerprint from `specstone check`; never compute one.
       Write a skip row, `- <fr> skipped: <reason>`, for an FR that no test can prove; under `edge_case`, one per edge case.
 lint:
+  title_no_number: true
   max_chars: 60000
   max_lines: 400
 reference:

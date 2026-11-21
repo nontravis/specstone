@@ -199,14 +199,17 @@ void main() {
     },
   );
 
-  test('the reference doc type holds no banned_patterns entry of any '
-      'id', () async {
+  test('the reference doc type holds no doc-level banned_patterns entry, and '
+      'its summary section holds fact_locator alone', () async {
     final reference = prdCoreDocType(await resolvePrdCore(), 'reference');
     expect(reference.lint.bannedPatterns ?? const <PatternEntry>[], isEmpty);
     for (final section in reference.sections) {
       expect(
-        section.bannedPatterns ?? const <PatternEntry>[],
-        isEmpty,
+        [
+          for (final p in section.bannedPatterns ?? const <PatternEntry>[])
+            p.id,
+        ],
+        section.id == 'summary' ? ['fact_locator'] : isEmpty,
         reason: section.id,
       );
     }
@@ -237,26 +240,44 @@ void main() {
   });
 
   test('every prd-core type but reference carries the same '
-      'doc_citation and history, and reference carries neither', () async {
+      'doc_citation and history, and reference carries neither; measurement '
+      'holds history on each section but results', () async {
     final set = await resolvePrdCore();
     String? citation;
     String? history;
+    void expectSame(String type, Map<String, String> byId) {
+      expect(byId['doc_citation'], isNotNull, reason: type);
+      expect(byId['history'], isNotNull, reason: type);
+      citation ??= byId['doc_citation'];
+      history ??= byId['history'];
+      expect(byId['doc_citation'], citation, reason: type);
+      expect(byId['history'], history, reason: type);
+    }
+
+    Map<String, String> patternsOf(Iterable<PatternEntry>? entries) => {
+      for (final p in entries ?? const <PatternEntry>[]) p.id: p.pattern,
+    };
+
     for (final type in set.docTypes) {
-      final byId = {
-        for (final p in type.lint.bannedPatterns ?? const <PatternEntry>[])
-          p.id: p.pattern,
-      };
+      final byId = patternsOf(type.lint.bannedPatterns);
       if (type.id == 'reference') {
         expect(byId.keys, isNot(contains('doc_citation')));
         expect(byId.keys, isNot(contains('history')));
         continue;
       }
-      expect(byId['doc_citation'], isNotNull, reason: type.id);
-      expect(byId['history'], isNotNull, reason: type.id);
-      citation ??= byId['doc_citation'];
-      history ??= byId['history'];
-      expect(byId['doc_citation'], citation, reason: type.id);
-      expect(byId['history'], history, reason: type.id);
+      if (type.id != 'measurement') {
+        expectSame(type.id, byId);
+        continue;
+      }
+      expect(byId.keys, isNot(contains('history')));
+      for (final section in type.sections) {
+        final held = patternsOf(section.bannedPatterns);
+        if (section.id == 'results') {
+          expect(held.keys, isNot(contains('history')));
+          continue;
+        }
+        expectSame('measurement.${section.id}', {...byId, ...held});
+      }
     }
     expect(set.docTypes.where((t) => t.id != 'reference'), hasLength(13));
   });

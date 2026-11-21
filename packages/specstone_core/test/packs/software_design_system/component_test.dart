@@ -3,6 +3,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_design_system.dart';
 
@@ -176,6 +177,98 @@ void main() {
           contains('`choice`'),
           contains('`on-tap`'),
         ),
+      );
+    });
+  });
+
+  group('component props lint', () {
+    const rowsOutside = [
+      '| size | integer | 3 |',
+      '| label | string | |',
+      '| onPressed | callback | |',
+      '| mode | `enum` | |',
+      '| gap | text, number | |',
+    ];
+    const rowsInside = [
+      '| Prop | Type | Notes |',
+      '|---|---|---|',
+      '| :--- | :---: | ---: |',
+      '| label | text | the caption |',
+      '| count | number | |',
+      '| busy | boolean | |',
+      '| size | `choice` | small or large |',
+      '| tap | on-tap | |',
+      '| Type | text | a prop named Type |',
+    ];
+
+    Future<List<String>> flaggedProps(String body) => bannedLines(
+      {
+        '.specstone/config.yaml': softwareDesignSystemConfig(),
+        'docs/$_groupDoc': _group,
+        'docs/$_componentDoc': _component(body: body),
+      },
+      _componentDoc,
+      'prop_type_value',
+    );
+
+    test('a type cell outside the five is prop_type_value, and a type of '
+        'the five, the header and separator rows, a prose line, a fenced '
+        'row, and a blank line give none', () async {
+      final lines = await flaggedProps(
+        '## Props\n\nProps hold one row per prop.\n\n'
+        '${rowsInside.join('\n')}\n\n```\n| fenced | integer |\n```\n\n'
+        '${rowsOutside.join('\n')}\n',
+      );
+      expect(lines, rowsOutside);
+    });
+
+    test('a table row of another section gives none', () async {
+      final lines = await flaggedProps(
+        '## Purpose\n\n| a | integer |\n\n## Props\n\n| label | text |\n\n'
+        '## Examples\n\n| Scenario | Values |\n| default | label: Save |\n',
+      );
+      expect(lines, isEmpty);
+    });
+
+    test(
+      'a table with Type in the third column flags its second cell',
+      () async {
+        final lines = await flaggedProps(
+          '## Props\n\n| Prop | Description | Type |\n|---|---|---|\n'
+          '| label | the caption | text |\n',
+        );
+        expect(lines, [
+          '| Prop | Description | Type |',
+          '| label | the caption | text |',
+        ]);
+        final component = prdCoreDocType(
+          await resolveSoftwareDesignSystem(),
+          'component',
+        );
+        expect(
+          component.renderGuide(),
+          contains(
+            'Write one row per prop, its type one of `text`, `number`, '
+            '`boolean`, `choice`, and `on-tap` in the second column.',
+          ),
+        );
+      },
+    );
+
+    test('the message reads the guide line', () async {
+      final component = prdCoreDocType(
+        await resolveSoftwareDesignSystem(),
+        'component',
+      );
+      final entry = sectionOf(
+        component,
+        'props',
+      ).bannedPatterns!.singleWhere((e) => e.id == 'prop_type_value');
+      expect(
+        entry.message,
+        'prop type is not text, number, boolean, choice, or on-tap; guide '
+        'line: Write one row per prop, its type one of `text`, `number`, '
+        '`boolean`, `choice`, and `on-tap` in the second column.',
       );
     });
   });

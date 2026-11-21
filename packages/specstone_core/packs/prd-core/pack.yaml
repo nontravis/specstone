@@ -1,5 +1,5 @@
 name: prd-core
-version: 1.21.0
+version: 1.22.0
 migrations:
   - from: 1.7.0
     steps:
@@ -12,7 +12,7 @@ migrations:
 shared_lines:
   - id: present_truth
     text: State the present truth; history lives in git.
-    for_doc_types: [anti_persona, feature, features, fr, glossary, gnfr, goal, journey, measurement, nf, persona, project, user_story]
+    for_doc_types: [anti_persona, feature, features, fr, glossary, gnfr, goal, journey, nf, persona, project, user_story]
   - id: one_rule_per_item
     text: Keep one rule in each item, and put several conditions in a nested list. Move the detail of a one-sentence paragraph with no ID to the section of the same doc that owns it, never into a sub-list.
   - id: cite_at_item_end

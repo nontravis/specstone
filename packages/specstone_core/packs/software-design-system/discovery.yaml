@@ -16,3 +16,5 @@ sections:
     required: true
     description: |-
       Never write this section by hand.
+lint:
+  title_no_number: true

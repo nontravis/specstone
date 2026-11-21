@@ -12,6 +12,8 @@ sections:
     header: Values
     description: |-
       List what the person stands for and the opinions they hold.
+lint:
+  title_no_number: true
 reference:
   - title: Zanfia, how to build a personal brand
     url: https://zanfia.com/blog/how-to-build-personal-brand/

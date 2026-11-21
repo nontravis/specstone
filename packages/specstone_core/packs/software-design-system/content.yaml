@@ -9,3 +9,5 @@ sections:
     required: true
     description: |-
       Write one rule per item for the text a component shows, such as its case, its length, and its tone.
+lint:
+  title_no_number: true

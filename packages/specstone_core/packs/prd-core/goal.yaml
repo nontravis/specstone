@@ -3,7 +3,7 @@ description: |-
   The project goal doc: every goal, grouped by horizon.
   Title it `# Project goals`, with no number. A project has exactly one GOAL.
   Write one rule per `PG-*` ID, and leave mechanics to the spec docs.
-  A new goal takes the next number above the doc's highest `PG-` ID; no ID is reused.
+  A new goal takes the next number above the doc's highest `PG-` ID.
   A goal that changes horizon moves its block to that horizon's section, its ID kept.
   A goal met or dropped is deleted with its measurement; the doc has no status field and no archive section.
   A long-term goal with no deadline leaves out `**By:**`; every other `**By:**` names a date or a milestone.
@@ -52,6 +52,11 @@ sections:
           pattern: '^(?:- )?\*\*Metric:\*\*(?!.*\d)'
           message: 'Metric line holds no number; guide line: a numeric metric with unit'
           in: all
+      required_patterns:
+        - id: by_line
+          pattern: '^- \*\*By:\*\*'
+          message: 'no By line; guide line: every other `**By:**` names a date or a milestone'
+          per_subsection: true
   - id: short_term
     header: Short-term goals
     prefix_id: PG-
@@ -72,7 +77,13 @@ sections:
           pattern: '^(?:- )?\*\*Metric:\*\*(?!.*\d)'
           message: 'Metric line holds no number; guide line: a numeric metric with unit'
           in: all
+      required_patterns:
+        - id: by_line
+          pattern: '^- \*\*By:\*\*'
+          message: 'no By line; guide line: every other `**By:**` names a date or a milestone'
+          per_subsection: true
 lint:
+  title_no_number: true
   banned_patterns:
     - id: doc_citation
       # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.

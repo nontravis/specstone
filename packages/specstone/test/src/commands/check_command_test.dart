@@ -237,10 +237,7 @@ void main() {
       final project = await writeCheckProject(
         extra: edit(loginFr, [
           ('## Rationale\n\nA wrong password must not sign in.\n\n', ''),
-          (
-            '## Verification\n\nTest: a wrong password is refused.\n',
-            '## Verification\n',
-          ),
+          (loginFrVerification, '## Verification\n'),
         ]),
       );
       final blankLine =

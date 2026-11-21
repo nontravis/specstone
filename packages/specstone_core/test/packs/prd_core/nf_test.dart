@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' as check;
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 
 void main() {
@@ -60,5 +62,63 @@ void main() {
       ],
       ['statement'],
     );
+  });
+
+  group('trace and verification entries', () {
+    const hits = <String>[
+      'The system shall sign in within 1 s, as `S2` asks.',
+      'The system shall sign in within 1 s per NFR-Pe01.',
+      'The system shall sign in within 1 s per PG-01.',
+      'The system shall sign in within 1 s per ISO 25010.',
+      'The system shall sign in within 1 s per ISO/IEC 25010.',
+    ];
+    const passes = <String>[
+      'The system shall sign in within 1 s.',
+      'The system shall sign in within 1 s on 2 CPUs.',
+    ];
+
+    test('the Statement flags an ID or a standard cite and passes the '
+        'others', () async {
+      Future<List<String>> flagged(List<String> lines) => bannedLines(
+        check.edit(check.loginNf, [
+          ('The system shall sign in within 1 s.', lines.join('\n')),
+        ]),
+        check.loginNf,
+        'trace_outside_field',
+      );
+
+      expect(await flagged(hits), hits);
+      expect(await flagged(passes), isEmpty);
+    });
+
+    test('the same cite in the Rationale and in a fenced block gives no '
+        'finding', () async {
+      final found = await bannedLines(
+        check.edit(check.loginNf, [
+          (
+            'Users wait.',
+            'Users wait per NFR-Pe01 and ISO 25010.\n\n```text\n'
+                'The system shall sign in per S2.\n```',
+          ),
+        ]),
+        check.loginNf,
+        'trace_outside_field',
+      );
+
+      expect(found, isEmpty);
+    });
+
+    test('a Verification with no Level line gives pattern_missing '
+        'level_line', () async {
+      Future<List<String>> missing(String verification) => missingPatterns(
+        check.edit(check.loginNf, [(check.verificationLines, verification)]),
+        check.loginNf,
+      );
+
+      expect(await missing(check.verificationLines), isEmpty);
+      expect(await missing('- **Pass criteria:** a timed sign-in.\n'), [
+        'level_line',
+      ]);
+    });
   });
 }

@@ -3,6 +3,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
@@ -229,6 +230,39 @@ void main() {
         .singleWhere((f) => f.kind == FindingKind.itemFieldMissing)
         .toJson();
     expect(json, containsPair('field', 'Corrective policy'));
+  });
+
+  test('a prose line in Lifecycle outside the Mermaid fence is '
+      'lifecycle_prose, and the fence, a blank line, and both Overrides forms '
+      'pass', () async {
+    const domainPath = 'specs/f01_login/DOMAIN.md';
+    const diagram =
+        '```mermaid\nstateDiagram-v2\n  [*] --> open\n  open --> closed\n```\n';
+    const overridesBare =
+        'Overrides: [INV-1](../DOMAIN.md#invariants) — slower, because it caches';
+    Future<List<String>> flagged(String body) => bannedLines(
+      {
+        'docs/$domainPath':
+            '---\ndraft: true\n---\n\n# Login domain\n\n## Lifecycle\n\n$body',
+      },
+      domainPath,
+      'lifecycle_prose',
+    );
+
+    expect(
+      await flagged('$diagram\n$overridesBare\n- $overridesBare\n'),
+      isEmpty,
+    );
+    expect(await flagged('A session is open, then closed.\n\n$diagram'), [
+      'A session is open, then closed.',
+    ]);
+    expect(await flagged('$diagram\nThe state closed is final.\n'), [
+      'The state closed is final.',
+    ]);
+    expect(
+      sectionOf(domain, 'lifecycle').bannedPatterns!.single.message,
+      endsWith('guide line: Write a Mermaid `stateDiagram-v2` alone, no prose'),
+    );
   });
 
   test(

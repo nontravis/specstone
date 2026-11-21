@@ -49,7 +49,7 @@ sections:
           column: Responsibility
       banned_patterns:
         - id: table_only
-          pattern: '^(?!\||## )\s*\S'
+          pattern: '^(?!\||## |\s*(?:- )?Overrides:)\s*\S'
           message: 'line is not a table line; guide line: Write no line but a table line'
           in: all
   - id: component_details
@@ -80,6 +80,12 @@ sections:
       Write a table of Signal, SLI, SLO target, Alert on.
       Write the SLI as how the signal is measured, Alert on as a symptom, never a cause.
       Add the log channels as `<name> - <events>`.
+    lint:
+      banned_patterns:
+        - id: log_channel_form
+          pattern: '^(?!- \S.* - \S|- Overrides:)- '
+          message: 'log channel bullet is not <name> - <events>; guide line: Add the log channels as `<name> - <events>`'
+          in: all
   - id: concerns
     header: Concerns
     description: |-
@@ -90,8 +96,12 @@ sections:
       max_item_lines: 1
       banned_patterns:
         - id: concern_ending
-          pattern: '^(?!## |.*\bsee\b[^—]*$)\s*\S'
+          pattern: '^(?!## |\s*(?:- )?Overrides:|.*\bsee\b[^—]*$)\s*\S'
           message: 'concern line has no ending; guide line: End each line with `see <section or sibling doc>`'
+          in: all
+        - id: concern_name
+          pattern: '^(?!## |\s*(?:- )?Overrides:|\s*(?:- )?(?:Integration|Errors|Auth|Lifecycle|Events|Rollout|Observability)\b)\s*\S'
+          message: 'concern line opens with no listed concern name; guide line: Write one line per concern that applies'
           in: all
   - id: design_references
     header: Design references
@@ -108,6 +118,7 @@ sections:
     description: |-
       List the unresolved decisions.
 lint:
+  title_no_number: true
   max_chars: 50000
   max_lines: 300
 reference:

@@ -1,5 +1,5 @@
 name: software-tech
-version: 1.15.0
+version: 1.16.0
 extends: prd-core
 migrations:
   - from: 1.4.0
@@ -38,10 +38,10 @@ shared_lines:
     text: Hold only rules every feature uses; write any other rule in a per-feature spec doc, or in a `topic` when two or more features share it.
     for_doc_types: [project_api, project_architecture, project_auth, project_domain, project_error, project_integration]
   - id: one_file_per_feature_folder
-    text: Keep one file per feature spec folder.
+    text: Keep one file per doc type in each feature spec folder.
     for_doc_types: [api, architecture, auth, domain, error, integration]
   - id: one_file_per_spec_folder
-    text: Keep one file per spec folder.
+    text: Keep one file per doc type in each spec folder.
     for_doc_types: [project_api, project_architecture, project_auth, project_domain, project_error, project_integration]
   - id: overrides_line
     text: 'Right after an item departing from a rule above, write `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>` and record its `overrides` entry.'

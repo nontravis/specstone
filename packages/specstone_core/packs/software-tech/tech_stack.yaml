@@ -46,6 +46,7 @@ sections:
     description: |-
       List what the project steers clear of, in a table with the columns What, Why.
 lint:
+  title_no_number: true
   max_chars: 50000
   max_lines: 300
 reference:
