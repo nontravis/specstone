@@ -2435,6 +2435,26 @@ void _brainstormRoundTests() {
     expect(text, isNot(contains('the design check sweeps every reader')));
   });
 
+  test('design.md numbers no amend before the first author pass', () {
+    expect(
+      _hasSentenceWith(_pluginText(_designReference), [
+        'first author pass',
+        'no amend',
+      ]),
+      isTrue,
+    );
+  });
+
+  test('the design check takes amend only after an author pass', () {
+    expect(
+      _hasSentenceWith(_pluginText(_designCheckReference), [
+        '`amend`',
+        'author pass',
+      ]),
+      isTrue,
+    );
+  });
+
   test('each brainstorm dispatch follows dispatch.md by its report', () {
     final text = _pluginText(_brainstormSkill);
     for (final words in [

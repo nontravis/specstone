@@ -51,8 +51,9 @@ Sections, in order:
 - Decide each open point a PRD or spec doc must state (a refusal, a name rule), naming its one owner item, or list it
   as an open question; a design holding one goes to no author.
 - Leave a code-level point (a class name) to the builder: no decision, no open question.
-- On an amend, edit every place still stating text a ruling supersedes.
-- Number amends `Amend 1`, `Amend 2`, ...; any edit of a decision an author pass read opens a new one; any other fix opens none.
+- On an edit of an existing document, edit every place still stating text a ruling supersedes.
+- Before the first author pass, an edit takes no amend number; after one, number amends `Amend 1`, `Amend 2`, ...;
+  any edit of a decision an author pass read opens a new one; any other fix opens none.
 - Each decision an amend adds, changes, or removes lists it in its heading, earlier ones kept: `(Amend 2, Amend 4)`.
 - Write by the host's file write; write no other file but the snapshot (`rounds.md` section 1), and no PRD or spec
   doc.
