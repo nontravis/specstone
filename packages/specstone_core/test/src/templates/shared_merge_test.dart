@@ -288,6 +288,31 @@ void main() {
     });
   });
 
+  group('a shared field change keeps or replaces bundle_with', () {
+    test('a shared field change keeps or replaces bundle_with', () {
+      const base =
+          'shared_fields:\n  - id: links\n    type: doc_ref\n'
+          '    bundle_with: true\n    for_doc_types: [story]\n';
+      final kept = _merge({
+        'base': _pack(base, types: {'story'}),
+        'top': _pack(
+          'extends: base\nshared_fields:\n  - id: links\n'
+          '    required: true\n',
+        ),
+      });
+      final replaced = _merge({
+        'base': _pack(base, types: {'story'}),
+        'top': _pack(
+          'extends: base\nshared_fields:\n  - id: links\n'
+          '    bundle_with: false\n',
+        ),
+      });
+
+      expect(kept.fields.single.entry.bundleWith, isTrue);
+      expect(replaced.fields.single.entry.bundleWith, isFalse);
+    });
+  });
+
   group('the doc types a shared line reaches', () {
     test(
       'a new line with no for_doc_types names no list, so it reaches all',

@@ -172,6 +172,22 @@ void main() {
       expect(layer.fields.single.type, FieldType.string);
     });
 
+    test('bundle_with reads as written on a field', () {
+      final layer = _parse(
+        'fields: [{id: a, type: doc_ref, bundle_with: true}, '
+        '{id: b, type: doc_ref, bundle_with: false}, {id: c, type: doc_ref}]',
+      );
+      expect(layer.fields.map((f) => f.bundleWith), [true, false, null]);
+    });
+
+    test('a non-boolean bundle_with on a field is unknown_value at its '
+        'index key', () {
+      expect(
+        () => _parse('fields: [{id: a, type: doc_ref, bundle_with: yes}]'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'fields[0].bundle_with')),
+      );
+    });
+
     test('item_exact is an accepted pointer kind', () {
       final layer = _parse(
         'fields: [{id: implements, type: output_ref, pointer: item_exact}]',

@@ -384,6 +384,7 @@ void main() {
         '{id: overrides, list: true, type: string, description: Mine.}',
         '{id: overrides, description: Shared overrides.}',
         '{id: overrides, list: false, $rest}',
+        '{id: overrides, list: true, bundle_with: true, $rest}',
         '{id: overrides, disabled: true}',
       ]) {
         final step = _step({'api.yaml': 'fields:\n  - $entry\n'});

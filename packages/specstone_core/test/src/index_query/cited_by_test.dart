@@ -20,6 +20,7 @@ import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 
 const _fr =
     'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
@@ -467,6 +468,33 @@ void main() {
     );
   });
 
+  test(
+    'a holder joined inward gets no cited-by line through its doc_ref',
+    () async {
+      final index = await indexWith({
+        '.specstone/config.yaml': shippedPinsConfig([
+          'prd-core',
+          'software-tech',
+          'agent-skills',
+        ]),
+        'docs/specs/agents/reviewer.md':
+            '---\nfeature: login\n---\n\n# reviewer\n\n## Role\n\nReviews.\n',
+      });
+      final bundle = pickBundle(
+        index,
+        ['login'],
+        BundleMode.design,
+        noProject: false,
+      );
+
+      expect(bundle.linkedDocs.keys, ['specs/agents/reviewer.md']);
+      expect(
+        _citedBy(index).values.expand((lines) => lines).map((c) => c.name),
+        isNot(contains('reviewer')),
+      );
+    },
+  );
+
   test('a doc link or a section link names no item', () async {
     final cited = _citedBy(
       await _index(
@@ -528,7 +556,9 @@ void main() {
 
       expect(
         text,
-        contains('## Edge cases\n  · cited by guide (topic) — #purpose\n'),
+        contains(
+          '## Edge cases {#edge_cases}\n  · cited by guide (topic) — #purpose\n',
+        ),
       );
       expect('cited by guide'.allMatches(text), hasLength(1));
     });
@@ -813,6 +843,34 @@ void main() {
       expect(a.text, contains('$edge\n$citedLine\n'));
       expect(a.text, isNot(contains('· cited by <==')));
       expect(a.refs, isNull);
+    });
+  });
+
+  group('a split design bundle with a cited block', () {
+    const guide =
+        '# Guide\n\n## Purpose\nSee [a case](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md#case).\n'
+        'See [E01](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md#edge-cases).\n';
+
+    test("a block's cited-by part names block, an item's names item", () async {
+      final index = await _index(
+        'Check it.',
+        edge: '1. E01 — A wrong password → refused.\n\n### Case\nDetail.',
+        extra: {'docs/specs/topics/guide.md': guide},
+      );
+      final a = answerContext(
+        index,
+        pickBundle(index, [_frName], BundleMode.design, noProject: false),
+        targets: [_frName],
+        split: true,
+      );
+      const place = '==> $_frName (fr) · $_frPath#edge_cases';
+
+      expect(a.refs!.text, contains('$place · block case · cited by <=='));
+      expect(a.refs!.text, contains('$place · item E01 · cited by <=='));
+      final blockEntry = a.refs!.entries.singleWhere(
+        (e) => e.kind == BundleEntryKind.citedBy && e.itemId == 'case',
+      );
+      expect(blockEntry.sectionKey, 'edge_cases');
     });
   });
 

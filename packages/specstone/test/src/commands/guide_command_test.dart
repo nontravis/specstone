@@ -266,6 +266,24 @@ void main() {
       }
     });
 
+    test('guide --json on a doc type with a bundle_with field prints '
+        'bundleWith', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/feature.yaml':
+              'fields:\n'
+              '  - {id: linked, type: doc_ref, bundle_with: true}\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', 'feature', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final linked = (json['fields']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere((f) => f['id'] == 'linked');
+      expect(linked['bundleWith'], true);
+    });
+
     test('guide <type> '
         '--json prints lint.maxItemChars as a project layer sets it, and no '
         'such key with no layer', () async {

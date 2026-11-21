@@ -973,6 +973,36 @@ sections:
       );
     });
 
+    test('bundle_with on a doc_ref field merges, and a higher layer '
+        'replaces it', () {
+      final added = project(
+        shipped(),
+        'fields: [{id: links, type: doc_ref, bundle_with: true}]',
+      );
+      final kept = project(
+        added,
+        'fields: [{id: links, required: true}]',
+      ).fields.singleWhere((f) => f.id == 'links');
+      final replaced = project(
+        added,
+        'fields: [{id: links, bundle_with: false}]',
+      ).fields.singleWhere((f) => f.id == 'links');
+
+      expect(added.fields.last.bundleWith, isTrue);
+      expect(kept.bundleWith, isTrue);
+      expect(replaced.bundleWith, isFalse);
+    });
+
+    test('bundle_with on an output_ref field is ignored', () {
+      final added = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact, '
+        'bundle_with: true}]',
+      );
+
+      expect(added.fields.last.bundleWith, isNull);
+    });
+
     test('a field turned from output_ref to another type '
         'drops its pointer', () {
       final base = project(

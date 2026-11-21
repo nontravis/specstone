@@ -20,6 +20,8 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
+import '../../helpers/skill_doc_fixture.dart';
 
 const _feature = 'docs/prds/features/f01_login/FEATURE.md';
 const _fr =
@@ -1054,6 +1056,35 @@ void main() {
         );
       },
     );
+    test('the suffix moves no index range, read plan, or section line', () async {
+      final index = await indexWith(_layoutDocs);
+      final answer = answerContext(
+        index,
+        pickBundle(
+          index,
+          ['login/email_login'],
+          BundleMode.implement,
+          noProject: false,
+        ),
+        targets: ['login/email_login'],
+      );
+      final lines = answer.text.split('\n');
+      final feature = answer.entries.singleWhere(
+        (e) => e.doc.name == 'login' && e.doc.docTypeId == 'feature',
+      );
+
+      expectPlaced(answer);
+      for (final section in feature.sections) {
+        expect(lines[section.first - 1], endsWith(' {#${section.key}}'));
+      }
+      final problem = feature.sections.first;
+      expect(lines[problem.first - 1], '## Problem {#problem}');
+      expect(lines[problem.first], 'Users sign in.');
+      expectIndexLine(
+        answer,
+        '- login \\(feature\\) · \\d+-\\d+ · problem ${problem.first}, out_of_scope \\d+',
+      );
+    });
     test(
       'design --summary: summary docs place their summary sections',
       () async {
@@ -1207,39 +1238,30 @@ void main() {
         hasLength(1),
       );
     });
-    test(
-      'the read-first index line of a lead paragraph piece ends at cites',
-      () async {
-        final index = await indexWith({
-          domainPath:
-              '# Login domain\n\nThis doc backs [validate](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md).\n\n'
-              '## Invariants\n- **INV-1** An account has an email.\n',
-        });
-        final answer = answerContext(
+    test("a head piece's index line ends cites with no key", () async {
+      final index = await indexWith({
+        domainPath:
+            '# Login domain\n\nThis doc backs [validate](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md).\n\n'
+            '## Invariants\n- **INV-1** An account has an email.\n',
+      });
+      final answer = answerContext(
+        index,
+        pickBundle(
           index,
-          pickBundle(
-            index,
-            ['login/email_login'],
-            BundleMode.design,
-            noProject: false,
-          ),
-          targets: ['login/email_login'],
-          split: true,
-        );
-        final lines = bundleIndex(
-          answer,
-          '/p',
-          refsPath: '/p.refs',
-        ).split('\n');
+          ['login/email_login'],
+          BundleMode.design,
+          noProject: false,
+        ),
+        targets: ['login/email_login'],
+        split: true,
+      );
+      final lines = bundleIndex(answer, '/p', refsPath: '/p.refs').split('\n');
 
-        expect(
-          lines.where(
-            RegExp(r'^- login \(domain\) · \d+-\d+ · cites$').hasMatch,
-          ),
-          hasLength(1),
-        );
-      },
-    );
+      expect(
+        lines.where(RegExp(r'^- login \(domain\) · \d+-\d+ · cites$').hasMatch),
+        hasLength(1),
+      );
+    });
     test('the out json marks an inbound piece cites and not cited', () async {
       final answer = await designLogin(split: true);
       final json = bundleIndexJson(answer, '/p', refsPath: '/p.refs');
@@ -1478,7 +1500,7 @@ void main() {
       final (:naming, :listed) = lineOf(answer);
       expect(
         naming,
-        '==> $domainName · specs/f01_login/DOMAIN.md#entities · item account · cited by <==',
+        '==> $domainName · specs/f01_login/DOMAIN.md#entities · block account · cited by <==',
       );
       expect(listed, matches(RegExp(r' · cited by \[account\]$')));
     });
@@ -1909,5 +1931,30 @@ void main() {
         ),
       );
     });
+  });
+  test('the split puts a joined doc read-first', () async {
+    final index = await nestedIndexWith({
+      '.specstone/config.yaml': skillPinsConfig(),
+      'docs/specs/agents/reviewer.md':
+          '---\nfeature:\n  - shop/cart\n---\n\n'
+          '# reviewer\n\n## Role\n\nReviews a diff.\n',
+    });
+    for (final (targets, joined) in [
+      (['shop'], 'specs/agents/reviewer.md'),
+      (['agent:reviewer'], cartFeature),
+    ]) {
+      final answer = answerContext(
+        index,
+        pickBundle(index, targets, BundleMode.design, noProject: false),
+        targets: targets,
+        split: true,
+      );
+      List<String> docsOf(BundleText file) => [
+        for (final e in file.entries)
+          if (e.kind == BundleEntryKind.doc) e.doc.docPath,
+      ];
+      expect(docsOf(answer.readFirst), contains(joined), reason: '$targets');
+      expect(docsOf(answer.refs!), isNot(contains(joined)), reason: '$targets');
+    }
   });
 }

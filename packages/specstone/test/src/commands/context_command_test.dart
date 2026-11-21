@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone/src/commands/context_command.dart' show withBareOut;
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show tokenSizeOf;
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
@@ -180,6 +182,28 @@ void main() {
       );
       expect((jsonDecode(out.toString()) as Map)['overBudget'], isTrue);
       expect(err.toString(), isEmpty);
+    },
+  );
+  test(
+    'a bundle whose heading keys take it over --budget is over budget',
+    () async {
+      const args = ['context', 'login/email_login', '--for', 'implement'];
+      final project = await writeReadProject();
+      final whole = readRunner(project);
+      expect(await whole.runner.run([...args, '--budget', '100000']), 0);
+      final text = whole.out.toString();
+      final shown = text.substring(0, text.indexOf('\n==> bundle: '));
+      final bare = shown.replaceAllMapped(
+        RegExp(r'^(## .*) \{#[a-z0-9_]+\}$', multiLine: true),
+        (match) => match[1]!,
+      );
+      final bareTokens = tokenSizeOf(bare);
+      expect(tokenSizeOf(shown), greaterThan(bareTokens));
+
+      final over = readRunner(project);
+
+      expect(await over.runner.run([...args, '--budget', '$bareTokens']), 1);
+      expect(over.out.toString(), contains('over the budget of $bareTokens'));
     },
   );
   test(
@@ -1085,10 +1109,13 @@ void main() {
         fileLines[int.parse(range.group(1)!) - 1],
         startsWith('==> $story (user_story) · '),
       );
-      expect(fileLines[int.parse(range.group(3)!) - 1], '## Use Case');
+      expect(
+        fileLines[int.parse(range.group(3)!) - 1],
+        '## Use Case {#use_case}',
+      );
       expect(
         fileLines[int.parse(range.group(4)!) - 1],
-        '## Acceptance Criteria',
+        '## Acceptance Criteria {#acceptance_criteria}',
       );
     });
 
@@ -2430,8 +2457,8 @@ void main() {
 
       expect(fileLines.join('\n'), isNot(contains('send_reset_link E01')));
       expect(fileLines[at(1)], startsWith('==> login (implementation) · '));
-      expect(fileLines[at(3)], '## Verification matrix');
-      expect(fileLines[at(4)], '## Notes');
+      expect(fileLines[at(3)], '## Verification matrix {#verification_matrix}');
+      expect(fileLines[at(4)], '## Notes {#notes}');
       expect(fileLines[at(2)], 'See the rows.');
     });
   });
@@ -2792,5 +2819,61 @@ void main() {
       expect(headers, hasLength(2));
       expect(headers.first, contains(name));
     });
+  });
+  test(
+    'context of an agent doc for design prints its feature right after it',
+    () async {
+      final project = await writeReadProject(
+        extra: {
+          '.specstone/config.yaml': skillPinsConfig(),
+          'docs/specs/agents/reviewer.md':
+              '---\nfeature:\n  - login\n---\n\n'
+              '# reviewer\n\n## Role\n\nReviews a diff.\n',
+        },
+      );
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['context', 'agent:reviewer', '--for', 'design']),
+        0,
+        reason: run.err.toString(),
+      );
+      final naming = [
+        for (final line in run.out.toString().split('\n'))
+          if (line.startsWith('==> ') && !line.startsWith('==> bundle: ')) line,
+      ];
+      final at = naming.indexWhere((l) => l.startsWith('==> reviewer (agent)'));
+      expect(at, isNonNegative);
+      expect(naming[at + 1], startsWith('==> login (feature)'));
+    },
+  );
+  test('context --code on a shipped agent file gives the agent doc and its feature', () async {
+    final project = await writeReadProject(
+      extra: {
+        '.specstone/config.yaml': skillPinsConfig(),
+        'docs/specs/agents/reviewer.md':
+            '---\nfeature:\n  - login\ncovers:\n  - .claude/agents/reviewer.md\n---\n\n'
+            '# reviewer\n\n## Role\n\nReviews a diff.\n',
+        '.claude/agents/reviewer.md': '# Reviewer\n',
+      },
+    );
+    final run = readRunner(project);
+    expect(
+      await run.runner.run([
+        'context',
+        '--code',
+        '.claude/agents/reviewer.md',
+        '--for',
+        'implement',
+      ]),
+      0,
+      reason: run.err.toString(),
+    );
+    final naming = [
+      for (final line in run.out.toString().split('\n'))
+        if (line.startsWith('==> ') && !line.startsWith('==> bundle: ')) line,
+    ];
+    final at = naming.indexWhere((l) => l.startsWith('==> reviewer (agent)'));
+    expect(at, isNonNegative);
+    expect(naming[at + 1], startsWith('==> login (feature)'));
   });
 }

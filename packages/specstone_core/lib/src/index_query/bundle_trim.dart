@@ -75,13 +75,17 @@ int lineAfterBlocks(Iterable<String> blocks) =>
 /// lines [citedBy] holds for the whole doc, its `# ` title line, then its
 /// summary sections, one blank line apart, with the places [citedBy] holds
 /// lines for printed there, and the line each section starts on.
+///
+/// With [keyHeadings], each section heading ends with its key (see
+/// [sectionBlockOf]).
 DocPrint summaryPrintOf(
   IndexedDoc doc,
   DocContent content,
   MergedDocType? docType,
   BundleMode mode,
-  CitedByIndex? citedBy,
-) {
+  CitedByIndex? citedBy, {
+  required bool keyHeadings,
+}) {
   final title = doc.title;
   final held = citedSectionsOf(content, docType);
   final blocks = [if (title != null) '# $title'];
@@ -97,6 +101,7 @@ DocPrint summaryPrintOf(
       held,
       section,
       citedBy,
+      keyHeading: keyHeadings,
       summaryRows: summaryRowCountOf(docType, section.key),
     );
     sections.add(SectionLine(key: section.key, line: line));
@@ -118,13 +123,15 @@ DocPrint summaryPrintOf(
 /// With [summaryRows], the section prints cut by [cutToRows], and only the
 /// items and blocks whole inside the printed lines get a cited-by line.
 /// [matrixCut] gives the file lines the Verification matrix section leaves out
-/// (see [sectionBlockOf]).
+/// (see [sectionBlockOf]). With [keyHeading], the header line ends with the
+/// section's key.
 SectionPrint sectionPrintOf(
   IndexedDoc doc,
   DocContent content,
   List<CitedSection> held,
   IndexedSection section,
   CitedByIndex? citedBy, {
+  required bool keyHeading,
   int? summaryRows,
   Set<int> matrixCut = const {},
 }) {
@@ -156,6 +163,7 @@ SectionPrint sectionPrintOf(
     bodyLine: content.lineFacts.sectionLines[at] + 1,
     after: citedLinesAfter(citedBy, items),
     matrixCut: matrixCut,
+    headingKey: keyHeading ? section.key : null,
   );
   return SectionPrint(block: block, cited: items);
 }
@@ -202,11 +210,15 @@ int? summaryRowCountOf(MergedDocType? docType, String key) {
 /// the lines to print after a file line (see [printedBodyOf]). The body leaves
 /// out its lines on the file lines [matrixCut] holds, which are matrix rows,
 /// so a section holding none of them prints whole.
+///
+/// With [headingKey], the header line ends in one space and `{#<headingKey>}`,
+/// its trailing spaces cut first.
 String sectionBlockOf(
   IndexedSection section, {
   int bodyLine = 1,
   Map<int, List<String>> after = const {},
   Set<int> matrixCut = const {},
+  String? headingKey,
 }) {
   final headerLine = bodyLine - 1;
   final body = printedBodyOf(
@@ -219,7 +231,10 @@ String sectionBlockOf(
         if (key != headerLine) key: value,
     },
   );
-  return [section.headerLine, ...?after[headerLine], body].join('\n');
+  final header = headingKey == null
+      ? section.headerLine
+      : '${section.headerLine.trimRight()} {#$headingKey}';
+  return [header, ...?after[headerLine], body].join('\n');
 }
 
 /// Returns [body], whose first line is file line [firstLine], less the lines on

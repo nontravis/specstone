@@ -11,6 +11,7 @@ fields:
   - id: feature
     type: doc_ref
     doc_types: [feature]
+    bundle_with: true
     description: |-
       Names the feature the skill serves.
   - id: covers

@@ -26,10 +26,12 @@ final class MergedField {
     this.docTypes,
     PointerKind? pointer,
     PointerRoot? root,
+    bool? bundleWith,
     this.description,
     this.lint,
   }) : pointer = type == FieldType.outputRef ? pointer : null,
-       root = type == FieldType.outputRef ? root : null;
+       root = type == FieldType.outputRef ? root : null,
+       bundleWith = type == FieldType.docRef ? bundleWith : null;
 
   /// The field id.
   final String id;
@@ -56,6 +58,10 @@ final class MergedField {
   /// layer sets it, which reads as `code`, and for any other type.
   final PointerRoot? root;
 
+  /// Whether a `doc_ref` field joins the docs it links into a `context`
+  /// bundle; null when no layer sets it and for any other type.
+  final bool? bundleWith;
+
   /// What the field holds.
   final String? description;
 
@@ -72,8 +78,8 @@ final class MergedField {
   ///
   /// A list the new type does not use is dropped unless the call writes it:
   /// [enumValues] belongs to `enum` only, [docTypes] to `doc_ref` only, and
-  /// [pointer] and [root] to `output_ref` only. [lint] replaces the whole caps
-  /// value.
+  /// [pointer] and [root] to `output_ref` only, and [bundleWith] to `doc_ref`
+  /// only. [lint] replaces the whole caps value.
   MergedField copyWith({
     FieldType? type,
     bool? list,
@@ -82,6 +88,7 @@ final class MergedField {
     List<String>? docTypes,
     PointerKind? pointer,
     PointerRoot? root,
+    bool? bundleWith,
     String? description,
     FieldCaps? lint,
   }) {
@@ -98,6 +105,7 @@ final class MergedField {
           docTypes ?? (newType == FieldType.docRef ? this.docTypes : null),
       pointer: pointer ?? this.pointer,
       root: root ?? this.root,
+      bundleWith: bundleWith ?? this.bundleWith,
       description: description ?? this.description,
       lint: lint ?? this.lint,
     );
@@ -105,8 +113,8 @@ final class MergedField {
 
   /// Returns the JSON object of this field with only the keys set.
   ///
-  /// `list` and `required` print only when true; `root` prints only
-  /// when a layer writes it.
+  /// `list` and `required` print only when true; `root` and `bundleWith` print
+  /// only when a layer writes them.
   Map<String, Object> toJson() => {
     'id': id,
     'type': type.wire,
@@ -116,6 +124,7 @@ final class MergedField {
     'docTypes': ?docTypes,
     'pointer': ?pointer?.wire,
     'root': ?root?.wire,
+    'bundleWith': ?bundleWith,
     'description': ?description,
     'lint': ?lint?.toJson(),
   };

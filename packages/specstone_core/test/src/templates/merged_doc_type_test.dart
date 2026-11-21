@@ -678,6 +678,28 @@ lint:
       expect(fields.where((f) => f.containsKey('pointer')), isEmpty);
     });
 
+    test('toJson prints bundleWith on a doc_ref field a layer sets it on, '
+        'and on no other field', () {
+      final json = _merge(
+        _featureLayer,
+        'fields: [{id: linked, type: doc_ref, bundle_with: true, '
+        'description: Docs it links.}, '
+        '{id: plain, type: doc_ref}, '
+        '{id: covers, type: output_ref, pointer: exact, '
+        'bundle_with: true}]',
+      ).toJson();
+
+      final fields = (json['fields']! as List<Object?>)
+          .cast<Map<String, Object>>();
+      final linked = fields.singleWhere((f) => f['id'] == 'linked');
+      expect(linked['bundleWith'], true);
+      expect(linked.keys, ['id', 'type', 'bundleWith', 'description']);
+      expect(
+        fields.where((f) => f.containsKey('bundleWith')).map((f) => f['id']),
+        ['linked'],
+      );
+    });
+
     test('bundle prints right after path and query right after '
         'lint', () {
       const docType = MergedDocType(

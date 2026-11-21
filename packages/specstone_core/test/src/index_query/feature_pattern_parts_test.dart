@@ -13,6 +13,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/skill_doc_fixture.dart';
 
 const _patternsField =
     'fields:\n  - id: patterns\n    type: string\n    list: true\n';
@@ -234,6 +235,32 @@ void main() {
       expect(_partsOf(index, 'login/email_login'), isEmpty);
     },
   );
+
+  test('a feature joined outward to a target lists no pattern part', () async {
+    final index = await _loginWith(
+      '[sign_in]',
+      files: {
+        '.specstone/config.yaml': skillPinsConfig(),
+        'docs/specs/agents/reviewer.md':
+            '---\nfeature: login\n---\n\n# reviewer\n\n## Role\n\nReviews.\n',
+      },
+    );
+    final bundle = pickBundle(
+      index,
+      ['agent:reviewer'],
+      BundleMode.design,
+      noProject: false,
+    );
+
+    expect(bundle.linkedDocs.keys, [featureDoc]);
+    expect(
+      featurePatternParts(index, bundle, bundle.printOrder(index)),
+      isEmpty,
+    );
+    expect(_summary(_partsOf(index, 'login/email_login')), [
+      ('sign_in', 'login', 'lockout reset'),
+    ]);
+  });
 
   test('implement and query bundles give no part', () async {
     final index = await _loginWith('[sign_in]');

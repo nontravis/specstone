@@ -82,21 +82,22 @@ String _partListName(AppendedPart part) =>
     '${part.itemId == null ? '' : ' [${part.itemId}]'}';
 
 /// Returns the block of [part]: its naming line, `<DocPath>#<section key>`
-/// (`#<anchor>` for a `###` block that starts no item) with ` · item <ID>`
-/// for an item, or `<DocPath> · summary` for a doc, then ` · cited`, then its
-/// text; a path prints as `==> <DocPath> · cited <==` alone, and a naming-line
-/// doc as `==> <name> (<doc type>) · <DocPath> · cited <==` alone.
+/// with ` · block <anchor>` for a `###` block that starts no item,
+/// ` · item <ID>` for an item, or ` · summary` for a doc, then ` · cited`, then
+/// its text; a path prints as `==> <DocPath> · cited <==` alone, and a
+/// naming-line doc as `==> <name> (<doc type>) · <DocPath> · cited <==` alone.
 String _partBlock(AppendedPart part) {
   final doc = part.doc;
   if (part.pathOnly) return '==> ${doc.docPath} · cited <==';
   if (part.nameOnly) {
     return '==> ${nameWithType(doc)} · ${doc.docPath} · cited <==';
   }
-  final key = part.heading ?? part.sectionKey;
+  final key = part.sectionKey;
   final path = key == null ? doc.docPath : '${doc.docPath}#$key';
+  final block = part.heading == null ? '' : ' · block ${part.heading}';
   final item = part.itemId == null ? '' : ' · item ${part.itemId}';
   final summary = part.summary ? ' · summary' : '';
-  return '==> ${nameWithType(doc)} · $path$item$summary · cited <==\n'
+  return '==> ${nameWithType(doc)} · $path$block$item$summary · cited <==\n'
       '${part.text}';
 }
 
@@ -116,14 +117,15 @@ String _pieceListName(AncestorPiece piece) =>
     '${piece.itemId == null ? '' : ' [${piece.itemId}]'}';
 
 /// Returns the block of [piece]: its naming line, `<DocPath>#<section key>`
-/// (`#<anchor>` for a `###` block that starts no item, `<DocPath>` alone for a
-/// piece of the lead) with ` · item <ID>` for an item, then ` · cited` or
-/// ` · cites`, then its text.
+/// (`<DocPath>` alone for a piece of the lead) with ` · block <anchor>` for a
+/// `###` block that starts no item and ` · item <ID>` for an item, then
+/// ` · cited` or ` · cites`, then its text.
 String _pieceBlock(AncestorPiece piece) {
-  final key = piece.heading ?? piece.sectionKey;
+  final key = piece.sectionKey;
   final path = key.isEmpty ? piece.doc.docPath : '${piece.doc.docPath}#$key';
+  final block = piece.heading == null ? '' : ' · block ${piece.heading}';
   final item = piece.itemId == null ? '' : ' · item ${piece.itemId}';
-  return '==> ${nameWithType(piece.doc)} · $path$item · '
+  return '==> ${nameWithType(piece.doc)} · $path$block$item · '
       '${_pieceMark(piece.direction)} <==\n${piece.text}';
 }
 
@@ -322,7 +324,14 @@ ContextAnswer _answerContext(
           'docType': ?ordered[doc].docTypeId,
           'path': ordered[doc].docPath,
           'tokens': tokenSizeOf(block),
-          'text': _blockBody(block),
+          'text': _blockBody(
+            _withVerbatimHeadings(
+              index,
+              ordered[doc],
+              docPrints[doc].sections,
+              block,
+            ),
+          ),
           if (inSummary(ordered[doc])) 'summary': true,
           ..._citedByKey(docPrints[doc].cited, citedBy),
         },
@@ -330,7 +339,11 @@ ContextAnswer _answerContext(
         {
           ..._partDocJson(part, partBlocks[i]),
           if (!part.pathOnly && !part.nameOnly)
-            'text': _blockBody(partBlocks[i]),
+            'text': _blockBody(
+              _withVerbatimHeadings(index, part.doc, [
+                for (final section in part.sections) section.shiftedBy(1),
+              ], partBlocks[i]),
+            ),
           ..._partKeys(part),
         },
     ],
@@ -870,6 +883,7 @@ DocPrint _docBlock(
       docType,
       mode,
       citedBy,
+      keyHeadings: true,
     ).afterLine(namingLine(doc, summary: true));
   }
   final parts = <String>[];
@@ -902,6 +916,7 @@ DocPrint _docBlock(
       held,
       section,
       citedBy,
+      keyHeading: true,
       matrixCut: matrixCut,
     );
     cited.addAll(print.cited);
@@ -976,6 +991,29 @@ List<String> _byTreeOrder(DocIndex index, Set<String> paths) => [
   for (final doc in index.docs)
     if (paths.contains(doc.docPath)) doc.docPath,
 ];
+
+/// Returns [block], a printed block of [doc], with each section header line
+/// [sections] locates in it set back to the header line the index holds, as a
+/// JSON `text` keeps its headings verbatim.
+///
+/// It reads the lines [sections] gives, never a pattern, so a body line that
+/// ends in `{#...}` stays.
+String _withVerbatimHeadings(
+  DocIndex index,
+  IndexedDoc doc,
+  List<SectionLine> sections,
+  String block,
+) {
+  final headers = {
+    for (final section in index.contentOf(doc).sections)
+      section.key: section.headerLine,
+  };
+  final lines = block.split('\n');
+  for (final SectionLine(:key, :line) in sections) {
+    if (headers[key] case final header?) lines[line] = header;
+  }
+  return lines.join('\n');
+}
 
 /// Returns the block after its naming line, trimmed at both ends: the doc's
 /// JSON `text`.

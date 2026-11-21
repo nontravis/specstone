@@ -2,6 +2,7 @@ import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/models/indexed_section.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -89,6 +90,51 @@ void main() {
     test('keeps an empty section list empty', () {
       const print = DocPrint(text: '# Title', cited: [], sections: []);
       expect(print.afterLine('- doc').sections, isEmpty);
+    });
+  });
+
+  group('sectionBlockOf with a heading key', () {
+    test('a header line takes its key suffix', () {
+      const section = IndexedSection(
+        key: 'use_case',
+        headerLine: '## Use Case',
+        body: 'Sign in.\n',
+      );
+
+      expect(
+        sectionBlockOf(section, headingKey: 'use_case'),
+        '## Use Case {#use_case}\nSign in.',
+      );
+      expect(sectionBlockOf(section), '## Use Case\nSign in.');
+    });
+
+    test(
+      'a heading with trailing spaces takes one suffix, no doubled space',
+      () {
+        const section = IndexedSection(
+          key: 'use_case',
+          headerLine: '## Use Case   ',
+          body: 'Sign in.\n',
+        );
+
+        expect(
+          sectionBlockOf(section, headingKey: 'use_case'),
+          '## Use Case {#use_case}\nSign in.',
+        );
+      },
+    );
+
+    test('a fenced ## line in a body takes no key', () {
+      const section = IndexedSection(
+        key: 'problem',
+        headerLine: '## Problem',
+        body: 'Users.\n\n```markdown\n## Not a section\n```\n',
+      );
+
+      expect(
+        sectionBlockOf(section, headingKey: 'problem'),
+        '## Problem {#problem}\nUsers.\n\n```markdown\n## Not a section\n```',
+      );
     });
   });
 }

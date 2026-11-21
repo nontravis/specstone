@@ -19,6 +19,7 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -26,6 +27,11 @@ const _projectFile = 'docs/prds/PROJECT.md';
 const _glossaryFile = 'docs/prds/GLOSSARY.md';
 const _glossaryBody =
     '# Domain glossary\n\n## Terms\n\n'
+    '- **Doc** — one markdown file under the docs root\n';
+
+/// [_glossaryBody] as a text bundle prints it.
+const _keyedGlossaryBody =
+    '# Domain glossary\n\n## Terms {#terms}\n\n'
     '- **Doc** — one markdown file under the docs root\n';
 final String _projectWithoutGlossary = loginProject[_projectFile]!
     .split('\n## Domain glossary')
@@ -65,64 +71,64 @@ Map<String, String> _shopFiles() => {
 };
 
 /// The unsplit text of `design shop/cart/add_item` on [_shopFiles], captured
-/// before the split existed.
+/// before the split existed, each section heading ending with its key.
 const _shopDesignUnsplit =
     '==> gnfr (gnfr) · prds/GNFR.md <==\n'
     '# Global non-functional requirements\n'
     '\n'
-    '## Security\n'
+    '## Security {#security}\n'
     '- Keep secrets out.\n'
     '\n'
     '==> project (project) · prds/PROJECT.md <==\n'
     '# Project context\n'
     '\n'
-    '## Project name\n'
+    '## Project name {#name}\n'
     'Shop demo\n'
     '\n'
     '==> tech_stack (tech_stack) · specs/TECH_STACK.md <==\n'
     '# Tech stack\n'
     '\n'
-    '## Stack\n'
+    '## Stack {#stack}\n'
     'Dart\n'
     '\n'
     '==> shop (feature) · prds/features/f01_shop/FEATURE.md <==\n'
     '# Shop\n'
     '\n'
-    '## Problem\n'
+    '## Problem {#problem}\n'
     'Shoppers buy things.\n'
     '\n'
     '==> shop/cart (feature) · prds/features/f01_shop/f01_cart/FEATURE.md <==\n'
     '# Cart\n'
     '\n'
-    '## Problem\n'
+    '## Problem {#problem}\n'
     'Carts hold items.\n'
     '\n'
     '==> shop/cart/add_item (user_story) · prds/features/f01_shop/f01_cart/us01_add_item/USER_STORY.md <==\n'
     '# Agent adds an item\n'
     '\n'
-    '## Use Case\n'
+    '## Use Case {#use_case}\n'
     'Add it.\n'
     '\n'
     '==> shop/cart/add_item/check_stock (fr) · prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md <==\n'
     '# Check the stock\n'
     '\n'
-    '## Statement\n'
+    '## Statement {#statement}\n'
     'The system shall refuse a sold-out item.\n'
     '\n'
-    '## Edge cases\n'
+    '## Edge cases {#edge_cases}\n'
     '1. E01 — A sold-out item → refused, by [INV-1](../../../../../specs/f01_shop/DOMAIN.md#invariants) and [INV-7](../../../../../specs/f02_pay/DOMAIN.md#invariants).\n'
     '  · cited by guide (topic) — #purpose\n'
     '\n'
     '==> shop/cart/drop_item (user_story) · prds/features/f01_shop/f01_cart/us02_drop_item/USER_STORY.md · summary <==\n'
     '# Agent drops an item\n'
     '\n'
-    '## Use Case\n'
+    '## Use Case {#use_case}\n'
     'Drop it.\n'
     '\n'
     '==> shop (domain) · specs/f01_shop/DOMAIN.md <==\n'
     '# Shop domain\n'
     '\n'
-    '## Invariants\n'
+    '## Invariants {#invariants}\n'
     '- **INV-1** An order holds a line.\n'
     '  · cited by shop/cart/add_item/check_stock (fr) E01 #edge_cases\n'
     '- **INV-2** An order has an owner.\n'
@@ -132,7 +138,7 @@ const _shopDesignUnsplit =
     '\n'
     '==> pay (domain) · specs/f02_pay/DOMAIN.md#invariants · item INV-7 · cited <==\n'
     '- **INV-7** A payment has a payer.\n'
-    '==> bundle: 9 docs, 396 tokens <==\n'
+    '==> bundle: 9 docs, 425 tokens <==\n'
     '- gnfr (gnfr)\n'
     '- project (project)\n'
     '- tech_stack (tech_stack)\n'
@@ -180,6 +186,27 @@ void _expectReadFirstSizes(DocIndex index) {
     }
   }
 }
+
+/// A `specs/agents` or `specs/skills` doc whose `feature` field names
+/// [features].
+Map<String, String> _holderDoc(
+  String folder,
+  String slug,
+  List<String> features,
+) => {
+  'docs/specs/$folder/$slug.md':
+      '---\nfeature:\n${[for (final f in features) '  - $f\n'].join()}---\n\n'
+      '# $slug\n\n## Purpose\n\nReviews a diff.\n',
+};
+
+Future<DocIndex> _holderIndex(Map<String, String> docs) =>
+    nestedIndexWith({'.specstone/config.yaml': skillPinsConfig(), ...docs});
+
+/// The DocPaths of the docs [answer] prints, each once, in print order.
+List<String> _printedDocs(ContextAnswer answer) => [
+  for (final entry in answer.entries)
+    if (entry.kind == BundleEntryKind.doc) entry.doc.docPath,
+];
 
 void main() {
   late DocIndex index;
@@ -256,14 +283,14 @@ void main() {
       a.text,
       contains(
         '==> login/reset_password (user_story) · prds/features/f01_login/us02_reset_password/USER_STORY.md · summary <==\n'
-        '# Agent resets a password\n\n## Use Case\nReset it.\n',
+        '# Agent resets a password\n\n## Use Case {#use_case}\nReset it.\n',
       ),
     );
     expect(
       a.text,
       contains(
         '==> login/reset_password/send_reset_link (fr) · prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md · summary <==\n'
-        '# Send a reset link\n\n## Statement\nThe system shall mail a link.\n',
+        '# Send a reset link\n\n## Statement {#statement}\nThe system shall mail a link.\n',
       ),
     );
     expect(
@@ -376,30 +403,27 @@ void main() {
       ),
     );
   });
-  test(
-    'query prints query sections with no frontmatter, then the map',
-    () async {
-      final i = await indexWith({
-        _projectFile: _projectWithoutGlossary,
-        _glossaryFile: _glossaryBody,
-      });
-      final a = ctxIn(i, 'login', BundleMode.query);
-      expect(
-        shown(a),
-        startsWith(
-          '==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms\n\n'
-          '- **Doc** — one markdown file under the docs root\n\n'
-          '==> project (project) · prds/PROJECT.md <==\n## Role\n'
-          '- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope\n- Billing — not planned\n\n'
-          '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n# Login\n\n## Problem\n'
-          'Users sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n\n'
-          '==> map: login (feature) <==\n- login (feature) · ',
-        ),
-      );
-      expect(a.text, contains('\n  - login/email_login (user_story) · '));
-      expect(a.text, contains('==> bundle: 3 docs, '));
-    },
-  );
+  test('query prints query sections with no frontmatter, then the map', () async {
+    final i = await indexWith({
+      _projectFile: _projectWithoutGlossary,
+      _glossaryFile: _glossaryBody,
+    });
+    final a = ctxIn(i, 'login', BundleMode.query);
+    expect(
+      shown(a),
+      startsWith(
+        '==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms {#terms}\n\n'
+        '- **Doc** — one markdown file under the docs root\n\n'
+        '==> project (project) · prds/PROJECT.md <==\n## Role {#roles}\n'
+        '- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope {#out_of_scope}\n- Billing — not planned\n\n'
+        '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n# Login\n\n## Problem {#problem}\n'
+        'Users sign in with an email and a password.\n\n## Out-of-scope {#out_of_scope}\n- Social sign-in — not planned\n\n'
+        '==> map: login (feature) <==\n- login (feature) · ',
+      ),
+    );
+    expect(a.text, contains('\n  - login/email_login (user_story) · '));
+    expect(a.text, contains('==> bundle: 3 docs, '));
+  });
   test(
     'a query on an FR prints its head and kept sections, with no frontmatter',
     () {
@@ -408,12 +432,14 @@ void main() {
         a.text,
         contains(
           '==> login/email_login/validate_credentials (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
-          '# Validate credentials\n\n## Statement\nThe system shall check the email and the password.',
+          '# Validate credentials\n\n## Statement {#statement}\nThe system shall check the email and the password.',
         ),
       );
       expect(
         a.text,
-        contains('## Edge cases\n\n1. E01 — A wrong password → refused.'),
+        contains(
+          '## Edge cases {#edge_cases}\n\n1. E01 — A wrong password → refused.',
+        ),
       );
       expect(a.text, isNot(contains('fill in later')));
       expect(a.text, isNot(contains('verify_method')));
@@ -423,12 +449,18 @@ void main() {
   );
   test('a query on an FR drops its not-applicable section', () {
     final a = ctx('login/email_login/lock_after_failures', BundleMode.query);
-    expect(a.text, contains('## Statement\nThe system shall lock the account'));
+    expect(
+      a.text,
+      contains('## Statement {#statement}\nThe system shall lock the account'),
+    );
     expect(a.text, isNot(contains('## Rationale')));
   });
   test('a query on a spec doc prints it whole and its feature cut', () {
     final a = ctx('architecture:login', BundleMode.query);
-    expect(a.text, contains('# Login architecture\n\n## Components\n'));
+    expect(
+      a.text,
+      contains('# Login architecture\n\n## Components {#components}\n'),
+    );
     expect(a.text, isNot(contains('## Tier-2 decisions')));
     expect(
       a.text,
@@ -450,15 +482,15 @@ void main() {
       a.text,
       contains(
         '==> login (architecture) · specs/f01_login/ARCHITECTURE.md <==\n'
-        '# Login architecture\n\n## Components\n',
+        '# Login architecture\n\n## Components {#components}\n',
       ),
     );
     expect(
       a.text,
       contains(
         '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n'
-        '## Problem\nUsers sign in with an email and a password.\n\n'
-        '## Out-of-scope\n- Social sign-in — not planned\n',
+        '## Problem {#problem}\nUsers sign in with an email and a password.\n\n'
+        '## Out-of-scope {#out_of_scope}\n- Social sign-in — not planned\n',
       ),
     );
     expect(a.text, isNot(contains('Benefit hypothesis')));
@@ -482,12 +514,12 @@ void main() {
     expect(
       shown(a),
       startsWith(
-        '==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms\n\n'
+        '==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms {#terms}\n\n'
         '- **Doc** — one markdown file under the docs root\n\n'
-        '==> project (project) · prds/PROJECT.md <==\n## Role\n'
-        '- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope\n- Billing — not planned\n\n'
-        '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n## Problem\n'
-        'Users sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n\n',
+        '==> project (project) · prds/PROJECT.md <==\n## Role {#roles}\n'
+        '- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope {#out_of_scope}\n- Billing — not planned\n\n'
+        '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n## Problem {#problem}\n'
+        'Users sign in with an email and a password.\n\n## Out-of-scope {#out_of_scope}\n- Social sign-in — not planned\n\n',
       ),
     );
     expect(a.text, isNot(contains('Benefit hypothesis')));
@@ -495,7 +527,7 @@ void main() {
       a.text,
       contains(
         '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md <==\n'
-        '## Use Case\nSign in with an email.',
+        '## Use Case {#use_case}\nSign in with an email.',
       ),
     );
     expect(a.text, isNot(contains('# Agent signs in with email')));
@@ -526,10 +558,15 @@ void main() {
   });
   test('a query on a shared name prints each doc whole', () {
     final a = ctx('buyer', BundleMode.query);
-    expect(a.text, contains('# Buyer\n\n## Snapshot\nBuys things.'));
     expect(
       a.text,
-      contains('# Buyer anti-persona\n\n## Snapshot\nAbuses refunds.'),
+      contains('# Buyer\n\n## Snapshot {#snapshot}\nBuys things.'),
+    );
+    expect(
+      a.text,
+      contains(
+        '# Buyer anti-persona\n\n## Snapshot {#snapshot}\nAbuses refunds.',
+      ),
     );
   });
   test('an implement or design bundle keeps the blank line a leading comment leaves above the title', () async {
@@ -592,13 +629,15 @@ void main() {
       expect(a.text, isNot(contains('## Domain glossary')));
       expect(
         a.text,
-        contains('==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms\n'),
+        contains(
+          '==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms {#terms}\n',
+        ),
       );
     },
   );
   group('the glossary doc in a one-file bundle', () {
     const head = '==> glossary (glossary) · prds/GLOSSARY.md <==';
-    const whole = '$head\n$_glossaryBody';
+    const whole = '$head\n$_keyedGlossaryBody';
     late DocIndex withGlossary;
     setUpAll(
       () async =>
@@ -675,11 +714,16 @@ void main() {
     expect(text, isNot(contains('<!-- fill in later -->')));
     expect(
       text,
-      contains('## Edge cases\n\n1. E01 — A wrong password → refused.'),
+      contains(
+        '## Edge cases {#edge_cases}\n\n1. E01 — A wrong password → refused.',
+      ),
     );
     expect(text, isNot(contains('## Rationale')));
     expect(text, isNot(contains('## Performance')));
-    expect(text, contains('## Security\n- Store no password in plain text.'));
+    expect(
+      text,
+      contains('## Security {#security}\n- Store no password in plain text.'),
+    );
     expect(text, contains('---\ndraft: true\ngoals:\n'));
   });
   group('comments in code', () {
@@ -697,7 +741,7 @@ void main() {
       const line =
           'A block opens with `<!-- BEGIN specstone v1 -->` and closes '
           'with `<!-- END specstone -->`.';
-      expect(await featureWith(line), contains('## Problem\n$line'));
+      expect(await featureWith(line), contains('## Problem {#problem}\n$line'));
     });
 
     test('a comment inside a fenced code block stays', () async {
@@ -716,7 +760,7 @@ void main() {
     test('a comment holding a lone backtick still drops', () async {
       final text = await featureWith('a <!-- it`s --> b `c`');
 
-      expect(text, contains('## Problem\na  b `c`'));
+      expect(text, contains('## Problem {#problem}\na  b `c`'));
       expect(text, isNot(contains('it`s')));
     });
 
@@ -724,29 +768,29 @@ void main() {
       final text = await featureWith('<!-- a ` --> b ` c');
 
       expect(text, isNot(contains('-->')));
-      expect(text, contains('## Problem\n b ` c'));
+      expect(text, contains('## Problem {#problem}\n b ` c'));
     });
 
     test('a comment holding a complete code span drops whole up to its first closing marker', () async {
       final whole = await featureWith('a <!-- see `x` here --> b');
       final cutAtMarker = await featureWith('c <!-- `d --> e` --> f');
 
-      expect(whole, contains('## Problem\na  b'));
+      expect(whole, contains('## Problem {#problem}\na  b'));
       expect(whole, isNot(contains('see')));
       expect(whole, isNot(contains('`x`')));
-      expect(cutAtMarker, contains('## Problem\nc  e` --> f'));
+      expect(cutAtMarker, contains('## Problem {#problem}\nc  e` --> f'));
     });
 
     test('a comment holding a fenced block still drops', () async {
       final text = await featureWith('Before\n<!-- x\n```\ny\n```\n-->\nAfter');
 
-      expect(text, contains('## Problem\nBefore\n\nAfter'));
+      expect(text, contains('## Problem {#problem}\nBefore\n\nAfter'));
       expect(text, isNot(contains('```')));
     });
 
     test('a comment block over several lines drops whole', () async {
       final text = await featureWith('Before\n<!-- one\ntwo\nthree -->\nAfter');
-      expect(text, contains('## Problem\nBefore\n\nAfter'));
+      expect(text, contains('## Problem {#problem}\nBefore\n\nAfter'));
       expect(text, isNot(contains('two')));
     });
 
@@ -785,7 +829,9 @@ void main() {
     expect(dropped, isNot(contains('## Benefit hypothesis')));
     expect(
       dropped,
-      contains('## Success measures\nSign-in time halves; N/A for batch jobs.'),
+      contains(
+        '## Success measures {#success_measures}\nSign-in time halves; N/A for batch jobs.',
+      ),
     );
     final oneWord = await indexWith({
       feature:
@@ -794,7 +840,7 @@ void main() {
     });
     expect(
       ctxIn(oneWord, 'login/email_login', BundleMode.implement).text,
-      contains('## Benefit hypothesis\nWe expect'),
+      contains('## Benefit hypothesis {#benefit_hypothesis}\nWe expect'),
     );
   });
   test(
@@ -1075,14 +1121,14 @@ void main() {
         'cited': true,
       });
     });
-    test('a ### block that starts no item names its anchor; --json gives its section and heading', () async {
+    test('an appended block part names its section key, then block and its anchor; --json gives its section and heading', () async {
       final a = implement(
         await citing('See [a note]($specs/topics/terms.md#a-note).'),
       );
       expect(
         a.text,
         contains(
-          '==> terms (topic) · specs/topics/terms.md#a-note · cited <==\n### A note\nShort.\n',
+          '==> terms (topic) · specs/topics/terms.md#examples · block a-note · cited <==\n### A note\nShort.\n',
         ),
       );
       expect(a.text, endsWith('- terms (topic) · cited examples\n'));
@@ -1130,7 +1176,7 @@ void main() {
       expect(
         a.text,
         contains(
-          '## Edge cases\n\n$e01\n2. E02 — A locked account → refused.\n'
+          '## Edge cases {#edge_cases}\n\n$e01\n2. E02 — A locked account → refused.\n'
           '  · cited by guide (topic) — #purpose\n',
         ),
       );
@@ -1265,7 +1311,7 @@ void main() {
         expect(
           a.text,
           contains(
-            '## Rules\n- **BR-1** Links expire.\n'
+            '## Rules {#rules}\n- **BR-1** Links expire.\n'
             '  · cited by $frName (fr) — #statement',
           ),
         );
@@ -1292,7 +1338,7 @@ void main() {
         a.text,
         contains(
           '· summary · cited <==\n'
-          '# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n',
+          '# Agent creates an account\n\n## Use Case {#use_case}\nCreate one.\n\n## Rules {#rules}\n- **BR-1** One email.\n',
         ),
       );
       expect(a.text, isNot(contains('cited by $frName')));
@@ -1510,7 +1556,10 @@ void main() {
           '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n',
         ),
       );
-      expect(a.text, contains('## Out-of-scope\n- Social sign-in'));
+      expect(
+        a.text,
+        contains('## Out-of-scope {#out_of_scope}\n- Social sign-in'),
+      );
       expect(a.text, isNot(contains(' · summary <==')));
       for (final story in ['email_login', 'reset_password']) {
         expect(
@@ -1959,7 +2008,7 @@ void main() {
       expect(
         text,
         contains(
-          '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+          '# Fewer resets\n\n## Scope {#scope}\n- Resets per week.\n\n## Results {#results}\n'
           'Newest first. Met: halved.\n\n$table| 2026-11-14 | 2 | no |\n',
         ),
       );
@@ -1979,7 +2028,10 @@ void main() {
       });
       final a = ctxIn(i, 'project', BundleMode.design);
 
-      expect(a.text, contains('## Results\n- **RUN-1** First run.\n'));
+      expect(
+        a.text,
+        contains('## Results {#results}\n- **RUN-1** First run.\n'),
+      );
       expect(a.text, isNot(contains('cited by')));
       final cut = (a.json['docs']! as List)
           .cast<Map<String, Object?>>()
@@ -2005,7 +2057,7 @@ void main() {
         text,
         contains(
           '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md · summary · cited <==\n'
-          '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+          '# Fewer resets\n\n## Scope {#scope}\n- Resets per week.\n\n## Results {#results}\n'
           'Run one met the goal; run two halved resets.\n',
         ),
       );
@@ -2014,7 +2066,7 @@ void main() {
     test('a summary_rows section written as prose prints whole', () async {
       final text = await printed('Run one met the goal.');
 
-      expect(text, contains('## Results\nRun one met the goal.\n'));
+      expect(text, contains('## Results {#results}\nRun one met the goal.\n'));
     });
     test(
       'a summary_rows table with no body row prints its lead and header rows',
@@ -2024,7 +2076,7 @@ void main() {
         expect(
           text,
           contains(
-            '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n',
+            '## Results {#results}\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n',
           ),
         );
       },
@@ -2335,7 +2387,7 @@ void main() {
     });
     group('the glossary doc', () {
       const head = '==> glossary (glossary) · prds/GLOSSARY.md <==';
-      const whole = '$head\n$_glossaryBody';
+      const whole = '$head\n$_keyedGlossaryBody';
 
       Future<DocIndex> glossaryIndex() => indexWith({
         _glossaryFile: _glossaryBody,
@@ -2374,7 +2426,7 @@ void main() {
           final a = splitIn(await glossaryIndex(), 'login', BundleMode.query);
 
           expect(a.refs, isNull);
-          expect(a.text, contains('$head\n## Terms\n\n- **Doc** — '));
+          expect(a.text, contains('$head\n## Terms {#terms}\n\n- **Doc** — '));
         },
       );
       test('its own target prints it in the read-first text, with or without --no-project', () async {
@@ -2762,7 +2814,7 @@ void main() {
           a.refs!.text,
           contains(
             '==> shop (domain) · $shopDomain <==\n'
-            '# Shop domain\n\n## Invariants\n'
+            '# Shop domain\n\n## Invariants {#invariants}\n'
             '- **INV-1** An order holds a line.\n'
             '- **INV-2** An order has an owner.',
           ),
@@ -2854,7 +2906,7 @@ void main() {
         });
 
         const block =
-            '==> shop (architecture) · $shopArchitecture#cart-service · cites <==\n'
+            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cites <==\n'
             '### Cart service\n'
             'The service asks [the fr]($toFr).\n'
             'It then stores.\n';
@@ -3356,7 +3408,7 @@ void main() {
         expect(
           a.refs!.text,
           contains(
-            '==> shop (domain) · $shopDomain <==\n# Shop domain\n\n## Invariants\n'
+            '==> shop (domain) · $shopDomain <==\n# Shop domain\n\n## Invariants {#invariants}\n'
             '- **INV-1** An order holds a line.\n'
             '  - A line holds one item.\n'
             '- **INV-2** An order has an owner.',
@@ -3431,7 +3483,7 @@ void main() {
           a.refs!.text,
           contains(
             '==> shop (architecture) · $shopArchitecture <==\n'
-            '# Shop architecture\n\n## Interaction\nNothing here links the story.',
+            '# Shop architecture\n\n## Interaction {#interaction}\nNothing here links the story.',
           ),
         );
       });
@@ -3486,7 +3538,7 @@ void main() {
         });
 
         const block =
-            '==> shop (architecture) · $shopArchitecture#cart-service · cites <==\n'
+            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cites <==\n'
             '### Cart service\nThe service asks [the fr]($toFr).\nIt then stores.\n';
         const bullet =
             '==> shop (architecture) · $shopArchitecture#concerns · cites <==\n'
@@ -3533,7 +3585,7 @@ void main() {
         });
 
         const block =
-            '==> shop (architecture) · $shopArchitecture#cart-service · cited <==\n'
+            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cited <==\n'
             '### Cart service\nIt stores.\nIt pays.\n';
         const entities =
             '==> shop (domain) · $shopDomain#entities · cited <==\n## Entities\n- Order\n';
@@ -3545,6 +3597,38 @@ void main() {
           expect(a.text, contains(piece));
         }
         expect(a.text, isNot(contains('INV-3')));
+      });
+
+      test('an ancestor block piece names its section key, then block and its anchor', () async {
+        final a = await splitNested({
+          'docs/$cartAddFr': fr('See [the flow]($toArch#cart-service).'),
+          'docs/$shopArchitecture': lines([
+            '# Shop architecture',
+            '',
+            '## Component details',
+            '### Cart service',
+            'It stores.',
+            '',
+            '## Concerns',
+            '### Audit',
+            'See [the fr]($toFr).',
+          ]),
+        });
+
+        expect(
+          a.text,
+          contains(
+            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cited <==\n'
+            '### Cart service\nIt stores.\n',
+          ),
+        );
+        expect(
+          a.text,
+          contains(
+            '==> shop (architecture) · $shopArchitecture#concerns · block audit · cites <==\n'
+            '### Audit\nSee [the fr]($toFr).\n',
+          ),
+        );
       });
 
       test('an invariant that links the FR, which links nothing of it, prints with its nested items as an inbound piece', () async {
@@ -3609,7 +3693,7 @@ void main() {
         expect(
           block.text,
           contains(
-            '==> shop (domain) · $shopDomain#order-rules · cites <==\n'
+            '==> shop (domain) · $shopDomain#invariants · block order-rules · cites <==\n'
             '### Order rules\nOrders obey [the fr]($toFr).\n'
             '- **INV-1** An order holds a line.\n- **INV-2** Another.\n',
           ),
@@ -3710,7 +3794,7 @@ void main() {
             '==> shop (architecture) · $shopArchitecture#overview · cites <==\n'
             'A paragraph that cites [the fr]($toFr)\nand wraps.\n';
         const block =
-            '==> shop (architecture) · $shopArchitecture#cart-service · cites <==\n'
+            '==> shop (architecture) · $shopArchitecture#components · block cart-service · cites <==\n'
             '### Cart service\nThe service asks [the fr]($toFr).\nIt then stores.\n';
         expect(a.text, contains(paragraph));
         expect(a.text, contains(block));
@@ -3985,6 +4069,7 @@ void main() {
     const resetRow =
         '- reset_password/send_reset_link E01: `a link is mailed`\n';
     const matrixHeader = '## Verification matrix';
+    const keyedMatrixHeader = '$matrixHeader {#verification_matrix}';
 
     String record(String rows) =>
         "---\nstatuses:\n  - 'email_login:planned'\n---\n\n"
@@ -4046,7 +4131,8 @@ void main() {
       expect(
         a.text,
         contains(
-          '$matrixHeader\n\n$validateRow$stray$storyRow$unknownRow'.trimRight(),
+          '$keyedMatrixHeader\n\n$validateRow$stray$storyRow$unknownRow'
+              .trimRight(),
         ),
       );
       expect(a.text, isNot(contains('send_reset_link E01')));
@@ -4106,7 +4192,7 @@ void main() {
 
       expect(
         a.text,
-        contains('# Login implementation\n\n$matrixHeader\n\n\n==> '),
+        contains('# Login implementation\n\n$keyedMatrixHeader\n\n\n==> '),
       );
       expect(a.text, isNot(contains('send_reset_link E01')));
     });
@@ -4144,6 +4230,208 @@ void main() {
       expect(shown(trimmed), shown(kept));
       expect(trimmed.json['tokens'], kept.json['tokens']);
       expect(trimmed.json['tokens'], tokenSizeOf(shown(trimmed)));
+    });
+  });
+
+  group('section headings name their key', () {
+    const flowFeature =
+        '---\nvision:\n  - PV-01\n---\n\n# Login\n\n'
+        '## Feature flow\nSign in, then work.\n';
+    const specs = '../../../../specs';
+    final keyedHeading = RegExp(r'^## .* \{#[a-z0-9_]+\}$', multiLine: true);
+
+    test('a flow section prints its own key', () async {
+      final i = await indexWith({
+        'docs/prds/features/f01_login/FEATURE.md': flowFeature,
+      });
+
+      final text = ctxIn(i, 'login/email_login', BundleMode.implement).text;
+
+      expect(text, contains('## Feature flow {#flow}\nSign in, then work.'));
+      expect(text, isNot(contains('{#feature_flow}')));
+    });
+    test('summary and appended summary docs take the suffix', () async {
+      final i = await indexWith({
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
+            '# Validate credentials\n\n## Statement\n'
+            'As [signing up](../../f02_signup/us01_create_account/USER_STORY.md) does.\n',
+      });
+
+      final design = ctx('login/email_login', BundleMode.design).text;
+      final implement = ctxIn(
+        i,
+        'login/email_login/validate_credentials',
+        BundleMode.implement,
+      ).text;
+
+      expect(
+        design,
+        contains(
+          '# Agent resets a password\n\n## Use Case {#use_case}\nReset it.\n',
+        ),
+      );
+      expect(
+        implement,
+        contains(
+          '· summary · cited <==\n# Agent creates an account\n\n'
+          '## Use Case {#use_case}\nCreate one.',
+        ),
+      );
+    });
+    test('an appended section part keeps its heading verbatim', () async {
+      final i = await indexWith({
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
+            '# Validate credentials\n\n## Statement\n'
+            'Hold [purpose]($specs/topics/rules.md#purpose).\n',
+        'docs/specs/topics/rules.md':
+            '# Rules\n\n## Purpose\nHold the rules.\n',
+      });
+
+      final text = ctxIn(
+        i,
+        'login/email_login/validate_credentials',
+        BundleMode.implement,
+      ).text;
+
+      expect(
+        text,
+        contains(
+          '==> rules (topic) · specs/topics/rules.md#purpose · cited <==\n'
+          '## Purpose\nHold the rules.\n',
+        ),
+      );
+      expect(text, contains('## Statement {#statement}\n'));
+    });
+    test('json text keeps every heading verbatim', () {
+      final a = ctx('login/email_login', BundleMode.design);
+      final texts = [
+        for (final d in (a.json['docs']! as List).cast<Map<String, Object?>>())
+          d['text']! as String,
+      ];
+
+      expect(keyedHeading.hasMatch(a.text), isTrue);
+      expect(texts.where(keyedHeading.hasMatch), isEmpty);
+      expect(texts.where((t) => t.contains('## Use Case\n')), isNotEmpty);
+    });
+    test('json text of an appended summary part keeps its headings', () async {
+      final i = await indexWith({
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
+            '# Validate credentials\n\n## Statement\n'
+            'As [signing up](../../f02_signup/us01_create_account/USER_STORY.md) does.\n',
+      });
+
+      final a = ctxIn(
+        i,
+        'login/email_login/validate_credentials',
+        BundleMode.implement,
+      );
+      final part = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere(
+            (d) =>
+                d['summary'] == true &&
+                d['cited'] == true &&
+                (d['path']! as String).endsWith(
+                  'us01_create_account/USER_STORY.md',
+                ),
+          );
+
+      expect(a.text, contains('## Use Case {#use_case}\nCreate one.'));
+      expect(
+        part['text'],
+        '# Agent creates an account\n\n## Use Case\nCreate one.',
+      );
+    });
+    test("json text keeps a heading's trailing spaces", () async {
+      final i = await indexWith({
+        'docs/prds/features/f01_login/FEATURE.md':
+            '---\nvision:\n  - PV-01\n---\n\n# Login\n\n'
+            '## Problem  \nUsers sign in.\n',
+      });
+
+      final a = ctxIn(i, 'login/email_login', BundleMode.implement);
+      final feature = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere(
+            (d) => d['name'] == 'login' && d['docType'] == 'feature',
+          );
+
+      expect(a.text, contains('## Problem {#problem}\nUsers sign in.'));
+      expect(
+        (feature['text']! as String).split('\n'),
+        contains('## Problem  '),
+      );
+    });
+    test('a query bundle keys its printed headings', () {
+      final text = ctx(
+        'login/email_login/validate_credentials',
+        BundleMode.query,
+      ).text;
+
+      expect(
+        text,
+        contains('## Statement {#statement}\nThe system shall check'),
+      );
+      expect(text, isNot(contains('## Statement\n')));
+    });
+  });
+  group('joined docs in print order', () {
+    ContextAnswer answerFor(
+      DocIndex i,
+      List<String> targets,
+      BundleMode mode,
+    ) => answerContext(
+      i,
+      pickBundle(i, targets, mode, noProject: false),
+      targets: targets,
+    );
+
+    test(
+      "inward joins print after the named doc's spec docs, agent before skill",
+      () async {
+        final i = await _holderIndex({
+          ..._holderDoc('skills', 'review', ['shop/cart']),
+          ..._holderDoc('agents', 'reviewer', ['shop/cart']),
+        });
+        final printed = _printedDocs(answerFor(i, ['shop'], BundleMode.design));
+        final cart = i
+            .subtreeOf(i.at(cartFeature)!)
+            .map((d) => d.docPath)
+            .toSet();
+        final lastCart = printed.lastIndexWhere(cart.contains);
+        expect(printed.sublist(lastCart + 1, lastCart + 3), [
+          'specs/agents/reviewer.md',
+          'specs/skills/review.md',
+        ]);
+        expect(printed.toSet(), hasLength(printed.length));
+      },
+    );
+
+    test("the outward join's place", () async {
+      final i = await _holderIndex({
+        ..._holderDoc('agents', 'reviewer', ['shop/cart']),
+      });
+      for (final mode in BundleMode.values) {
+        final printed = _printedDocs(answerFor(i, ['agent:reviewer'], mode));
+        final at = printed.indexOf('specs/agents/reviewer.md');
+        expect(at, isNonNegative, reason: mode.wire);
+        expect(printed[at + 1], cartFeature, reason: mode.wire);
+        expect(printed.where((p) => p == cartFeature), hasLength(1));
+      }
+    });
+
+    test('two holders, one named doc, in print order', () async {
+      final i = await _holderIndex({
+        ..._holderDoc('agents', 'reviewer', ['shop/cart']),
+        ..._holderDoc('agents', 'other', ['shop/cart']),
+      });
+      final printed = _printedDocs(
+        answerFor(i, ['agent:reviewer', 'agent:other'], BundleMode.implement),
+      );
+      expect(printed.where((p) => p == cartFeature), hasLength(1));
+      final first = printed.indexOf('specs/agents/other.md');
+      expect(first, lessThan(printed.indexOf('specs/agents/reviewer.md')));
+      expect(printed[first + 1], cartFeature);
     });
   });
 }

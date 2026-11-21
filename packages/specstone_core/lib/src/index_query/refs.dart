@@ -293,19 +293,22 @@ Iterable<IndexedDoc> _carrying(
   }
 }
 
-/// Returns the docs of type [typeId] that a `doc_ref` value of [doc] names,
-/// through the fields whose doc types list [typeId], in field order.
-List<IndexedDoc> referencedDocsOf(
-  DocIndex index,
-  IndexedDoc doc,
-  String typeId,
-) => [
-  for (final field in _docRefFields(index, doc))
-    if (field.docTypes?.contains(typeId) ?? false)
-      for (final value in doc.valuesOf(field.id))
-        for (final named in _carrying(index, field, value))
-          if (named.docTypeId == typeId) named,
-];
+/// Returns the docs each `bundle_with` field of [holder] names, in field
+/// order, each once.
+///
+/// A value resolves among the docs of the field's `doc_types` alone, so one
+/// that names a doc of another type, such as a story, names none, and a field
+/// with no `doc_types` names none.
+List<IndexedDoc> linkedDocsOf(DocIndex index, IndexedDoc holder) {
+  final seen = <String>{};
+  return [
+    for (final field in _docRefFields(index, holder))
+      if ((field.bundleWith ?? false) && (field.docTypes?.isNotEmpty ?? false))
+        for (final value in holder.valuesOf(field.id))
+          for (final named in _carrying(index, field, value))
+            if (seen.add(named.docPath)) named,
+  ];
+}
 
 /// Returns the one line per reference of [refs], or `- none` when empty.
 String _groupLines(List<_Ref> refs) => refs.isEmpty

@@ -395,6 +395,7 @@ final class _Walk {
       view.type,
       bundle.mode,
       null,
+      keyHeadings: true,
     );
     _add(
       AppendedPart(
@@ -462,6 +463,7 @@ final class _Walk {
       view.held,
       view.content.sections[at],
       null,
+      keyHeading: false,
       summaryRows: rows,
     );
     _add(

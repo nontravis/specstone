@@ -43,6 +43,7 @@ final class FieldEntry {
     this.docTypes,
     this.pointer,
     this.root,
+    this.bundleWith,
     this.description,
     this.lint,
     required this.disabled,
@@ -77,6 +78,11 @@ final class FieldEntry {
   /// Unchecked here like [pointer]: only an `output_ref` field reads it, and a
   /// layer that writes no type is checked once the merge knows the type.
   final Object? root;
+
+  /// The `bundle_with` value as written, or null when absent.
+  ///
+  /// A boolean on any field; the merge keeps it on a `doc_ref` field only.
+  final bool? bundleWith;
 
   /// What the field holds, when written.
   final String? description;
@@ -649,6 +655,7 @@ const _fieldKeys = {
   'doc_types',
   'pointer',
   'root',
+  'bundle_with',
   'required',
   'description',
   'lint',
@@ -805,6 +812,12 @@ FieldEntry parseFieldEntry(
         : stringsOf(docTypesList, 'doc_types', file: file, prefix: prefix),
     pointer: pointer,
     root: root,
+    bundleWith: optionalValue<bool>(
+      entry,
+      'bundle_with',
+      file: file,
+      prefix: '$keyPrefix[$index].',
+    ),
     description: optionalValue<String>(
       entry,
       'description',

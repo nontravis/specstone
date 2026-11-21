@@ -212,6 +212,7 @@ List<CitedCandidate> citedCandidatesIn(
         id: anchor,
         extent: LineRange(first: line, last: line),
         by: by,
+        isBlock: true,
       ),
     );
   }
@@ -238,13 +239,14 @@ List<CitedItem> citedItemsWithin(
         return byEnd != 0 ? byEnd : b.extent.first.compareTo(a.extent.first);
       });
   return [
-    for (final CitedCandidate(:id, :extent, :by) in found)
+    for (final CitedCandidate(:id, :extent, :by, :isBlock) in found)
       CitedItem(
         kind: CitedKind.item,
         item: id,
         sectionKey: section.key,
         after: extent.last,
         by: by,
+        isBlock: isBlock,
       ),
   ];
 }
@@ -344,11 +346,14 @@ Map<int, List<String>> citedLinesAfter(
 /// naming line, then one line per citing link.
 ///
 /// The naming line names the item's doc, its `#<section key>`, and its
-/// `item <ID>` for an item or block, the `#<section key>` alone for a
-/// section, and the doc alone for a whole doc, then ends ` · cited by <==`.
+/// `item <ID>` for an item or `block <anchor>` for a block, the
+/// `#<section key>` alone for a section, and the doc alone for a whole doc,
+/// then ends ` · cited by <==`.
 String citedByPartBlock(IndexedDoc doc, CitedItem item) {
   final place = switch (item.kind) {
-    CitedKind.item => '${doc.docPath}#${item.sectionKey} · item ${item.item}',
+    CitedKind.item =>
+      '${doc.docPath}#${item.sectionKey} · '
+          '${item.isBlock ? 'block' : 'item'} ${item.item}',
     CitedKind.section => '${doc.docPath}#${item.sectionKey}',
     CitedKind.doc => doc.docPath,
   };

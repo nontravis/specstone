@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/fault.dart';
+import 'package:specstone_core/src/index_query/bundle_join.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -35,6 +36,61 @@ enum BundleMode {
       '--for takes query, implement, or design, not $value',
     );
   }
+}
+
+/// The side of a `bundle_with` link a joined doc enters the bundle from.
+enum JoinDirection {
+  /// The holder joins a bundle that prints the doc it names.
+  inward,
+
+  /// The doc a holder target names joins that target's bundle.
+  outward,
+}
+
+/// A doc no rule picks that a `bundle_with` field joins to a bundle.
+final class LinkedDoc {
+  const new({
+    required this.docPath,
+    required this.anchorPath,
+    required this.direction,
+  });
+
+  /// The joined doc's DocPath.
+  final String docPath;
+
+  /// The DocPath of the doc it prints beside: the doc it names when it joins
+  /// inward, its holder when it joins outward.
+  final String anchorPath;
+
+  /// The side the doc joined from.
+  final JoinDirection direction;
+}
+
+/// The docs one target's pick adds, apart from the other targets'.
+final class TargetPicks {
+  const new({
+    required this.topPath,
+    required this.wholePaths,
+    required this.summaryPaths,
+    required this.subtreePaths,
+    this.targetPath,
+  });
+
+  /// The DocPath of the target's top doc: its nearest nesting doc in `design`.
+  final String topPath;
+
+  /// The docs the target's rule prints whole, by DocPath.
+  final Set<String> wholePaths;
+
+  /// The docs the target's rule prints in summary, by DocPath.
+  final Set<String> summaryPaths;
+
+  /// The target's own subtree, by DocPath; filled in `design`.
+  final Set<String> subtreePaths;
+
+  /// The DocPath of the doc the call names for this target, when it names
+  /// one: an outward join runs from it.
+  final String? targetPath;
 }
 
 /// The docs one `context` call prints, picked by [BundleMode].
@@ -79,10 +135,16 @@ final class Bundle {
   /// it; a link into one is not followed.
   final Set<String> droppedPaths = {};
 
+  /// The docs a `bundle_with` field joins that no rule picks, by DocPath in
+  /// join order.
+  final Map<String, LinkedDoc> linkedDocs = {};
+
   /// The docs that print in summary only: [summaryPaths] that no target picks
-  /// whole and no `bundle:` join adds.
-  Set<String> get summaryOnly =>
-      summaryPaths.difference(docPaths).difference(joinedPaths);
+  /// whole and no `bundle:` or `bundle_with` join adds.
+  Set<String> get summaryOnly => summaryPaths
+      .difference(docPaths)
+      .difference(joinedPaths)
+      .difference(linkedDocs.keys.toSet());
 
   /// The docs a design bundle may print feature pattern parts after, by
   /// DocPath: the chain of each target, or with `--code` every doc it holds.
@@ -129,12 +191,7 @@ final class Bundle {
   /// [marksSpecs] fills [ancestorSpecPaths] and [targetSubtreePaths] in a
   /// `design` bundle; only a doc target asks for it.
   void addTarget(DocIndex index, IndexedDoc target, {bool marksSpecs = false}) {
-    final typeId = target.docTypeId;
-    final parent = index.parentOf(target);
-    final effective =
-        typeId != null && !index.isChainType(typeId) && parent != null
-        ? parent
-        : target;
+    final effective = _effectiveOf(index, target);
     final top = _topDocOf(index, effective);
     switch (mode) {
       case BundleMode.query:
@@ -146,6 +203,40 @@ final class Bundle {
       case BundleMode.implement:
         _addImplement(index, effective, top);
     }
+  }
+
+  /// Adds [target] as [addTarget] does with specs marked, and returns what
+  /// that target alone picks.
+  ///
+  /// A [forCode] pick marks no specs in this bundle and names no target doc,
+  /// so no outward join runs from it.
+  TargetPicks pickTarget(
+    DocIndex index,
+    IndexedDoc target, {
+    bool forCode = false,
+  }) {
+    final own = Bundle(mode, summary: summary, codeTarget: codeTarget)
+      ..addTarget(index, target, marksSpecs: true);
+    docPaths.addAll(own.docPaths);
+    summaryPaths.addAll(own.summaryPaths);
+    if (!forCode) {
+      ancestorSpecPaths.addAll(own.ancestorSpecPaths);
+      targetSubtreePaths.addAll(own.targetSubtreePaths);
+    }
+    patternListerPaths.addAll(own.patternListerPaths);
+    mapTops.addAll(own.mapTops);
+    nameListTops.addAll(own.nameListTops);
+    final effective = _effectiveOf(index, target);
+    final top = _topDocOf(index, effective);
+    return TargetPicks(
+      topPath: mode == BundleMode.design
+          ? _designTopOf(index, effective, top).docPath
+          : top.docPath,
+      wholePaths: own.docPaths,
+      summaryPaths: own.summaryPaths,
+      subtreePaths: own.targetSubtreePaths,
+      targetPath: forCode ? null : target.docPath,
+    );
   }
 
   /// Records [doc], a doc the call names, as a target that prints whole.
@@ -176,6 +267,10 @@ final class Bundle {
   /// parent is outside both, children inside both sorted by chain type first,
   /// then doc type id, then DocPath, by code point. The walk drops a
   /// joined doc, which prints once, whole.
+  ///
+  /// A `bundle_with` doc takes its place after that walk: an inward doc after
+  /// the last doc of its anchor's walked subtree, an outward doc right after
+  /// its holder.
   List<IndexedDoc> printOrder(DocIndex index) {
     final inDocPaths = {...docPaths, ...summaryPaths};
     final roots = [
@@ -188,11 +283,60 @@ final class Bundle {
     for (final root in roots) {
       _walk(index, root, inDocPaths, walkOrder);
     }
-    return [
+    return _withLinkedDocs(index, [
       for (final doc in index.docs)
         if (joinedPaths.contains(doc.docPath)) doc,
       for (final doc in walkOrder)
         if (!joinedPaths.contains(doc.docPath)) doc,
+    ]);
+  }
+
+  /// Returns [ordered] with each [linkedDocs] doc spliced in at its place.
+  ///
+  /// Inward docs of one anchor sort by doc type id, then DocPath; where two
+  /// anchors end at one doc, the deeper anchor's docs come first. A doc whose
+  /// anchor [ordered] lacks goes last.
+  List<IndexedDoc> _withLinkedDocs(DocIndex index, List<IndexedDoc> ordered) {
+    if (linkedDocs.isEmpty) return ordered;
+    final inward = <String, List<IndexedDoc>>{};
+    final outward = <String, List<IndexedDoc>>{};
+    for (final linked in linkedDocs.values) {
+      final doc = index.at(linked.docPath);
+      if (doc == null) continue;
+      final byAnchor = linked.direction == JoinDirection.inward
+          ? inward
+          : outward;
+      (byAnchor[linked.anchorPath] ??= []).add(doc);
+    }
+    final after = <int, List<IndexedDoc>>{};
+    final unplaced = <IndexedDoc>[];
+    void place(String anchorPath, List<IndexedDoc> docs, {Set<String>? span}) {
+      var end = ordered.indexWhere((d) => d.docPath == anchorPath);
+      if (end < 0) {
+        unplaced.addAll(docs);
+        return;
+      }
+      while (span != null &&
+          end + 1 < ordered.length &&
+          span.contains(ordered[end + 1].docPath)) {
+        end++;
+      }
+      (after[end] ??= []).addAll(docs);
+    }
+
+    final inwardAnchors = [for (final path in inward.keys) ?index.at(path)]
+      ..sort((a, b) => index.chainOf(b).length - index.chainOf(a).length);
+    for (final anchor in inwardAnchors) {
+      place(
+        anchor.docPath,
+        inward[anchor.docPath]!..sort(_compareByTypeThenPath),
+        span: {for (final d in index.subtreeOf(anchor)) d.docPath},
+      );
+    }
+    outward.forEach(place);
+    return [
+      for (final (at, doc) in ordered.indexed) ...[doc, ...?after[at]],
+      ...unplaced,
     ];
   }
 
@@ -300,6 +444,14 @@ final class Bundle {
         top;
   }
 
+  IndexedDoc _effectiveOf(DocIndex index, IndexedDoc target) {
+    final typeId = target.docTypeId;
+    final parent = index.parentOf(target);
+    return typeId != null && !index.isChainType(typeId) && parent != null
+        ? parent
+        : target;
+  }
+
   IndexedDoc _topDocOf(DocIndex index, IndexedDoc target) {
     var top = target;
     for (
@@ -329,14 +481,17 @@ void _walk(
   }
 }
 
+int _compareByTypeThenPath(IndexedDoc a, IndexedDoc b) {
+  final byType = compareCodePoints(a.docTypeId ?? '', b.docTypeId ?? '');
+  return byType != 0 ? byType : compareCodePoints(a.docPath, b.docPath);
+}
+
 int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
     (a, b) {
       final aChain = index.isChainDoc(a) ? 0 : 1;
       final bChain = index.isChainDoc(b) ? 0 : 1;
       if (aChain != bChain) return aChain - bChain;
-      final byType = compareCodePoints(a.docTypeId ?? '', b.docTypeId ?? '');
-      if (byType != 0) return byType;
-      return compareCodePoints(a.docPath, b.docPath);
+      return _compareByTypeThenPath(a, b);
     };
 
 /// Returns the bundle [targets] hold for [mode], the union of each target's
@@ -385,13 +540,14 @@ Bundle pickBundle(
     }
   }
   final bundle = Bundle(mode, summary: summary, codeTarget: codeTarget);
+  final picks = <TargetPicks>[];
   for (final doc in picked) {
-    bundle
-      ..addTarget(index, doc, marksSpecs: true)
-      ..nameTarget(doc);
+    picks.add(bundle.pickTarget(index, doc));
+    bundle.nameTarget(doc);
     if (doc.docTypeId case final typeId?) bundle.targetTypeIds.add(typeId);
   }
   bundle.join(index, noProject: noProject);
+  joinLinkedDocs(index, bundle, picks);
   return bundle;
 }
 
