@@ -258,6 +258,10 @@ final class Bundle {
   /// parent is outside both, children inside both sorted by chain type first,
   /// then doc type id, then DocPath, by code point. The walk drops a
   /// joined doc, which prints once, whole.
+  ///
+  /// A `bundle_with` doc takes its place after that walk: an inward doc after
+  /// the last doc of its anchor's walked subtree, an outward doc right after
+  /// its holder.
   List<IndexedDoc> printOrder(DocIndex index) {
     final inDocPaths = {...docPaths, ...summaryPaths};
     final roots = [
@@ -270,11 +274,60 @@ final class Bundle {
     for (final root in roots) {
       _walk(index, root, inDocPaths, walkOrder);
     }
-    return [
+    return _withLinkedDocs(index, [
       for (final doc in index.docs)
         if (joinedPaths.contains(doc.docPath)) doc,
       for (final doc in walkOrder)
         if (!joinedPaths.contains(doc.docPath)) doc,
+    ]);
+  }
+
+  /// Returns [ordered] with each [linkedDocs] doc spliced in at its place.
+  ///
+  /// Inward docs of one anchor sort by doc type id, then DocPath; where two
+  /// anchors end at one doc, the deeper anchor's docs come first. A doc whose
+  /// anchor [ordered] lacks goes last.
+  List<IndexedDoc> _withLinkedDocs(DocIndex index, List<IndexedDoc> ordered) {
+    if (linkedDocs.isEmpty) return ordered;
+    final inward = <String, List<IndexedDoc>>{};
+    final outward = <String, List<IndexedDoc>>{};
+    for (final linked in linkedDocs.values) {
+      final doc = index.at(linked.docPath);
+      if (doc == null) continue;
+      final byAnchor = linked.direction == JoinDirection.inward
+          ? inward
+          : outward;
+      (byAnchor[linked.anchorPath] ??= []).add(doc);
+    }
+    final after = <int, List<IndexedDoc>>{};
+    final unplaced = <IndexedDoc>[];
+    void place(String anchorPath, List<IndexedDoc> docs, {Set<String>? span}) {
+      var end = ordered.indexWhere((d) => d.docPath == anchorPath);
+      if (end < 0) {
+        unplaced.addAll(docs);
+        return;
+      }
+      while (span != null &&
+          end + 1 < ordered.length &&
+          span.contains(ordered[end + 1].docPath)) {
+        end++;
+      }
+      (after[end] ??= []).addAll(docs);
+    }
+
+    final inwardAnchors = [for (final path in inward.keys) ?index.at(path)]
+      ..sort((a, b) => index.chainOf(b).length - index.chainOf(a).length);
+    for (final anchor in inwardAnchors) {
+      place(
+        anchor.docPath,
+        inward[anchor.docPath]!..sort(_compareByTypeThenPath),
+        span: {for (final d in index.subtreeOf(anchor)) d.docPath},
+      );
+    }
+    outward.forEach(place);
+    return [
+      for (final (at, doc) in ordered.indexed) ...[doc, ...?after[at]],
+      ...unplaced,
     ];
   }
 
@@ -419,14 +472,17 @@ void _walk(
   }
 }
 
+int _compareByTypeThenPath(IndexedDoc a, IndexedDoc b) {
+  final byType = compareCodePoints(a.docTypeId ?? '', b.docTypeId ?? '');
+  return byType != 0 ? byType : compareCodePoints(a.docPath, b.docPath);
+}
+
 int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
     (a, b) {
       final aChain = index.isChainDoc(a) ? 0 : 1;
       final bChain = index.isChainDoc(b) ? 0 : 1;
       if (aChain != bChain) return aChain - bChain;
-      final byType = compareCodePoints(a.docTypeId ?? '', b.docTypeId ?? '');
-      if (byType != 0) return byType;
-      return compareCodePoints(a.docPath, b.docPath);
+      return _compareByTypeThenPath(a, b);
     };
 
 /// Returns the bundle [targets] hold for [mode], the union of each target's

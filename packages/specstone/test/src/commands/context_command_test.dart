@@ -2820,4 +2820,30 @@ void main() {
       expect(headers.first, contains(name));
     });
   });
+  test(
+    'context of an agent doc for design prints its feature right after it',
+    () async {
+      final project = await writeReadProject(
+        extra: {
+          '.specstone/config.yaml': skillPinsConfig(),
+          'docs/specs/agents/reviewer.md':
+              '---\nfeature:\n  - login\n---\n\n'
+              '# reviewer\n\n## Role\n\nReviews a diff.\n',
+        },
+      );
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['context', 'agent:reviewer', '--for', 'design']),
+        0,
+        reason: run.err.toString(),
+      );
+      final naming = [
+        for (final line in run.out.toString().split('\n'))
+          if (line.startsWith('==> ') && !line.startsWith('==> bundle: ')) line,
+      ];
+      final at = naming.indexWhere((l) => l.startsWith('==> reviewer (agent)'));
+      expect(at, isNonNegative);
+      expect(naming[at + 1], startsWith('==> login (feature)'));
+    },
+  );
 }

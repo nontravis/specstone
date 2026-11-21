@@ -19,6 +19,7 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_doc_fixture.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -185,6 +186,27 @@ void _expectReadFirstSizes(DocIndex index) {
     }
   }
 }
+
+/// A `specs/agents` or `specs/skills` doc whose `feature` field names
+/// [features].
+Map<String, String> _holderDoc(
+  String folder,
+  String slug,
+  List<String> features,
+) => {
+  'docs/specs/$folder/$slug.md':
+      '---\nfeature:\n${[for (final f in features) '  - $f\n'].join()}---\n\n'
+      '# $slug\n\n## Purpose\n\nReviews a diff.\n',
+};
+
+Future<DocIndex> _holderIndex(Map<String, String> docs) =>
+    nestedIndexWith({'.specstone/config.yaml': skillPinsConfig(), ...docs});
+
+/// The DocPaths of the docs [answer] prints, each once, in print order.
+List<String> _printedDocs(ContextAnswer answer) => [
+  for (final entry in answer.entries)
+    if (entry.kind == BundleEntryKind.doc) entry.doc.docPath,
+];
 
 void main() {
   late DocIndex index;
@@ -4351,6 +4373,65 @@ void main() {
         contains('## Statement {#statement}\nThe system shall check'),
       );
       expect(text, isNot(contains('## Statement\n')));
+    });
+  });
+  group('joined docs in print order', () {
+    ContextAnswer answerFor(
+      DocIndex i,
+      List<String> targets,
+      BundleMode mode,
+    ) => answerContext(
+      i,
+      pickBundle(i, targets, mode, noProject: false),
+      targets: targets,
+    );
+
+    test(
+      "inward joins print after the named doc's spec docs, agent before skill",
+      () async {
+        final i = await _holderIndex({
+          ..._holderDoc('skills', 'review', ['shop/cart']),
+          ..._holderDoc('agents', 'reviewer', ['shop/cart']),
+        });
+        final printed = _printedDocs(answerFor(i, ['shop'], BundleMode.design));
+        final cart = i
+            .subtreeOf(i.at(cartFeature)!)
+            .map((d) => d.docPath)
+            .toSet();
+        final lastCart = printed.lastIndexWhere(cart.contains);
+        expect(printed.sublist(lastCart + 1, lastCart + 3), [
+          'specs/agents/reviewer.md',
+          'specs/skills/review.md',
+        ]);
+        expect(printed.toSet(), hasLength(printed.length));
+      },
+    );
+
+    test("the outward join's place", () async {
+      final i = await _holderIndex({
+        ..._holderDoc('agents', 'reviewer', ['shop/cart']),
+      });
+      for (final mode in BundleMode.values) {
+        final printed = _printedDocs(answerFor(i, ['agent:reviewer'], mode));
+        final at = printed.indexOf('specs/agents/reviewer.md');
+        expect(at, isNonNegative, reason: mode.wire);
+        expect(printed[at + 1], cartFeature, reason: mode.wire);
+        expect(printed.where((p) => p == cartFeature), hasLength(1));
+      }
+    });
+
+    test('two holders, one named doc, in print order', () async {
+      final i = await _holderIndex({
+        ..._holderDoc('agents', 'reviewer', ['shop/cart']),
+        ..._holderDoc('agents', 'other', ['shop/cart']),
+      });
+      final printed = _printedDocs(
+        answerFor(i, ['agent:reviewer', 'agent:other'], BundleMode.implement),
+      );
+      expect(printed.where((p) => p == cartFeature), hasLength(1));
+      final first = printed.indexOf('specs/agents/other.md');
+      expect(first, lessThan(printed.indexOf('specs/agents/reviewer.md')));
+      expect(printed[first + 1], cartFeature);
     });
   });
 }

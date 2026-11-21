@@ -20,6 +20,8 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
+import '../../helpers/skill_doc_fixture.dart';
 
 const _feature = 'docs/prds/features/f01_login/FEATURE.md';
 const _fr =
@@ -1929,5 +1931,30 @@ void main() {
         ),
       );
     });
+  });
+  test('the split puts a joined doc read-first', () async {
+    final index = await nestedIndexWith({
+      '.specstone/config.yaml': skillPinsConfig(),
+      'docs/specs/agents/reviewer.md':
+          '---\nfeature:\n  - shop/cart\n---\n\n'
+          '# reviewer\n\n## Role\n\nReviews a diff.\n',
+    });
+    for (final (targets, joined) in [
+      (['shop'], 'specs/agents/reviewer.md'),
+      (['agent:reviewer'], cartFeature),
+    ]) {
+      final answer = answerContext(
+        index,
+        pickBundle(index, targets, BundleMode.design, noProject: false),
+        targets: targets,
+        split: true,
+      );
+      List<String> docsOf(BundleText file) => [
+        for (final e in file.entries)
+          if (e.kind == BundleEntryKind.doc) e.doc.docPath,
+      ];
+      expect(docsOf(answer.readFirst), contains(joined), reason: '$targets');
+      expect(docsOf(answer.refs!), isNot(contains(joined)), reason: '$targets');
+    }
   });
 }
