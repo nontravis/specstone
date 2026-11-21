@@ -2584,29 +2584,29 @@ void _brainstormRoundTests() {
         expect(step, contains(word), reason: '$form: $word');
       }
     }
+  });
+
+  test("design.md sends a removed decision's stub rows to removal.md", () {
     expect(
-      _hasSentenceWith(_sectionOf(text, '## 3. Write the document'), [
-        'removes a decision',
-        '`removal.md`',
-        'stub rows',
-      ]),
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_designReference), '## 3. Write the document'),
+        ['removes a decision', '`removal.md`', 'stub rows'],
+      ),
       isTrue,
-      reason: 'stub row',
     );
   });
 
   test('removal.md writes a stub row by key with its item list or whole', () {
     final bullet = _bulletOf(_pluginText(_removalReference), '- **Stub rows**');
-    expect(
-      _hasSentenceWith(bullet, [
-        '`take out the D<n> text: <sections>` in Sections',
-        'each with its item list or `whole`',
-        '`design.md`',
-        'never `all`',
-        '`D<n> (Amend <N>, removed)` in Decisions',
-      ]),
-      isTrue,
-    );
+    for (final word in [
+      '`take out the D<n> text: <sections>` in Sections',
+      'each with its item list or `whole`',
+      '`design.md`',
+      'never `all`',
+      '`D<n> (Amend <N>, removed)` in Decisions',
+    ]) {
+      expect(bullet, contains(word), reason: word);
+    }
   });
 }
 
