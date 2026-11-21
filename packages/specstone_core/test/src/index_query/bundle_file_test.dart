@@ -1236,39 +1236,30 @@ void main() {
         hasLength(1),
       );
     });
-    test(
-      'the read-first index line of a lead paragraph piece ends at cites',
-      () async {
-        final index = await indexWith({
-          domainPath:
-              '# Login domain\n\nThis doc backs [validate](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md).\n\n'
-              '## Invariants\n- **INV-1** An account has an email.\n',
-        });
-        final answer = answerContext(
+    test("a head piece's index line ends cites with no key", () async {
+      final index = await indexWith({
+        domainPath:
+            '# Login domain\n\nThis doc backs [validate](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md).\n\n'
+            '## Invariants\n- **INV-1** An account has an email.\n',
+      });
+      final answer = answerContext(
+        index,
+        pickBundle(
           index,
-          pickBundle(
-            index,
-            ['login/email_login'],
-            BundleMode.design,
-            noProject: false,
-          ),
-          targets: ['login/email_login'],
-          split: true,
-        );
-        final lines = bundleIndex(
-          answer,
-          '/p',
-          refsPath: '/p.refs',
-        ).split('\n');
+          ['login/email_login'],
+          BundleMode.design,
+          noProject: false,
+        ),
+        targets: ['login/email_login'],
+        split: true,
+      );
+      final lines = bundleIndex(answer, '/p', refsPath: '/p.refs').split('\n');
 
-        expect(
-          lines.where(
-            RegExp(r'^- login \(domain\) · \d+-\d+ · cites$').hasMatch,
-          ),
-          hasLength(1),
-        );
-      },
-    );
+      expect(
+        lines.where(RegExp(r'^- login \(domain\) · \d+-\d+ · cites$').hasMatch),
+        hasLength(1),
+      );
+    });
     test('the out json marks an inbound piece cites and not cited', () async {
       final answer = await designLogin(split: true);
       final json = bundleIndexJson(answer, '/p', refsPath: '/p.refs');
@@ -1507,7 +1498,7 @@ void main() {
       final (:naming, :listed) = lineOf(answer);
       expect(
         naming,
-        '==> $domainName · specs/f01_login/DOMAIN.md#entities · item account · cited by <==',
+        '==> $domainName · specs/f01_login/DOMAIN.md#entities · block account · cited by <==',
       );
       expect(listed, matches(RegExp(r' · cited by \[account\]$')));
     });

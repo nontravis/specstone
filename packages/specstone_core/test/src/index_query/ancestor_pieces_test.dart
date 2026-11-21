@@ -446,6 +446,26 @@ void main() {
     ]);
   });
 
+  test('a head piece names its doc with no fragment', () async {
+    final pieces = await _piecesOf(
+      _files(
+        domain: _lines([
+          '# Shop domain',
+          '',
+          '- Backs [the fr]($_toFr).',
+          '- Other.',
+          '',
+          '## Invariants',
+          '- **INV-1** One.',
+        ]),
+      ),
+    );
+    expect(pieces.map(_show), [
+      '$shopDomain# id=null heading=null inbound 3-3',
+    ]);
+    expect(pieces.single.sectionKey, isEmpty);
+  });
+
   test('no piece without ancestor spec docs', () async {
     final files = _files(
       fr: _fr('Holds [INV-1]($_toDomain#invariants).'),

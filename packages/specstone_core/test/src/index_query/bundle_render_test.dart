@@ -1099,14 +1099,14 @@ void main() {
         'cited': true,
       });
     });
-    test('a ### block that starts no item names its anchor; --json gives its section and heading', () async {
+    test('an appended block part names its section key, then block and its anchor; --json gives its section and heading', () async {
       final a = implement(
         await citing('See [a note]($specs/topics/terms.md#a-note).'),
       );
       expect(
         a.text,
         contains(
-          '==> terms (topic) · specs/topics/terms.md#a-note · cited <==\n### A note\nShort.\n',
+          '==> terms (topic) · specs/topics/terms.md#examples · block a-note · cited <==\n### A note\nShort.\n',
         ),
       );
       expect(a.text, endsWith('- terms (topic) · cited examples\n'));
@@ -2884,7 +2884,7 @@ void main() {
         });
 
         const block =
-            '==> shop (architecture) · $shopArchitecture#cart-service · cites <==\n'
+            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cites <==\n'
             '### Cart service\n'
             'The service asks [the fr]($toFr).\n'
             'It then stores.\n';
@@ -3516,7 +3516,7 @@ void main() {
         });
 
         const block =
-            '==> shop (architecture) · $shopArchitecture#cart-service · cites <==\n'
+            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cites <==\n'
             '### Cart service\nThe service asks [the fr]($toFr).\nIt then stores.\n';
         const bullet =
             '==> shop (architecture) · $shopArchitecture#concerns · cites <==\n'
@@ -3563,7 +3563,7 @@ void main() {
         });
 
         const block =
-            '==> shop (architecture) · $shopArchitecture#cart-service · cited <==\n'
+            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cited <==\n'
             '### Cart service\nIt stores.\nIt pays.\n';
         const entities =
             '==> shop (domain) · $shopDomain#entities · cited <==\n## Entities\n- Order\n';
@@ -3575,6 +3575,38 @@ void main() {
           expect(a.text, contains(piece));
         }
         expect(a.text, isNot(contains('INV-3')));
+      });
+
+      test('an ancestor block piece names its section key, then block and its anchor', () async {
+        final a = await splitNested({
+          'docs/$cartAddFr': fr('See [the flow]($toArch#cart-service).'),
+          'docs/$shopArchitecture': lines([
+            '# Shop architecture',
+            '',
+            '## Component details',
+            '### Cart service',
+            'It stores.',
+            '',
+            '## Concerns',
+            '### Audit',
+            'See [the fr]($toFr).',
+          ]),
+        });
+
+        expect(
+          a.text,
+          contains(
+            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cited <==\n'
+            '### Cart service\nIt stores.\n',
+          ),
+        );
+        expect(
+          a.text,
+          contains(
+            '==> shop (architecture) · $shopArchitecture#concerns · block audit · cites <==\n'
+            '### Audit\nSee [the fr]($toFr).\n',
+          ),
+        );
       });
 
       test('an invariant that links the FR, which links nothing of it, prints with its nested items as an inbound piece', () async {
@@ -3639,7 +3671,7 @@ void main() {
         expect(
           block.text,
           contains(
-            '==> shop (domain) · $shopDomain#order-rules · cites <==\n'
+            '==> shop (domain) · $shopDomain#invariants · block order-rules · cites <==\n'
             '### Order rules\nOrders obey [the fr]($toFr).\n'
             '- **INV-1** An order holds a line.\n- **INV-2** Another.\n',
           ),
@@ -3740,7 +3772,7 @@ void main() {
             '==> shop (architecture) · $shopArchitecture#overview · cites <==\n'
             'A paragraph that cites [the fr]($toFr)\nand wraps.\n';
         const block =
-            '==> shop (architecture) · $shopArchitecture#cart-service · cites <==\n'
+            '==> shop (architecture) · $shopArchitecture#components · block cart-service · cites <==\n'
             '### Cart service\nThe service asks [the fr]($toFr).\nIt then stores.\n';
         expect(a.text, contains(paragraph));
         expect(a.text, contains(block));

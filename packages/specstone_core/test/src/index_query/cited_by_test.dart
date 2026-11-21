@@ -818,6 +818,34 @@ void main() {
     });
   });
 
+  group('a split design bundle with a cited block', () {
+    const guide =
+        '# Guide\n\n## Purpose\nSee [a case](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md#case).\n'
+        'See [E01](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md#edge-cases).\n';
+
+    test("a block's cited-by part names block, an item's names item", () async {
+      final index = await _index(
+        'Check it.',
+        edge: '1. E01 — A wrong password → refused.\n\n### Case\nDetail.',
+        extra: {'docs/specs/topics/guide.md': guide},
+      );
+      final a = answerContext(
+        index,
+        pickBundle(index, [_frName], BundleMode.design, noProject: false),
+        targets: [_frName],
+        split: true,
+      );
+      const place = '==> $_frName (fr) · $_frPath#edge_cases';
+
+      expect(a.refs!.text, contains('$place · block case · cited by <=='));
+      expect(a.refs!.text, contains('$place · item E01 · cited by <=='));
+      final blockEntry = a.refs!.entries.singleWhere(
+        (e) => e.kind == BundleEntryKind.citedBy && e.itemId == 'case',
+      );
+      expect(blockEntry.sectionKey, 'edge_cases');
+    });
+  });
+
   test('an index that prints its lines as parts gives no line to print after an item', () {
     const item = CitedItem(
       kind: CitedKind.item,
