@@ -695,6 +695,7 @@ String _signature(FieldEntry entry) => _canonical({
   'doc_types': entry.docTypes,
   'pointer': entry.pointer,
   'root': entry.root,
+  'bundle_with': entry.bundleWith,
   'description': entry.description,
   'lint': entry.lint?.toJson(),
   'disabled': entry.disabled,

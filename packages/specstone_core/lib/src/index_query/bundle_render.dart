@@ -325,7 +325,12 @@ ContextAnswer _answerContext(
           'path': ordered[doc].docPath,
           'tokens': tokenSizeOf(block),
           'text': _blockBody(
-            _withVerbatimHeadings(index, ordered[doc], docPrints[doc], block),
+            _withVerbatimHeadings(
+              index,
+              ordered[doc],
+              docPrints[doc].sections,
+              block,
+            ),
           ),
           if (inSummary(ordered[doc])) 'summary': true,
           ..._citedByKey(docPrints[doc].cited, citedBy),
@@ -334,7 +339,11 @@ ContextAnswer _answerContext(
         {
           ..._partDocJson(part, partBlocks[i]),
           if (!part.pathOnly && !part.nameOnly)
-            'text': _blockBody(partBlocks[i]),
+            'text': _blockBody(
+              _withVerbatimHeadings(index, part.doc, [
+                for (final section in part.sections) section.shiftedBy(1),
+              ], partBlocks[i]),
+            ),
           ..._partKeys(part),
         },
     ],
@@ -983,16 +992,16 @@ List<String> _byTreeOrder(DocIndex index, Set<String> paths) => [
     if (paths.contains(doc.docPath)) doc.docPath,
 ];
 
-/// Returns [block], the text of [print] of [doc], with each section header
-/// line [print] locates set back to the header line the index holds, as a JSON
-/// `text` keeps its headings verbatim.
+/// Returns [block], a printed block of [doc], with each section header line
+/// [sections] locates in it set back to the header line the index holds, as a
+/// JSON `text` keeps its headings verbatim.
 ///
-/// It reads the lines [DocPrint.sections] gives, never a pattern, so a body
-/// line that ends in `{#...}` stays.
+/// It reads the lines [sections] gives, never a pattern, so a body line that
+/// ends in `{#...}` stays.
 String _withVerbatimHeadings(
   DocIndex index,
   IndexedDoc doc,
-  DocPrint print,
+  List<SectionLine> sections,
   String block,
 ) {
   final headers = {
@@ -1000,7 +1009,7 @@ String _withVerbatimHeadings(
       section.key: section.headerLine,
   };
   final lines = block.split('\n');
-  for (final SectionLine(:key, :line) in print.sections) {
+  for (final SectionLine(:key, :line) in sections) {
     if (headers[key] case final header?) lines[line] = header;
   }
   return lines.join('\n');

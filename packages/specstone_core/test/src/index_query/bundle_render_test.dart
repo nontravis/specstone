@@ -4291,6 +4291,35 @@ void main() {
       expect(texts.where(keyedHeading.hasMatch), isEmpty);
       expect(texts.where((t) => t.contains('## Use Case\n')), isNotEmpty);
     });
+    test('json text of an appended summary part keeps its headings', () async {
+      final i = await indexWith({
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
+            '# Validate credentials\n\n## Statement\n'
+            'As [signing up](../../f02_signup/us01_create_account/USER_STORY.md) does.\n',
+      });
+
+      final a = ctxIn(
+        i,
+        'login/email_login/validate_credentials',
+        BundleMode.implement,
+      );
+      final part = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere(
+            (d) =>
+                d['summary'] == true &&
+                d['cited'] == true &&
+                (d['path']! as String).endsWith(
+                  'us01_create_account/USER_STORY.md',
+                ),
+          );
+
+      expect(a.text, contains('## Use Case {#use_case}\nCreate one.'));
+      expect(
+        part['text'],
+        '# Agent creates an account\n\n## Use Case\nCreate one.',
+      );
+    });
     test("json text keeps a heading's trailing spaces", () async {
       final i = await indexWith({
         'docs/prds/features/f01_login/FEATURE.md':
