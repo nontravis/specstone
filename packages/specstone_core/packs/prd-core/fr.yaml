@@ -4,7 +4,7 @@ description: |-
   Title it `# <Name>`, with no number.
   Write the Statement with one "shall" and its quantified value, such as `within 2 s`.
   Avoid -ly and -ize words beyond the banned list.
-  State what the product does, never how; leave mechanics to the spec docs, and assign no task to a person.
+  State what the product does, never how; leave mechanics to the spec docs, and assign no task to a person. A skill's or agent's steps are code. An FR states only when it asks, what it reports, what it takes, its limits, and what it may write.
   Keep the trace in `traced_from` alone, never in the Statement or an edge case.
   Keep one behavior per FR; split joined behaviors into separate FRs.
   Write an edge case only for an outcome the Statement, an Input/Output row, and a table leave unstated, such as a refusal, a limit, a default, a fallback, or a "no finding" boundary another FR's finding takes.
@@ -113,7 +113,7 @@ sections:
     header: Behavior
     description: |-
       Draw a Mermaid diagram when the behavior branches.
-      State a required order of functions as a requirement, and an assumed order as an assumption.
+      State a required order of functions as a requirement, and an assumed order as an assumption. A skill's or agent's step order is neither.
       Quote a node label holding `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
     template: |-
       ```mermaid
