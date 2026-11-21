@@ -26,10 +26,11 @@ one it lacks under `Findings:`.
   `base` of `specstone get <type>:<name>#<key> --json`.
 - **A removed decision's stub row**: follow `removal.md` section 2.
 - **Several docs**: one name list, step 1's names too, from this pass's rows only (after an amend, its `Amend <N> rows`
-  table; a landed table is none): `<key> (<items>)`, `<key> whole`, or a bare `<key>`: that key; `#input--output` as
-  `input_output`; a finding's key with an item or note: the key alone; `whole` or a new doc: its bare name; a finding
-  naming a doc with no key: its bare name, the gap under `Findings:`; key the doc lacks: its naming line, the section
-  written under it. `specstone get <list> --out "<file>"`, `<file>`
+  table; a landed table is none): `<key> (<items>)`, `<key> whole`, or a bare `<key>`: that key; a stub row cell
+  `take out the D<n> text: <sections>`: each section it names; `#input--output` as `input_output`; a finding's key
+  with an item or note: the key alone; `whole` or a new doc: its bare name; a finding naming a doc with no key: its
+  bare name, the gap under `Findings:`; key the doc lacks: its naming line, the section written under it.
+  `specstone get <list> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`. `section_not_found`: rerun with its doc's bare name, the
   key under `Findings:`; `doc_not_found`: rerun without it, under `Findings:`, or `Not landed:` if never created.
   Search each item not marked `new` inside its doc's block (its `==> ` header to the next) by its line form, such as

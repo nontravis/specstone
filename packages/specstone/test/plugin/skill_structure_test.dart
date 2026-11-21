@@ -2608,7 +2608,30 @@ void _brainstormRoundTests() {
       expect(bullet, contains(word), reason: word);
     }
   });
+
+  test('author.md names each section a stub row cell lists', () {
+    final list = _bulletOf(_pluginText(_authorReference), '- **Several docs**');
+    for (final (form, phrase) in [
+      ('row cell with items', '`<key> (<items>)`'),
+      ('whole or new doc', '`whole` or a new doc: its bare name'),
+      (
+        'stub row cell',
+        'a stub row cell `take out the D<n> text: <sections>`: each '
+            'section it names',
+      ),
+      ('audit or check line', 'a bare `<key>`: that key'),
+      ('anchor', '`#input--output` as `input_output`'),
+      ('item or note', "a finding's key with an item or note: the key"),
+      ('doc with no key', 'a finding naming a doc with no key: its bare name'),
+      ('key no template defines', "`section_not_found`: rerun with its doc's"),
+      ('key the doc lacks', 'key the doc lacks: its naming line'),
+    ]) {
+      expect(list, contains(phrase), reason: form);
+    }
+  });
 }
+
+const _authorReference = 'specstone-brainstorming-sdd/references/author.md';
 
 const _removalReference = 'specstone-brainstorming-sdd/references/removal.md';
 
