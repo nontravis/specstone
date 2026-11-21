@@ -1,7 +1,5 @@
 # The author's report
 
-`author.md` reads this for its step 5.
-
 ```
 Design: <path>, amend <N>
 Not landed: <decision>: <why no doc took it>
@@ -18,11 +16,11 @@ Guide: <txt path>, <json path>
 Findings: <each finding left after step 4, each finding or hit outside the drafts, or none>
 ```
 
-- **Design**: `<N>`, the last amend or `0`; the relay block's first line too.
-- **Drafts**: every doc you wrote or confirmed again; in a later pass, step 1's list less dropped names, plus docs
-  added; names only, no `--target`. Moved docs and their children go by new names.
-- **Counts**: take each count from one `specstone approve --dry-run --json` after your last write, for your list's docs;
-  it names a moved one by its old name until its `Move:` line runs. Name each other draft it lists under `Other
-  drafts:`, never counted; one of yours it shows as no draft goes under `Findings:`.
-- **Move**: only for a moved doc, item, or scenario: one line per target parent or `--top`, copied to the relay
-  block. Run no `move`.
+- `Design:` `<N>` is the last amend or `0`; it is also the relay block's first line.
+- Drafts: every doc you wrote or confirmed again; a later pass: step 1's list less dropped names, plus added docs;
+  names only, no `--target`; moved docs and their children by new names.
+- Counts: from one `specstone approve --dry-run --json` after your last write, for your list's docs; it names a
+  moved doc by its old name until its `Move:` runs. List each other draft it shows under `Other drafts:`, never
+  counted; one of yours it shows as no draft, under `Findings:`.
+- `Move:` only for a moved doc, item, or scenario: one line per target parent or `--top`, copied to the relay block.
+  Run no `move`.

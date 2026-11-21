@@ -1,34 +1,30 @@
 # Fix a doc over its size limit
 
-This covers the size findings `check` raises, under `specstone-expert-sdd`'s rule 5.
-
 ## The order
 
-Answer each `chars_over_limit`, `lines_over_limit`, or `subsections_over_limit` finding, and an
-`item_count_out_of_range` on FR edge cases, once in your report, though `check` tags it `(waits for the Owner)`: a
-split proposal, or why none applies. Give `item_over_limit` neither: `An item over its limit` covers it. A
-`bundle_over_limit` or `subsections_over_limit` finding skips steps 1 to 4 and takes its own section below, with
-step 5 for each moved item.
+- Answer each `chars_over_limit`, `lines_over_limit`, `subsections_over_limit`, and FR edge-case
+  `item_count_out_of_range` once in your report, though tagged `(waits for the Owner)`: a split proposal, or why none.
+- Give `item_over_limit` neither: `An item over its limit` covers it.
+- A `bundle_over_limit` or `subsections_over_limit` skips steps 1 to 4: its own section, then step 5 per moved item.
 
-1. **Layout.** Every write lays its doc out. A size finding `check` still lists takes the next step; `check` counts
-   the laid-out doc.
-2. **Trim.** An `item_count_out_of_range` on an FR's edge cases, or a `chars_over_limit` on an FR: first trim its
-   edge cases by `trim.md`. What stays over takes the new FRs of `A finding that names items to move`.
-3. **Split.** `chars_over_limit` or `lines_over_limit` on a feature of 4 stories or more: propose a sub-feature
-   split, as below. `item_over_limit` skips this step: a split never shrinks one item.
+1. **Layout.** Every write lays its doc out; a size finding `check` still lists takes the next step.
+2. **Trim.** An `item_count_out_of_range` on an FR's edge cases, or a `chars_over_limit` on an FR: trim its edge
+   cases by `trim.md` first; what stays over takes the new FRs of `A finding that names items to move`.
+3. **Split.** `chars_over_limit` or `lines_over_limit` on a feature of 4 stories or more: propose a sub-feature split;
+   `item_over_limit` skips this step.
 4. **Text to its home.** After an approved split, the next round fills each new feature draft and moves each spec
-   doc's text to its sub-feature's spec doc. Without a split, text moves only as the Owner picks.
-5. **A moved item.** An item of a `prefix_id` section or a scenario to another doc: one ready
-   `specstone move <doc>#<ID> … --under <doc>` or `specstone move <story>#S<N> … --under <story>`, which rewrites each
-   citer. For a keyed item, or a new ID split off inside one doc: in the same pass, run
-   `specstone refs <old item's doc>`, repoint each citer that cites the moved part to the new item's link, and keep
-   each other citer. `check` cannot tell which part a citer means, so the audit checks each repoint.
+   doc's text to its sub-feature's spec doc; without a split, text moves only as the Owner picks.
+5. **A moved item.** A `prefix_id` section item or a scenario: one ready `specstone move <doc>#<ID> … --under <doc>`
+   or `specstone move <story>#S<N> … --under <story>`, which rewrites each citer.
+   - A keyed item, or a new ID split off in one doc: in the same pass run `specstone refs <old item's doc>`, repoint
+     each citer of the moved part to the new item's link, and keep each other citer.
 
 ## The split proposal
 
-Group the feature's stories into sub-features by the placement questions `specstone guide feature` prints: at least 2
-sub-features of at least 2 stories each. Name each sub-feature's slug and its stories, then the ready commands in run
-order, one `new` per sub-feature, then its `move` lines, then the two extra `move` lines:
+- Group the feature's stories by the placement questions `specstone guide feature` prints: at least 2 sub-features of
+  at least 2 stories each.
+- Name each sub-feature's slug and stories, then the ready commands in run order: one `new` per sub-feature, its
+  `move` lines, then the two extra `move` lines:
 
 ```
 specstone new feature --parent <feature> --slug <slug>
@@ -37,63 +33,50 @@ specstone move feature:<x> … --under <feature>
 specstone move <story>#S<N> … --under <story>
 ```
 
-The `move feature` line is for a feature that exists; the scenario line is for a story past its scenario cap.
-
-Run none of them before the Owner's ok, and then in that order. A dispatched agent runs none: its report holds them
-for the main session. A split the Owner turns down leaves nothing to delete.
+- Use the `move feature` line for a feature that exists, the scenario line for a story past its scenario cap.
+- Run none before the Owner's ok, then in that order; a dispatched agent runs none and reports them.
+- A split the Owner turns down leaves nothing to delete.
 
 ## A finding that names items to move
 
-A size finding with `candidates` or `split`, or an FR still over a cap after step 2, takes this route; every other
-size finding keeps its route above. Run the commands as the split's.
+A size finding with `candidates` or `split`, or an FR still over a cap after step 2, takes this route; run its
+commands as the split's.
 
-- `candidates`: in place of `No split applies`, one `specstone move <doc>#<ID> … --under <doc>` per sub-feature, its
-  target that sub-feature's doc of the same type. The Owner approves the drafts each move leaves.
-- `split`: the sub-feature split above; when it cannot be formed, as with fewer stories than it needs, the finding
-  keeps `No split applies`.
-- An FR still over a cap, in place of `No split applies`: one `specstone new fr --parent <story> --slug <slug>`
-  per new FR in the same story, then one `specstone move <fr>#<edge case ID> … --under <new fr>` per new FR.
+- `candidates`, in place of `No split applies`: one `specstone move <doc>#<ID> … --under <doc>` per sub-feature, to
+  that sub-feature's doc of the same type; the Owner approves the drafts.
+- `split`: the sub-feature split above; when it cannot be formed, the finding keeps `No split applies`.
+- An FR still over a cap, in place of `No split applies`: one `specstone new fr --parent <story> --slug <slug>` per
+  new FR in the same story, then one `specstone move <fr>#<edge case ID> … --under <new fr>` per new FR.
 
 ## A story past its scenario cap
 
-Cut or merge no scenario. Propose new stories in its feature, `specstone new user_story --parent <feature> --slug
-<slug>` each, then the split proposal's scenario `move` line per new story.
+- Cut or merge no scenario: propose new stories in its feature, `specstone new user_story --parent <feature> --slug
+  <slug>` each, then the split proposal's scenario `move` line per new story.
 
 ## No split applies
 
-Say why in your report and leave the finding as it is: it waits for the Owner.
-
-- A feature of fewer than 4 stories, since a split needs at least 2 sub-features of at least 2 stories each, and a
-  feature holds stories or sub-features, never both; or a top doc, such as the gnfr doc: the Owner picks text moved to its
-  home or the doc type's limit raised in the project's templates.
+- Say why in your report and leave the finding: it waits for the Owner.
+- A feature of fewer than 4 stories, or a top doc such as the gnfr doc: the Owner picks text moved to its home or the
+  doc type's limit raised in the project's templates.
 
 ## A bundle over its limit
 
-The size is the design read-first file of the finding's `doc`, never one doc's text, so no layout step shrinks it. The
-fix follows the `doc` key; a story's file never takes a sub-feature split. Propose the fix with its ready commands, as
-the split does, and run none before the Owner's ok. The finding waits for the Owner; answer it once in your report.
-
+- The size is the design read-first file of the finding's `doc`, so no layout shrinks it; a story never takes a
+  sub-feature split.
+- Propose the fix by the `doc` key with ready commands, run none before the Owner's ok; answer it once; it waits.
 - `doc` is a story: split it in its feature into two stories, one `specstone new user_story --parent <feature> --slug
   <slug>`, then one `specstone move <fr> … --under <new story>` per FR and nf that goes to it, so the FRs and nfs are
   shared between the two stories.
 - `doc` is a feature whose children are sub-features: one `specstone move <doc>#<ID> … --under <sub-feature>` per
   spec item that one sub-feature alone uses. With no such item, no fix applies.
-- `doc` is a feature whose children are stories: the sub-feature split above, then the same moves for each spec item
-  one sub-feature alone uses.
-- No fix applies to a feature at its doc type's `max_depth`, since no sub-feature nests below it, nor to a feature
-  whose children are fewer than 4 stories.
-
-Where no fix applies, say why.
+- `doc` is a feature whose children are stories: the sub-feature split above, then the same moves.
+- No fix applies to a feature at its doc type's `max_depth`, nor to a feature
+  whose children are fewer than 4 stories: say why.
 
 ## An item over its limit
 
-Only a bootstrap run the Owner started naming `item_over_limit` fixes it; a dispatched agent sees the name in
-`batch:`. That run rewrites the item in its doc type's item shape, as `specstone guide <type>` gives it:
-
-- one rule per ID: each rule split off takes the next free ID of its section;
-- a bound stays in its rule;
-- its mechanics, known limits, and trace move to the homes the guide names;
-- no statement is dropped.
-
-Anywhere else, leave the finding as it is: it waits for the Owner. A bootstrap report lists it under
-`Waits on the Owner:` until a run names `item_over_limit`.
+- Fix it only in a bootstrap run the Owner started naming `item_over_limit` (a dispatched agent sees it in `batch:`):
+  rewrite the item in its type's item shape from `specstone guide <type>`.
+  - One rule per ID: each rule split off takes its section's next free ID.
+  - A bound stays in its rule; mechanics, known limits, and trace move to the homes the guide names; drop nothing.
+- Elsewhere leave it: it waits for the Owner; a bootstrap report lists it under `Waits on the Owner:`.

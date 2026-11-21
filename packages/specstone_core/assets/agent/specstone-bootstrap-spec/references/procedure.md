@@ -15,7 +15,7 @@ Fix the first unhandled finding of your batch, then run
 Stop when each left is under `prds/` or `measurements/`, clears with no write, is a reported
 `code_uncovered`, or is tagged `(waits for the Owner)`, except an unanswered size finding.
 
-Write each fix as `../../specstone-expert-sdd/references/writes.md` says.
+Write each fix as rule 2 of `../../specstone-expert-sdd/SKILL.md` says.
 
 Where the old text lacks a value the guide needs, write `TBR — <why>` in its place, never a value you propose. Ask
 the Owner only when no text bears on a whole section.
