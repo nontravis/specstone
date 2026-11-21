@@ -153,15 +153,15 @@ sections:
           message: 'edge case has no →; guide line: E01 — <trigger> → <response>'
           in: all
         - id: exit_status
-          # An exit status given as a number, or pointed to as a row or a link; a line that names the words only is free.
-          pattern: '\b[Ee]xit status(?: rows?\b| (?:(?:is|of|=) )?[0-9])|\[[Ee]xit status\]'
+          # An exit status given as a number or a zero word, or pointed to as a row or a link; a line that names the words only is free.
+          pattern: '\b[Ee]xit status(?: rows?\b|:? (?:(?:is|of|=) )?`?[0-9]| (?:non-)?zero\b)|\[[Ee]xit status\]'
           message: 'edge case states an exit status; guide line: State no exit status'
           in: all
         - id: trace_outside_field
-          # As in the Statement, except a scenario ID in a code span, which an edge case quotes as a value.
-          pattern: '(?<=^(?:[^`]*`[^`]*`)*[^`]*)(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \[|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
+          # As in the Statement, on prose only: an edge case quotes a scenario ID as a value in a code span.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \[|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
           message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
-          in: all
+          in: text
   - id: rationale
     header: Rationale
     required: true

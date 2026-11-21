@@ -221,29 +221,28 @@ void main() {
       });
     }
 
-    test(
-      'an edge case quoting a scenario ID as a code span value is no trace',
-      () async {
-        const values = [
-          '1. E01 — A move of `shop/cart#S2` under another story → the link stays.',
-          '2. E02 — Two entries `S6` and `S06` naming one block → one finding.',
-          '3. E03 — A step holding `traced_from: [S1, shop/cart#S3]` → it is listed.',
-        ];
-        const traced =
-            '4. E04 — A value `S2` is kept, though prose cites (S2) → refused.';
+    test('a code span scenario ID in an edge case is no trace', () async {
+      const values = [
+        '1. E01 — A move of `shop/cart#S2` under another story → the link stays.',
+        '2. E02 — Two entries `S6` and `S06` naming one block → one finding.',
+        '3. E03 — A step holding `traced_from: [S1, shop/cart#S3]` → it is listed.',
+        '4. E04 — A move quoting ``shop/cart#S2`` in a span → the link stays.',
+      ];
+      const traced =
+          '5. E05 — A value `S2` is kept, though prose cites (S2) → refused.';
+      const stray = '6. E06 — A tick ` left open → refused (S2).';
 
-        final found = await bannedLines(
-          check.fr(
-            '1. E01 — An empty password → refused.',
-            [...values, traced].join('\n'),
-          ),
-          check.loginFr,
-          'trace_outside_field',
-        );
+      final found = await bannedLines(
+        check.fr(
+          '1. E01 — An empty password → refused.',
+          [...values, traced, stray].join('\n'),
+        ),
+        check.loginFr,
+        'trace_outside_field',
+      );
 
-        expect(found, [traced]);
-      },
-    );
+      expect(found, [traced, stray]);
+    });
 
     test('the same trace forms in an Input / Output row and in a fenced '
         'block give no finding', () async {
@@ -269,44 +268,39 @@ void main() {
       expect(found, isEmpty);
     });
 
-    test(
-      'an edge case holding the words exit status gives exit_status',
-      () async {
-        Future<List<String>> flagged(
-          String edgeCase, {
-          String rationale = '',
-        }) => bannedLines(
-          check.edit(check.loginFr, [
-            ('1. E01 — An empty password → refused.', edgeCase),
-            if (rationale.isNotEmpty)
-              ('A wrong password must not sign in.', rationale),
-          ]),
-          check.loginFr,
-          'exit_status',
-        );
+    test('exit status as a number or a pointer gives exit_status', () async {
+      Future<List<String>> flagged(String edgeCase, {String rationale = ''}) =>
+          bannedLines(
+            check.edit(check.loginFr, [
+              ('1. E01 — An empty password → refused.', edgeCase),
+              if (rationale.isNotEmpty)
+                ('A wrong password must not sign in.', rationale),
+            ]),
+            check.loginFr,
+            'exit_status',
+          );
 
-        const crash = '1. E01 — A crash → the run stops with exit status 2.';
-        expect(await flagged(crash), [crash]);
-        expect(
-          await flagged('1. E01 — A crash → the run stops, code E_RUN.'),
-          isEmpty,
-        );
-        for (final pointer in _exitStatusPointers) {
-          expect(await flagged(pointer), [pointer], reason: pointer);
-        }
-        for (final mention in _exitStatusMentions) {
-          expect(await flagged(mention), isEmpty, reason: mention);
-        }
-        expect(await flagged(crash.replaceFirst('exit', 'Exit')), hasLength(1));
-        expect(
-          await flagged(
-            '1. E01 — An empty password → refused.',
-            rationale: 'The run ends with exit status 2.',
-          ),
-          isEmpty,
-        );
-      },
-    );
+      const crash = '1. E01 — A crash → the run stops with exit status 2.';
+      expect(await flagged(crash), [crash]);
+      expect(
+        await flagged('1. E01 — A crash → the run stops, code E_RUN.'),
+        isEmpty,
+      );
+      for (final pointer in _exitStatusPointers) {
+        expect(await flagged(pointer), [pointer], reason: pointer);
+      }
+      for (final mention in _exitStatusMentions) {
+        expect(await flagged(mention), isEmpty, reason: mention);
+      }
+      expect(await flagged(crash.replaceFirst('exit', 'Exit')), hasLength(1));
+      expect(
+        await flagged(
+          '1. E01 — An empty password → refused.',
+          rationale: 'The run ends with exit status 2.',
+        ),
+        isEmpty,
+      );
+    });
 
     test(
       'a Verification with no Level line gives pattern_missing level_line, '
@@ -410,6 +404,9 @@ const _tracePasses = <String>[
 const _exitStatusPointers = <String>[
   '1. E01 — A lock held too long → as the exit status row of another FR gives.',
   '1. E01 — A fault → no finding line ([exit status](fr02_other.md#output)).',
+  '1. E01 — A crash → the run stops with exit status `2`.',
+  '1. E01 — A crash → the run stops, exit status: 2.',
+  '1. E01 — A crash → the run stops with exit status non-zero.',
 ];
 
 /// Edge case lines that mention an exit status and give none.
