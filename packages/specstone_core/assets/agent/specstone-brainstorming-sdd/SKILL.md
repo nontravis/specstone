@@ -43,7 +43,7 @@ the Owner each answer; go on only after their yes.
 ## 2. Reach an approved design document
 
 The brainstorm skill is the listed skill whose description, never its name, says it turns a change into a design
-through dialogue. No Specstone skill qualifies. Of two that qualify, take the one the project's
+through dialogue with the user. No Specstone skill qualifies. Of two qualifying, take the one the project's
 instruction file (`CLAUDE.md`, `AGENTS.md`) names, else the first listed.
 
 The design proposes each new or reshaped feature's `patterns:` value from `specstone guide --pattern`.
