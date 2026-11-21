@@ -1442,7 +1442,9 @@ void _runsOnEveryHostTests() {
       "the host's file read",
       "the host's file write",
       'dispatch `specstone-sdd-engineer`',
+      "resume the first author's agent",
       'the host lists no such agent',
+      'the host cannot resume an agent',
       'no subagent',
       'follow the `specstone-',
     ]) {
@@ -1672,6 +1674,30 @@ void _runsOnEveryHostTests() {
         'no main-session rung',
       ]),
       isTrue,
+    );
+  });
+
+  test('dispatch.md tries the resume rung before the named one', () {
+    final text = _pluginText(_dispatchReference);
+    final section = _sectionOf(text, '## Resumed author');
+    expect(
+      _hasSentenceWith(section, [
+        'fix file',
+        "resume the first author's agent",
+      ]),
+      isTrue,
+    );
+    for (final case_ in [
+      'the host cannot resume an agent',
+      "the first author's agent has ended",
+      'no tool call',
+    ]) {
+      expect(_hasSentenceWith(section, [case_]), isTrue, reason: case_);
+    }
+    final lines = text.split('\n');
+    expect(
+      lines.indexOf('## Resumed author'),
+      allOf(isNonNegative, lessThan(lines.indexOf('## Named agent'))),
     );
   });
 }
