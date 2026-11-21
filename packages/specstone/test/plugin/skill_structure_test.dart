@@ -2868,6 +2868,14 @@ void _authorFixRoundTests() {
     );
   });
 
+  test('a fresh fallback author takes the fix file inputs as its own', () {
+    final section = _sectionOf(_pluginText(_roundsReference), _roundsFixRound);
+    expect(
+      _hasSentenceWith(section, ['normal author pass', '`mode: author`']),
+      isTrue,
+    );
+  });
+
   test("a resumed fix round writes the fix file's report path", () {
     final output = _sectionOf(_pluginText(_engineer), '## Output Format');
     expect(

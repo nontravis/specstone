@@ -43,8 +43,9 @@ Drafts list: the first author report's drafts plus docs a round or pass added, r
   A line naming a doc outside the list is a Docs to change row.
 - **Fresh author**: a fresh author takes the fix pass when the host cannot resume an agent, that agent has ended, or
   the resumed one answers with no tool call and its old report; main writes the fix file, then dispatches the fresh
-  author naming it. The fill pass of a split and the pass after an amend are fresh, joined to a fix round or not,
-  since an amend or a split changes what the author read.
+  author as a normal author pass: `mode: author` and the fix file's inputs as its own, and it may name the file. The
+  fill pass of a split and the pass after an amend are fresh, joined to a fix round or not, since an amend or a split
+  changes what the author read.
 - **`[behavior]` line** or behavior decision: never a fix round; an amend and its own check. The one fresh author
   pass after it is the round: the amended design's path, the drafts list, `guide:`, the audit's untagged lines, and
   its design check's untagged lines naming a draft by `<type>:<name>#<key>`, siblings too.

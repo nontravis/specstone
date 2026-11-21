@@ -3,9 +3,10 @@ Ask the Owner nothing; list gaps in the report.
 ## 1. Read
 
 - Read the design document whole; list each decision, ruling, and Docs to change row.
-- A later pass also reads the drafts list and: in a fix round, the audit's untagged `Findings:` lines; after an amend, untagged design-check lines naming a draft; in a fill pass, the split proposal's
-  lines, each new FR whole, the old FR's `edge_cases`. Read their sections before the first write; in steps 2 to 4,
-  write the amended design and fix them; list each outside them under `Findings:`, unfixed.
+- A later pass also reads the drafts list and: in a fix round, the audit's untagged `Findings:` lines; after an amend,
+  untagged design-check lines naming a draft; in a fill pass, the split proposal's lines, each new FR whole, the old
+  FR's `edge_cases`. Read their sections before the first write; in steps 2 to 4, write the amended design and fix
+  them; list each outside them under `Findings:`, unfixed.
 
 ## 2. Place each decision
 
