@@ -2613,6 +2613,7 @@ void _brainstormRoundTests() {
     final list = _bulletOf(_pluginText(_authorReference), '- **Several docs**');
     for (final (form, phrase) in [
       ('row cell with items', '`<key> (<items>)`'),
+      ('key whole', '`<key> whole`'),
       ('whole or new doc', '`whole` or a new doc: its bare name'),
       (
         'stub row cell',
