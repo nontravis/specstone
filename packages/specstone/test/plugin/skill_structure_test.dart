@@ -50,9 +50,7 @@ const _procedures = <String>[
   'specstone-sync-sdd/references/routes.md',
   'specstone-sync-sdd/references/helpers.md',
   'specstone-sync-sdd/references/task-refs.md',
-  'specstone-sync-sdd/references/path-fixes.md',
   'specstone-sync-sdd/references/matrix-rows.md',
-  'specstone-sync-sdd/references/spec-drafts.md',
   'specstone-bootstrap-prd/references/procedure.md',
   'specstone-bootstrap-spec/references/procedure.md',
   _trimRound,
@@ -64,8 +62,6 @@ const _procedures = <String>[
   'specstone-brainstorming-sdd/references/design-check.md',
   'specstone-brainstorming-sdd/references/sweep.md',
   'specstone-brainstorming-sdd/references/removal.md',
-  'specstone-brainstorming-sdd/references/refused-batch.md',
-  'specstone-brainstorming-sdd/references/repoint.md',
 ];
 
 /// The goal-move reference of bootstrap-prd, under the plugin folder.
@@ -416,7 +412,7 @@ void _frontmatterTests() {
     for (final other in [
       'references/author.md',
       'references/audit.md',
-      'references/reaudit.md',
+      'references/rounds.md',
       'specstone-sync-sdd/references/procedure.md',
       'specstone-bootstrap-prd/references/procedure.md',
       'specstone-bootstrap-spec/references/procedure.md',
@@ -635,7 +631,7 @@ void _tokenBudgetTests() {
 }
 
 /// Each bootstrap procedure and its est. tokens once the write block moved to
-/// writes.md, which its one guide call per batch leaves no higher.
+/// the expert-sdd skill, which its one guide call per batch leaves no higher.
 const _bootstrapProcedureTokens = {
   'specstone-bootstrap-prd/references/procedure.md': 1494,
   'specstone-bootstrap-spec/references/procedure.md': 1416,
@@ -2362,8 +2358,6 @@ const _roundsReference = 'specstone-brainstorming-sdd/references/rounds.md';
 
 const _designReference = 'specstone-brainstorming-sdd/references/design.md';
 
-const _reauditReference = 'specstone-brainstorming-sdd/references/reaudit.md';
-
 /// The heading of the rounds reference's Owner-decision section.
 const _roundsDecisions = '## 1. Route each Owner decision';
 
@@ -2449,18 +2443,14 @@ void _brainstormRoundTests() {
   });
 
   test('every brainstorm audit dispatch names specstone-sdd-auditor', () {
-    for (final file in [
-      _brainstormSkill,
-      _roundsReference,
-      _reauditReference,
-    ]) {
+    for (final file in [_brainstormSkill, _roundsReference]) {
       expect(
         _inlineSpans(_pluginText(file)),
         isNot(contains('mode: audit')),
         reason: file,
       );
     }
-    for (final file in [_brainstormSkill, _reauditReference]) {
+    for (final file in [_brainstormSkill, _roundsReference]) {
       expect(
         _pluginText(file),
         contains('`specstone-sdd-auditor`'),

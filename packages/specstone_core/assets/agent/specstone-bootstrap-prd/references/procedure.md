@@ -15,7 +15,7 @@ Fix the first unhandled finding of your batch, then rerun
 goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an unanswered
 size finding.
 
-Write each fix as `../../specstone-expert-sdd/references/writes.md` says.
+Write each fix as rule 2 of `../../specstone-expert-sdd/SKILL.md` says.
 
 Move every old statement to a home. Where the old text lacks a value the guide needs,
 write `TBR — <why>`, never your own value. Ask the Owner only when no text bears on a

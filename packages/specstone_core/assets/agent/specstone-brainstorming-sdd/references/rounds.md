@@ -1,70 +1,72 @@
-Run this until the Owner approves the drafts.
-
 ## 1. Route each Owner decision
 
-A decision adds or changes behavior when it brings a new state, input, output, edge case, error, or reader of a
-rule, or removes a decision; every other decision only words or records one.
+A behavior decision adds or changes a state, input, output, edge case, error, or reader of a rule, or removes a
+decision; any other only words or records one.
 
-- **A refused design path**, an open question with no document written: append nothing; write the document at the
-  Owner's new path, by `design.md`.
-- **Only words or records**: append it to the design's Rulings by `design.md`, with no design check; the author, or
-  the fix round under way, goes on.
-- **Adds or changes behavior**, or needs more PRD or spec grounding: ground a doc newly reached by its own
-  `specstone context <doc> --for design --out`, never `get`, then amend the same file. When the amend adds or
-  changes behavior, dispatch the design check per the skill's step 3, `amend: <N>`. Your fix of its findings is no
-  amend unless it edits a decision an author pass read.
-  - **Sweep**: before each design-check dispatch, send a fresh `specstone-sdd-sweeper` the document's path and the
-    check's `amend` or `since` and `bundles`; add each `Rows:` line word for word to the scope's table, the first or
-    the newest `Amend <N> rows` a kept decision lists, with no second sweep; no cap counts it. With no subagent or
-    after a failed sweep, add no rows; after a failed one, tell the Owner it did not run.
-  - **Snapshot**: then copy the design to `<folder>/reports/sdd-auditor.audit.snapshot.<XXXXXX>.md` by the host's
-    file write, `XXXXXX` that check's `report:` characters.
-  - **Chain**: an untagged line takes no check. A first or amend check's fixed `[behavior]` lines take one delta
-    check, `since:` its snapshot and no `amend`; with none, the chain ends. A scope is the first check before the
-    ask, or one amend's check (shared amends count as one), plus at most one delta check.
-  - **Who decides**: decide a `[behavior]` line only when its answer stays inside the Intent, Rulings, and
-    picked approach; any other line is the Owner's. Your answer, like the Owner's to a first or amend check's line,
-    opens no scope: its fix takes the scope's delta check.
-  - **The delta check**: its `[behavior]` lines are the Owner's, whatever the answer, listed with the ask or
-    before the amend's author pass, with no further check. An answer adding behavior takes a numbered amend and its
-    `amend: <N>` check, a new scope; else it goes to Rulings.
-- **Before the author**: after an append, or an amend and its check, ask for approval again. When the design
-  document holds open questions, gather the Owner's answers: append each that only words or records one, send the
-  rest to one amend and its check, then ask.
-- **Once the round is spent**, a decision that adds or changes behavior, the Owner's on a finding past the cap
-  included, takes an amend and its check, then one author pass beyond the cap carrying the amend alone, then a
-  re-audit (`reaudit.md`) whose findings reach the Owner with the drafts, with no further round. Fix an Owner change
-  that only corrects text per the `specstone-expert-sdd` skill, with no amend.
+- **Refused design path** (no document yet): append nothing; write at the Owner's new path by `design.md`.
+- **Words or records only**: append to Rulings by `design.md`, no design check; the author or fix round goes on.
+- **Behavior, or more grounding needed**: ground a newly reached doc by its own
+  `specstone context <doc> --for design --out`, never `get`; amend the same file. A behavior amend takes a design
+  check, `amend: <N>`; amends before the ask share one, `amend: <N>[,<N> ...]`; a later one gets its own.
+- **Sweep**: before each design check, send a fresh `specstone-sdd-sweeper` the document's path, the check's `amend`
+  or `since`, and `bundles`. Add its `Rows:` lines word for word to the scope's table (the first, or the newest
+  `Amend <N> rows` a kept decision lists); no second sweep; no cap counts it. With no subagent or after a failed
+  sweep, add no rows; after a failed one, tell the Owner it did not run.
+- **Snapshot**: then copy the design to `<folder>/reports/sdd-auditor.audit.snapshot.<XXXXXX>.md` by the host's
+  file write, `XXXXXX` that check's `report:` characters.
+- **Chain**: an untagged line takes no check. Fixed `[behavior]` lines of a first or amend check take one delta
+  check, `since:` its snapshot, no `amend`. A scope: the first check, or one amend's check (shared amends as one),
+  plus at most one delta check.
+- **Who decides**: a first or amend check's `[behavior]` line is yours only when its answer stays inside Intent,
+  Rulings, and the picked approach, else the Owner's; either answer opens no scope, its fix taking the delta check.
+  A delta check's `[behavior]` lines are the Owner's, listed with the ask or before the amend's author pass, no
+  further check; an answer adding behavior takes a numbered amend and its `amend: <N>` check, a new scope, else
+  Rulings.
+- **Then**: after an append, or an amend and its check, ask for approval again. Open questions: append each wording
+  answer, send the rest to one amend and its check, then ask.
+- **Round spent**: once the round is spent, a behavior decision, the Owner's on a finding past the cap included,
+  takes an amend and its check, one author pass beyond the cap with the amend alone, and a re-audit (section 3)
+  whose findings reach the Owner with the drafts; no further round.
+- **Text-only Owner change**: fix it per the `specstone-expert-sdd` skill, no amend.
 
 ## 2. Run the fix round
 
-The drafts list is the first author report's drafts plus each doc a fix round or pass added, renamed or dropped as
-`reaudit.md` says.
+Drafts list: the first author report's drafts plus docs a round or pass added, renamed or dropped by section 3.
 
-- **A fresh author**: every author pass after the first is a new `mode: author` dispatch, never the resumed one. It
-  takes the document's path, the drafts list, and `guide:` the first author's `Guide:` files; a fix round adds the
-  audit's `Findings:` lines not tagged `[behavior]`, and the pass after an amend each untagged line of its design check
-  naming a draft by `<type>:<name>#<key>`, a sibling too; a line naming a doc outside the list is a Docs to change row.
-  The author reads their sections before its first write, then fixes them and each same-class hit, `[style]` ones
-  included, by `author.md`'s Sweep each changed rule.
-- **A `[behavior]` line**, or an Owner decision adding behavior, never goes to a fix round: take it to an amend and its
-  own check (section 1). The one fresh author pass after, counted as the one round, takes the amended design, the drafts
-  list, and that audit's other lines.
-- **A `[style]`-only audit** spends no round and gets no re-audit: fix each line in place by `specstone set --replace`.
-  Run `specstone approve <drafts list> --dry-run --json`, then append one `Styled: <type>:<name>@<hash>` line per fixed
-  draft to that audit's report file, `hash` as that call prints it, for `--auto`.
-- **A split proposal** the Owner okays: run its `new` and `move` commands in order, as an author's `Move:` lines. The
-  new FRs join the drafts list, and a fresh author pass, the fill pass, fills them before any audit. It takes the
-  proposal's lines and joins the next round when one is due; else it is no round and carries no findings. Past the round
-  it still runs, and its re-audit's findings reach the Owner with the drafts, with no further round. Then the
-  amend compare below.
-- **The cap**: run at most one round, a fix round or an amend pass; no design check or sweep counts. Lines left after
-  it get no second round: the Owner sees them with the drafts before any is approved, `--auto` asks each draft they
-  name, and a decision on one takes section 1's route.
-- After each fix round or amend pass, re-audit as `reaudit.md` says; its item 4 sends each re-audit.
-- **Before every audit dispatch**, the first included, compare the design's last amend, the highest `Amend <N>` its
-  headings list or `0`, with the `amend <N>` of the last author relay block's first line, `Design: <path>, amend <N>`:
-  - The two equal and no new FR awaits its fill: dispatch the audit.
-  - The design's higher: run a fresh author pass with the amend first, then the audit.
-  - No `Design:` line: run a fresh author pass first.
-  - A split's new FR awaits its fill: run the fill pass first, with any amend, then the audit.
+- **Fresh author**: each pass after the first is a new `mode: author` dispatch, never resumed, with the document's
+  path, the drafts list, and `guide:` the first author's `Guide:` files. A fix round adds the audit's `Findings:`
+  lines not tagged `[behavior]`; an amend's pass adds its design check's untagged lines naming a draft by
+  `<type>:<name>#<key>`, siblings too. A line naming a doc outside the list is a Docs to change row.
+- **`[behavior]` line** or behavior decision: never a fix round; an amend and its own check. The one fresh author
+  pass after it is the round: amended design, drafts list, the audit's other lines.
+- **`[style]`-only audit**: no round, no re-audit. Fix each line in place by `specstone set --replace`, run
+  `specstone approve <drafts list> --dry-run --json`, and append one `Styled: <type>:<name>@<hash>` line per fixed
+  draft to that audit's report file, `hash` as printed.
+- **Split proposal** the Owner okays: run its `new` and `move` commands in order. Its new FRs join the drafts list;
+  a fresh fill pass, with the proposal's lines, fills them before any audit. It joins the next round when due, else
+  it is no round and carries no findings; past the round it still runs, its re-audit findings going to the Owner
+  with the drafts. Then the amend compare.
+- **Cap**: at most one round, a fix round or an amend pass; no design check or sweep counts. Lines left get no
+  second round: the Owner sees them with the drafts before any approval, `--auto` asks each draft they name, and a
+  decision on one takes section 1's route.
+- After each fix round or amend pass, re-audit per section 3.
+- **Before every audit dispatch**, the first included, compare the design's last amend (highest `Amend <N>` in its
+  headings, or `0`) with the last author relay's first line, `Design: <path>, amend <N>`. Equal, no new FR awaiting
+  fill: dispatch the audit. Design higher: fresh author pass with the amend first. No `Design:` line: fresh author
+  pass first. A split's new FR awaits fill: fill pass first, with any amend, then the audit.
+
+## 3. Re-audit only what changed
+
+Items 1 to 3 run before each audit after the first; item 4 sends every audit.
+
+1. Run one `specstone get <drafts list> --json`, no `--target`; keep each draft's `bases.doc`.
+2. On `doc_not_found`, fix the list: a doc moved between rounds takes its new name (`moved <from> to <to>`); one
+   deleted, or listed and never created, drops. Rerun.
+3. A changed draft: `bases.doc` differs from its last `Audited:` hash, or it has none (a split's new FR). Run
+   `specstone refs <changed draft>`: its `Inbound` lines give citers, listed drafts linking it or naming it in
+   `traced_from`, one hop.
+4. Send each audit as a fresh `specstone-sdd-auditor`, never resumed, with the document's path and `check:` the last
+   author pass's `Check:` file, only with no doc write since it and no split since the last audit. Targets: changed
+   drafts, docs the round or pass added, unchanged drafts citing a changed one; never an unchanged draft citing none
+   (its finding stands) or a listed doc that is no draft.
+5. In the round note to the Owner, name each doc approved between rounds and each name item 2 renamed or dropped.
