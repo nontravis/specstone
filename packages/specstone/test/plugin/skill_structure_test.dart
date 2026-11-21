@@ -2648,6 +2648,8 @@ String _bulletOf(String markdown, String lead) {
   return _oneLine([lines[start], ...rest].join('\n'));
 }
 
+// MARK: - glossary move
+
 void _glossaryMoveTests() {
   test('the Moved bullet names `term_bullet_form` and its wait', () {
     final bullet = _bulletOf(_pluginText(_glossaryMove), '- **Moved:**');
@@ -2655,7 +2657,7 @@ void _glossaryMoveTests() {
       _hasSentenceWith(bullet, [
         '`pattern_banned`',
         '`term_bullet_form`',
-        'waits for the agent',
+        'waits for the agent until a later fill round of `bootstrap-prd`',
       ]),
       isTrue,
     );
