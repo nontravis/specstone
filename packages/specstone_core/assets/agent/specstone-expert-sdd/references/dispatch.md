@@ -4,7 +4,8 @@ The rungs to run `specstone-sdd-engineer`, `specstone-sdd-sweeper`, `specstone-s
 or `specstone-plan-engineer`.
 
 - Take the first rung that runs, a fix round's author pass alone trying the resume rung first; give every rung the
-  dispatch's mode, paths, and task, and no doc text.
+  dispatch's mode, paths, and task, and no doc text, except the resume rung, whose one message names the fix file that
+  holds them.
 - Give every agent but `specstone-sdd-reader` `report:`.
 - Take as the reply the agent's `Report:` line and relay block, or the reader's final message.
 

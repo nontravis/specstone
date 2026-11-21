@@ -12,8 +12,9 @@ an amend pass, or a split's fill pass.
    draft citing none (its finding stands) or a listed doc that is no draft.
 5. Pass three inputs beside the document's path and `check:`:
    - `findings:` the lines the round took: the last audit's untagged and `[behavior]` `Findings:` lines, and the
-     untagged design-check lines it carried; none for a `[style]` line main fixed. The audit after the pass beyond
-     the cap takes as `findings:` only the lines that pass carried; the audit after a fill pass run alone takes none.
+     untagged design-check lines it carried; none for a `[style]` line main fixed. Add every standing
+     `- NOT ADDRESSED:`, `Outside the round:`, and `Outside the drafts:` item of the audit before it, the pass beyond
+     the cap included, so each re-audit restates every item still open. A fill pass run alone carries no round line.
      An Owner decision on a `- NOT ADDRESSED:` or `Outside the round:` item routes by section 1 of `rounds.md`, never
      as a `findings:` line.
    - `sections:` the last author pass's `Sections:` line.

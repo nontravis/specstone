@@ -2549,7 +2549,7 @@ void _brainstormRoundTests() {
     expect(
       _hasSentenceWith(
         _sectionOf(_pluginText(_roundsReference), _roundsFixRound),
-        ['fresh author', 'cannot resume', 'ended', 'no tool call'],
+        ['fresh author', '`dispatch.md`', 'resume rung'],
       ),
       isTrue,
     );
@@ -2596,15 +2596,21 @@ void _brainstormRoundTests() {
     );
   });
 
-  test('the pass beyond the cap re-audits only its own lines', () {
-    expect(
-      _hasSentenceWith(_pluginText(_reauditReference), [
-        'beyond the cap',
-        'only',
-      ]),
-      isTrue,
-    );
-  });
+  test(
+    'a re-audit restates every standing item, the pass beyond the cap included',
+    () {
+      expect(
+        _hasSentenceWith(_pluginText(_reauditReference), [
+          '`- NOT ADDRESSED:`',
+          '`Outside the round:`',
+          '`Outside the drafts:`',
+          'beyond the cap included',
+          'restates every item still open',
+        ]),
+        isTrue,
+      );
+    },
+  );
 
   test('every brainstorm audit dispatch names specstone-sdd-auditor', () {
     for (final file in [_brainstormSkill, _roundsReference]) {

@@ -9,8 +9,8 @@ decision; any other only words or records one.
   the same file. After an author pass, a behavior amend is a new scope, its check `amend: <N>`; a later amend's check
   lists every amend it keeps, `amend: <N>[,<N> ...]`.
 - **Sweep**: before each design check, send a fresh `specstone-sdd-sweeper` the document's path, the check's `amend`
-  or `since`, and `bundles`. An Owner change adding a decision or a doc gets one `specstone-sdd-sweeper` sweep,
-  `since:` the scope's last check snapshot, no snapshot saved. Add each sweep's `Rows:` lines word for word to the
+  or `since`, and `bundles`. Before the first author pass, an Owner change adding a decision or a doc takes no
+  check, only one `specstone-sdd-sweeper` sweep, `since:` the scope's last check snapshot, no snapshot saved. Add each sweep's `Rows:` lines word for word to the
   scope's table (the first, or the newest `Amend <N> rows` a kept decision lists); one sweep per check; no cap counts
   it. With no subagent or after a failed sweep, add no rows; after a failed one, tell the Owner it did not run.
 - **Snapshot**: then copy the design to `<folder>/reports/sdd-auditor.audit.snapshot.<XXXXXX>.md`, `XXXXXX` that
@@ -41,8 +41,7 @@ Drafts list: the first author report's drafts plus docs a round or pass added, r
   path, the drafts list, and `guide:` the first author's `Guide:` files, then the audit's untagged `Findings:` lines
   and each untagged line of a design check after an author pass naming a draft by `<type>:<name>#<key>`, siblings too.
   A line naming a doc outside the list is a Docs to change row.
-- **Fresh author**: a fresh author takes the fix pass when the host cannot resume an agent, that agent has ended, or
-  the resumed one answers with no tool call and its old report; main writes the fix file, then dispatches the fresh
+- **Fresh author**: a fresh author takes the fix pass when the resume rung of `dispatch.md` falls through; main writes the fix file, then dispatches the fresh
   author as a normal author pass: `mode: author` and the fix file's inputs as its own, and it may name the file. The
   fill pass of a split and the pass after an amend are fresh, joined to a fix round or not, since an amend or a split
   changes what the author read.

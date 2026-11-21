@@ -125,8 +125,8 @@ void main() {
     expect(_isDraft(root, check.loginFr), isTrue);
   });
 
-  test('auto call asks a draft a NOT ADDRESSED item names and approves one an '
-      'ADDRESSED item names', () async {
+  // ignore: lines_longer_than_80_chars, the matrix row matches this name as one literal
+  test('auto call asks a draft a NOT ADDRESSED item names and approves one an ADDRESSED item names', () async {
     final root = await _draftsProject();
     final audit = await _auditNaming(
       root,
