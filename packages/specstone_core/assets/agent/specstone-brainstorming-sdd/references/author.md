@@ -59,13 +59,13 @@ owner's item for a restated copy, rewrite a reader owning a rule. List any other
 
 - Run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"` before your first write and after your
   drafts; search each for your drafts.
-- Before the second, walk each item you wrote against the saved guide's description lines (doc part, held sections,
+- Before the second, walk each written item against the saved guide's description lines (doc part, held sections,
   `Fields (frontmatter):`) and each type's `==> shared <==` lines, skipping templates and `Banned words:`,
-  `Required …`, `Optional …`, `Limits:` lines; list a line you cannot meet under `Findings:`.
+  `Required …`, `Optional …`, `Limits:` lines; list an unmet line under `Findings:`.
 - Run `specstone check <feature> --repeats --out "<folder>/reports/check.author.<XXXXXX>.txt"` per feature of your
   drafts: link, never repeat, another doc's item.
 - Fix each second-run finding, a first-run one too, in a section you wrote; list others under `Findings:`, unfixed.
-- A `suspect` link in another doc: confirm it again per `specstone-expert-sdd`, that doc joining your drafts, else
+- A `suspect` link in another doc: reconfirm it per `specstone-expert-sdd`, that doc joining your drafts, else
   list it.
 - `item_count_out_of_range` on an FR's edge cases you wrote: take the split proposal of
   `../../specstone-expert-sdd/references/size-fix.md`; run none of its commands.
