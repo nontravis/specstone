@@ -64,12 +64,14 @@ commands as the split's.
 - The size is the design read-first file of the finding's `doc`, so no layout shrinks it; a story never takes a
   sub-feature split.
 - Propose the fix by the `doc` key with ready commands, run none before the Owner's ok; answer it once; it waits.
-- `doc` a story: split it into two stories in its feature, one `specstone new user_story --parent <feature> --slug
-  <slug>`, then one `specstone move <fr> … --under <new story>` per FR and nf that goes to it.
-- `doc` a feature of sub-features: one `specstone move <doc>#<ID> … --under <sub-feature>` per spec item one
-  sub-feature alone uses; with none, no fix applies.
-- `doc` a feature of stories: the sub-feature split, then the same moves.
-- No fix applies at the doc type's `max_depth` or under 4 stories: say why.
+- `doc` is a story: split it in its feature into two stories, one `specstone new user_story --parent <feature> --slug
+  <slug>`, then one `specstone move <fr> … --under <new story>` per FR and nf that goes to it, so the FRs and nfs are
+  shared between the two stories.
+- `doc` is a feature whose children are sub-features: one `specstone move <doc>#<ID> … --under <sub-feature>` per
+  spec item that one sub-feature alone uses. With no such item, no fix applies.
+- `doc` is a feature whose children are stories: the sub-feature split above, then the same moves.
+- No fix applies to a feature at its doc type's `max_depth`, nor to a feature
+  whose children are fewer than 4 stories: say why.
 
 ## An item over its limit
 
