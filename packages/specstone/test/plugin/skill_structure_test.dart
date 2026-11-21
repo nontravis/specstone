@@ -21,6 +21,7 @@ void main() {
   group('approve step', _approveStepTests);
   group('trim reference', _trimReferenceTests);
   group('brainstorm rounds', _brainstormRoundTests);
+  group('glossary move', _glossaryMoveTests);
 }
 
 // MARK: - Fixtures and readers
@@ -2645,4 +2646,18 @@ String _bulletOf(String markdown, String lead) {
   if (start < 0) return '';
   final rest = lines.skip(start + 1).takeWhile((line) => line.startsWith('  '));
   return _oneLine([lines[start], ...rest].join('\n'));
+}
+
+void _glossaryMoveTests() {
+  test('the Moved bullet names `term_bullet_form` and its wait', () {
+    final bullet = _bulletOf(_pluginText(_glossaryMove), '- **Moved:**');
+    expect(
+      _hasSentenceWith(bullet, [
+        '`pattern_banned`',
+        '`term_bullet_form`',
+        'waits for the agent',
+      ]),
+      isTrue,
+    );
+  });
 }
