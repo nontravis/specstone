@@ -2080,7 +2080,7 @@ void _trimReferenceTests() {
         'move them nowhere',
         "skill's or agent's own files",
       ],
-      ['Delete an item', 'only steps', '`kept: top ID`'],
+      ['Delete an item', 'only steps', 'unless the IDs section keeps it'],
       [
         'Components row',
         'Responsibility',

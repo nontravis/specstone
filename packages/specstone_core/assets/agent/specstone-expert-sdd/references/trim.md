@@ -41,9 +41,9 @@ the next section cuts to its role:
 ## A skill's or agent's steps
 
 Outside a Components row and a diagram, cut a skill's or agent's steps and move them nowhere: the skill's or agent's
-own files hold them. Delete an item that states only steps, unless it holds the top ID, kept as `kept: top ID`. In a
-Components row, cut the Responsibility to the component's role, and never delete the row: its box stays in the
-unmarked component diagram.
+own files hold them. Delete an item that states only steps, unless the IDs section keeps it. In a Components row,
+cut the Responsibility to the component's role, and never delete the row: its box stays in the unmarked component
+diagram.
 
 The parts the `fr` guide's item shape line names for a skill or agent are its contract: when it asks, what it takes,
 what it reports, its limits, and what it may write. An audit restores a removed contract part no other doc states, and
