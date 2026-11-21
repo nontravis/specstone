@@ -429,6 +429,13 @@ void _frontmatterTests() {
     );
   });
 
+  test('the sweeper takes an Owner change that no check follows', () {
+    expect(
+      _hasSentenceWith(_pluginText(_sweeper), ['Owner change', 'no check']),
+      isTrue,
+    );
+  });
+
   test("sweep.md orders the sweeper's Sweep, Ignored, Swept, Rows", () {
     final text = _pluginText(_sweepReference);
     final start = text.indexOf(_sweeperReportHeading);
@@ -2386,6 +2393,30 @@ void _brainstormRoundTests() {
     ]) {
       expect(text, isNot(contains(word)), reason: word);
     }
+  });
+
+  test('a delta-check answer before the first author pass takes no check', () {
+    final text = _pluginText(_roundsReference);
+    expect(
+      _hasSentenceWith(_sectionOf(text, _roundsDecisions), [
+        'delta check',
+        'first author pass',
+        'no check',
+      ]),
+      isTrue,
+    );
+    expect(_oneLine(text), isNot(contains('amends before the ask share one')));
+  });
+
+  test('an Owner change at the ask sweeps since the last snapshot and saves '
+      'none', () {
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_roundsReference), _roundsDecisions),
+        ['`specstone-sdd-sweeper`', '`since:`', 'no snapshot'],
+      ),
+      isTrue,
+    );
   });
 
   test('no subagent or a failed sweep adds no rows', () {

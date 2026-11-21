@@ -6,10 +6,11 @@ decision; any other only words or records one.
 - **Refused design path** (no document yet): append nothing; write at the Owner's new path by `design.md`.
 - **Words or records only**: append to Rulings by `design.md`, no design check; the author or fix round goes on.
 - **Behavior, or more grounding needed**: ground a newly reached doc by its own
-  `specstone context <doc> --for design --out`, never `get`; amend the same file. A behavior amend takes a design
-  check, `amend: <N>`; amends before the ask share one, `amend: <N>[,<N> ...]`; a later one gets its own.
+  `specstone context <doc> --for design --out`, never `get`; amend the same file. After an author pass, a behavior
+  amend is a new scope, its check `amend: <N>`; a later amend's check takes `amend: <N>[,<N> ...]`.
 - **Sweep**: before each design check, send a fresh `specstone-sdd-sweeper` the document's path, the check's `amend`
-  or `since`, and `bundles`. Add its `Rows:` lines word for word to the scope's table (the first, or the newest
+  or `since`, and `bundles`, and an Owner change adding a decision or a doc gets one `since:` the scope's last check
+  snapshot, no snapshot saved. Add its `Rows:` lines word for word to the scope's table (the first, or the newest
   `Amend <N> rows` a kept decision lists); no second sweep; no cap counts it. With no subagent or after a failed
   sweep, add no rows; after a failed one, tell the Owner it did not run.
 - **Snapshot**: then copy the design to `<folder>/reports/sdd-auditor.audit.snapshot.<XXXXXX>.md` by the host's
@@ -18,12 +19,11 @@ decision; any other only words or records one.
   check, `since:` its snapshot, no `amend`. A scope: the first check, or one amend's check (shared amends as one),
   plus at most one delta check.
 - **Who decides**: a first or amend check's `[behavior]` line is yours only when its answer stays inside Intent,
-  Rulings, and the picked approach, else the Owner's; either answer opens no scope, its fix taking the delta check.
+  Rulings, and the picked approach, else the Owner's; either answer opens no scope.
   A delta check's `[behavior]` lines are the Owner's, listed with the ask or before the amend's author pass, no
-  further check; an answer adding behavior takes a numbered amend and its `amend: <N>` check, a new scope, else
-  Rulings.
-- **Then**: after an append, or an amend and its check, ask for approval again. Open questions: append each wording
-  answer, send the rest to one amend and its check, then ask.
+  further check. Before the first author pass, a delta check's answer or an Owner change at the ask takes no amend
+  and no check: write it in.
+- **Then**: after an append, change, or amend and its check, ask for approval again, the change listed.
 - **Round spent**: once the round is spent, a behavior decision, the Owner's on a finding past the cap included,
   takes an amend and its check, one author pass beyond the cap with the amend alone, and a re-audit (section 3)
   whose findings reach the Owner with the drafts; no further round.
