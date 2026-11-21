@@ -369,7 +369,7 @@ void main() {
     expect(parts.first.text, '## Use Case\nReset it.');
     expect(
       parts.last.text,
-      '# Agent resets a password\n\n## Use Case\nReset it.',
+      '# Agent resets a password\n\n## Use Case {#use_case}\nReset it.',
     );
   });
   test(
@@ -857,6 +857,9 @@ void main() {
     const cut =
         '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
         '| 2026-11-14 | 2 | no |';
+    const keyedCut =
+        '## Results {#results}\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+        '| 2026-11-14 | 2 | no |';
     const plain =
         '# Fewer resets\n\n## Scope\n- Resets per week.\n\n'
         '## Baseline\n| Metric | Run | Value | Date | Source |\n|---|---|---|---|---|\n| resets | 1 | 4 | 2026-11-01 | log |\n\n'
@@ -950,8 +953,11 @@ void main() {
         '$_measurementDoc#results summary',
         '$_measurementDoc summary',
       ]);
-      expect(parts.last.text, contains('## Scope\n- Resets per week.'));
-      expect(parts.last.text, contains(cut));
+      expect(
+        parts.last.text,
+        contains('## Scope {#scope}\n- Resets per week.'),
+      );
+      expect(parts.last.text, contains(keyedCut));
       expect(parts.last.text, isNot(contains('2026-11-01 | 1')));
     });
     test('a link into a section that is no summary_rows section appends it whole', () async {

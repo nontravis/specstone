@@ -1054,6 +1054,35 @@ void main() {
         );
       },
     );
+    test('the suffix moves no index range, read plan, or section line', () async {
+      final index = await indexWith(_layoutDocs);
+      final answer = answerContext(
+        index,
+        pickBundle(
+          index,
+          ['login/email_login'],
+          BundleMode.implement,
+          noProject: false,
+        ),
+        targets: ['login/email_login'],
+      );
+      final lines = answer.text.split('\n');
+      final feature = answer.entries.singleWhere(
+        (e) => e.doc.name == 'login' && e.doc.docTypeId == 'feature',
+      );
+
+      expectPlaced(answer);
+      for (final section in feature.sections) {
+        expect(lines[section.first - 1], endsWith(' {#${section.key}}'));
+      }
+      final problem = feature.sections.first;
+      expect(lines[problem.first - 1], '## Problem {#problem}');
+      expect(lines[problem.first], 'Users sign in.');
+      expectIndexLine(
+        answer,
+        '- login \\(feature\\) · \\d+-\\d+ · problem ${problem.first}, out_of_scope \\d+',
+      );
+    });
     test(
       'design --summary: summary docs place their summary sections',
       () async {

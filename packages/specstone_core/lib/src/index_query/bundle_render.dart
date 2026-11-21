@@ -322,7 +322,7 @@ ContextAnswer _answerContext(
           'docType': ?ordered[doc].docTypeId,
           'path': ordered[doc].docPath,
           'tokens': tokenSizeOf(block),
-          'text': _blockBody(block),
+          'text': _blockBody(_withoutHeadingKeys(docPrints[doc], block)),
           if (inSummary(ordered[doc])) 'summary': true,
           ..._citedByKey(docPrints[doc].cited, citedBy),
         },
@@ -870,6 +870,7 @@ DocPrint _docBlock(
       docType,
       mode,
       citedBy,
+      keyHeadings: true,
     ).afterLine(namingLine(doc, summary: true));
   }
   final parts = <String>[];
@@ -902,6 +903,7 @@ DocPrint _docBlock(
       held,
       section,
       citedBy,
+      keyHeading: true,
       matrixCut: matrixCut,
     );
     cited.addAll(print.cited);
@@ -976,6 +978,23 @@ List<String> _byTreeOrder(DocIndex index, Set<String> paths) => [
   for (final doc in index.docs)
     if (paths.contains(doc.docPath)) doc.docPath,
 ];
+
+/// Returns [block], the text of [print], with the ` {#<key>}` suffix taken off
+/// each section header line [print] locates, as a JSON `text` keeps its
+/// headings verbatim.
+///
+/// It reads the lines [DocPrint.sections] gives, never a pattern, so a body
+/// line that ends in `{#...}` stays.
+String _withoutHeadingKeys(DocPrint print, String block) {
+  final lines = block.split('\n');
+  for (final SectionLine(:key, :line) in print.sections) {
+    final keyed = ' {#$key}';
+    if (lines[line].endsWith(keyed)) {
+      lines[line] = lines[line].substring(0, lines[line].length - keyed.length);
+    }
+  }
+  return lines.join('\n');
+}
 
 /// Returns the block after its naming line, trimmed at both ends: the doc's
 /// JSON `text`.

@@ -528,7 +528,9 @@ void main() {
 
       expect(
         text,
-        contains('## Edge cases\n  · cited by guide (topic) — #purpose\n'),
+        contains(
+          '## Edge cases {#edge_cases}\n  · cited by guide (topic) — #purpose\n',
+        ),
       );
       expect('cited by guide'.allMatches(text), hasLength(1));
     });
