@@ -2813,7 +2813,7 @@ void _reauditReadingTests() {
     () {
       expect(
         _hasSentenceWith(_pluginText(_auditReference), [
-          'hit',
+          'Each hit',
           '`Outside the round:`',
         ]),
         isTrue,

@@ -23,3 +23,6 @@ an amend pass, or a split's fill pass.
 The auditor of a re-audit reads only each `sections:` section, each finding's section, and each citer section linking
 a changed draft, anchored or not (a `traced_from` citer: that field and Statement). A new FR with no `Audited:` hash is
 read whole.
+
+A re-audit's report adds `Verdicts:` after `Findings:`, one item per `findings:` line, then `Outside the round:`. A line
+still there goes under `- NOT ADDRESSED:` alone, never again under `Findings:`.

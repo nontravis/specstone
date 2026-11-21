@@ -5,13 +5,15 @@
 
 1. **Targets**: the dispatch's `targets`, each read whole; a re-audit (`findings:`, `sections:`, `citers:`) reads per
    `reaudit.md`.
-2. **Hashes**: run one `specstone approve <targets> --dry-run --json`, no `--target`: it gives each draft's `hash` and
-   changed units. Only a target it does not list, no draft, takes `specstone get <target> --json`. On
-   `doc_not_found`, drop each name it names, listed under `Outside the drafts:` with no `Audited:` line; any other
-   refusal is a finding and drops its names too. Rerun on the rest; with no target left, skip the steps below.
+2. **Hashes**: run one `specstone approve <targets> --dry-run --json`, `targets:` and each draft a `findings:` line
+   names, no `--target`: it gives each draft's `hash` and changed units. Only a target it does not list, no draft,
+   takes `specstone get <target> --json`. On `doc_not_found`, drop each name it names, listed under
+   `Outside the drafts:` with no `Audited:` line; any other refusal is a finding and drops its names too. Rerun on the
+   rest; with no target left, skip the steps below.
 3. **Bundles**: run one `specstone context <doc> --for design --out` on the smallest doc holding every target in one
-   feature, else once per top-level feature (the project doc for a project-level one). Read the saved files per `specstone-read-sdd`, the
-   read-first one whole by its read plan. On a non-zero exit, report its error as a finding and go on.
+   feature, else once per top-level feature (the project doc for a project-level one). Read the saved files per
+   `specstone-read-sdd`, the read-first one whole by its read plan. On a non-zero exit, report its error as a finding
+   and go on.
 4. **Design document**, when given: read it whole; list each decision and ruling. Run `specstone list <type> --draft`
    for `user_story`, `fr`, and `nf`: the drafts among the targets are this change's.
 5. **Check**: search the `check:` file per target; with none, run one bare
@@ -82,7 +84,6 @@ Outside the drafts:
 
 - `Audited:` one per target naming a doc, and per draft a `findings:` line names, its hash from step 1.2; it replaces
   an earlier audit's line.
-- `Verdicts:` (one per `findings:` line) and `Outside the round:`: a re-audit's.
 - `Findings:` each gap or `check` finding a draft fixes. Tag `[behavior]` a fix bringing a new state, input,
   output, edge case, error, or reader of a rule the design does not state; a text-only correction stays untagged.
 - `Outside the drafts:` also each name dropped in step 1.2; a stub row is never a deletion.
