@@ -1,9 +1,11 @@
+import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// The mode a bundle's docs are picked for; [wire] is the `--for` word.
 enum BundleMode {
@@ -337,16 +339,21 @@ int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
       return compareCodePoints(a.docPath, b.docPath);
     };
 
-/// Returns the bundle [target] holds for [mode].
+/// Returns the bundle [targets] hold for [mode], the union of each target's
+/// docs, each doc once.
 ///
 /// `--no-project` drops the docs that join through `bundle:` lists. [summary]
 /// prints the ChainType children of a top doc or a nested feature in summary
 /// and throws `argument_conflict` outside `BundleMode.design`. [codeTarget]
 /// keeps the per-target docs of that code target alone and is required for
-/// `BundleMode.implement` with two or more targets.
+/// `BundleMode.implement` with two or more code targets.
+///
+/// Resolves every target before it picks. Throws the [IndexFault] of the one
+/// target that names no typed doc, or an [IndexFaults] with one fault per such
+/// target in argument order.
 Bundle pickBundle(
   DocIndex index,
-  String target,
+  List<String> targets,
   BundleMode mode, {
   required bool noProject,
   bool summary = false,
@@ -363,23 +370,9 @@ Bundle pickBundle(
   } else {
     index.checkCodeTarget(codeTarget);
   }
-  final resolved = index.resolve(target, codeTarget: codeTarget);
-  final untyped = resolved.where((doc) => doc.docTypeId == null).toList();
-  if (untyped.isNotEmpty) {
-    final docPath = untyped.first.docPath;
-    throw IndexFault(
-      IndexFaultCode.untypedTarget,
-      '$docPath has no doc type, so it never joins a bundle; '
-      'read it with specstone get',
-    );
-  }
-  final chainDocs = [
-    for (final doc in resolved)
-      if (doc.docTypeId case final typeId? when index.isChainType(typeId)) doc,
+  final picked = [
+    for (final docs in _pickAll(index, targets, codeTarget)) ...docs,
   ];
-  final picked = chainDocs.length == 1
-      ? <IndexedDoc>[chainDocs.single]
-      : resolved;
   if (summary) {
     for (final doc in picked) {
       if (!_takesSummary(index, doc)) {
@@ -400,6 +393,53 @@ Bundle pickBundle(
   }
   bundle.join(index, noProject: noProject);
   return bundle;
+}
+
+/// Returns the docs each of [targets] picks, in argument order.
+///
+/// A target that names no doc, an untyped doc, or a doc type the set lacks
+/// adds its fault; any fault is thrown after every target is tried.
+List<List<IndexedDoc>> _pickAll(
+  DocIndex index,
+  List<String> targets,
+  String? codeTarget,
+) {
+  final picks = <List<IndexedDoc>>[];
+  final faults = <SpecstoneFault>[];
+  for (final target in targets) {
+    try {
+      picks.add(_pickOne(index, target, codeTarget));
+    } on IndexFault catch (fault) {
+      faults.add(fault);
+    } on TemplateFault catch (fault) {
+      faults.add(fault);
+    }
+  }
+  return switch (faults) {
+    [] => picks,
+    [final fault] => throw fault,
+    _ => throw IndexFaults(faults),
+  };
+}
+
+/// Returns the docs one [target] argument picks: the one chain doc of a name
+/// several docs share, else every doc the name resolves to.
+List<IndexedDoc> _pickOne(DocIndex index, String target, String? codeTarget) {
+  final resolved = index.resolve(target, codeTarget: codeTarget);
+  final untyped = resolved.where((doc) => doc.docTypeId == null).toList();
+  if (untyped.isNotEmpty) {
+    final docPath = untyped.first.docPath;
+    throw IndexFault(
+      IndexFaultCode.untypedTarget,
+      '$docPath has no doc type, so it never joins a bundle; '
+      'read it with specstone get',
+    );
+  }
+  final chainDocs = [
+    for (final doc in resolved)
+      if (doc.docTypeId case final typeId? when index.isChainType(typeId)) doc,
+  ];
+  return chainDocs.length == 1 ? [chainDocs.single] : resolved;
 }
 
 /// Whether [doc] has children and is a top doc or a doc of the nesting type.

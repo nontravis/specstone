@@ -5,10 +5,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_follow.dart';
-import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
-import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -109,7 +107,7 @@ void main() {
       index,
       pickBundle(
         index,
-        'login/email_login/validate_credentials',
+        ['login/email_login/validate_credentials'],
         mode,
         noProject: noProject,
       ),
@@ -128,7 +126,7 @@ void main() {
     });
     return followLinks(
       index,
-      pickBundle(index, target, mode, noProject: false),
+      pickBundle(index, [target], mode, noProject: false),
     );
   }
 
@@ -305,33 +303,28 @@ void main() {
   group('in a design bundle', () {
     const frName = 'login/email_login/validate_credentials';
 
-    Future<List<AppendedPart>> followedWithLines(String statement) async {
-      final index = await indexFor(statement);
+    Future<List<AppendedPart>> followedInDesign(
+      String statement, [
+      Map<String, String> extra = const {},
+    ]) async {
+      final index = await indexFor(statement, extra);
       return followLinks(
         index,
-        pickBundle(index, frName, BundleMode.design, noProject: false),
-        citedBy: citedByIndex(index),
+        pickBundle(index, [frName], BundleMode.design, noProject: false),
       );
     }
 
-    test('a section part a link appends carries the line right after its header', () async {
+    test('a section part a link appends carries no cited-by line', () async {
       const line = 'See [the examples]($_specs/topics/doc_model.md#examples).';
-      final part = (await followedWithLines(line)).single;
+      final part = (await followedInDesign(line)).single;
 
-      expect(
-        part.text,
-        startsWith(
-          '## Examples\n  · cited by $frName (fr) —: $line\n### A worked example',
-        ),
-      );
-      expect(part.cited.map((c) => (c.kind, c.sectionKey)), [
-        (CitedKind.section, 'examples'),
-      ]);
+      expect(part.text, startsWith('## Examples\n### A worked example'));
+      expect(part.text, isNot(contains('cited by')));
     });
 
-    test('an item part carries the lines of the cited items inside its lines, a nested one included, and the nested item has no part of its own', () async {
+    test('an item part holds the nested item inside its lines and no cited-by line, and the nested item has no part of its own', () async {
       const nest = '$_specs/topics/nest.md#rules';
-      final index = await indexFor(
+      final parts = await followedInDesign(
         'See [RULE-1]($nest), [RULE-2]($nest), and [RULE-3]($nest).',
         {
           'docs/specs/topics/nest.md':
@@ -341,36 +334,17 @@ void main() {
               '- **RULE-3** Third.\n',
         },
       );
-      final parts = followLinks(
-        index,
-        pickBundle(index, frName, BundleMode.design, noProject: false),
-        citedBy: citedByIndex(index),
-      );
 
-      expect(
-        {
-          for (final part in parts)
-            part.itemId: [for (final c in part.cited) '${c.item}@${c.after}'],
-        },
-        {
-          'RULE-1': ['RULE-2@5', 'RULE-1@5'],
-          'RULE-3': ['RULE-3@6'],
-        },
-      );
+      expect([for (final part in parts) part.itemId], ['RULE-1', 'RULE-3']);
+      expect(parts.first.text, '- **RULE-1** Outer.\n  - **RULE-2** Inner.');
     });
 
-    test('a block part a link appends carries the line right after its heading', () async {
+    test('a block part a link appends carries no cited-by line', () async {
       const line =
           'See [a worked example]($_specs/topics/doc_model.md#a-worked-example).';
-      final part = (await followedWithLines(line)).single;
+      final part = (await followedInDesign(line)).single;
 
-      expect(
-        part.text,
-        '### A worked example\n  · cited by $frName (fr) —: $line\nOne link.',
-      );
-      expect(part.cited.map((c) => (c.kind, c.item)), [
-        (CitedKind.item, 'a-worked-example'),
-      ]);
+      expect(part.text, '### A worked example\nOne link.');
     });
   });
   test('a section of a summary doc is appended unless the summary prints it', () async {
@@ -517,7 +491,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login/validate_credentials',
+          ['login/email_login/validate_credentials'],
           BundleMode.query,
           noProject: false,
         ),
@@ -538,7 +512,7 @@ void main() {
     addTearDown(session.close);
     final bundle = pickBundle(
       session.index,
-      'login/email_login/validate_credentials',
+      ['login/email_login/validate_credentials'],
       BundleMode.implement,
       noProject: false,
     );
@@ -583,7 +557,7 @@ void main() {
         session.index,
         pickBundle(
           session.index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.implement,
           noProject: false,
           codeTarget: 'jaspr',
@@ -632,7 +606,7 @@ void main() {
         session.index,
         pickBundle(
           session.index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.design,
           noProject: false,
         ),
@@ -675,7 +649,7 @@ void main() {
       session.index,
       pickBundle(
         session.index,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: false,
         codeTarget: 'flutter',
@@ -763,7 +737,7 @@ void main() {
         final index = await indexWith(linkedFromProject);
         Set<String> typesOf(String target) => pickBundle(
           index,
-          target,
+          [target],
           BundleMode.implement,
           noProject: false,
         ).targetTypeIds;

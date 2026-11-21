@@ -10,18 +10,17 @@ the `specstone-update-sdd` skill instead.
 
 ## 1. Ground: the first call
 
-Make this call, the gate, your first CLI call, before any other command or file read.
-Target the smallest doc that holds the whole change, one call per target: the story for a change inside one story,
-the feature for one across stories, the feature with `--summary` to add a story, and the project doc to add a feature.
-Keep `--out` bare and last, and pass no `--budget` on any host.
-Pass no `--target`: a design read spans every code target.
+Pick the targets by `references/ground.md`, which also holds the `structure` map and a story added. Then make the
+gate your first CLI call, before any doc or code read: that file's `structure` call, else this one. Keep `--out`
+bare and last, and pass no `--budget` on any host and no `--target`.
 
 ```
-specstone context <target> --for design --out
+specstone context <target> [<target> …] --for design --out
 ```
 
-- **0:** the saved files are the ground: read them per the `specstone-read-sdd` skill, a doc they lack grounded by
-  its own `specstone context <doc> --for design --out`, never `get`; open no doc file.
+- **0:** the saved files are the ground: read them per the `specstone-read-sdd` skill, each read-first file by its
+  read plan, a doc they lack grounded by its own `specstone context <doc> --for design --out`, never `get`; open no
+  doc file.
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more; read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
@@ -56,7 +55,8 @@ Write the one design document by `references/design.md`, from step 1's saved fil
 brainstorm skill's own design path, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. Dispatch nothing to write it.
 
 Before the approval ask, dispatch the design check: a fresh `specstone-sdd-auditor` with `stage: design`, the
-document's path, and `bundles:` your saved bundle files with no doc write since. Amends adding or changing behavior
+document's path, and `bundles:` each saved bundle file with no doc write since, beside the read plan line its call
+printed. Amends adding or changing behavior
 before the ask share one check, `amend: <N>[,<N> ...]`; a later one gets its own, `amend: <N>`. A fresh
 `specstone-sdd-sweeper` runs before each check, and a `[behavior]` fix takes one delta check, both by
 `references/rounds.md` section 1. Fix each finding by `references/design.md`, then ask for approval, or, after an

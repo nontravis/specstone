@@ -153,10 +153,9 @@ String codeTargetLine(String? name) =>
 
 /// Renders [bundle]'s docs as one `context` answer.
 ///
-/// The parts the bundle's links cite print after its docs. [label] is the
-/// target as given, or the code path for `--code`; [byCode] prints it under the
-/// JSON key `code` instead of `target`, with the picked `codeTarget` when the
-/// project has two or more. A bundle larger than [budget] prints its sizes and
+/// The parts the bundle's links cite print after its docs. The JSON key
+/// `targets` lists [targets], and the key `target` holds the one target of a
+/// call that has one. A bundle larger than [budget] prints its sizes and
 /// the next step instead of doc text, with exit status 1; an equal one prints
 /// whole. The answer places each doc and part in its text, for `--out`'s index.
 ///
@@ -171,11 +170,47 @@ String codeTargetLine(String? name) =>
 ContextAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
-  required String label,
-  required bool byCode,
+  required List<String> targets,
   int? budget,
   bool split = false,
+}) => _answerContext(
+  index,
+  bundle,
+  code: null,
+  targets: targets,
+  budget: budget,
+  split: split,
+);
+
+/// Renders [bundle]'s docs as the `context` answer of a `--code` call.
+///
+/// [label] is the code path, printed under the JSON key `code`, with the picked
+/// `codeTarget` when the project has two or more. Every other rule is
+/// [answerContext]'s.
+ContextAnswer answerCodeContext(
+  DocIndex index,
+  Bundle bundle, {
+  required String label,
+  int? budget,
+  bool split = false,
+}) => _answerContext(
+  index,
+  bundle,
+  code: label,
+  targets: const [],
+  budget: budget,
+  split: split,
+);
+
+ContextAnswer _answerContext(
+  DocIndex index,
+  Bundle bundle, {
+  required String? code,
+  required List<String> targets,
+  required int? budget,
+  required bool split,
 }) {
+  final byCode = code != null;
   final splits = split && bundle.mode != BundleMode.query;
   final ordered = bundle.printOrder(index);
   final summaryOnly = bundle.summaryOnly;
@@ -206,7 +241,6 @@ ContextAnswer answerContext(
   final parts = followLinks(
     index,
     bundle,
-    citedBy: citedBy,
     ancestorPieceRanges: ancestors.pieceRanges,
   );
   final partBlocks = [for (final part in parts) _partBlock(part)];
@@ -224,7 +258,7 @@ ContextAnswer answerContext(
       printOf: (doc) => docPrints[doc],
     ),
     ..._listPieces(index, bundle, splits: splits),
-    for (final (i, part) in parts.indexed) ...[
+    for (final (i, part) in parts.indexed)
       _Piece(
         partBlocks[i],
         doc: part.doc,
@@ -236,8 +270,6 @@ ContextAnswer answerContext(
         sectionKey: part.sectionKey,
         itemId: part.itemId,
       ),
-      if (splits) ..._citedByPieces(part.doc, part.cited),
-    ],
   ];
   final tokens = tokenSizeOf(_shownOf(pieces));
   final named = byCode && index.hasTwins ? bundle.codeTarget : null;
@@ -252,8 +284,8 @@ ContextAnswer answerContext(
       patternBlocks: patternBlocks,
       parts: parts,
       partBlocks: partBlocks,
-      label: label,
-      byCode: byCode,
+      code: code,
+      targets: targets,
       budget: budget,
       tokens: tokens,
       codeTarget: named,
@@ -279,7 +311,7 @@ ContextAnswer answerContext(
         )
       : null;
   final json = <String, Object>{
-    byCode ? 'code' : 'target': label,
+    ..._targetKeys(code, targets),
     'codeTarget': ?named,
     'for': bundle.mode.wire,
     'tokens': tokens,
@@ -300,7 +332,6 @@ ContextAnswer answerContext(
           if (!part.pathOnly && !part.nameOnly)
             'text': _blockBody(partBlocks[i]),
           ..._partKeys(part),
-          ..._citedByKey(part.cited, citedBy),
         },
     ],
     if (bundle.mode == BundleMode.design)
@@ -716,6 +747,16 @@ Map<String, Object> _partDocJson(AppendedPart part, String block) => {
   'tokens': tokenSizeOf(block),
 };
 
+/// Returns the JSON keys that name what the call bundles: `code` for a code
+/// path, else `targets` and, with one target, `target`.
+Map<String, Object> _targetKeys(String? code, List<String> targets) {
+  if (code != null) return {'code': code};
+  return {
+    if (targets.length == 1) 'target': targets.single,
+    'targets': targets,
+  };
+}
+
 /// Returns the reply for a bundle of [tokens] est. tokens that exceeds
 /// [budget]: each doc's and part's size, no doc text, and the next step,
 /// which keeps `--summary` when the bundle has it.
@@ -729,8 +770,8 @@ ContextAnswer _overBudget(
   required List<String> patternBlocks,
   required List<AppendedPart> parts,
   required List<String> partBlocks,
-  required String label,
-  required bool byCode,
+  required String? code,
+  required List<String> targets,
   required int budget,
   required int tokens,
   required String? codeTarget,
@@ -762,7 +803,7 @@ ContextAnswer _overBudget(
       '${lines.join()}'
       'Next step: $next.\n';
   final json = <String, Object>{
-    byCode ? 'code' : 'target': label,
+    ..._targetKeys(code, targets),
     'codeTarget': ?codeTarget,
     'for': bundle.mode.wire,
     'budget': budget,

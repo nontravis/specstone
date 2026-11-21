@@ -45,13 +45,11 @@ touches, the trade-off behind each choice, and its test.
 
 Read sources in this order; read a later source only for what the earlier ones leave out.
 
-1. Specstone, always first: `specstone context <story> --for implement --out` for each story the plan builds. The
-   bundle holds the story, its FRs, NFR overrides, and specs (ARCHITECTURE, API, DOMAIN, TECH_STACK). Never open a doc
-   file by path.
-
-   For a target that is no story, an NFR or a spec doc, `specstone context <target> --for implement --out` on that
-   doc itself. An FR target grounds through its story's step-1 call, so
-   a task citing a story and its FRs grounds once.
+1. Specstone, always first: one `specstone context <story> … <doc> … --for implement --out` naming every story the
+   plan builds, the story of each FR target, and each target that is no story, an NFR or a spec doc. Each further
+   target named in it adds no call. A story's bundle holds the story, its FRs, NFR overrides, and specs
+   (ARCHITECTURE, API, DOMAIN, TECH_STACK), so an FR target grounds through its story and a task citing a story and
+   its FRs grounds once. Never target the feature, and never open a doc file by path.
 2. The code the specs point at: each `implements` and `covers` path, then its direct callers.
 3. The project's own instruction files (`CLAUDE.md`, `AGENTS.md`): commands, branch flow, gotchas.
 4. Library docs for each dependency TECH_STACK names (the host's doc tool, when it has one).
@@ -77,16 +75,17 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    `<type>:` prefix, else the `(<type>)` its bundle header prints. Every other doc, such as a project, feature,
    persona, or journey doc, gets a row with no task that names why no task builds its type; a project or
    feature doc's row reads that its stories carry the change.
-2. **Ground**: follow `## Ground` in order. Run source 1's calls through Bash, each with `--out` bare and last and
-   neither with `--budget`: first one per story target or FR target's story, then one per NFR or spec doc target. A
-   spec doc an earlier bundle of this round already printed whole, its header line naming it, gets no call of its own.
-   The first call is `specstone context`, the project gate: probe nothing before it, neither `.specstone/` nor the
-   binary.
+2. **Ground**: follow `## Ground` in order. Run source 1's one call through Bash, with `--out` bare and last and no
+   `--budget`, never one call per target. It is the first call, the project gate: probe nothing before it, neither
+   `.specstone/` nor the binary.
    - **0**: the saved files are the docs, as they stand: read them per the `specstone-read-sdd` skill, the read-first
-     file whole and the refs file by line range, searching them with `Grep` before any `get`.
+     file whole by the read plan line the call printed, every range in order, and the refs file by line range,
+     searching them with `Grep` before any `get`.
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
-   - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
-     other targets.
+   - **Any other non-zero**, such as `doc_not_found`: each target the refusal names gets a `NOT PLANNED` row and its
+     CLI error under `Findings:`. Run the one call once again without those targets, then ground and plan the rest.
+     When that second call refuses too, or a refusal names no target, stop the round: each target it names gets the
+     same row, every other target gets `NOT PLANNED: CLI error`, no target is planned, and no further call runs.
 3. **Check**: run `specstone folder` once, then `specstone check --out "<folder>/reports/check.plan.<XXXXXX>.txt"`,
    `<folder>` the path `specstone folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file
    exists. Read its exit status, and search that file with `Grep` for `approval_stale` lines alone. Exit 0 or 1 is a

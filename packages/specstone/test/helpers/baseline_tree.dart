@@ -181,13 +181,14 @@ String _frPath(int f, int s, int r) =>
     'prds/features/f${_two(f)}_feature_$f/us${_two(s)}_story_$s/'
     'fr${_two(r)}_req_$r.md';
 
-/// The two FRs of the dense-cite fixture, the citing one first.
+/// The two FRs of the dense-cite fixture, the cited one first.
 final Set<String> _denseDocs = {_frPath(1, 1, 2), _frPath(1, 2, 1)};
 
 String _edgeCaseId(int n) => 'E${n.toString().padLeft(3, '0')}';
 
-/// The edge cases of feature 1's second story's first FR: [denseCiteCount]
-/// items, each cited by `_denseCiting`.
+/// The edge cases of feature 1's first story's second FR: [denseCiteCount]
+/// items, each cited by `_denseCiting`, so the design bundle of
+/// `feature_1/story_1` picks them and prints a cited-by line for each.
 final Map<String, String> _denseCited = {
   'Edge cases': [
     for (var n = 1; n <= denseCiteCount; n++)
@@ -195,13 +196,12 @@ final Map<String, String> _denseCited = {
   ].join('\n'),
 };
 
-/// The statement of feature 1's first story's second FR: one line for each item
-/// of `_denseCited`, so the design bundle of `feature_1/story_1` appends them
-/// all from a section whose every item another doc cites.
+/// The statement of feature 1's second story's first FR: one line for each item
+/// of `_denseCited`.
 final Map<String, String> _denseCiting = {
   'Statement': [
     for (var n = 1; n <= denseCiteCount; n++)
-      '- [${_edgeCaseId(n)}](../us02_story_2/fr01_req_1.md#edge-cases)',
+      '- [${_edgeCaseId(n)}](../us01_story_1/fr02_req_2.md#edge-cases)',
   ].join('\n'),
 };
 
@@ -272,8 +272,8 @@ List<_DocSpec> _featureSpecs(int f) {
           switch ((f, s, r)) {
             (1, 1, 1) => _citedFr,
             (2, 1, 1) => _citingFr,
-            (1, 1, 2) => _denseCiting,
-            (1, 2, 1) => _denseCited,
+            (1, 1, 2) => _denseCited,
+            (1, 2, 1) => _denseCiting,
             _ => const {},
           },
         ),

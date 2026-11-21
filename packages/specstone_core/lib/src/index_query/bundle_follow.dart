@@ -4,7 +4,6 @@ import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
-import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -12,8 +11,6 @@ import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show linkSourcesOf;
-import 'package:specstone_core/src/index_query/models/cited_candidate.dart';
-import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_section.dart';
 import 'package:specstone_core/src/index_query/models/classified_link.dart';
 import 'package:specstone_core/src/index_query/models/item_range.dart';
@@ -42,7 +39,6 @@ final class AppendedPart {
     this.heading,
     this.summary = false,
     this.nameOnly = false,
-    this.cited = const [],
     this.sections = const [],
     required this.text,
   });
@@ -83,10 +79,6 @@ final class AppendedPart {
   /// `summary_for` leaves out the bundle's target.
   final bool nameOnly;
 
-  /// The items of the part whose cited-by lines [text] holds, in print order;
-  /// empty outside a design bundle.
-  final List<CitedItem> cited;
-
   /// The `##` sections [text] holds whole, each with its header's line in
   /// [text]: a section part's own, a summary doc's summary sections; none for
   /// an item, a `###` block, or a path.
@@ -105,26 +97,23 @@ final class AppendedPart {
 /// Returns the parts the links of [bundle]'s picked parts cite, one level
 /// deep, in print order, each once.
 ///
-/// A link inside an appended part is not followed. A doc keyed in
-/// [ancestorPieceRanges] counts as printed whole, so no link into it appends,
-/// and only the listed ranges of its own links are followed.
+/// A link inside an appended part is not followed, and no part holds a
+/// cited-by line. A doc keyed in [ancestorPieceRanges] counts as printed whole,
+/// so no link into it appends, and only the listed ranges of its own links are
+/// followed.
 ///
 /// `query` follows no link. A file no doc type describes, an untyped doc or
 /// any other linked file on disk, adds its path alone. A target the bundle
 /// already prints whole, a section the trim drops, a doc `--no-project`
 /// dropped, and a link `check` reports as broken add nothing; a link into
 /// another code target's doc is followed.
-///
-/// Given [citedBy], each part holds its items' cited-by lines right after
-/// them.
 List<AppendedPart> followLinks(
   DocIndex index,
   Bundle bundle, {
-  CitedByIndex? citedBy,
   Map<String, List<LineRange>> ancestorPieceRanges = const {},
 }) {
   if (bundle.mode == BundleMode.query) return const [];
-  final walk = _Walk(index, bundle, citedBy);
+  final walk = _Walk(index, bundle);
   for (final doc in bundle.printOrder(index)) {
     final pieces = ancestorPieceRanges[doc.docPath];
     if (pieces != null) {
@@ -178,11 +167,10 @@ final class _Printed {
 
 /// One walk over the links of a bundle's picked parts.
 final class _Walk {
-  new(this.index, this.bundle, this.citedBy);
+  new(this.index, this.bundle);
 
   final DocIndex index;
   final Bundle bundle;
-  final CitedByIndex? citedBy;
   final _whole = <String>{};
   final _summarized = <String>{};
   final _paths = <String>{};
@@ -406,13 +394,12 @@ final class _Walk {
       view.content,
       view.type,
       bundle.mode,
-      citedBy,
+      null,
     );
     _add(
       AppendedPart(
         doc: view.doc,
         summary: true,
-        cited: print.cited,
         sections: print.sections,
         text: print.text,
       ),
@@ -427,40 +414,19 @@ final class _Walk {
     }
     final range = view.sectionRange(at);
     if (!view.keeps(at, bundle.mode) || _prints(view, range)) return;
-    final held = view.citedSectionAt(at);
-    final own = citedBy == null || held == null
-        ? null
-        : citedSectionIn(citedBy!, view.doc, view.content, held, at);
-    final cited = [?own, ..._citedIn(view, at)];
     _add(
       AppendedPart(
         doc: view.doc,
         sectionKey: sectionKey,
-        cited: cited,
         sections: [SectionLine(key: sectionKey, line: 0)],
         text: sectionBlockOf(
           view.content.sections[at],
           bodyLine: view.facts.sectionLines[at] + 1,
-          after: citedLinesAfter(citedBy, cited),
           matrixCut: matrixLinesOutOfScope(index, view.doc, _whole),
         ),
       ),
       view,
       [range],
-    );
-  }
-
-  /// Returns the items of the section [at] of [view]'s doc inside [within],
-  /// the whole section when null, that other docs cite; none outside a
-  /// design bundle.
-  List<CitedItem> _citedIn(_DocView view, int at, {LineRange? within}) {
-    final cited = citedBy;
-    final section = view.citedSectionAt(at);
-    if (cited == null || section == null) return const [];
-    return citedItemsWithin(
-      view.citedCandidatesAt(at, cited, section),
-      section,
-      within: within,
     );
   }
 
@@ -495,7 +461,7 @@ final class _Walk {
       view.content,
       view.held,
       view.content.sections[at],
-      citedBy,
+      null,
       summaryRows: rows,
     );
     _add(
@@ -503,7 +469,6 @@ final class _Walk {
         doc: view.doc,
         sectionKey: sectionKey,
         summary: true,
-        cited: print.cited,
         sections: [SectionLine(key: sectionKey, line: 0)],
         text: print.block,
       ),
@@ -566,19 +531,13 @@ final class _Walk {
         ? extent.last - offset + 1
         : body.length;
     final lines = [for (var k = from; k < past; k++) body[k].text];
-    final cited = _citedIn(view, at, within: extent);
     _add(
       AppendedPart(
         doc: view.doc,
         sectionKey: sectionKey,
         itemId: itemId,
         heading: heading,
-        cited: cited,
-        text: printedBodyOf(
-          lines.join('\n'),
-          firstLine: extent.first,
-          after: citedLinesAfter(citedBy, cited),
-        ),
+        text: printedBodyOf(lines.join('\n'), firstLine: extent.first),
       ),
       view,
       [extent],
@@ -630,7 +589,6 @@ final class _DocView {
   /// again for every part it appends.
   final _bodies = <int, List<BodyLine>>{};
   final _extents = <int, Map<String, LineRange>>{};
-  final _candidates = <int, List<CitedCandidate>>{};
   final _kept = <BundleMode, Set<IndexedSection>>{};
 
   LineFacts get facts => content.lineFacts;
@@ -641,24 +599,6 @@ final class _DocView {
 
   List<BodyLine> bodyLinesOf(int at) =>
       _bodies[at] ??= sectionBodyLines(content.sections, facts, at);
-
-  /// Returns the items and `###` blocks of the section at [at], whose held
-  /// section is [section], that [cited] holds lines for.
-  ///
-  /// A view lives in one walk, which holds one cited-by index, so [cited] is
-  /// the same on every call.
-  List<CitedCandidate> citedCandidatesAt(
-    int at,
-    CitedByIndex cited,
-    CitedSection section,
-  ) => _candidates[at] ??= citedCandidatesIn(
-    cited,
-    doc,
-    content,
-    section,
-    at,
-    extents: extentsAt(at),
-  );
 
   /// Returns the extent of each item of the section at [at], by ID, as
   /// [itemExtentsOf] reads the section; none when the doc holds no section

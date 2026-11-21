@@ -133,12 +133,11 @@ void main() {
       index,
       pickBundle(
         index,
-        'grounding_cost',
+        ['grounding_cost'],
         BundleMode.implement,
         noProject: false,
       ),
-      label: 'grounding_cost',
-      byCode: false,
+      targets: ['grounding_cost'],
     ).text;
     expect(text, contains('## Scope'));
     expect(text, isNot(contains('## Open causes')));

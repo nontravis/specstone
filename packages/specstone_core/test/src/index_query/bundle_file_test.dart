@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/bundle_text.dart';
+import 'package:specstone_core/src/index_query/models/read_plan.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -162,7 +163,138 @@ BundleText _closedRefsOf(int count) {
   );
 }
 
+/// Returns a line of [tokens] est. tokens, four characters each.
+String _lineOf(int tokens) => 'x' * (4 * tokens);
+
+/// Returns one block of a read-first file: its naming line, then [body].
+List<String> _blockOf(int index, List<String> body) => [
+  '==> p$index (fr) · prds/p$index.md <==',
+  ...body,
+];
+
+/// Returns a read-first file of [blocks] joined by a blank line, after the
+/// [head] lines, closed by a closing line and a list, with one entry per block.
+BundleText _planFileOf(
+  List<List<String>> blocks, {
+  List<String> head = const [],
+}) {
+  final lines = [...head];
+  final entries = <BundleEntry>[];
+  for (final (i, block) in blocks.indexed) {
+    if (i > 0) lines.add('');
+    final first = lines.length + 1;
+    lines.addAll(block);
+    entries.add(_entryOf('p$i', first, lines.length));
+  }
+  lines
+    ..add('==> bundle: ${blocks.length} docs, 1 tokens <==')
+    ..add('- p0 (fr)');
+  final text = '${lines.join('\n')}\n';
+  return BundleText(text: text, entries: entries, tokens: tokenSizeOf(text));
+}
+
+int _lineCountOfText(BundleText file) =>
+    const LineSplitter().convert(file.text).length;
+
+List<List<int>> _pairsOf(ReadPlan plan) => [
+  for (final range in plan.ranges) [range.first, range.last],
+];
+
 void main() {
+  group('readPlanOf, the read ranges of a read-first file', () {
+    test('a file within the limit is one range of every line', () {
+      final file = _planFileOf([
+        _blockOf(0, [_lineOf(100)]),
+        _blockOf(1, [_lineOf(100)]),
+        _blockOf(2, [_lineOf(100)]),
+      ]);
+      final plan = readPlanOf(file);
+      expect(_pairsOf(plan), [
+        [1, _lineCountOfText(file)],
+      ]);
+      expect(plan.overLimitLines, isEmpty);
+    });
+
+    test('a 30k-token file of small parts gives two ranges split at an entry start', () {
+      final file = _planFileOf([
+        for (var i = 0; i < 6; i++) _blockOf(i, [_lineOf(4975)]),
+      ]);
+      final fifth = file.entries[4].first;
+      expect(_pairsOf(readPlanOf(file)), [
+        [1, fifth - 1],
+        [fifth, _lineCountOfText(file)],
+      ]);
+    });
+
+    test('a part over the limit cuts before its last fitting heading outside fenced code', () {
+      final file = _planFileOf([
+        _blockOf(0, [
+          '## A',
+          _lineOf(10000),
+          '## B',
+          _lineOf(10000),
+          '## C',
+          _lineOf(3000),
+          '```markdown',
+          '## Fake',
+          '```',
+          _lineOf(10000),
+        ]),
+        _blockOf(1, ['small']),
+      ]);
+      final lines = file.text.split('\n');
+      final heading = lines.indexOf('## C') + 1;
+      expect(lines.indexOf('## Fake') + 1, greaterThan(heading));
+      expect(_pairsOf(readPlanOf(file)), [
+        [1, heading - 1],
+        [heading, _lineCountOfText(file)],
+      ]);
+    });
+
+    test(
+      'an oversized part with no fitting heading cuts at its last fitting line',
+      () {
+        final file = _planFileOf([
+          _blockOf(0, [for (var i = 0; i < 6; i++) _lineOf(5000)]),
+          _blockOf(1, ['small']),
+        ]);
+        expect(_pairsOf(readPlanOf(file)), [
+          [1, 5],
+          [6, _lineCountOfText(file)],
+        ]);
+      },
+    );
+
+    test('a lone oversized line gets a range of its own and is listed', () {
+      final file = _planFileOf([
+        _blockOf(0, ['a', _lineOf(125000), 'b']),
+        _blockOf(1, ['small']),
+      ]);
+      final plan = readPlanOf(file);
+      expect(_pairsOf(plan), [
+        [1, 2],
+        [3, 3],
+        [4, _lineCountOfText(file)],
+      ]);
+      expect(plan.overLimitLines, [3]);
+    });
+
+    test('a code target line on line 1 starts the first range', () {
+      final file = _planFileOf(
+        [
+          for (var i = 0; i < 6; i++) _blockOf(i, [_lineOf(4975)]),
+        ],
+        head: ['==> code target: jaspr <=='],
+      );
+      final pairs = _pairsOf(readPlanOf(file));
+      expect(file.entries.first.first, 2);
+      expect(pairs.first.first, 1);
+      expect(pairs, hasLength(2));
+      expect(pairs.first.last, file.entries[4].first - 1);
+      expect(pairs.last.last, _lineCountOfText(file));
+    });
+  });
+
   group('refsPathOf, the refs file of a path', () {
     test('a bare name takes .refs before .txt', () {
       expect(refsPathOf('a.implement.jaspr.txt'), 'a.implement.jaspr.refs.txt');
@@ -184,7 +316,7 @@ void main() {
     test('a target and its mode', () {
       expect(
         bundleFileName(
-          target: 'index_query/get_task_bundle',
+          targets: ['index_query/get_task_bundle'],
           mode: BundleMode.design,
           summary: false,
           noProject: false,
@@ -215,7 +347,7 @@ void main() {
     test('--target adds its name before .txt', () {
       expect(
         bundleFileName(
-          target: 'feedback/toast/show_toast',
+          targets: ['feedback/toast/show_toast'],
           mode: BundleMode.implement,
           summary: false,
           noProject: false,
@@ -227,7 +359,7 @@ void main() {
     test('--summary and --no-project follow the mode', () {
       expect(
         bundleFileName(
-          target: 'login',
+          targets: ['login'],
           mode: BundleMode.design,
           summary: true,
           noProject: true,
@@ -236,7 +368,7 @@ void main() {
       );
       expect(
         bundleFileName(
-          target: 'login',
+          targets: ['login'],
           mode: BundleMode.implement,
           summary: false,
           noProject: true,
@@ -247,7 +379,7 @@ void main() {
     test('a <doc type>:<name> target writes its : as -', () {
       expect(
         bundleFileName(
-          target: 'architecture:login',
+          targets: ['architecture:login'],
           mode: BundleMode.implement,
           summary: false,
           noProject: false,
@@ -317,7 +449,7 @@ void main() {
     test('a multibyte target is cut on a code point boundary', () {
       for (final character in ['\u65e5', '\u{1F600}']) {
         final name = bundleFileName(
-          target: character * 100,
+          targets: [character * 100],
           mode: BundleMode.implement,
           summary: false,
           noProject: false,
@@ -326,6 +458,55 @@ void main() {
         expect(bytesOf(name), lessThanOrEqualTo(250));
         expect(name, endsWith('.implement.txt'));
       }
+    });
+
+    test('two targets join with a plus in the order given', () {
+      String nameOf(List<String> targets, {String? codeTarget}) =>
+          bundleFileName(
+            targets: targets,
+            mode: BundleMode.design,
+            summary: false,
+            noProject: false,
+            codeTarget: codeTarget,
+          );
+      const trim = 'index_query/task_bundle/trim_task_bundle';
+      const get = 'index_query/task_bundle/get_task_bundle';
+      expect(
+        nameOf([get, trim]),
+        'index_query-task_bundle-get_task_bundle+'
+        'index_query-task_bundle-trim_task_bundle.design.txt',
+      );
+      expect(
+        nameOf([trim, get]),
+        'index_query-task_bundle-trim_task_bundle+'
+        'index_query-task_bundle-get_task_bundle.design.txt',
+      );
+      expect(
+        nameOf(['login', 'architecture:login'], codeTarget: 'jaspr'),
+        'login+architecture-login.design.jaspr.txt',
+      );
+    });
+
+    test('a joined name past 255 bytes is cut as one name', () {
+      final first = 'a' * 150;
+      final second = 'b' * 150;
+      final name = bundleFileName(
+        targets: [first, second],
+        mode: BundleMode.implement,
+        summary: false,
+        noProject: false,
+      );
+      final uncut = '$first+$second.implement.txt';
+      final hash = sha256
+          .convert(utf8.encode(uncut))
+          .toString()
+          .substring(0, 8);
+      expect(bytesOf(name), lessThanOrEqualTo(250));
+      expect(
+        name,
+        matches(RegExp(r'^a{150}\+b+-[0-9a-f]{8}\.implement\.txt$')),
+      );
+      expect(name, endsWith('-$hash.implement.txt'));
     });
   });
 
@@ -516,6 +697,51 @@ void main() {
         ],
       });
     });
+
+    test("the plan prints second, under the first file's header, in implement and design", () {
+      for (final mode in [BundleMode.implement, BundleMode.design]) {
+        final index = bundleIndex(
+          _splitOf(2, 2, mode: mode),
+          '/p/b.txt',
+          refsPath: '/p/b.refs.txt',
+        );
+        final lines = const LineSplitter().convert(index);
+        expect(lines[0], startsWith('==> bundle: 2 docs, 7 tokens, 4 lines'));
+        expect(lines[1], 'read whole, in 1 read: lines 1-4');
+        expect('read whole'.allMatches(index), hasLength(1));
+      }
+      final refsHeader = bundleIndex(
+        _splitOf(2, 2, mode: BundleMode.design),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      ).split('\n').indexWhere((line) => line.contains('b.refs.txt'));
+      expect(refsHeader, greaterThan(2));
+      final query = ContextAnswer(
+        text: 'x\n',
+        json: {'for': BundleMode.query.wire},
+        entries: [_entryOf('d0', 1, 1)],
+        tokens: 1,
+      );
+      expect(bundleIndex(query, '/p/b.txt'), isNot(contains('read whole')));
+    });
+    test('an index past the line bound lists docs only and keeps the read plan line', () {
+      final kept = bundleIndex(
+        _splitOf(198, 1, mode: BundleMode.implement),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(const LineSplitter().convert(kept), hasLength(201));
+      expect(kept, contains('- d197 (fr) · 395-395 · statement 395\n'));
+      final dropped = bundleIndex(
+        _splitOf(199, 1, mode: BundleMode.implement),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      final lines = const LineSplitter().convert(dropped);
+      expect(lines[1], 'read whole, in 1 read: lines 1-398');
+      expect(dropped, isNot(contains('statement')));
+      expect(lines, contains('- d198 (fr) · 397-397'));
+    });
   });
 
   group('bundleIndex and its --json hold each feature pattern part', () {
@@ -562,6 +788,7 @@ void main() {
       expect(
         bundleIndex(answerOf('design'), '/p/b.txt'),
         '==> bundle: 2 docs, 9 tokens, 8 lines · /p/b.txt <==\n'
+        'read whole, in 1 read: lines 1-8\n'
         '- login (fr) · 1-2 · statement 1\n'
         '- auth (feature pattern) · 4-5\n'
         '- story (fr) · 7-8 · statement 7\n',
@@ -590,6 +817,7 @@ void main() {
         'tokens',
         'lines',
         'docs',
+        'reads',
         'featurePatterns',
       ]);
       expect(
@@ -731,6 +959,17 @@ void main() {
       expect([for (final doc in docs) doc['cited']], [false, true]);
       expect(docs.first['summary'], isTrue);
     });
+    test('the read-first object carries reads, one pair per range, and the refs object carries none', () {
+      final json = bundleIndexJson(
+        _splitOf(2, 2, mode: BundleMode.design),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(json['reads'], [
+        [1, 4],
+      ]);
+      expect(json['refs'], isNot(contains('reads')));
+    });
     test('an unsplit answer has no refs object and prints one header', () {
       final json = bundleIndexJson(_answerOf(1), '/p/b.txt');
       expect(json, isNot(contains('refs')));
@@ -779,12 +1018,11 @@ void main() {
           index,
           pickBundle(
             index,
-            'login/email_login',
+            ['login/email_login'],
             BundleMode.implement,
             noProject: false,
           ),
-          label: 'login/email_login',
-          byCode: false,
+          targets: ['login/email_login'],
         );
         expectPlaced(answer);
         final feature = answer.entries.singleWhere(
@@ -824,13 +1062,12 @@ void main() {
           index,
           pickBundle(
             index,
-            'login',
+            ['login'],
             BundleMode.design,
             noProject: false,
             summary: true,
           ),
-          label: 'login',
-          byCode: false,
+          targets: ['login'],
         );
         expectPlaced(answer);
         expectIndexLine(
@@ -851,12 +1088,11 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.implement,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
       );
       expectPlaced(answer);
       expectIndexLine(
@@ -880,9 +1116,8 @@ void main() {
       });
       final answer = answerContext(
         index,
-        pickBundle(index, 'project', BundleMode.implement, noProject: false),
-        label: 'project',
-        byCode: false,
+        pickBundle(index, ['project'], BundleMode.implement, noProject: false),
+        targets: ['project'],
       );
       expectPlaced(answer);
       expectIndexLine(
@@ -902,12 +1137,11 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.implement,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
         budget: 1,
       );
       expect(answer.exitStatus, 1);
@@ -938,12 +1172,11 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.design,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
         split: split,
       );
     }
@@ -986,12 +1219,11 @@ void main() {
           index,
           pickBundle(
             index,
-            'login/email_login',
+            ['login/email_login'],
             BundleMode.design,
             noProject: false,
           ),
-          label: 'login/email_login',
-          byCode: false,
+          targets: ['login/email_login'],
           split: true,
         );
         final lines = bundleIndex(
@@ -1100,11 +1332,10 @@ void main() {
         noProject: false,
       );
 
-      final answer = answerContext(
+      final answer = answerCodeContext(
         session.index,
         bundle,
         label: path,
-        byCode: true,
         split: true,
       );
 
@@ -1173,12 +1404,11 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.design,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
         split: true,
       );
     }
@@ -1220,7 +1450,7 @@ void main() {
       expect(listed, matches(RegExp(r' · cited by \[#entities\]$')));
       expect(
         answer.refs!.text,
-        contains('$naming\n  · cited by guide (topic) —: See [entities]'),
+        contains('$naming\n  · cited by guide (topic) — #purpose\n'),
       );
       final entry = domainParts(answer).single;
       expect((entry.sectionKey, entry.itemId), ('entities', null));
@@ -1275,12 +1505,11 @@ void main() {
         session.index,
         pickBundle(
           session.index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.implement,
           noProject: false,
         ),
-        label: 'login/email_login',
-        byCode: false,
+        targets: ['login/email_login'],
       );
       expect(
         () => answerBundleFile(
@@ -1313,12 +1542,11 @@ void main() {
       index,
       pickBundle(
         index,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: false,
       ),
-      label: 'login/email_login',
-      byCode: false,
+      targets: ['login/email_login'],
       split: true,
     );
 
@@ -1367,6 +1595,64 @@ void main() {
       final json = reply.json;
       expect((json['refs']! as Map)['out'], refs.resolveSymbolicLinksSync());
     });
+
+    test('the read plan is not written into the file', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      addTearDown(session.close);
+      final answer = splitAnswer(session.index);
+      final file = File('${project.path}/out/b.txt');
+      final reply = answerBundleFile(
+        answer,
+        file,
+        project: session.project,
+        isBare: false,
+      );
+      final written = file.readAsStringSync();
+      expect(written, answer.text);
+      expect(written, isNot(contains('read whole')));
+      final lines = const LineSplitter().convert(written).length;
+      expect(
+        reply.text,
+        contains(
+          '==> bundle: ${docCountOf(answer.entries)} docs, '
+          '${answer.tokens} tokens, $lines lines · ',
+        ),
+      );
+      expect(reply.text, contains('\nread whole, in 1 read: lines 1-$lines\n'));
+    });
+
+    test(
+      'a line over the limit warns once with its line, path, and size',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(project);
+        addTearDown(session.close);
+        final text = 'a\n${_lineOf(100000)}\nb\n';
+        final answer = ContextAnswer(
+          text: text,
+          json: {'for': BundleMode.design.wire},
+          entries: [_entryOf('d0', 1, 3)],
+          tokens: tokenSizeOf(text),
+        );
+        final file = File('${project.path}/out/b.txt');
+        final reply = answerBundleFile(
+          answer,
+          file,
+          project: session.project,
+          isBare: false,
+        );
+        final shown = file.resolveSymbolicLinksSync();
+        const tail = 'est. tokens, more than one read holds';
+        expect(reply.warnings, [
+          '⚠️ WARNING: line 2 of $shown holds 100000 $tail',
+        ]);
+        expect(
+          reply.text,
+          contains('read whole, in 3 reads: lines 1-1, lines 2-2, lines 3-3\n'),
+        );
+      },
+    );
 
     test(
       'a refs path that is the read-first file is refused and writes nothing',
@@ -1444,9 +1730,8 @@ void main() {
       bool noProject = false,
     }) => answerContext(
       index,
-      pickBundle(index, 'login/email_login', mode, noProject: noProject),
-      label: 'login/email_login',
-      byCode: false,
+      pickBundle(index, ['login/email_login'], mode, noProject: noProject),
+      targets: ['login/email_login'],
       split: true,
     );
 
@@ -1484,6 +1769,7 @@ void main() {
       expect(
         index,
         '==> bundle: 2 docs, 7 tokens, 4 lines · /p/b.txt <==\n'
+        'read whole, in 1 read: lines 1-4\n'
         '- d0 (fr) · 1-1 · statement 1\n'
         '- d1 (fr) · 3-3 · statement 3\n'
         '==> bundle: 3 docs, 7 tokens, 6 lines · /p/b.refs.txt <==\n',
@@ -1543,19 +1829,19 @@ void main() {
 
     test('the implement cap counts the read-first index alone', () {
       final fits = bundleIndex(
-        _splitOf(199, 150, mode: BundleMode.implement),
+        _splitOf(198, 150, mode: BundleMode.implement),
         '/p/b.txt',
         refsPath: '/p/b.refs.txt',
       );
-      expect(fits, contains('- d198 (fr) · 397-397 · statement 397\n'));
+      expect(fits, contains('- d197 (fr) · 395-395 · statement 395\n'));
       expect(fits, endsWith('.refs.txt <==\n'));
       final past = bundleIndex(
-        _splitOf(200, 1, mode: BundleMode.implement),
+        _splitOf(199, 1, mode: BundleMode.implement),
         '/p/b.txt',
         refsPath: '/p/b.refs.txt',
       );
       expect(past, isNot(contains('statement')));
-      expect(past, contains('- d199 (fr) · 399-399\n'));
+      expect(past, contains('- d198 (fr) · 397-397\n'));
     });
 
     test('past the cap the implement refs head still lists sections', () async {

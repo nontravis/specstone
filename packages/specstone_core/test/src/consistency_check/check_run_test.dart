@@ -4,7 +4,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/consistency_check/bundle_size_rule.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
@@ -12,6 +11,7 @@ import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_file.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -28,7 +28,7 @@ import '../../helpers/write_fixture.dart' show writeIn;
 
 /// Letters that put a story or doc over the bound by a margin of 2,000 est.
 /// tokens (characters / 4).
-const int _overBound = (bundleTokenLimit + 2000) * 4;
+const int _overBound = (readRangeTokenLimit + 2000) * 4;
 
 const _brokenRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
@@ -512,7 +512,7 @@ void main() {
               index,
               pickBundle(
                 index,
-                f.path,
+                [f.path],
                 BundleMode.design,
                 noProject: false,
                 summary: index.childrenOf(index.at(f.path)!).isNotEmpty,
