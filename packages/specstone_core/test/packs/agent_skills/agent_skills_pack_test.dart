@@ -243,6 +243,15 @@ void main() {
       }
     });
 
+    test('the skill and agent feature fields set bundle_with', () async {
+      final set = await resolveAgentSkills();
+      for (final type in ['skill', 'agent']) {
+        final feature = fieldOf(prdCoreDocType(set, type), 'feature');
+        expect(feature.bundleWith, isTrue, reason: type);
+        expect(fieldOf(prdCoreDocType(set, type), 'covers').bundleWith, isNull);
+      }
+    });
+
     test('no description restates a shared line the guide prints', () async {
       final set = await resolveAgentSkills();
       for (final type in ['skill', 'agent']) {

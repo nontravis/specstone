@@ -9,6 +9,7 @@ fields:
   - id: feature
     type: doc_ref
     doc_types: [feature]
+    bundle_with: true
     description: |-
       Names the feature the agent serves; it must resolve to a feature.
   - id: covers
