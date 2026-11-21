@@ -100,6 +100,7 @@ const _agentFileNames = <String, List<String>>{
   ],
   'specstone-brainstorming-sdd/references/rounds.md': [
     'sdd-auditor.audit.snapshot.<XXXXXX>.md',
+    'sdd-engineer.author.fix.<XXXXXX>.md',
   ],
   'specstone-plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
   'specstone-sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
@@ -115,7 +116,7 @@ const _reportsFolder = '<folder>/reports/';
 final _agentFilePath =
     '<folder>/reports/(?:(?:sdd-engineer|sdd-sweeper|sdd-auditor|'
     r'plan-engineer)\.(?:<mode>|[a-z]+)\.'
-    r'(?:(?:batch|source|snapshot)\.)?<XXXXXX>\.(?:md|txt)|check\.'
+    r'(?:(?:batch|source|snapshot|fix)\.)?<XXXXXX>\.(?:md|txt)|check\.'
     '(?:${checkRoles.join('|')}|<role>)'
     r'\.<XXXXXX>\.txt|guide\.<XXXXXX>\.(?:txt|json))';
 
@@ -2368,6 +2369,11 @@ const _designReference = 'specstone-brainstorming-sdd/references/design.md';
 /// The heading of the rounds reference's Owner-decision section.
 const _roundsDecisions = '## 1. Route each Owner decision';
 
+/// The heading of the rounds reference's fix-round section.
+const _roundsFixRound = '## 2. Run the fix round';
+
+const _reauditReference = 'specstone-brainstorming-sdd/references/reaudit.md';
+
 void _brainstormRoundTests() {
   test('the runner sweeps before each design check, then snapshots', () {
     final sentences = _sentencesOf(
@@ -2491,6 +2497,82 @@ void _brainstormRoundTests() {
         'amend',
         'one author pass',
       ]),
+      isTrue,
+    );
+  });
+
+  test('a fix round resumes the first author with a fix file', () {
+    final section = _sectionOf(_pluginText(_roundsReference), _roundsFixRound);
+    expect(
+      _hasSentenceWith(section, [
+        'resume',
+        'first author',
+        'sdd-engineer.author.fix',
+      ]),
+      isTrue,
+    );
+    for (final input in ['mode: author', 'design:', 'report:', 'guide:']) {
+      expect(section, contains(input), reason: input);
+    }
+  });
+
+  test('a fresh author takes the fix pass a resume cannot', () {
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_roundsReference), _roundsFixRound),
+        ['fresh author', 'cannot resume', 'ended', 'no tool call'],
+      ),
+      isTrue,
+    );
+  });
+
+  test('the fill and amend passes are fresh', () {
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_roundsReference), _roundsFixRound),
+        ['fill pass', 'amend', 'fresh'],
+      ),
+      isTrue,
+    );
+  });
+
+  test('main fixes style lines before the author pass', () {
+    final section = _sectionOf(_pluginText(_roundsReference), _roundsFixRound);
+    expect(
+      _hasSentenceWith(section, [
+        '`[style]`',
+        'set --replace',
+        'Styled:',
+        'before',
+      ]),
+      isTrue,
+    );
+    expect(section, isNot(contains('`[style]`-only audit')));
+  });
+
+  test('a re-audit takes findings, sections, and citers', () {
+    final text = _pluginText(_reauditReference);
+    for (final input in ['`findings:`', '`sections:`', '`citers:`']) {
+      expect(text, contains(input), reason: input);
+    }
+  });
+
+  test('a draft changed only by style writes is no changed draft', () {
+    expect(
+      _hasSentenceWith(_pluginText(_reauditReference), [
+        'Styled:',
+        'no changed draft',
+      ]),
+      isTrue,
+    );
+  });
+
+  test('the pass beyond the cap re-audits only its own lines', () {
+    expect(
+      [_reauditReference, _roundsReference].any(
+        (file) =>
+            _hasSentenceWith(_pluginText(file), ['beyond the cap', 'only']),
+      ),
       isTrue,
     );
   });
