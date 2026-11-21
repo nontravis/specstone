@@ -20,6 +20,7 @@ import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 
 const _fr =
     'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
@@ -466,6 +467,33 @@ void main() {
       isEmpty,
     );
   });
+
+  test(
+    'a holder joined inward gets no cited-by line through its doc_ref',
+    () async {
+      final index = await indexWith({
+        '.specstone/config.yaml': shippedPinsConfig([
+          'prd-core',
+          'software-tech',
+          'agent-skills',
+        ]),
+        'docs/specs/agents/reviewer.md':
+            '---\nfeature: login\n---\n\n# reviewer\n\n## Role\n\nReviews.\n',
+      });
+      final bundle = pickBundle(
+        index,
+        ['login'],
+        BundleMode.design,
+        noProject: false,
+      );
+
+      expect(bundle.linkedDocs.keys, ['specs/agents/reviewer.md']);
+      expect(
+        _citedBy(index).values.expand((lines) => lines).map((c) => c.name),
+        isNot(contains('reviewer')),
+      );
+    },
+  );
 
   test('a doc link or a section link names no item', () async {
     final cited = _citedBy(

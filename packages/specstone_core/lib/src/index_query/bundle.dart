@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/fault.dart';
+import 'package:specstone_core/src/index_query/bundle_join.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -35,6 +36,61 @@ enum BundleMode {
       '--for takes query, implement, or design, not $value',
     );
   }
+}
+
+/// The side of a `bundle_with` link a joined doc enters the bundle from.
+enum JoinDirection {
+  /// The holder joins a bundle that prints the doc it names.
+  inward,
+
+  /// The doc a holder target names joins that target's bundle.
+  outward,
+}
+
+/// A doc no rule picks that a `bundle_with` field joins to a bundle.
+final class LinkedDoc {
+  const new({
+    required this.docPath,
+    required this.anchorPath,
+    required this.direction,
+  });
+
+  /// The joined doc's DocPath.
+  final String docPath;
+
+  /// The DocPath of the doc it prints beside: the doc it names when it joins
+  /// inward, its holder when it joins outward.
+  final String anchorPath;
+
+  /// The side the doc joined from.
+  final JoinDirection direction;
+}
+
+/// The docs one target's pick adds, apart from the other targets'.
+final class TargetPicks {
+  const new({
+    required this.topPath,
+    required this.wholePaths,
+    required this.summaryPaths,
+    required this.subtreePaths,
+    this.targetPath,
+  });
+
+  /// The DocPath of the target's top doc: its nearest nesting doc in `design`.
+  final String topPath;
+
+  /// The docs the target's rule prints whole, by DocPath.
+  final Set<String> wholePaths;
+
+  /// The docs the target's rule prints in summary, by DocPath.
+  final Set<String> summaryPaths;
+
+  /// The target's own subtree, by DocPath; filled in `design`.
+  final Set<String> subtreePaths;
+
+  /// The DocPath of the doc the call names for this target, when it names
+  /// one: an outward join runs from it.
+  final String? targetPath;
 }
 
 /// The docs one `context` call prints, picked by [BundleMode].
@@ -79,10 +135,16 @@ final class Bundle {
   /// it; a link into one is not followed.
   final Set<String> droppedPaths = {};
 
+  /// The docs a `bundle_with` field joins that no rule picks, by DocPath in
+  /// join order.
+  final Map<String, LinkedDoc> linkedDocs = {};
+
   /// The docs that print in summary only: [summaryPaths] that no target picks
-  /// whole and no `bundle:` join adds.
-  Set<String> get summaryOnly =>
-      summaryPaths.difference(docPaths).difference(joinedPaths);
+  /// whole and no `bundle:` or `bundle_with` join adds.
+  Set<String> get summaryOnly => summaryPaths
+      .difference(docPaths)
+      .difference(joinedPaths)
+      .difference(linkedDocs.keys.toSet());
 
   /// The docs a design bundle may print feature pattern parts after, by
   /// DocPath: the chain of each target, or with `--code` every doc it holds.
@@ -129,12 +191,7 @@ final class Bundle {
   /// [marksSpecs] fills [ancestorSpecPaths] and [targetSubtreePaths] in a
   /// `design` bundle; only a doc target asks for it.
   void addTarget(DocIndex index, IndexedDoc target, {bool marksSpecs = false}) {
-    final typeId = target.docTypeId;
-    final parent = index.parentOf(target);
-    final effective =
-        typeId != null && !index.isChainType(typeId) && parent != null
-        ? parent
-        : target;
+    final effective = _effectiveOf(index, target);
     final top = _topDocOf(index, effective);
     switch (mode) {
       case BundleMode.query:
@@ -146,6 +203,31 @@ final class Bundle {
       case BundleMode.implement:
         _addImplement(index, effective, top);
     }
+  }
+
+  /// Adds [target] as [addTarget] does with specs marked, and returns what
+  /// that target alone picks.
+  TargetPicks pickTarget(DocIndex index, IndexedDoc target) {
+    final own = Bundle(mode, summary: summary, codeTarget: codeTarget)
+      ..addTarget(index, target, marksSpecs: true);
+    docPaths.addAll(own.docPaths);
+    summaryPaths.addAll(own.summaryPaths);
+    ancestorSpecPaths.addAll(own.ancestorSpecPaths);
+    targetSubtreePaths.addAll(own.targetSubtreePaths);
+    patternListerPaths.addAll(own.patternListerPaths);
+    mapTops.addAll(own.mapTops);
+    nameListTops.addAll(own.nameListTops);
+    final effective = _effectiveOf(index, target);
+    final top = _topDocOf(index, effective);
+    return TargetPicks(
+      topPath: mode == BundleMode.design
+          ? _designTopOf(index, effective, top).docPath
+          : top.docPath,
+      wholePaths: own.docPaths,
+      summaryPaths: own.summaryPaths,
+      subtreePaths: own.targetSubtreePaths,
+      targetPath: target.docPath,
+    );
   }
 
   /// Records [doc], a doc the call names, as a target that prints whole.
@@ -300,6 +382,14 @@ final class Bundle {
         top;
   }
 
+  IndexedDoc _effectiveOf(DocIndex index, IndexedDoc target) {
+    final typeId = target.docTypeId;
+    final parent = index.parentOf(target);
+    return typeId != null && !index.isChainType(typeId) && parent != null
+        ? parent
+        : target;
+  }
+
   IndexedDoc _topDocOf(DocIndex index, IndexedDoc target) {
     var top = target;
     for (
@@ -385,13 +475,14 @@ Bundle pickBundle(
     }
   }
   final bundle = Bundle(mode, summary: summary, codeTarget: codeTarget);
+  final picks = <TargetPicks>[];
   for (final doc in picked) {
-    bundle
-      ..addTarget(index, doc, marksSpecs: true)
-      ..nameTarget(doc);
+    picks.add(bundle.pickTarget(index, doc));
+    bundle.nameTarget(doc);
     if (doc.docTypeId case final typeId?) bundle.targetTypeIds.add(typeId);
   }
   bundle.join(index, noProject: noProject);
+  joinLinkedDocs(index, bundle, picks);
   return bundle;
 }
 
