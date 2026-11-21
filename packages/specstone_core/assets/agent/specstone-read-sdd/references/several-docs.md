@@ -1,7 +1,7 @@
 # Ground several docs
 
-Read this before your first CLI call when `design` or `query` work reaches more than one doc, or when you must pick
-the doc that holds a design change. A plan task names its docs and skips this file.
+Read this before your first CLI call when work other than a plan task reaches more than one doc, or when you must
+pick the doc that holds a design change. A plan task names its docs and skips this file.
 
 ## Pick the targets
 

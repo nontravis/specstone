@@ -35,8 +35,8 @@ type's writing guide says it needs; a gap goes to the Owner.
    Owner gave. The CLI opens none. Never edit, move, or delete the
    source.
 4. **The narrow call.** A source that adds a feature has the project doc as its target: the gate's bundle is the
-   grounding, and no second narrow call runs. Otherwise target the doc the source decides, by the target rule of
-   `ground.md`.
+   grounding, and no second narrow call runs. Otherwise the narrow call is one call, its target the doc the source
+   decides by the list under "Pick the targets" in `ground.md`, with no `structure` call and no second call.
    `--no-project` leaves out the project's docs, which the gate's bundle already holds:
 
    ```

@@ -5,10 +5,11 @@ agent's `report:` file; never edit the design document. Ask the Owner nothing.
 ## 1. Read
 
 1. **Inputs**: the design document's path, `amend: <N>[,<N> ...]`, `since: <snapshot path>`, and `bundles`, each
-   with its read plan line, when given. With no design document, make the missing-input stop: its `OPEN QUESTIONS:` line names the design document.
-   Make it, its line naming `since`, for a `since:` path that does not exist, a snapshot equal to the design
-   document, or differences that keep no decision (a fix outside every decision and Docs to change row); and, its
-   line naming `since` and `amend`, for both in one dispatch: a delta check takes no `amend`.
+   with its read plan line, when given. With no design document, make the missing-input stop: its `OPEN QUESTIONS:`
+   line names the design document. Make it, its line naming `since`, for a `since:` path that does not exist, a
+   snapshot equal to the design document, or differences that keep no decision (a fix outside every decision and
+   Docs to change row); and, its line naming `since` and `amend`, for both in one dispatch: a delta check takes no
+   `amend`.
 2. **Design document**: read it whole; list each decision by its ID or label. With `amend`, keep only the decisions
    whose heading lists a named `Amend <N>`: `amend: 4` keeps a decision headed `(Amend 2, Amend 4)` and a stub
    headed `(Amend 2, Amend 4, removed)`; `amend: 3,4` keeps `(Amend 3)` and `(Amend 2, Amend 4)`. Read the stub as an

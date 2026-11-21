@@ -84,8 +84,8 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
    - **Any other non-zero**, such as `doc_not_found`: each target the refusal names gets a `NOT PLANNED` row and its
      CLI error under `Findings:`. Run the one call once again without those targets, then ground and plan the rest.
-     When that second call refuses too, or a refusal names no target, stop the round: each target it names, else
-     every target, gets the same row, no target is planned, and no further call runs.
+     When that second call refuses too, or a refusal names no target, stop the round: each target it names gets the
+     same row, every other target gets `NOT PLANNED: CLI error`, no target is planned, and no further call runs.
 3. **Check**: run `specstone folder` once, then `specstone check --out "<folder>/reports/check.plan.<XXXXXX>.txt"`,
    `<folder>` the path `specstone folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file
    exists. Read its exit status, and search that file with `Grep` for `approval_stale` lines alone. Exit 0 or 1 is a

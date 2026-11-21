@@ -49,11 +49,13 @@ word, each cited by doc and section.
    specstone context <target> [<target> …] --for <mode> [--summary] [--target <name>] --out
    ```
 
-   Add `--summary` only on the call of a target the dispatch marks with it, which takes a call of its own. Add `--target <name>` in `implement` mode: the hand-off's `--target`, on each call; none
-   in `query` or `design` mode, or when the hand-off passes none. Keep `--out` bare and last, and pass no `--budget`.
+   Add `--summary` only on the call of a target the dispatch marks with it, which takes a call of its own. Add
+   `--target <name>` in `implement` mode: the hand-off's `--target`, on each call; none in `query` or `design` mode,
+   or when the hand-off passes none. Keep `--out` bare and last, and pass no `--budget`.
 3. **Exit status**:
    - **0**: stdout is the index; each `==> bundle: … · <path> <==` header names a saved file, the read-first
-     one followed by its read plan line. Read those files as step 1 does. A subfolder works: the CLI looks upward for the project.
+     one followed by its read plan line. Read those files as step 1 does. A subfolder works: the CLI looks upward
+     for the project.
    - **78 with `project_not_found`**: reply that the project is still on the old format, and that
      `specstone migrate` moves it or the old skills still serve it. Then stop: run nothing else, read no doc.
    - **Any other non-zero**: reply with the CLI's error and its target, then stop.

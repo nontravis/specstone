@@ -10,6 +10,7 @@ Target the smallest doc that holds the whole change:
 - **One story:** the story, for a change inside it.
 - **Across stories:** the feature.
 - **A new feature:** the project doc.
+- **A new story:** the feature with `--summary`.
 - **Several docs:** each doc the change reaches, all named in one call; each further target adds no call:
 
   ```
@@ -25,7 +26,8 @@ call, the gate:
 specstone structure <doc> …
 ```
 
-Its exits are step 1's. Pick from its map each doc the change reaches, then name them all in one `context` call.
+On 78 or another non-zero exit, act as step 1 gives; on 0, pick from its map each doc the change reaches, then name
+them all in one `context` call.
 
 ## A story added
 

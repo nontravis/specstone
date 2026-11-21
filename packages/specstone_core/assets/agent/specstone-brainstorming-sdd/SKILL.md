@@ -11,8 +11,8 @@ the `specstone-update-sdd` skill instead.
 ## 1. Ground: the first call
 
 Pick the targets by `references/ground.md`, which also holds the `structure` map and a story added. Then make the
-gate your first CLI call, before any other command or file read: that file's `structure` call, else this one. Keep
-`--out` bare and last, and pass no `--budget` on any host and no `--target`.
+gate your first CLI call, before any doc or code read: that file's `structure` call, else this one. Keep `--out`
+bare and last, and pass no `--budget` on any host and no `--target`.
 
 ```
 specstone context <target> [<target> …] --for design --out

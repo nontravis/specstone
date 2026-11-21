@@ -10,11 +10,11 @@ the docs folder, and never work from text a plan or brief quotes.
 
 ## Pick the targets and mode
 
-- **Targets:** the docs the task names, all in one call. A plan task names each doc it builds: name each story it
-  cites or whose FR it cites, and each NFR or spec doc it cites, in one
-  `specstone context <story> <story> <doc> --for implement --out`; a story's `implement` bundle holds its FRs. Never
-  target the feature: its `implement` bundle lists only its stories' names. For other work over several docs, or a
-  `design` change whose doc you must pick, follow `references/several-docs.md` first.
+- **Targets:** the docs the task names: in `implement` and `design`, all in one call; in `query`, one call per doc. A
+  plan task names each doc it builds: name each story it cites or whose FR it cites, and each NFR or spec doc it
+  cites, in one `specstone context <story> <story> <doc> --for implement --out`; a story's `implement` bundle holds
+  its FRs. Never target the feature: its `implement` bundle lists only its stories' names. For other work over
+  several docs, or a `design` change whose doc you must pick, follow `references/several-docs.md` first.
 - **Code target:** the `--target` is a plan task's read line's, as written; none in `query` or `design`. In
   `implement` with no plan target and no `--code` path, an `argument_missing` refusal names the targets: a main
   session asks the Owner and reruns with `--target <name>`; a Subagent runs no further call and reports the missing
@@ -29,8 +29,8 @@ the docs folder, and never work from text a plan or brief quotes.
 
 ## Ground in one call
 
-Make this your first CLI call, unless `references/several-docs.md` puts `structure` first, before any other command
-or file read, with `--out` bare and last and no `--budget`:
+Make this your first CLI call, unless `references/several-docs.md` puts `structure` first, before any doc or code
+read, with `--out` bare and last and no `--budget`:
 
 ```
 specstone context <target> [<target> …] --for <mode> --out
