@@ -1,5 +1,5 @@
 name: software-tech
-version: 1.15.0
+version: 1.16.0
 extends: prd-core
 migrations:
   - from: 1.4.0

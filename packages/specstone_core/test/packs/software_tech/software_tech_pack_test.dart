@@ -137,7 +137,7 @@ const _itemShapeLines = <String, String>{
 
 void main() {
   group('software-tech manifest', () {
-    test('software-tech ships at 1.15.0 and extends prd-core', () {
+    test('software-tech ships at 1.16.0 and extends prd-core', () {
       final bytes = shippedPackFiles['software-tech/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -145,7 +145,7 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.15.0');
+      expect(manifest.version.toString(), '1.16.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 
@@ -221,7 +221,10 @@ void main() {
       expect(mark.sections, ['invariants', 'value_objects']);
 
       final project = await writeTree({
-        '.specstone/config.yaml': shippedPinsOneMinorBelow('software-tech'),
+        '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
+          'software-tech: ${shippedPackVersions()['software-tech']}',
+          'software-tech: ${migrations.last.from}',
+        ),
         'docs/specs/DOMAIN.md':
             '# Project domain\n\n## Invariants\n\n'
             '- **INV-1** An email is unique.\n\n## Value objects\n\n'
@@ -258,7 +261,7 @@ void main() {
       );
       final shipped = manifest.version;
       final below = PackVersion.parse(
-        '${shipped.major}.${shipped.minor - 1}.0',
+        '1.14.0',
         file: 'test',
         key: 'software-tech',
       );

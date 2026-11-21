@@ -1995,7 +1995,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ZS9zeXN0ZW1zLWVuZ2luZWVyaW5nLWhhbmRib29rLwogICAgbG9jYXRvcjogQXBw'
       'ZW5kaXggQyBhbmQgc2VjdGlvbiA0LjIK',
   'prd-core/pack.yaml':
-      'bmFtZTogcHJkLWNvcmUKdmVyc2lvbjogMS4yMS4wCm1pZ3JhdGlvbnM6CiAgLSBm'
+      'bmFtZTogcHJkLWNvcmUKdmVyc2lvbjogMS4yMi4wCm1pZ3JhdGlvbnM6CiAgLSBm'
       'cm9tOiAxLjcuMAogICAgc3RlcHM6CiAgICAgIC0gc3RyaXBfc2hhcmVkX2NvcGll'
       'czoge30KICAtIGZyb206IDEuMTkuMAogICAgc3RlcHM6CiAgICAgIC0gbWFya19y'
       'ZXRyaW06CiAgICAgICAgICBkb2NfdHlwZXM6IFtmcl0KICAgICAgICAgIHNlY3Rp'
@@ -3508,7 +3508,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'cGVjLm1kCiAgICBsb2NhdG9yOiBSRVFVSVJFRCBBdHRyaWJ1dGVzIChpZCwgc291'
       'cmNlLCB0eXBlKQo=',
   'software-tech/pack.yaml':
-      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjE1LjAKZXh0ZW5kczogcHJk'
+      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjE2LjAKZXh0ZW5kczogcHJk'
       'LWNvcmUKbWlncmF0aW9uczoKICAtIGZyb206IDEuNC4wCiAgICBzdGVwczoKICAg'
       'ICAgLSBtb3ZlX3RvX3JlY29yZDoKICAgICAgICAgIGRvY190eXBlczogW3VzZXJf'
       'c3RvcnksIGZyXQogICAgICAgICAgZmllbGRzOiBbc3RhdHVzLCBpbXBsZW1lbnRz'
