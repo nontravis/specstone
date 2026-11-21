@@ -17,11 +17,10 @@ decision; any other only words or records one.
 - **Chain**: an untagged line takes no check. Fixed `[behavior]` lines of a first or amend check take one delta
   check, `since:` its snapshot, no `amend`. A scope: the first check, or one amend's check (shared amends as one),
   plus at most one delta check.
-- **Who decides**: you decide a `[behavior]` line only when its answer stays inside Intent, Rulings, and the picked
-  approach; else the Owner. Either answer to a first or amend check's line opens no scope: its fix takes the delta
-  check.
-- **Delta check**: its `[behavior]` lines are the Owner's, listed with the ask or before the amend's author pass, no
-  further check. An answer adding behavior takes a numbered amend and its `amend: <N>` check, a new scope; else
+- **Who decides**: a first or amend check's `[behavior]` line is yours only when its answer stays inside Intent,
+  Rulings, and the picked approach, else the Owner's; either answer opens no scope, its fix taking the delta check.
+  A delta check's `[behavior]` lines are the Owner's, listed with the ask or before the amend's author pass, no
+  further check; an answer adding behavior takes a numbered amend and its `amend: <N>` check, a new scope, else
   Rulings.
 - **Then**: after an append, or an amend and its check, ask for approval again. Open questions: append each wording
   answer, send the rest to one amend and its check, then ask.
@@ -69,5 +68,5 @@ Items 1 to 3 run before each audit after the first; item 4 sends every audit.
 4. Send each audit as a fresh `specstone-sdd-auditor`, never resumed, with the document's path and `check:` the last
    author pass's `Check:` file, only with no doc write since it and no split since the last audit. Targets: changed
    drafts, docs the round or pass added, unchanged drafts citing a changed one; never an unchanged draft citing none
-   (its finding stands) or a listed doc that is no draft (approved between rounds, or never written).
+   (its finding stands) or a listed doc that is no draft.
 5. In the round note to the Owner, name each doc approved between rounds and each name item 2 renamed or dropped.

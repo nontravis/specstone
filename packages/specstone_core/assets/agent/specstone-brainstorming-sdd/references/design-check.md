@@ -1,6 +1,6 @@
-`specstone-sdd-auditor` runs this with `stage: design`, its gate made, the first line of `audit.md` routing it; so
-does the runner of `specstone-brainstorming-sdd` with no subagent or after a failed dispatch. Write nothing but the
-agent's `report:` file; never edit the design document. Ask the Owner nothing.
+`specstone-sdd-auditor` runs this with `stage: design`, its gate made; so does the runner of
+`specstone-brainstorming-sdd` with no subagent or after a failed dispatch. Write nothing but the agent's `report:`
+file; never edit the design document; ask the Owner nothing.
 
 ## 1. Read
 
@@ -65,7 +65,7 @@ Findings:
 ```
 
 - `Swept:` one line per kept decision, its own terms; counts and hit list per steps 3.7 and 3.5 of `sweep.md`. The
-  hit list goes under it in the report file only; each `gap` line is also a `Findings:` line, a `held` line none.
+  hit list goes under it in the report file only.
 - `Held:` the `held` lines over every hit list. `Lenses:` each lens label, in list order.
 - `Findings:` one line per gap and sibling, or `none`; a gap in a doc names it `<type>:<name>#<key>`. End a line
   with `[behavior]` when its answer adds a state, input, output, edge case, error, or reader of a rule, or removes a

@@ -1,6 +1,4 @@
-Before each design check, `specstone-sdd-sweeper` runs sections 1 to 3, then 5; the check of `design-check.md` runs
-1 to 3 before any lens. Both run section 1 when given `since`, section 2 once, and section 3 per decision step 1.2 of
-`design-check.md` kept, in list order. Write nothing but the agent's `report:` file.
+Write nothing but the agent's `report:` file.
 
 ## 1. Keep since a snapshot
 

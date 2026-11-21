@@ -1,7 +1,7 @@
 # Traced and cited links
 
-Rule 4 and rule 7 of `specstone-expert-sdd`. Save each `check` here to its own file: `<role>` your caller's role,
-`<folder>` and `XXXXXX` the project gate's.
+Rule 4 and rule 7 of `specstone-expert-sdd`. Save each `check` here to its own file, searched, never read whole:
+`<role>` your caller's role, `<folder>` and `XXXXXX` the project gate's.
 
 ## Traced links (rule 4)
 

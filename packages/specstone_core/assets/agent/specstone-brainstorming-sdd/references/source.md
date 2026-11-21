@@ -1,16 +1,17 @@
 A source is a spec or design another tool wrote: a file, a link or issue the Owner gave, or the current conversation.
 
-Match a source item by its content shape alone, never by the tool that wrote it; a gap goes to the Owner.
+Match a source item by its content shape alone, never by the tool that wrote it; each lands as its type's
+`specstone guide <type>` says; a gap goes to the Owner.
 
 | Content shape | Lands in |
 |---|---|
-| numbered "As a … I want … so that …" lines | a story's Use Case (`specstone guide user_story`) |
-| Given/When/Then or WHEN/THEN lines | a story's Acceptance Criteria scenarios (`specstone guide user_story`) |
-| `FR-###` lines, or lines with "shall", "SHALL", or "MUST" | an FR's Statement (`specstone guide fr`) |
-| success criteria, `SC-###` | the feature's Success measures (`specstone guide feature`) |
-| a Problem Statement | the feature's Problem (`specstone guide feature`) |
-| an Out of Scope list | the feature's Out-of-scope lines (`specstone guide feature`) |
-| implementation and testing decisions | the feature's spec docs, and an FR's Verification (`specstone guide fr`) |
+| numbered "As a … I want … so that …" lines | a story's Use Case |
+| Given/When/Then or WHEN/THEN lines | a story's Acceptance Criteria scenarios |
+| `FR-###` lines, or lines with "shall", "SHALL", or "MUST" | an FR's Statement |
+| success criteria, `SC-###` | the feature's Success measures |
+| a Problem Statement | the feature's Problem |
+| an Out of Scope list | the feature's Out-of-scope lines |
+| implementation and testing decisions | the feature's spec docs, and an FR's Verification |
 | ticket lists, task lists, plans | not taken: task management is out of scope |
 
 ## Take in the source
@@ -36,7 +37,7 @@ Match a source item by its content shape alone, never by the tool that wrote it;
    ```
 
    On 0, both saved bundles ground the change, whatever their size: read each read-first file whole by its read
-   plan, and search both before any `get`.
+   plan, and search both before any `get`. Any other exit, here or in item 2: report the CLI's error and stop.
 5. **Match and ask**: match each item by the shapes above. Ask the Owner only what the source leaves open, one
    question at a time; invent nothing.
 6. **The copy**: after every `context` call, for a link, an issue, or the conversation, write its text, or the

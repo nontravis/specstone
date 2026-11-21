@@ -1,7 +1,7 @@
 # Run a bootstrap round that trims
 
 Main's steps for a `specstone-bootstrap-prd` or `specstone-bootstrap-spec` round with a trim batch, a `retrim_due`
-finding, an FR trimmed past a cap, or a handed line; the pointing skill says when each step runs.
+finding, an FR trimmed past a cap, or a handed line.
 
 ## Audit the round
 

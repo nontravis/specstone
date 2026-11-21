@@ -21,8 +21,8 @@ Ask the Owner nothing; list gaps in the report.
 - New doc: pipe it to `specstone new <type>` (`--parent`, `--slug`), parents first.
 - A removed decision's stub row: follow `removal.md` section 2.
 - Make one name list from this pass's rows only, step 1's names too (after an amend, its `Amend <N> rows`; a landed
-  table gives none). `<key> (<items>)`, `<key> whole`, a bare `<key>`, or a finding's key with an item or note: the
-  key; `#input--output` as `input_output`; `whole` or a new doc: its bare name; a finding naming a doc but no key:
+  table gives none). A row's or finding's key, bare or with items, `whole`, or a note: the key;
+  `#input--output` as `input_output`; `whole` or a new doc: its bare name; a finding naming a doc but no key:
   its bare name, the gap under `Findings:`; a key the doc lacks: its naming line, the section written under it.
 - Run `specstone get <list> --out "<file>"`, `<file>` `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`.
   `section_not_found`: rerun with its doc's bare name, the key under `Findings:`. `doc_not_found`: rerun without it,

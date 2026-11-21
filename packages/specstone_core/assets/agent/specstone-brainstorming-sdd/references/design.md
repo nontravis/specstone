@@ -13,9 +13,8 @@ Write from the Owner's approved answers and the saved bundle files; for a change
 - Run no `get`, `search`, or `refs` for a doc. Open each code path and symbol the answers or saved files name.
 - Cite each story, FR, and section as `<type>:<name>#<section>`, never by file path or line.
 - Before any write, judge the design path by the saved files' `==> ` headers. Inside the CheckedFolders (a header
-  doc path's first folder right under the docs folder: `prds/`, `specs/`, `measurements/` with the shipped packs; a
-  deeper folder of that name is outside), or a PRD or spec doc: write nothing; the path is an open question. Any
-  other path: write it; read an existing one whole.
+  doc path's first folder right under the docs folder, never a deeper one), or a PRD or spec doc: write nothing; the
+  path is an open question. Any other path: write it; read an existing one whole.
 
 ## 3. Write the document
 
@@ -53,7 +52,7 @@ Sections, in order:
   as an open question; a design holding one goes to no author.
 - Leave a code-level point (a class name) to the builder: no decision, no open question.
 - On an amend, edit every place still stating text a ruling supersedes.
-- Number amends `Amend 1`, `Amend 2`, ...; any edit of a decision an author pass read opens a new one, however small; any other fix opens none.
+- Number amends `Amend 1`, `Amend 2`, ...; any edit of a decision an author pass read opens a new one; any other fix opens none.
 - Each decision an amend adds, changes, or removes lists it in its heading, earlier ones kept: `(Amend 2, Amend 4)`.
 - Write by the host's file write; write no other file but the snapshot (`rounds.md` section 1), and no PRD or spec
   doc.

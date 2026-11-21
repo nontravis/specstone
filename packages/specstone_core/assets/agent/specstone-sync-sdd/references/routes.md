@@ -1,6 +1,4 @@
-**Routes of a sync** (SKILL.md step 2).
-
-- Each group takes one route, in 3 steps: feature engineers at once, your small groups beside them, then the last route.
+**Routes of a sync** (SKILL.md step 2): one per group.
 
 | Group | Route |
 |---|---|

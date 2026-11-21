@@ -5,7 +5,7 @@
 
 ## 1. Candidates
 
-- Candidates: the task id of each `task_ref` field entry (`<item>:<task>`, or `<task>` for a whole doc) in the docs of the link's step 3 `context --code` bundle, a `root: project` entry's included.
+- The task id of each `task_ref` field entry (`<item>:<task>`, or `<task>` for a whole doc) in the docs of the link's step 3 `context --code` bundle, a `root: project` entry's included.
 - Read no other doc.
 
 ## 2. Messages

@@ -39,7 +39,7 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 - Work no procedure step while a dispatch can run, but a small group.
 - Name each report path as the gate names its file.
 - Rerun any `specstone` command that ends `index_busy`.
-- No subagent: follow `references/procedure.md` per group in route order; after a failed dispatch, for that group alone.
+- No subagent: follow the `specstone-expert-sdd` skill, then `references/procedure.md` per group in route order; after a failed dispatch, both for that group alone.
 
 ## 3. After the report
 
@@ -50,7 +50,7 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 2. Follow `specstone-expert-sdd`'s "Get the drafts approved", with `--no-audit`.
 3. Ask the Owner per `Mismatches:` point: fix the code (writes nothing) or the spec.
    - Ask per `Uncovered:` file: write a spec, or change or remove the code (writes nothing); write-a-spec routes as fix-the-spec.
-   - A spec fix: a new `specstone-sdd-engineer` per group with picks, routed as its group: `mode: sync`, `picks`, the group's `scope:` (`scope: uncovered` for `Uncovered:`); `feature:` only if the Owner named it.
+   - A spec fix: a new `specstone-sdd-engineer` per group with picks, routed as its group: `mode: sync`, `picks`, the group's `scope:`; `feature:` only if the Owner named it.
 4. Once a waiting pointer's draft is approved, write that one entry, each `set` with the report's `--target <name>` when two or more:
    - Pipe the corrected list to `specstone set implementation:<feature> --field implements --base <hash>` or `specstone set <type>:<name> --field covers --base <hash>`.
    - Stamp a waiting match with the finding's fingerprint, no base; a waiting helper's from a `check` after its write.

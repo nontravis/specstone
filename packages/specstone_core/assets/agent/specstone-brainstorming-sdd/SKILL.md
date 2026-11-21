@@ -20,7 +20,7 @@ Target the smallest doc that holds the whole change:
   doc.
 
 Make the gate your first CLI call, before any doc or code read: the `structure` call, else `context`. On every
-grounding call keep `--out` bare and last; pass no `--budget` on any host and no `--target`.
+grounding call keep `--out` bare and last, with no `--budget` or `--target`.
 
 ```
 specstone context <target> [<target> …] --for design --out
@@ -34,15 +34,16 @@ specstone context <target> [<target> …] --for design --out
 - **Any other exit:** report the CLI's error and stop.
 
 From a source (another tool's spec or design), the first call is `specstone context project --for design --out`;
-open the source only after it exits 0, then follow `## Take in the source` in `references/source.md`.
+read or open the source, a link or issue too, only after it exits 0, then follow `## Take in the source` in
+`references/source.md`.
 
 Adding a story or feature: after the call, run `specstone guide feature`, answer its placement questions, and show
 the Owner each answer; go on only after their yes.
 
 ## 2. Reach an approved design document
 
-The brainstorm skill is the one in your skill list whose description, never its name, says it turns a change into a
-design through dialogue with the user. No Specstone skill qualifies. Of two that qualify, take the one the project's
+The brainstorm skill is the listed skill whose description, never its name, says it turns a change into a design
+through dialogue. No Specstone skill qualifies. Of two that qualify, take the one the project's
 instruction file (`CLAUDE.md`, `AGENTS.md`) names, else the first listed.
 
 The design proposes each new or reshaped feature's `patterns:` value from `specstone guide --pattern`.
@@ -77,7 +78,7 @@ relay block word for word, before your notes. Before a dispatch, write no brief 
 target. A claim the saved files do not ground is an open question.
 
 1. After approval, dispatch `specstone-sdd-engineer`, `mode: author`, with only the document's path.
-2. Run the author's `Move:` commands, if any, then the amend compare of `references/rounds.md` section 2. Dispatch a
+2. Run the author's `Move:` commands, then the amend compare of `references/rounds.md` section 2. Dispatch a
    fresh `specstone-sdd-auditor` with the document's path, the drafts list as targets, and `check:` per
    `references/rounds.md` section 3; never skip it on a clean coverage table.
 3. Run the fix round on its `Findings:` lines per `references/rounds.md`.
@@ -91,5 +92,5 @@ document's path.
 
 ## Without a dispatch
 
-Run the mode's procedure yourself: `references/author.md`, `references/audit.md`, or, for the design check,
-`references/design-check.md`.
+Follow the `specstone-expert-sdd` skill, then run the mode's procedure yourself: `references/author.md`,
+`references/audit.md`, or, for the design check, `references/design-check.md`.

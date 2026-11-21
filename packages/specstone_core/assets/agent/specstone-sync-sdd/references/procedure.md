@@ -12,7 +12,7 @@
 
 - A finding's `path` is from its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`, default `.`); from the project root, `--code` and git pathspecs take `<code root>/<path>`.
 - A `root: project` entry's path (field `root` in `specstone guide <type> --json`, once per type) is from the project root, unprefixed.
-- Per listed code path but `tests_unresolved` lines and matrix rows (steps 4.4, 4.5), run `specstone context --code <code root>/<path> --for implement --out`; a `root: project` entry's: `--code <path>`, its own target, no `--target`; its bundle holds the doc naming it.
+- Per listed code path but `tests_unresolved` lines and matrix rows (steps 4.4, 4.5), run `specstone context --code <code root>/<path> --for implement --out`; a `root: project` entry's: `--code <path>`, its own target, no `--target`.
 - Read parts of read-first and refs files per `specstone-read-sdd`.
 - **Warning `no doc covers or implements <path>`:** a rename pair's new side: step 4.3; else `helpers.md` first.
 - Left by `helpers.md`: read, write nothing; report under `Uncovered:` its path, its observable behavior no spec states, and whether it needs a new story or FR.
@@ -31,7 +31,8 @@
    - **Match:** code does what approved text states, or a `planned` entry's code lacks its behavior yet (ask nothing; stays `planned`).
    - Text ahead of code, but a `planned` entry's: no match, no stamp; list it as waiting for its implementer.
    - Stamp a match: `set <doc> --stamp <entry>=<fingerprint>` (the finding's, no `get`; `<entry>` as held, `<item>:<path>[:<Symbol>]`), then `--field` pointer fixes.
-   - `planned` entry: `implemented` in `statuses`; never `skipped` or `deprecated`; then follow `task-refs.md`.
+   - `planned` entry: `implemented` in `statuses`; never `skipped` or `deprecated`.
+   - After each stamp or `implemented` write, follow `task-refs.md`.
    - **`stamp_stale`:** rejudge the current code, fresh `check` fingerprint; stamp a match, else report a mismatch.
    - **`stamp_entry_unknown`:** re-read the entry; stamp once more.
    - **`stamp_entry_unresolved`:** `file_unreadable`: report unread code; else step 4.3.
@@ -42,7 +43,7 @@
    - Moved: repoint each record entry to the rename's new side, from its target's code root, by `git log -1 -M --diff-filter=R --name-status --format= -- <old path>` (uncommitted: `git diff -M --name-status HEAD`); no fingerprint.
    - Deleted: drop the entry, or point it at the code doing that work.
    - `root: project` entry: fingerprint only, never moved; only report its `covers_path_missing`, as `<doc>: covers path missing: <path>`; its loop ends.
-   - `covers_entry_empty` (no code-pointer finding): write nothing; only report `<doc>: covers entry empty: <entry>`; its loop ends; the Owner fixes it by `set`.
+   - `covers_entry_empty` (no code-pointer finding): write nothing; only report `<doc>: covers entry empty: <entry>`; its loop ends.
 4. `tests_unresolved`: repoint by `specstone set implementation:<feature> --field tests --target <name> --base <hash>` to step 4.3's moved file or the test's current name; an unplaceable one stays waiting.
    - Write no `tests` line for a test a change adds or moves.
 5. Matrix-row finding: follow `matrix-rows.md`.

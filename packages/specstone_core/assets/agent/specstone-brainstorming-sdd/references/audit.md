@@ -1,12 +1,11 @@
-With `stage: design`, follow `design-check.md` instead. `specstone-sdd-auditor` runs this with no `stage` or
-`stage: drafts`, its gate made; so does the runner of `specstone-brainstorming-sdd`. Write only the agent's `report:`
-file, no fix. Ask the Owner nothing.
+`specstone-sdd-auditor` or the runner of `specstone-brainstorming-sdd`, its gate made, runs this; with
+`stage: design`, `design-check.md` instead. Write only the agent's `report:` file, no fix; ask the Owner nothing.
 
 ## 1. Read
 
 1. **Targets**: the dispatch's `targets`, each read whole and audited again.
 2. **Hashes**: run one `specstone approve <targets> --dry-run --json`, no `--target`: it gives each draft's `hash` and
-   changed units. Only a target it does not list, which is no draft, takes `specstone get <target> --json`. On
+   changed units. Only a target it does not list, no draft, takes `specstone get <target> --json`. On
    `doc_not_found`, drop each name it names, listed under `Outside the drafts:` with no `Audited:` line; any other
    refusal is a finding and drops its names too. Rerun on the rest; with no target left, skip the steps below.
 3. **Bundles**: run one `specstone context <doc> --for design --out` on the smallest doc holding every target in one

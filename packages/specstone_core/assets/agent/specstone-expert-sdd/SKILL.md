@@ -19,8 +19,8 @@ Never look for `.specstone/`.
 
 ## Rules
 
-1. **Docs lead.** Keep output ⊆ spec ⊆ PRD over the Observable contract; a spec states only what its PRD asks.
-   - Code adding or changing observable behavior no spec states gets a spec draft first.
+1. **Docs lead.** Keep output ⊆ spec ⊆ PRD over the Observable contract, what users, callers, or other features see;
+   a spec states only what its PRD asks; code adding or changing such behavior no spec states gets a spec draft first.
 2. **Write through the CLI.** Create with `specstone new`, change with `specstone set`; never edit a doc file with a
    file tool or shell.
    - Take bases from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`,
@@ -63,7 +63,7 @@ Only the main session runs `--auto`; a subagent runs `approve` only with `--dry-
 3. List each `approved` entry's `name`, `docPath`, and `Why:`, with no wait; for a reconfirmation, the upstream change.
 4. Send each `asked` entry to Owner confirmation unchanged.
 
-Under either mode the Owner answers the design approval, mid-flow and report questions, split proposals, sync picks,
+The Owner always answers the design approval, mid-flow and report questions, split proposals, sync picks,
 each `--plan`.
 
 ## Owner confirmation
@@ -77,7 +77,7 @@ in chat:
    - `delete`, `migrate`, or `init`: the list or plan and `plan <hash>` line of `specstone delete <path> … --dry-run`
      or `specstone migrate --dry-run`, and why each goes.
 2. Fix what the Owner names by `specstone set` and show it again, until `ok`.
-3. After `ok` on all, or the Owner's leave, run one command with the shown hashes, each draft named:
+3. After `ok` on all, or the Owner's leave, run one command with the shown hashes:
    `specstone approve <type>:<name>@<hash> … --yes`, or `delete`, `migrate`, or `init` with `--yes --plan <hash>`;
    exit 75: show it again.
 4. Write each `@<hash>`, path, and `--plan <hash>` literally, never from a file, variable, or command substitution.
