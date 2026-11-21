@@ -93,7 +93,7 @@ List<FeaturePatternPart> _partsOf(
   String target, {
   BundleMode mode = BundleMode.design,
 }) {
-  final bundle = pickBundle(index, target, mode, noProject: false);
+  final bundle = pickBundle(index, [target], mode, noProject: false);
   return featurePatternParts(index, bundle, bundle.printOrder(index));
 }
 

@@ -18,7 +18,7 @@ void main() {
     String bundleText(DocIndex index, String target, BundleMode mode) =>
         answerContext(
           index,
-          pickBundle(index, target, mode, noProject: false),
+          pickBundle(index, [target], mode, noProject: false),
           label: target,
           byCode: false,
         ).text;

@@ -109,7 +109,7 @@ void main() {
       index,
       pickBundle(
         index,
-        'login/email_login/validate_credentials',
+        ['login/email_login/validate_credentials'],
         mode,
         noProject: noProject,
       ),
@@ -128,7 +128,7 @@ void main() {
     });
     return followLinks(
       index,
-      pickBundle(index, target, mode, noProject: false),
+      pickBundle(index, [target], mode, noProject: false),
     );
   }
 
@@ -309,7 +309,7 @@ void main() {
       final index = await indexFor(statement);
       return followLinks(
         index,
-        pickBundle(index, frName, BundleMode.design, noProject: false),
+        pickBundle(index, [frName], BundleMode.design, noProject: false),
         citedBy: citedByIndex(index),
       );
     }
@@ -343,7 +343,7 @@ void main() {
       );
       final parts = followLinks(
         index,
-        pickBundle(index, frName, BundleMode.design, noProject: false),
+        pickBundle(index, [frName], BundleMode.design, noProject: false),
         citedBy: citedByIndex(index),
       );
 
@@ -517,7 +517,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login/validate_credentials',
+          ['login/email_login/validate_credentials'],
           BundleMode.query,
           noProject: false,
         ),
@@ -538,7 +538,7 @@ void main() {
     addTearDown(session.close);
     final bundle = pickBundle(
       session.index,
-      'login/email_login/validate_credentials',
+      ['login/email_login/validate_credentials'],
       BundleMode.implement,
       noProject: false,
     );
@@ -583,7 +583,7 @@ void main() {
         session.index,
         pickBundle(
           session.index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.implement,
           noProject: false,
           codeTarget: 'jaspr',
@@ -632,7 +632,7 @@ void main() {
         session.index,
         pickBundle(
           session.index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.design,
           noProject: false,
         ),
@@ -675,7 +675,7 @@ void main() {
       session.index,
       pickBundle(
         session.index,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: false,
         codeTarget: 'flutter',
@@ -763,7 +763,7 @@ void main() {
         final index = await indexWith(linkedFromProject);
         Set<String> typesOf(String target) => pickBundle(
           index,
-          target,
+          [target],
           BundleMode.implement,
           noProject: false,
         ).targetTypeIds;

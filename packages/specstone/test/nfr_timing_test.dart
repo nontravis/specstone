@@ -183,7 +183,7 @@ void main() {
       session.index,
       pickBundle(
         session.index,
-        'feature_1/story_1',
+        ['feature_1/story_1'],
         BundleMode.implement,
         noProject: false,
       ),

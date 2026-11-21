@@ -184,7 +184,7 @@ void main() {
     test('a target and its mode', () {
       expect(
         bundleFileName(
-          target: 'index_query/get_task_bundle',
+          targets: ['index_query/get_task_bundle'],
           mode: BundleMode.design,
           summary: false,
           noProject: false,
@@ -215,7 +215,7 @@ void main() {
     test('--target adds its name before .txt', () {
       expect(
         bundleFileName(
-          target: 'feedback/toast/show_toast',
+          targets: ['feedback/toast/show_toast'],
           mode: BundleMode.implement,
           summary: false,
           noProject: false,
@@ -227,7 +227,7 @@ void main() {
     test('--summary and --no-project follow the mode', () {
       expect(
         bundleFileName(
-          target: 'login',
+          targets: ['login'],
           mode: BundleMode.design,
           summary: true,
           noProject: true,
@@ -236,7 +236,7 @@ void main() {
       );
       expect(
         bundleFileName(
-          target: 'login',
+          targets: ['login'],
           mode: BundleMode.implement,
           summary: false,
           noProject: true,
@@ -247,7 +247,7 @@ void main() {
     test('a <doc type>:<name> target writes its : as -', () {
       expect(
         bundleFileName(
-          target: 'architecture:login',
+          targets: ['architecture:login'],
           mode: BundleMode.implement,
           summary: false,
           noProject: false,
@@ -317,7 +317,7 @@ void main() {
     test('a multibyte target is cut on a code point boundary', () {
       for (final character in ['\u65e5', '\u{1F600}']) {
         final name = bundleFileName(
-          target: character * 100,
+          targets: [character * 100],
           mode: BundleMode.implement,
           summary: false,
           noProject: false,
@@ -326,6 +326,55 @@ void main() {
         expect(bytesOf(name), lessThanOrEqualTo(250));
         expect(name, endsWith('.implement.txt'));
       }
+    });
+
+    test('two targets join with a plus in the order given', () {
+      String nameOf(List<String> targets, {String? codeTarget}) =>
+          bundleFileName(
+            targets: targets,
+            mode: BundleMode.design,
+            summary: false,
+            noProject: false,
+            codeTarget: codeTarget,
+          );
+      const trim = 'index_query/task_bundle/trim_task_bundle';
+      const get = 'index_query/task_bundle/get_task_bundle';
+      expect(
+        nameOf([get, trim]),
+        'index_query-task_bundle-get_task_bundle+'
+        'index_query-task_bundle-trim_task_bundle.design.txt',
+      );
+      expect(
+        nameOf([trim, get]),
+        'index_query-task_bundle-trim_task_bundle+'
+        'index_query-task_bundle-get_task_bundle.design.txt',
+      );
+      expect(
+        nameOf(['login', 'architecture:login'], codeTarget: 'jaspr'),
+        'login+architecture-login.design.jaspr.txt',
+      );
+    });
+
+    test('a joined name past 255 bytes is cut as one name', () {
+      final first = 'a' * 150;
+      final second = 'b' * 150;
+      final name = bundleFileName(
+        targets: [first, second],
+        mode: BundleMode.implement,
+        summary: false,
+        noProject: false,
+      );
+      final uncut = '$first+$second.implement.txt';
+      final hash = sha256
+          .convert(utf8.encode(uncut))
+          .toString()
+          .substring(0, 8);
+      expect(bytesOf(name), lessThanOrEqualTo(250));
+      expect(
+        name,
+        matches(RegExp(r'^a{150}\+b+-[0-9a-f]{8}\.implement\.txt$')),
+      );
+      expect(name, endsWith('-$hash.implement.txt'));
     });
   });
 
@@ -779,7 +828,7 @@ void main() {
           index,
           pickBundle(
             index,
-            'login/email_login',
+            ['login/email_login'],
             BundleMode.implement,
             noProject: false,
           ),
@@ -824,7 +873,7 @@ void main() {
           index,
           pickBundle(
             index,
-            'login',
+            ['login'],
             BundleMode.design,
             noProject: false,
             summary: true,
@@ -851,7 +900,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.implement,
           noProject: false,
         ),
@@ -880,7 +929,7 @@ void main() {
       });
       final answer = answerContext(
         index,
-        pickBundle(index, 'project', BundleMode.implement, noProject: false),
+        pickBundle(index, ['project'], BundleMode.implement, noProject: false),
         label: 'project',
         byCode: false,
       );
@@ -902,7 +951,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.implement,
           noProject: false,
         ),
@@ -938,7 +987,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.design,
           noProject: false,
         ),
@@ -986,7 +1035,7 @@ void main() {
           index,
           pickBundle(
             index,
-            'login/email_login',
+            ['login/email_login'],
             BundleMode.design,
             noProject: false,
           ),
@@ -1173,7 +1222,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.design,
           noProject: false,
         ),
@@ -1275,7 +1324,7 @@ void main() {
         session.index,
         pickBundle(
           session.index,
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.implement,
           noProject: false,
         ),
@@ -1313,7 +1362,7 @@ void main() {
       index,
       pickBundle(
         index,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: false,
       ),
@@ -1444,7 +1493,7 @@ void main() {
       bool noProject = false,
     }) => answerContext(
       index,
-      pickBundle(index, 'login/email_login', mode, noProject: noProject),
+      pickBundle(index, ['login/email_login'], mode, noProject: noProject),
       label: 'login/email_login',
       byCode: false,
       split: true,

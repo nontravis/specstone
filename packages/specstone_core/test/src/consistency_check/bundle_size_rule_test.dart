@@ -110,7 +110,7 @@ ContextAnswer _answerOf(DocIndex index, String name, {required bool summary}) =>
       index,
       pickBundle(
         index,
-        name,
+        [name],
         BundleMode.design,
         noProject: false,
         summary: summary,

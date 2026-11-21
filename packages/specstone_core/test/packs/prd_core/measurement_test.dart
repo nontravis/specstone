@@ -133,7 +133,7 @@ void main() {
       index,
       pickBundle(
         index,
-        'grounding_cost',
+        ['grounding_cost'],
         BundleMode.implement,
         noProject: false,
       ),

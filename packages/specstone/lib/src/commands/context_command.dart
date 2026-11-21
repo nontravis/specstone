@@ -28,8 +28,8 @@ List<String> withBareOut(Iterable<String> args) {
   ];
 }
 
-/// Prints the docs a work mode needs for one target, within a token budget,
-/// or writes them to a file and prints its index.
+/// Prints the docs a work mode needs for one or more targets, within a token
+/// budget, or writes them to a file and prints its index.
 class ContextCommand extends SpecstoneCommand {
   new() {
     argParser
@@ -70,10 +70,13 @@ class ContextCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone context [<target> | --code <path>] --for <mode> '
+      'specstone context [<target> ... | --code <path>] --for <mode> '
       '[--budget N | --out [<path>]] [--summary] [--no-project] '
       '[--target <name>] [--json]';
 
+  /// Runs the argument checks in the order the refusals rank: each
+  /// `argument_invalid` check, then `argument_conflict`, then
+  /// `argument_missing`; the first failed check alone is thrown.
   @override
   Future<int> run() async {
     final args = argResults!;
@@ -81,23 +84,19 @@ class ContextCommand extends SpecstoneCommand {
     final rest = args.rest;
     final summary = args.flag('summary');
     final code = args.option('code');
+    final forWord = args.option('for');
     final writesFile = writesOut(args);
-    if (code != null && rest.isNotEmpty) {
-      return fail(
-        IndexFault(
-          IndexFaultCode.argumentConflict,
-          'give a target or --code, not both',
-        ),
-        asJson: asJson,
-      );
-    }
-    if (rest.length > 1) {
-      usageException('Expected one target, got ${rest.length}.');
-    }
     final BundleMode mode;
     final int? budget;
     final String? out;
     try {
+      // The first mode check only judges the value; a missing one comes last.
+      if (rest.length > 1) {
+        _refuseSeveralTargets(rest.length, forWord: forWord, summary: summary);
+      }
+      if (forWord != null) BundleMode.parse(forWord);
+      budget = parsePositiveOption('--budget', args.option('budget'));
+      out = outPathOf(args);
       // An empty shell variable must not bundle the whole project.
       if (code != null && code.isEmpty) {
         throw IndexFault(
@@ -105,16 +104,19 @@ class ContextCommand extends SpecstoneCommand {
           '--code takes a file or folder, not ""',
         );
       }
-      out = outPathOf(args);
-      if (rest.isEmpty && code == null) {
-        throw missingArgument(
-          'context',
-          'a target or --code',
-          'specstone context login --for implement',
+      if (code != null && rest.isNotEmpty) {
+        throw IndexFault(
+          IndexFaultCode.argumentConflict,
+          'give a target or --code, not both',
         );
       }
-      mode = BundleMode.parse(args.option('for'));
-      if (summary && mode != BundleMode.design) {
+      if (writesFile && args.option('budget') != null) {
+        throw IndexFault(
+          IndexFaultCode.argumentConflict,
+          'give --out or --budget, not both',
+        );
+      }
+      if (summary && forWord != BundleMode.design.wire) {
         throw IndexFault(
           IndexFaultCode.argumentConflict,
           '--summary works only with --for design',
@@ -126,13 +128,14 @@ class ContextCommand extends SpecstoneCommand {
           'give --summary with a target, not --code',
         );
       }
-      if (writesFile && args.option('budget') != null) {
-        throw IndexFault(
-          IndexFaultCode.argumentConflict,
-          'give --out or --budget, not both',
+      if (rest.isEmpty && code == null) {
+        throw missingArgument(
+          'context',
+          'a target or --code',
+          'specstone context login --for implement',
         );
       }
-      budget = parsePositiveOption('--budget', args.option('budget'));
+      mode = BundleMode.parse(forWord);
     } on IndexFault catch (fault) {
       return fail(fault, asJson: asJson);
     }
@@ -144,7 +147,7 @@ class ContextCommand extends SpecstoneCommand {
     /// project root, so every folder names one file for it.
     File bareFile(DocsProject project) {
       final name = bundleFileName(
-        target: code == null ? rest.single : null,
+        targets: code == null ? rest : const [],
         codePath: code == null
             ? null
             : project.displayPath(File(absoluteFrom(workingDirectory, code))),
@@ -199,24 +202,41 @@ class ContextCommand extends SpecstoneCommand {
         return answered(session, answer);
       }, asJson: asJson);
     }
-    final target = rest.single;
     return runRead((session) {
       final answer = answerContext(
         session.index,
         pickBundle(
           session.index,
-          target,
+          rest,
           mode,
           noProject: noProject,
           summary: summary,
           codeTarget: targetOf(args),
         ),
-        label: target,
+        label: rest.join(' '),
         byCode: false,
+        targets: rest,
         budget: budget,
         split: splits,
       );
       return answered(session, answer);
     }, asJson: asJson);
+  }
+
+  /// Throws `argument_invalid` for [count] target arguments given with
+  /// `--for query` or `--summary`, which take one; `--for query` ranks first.
+  void _refuseSeveralTargets(
+    int count, {
+    required String? forWord,
+    required bool summary,
+  }) {
+    final option = forWord == BundleMode.query.wire
+        ? '--for query'
+        : (summary ? '--summary' : null);
+    if (option == null) return;
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      '$option takes one target; got $count',
+    );
   }
 }

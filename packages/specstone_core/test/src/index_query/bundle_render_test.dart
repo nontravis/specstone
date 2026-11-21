@@ -161,7 +161,7 @@ void _expectReadFirstSizes(DocIndex index) {
       ]) {
         final bundle = pickBundle(
           index,
-          doc.docPath,
+          [doc.docPath],
           mode,
           noProject: false,
           summary: summary,
@@ -194,7 +194,7 @@ void main() {
     int? budget,
   }) => answerContext(
     i,
-    pickBundle(i, t, m, noProject: noProject),
+    pickBundle(i, [t], m, noProject: noProject),
     label: t,
     byCode: false,
     budget: budget,
@@ -222,7 +222,15 @@ void main() {
         'Read a summary doc whole with: specstone context <name> --for implement\n',
       ),
     );
-    expect(a.json.keys.toList(), ['target', 'for', 'tokens', 'docs']);
+    expect(a.json.keys.toList(), [
+      'target',
+      'targets',
+      'for',
+      'tokens',
+      'docs',
+    ]);
+    expect(a.json['target'], 'login/email_login');
+    expect(a.json['targets'], ['login/email_login']);
     expect(a.json['tokens'], tokenSizeOf(shown(a)));
   });
   test(
@@ -1386,6 +1394,7 @@ void main() {
       ).json;
       expect(json.keys.toList(), [
         'target',
+        'targets',
         'for',
         'budget',
         'tokens',
@@ -1410,7 +1419,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'login',
+          ['login'],
           BundleMode.design,
           noProject: false,
           summary: true,
@@ -1492,7 +1501,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'login',
+          ['login'],
           BundleMode.design,
           noProject: false,
           summary: true,
@@ -1570,7 +1579,7 @@ void main() {
       int? budget,
     }) => answerContext(
       i,
-      pickBundle(i, target, mode, noProject: noProject, summary: summary),
+      pickBundle(i, [target], mode, noProject: noProject, summary: summary),
       label: target,
       byCode: false,
       budget: budget,
@@ -1721,7 +1730,12 @@ void main() {
       final i = await patterned();
       final a = answerContext(
         i,
-        pickBundle(i, 'login/email_login', BundleMode.design, noProject: false),
+        pickBundle(
+          i,
+          ['login/email_login'],
+          BundleMode.design,
+          noProject: false,
+        ),
         label: 'login/email_login',
         byCode: false,
         split: true,
@@ -1742,7 +1756,7 @@ void main() {
         i,
         pickBundle(
           i,
-          'login',
+          ['login'],
           BundleMode.design,
           noProject: false,
           summary: true,
@@ -1802,7 +1816,12 @@ void main() {
       final i = await patterned();
       final a = answerContext(
         i,
-        pickBundle(i, 'login/email_login', BundleMode.design, noProject: false),
+        pickBundle(
+          i,
+          ['login/email_login'],
+          BundleMode.design,
+          noProject: false,
+        ),
         label: 'login/email_login',
         byCode: false,
         split: true,
@@ -2240,7 +2259,7 @@ void main() {
       bool summary = false,
     }) => answerContext(
       i,
-      pickBundle(i, target, mode, noProject: noProject, summary: summary),
+      pickBundle(i, [target], mode, noProject: noProject, summary: summary),
       label: target,
       byCode: false,
       split: true,
@@ -2534,7 +2553,7 @@ void main() {
           session.index,
           pickBundle(
             session.index,
-            'login/email_login',
+            ['login/email_login'],
             BundleMode.implement,
             noProject: false,
             codeTarget: 'jaspr',
@@ -2671,7 +2690,7 @@ void main() {
         i,
         pickBundle(
           i,
-          'shop/cart/add_item',
+          ['shop/cart/add_item'],
           BundleMode.design,
           noProject: false,
         ),
@@ -2708,7 +2727,7 @@ void main() {
         i,
         pickBundle(
           i,
-          'shop/cart/add_item',
+          ['shop/cart/add_item'],
           BundleMode.design,
           noProject: false,
         ),
@@ -3093,7 +3112,7 @@ void main() {
         });
         final a = answerContext(
           i,
-          pickBundle(i, target, BundleMode.design, noProject: false),
+          pickBundle(i, [target], BundleMode.design, noProject: false),
           label: target,
           byCode: false,
         );
@@ -3135,7 +3154,7 @@ void main() {
           });
           final bundle = pickBundle(
             i,
-            target,
+            [target],
             BundleMode.design,
             noProject: false,
           );
@@ -3213,7 +3232,7 @@ void main() {
         List<Object?> appendedOf(bool split) {
           final a = answerContext(
             i,
-            pickBundle(i, target, BundleMode.design, noProject: false),
+            pickBundle(i, [target], BundleMode.design, noProject: false),
             label: target,
             byCode: false,
             split: split,
@@ -3977,7 +3996,7 @@ void main() {
           });
           final a = answerContext(
             i,
-            pickBundle(i, target, BundleMode.design, noProject: false),
+            pickBundle(i, [target], BundleMode.design, noProject: false),
             label: target,
             byCode: false,
           );
@@ -4095,7 +4114,7 @@ void main() {
         session.index,
         pickBundle(
           session.index,
-          'implementation:login',
+          ['implementation:login'],
           BundleMode.query,
           noProject: false,
         ),
@@ -4139,7 +4158,7 @@ void main() {
         ('login/email_login', BundleMode.design),
         ('login/email_login', BundleMode.implement),
       ]) {
-        final bundle = pickBundle(i, target, mode, noProject: false);
+        final bundle = pickBundle(i, [target], mode, noProject: false);
         final fresh = answerContext(
           i,
           bundle,

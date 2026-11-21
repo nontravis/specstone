@@ -209,7 +209,7 @@ void main() {
       final i = await _index(statement, extra: glossaryFile);
       final a = answerContext(
         i,
-        pickBundle(i, _frName, BundleMode.design, noProject: false),
+        pickBundle(i, [_frName], BundleMode.design, noProject: false),
         label: _frName,
         byCode: false,
       );
@@ -430,7 +430,7 @@ void main() {
 
     ContextAnswer design(DocIndex index) => answerContext(
       index,
-      pickBundle(index, _frName, BundleMode.design, noProject: false),
+      pickBundle(index, [_frName], BundleMode.design, noProject: false),
       label: _frName,
       byCode: false,
     );
@@ -692,7 +692,7 @@ void main() {
       final i = await _index('Check it.', edge: edge);
       return answerContext(
         i,
-        pickBundle(i, _frName, BundleMode.design, noProject: false),
+        pickBundle(i, [_frName], BundleMode.design, noProject: false),
         label: _frName,
         byCode: false,
         split: true,
@@ -742,7 +742,7 @@ void main() {
       final i = await _index('Check it.', edge: edge);
       final a = answerContext(
         i,
-        pickBundle(i, _frName, BundleMode.design, noProject: false),
+        pickBundle(i, [_frName], BundleMode.design, noProject: false),
         label: _frName,
         byCode: false,
       );

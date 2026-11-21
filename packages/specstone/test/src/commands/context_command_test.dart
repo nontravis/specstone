@@ -2565,4 +2565,219 @@ void main() {
       expect(text.stdout as String, isNot(contains('code target')));
     });
   });
+
+  group('context over several targets', () {
+    const first = 'login/email_login';
+    const second = 'login/reset_password';
+    final stories = {
+      'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md':
+          '# Agent resets a password\n',
+      'docs/prds/features/f01_login/us03_magic_link/USER_STORY.md':
+          '# Agent signs in with a link\n',
+      'app/lib/src/login/.keep': '',
+    };
+
+    test('--for query with two targets refuses argument_invalid, exit 64, and writes nothing', () async {
+      final project = await writeReadProject(extra: stories);
+      const query = '--for query takes one target; got 2';
+      const summary = '--summary takes one target; got 2';
+      for (final (args, message) in [
+        (['--for', 'query'], query),
+        (['--for', 'query', '--summary'], query),
+        (['--for', 'query', '--code', 'app/lib/src/login/'], query),
+        (['--for', 'query', '--budget', '0'], query),
+        (['--for', 'query', '--out', ''], query),
+        (['--for', 'query', '--out'], query),
+        (['--summary'], summary),
+        (['--for', 'design', '--summary'], summary),
+        (['--for', 'design', '--summary', '--out', ''], summary),
+      ]) {
+        final run = readRunner(project);
+        expect(
+          await run.runner.run(['context', first, second, ...args]),
+          64,
+          reason: '$args',
+        );
+        expect(run.err.toString(), '$message\n', reason: '$args');
+        expect(run.out.toString(), isEmpty, reason: '$args');
+        expect(
+          Directory('${project.path}/.specstone/bundles').existsSync(),
+          isFalse,
+          reason: '$args',
+        );
+      }
+      final unresolved = readRunner(project);
+      expect(
+        await unresolved.runner.run([
+          'context',
+          first,
+          'nobody',
+          '--for',
+          'query',
+        ]),
+        64,
+      );
+      expect(unresolved.err.toString(), '$query\n');
+      final json = readRunner(project);
+      expect(
+        await json.runner.run([
+          'context',
+          first,
+          second,
+          '--for',
+          'query',
+          '--json',
+        ]),
+        64,
+      );
+      expect(_errorOf(json.err), {
+        'code': 'argument_invalid',
+        'message': query,
+      });
+    });
+
+    test('--code with a target and an empty --out refuses argument_invalid before argument_conflict', () async {
+      final project = await writeReadProject(extra: stories);
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          first,
+          '--code',
+          'app/lib/src/login/',
+          '--for',
+          'implement',
+          '--out',
+          '',
+        ]),
+        64,
+      );
+      expect(run.err.toString(), '--out takes a file path, not ""\n');
+      final conflict = readRunner(project);
+      expect(
+        await conflict.runner.run([
+          'context',
+          first,
+          '--code',
+          'app/lib/src/login/',
+          '--for',
+          'implement',
+        ]),
+        64,
+      );
+      expect(conflict.err.toString(), 'give a target or --code, not both\n');
+    });
+
+    test(
+      'two design targets print one bundle, each sibling story in summary',
+      () async {
+        final project = await writeReadProject(extra: stories);
+        final run = readRunner(project);
+        expect(
+          await run.runner.run(['context', first, second, '--for', 'design']),
+          0,
+          reason: run.err.toString(),
+        );
+        final lines = run.out.toString().split('\n');
+        for (final story in [first, second]) {
+          expect(
+            lines.where((l) => l.startsWith('==> $story (user_story) · ')),
+            hasLength(1),
+            reason: story,
+          );
+          expect(
+            lines.where((l) => l == '- $story (user_story)'),
+            hasLength(1),
+          );
+        }
+        expect(
+          lines.where((l) => l == '- login/magic_link (user_story) · summary'),
+          hasLength(1),
+        );
+      },
+    );
+
+    test('an unresolved target among several refuses before anything prints, one line per target', () async {
+      final project = await writeReadProject(extra: stories);
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          'nobody',
+          first,
+          'nope',
+          '--for',
+          'design',
+          '--out',
+        ]),
+        64,
+      );
+      expect(run.out.toString(), isEmpty);
+      final lines = run.err.toString().trimRight().split('\n');
+      expect(lines, hasLength(2));
+      expect(lines[0], contains('nobody'));
+      expect(lines[1], contains('nope'));
+      expect(
+        Directory('${project.path}/.specstone/bundles').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('--json lists the targets in the order given, and holds target for one alone', () async {
+      final project = await writeReadProject(extra: stories);
+      Future<Map<String, Object?>> jsonOf(List<String> targets) async {
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            ...targets,
+            '--for',
+            'design',
+            '--json',
+          ]),
+          0,
+          reason: run.err.toString(),
+        );
+        return jsonDecode(run.out.toString()) as Map<String, Object?>;
+      }
+
+      final one = await jsonOf([first]);
+      expect(one['target'], first);
+      expect(one['targets'], [first]);
+      final two = await jsonOf([second, first]);
+      expect(two.containsKey('target'), isFalse);
+      expect(two['targets'], [second, first]);
+    });
+
+    test('a bare --out with two targets writes the joined file name and its refs file', () async {
+      final project = await writeReadProject(extra: stories);
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          first,
+          second,
+          '--for',
+          'design',
+          '--out',
+        ]),
+        0,
+        reason: run.err.toString(),
+      );
+      const name = 'login-email_login+login-reset_password.design.txt';
+      final file = File('${project.path}/.specstone/bundles/$name');
+      final refs = File(
+        '${project.path}/.specstone/bundles/'
+        'login-email_login+login-reset_password.design.refs.txt',
+      );
+      expect(file.existsSync(), isTrue);
+      expect(refs.existsSync(), isTrue);
+      final headers = run.out
+          .toString()
+          .split('\n')
+          .where((l) => l.startsWith('==> bundle: '));
+      expect(headers, hasLength(2));
+      expect(headers.first, contains(name));
+    });
+  });
 }

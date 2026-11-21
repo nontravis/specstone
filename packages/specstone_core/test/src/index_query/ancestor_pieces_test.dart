@@ -72,7 +72,7 @@ Future<List<AncestorPiece>> _piecesOf(
   final index = await _indexWith(files, stamped: stamped);
   return ancestorPiecesOf(
     index,
-    pickBundle(index, target, mode, noProject: false),
+    pickBundle(index, [target], mode, noProject: false),
   );
 }
 

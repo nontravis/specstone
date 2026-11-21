@@ -31,7 +31,7 @@ void main() {
     () async {
       final b = pickBundle(
         index,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: false,
       );
@@ -55,7 +55,7 @@ void main() {
     () async {
       final b = pickBundle(
         index,
-        'login/email_login/validate_credentials',
+        ['login/email_login/validate_credentials'],
         BundleMode.implement,
         noProject: false,
       );
@@ -73,7 +73,7 @@ void main() {
   test('a story for design: its story whole, siblings in summary', () {
     final b = pickBundle(
       index,
-      'login/email_login',
+      ['login/email_login'],
       BundleMode.design,
       noProject: false,
     );
@@ -98,7 +98,7 @@ void main() {
   test("an FR or nf for design gives its story's bundle", () {
     final story = pickBundle(
       index,
-      'login/email_login',
+      ['login/email_login'],
       BundleMode.design,
       noProject: false,
     );
@@ -106,13 +106,13 @@ void main() {
       'login/email_login/validate_credentials',
       'login/email_login/login_latency',
     ]) {
-      final b = pickBundle(index, t, BundleMode.design, noProject: false);
+      final b = pickBundle(index, [t], BundleMode.design, noProject: false);
       expect(b.docPaths, story.docPaths, reason: t);
       expect(b.summaryOnly, story.summaryOnly, reason: t);
     }
   });
   test('a feature for design is whole, no summary doc', () {
-    final b = pickBundle(index, 'login', BundleMode.design, noProject: false);
+    final b = pickBundle(index, ['login'], BundleMode.design, noProject: false);
     expect(b.summaryOnly, isEmpty);
     expect(
       b.docPaths,
@@ -122,7 +122,7 @@ void main() {
   test('a feature with summary: spec docs whole, every story in summary', () {
     final b = pickBundle(
       index,
-      'login',
+      ['login'],
       BundleMode.design,
       noProject: false,
       summary: true,
@@ -145,7 +145,7 @@ void main() {
     });
     final b = pickBundle(
       full,
-      'login/email_login',
+      ['login/email_login'],
       BundleMode.implement,
       noProject: false,
     );
@@ -171,7 +171,7 @@ void main() {
     () {
       final implement = pickBundle(
         index,
-        'buyer',
+        ['buyer'],
         BundleMode.implement,
         noProject: true,
       );
@@ -184,7 +184,7 @@ void main() {
       );
       final query = pickBundle(
         index,
-        'buyer',
+        ['buyer'],
         BundleMode.query,
         noProject: true,
       );
@@ -214,7 +214,7 @@ void main() {
     });
     final b = pickBundle(
       joining,
-      'project',
+      ['project'],
       BundleMode.implement,
       noProject: false,
     );
@@ -247,7 +247,7 @@ void main() {
             '# Goals\n\n## Long-term goals\n- **PG-01** One.\n',
       });
       for (final mode in BundleMode.values) {
-        final b = pickBundle(withGoal, 'goal', mode, noProject: true);
+        final b = pickBundle(withGoal, ['goal'], mode, noProject: true);
         expect(b.docPaths, {'prds/GOAL.md'}, reason: mode.wire);
         expect(b.joinedPaths, isEmpty, reason: mode.wire);
       }
@@ -258,7 +258,7 @@ void main() {
       expect(
         () => pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           mode,
           noProject: false,
           summary: true,
@@ -284,7 +284,7 @@ void main() {
       expect(
         () => pickBundle(
           index,
-          target,
+          [target],
           BundleMode.design,
           noProject: false,
           summary: true,
@@ -310,7 +310,7 @@ void main() {
   test('--no-project on a story for design drops joined docs and keeps summary docs', () {
     final b = pickBundle(
       index,
-      'login/email_login',
+      ['login/email_login'],
       BundleMode.design,
       noProject: true,
     );
@@ -323,7 +323,7 @@ void main() {
     });
     final b = pickBundle(
       i,
-      'login/email_login',
+      ['login/email_login'],
       BundleMode.design,
       noProject: false,
     );
@@ -335,7 +335,7 @@ void main() {
     () async {
       final b = pickBundle(
         index,
-        'feature:login',
+        ['feature:login'],
         BundleMode.implement,
         noProject: false,
       );
@@ -346,7 +346,7 @@ void main() {
   test("a spec doc builds its parent's bundle", () async {
     final b = pickBundle(
       index,
-      'architecture:login',
+      ['architecture:login'],
       BundleMode.implement,
       noProject: false,
     );
@@ -357,7 +357,7 @@ void main() {
     expect(
       pickBundle(
         index,
-        'login',
+        ['login'],
         BundleMode.implement,
         noProject: false,
       ).nameListTops,
@@ -367,7 +367,7 @@ void main() {
   test('buyer, with no single chain doc, bundles both docs once', () async {
     final b = pickBundle(
       index,
-      'buyer',
+      ['buyer'],
       BundleMode.implement,
       noProject: false,
     );
@@ -386,7 +386,7 @@ void main() {
     () async {
       final b = pickBundle(
         index,
-        'project',
+        ['project'],
         BundleMode.implement,
         noProject: false,
       );
@@ -398,7 +398,7 @@ void main() {
     expect(
       () => pickBundle(
         index,
-        'prds/d01_context.md',
+        ['prds/d01_context.md'],
         BundleMode.implement,
         noProject: false,
       ),
@@ -415,7 +415,7 @@ void main() {
   });
   test('a target no doc carries is doc_not_found', () async {
     expect(
-      () => pickBundle(index, 'nobody', BundleMode.query, noProject: false),
+      () => pickBundle(index, ['nobody'], BundleMode.query, noProject: false),
       throwsA(isA<IndexFault>()),
     );
   });
@@ -445,7 +445,7 @@ void main() {
     expect(BundleMode.parse('design'), BundleMode.design);
   });
   test('a feature for query: its chain, its map, and project joined', () async {
-    final b = pickBundle(index, 'login', BundleMode.query, noProject: false);
+    final b = pickBundle(index, ['login'], BundleMode.query, noProject: false);
     expect(b.docPaths, {'$f/FEATURE.md'});
     expect(b.mapTops, {'$f/FEATURE.md'});
     expect(b.joinedPaths, {'prds/PROJECT.md'});
@@ -453,7 +453,7 @@ void main() {
   test('a query on an FR records the FR as its one target', () {
     final b = pickBundle(
       index,
-      'login/email_login/validate_credentials',
+      ['login/email_login/validate_credentials'],
       BundleMode.query,
       noProject: false,
     );
@@ -462,7 +462,7 @@ void main() {
   test('a query on a spec doc adds that doc and records it as the target', () {
     final b = pickBundle(
       index,
-      'architecture:login',
+      ['architecture:login'],
       BundleMode.query,
       noProject: false,
     );
@@ -473,7 +473,12 @@ void main() {
   test(
     'a query on a shared name with no chain doc records each doc as a target',
     () {
-      final b = pickBundle(index, 'buyer', BundleMode.query, noProject: false);
+      final b = pickBundle(
+        index,
+        ['buyer'],
+        BundleMode.query,
+        noProject: false,
+      );
       expect(b.targetPaths, {
         'prds/personas/buyer/PERSONA.md',
         'prds/personas/buyer/ANTI_PERSONA.md',
@@ -485,7 +490,7 @@ void main() {
       expect(
         pickBundle(
           index,
-          'login/email_login',
+          ['login/email_login'],
           mode,
           noProject: false,
         ).targetPaths,
@@ -497,7 +502,7 @@ void main() {
     expect(
       pickBundle(
         index,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: true,
       ).joinedPaths,
@@ -506,7 +511,7 @@ void main() {
     expect(
       pickBundle(
         index,
-        'project',
+        ['project'],
         BundleMode.implement,
         noProject: true,
       ).docPaths,
@@ -521,7 +526,8 @@ void main() {
       BundleMode mode, {
       bool noProject = false,
       String target = 'login/email_login',
-    }) => pickBundle(withGoal, target, mode, noProject: noProject).joinedPaths;
+    }) =>
+        pickBundle(withGoal, [target], mode, noProject: noProject).joinedPaths;
 
     expect(joined(BundleMode.implement), {
       'prds/GOAL.md',
@@ -534,7 +540,7 @@ void main() {
     expect(
       pickBundle(
         withGoal,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: true,
       ).droppedPaths,
@@ -551,7 +557,7 @@ void main() {
       }),
     );
     Bundle pick(String target, BundleMode mode, {bool noProject = false}) =>
-        pickBundle(withGlossary, target, mode, noProject: noProject);
+        pickBundle(withGlossary, [target], mode, noProject: noProject);
 
     test('a story bundle in every mode holds it, joined', () {
       expect(pick('login/email_login', BundleMode.implement).joinedPaths, {
@@ -619,20 +625,25 @@ void main() {
     expect(
       pickBundle(
         bare,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: false,
       ).joinedPaths,
       isEmpty,
     );
     expect(
-      pickBundle(bare, 'login', BundleMode.query, noProject: false).joinedPaths,
+      pickBundle(
+        bare,
+        ['login'],
+        BundleMode.query,
+        noProject: false,
+      ).joinedPaths,
       isEmpty,
     );
   });
   group('joinsRefs', () {
     Bundle implementBundle(DocIndex i, String target) =>
-        pickBundle(i, target, BundleMode.implement, noProject: false);
+        pickBundle(i, [target], BundleMode.implement, noProject: false);
 
     test('joinsRefs reads bundleRefs, never a type id', () async {
       final i = await indexWith({
@@ -659,7 +670,7 @@ void main() {
       final i = await indexWith();
       final b = pickBundle(
         i,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: true,
       );
@@ -671,7 +682,7 @@ void main() {
   test("implement on shop/cart/add_item gives the chain, shop's spec docs, cartDomain, and the FR", () async {
     final b = pickBundle(
       await nestedIndexWith(),
-      'shop/cart/add_item',
+      ['shop/cart/add_item'],
       BundleMode.implement,
       noProject: false,
     );
@@ -692,7 +703,7 @@ void main() {
       const left = 'prds/features/f02_shop/us01_browse/USER_STORY.md';
       final b = pickBundle(
         await nestedIndexWith({'docs/$left': '# Agent browses\n'}),
-        'shop/cart/add_item',
+        ['shop/cart/add_item'],
         BundleMode.implement,
         noProject: false,
       );
@@ -712,7 +723,7 @@ void main() {
   test("design on shop/cart/add_item gives cart whole, drop_item in summary, shop with its spec docs, and shop's names list", () async {
     final b = pickBundle(
       await nestedIndexWith(),
-      'shop/cart/add_item',
+      ['shop/cart/add_item'],
       BundleMode.design,
       noProject: false,
     );
@@ -732,7 +743,7 @@ void main() {
   test("design on shop/cart gives cart's subtree, shop with its spec docs, and shop's names list", () async {
     final b = pickBundle(
       await nestedIndexWith(),
-      'shop/cart',
+      ['shop/cart'],
       BundleMode.design,
       noProject: false,
     );
@@ -751,7 +762,7 @@ void main() {
   test('summary takes a nested feature with children', () async {
     final b = pickBundle(
       await nestedIndexWith(),
-      'shop/cart',
+      ['shop/cart'],
       BundleMode.design,
       noProject: false,
       summary: true,
@@ -773,7 +784,7 @@ void main() {
           'docs/$promo': '# Promo\n',
           'docs/$coupon': '# Agent uses a coupon\n',
         }),
-        'shop/cart',
+        ['shop/cart'],
         BundleMode.design,
         noProject: false,
         summary: true,
@@ -788,7 +799,7 @@ void main() {
     expect(
       () => pickBundle(
         nested,
-        'shop/cart/add_item',
+        ['shop/cart/add_item'],
         BundleMode.design,
         noProject: false,
         summary: true,
@@ -813,7 +824,7 @@ void main() {
       expect(
         () => pickBundle(
           nested,
-          target,
+          [target],
           BundleMode.design,
           noProject: false,
           summary: true,
@@ -833,7 +844,7 @@ void main() {
   test('design on shop keeps its whole subtree', () async {
     final b = pickBundle(
       await nestedIndexWith(),
-      'shop',
+      ['shop'],
       BundleMode.design,
       noProject: false,
     );
@@ -855,7 +866,7 @@ void main() {
   test('sf-c7 (pin): design on an FR gives the bundle of its story under the nearest feature', () async {
     final b = pickBundle(
       await nestedIndexWith(),
-      'shop/cart/add_item/check_stock',
+      ['shop/cart/add_item/check_stock'],
       BundleMode.design,
       noProject: false,
     );
@@ -879,7 +890,7 @@ void main() {
         'docs/$promo': '# Promo\n',
         'docs/$coupon': '# Agent uses a coupon\n',
       }),
-      'shop/cart/promo/coupon',
+      ['shop/cart/promo/coupon'],
       BundleMode.design,
       noProject: false,
     );
@@ -897,7 +908,7 @@ void main() {
   test("query on shop/cart/add_item gives the chain and shop's map", () async {
     final b = pickBundle(
       await nestedIndexWith(),
-      'shop/cart/add_item',
+      ['shop/cart/add_item'],
       BundleMode.query,
       noProject: false,
     );
@@ -911,7 +922,7 @@ void main() {
     () {
       final b = pickBundle(
         index,
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.design,
         noProject: false,
       );
@@ -928,7 +939,7 @@ void main() {
   test('an fr design bundle marks the subtree of its story', () {
     final story = pickBundle(
       index,
-      'login/email_login',
+      ['login/email_login'],
       BundleMode.design,
       noProject: false,
     );
@@ -936,7 +947,7 @@ void main() {
       'login/email_login/validate_credentials',
       'login/email_login/login_latency',
     ]) {
-      final b = pickBundle(index, t, BundleMode.design, noProject: false);
+      final b = pickBundle(index, [t], BundleMode.design, noProject: false);
       expect(b.ancestorSpecPaths, story.ancestorSpecPaths, reason: t);
       expect(b.targetSubtreePaths, story.targetSubtreePaths, reason: t);
       expect(b.targetSubtreePaths, hasLength(4), reason: t);
@@ -947,7 +958,7 @@ void main() {
     () async {
       final b = pickBundle(
         await nestedIndexWith(),
-        'shop/cart/add_item',
+        ['shop/cart/add_item'],
         BundleMode.design,
         noProject: false,
       );
@@ -960,7 +971,7 @@ void main() {
     () async {
       final b = pickBundle(
         await nestedIndexWith(),
-        'shop/cart',
+        ['shop/cart'],
         BundleMode.design,
         noProject: false,
       );
@@ -980,7 +991,7 @@ void main() {
     () async {
       final b = pickBundle(
         await nestedIndexWith(),
-        'shop/cart',
+        ['shop/cart'],
         BundleMode.design,
         noProject: false,
         summary: true,
@@ -999,7 +1010,7 @@ void main() {
     for (final summary in [false, true]) {
       final b = pickBundle(
         index,
-        'login',
+        ['login'],
         BundleMode.design,
         noProject: false,
         summary: summary,
@@ -1040,7 +1051,7 @@ void main() {
         (index, 'login/email_login'),
         (nested, 'shop/cart/add_item'),
       ]) {
-        final b = pickBundle(i, target, mode, noProject: false);
+        final b = pickBundle(i, [target], mode, noProject: false);
         expect(b.ancestorSpecPaths, isEmpty, reason: '${mode.wire} $target');
         expect(b.targetSubtreePaths, isEmpty, reason: '${mode.wire} $target');
       }
@@ -1109,7 +1120,7 @@ void main() {
       addTearDown(session.close);
       final b = pickBundle(
         session.index,
-        'feedback/toast/show',
+        ['feedback/toast/show'],
         BundleMode.implement,
         noProject: false,
       );
@@ -1121,7 +1132,7 @@ void main() {
       expect(
         () => pickBundle(
           index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.implement,
           noProject: false,
         ),
@@ -1138,10 +1149,38 @@ void main() {
       );
     });
 
+    test('several implement targets with two code targets and no --target refuse argument_missing once', () async {
+      final index = await toastIndex();
+      for (final targets in [
+        ['feedback/toast/show', 'feedback/toast'],
+        ['feedback/toast/show', 'nobody'],
+      ]) {
+        expect(
+          () => pickBundle(
+            index,
+            targets,
+            BundleMode.implement,
+            noProject: false,
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  '--for implement needs --target with two or more code targets; '
+                      'the targets are flutter, jaspr',
+                ),
+          ),
+          reason: '$targets',
+        );
+      }
+    });
+
     test('--target jaspr keeps jaspr docs alone in implement', () async {
       final b = pickBundle(
         await toastIndex(),
-        'feedback/toast/show',
+        ['feedback/toast/show'],
         BundleMode.implement,
         noProject: false,
         codeTarget: 'jaspr',
@@ -1161,7 +1200,7 @@ void main() {
       final index = await toastIndex();
       final design = pickBundle(
         index,
-        'feedback/toast/show',
+        ['feedback/toast/show'],
         BundleMode.design,
         noProject: false,
       );
@@ -1169,7 +1208,7 @@ void main() {
       expect(design.docPaths, contains(jasprArch));
       final query = pickBundle(
         index,
-        'feedback/toast/show',
+        ['feedback/toast/show'],
         BundleMode.query,
         noProject: false,
       );
@@ -1192,7 +1231,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.query,
           noProject: false,
           codeTarget: 'jaspr',
@@ -1211,7 +1250,7 @@ void main() {
       expect(queryTargeted.text, isNot(contains('flutter')));
       final withTarget = pickBundle(
         index,
-        'feedback/toast',
+        ['feedback/toast'],
         BundleMode.design,
         noProject: false,
         codeTarget: 'jaspr',
@@ -1226,7 +1265,7 @@ void main() {
         final index = await toastIndex();
         final query = pickBundle(
           index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.query,
           noProject: false,
         );
@@ -1260,7 +1299,7 @@ void main() {
         session.index,
         pickBundle(
           session.index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.query,
           noProject: false,
         ),
@@ -1292,7 +1331,7 @@ void main() {
       addTearDown(session.close);
       final b = pickBundle(
         session.index,
-        'feedback/pay/card',
+        ['feedback/pay/card'],
         BundleMode.implement,
         noProject: false,
         codeTarget: 'jaspr',
@@ -1322,7 +1361,7 @@ void main() {
       final index = session.index;
       final b = pickBundle(
         index,
-        'feedback',
+        ['feedback'],
         BundleMode.implement,
         noProject: false,
         codeTarget: 'jaspr',
@@ -1354,7 +1393,7 @@ void main() {
       for (final mode in BundleMode.values) {
         final b = pickBundle(
           session.index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           mode,
           noProject: false,
         );
@@ -1373,7 +1412,7 @@ void main() {
       () async {
         final b = pickBundle(
           await toastIndex(),
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.design,
           noProject: false,
           codeTarget: 'jaspr',
@@ -1391,7 +1430,7 @@ void main() {
       final index = await toastIndex();
       final b = pickBundle(
         index,
-        'feedback/toast/show',
+        ['feedback/toast/show'],
         BundleMode.implement,
         noProject: false,
         codeTarget: 'jaspr',
@@ -1424,7 +1463,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.implement,
           noProject: false,
           codeTarget: 'flutter',
@@ -1437,7 +1476,7 @@ void main() {
         index,
         pickBundle(
           index,
-          'feedback/toast/show',
+          ['feedback/toast/show'],
           BundleMode.implement,
           noProject: false,
           codeTarget: 'jaspr',
@@ -1484,7 +1523,7 @@ void main() {
       () async {
         final b = pickBundle(
           await oneTargetIndex(),
-          'login/email_login',
+          ['login/email_login'],
           BundleMode.implement,
           noProject: false,
         );
@@ -1503,7 +1542,7 @@ void main() {
       () async {
         final b = pickBundle(
           await oneTargetIndex(),
-          'project_domain',
+          ['project_domain'],
           BundleMode.implement,
           noProject: false,
         );
@@ -1519,7 +1558,7 @@ void main() {
     test('no-project drops the root spec doc', () async {
       final b = pickBundle(
         await oneTargetIndex(),
-        'login/email_login',
+        ['login/email_login'],
         BundleMode.implement,
         noProject: true,
       );
@@ -1560,7 +1599,7 @@ void main() {
         for (final mode in [BundleMode.implement, BundleMode.design]) {
           final b = pickBundle(
             index,
-            'feedback/show',
+            ['feedback/show'],
             mode,
             noProject: false,
             codeTarget: 'jaspr',
@@ -1572,7 +1611,7 @@ void main() {
         }
         final unflagged = pickBundle(
           index,
-          'feedback/show',
+          ['feedback/show'],
           BundleMode.design,
           noProject: false,
         );
@@ -1588,13 +1627,177 @@ void main() {
     test('a query bundle holds no root spec doc', () async {
       final b = pickBundle(
         await oneTargetIndex(),
-        'login',
+        ['login'],
         BundleMode.query,
         noProject: false,
       );
       expect(b.docPaths, {'$f/FEATURE.md'});
       expect(b.joinedPaths, {'prds/PROJECT.md'});
       expect(b.droppedPaths, isEmpty);
+    });
+  });
+
+  group('several targets', () {
+    List<String> printedPaths(Bundle b) => [
+      for (final d in b.printOrder(index)) d.docPath,
+    ];
+
+    test(
+      'two stories of one feature give one bundle holding both, each doc once',
+      () {
+        final b = pickBundle(
+          index,
+          ['login/email_login', 'login/reset_password'],
+          BundleMode.design,
+          noProject: false,
+        );
+        expect(b.docPaths, {
+          '$f/FEATURE.md',
+          ...specs,
+          '$us01/USER_STORY.md',
+          '$us01/fr01_validate_credentials.md',
+          '$us01/fr02_lock_after_failures.md',
+          '$us01/nf01_login_latency.md',
+          '$us02/USER_STORY.md',
+          '$us02/fr01_send_reset_link.md',
+        });
+        expect(b.summaryOnly, isEmpty);
+        final printed = printedPaths(b);
+        expect(printed.toSet(), hasLength(printed.length));
+      },
+    );
+
+    test('a story and an FR of it as two targets give one bundle', () {
+      final story = pickBundle(
+        index,
+        ['login/email_login'],
+        BundleMode.design,
+        noProject: false,
+      );
+      for (final targets in [
+        ['login/email_login', 'login/email_login/validate_credentials'],
+        ['login/email_login/validate_credentials', 'login/email_login'],
+        ['login/email_login', 'login/email_login'],
+      ]) {
+        final b = pickBundle(
+          index,
+          targets,
+          BundleMode.design,
+          noProject: false,
+        );
+        expect(b.docPaths, story.docPaths, reason: '$targets');
+        expect(b.summaryOnly, story.summaryOnly, reason: '$targets');
+        expect(printedPaths(b), printedPaths(story), reason: '$targets');
+      }
+    });
+
+    test('two unknown targets refuse with two faults in argument order', () {
+      expect(
+        () => pickBundle(
+          index,
+          ['nobody', 'login/email_login', 'nope'],
+          BundleMode.design,
+          noProject: false,
+        ),
+        throwsA(
+          isA<IndexFaults>()
+              .having(
+                (x) => [for (final f in x.faults) (f as IndexFault).code],
+                'codes',
+                [IndexFaultCode.docNotFound, IndexFaultCode.docNotFound],
+              )
+              .having(
+                (x) => [for (final f in x.faults) f.toText()],
+                'messages',
+                [contains('nobody'), contains('nope')],
+              )
+              .having((x) => x.exitStatus, 'exit status', 64),
+        ),
+      );
+    });
+
+    test(
+      'an untyped target beside an unknown one adds an untyped_target fault',
+      () {
+        expect(
+          () => pickBundle(
+            index,
+            ['prds/d01_context.md', 'nobody'],
+            BundleMode.implement,
+            noProject: false,
+          ),
+          throwsA(
+            isA<IndexFaults>().having(
+              (x) => [for (final f in x.faults) (f as IndexFault).code],
+              'codes',
+              [IndexFaultCode.untypedTarget, IndexFaultCode.docNotFound],
+            ),
+          ),
+        );
+      },
+    );
+
+    test('one unresolved target among several throws its one fault', () {
+      expect(
+        () => pickBundle(
+          index,
+          ['login/email_login', 'nobody'],
+          BundleMode.design,
+          noProject: false,
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (x) => x.code,
+            'code',
+            IndexFaultCode.docNotFound,
+          ),
+        ),
+      );
+    });
+
+    test('a bare name and its DocPath as two targets hold the doc once', () {
+      final bare = pickBundle(
+        index,
+        ['login'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      final both = pickBundle(
+        index,
+        ['login', '$f/FEATURE.md'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(both.docPaths, bare.docPaths);
+      expect(both.nameListTops, bare.nameListTops);
+      final printed = printedPaths(both);
+      expect(printed.toSet(), hasLength(printed.length));
+      expect(printed, printedPaths(bare));
+    });
+
+    test("a spec doc target beside a story target in design gives its parent's bundle in the union", () {
+      final feature = pickBundle(
+        index,
+        ['login'],
+        BundleMode.design,
+        noProject: false,
+      );
+      final b = pickBundle(
+        index,
+        ['architecture:login', 'login/email_login/validate_credentials'],
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.docPaths, feature.docPaths);
+      expect(b.summaryOnly, isEmpty);
+    });
+
+    test('a shared bare name with --for query stays one target argument', () {
+      final b = pickBundle(index, ['buyer'], BundleMode.query, noProject: true);
+      expect(b.targetPaths, {
+        'prds/personas/buyer/ANTI_PERSONA.md',
+        'prds/personas/buyer/PERSONA.md',
+      });
     });
   });
 }

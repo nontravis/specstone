@@ -512,7 +512,7 @@ void main() {
               index,
               pickBundle(
                 index,
-                f.path,
+                [f.path],
                 BundleMode.design,
                 noProject: false,
                 summary: index.childrenOf(index.at(f.path)!).isNotEmpty,

@@ -28,6 +28,10 @@ const _indexByteCap = 8192;
 /// The characters a file name writes as `-`: path separators and `:`.
 const _nameSeparators = ['/', r'\', ':'];
 
+/// What joins the written target arguments in a name; legal in file names on
+/// Windows, macOS, and Linux.
+const _targetJoint = '+';
+
 /// What a refs file's name carries before its extension.
 const _refsMark = '.refs';
 
@@ -43,11 +47,12 @@ const _refsIsReadFirst = 'the refs file is the read-first file';
 /// A name, or its refs file's name, past 255 bytes is cut to at most 250 bytes
 /// as [cutFileName] gives.
 ///
-/// - [target]: the call's target, as given; else [codePath], the `--code`
-///   value as given, which takes `code-` before it.
+/// - [targets]: the call's target arguments, as given, each written on its own
+///   and joined by `+`; else [codePath], the `--code` value as given, which
+///   takes `code-` before it.
 /// - [codeTarget]: the `--target` value the call passes, or null.
 String bundleFileName({
-  String? target,
+  List<String> targets = const [],
   String? codePath,
   required BundleMode mode,
   required bool summary,
@@ -55,13 +60,12 @@ String bundleFileName({
   String? codeTarget,
 }) {
   assert(
-    (target == null) != (codePath == null),
-    'a bundle has a target or a code path',
+    targets.isNotEmpty != (codePath != null),
+    'a bundle has targets or a code path',
   );
-  var named = target ?? 'code-$codePath';
-  for (final separator in _nameSeparators) {
-    named = named.replaceAll(separator, '-');
-  }
+  final named = codePath == null
+      ? targets.map(_slugOf).join(_targetJoint)
+      : _slugOf('code-$codePath');
   final modePart = [
     mode.wire,
     if (summary) 'summary',
@@ -73,6 +77,15 @@ String bundleFileName({
   final refsBytes = mode == BundleMode.query ? 0 : _refsMark.length;
   if (byteCountOf(full) + refsBytes <= fileNameByteCap) return full;
   return cutFileName(named, tail, byteCap: _cutNameByteCap);
+}
+
+/// Returns [text] with each path separator and `:` written `-`.
+String _slugOf(String text) {
+  var slug = text;
+  for (final separator in _nameSeparators) {
+    slug = slug.replaceAll(separator, '-');
+  }
+  return slug;
 }
 
 /// Returns the folder under [projectRoot] that holds the files a bare `--out`
