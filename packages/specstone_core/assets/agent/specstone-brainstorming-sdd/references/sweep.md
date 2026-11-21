@@ -14,14 +14,14 @@ With `since: <snapshot path>`, compare the design document with that snapshot:
 
 ## 2. Ground
 
-1. **Features**: run one `specstone context <feature> --for design --out` per feature the targets fall under. Run no
-   `get`.
-2. **Bundles**: main's `bundles` stand in for a feature only when they are that feature's own full design bundle; read
-   them in place of its call. A story's or FR's bundle, a feature's `--summary` bundle, and a `context project` bundle
-   stand in for no feature: each target's feature takes its own call.
+1. **Features**: run one `specstone context <feature> --for design --out` per feature the targets fall under, no
+   `get`. Read each read-first file, passed or saved, by its plan (`specstone-read-sdd`).
+2. **Bundles**: main's `bundles`, each with its plan line, stand in for a feature's call only as its full design
+   bundle. A story's, an FR's, a `--summary`, a `context project`, or a several-target bundle stands in for
+   none: each target's feature takes its own call.
 3. **Cited docs**: a doc the read-first file holds only as a cited excerpt (its index line marked `cited`, `cites`, or
-   `cited by`, with no part of its own in that file), such as an ancestor feature's spec doc, is reached as step 3.3
-   gives. The refs file's excerpt docs are not reached this way.
+   `cited by`, no part of its own there), such as an ancestor feature's spec doc, is reached by step 3.3; the refs
+   file's excerpts are not.
 
 ## 3. Sweep each decision
 

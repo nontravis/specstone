@@ -39,8 +39,10 @@ the main session that dispatched you fixes what you find.
   delta check that keeps the decisions `sweep.md` section 1 gives, a removed one by its stub, else by its snapshot
   text; never sent with `amend`.
 - **`bundles`** (`stage: design`, optional): the paths of main's saved bundle files of the same target and mode,
-  passed only with no doc write since they were saved, so never after an author pass. They stand in for a feature's
-  `context` call only as `sweep.md` section 2 gives.
+  each with the read plan line main's call printed for it, passed only with no doc write since they were saved, so
+  never after an author pass. Read each read-first file by that plan, every range in order, as the
+  `specstone-read-sdd` skill gives. They stand in for a feature's `context` call only as `sweep.md` section 2 gives,
+  so a bundle of two or more targets stands in for none.
 - **Targets** (required unless `stage: design`, which takes them from the design's Docs to change rows): the docs to
   read.
 - **`trims`** (trim-batch audit, optional): after a bootstrap round with a trim batch, the paths of the round's

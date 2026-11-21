@@ -4,8 +4,8 @@ agent's `report:` file; never edit the design document. Ask the Owner nothing.
 
 ## 1. Read
 
-1. **Inputs**: the design document's path, `amend: <N>[,<N> ...]`, `since: <snapshot path>`, and `bundles` when
-   given. With no design document, make the missing-input stop: its `OPEN QUESTIONS:` line names the design document.
+1. **Inputs**: the design document's path, `amend: <N>[,<N> ...]`, `since: <snapshot path>`, and `bundles`, each
+   with its read plan line, when given. With no design document, make the missing-input stop: its `OPEN QUESTIONS:` line names the design document.
    Make it, its line naming `since`, for a `since:` path that does not exist, a snapshot equal to the design
    document, or differences that keep no decision (a fix outside every decision and Docs to change row); and, its
    line naming `since` and `amend`, for both in one dispatch: a delta check takes no `amend`.
@@ -23,7 +23,8 @@ agent's `report:` file; never edit the design document. Ask the Owner nothing.
    the first table. A row in any other table has landed: no target, and it covers no hit. With `since`, the snapshot
    gives the rows of a decision kept by its snapshot text and each row deleted since it. A row for a doc still to be
    created is no target.
-4. **Bundles**: ground the targets as section 2 of `sweep.md` gives. Run no `get`.
+4. **Bundles**: ground the targets as section 2 of `sweep.md` gives, each read-first file by its read plan. Run no
+   `get`.
 
 ## 2. Sweep
 

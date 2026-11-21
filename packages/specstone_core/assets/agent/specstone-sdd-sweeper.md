@@ -36,15 +36,16 @@ doc and decision.
 - **`amend`** (optional): `<N>[,<N> ...]`, the amends whose decisions that check keeps.
 - **`since`** (optional): the path of the snapshot the delta check will take, the last check's; never sent with
   `amend`.
-- **`bundles`** (optional): the paths of main's saved bundle files that check will take, passed with no doc write
-  since they were saved.
+- **`bundles`** (optional): the paths of main's saved bundle files that check will take, each with the read plan line
+  main's call printed for it, passed with no doc write since they were saved. Read each read-first file by that plan,
+  every range in order, as the `specstone-read-sdd` skill gives.
 - **`report`** (optional): the file for your whole report, in the reports folder under the path `specstone folder`
   prints; absent, name your own there (Output Format).
 
 | Input | Result |
 |---|---|
 | design document, with `amend`, `since`, or neither | the sweep: `sweep.md` sections 1 to 3, then the report of its section 5 |
-| `bundles` | each stands in for a feature's `context` call only when it is that feature's own full design bundle, as `sweep.md` section 2 gives |
+| `bundles` | each, read by its read plan line, stands in for a feature's `context` call only when it is that feature's own full design bundle, never a bundle of two or more targets, as `sweep.md` section 2 gives |
 | `mode`, `stage`, `targets`, `check`, or `trims` given | ignored, and the sweep runs; the `Ignored:` line names each such key, else reads `Ignored: none` |
 | no design document | the missing-input stop; `OPEN QUESTIONS:` names the design document |
 | `amend: <N>` naming no amend the design holds | the missing-input stop; `OPEN QUESTIONS:` names `amend` |

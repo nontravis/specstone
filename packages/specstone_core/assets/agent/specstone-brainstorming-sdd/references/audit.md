@@ -11,9 +11,9 @@ file, no fix. Ask the Owner nothing.
    other refusal is a finding and drops its names too. Rerun on the rest; no target left: skip it and the steps below.
 3. **Bundles**: run one `specstone context <doc> --for design --out` on the smallest doc holding every target when
    they sit in one feature, else once per top-level feature (the project doc for a project-level one), with no
-   `--budget` or `--target`. Read the saved files per `specstone-read-sdd`, the read-first one whole; ground a doc
-   they lack with its own `specstone context <doc> --for design --out`, never `get`. On a non-zero exit, report its
-   error as a finding and go on.
+   `--budget` or `--target`. Read the saved files per `specstone-read-sdd`, the read-first one whole by its read plan;
+   ground a doc they lack with its own `specstone context <doc> --for design --out`, never `get`. On a non-zero exit,
+   report its error as a finding and go on.
 4. **Design document**, when given: read it whole; list each decision and ruling by ID or label. Then run
    `specstone list <type> --draft` for `user_story`, `fr`, and `nf`: the drafts among the targets are this
    change's.
