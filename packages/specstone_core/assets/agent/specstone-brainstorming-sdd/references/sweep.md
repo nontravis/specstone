@@ -15,7 +15,7 @@ With `since: <snapshot path>`, compare the design document with that snapshot:
 1. **Features**: run one `specstone context <feature> --for design --out` per feature the targets fall under, no
    `get`. Read each read-first file, passed or saved, by its plan (`specstone-read-sdd`).
 2. **Bundles**: main's `bundles`, each with its plan line, stand in for a feature's call only as its full design
-   bundle; a story's, an FR's, a `--summary`, a `context project`, or a several-target bundle stands in for none.
+   bundle. A story's, an FR's, a `--summary`, a `context project`, or a several-target bundle stands in for none.
 3. **Cited docs**: a doc the read-first file holds only as a cited excerpt (its index line marked `cited`, `cites`,
    or `cited by`, no part of its own there) is reached by step 3.3; the refs file's excerpts are not.
 
@@ -39,8 +39,8 @@ With `since: <snapshot path>`, compare the design document with that snapshot:
    the item for another decision only, does not cover it.
 5. **Hit list**: under the decision's `Swept:` line, in the report file only, write one
    `  <type>:<name>#<section> <item>: covered|gap|held: <why>` line per hit in a reader doc; leave no hit out. A hit
-   no row covers that stays true whatever the decision says (a history or design-reference line, a generic mention)
-   is `held: <why>`, its reason one clause. Name an item with no ID by a table row's first cell, a diagram line's
+   no row covers, judged to stay true whatever the decision says (a history or design-reference line, a generic
+   mention), is `held: <why>`, its reason one clause. Name an item with no ID by a table row's first cell, a diagram line's
    node ID, or a sentence's quoted words.
 6. **Gaps**: each `gap` hit, and each superseded wording left outside the rows, is a `D<n>: <gap>` line under
    `Findings:`; a `held` hit is none. A doc written before its rule, restating it instead of citing its owner, is
@@ -67,8 +67,8 @@ Rows:
 | <Doc cell> | <Sections cell> | <Decisions cell> |
 ```
 
-- `Ignored:` each of `mode`, `stage`, `targets`, `check`, `trims` the brief gives, or `none`.
-- `Rows:` one Docs to change row per doc and decision, which the runner adds word for word; a `held` hit takes none;
+- **`Ignored:`** each of `mode`, `stage`, `targets`, `check`, `trims` the brief gives, or `none`.
+- **`Rows:`** one Docs to change row per doc and decision, which the runner adds word for word; a `held` hit takes none;
   `Rows: none` when none.
   - **Doc:** `<type>:<name>`; with two or more code targets, a per-target spec doc adds `(target: <name>)`.
   - **Sections:** each section the hits fall in, by its `get` key, its items in parentheses; a hit restating the

@@ -11,9 +11,9 @@
   one line `Removed: <reason>` replaces the body.
 - **No author pass read it**: delete it with its rows. Never reuse an ID.
 - **Stub rows**: a row naming only it stays as a stub row; a row naming others too drops its ID, and a new stub row
-  names the same doc. A stub row's Sections cell reads `take out the D<n> text: <sections>`, each section the read
-  found with its item list or `whole`, never `all`; its Decisions cell `D<n> (Amend <N>, removed)`. No stub row asks
-  to delete a doc.
+  names the same doc. A stub row reads `take out the D<n> text: <sections>` in Sections, the sections the read found,
+  each with its item list or `whole` per step 3.6 of `design.md`, never `all`, and `D<n> (Amend <N>, removed)` in
+  Decisions. No stub row asks to delete a doc.
 - A later amend removing or adding a decision on a doc the read covered runs the read and question again.
 
 ## 2. Author: a stub row

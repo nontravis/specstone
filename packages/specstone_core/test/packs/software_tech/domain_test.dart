@@ -103,7 +103,8 @@ void main() {
       'kept.\n'
       'Keep a bound (`timeout 10 s`) in the invariant it bounds; a lock, '
       'retry, or parser mechanism the rule still needs moves to '
-      'ARCHITECTURE, an unhandled case to `known_limits`.\n'
+      "ARCHITECTURE, an unhandled case to `known_limits`. A skill's or "
+      "agent's step order is code, never an invariant.\n"
       'Nest a field as `- **<field>:** <text>`. The default enforcer is '
       'the one Aggregate root of the entities table, else the one '
       'Service; nest `- **Enforcer:** <entity>` only off it, and under '
@@ -115,6 +116,25 @@ void main() {
       'ownership note may close an invariant.',
     );
   });
+
+  test(
+    'the invariants description keeps step order out of invariants',
+    () async {
+      final projectDomain = prdCoreDocType(
+        await resolveSoftwareTech(),
+        'project_domain',
+      );
+      for (final type in [domain, projectDomain]) {
+        expect(
+          sectionOf(type, 'invariants').description,
+          contains(
+            "A skill's or agent's step order is code, never an invariant.",
+          ),
+          reason: type.id,
+        );
+      }
+    },
+  );
 
   test('the value objects description states the one-FR and shared-rule '
       'split', () {

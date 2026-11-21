@@ -3,7 +3,7 @@ description: |-
   One feature's architecture: its components, who calls whom, and where each runs.
   Title it `# <Feature name> architecture`, such as `# Rendering architecture`, with no number.
   The target's record holds each story's and FR's status and code paths; `covers` names only the target's code.
-  Write no code samples; code holds the implementation.
+  Write no code samples or skill and agent steps; code holds the implementation.
   Write one rule per ID: one Components row per component.
   A DOMAIN cites its own ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#components)`.
   Put a rule every feature uses in the project's ARCHITECTURE doc.

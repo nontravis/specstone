@@ -41,9 +41,9 @@ Walk each lens, a bold-labeled bullet, over every target in list order; record o
   feature's spec folder for covering text or a skip line in that doc's `out_of_scope`; else report
   `<type>:<name>#out_of_scope: <pattern>/<item> neither covered nor skipped`, `<type>:<name>` the listing doc, typed
   as the part's bundle line.
-- **Trim:** with `trims:`, judge each deleted, moved, and cut item its reports list by its guide line, and each
-  rewritten cite by the cite table of `../../specstone-expert-sdd/references/trim.md`. A removed item stating
-  behavior no other doc states is a gap whose fix restores it; a `Spec moves:` case awaiting its spec batch is none.
+- **Trim:** with `trims:`, judge each deleted, moved, and cut item by its guide line, and each rewritten cite by the
+  cite table of `../../specstone-expert-sdd/references/trim.md`. A removed item stating behavior no other doc states
+  is a gap to restore; a removed step, per trim.md, or a `Spec moves:` case awaiting its spec batch is none.
 - **Repoint:** with no `check:` after an author pass: a citer a size-fix move repointed or kept that still links the
   old item for the moved part, or the new item for the part left; name the citer and the item to link. List citers
   with `specstone refs <doc>` (`Inbound` lines) on both items' docs, and `specstone list --cites <ID>` for a citer

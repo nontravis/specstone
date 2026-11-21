@@ -36,8 +36,8 @@ one gap per line, `D<n>: <gap>`:
 
 - **Input left open:** a decision taking inputs or states with no input table, or with a table missing a form the
   targets already handle.
-- **Reader missed:** a saved-file item that reads or writes what a decision changes, with no target row (step 1.3).
-  Find it by the sweep and by the item's Input, Output, and rule nouns, not only the decision's terms.
+- **Reader missed:** a `gap` hit of the sweep: a saved-file item that reads or writes what a decision changes. Find
+  it by the decision's terms and by the item's Input, Output, and rule nouns. A `held` hit is none.
 - **Row mismatch:** a target row whose named sections and items hold none of its decision's terms; a row section
   with neither an item list nor `whole`; a decision's change no named item holds. A `design_references` row and a
   row only swapping a copy for a link are exempt from the first test.

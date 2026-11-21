@@ -31,9 +31,9 @@ Sections, in order:
    per input or state, its result, and each command or skill reading it; a refusal's row quotes its message literal.
 6. **Docs to change**: one row per doc: `<type>:<name>` (new: its type and parent); each changed section by its
    `get` key with its item list in parentheses (item IDs, a row's first cell, a node ID, a scenario number, quoted
-   words; `new E19` if added; `E24: <note>`), `<key> whole`, or `whole` for a new doc or every section rewritten;
-   decision IDs.
-   - A key with neither an item list nor `whole` is a design-check line.
+   words; `new E19` if added; `E24: <note>`), `<key> whole` for one rewritten whole, or `whole` for a new doc or a
+   rewrite of every section; decision IDs.
+   - A key with neither: a design-check line.
    - Each amend's rows form an `Amend <N> rows` table; a landed one is no later target.
    - A decision with no row gets a line on why.
    - A doc the sweep finds restating a decision's rule gets a row: remove the copy and link the owner's item;
@@ -47,7 +47,7 @@ Sections, in order:
 
 - Take each reader from a sweeper's `Rows:` lines; run no reader search.
 - An amend that adds or changes behavior, or removes a decision, names its owner doc and terms and adds its rows
-  before the author writes it; a removal first follows section 1 of `removal.md`.
+  before the author writes it, a removal first by section 1 of `removal.md`: its read, stub, and stub rows.
 - Decide each open point a PRD or spec doc must state (a refusal, a name rule), naming its one owner item, or list it
   as an open question; a design holding one goes to no author.
 - Leave a code-level point (a class name) to the builder: no decision, no open question.

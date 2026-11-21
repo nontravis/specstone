@@ -17,13 +17,45 @@ For each section a `retrim_due` finding names, and each FR's edge cases past a c
 | Outcome | When | Write |
 |---|---|---|
 | keep | the guide admits it | leave it word for word |
-| cut | the guide admits it but bans some text: a lock, retry, or parser mechanism, message text, or an exit status | cut the banned text |
+| cut | the guide admits it but bans some text: a lock, retry, or parser mechanism, a skill's or agent's steps, message text, or an exit status | cut the banned text |
 | move | the guide names another home for it | write it there, then delete it here |
 | delete | the guide excludes it | delete it |
 
 - A cut message the guide makes contract moves to the FR's Output row that defines it, when that row lacks it.
 - A mechanism still needed moves to the feature's ARCHITECTURE, in a spec batch.
 - Drop no other statement on judgement.
+
+## The guide lines per section
+
+Trim each section by its type's guide lines below, and delete each item they exclude, except a Components row, which
+the next section cuts to its role:
+
+| Section | Guide lines |
+|---|---|
+| `fr` Input / Output and Behavior | the item shape line, its skill and agent sentences included, and the `behavior` section line |
+| `fr` Edge cases | the four edge-case lines |
+| `fr` Verification | the `verification` section lines |
+| `architecture` Components, Component details, and Interaction | the `architecture` description line on code samples and steps, and the section's own lines |
+| `domain` and `project_domain` Invariants | the `invariants` section lines |
+| Value objects | the `value_objects` section line |
+
+## A skill's or agent's steps
+
+Outside a Components row and a diagram, cut a skill's or agent's steps and move them nowhere: the skill's or agent's
+own files hold them. Delete an item that states only steps, unless the IDs section keeps it. In a Components row,
+cut the Responsibility to the component's role, and never delete the row: its box stays in the unmarked component
+diagram.
+
+The parts the `fr` guide's item shape line names for a skill or agent are its contract: when it asks, what it takes,
+what it reports, its limits, and what it may write. An audit restores a removed contract part no other doc states, and
+never a removed step.
+
+In a Behavior diagram, keep only the contract nodes, each stating a contract part. Join each removed node's in-edges
+to its out-edges, and drop from a joined edge the labels of a removed decision node. In an Interaction sequence
+diagram, keep only the contract messages: a question to the Owner, a dispatch's inputs, a report, a CLI write call
+with its flags, or a limit. Drop a CLI read call unless it states a limit, such as one call with no `--budget`. Drop a
+read or a step order between the plugin's own parts. A diagram trim that leaves no node or message deletes the
+diagram's optional section.
 
 ## A PRD batch
 
