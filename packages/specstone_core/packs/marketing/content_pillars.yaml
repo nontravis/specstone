@@ -8,6 +8,8 @@ sections:
     header: Themes
     description: |-
       List each theme and the audience need it serves.
+lint:
+  title_no_number: true
 reference:
   - title: marketingskills, product-marketing
     url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

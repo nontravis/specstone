@@ -12,6 +12,8 @@ sections:
     header: Words
     description: |-
       List the words and phrases to use and to avoid.
+lint:
+  title_no_number: true
 reference:
   - title: BRAND.md Specification
     url: https://raw.githubusercontent.com/caiopizzol/brand.md/main/spec/brand-md.md

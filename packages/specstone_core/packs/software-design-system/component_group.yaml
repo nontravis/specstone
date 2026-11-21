@@ -10,3 +10,5 @@ sections:
     summary: true
     description: |-
       Write what the group's components share and when a reader looks in it.
+lint:
+  title_no_number: true

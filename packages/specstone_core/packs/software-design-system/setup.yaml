@@ -10,3 +10,5 @@ sections:
     required: true
     description: |-
       State what a consumer does to install the library and what the install gives, in steps a reader repeats.
+lint:
+  title_no_number: true

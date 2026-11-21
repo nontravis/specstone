@@ -14,3 +14,5 @@ sections:
     required: true
     description: |-
       List each grid with its columns, its gutters, and its margins.
+lint:
+  title_no_number: true

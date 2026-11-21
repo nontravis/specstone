@@ -14,3 +14,5 @@ sections:
     required: true
     description: |-
       Write one table: a row per token, a column per theme, each cell the value that theme gives the token.
+lint:
+  title_no_number: true

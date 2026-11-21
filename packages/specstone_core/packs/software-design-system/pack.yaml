@@ -1,5 +1,5 @@
 name: software-design-system
-version: 1.1.0
+version: 1.2.0
 extends: software-tech
 shared_lines:
   - id: serve_library_builders

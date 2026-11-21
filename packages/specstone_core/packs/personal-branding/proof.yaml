@@ -16,6 +16,8 @@ sections:
     header: Credentials
     description: |-
       List the titles, certificates, and published work that back the person's claims.
+lint:
+  title_no_number: true
 reference:
   - title: Swiftbio, personal branding guide
     url: https://swiftbio.io/blog/personal-branding-guide

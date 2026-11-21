@@ -16,6 +16,8 @@ sections:
     header: Gaps
     description: |-
       List where the competitor falls short for the project's best-fit customers.
+lint:
+  title_no_number: true
 reference:
   - title: marketingskills, product-marketing
     url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

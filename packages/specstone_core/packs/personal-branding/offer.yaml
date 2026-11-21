@@ -8,6 +8,8 @@ sections:
     header: Ladder
     description: |-
       List each offer from free to premium, with who it is for and the next step it leads to.
+lint:
+  title_no_number: true
 reference:
   - title: Zanfia, how to build a personal brand
     url: https://zanfia.com/blog/how-to-build-personal-brand/

@@ -84,7 +84,8 @@ void main() {
   setUpAll(() async => set = await resolvePersonalBranding());
 
   group('manifest', () {
-    test('personal-branding ships at 1.0.0 and extends marketing', () {
+    test('personal-branding ships at 1.1.0 with no migrations and extends '
+        'marketing', () {
       final bytes = shippedPackFiles['personal-branding/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -92,8 +93,21 @@ void main() {
         file: 'packs/personal-branding/pack.yaml',
       );
       expect(manifest.name, 'personal-branding');
-      expect(manifest.version.toString(), '1.0.0');
+      expect(manifest.version.toString(), '1.1.0');
+      expect(manifest.migrations, isEmpty);
       expect(manifest.extendsPack, 'marketing');
+    });
+
+    test('the four doc types title with no number, so each sets '
+        'lint.title_no_number, and voice keeps the key marketing sets', () {
+      for (final id in personalBrandingIds) {
+        expect(prdCoreDocType(set, id).lint.titleNoNumber, isTrue, reason: id);
+      }
+      expect(
+        shippedPackFiles.containsKey('personal-branding/voice.yaml'),
+        isTrue,
+      );
+      expect(prdCoreDocType(set, 'voice').lint.titleNoNumber, isTrue);
     });
 
     test('ships person_stable_facts, then person_learning_edits_doc, each '
@@ -148,7 +162,7 @@ void main() {
         final project = await writeTree({
           '.specstone/config.yaml':
               'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-              '  marketing: 1.1.0\n  personal-branding: 0.9.0\n',
+              '  marketing: 1.2.0\n  personal-branding: 0.9.0\n',
         });
         final home = await writeTree({});
         expect(
@@ -159,7 +173,7 @@ void main() {
           throwsA(
             isA<TemplateFault>()
                 .having((f) => f.code, 'code', FaultCode.packPinOlder)
-                .having((f) => f.message, 'message', contains('1.0.0')),
+                .having((f) => f.message, 'message', contains('1.1.0')),
           ),
         );
       },

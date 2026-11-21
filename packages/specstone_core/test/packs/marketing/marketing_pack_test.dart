@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/marketing.dart';
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
@@ -131,17 +132,21 @@ void main() {
   setUpAll(() async => set = await resolveMarketing());
 
   group('manifest', () {
-    test('marketing ships at 1.1.0 and extends prd-core', () {
-      final bytes = shippedPackFiles['marketing/pack.yaml'];
-      expect(bytes, isNotNull);
-      final manifest = PackManifest.parse(
-        utf8.decode(bytes!),
-        file: 'packs/marketing/pack.yaml',
-      );
-      expect(manifest.name, 'marketing');
-      expect(manifest.version.toString(), '1.1.0');
-      expect(manifest.extendsPack, 'prd-core');
-    });
+    test(
+      'marketing ships at 1.2.0 with no migrations and extends prd-core',
+      () {
+        final bytes = shippedPackFiles['marketing/pack.yaml'];
+        expect(bytes, isNotNull);
+        final manifest = PackManifest.parse(
+          utf8.decode(bytes!),
+          file: 'packs/marketing/pack.yaml',
+        );
+        expect(manifest.name, 'marketing');
+        expect(manifest.version.toString(), '1.2.0');
+        expect(manifest.migrations, isEmpty);
+        expect(manifest.extendsPack, 'prd-core');
+      },
+    );
 
     test('ships stable_facts_and_plan, then learning_edits_doc, each naming '
         'the eleven doc types, and no shared field', () {
@@ -228,8 +233,72 @@ void main() {
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.packPinOlder)
-              .having((f) => f.message, 'message', contains('1.1.0')),
+              .having((f) => f.message, 'message', contains('1.2.0')),
         ),
+      );
+    });
+  });
+
+  group('lint entries', () {
+    const draft = '---\ndraft: true\n---\n\n';
+    const noLink = [
+      '- Parents of toddlers',
+      '* Retired teachers, no persona yet',
+      '1. Weekend gardeners',
+      '2) A link-like [text] and (parens)',
+    ];
+    const linked = [
+      '- [Parents](../prds/personas/parents.md) of toddlers',
+      '- Gardeners, see [persona](../prds/personas/gardener.md)',
+      '1. [Teachers](../prds/personas/teacher.md#needs)',
+      '| Segment | Persona |',
+      '  and a wrapped line of the item above',
+    ];
+
+    test('every doc type titles with no number, so each sets '
+        'lint.title_no_number', () {
+      for (final id in marketingIds) {
+        expect(prdCoreDocType(set, id).lint.titleNoNumber, isTrue, reason: id);
+      }
+    });
+
+    test('a doc title holding a digit is title_numbered', () async {
+      expect(
+        await _findings(
+          _positioningDoc,
+          '$draft# Positioning 2\n\n## Value\n\nOne line.\n',
+          kind: FindingKind.titleNumbered,
+        ),
+        hasLength(1),
+      );
+    });
+
+    test('a segment item with no link is segment_link, and a linked item, a '
+        'table line, a wrapped line, a fenced line, and a blank line give '
+        'none', () async {
+      const path = 'specs/marketing/AUDIENCE.md';
+      final lines = await bannedLines(
+        {
+          '.specstone/config.yaml': shippedPinsConfig(_packs),
+          'docs/$path':
+              '$draft# Audience\n\n## Segments\n\n${linked.join('\n')}\n\n'
+              '```\n- Fenced item\n```\n\n${noLink.join('\n')}\n',
+        },
+        path,
+        'segment_link',
+      );
+      expect(lines, noLink);
+    });
+
+    test('the entry names the guide line the audience guide prints', () {
+      final entry = sectionOf(
+        prdCoreDocType(set, 'audience'),
+        'segments',
+      ).bannedPatterns!.singleWhere((e) => e.id == 'segment_link');
+      expect(
+        entry.message,
+        "segment item has no link; guide line: Link each segment's `persona` "
+        'doc',
       );
     });
   });

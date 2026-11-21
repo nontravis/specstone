@@ -1,5 +1,5 @@
 name: marketing
-version: 1.1.0
+version: 1.2.0
 extends: prd-core
 shared_lines:
   - id: stable_facts_and_plan

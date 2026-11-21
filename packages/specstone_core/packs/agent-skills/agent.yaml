@@ -53,3 +53,5 @@ sections:
     required: true
     description: |-
       Write the dispatch cases, sent and not sent, and assertions on the report for two or more realistic briefs.
+lint:
+  title_no_number: true

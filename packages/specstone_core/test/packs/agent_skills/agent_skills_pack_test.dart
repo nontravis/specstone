@@ -52,7 +52,7 @@ Future<List<String>> _skillFindings(
 
 void main() {
   group('agent-skills manifest', () {
-    test('agent-skills ships at 1.0.0 and extends prd-core', () {
+    test('agent-skills ships at 1.1.0 and extends prd-core', () {
       final bytes = shippedPackFiles['agent-skills/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -60,8 +60,16 @@ void main() {
         file: 'packs/agent-skills/pack.yaml',
       );
       expect(manifest.name, 'agent-skills');
-      expect(manifest.version.toString(), '1.0.0');
+      expect(manifest.version.toString(), '1.1.0');
       expect(manifest.extendsPack, 'prd-core');
+    });
+
+    test('both doc types title with no number, so each sets '
+        'lint.title_no_number', () async {
+      final set = await resolveAgentSkills();
+      for (final id in ['skill', 'agent']) {
+        expect(prdCoreDocType(set, id).lint.titleNoNumber, isTrue, reason: id);
+      }
     });
 
     test('agent-skills listed without prd-core is prd_core_missing', () async {
@@ -299,6 +307,20 @@ void main() {
         await _skillFindings(
           _skillText(covers: '  - $_skillFile\n  - app/lib/login.dart\n'),
         ),
+        isEmpty,
+      );
+    });
+
+    test('a skill title holding a digit is title_numbered', () async {
+      expect(
+        await _skillFindings(
+          _skillText().replaceFirst('# Review\n', '# Review 2\n'),
+          kind: FindingKind.titleNumbered,
+        ),
+        ['$_skillDoc:7: title_numbered'],
+      );
+      expect(
+        await _skillFindings(_skillText(), kind: FindingKind.titleNumbered),
         isEmpty,
       );
     });

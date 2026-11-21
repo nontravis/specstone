@@ -25,6 +25,8 @@ sections:
     header: Market category
     description: |-
       Name the category the product competes in, which sets what the customer compares it with.
+lint:
+  title_no_number: true
 reference:
   - title: April Dunford, A Quickstart Guide to Positioning
     url: https://www.aprildunford.com/post/a-quickstart-guide-to-positioning

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -10,6 +11,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/shared_lines.dart';
 import '../../helpers/shipped_pins.dart';
@@ -119,7 +121,7 @@ void main() {
   setUpAll(() async => set = await resolveSoftwareDesignSystem());
 
   group('manifest', () {
-    test('ships at 1.1.0, extends software-tech, and carries exactly the '
+    test('ships at 1.2.0, extends software-tech, and carries exactly the '
         'nineteen doc type files', () {
       final bytes = shippedPackFiles['software-design-system/pack.yaml'];
       expect(bytes, isNotNull);
@@ -128,7 +130,7 @@ void main() {
         file: 'packs/software-design-system/pack.yaml',
       );
       expect(manifest.name, 'software-design-system');
-      expect(manifest.version.toString(), '1.1.0');
+      expect(manifest.version.toString(), '1.2.0');
       expect(manifest.extendsPack, 'software-tech');
       expect(
         shippedPackFiles.keys.where(
@@ -319,6 +321,154 @@ void main() {
       for (final id in softwareDesignSystemIds.where((i) => i != 'discovery')) {
         expect(prdCoreDocType(set, id).listedGenerators, isEmpty, reason: id);
       }
+    });
+  });
+
+  group('lint entries', () {
+    const draft = '---\ndraft: true\n---\n\n';
+    const foundations = [
+      'color',
+      'typography',
+      'spacing',
+      'elevation',
+      'shape',
+      'motion',
+    ];
+
+    Future<List<String>> flagged(String docPath, String id, String body) =>
+        bannedLines(
+          {
+            '.specstone/config.yaml': softwareDesignSystemConfig(),
+            'docs/$docPath': '$draft# Doc\n\n$body',
+          },
+          docPath,
+          id,
+        );
+
+    test('every doc type titles with no number, so each sets '
+        'lint.title_no_number', () {
+      for (final id in softwareDesignSystemIds) {
+        expect(prdCoreDocType(set, id).lint.titleNoNumber, isTrue, reason: id);
+      }
+    });
+
+    test('a doc title holding a digit is title_numbered', () async {
+      const path = '$_root/foundations/COLOR.md';
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': softwareDesignSystemConfig(),
+            'docs/$path': '$draft# Color 2\n\n## Color roles\n\nOne row.\n',
+          },
+        ),
+        docPath: path,
+      );
+      expect([
+        for (final f in report.findings)
+          if (f.kind == FindingKind.titleNumbered) f.textLine,
+      ], hasLength(1));
+    });
+
+    const valueLines = [
+      '| primary | brand | #1A73E8 |',
+      '| short | a short hex | #fa0 |',
+      '| alpha | hex with alpha | #1A73E8cc |',
+      '| gap | 16px |',
+      '| body | 1.5rem |',
+      '| em | 2em |',
+      '| fast | 200ms |',
+      '| slow | .2s |',
+      '| half | 50% |',
+      '| point | 12pt |',
+      '| density | 8dp and 14sp |',
+      'Set the role to #1A73E8 here.',
+    ];
+    const tokenLines = [
+      '| primary | brand actions | [color-primary](TOKENS.md#color-primary) |',
+      '| fade | fades in | [fade-in](TOKENS.md#fade-in) |',
+      '| bad | a bad link | [bad](TOKENS.md#bad) |',
+      '| space-md | a medium gap | [space-md](TOKENS.md#space-md) |',
+      '- A role named `color-primary` in the second step.',
+      'Use the roles in order of weight.',
+    ];
+
+    test('each foundation section flags a hex color or a unit value, and a '
+        'token name, a link to a token row, a fenced line, and a blank line '
+        'give none', () async {
+      for (final id in foundations) {
+        final (path, sections) = _plainDocTypes[id]!;
+        for (final (_, header) in sections) {
+          final lines = await flagged(
+            path,
+            'token_value',
+            '## $header\n\n${tokenLines.join('\n')}\n\n'
+                '```\n#1A73E8\n16px\n```\n\n${valueLines.join('\n')}\n',
+          );
+          expect(lines, valueLines, reason: '$id $header');
+        }
+      }
+    });
+
+    test('a value in one section is flagged and the other section of the '
+        'doc stays clean', () async {
+      final lines = await flagged(
+        '$_root/foundations/MOTION.md',
+        'token_value',
+        '## Durations\n\n| fast | `200ms` |\n\n## Easings\n\n| calm | ease |\n',
+      );
+      expect(lines, ['| fast | `200ms` |']);
+    });
+
+    test('a foundation entry names the guide line the guide prints', () {
+      for (final id in foundations) {
+        final type = prdCoreDocType(set, id);
+        for (final section in type.sections) {
+          final entry = section.bannedPatterns!.singleWhere(
+            (e) => e.id == 'token_value',
+          );
+          expect(
+            entry.message,
+            'token value in a foundation doc; guide line: it links the '
+            'tokens doc and writes no token value',
+            reason: '$id ${section.id}',
+          );
+        }
+      }
+    });
+
+    const nonLinkItems = [
+      '- Tokens first',
+      '* Color after it',
+      '+ `tokens` and more',
+      '1. Typography next',
+      '2) Spacing last',
+    ];
+    const linkItems = [
+      '- [Tokens](foundations/TOKENS.md)',
+      '1. [Color](foundations/COLOR.md)',
+      '| [Color](foundations/COLOR.md) | the roles |',
+      '  and a wrapped line of the item above',
+    ];
+
+    test('a reading-order or components-used item with no leading link is '
+        'link_item, and a linked item, a table line, a wrapped line, a '
+        'fenced line, and a blank line give none', () async {
+      final body = '\n${linkItems.join('\n')}\n\n```\n- Fenced item\n```\n\n';
+      final reading = await flagged(
+        '$_root/GUIDELINES.md',
+        'link_item',
+        '## Reading order\n$body${nonLinkItems.join('\n')}\n\n'
+            '## Hard rules\n\n- No raw colors.\n',
+      );
+      expect(reading, nonLinkItems);
+      final used = await flagged(
+        '$_root/composition/patterns/forms.md',
+        'link_item',
+        '## Purpose\n\n- Lists no link here.\n\n'
+            '## Components used\n$body${nonLinkItems.join('\n')}\n\n'
+            '## Composition\n\n- Stacks them.\n',
+      );
+      expect(used, nonLinkItems);
     });
   });
 
