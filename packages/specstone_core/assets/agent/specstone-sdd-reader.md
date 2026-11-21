@@ -72,14 +72,17 @@ word, each cited by doc and section.
 One block per section, in bundle order, a blank line between blocks, and nothing else: no preface or summary.
 
 ```
-==> <name>#<heading> <==
-## <heading>
+==> <doc type>:<name>#<key> <==
+## <heading> {#<key>}
 <each line of the section, as the file holds it>
 ```
 
-- **Citation**: `<name>` comes from the doc's `==> <name> (<type>) · <path> <==` line in a saved file;
-  `<heading>` is the text after `## `. Never cite a `<path>:<line>` or a file path; name and heading survive an edit
-  that moves lines.
+- **Citation**: `<name>` and `<doc type>` come from the part's `==> <name> (<doc type>) · <path> <==` naming line in a
+  saved file, such as `user_story:login/email_login#acceptance_criteria`. `<key>` is the heading's `{#<key>}` suffix,
+  which stays on the `## ` line, else the naming line's `#<key>` after the path; never the heading text. Cite a piece
+  before a doc's first `## ` heading `<doc type>:<name>`, the doc alone, and a feature pattern or names part by its
+  naming line as printed, such as `crud (feature pattern) · login`. Never cite a `<path>:<line>` or a file path; type,
+  name, and key survive an edit that moves lines.
 - **Gap**: when no section holds something the task needs, end with `Not in the docs: <what>`.
 
 ## Scope Boundaries
