@@ -2517,12 +2517,18 @@ void _brainstormRoundTests() {
       ]),
       isTrue,
     );
+  });
+
+  test('the design check prints its Held line after the Swept lines', () {
     final check = _pluginText(_designCheckReference);
     final block = _fencedBlock
         .firstMatch(check.substring(check.indexOf('## 4. Report')))!
         .group(1)!;
     expect(block.indexOf('Swept: '), isNonNegative);
     expect(block.indexOf('Held: '), greaterThan(block.indexOf('Swept: ')));
+  });
+
+  test('the design check and auditor relays copy Held after Swept', () {
     for (final (file, heading) in [
       (_designCheckReference, '## 4. Report'),
       (_auditor, '## Output Format'),
@@ -2539,15 +2545,11 @@ void _brainstormRoundTests() {
         reason: file,
       );
     }
-    expect(
-      _hasSentenceWith(_sectionOf(_pluginText(_sweeper), '## Workflow'), [
-        '`Rows:`',
-        '`gap`',
-        '`held`',
-        'none',
-      ]),
-      isTrue,
-    );
+  });
+
+  test("the sweeper's Rows lines take no row for a held hit", () {
+    final rows = _bulletOf(_pluginText(_sweepReference), '- **`Rows:`**');
+    expect(_hasSentenceWith(rows, ['a `held` hit takes none']), isTrue);
   });
 
   test('design.md gives each Docs to change row form', () {
