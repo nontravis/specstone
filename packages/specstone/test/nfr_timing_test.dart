@@ -301,11 +301,11 @@ void main() {
     expect(first.exitCode, 0, reason: '${first.stderr}');
     expect(first.stdout.toString(), contains('  · cited by '));
     expect(
-      '  · cited by feature_1/story_1/req_2 (fr) '.allMatches(
+      '  · cited by feature_1/story_2/req_1 (fr) '.allMatches(
         first.stdout.toString(),
       ),
       hasLength(denseCiteCount),
-      reason: 'the bundle appends every item its own docs cite densely',
+      reason: 'the bundle prints a cited-by line for each picked item cited',
     );
     expect(
       bestOf(
