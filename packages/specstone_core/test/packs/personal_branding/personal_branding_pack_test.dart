@@ -103,10 +103,6 @@ void main() {
       for (final id in personalBrandingIds) {
         expect(prdCoreDocType(set, id).lint.titleNoNumber, isTrue, reason: id);
       }
-      expect(
-        shippedPackFiles.containsKey('personal-branding/voice.yaml'),
-        isTrue,
-      );
       expect(prdCoreDocType(set, 'voice').lint.titleNoNumber, isTrue);
     });
 

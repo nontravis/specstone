@@ -153,7 +153,7 @@ void main() {
           contains(
             '``**Errors:** the `<group>` codes, `<code>`, …; see <links>``',
           ),
-          contains('only when the operation returns all its codes'),
+          contains('only when the operation returns every code of the group'),
           contains('Write no Why line'),
         ),
       );

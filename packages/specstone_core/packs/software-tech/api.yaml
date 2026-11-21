@@ -34,7 +34,7 @@ sections:
     description: |-
       Write one `###` per operation, headed `` `<operation>` `` alone with no FR label, holding a Request example.
       Write a success and an error Response example, valid against the source of truth, only in a doc that holds that section.
-      Write one Errors line, `**Errors:** <codes>; see <links>`. List every code the operation returns as a code span, then one link per error doc that owns them. Hold no per-code text, and hand off to no other operation's list. Write `**Errors:** none` when the operation returns no code. When the codes would pass the sentence word cap, name each group of codes the error doc defines in place of its codes, ``**Errors:** the `<group>` codes, `<code>`, …; see <links>``, only when the operation returns all its codes.
+      Write one Errors line, `**Errors:** <codes>; see <links>`. List every code the operation returns as a code span, then one link per error doc that owns them. Hold no per-code text, and hand off to no other operation's list. Write `**Errors:** none` when the operation returns no code. When the codes would pass the sentence word cap, name each group of codes the error doc defines in place of its codes, ``**Errors:** the `<group>` codes, `<code>`, …; see <links>``, only when the operation returns every code of the group.
       Write Auth as `**Auth:** <scope or none>`, and Idempotent on every mutating operation: `yes` with the key, or `no`.
       Write no Why line; a legacy Why's reason goes to the traced FR's `Rationale`.
     lint:

@@ -419,7 +419,7 @@ void main() {
       expect(lines, ['| fast | `200ms` |']);
     });
 
-    test('a foundation entry names the guide line the guide prints', () {
+    test('the message reads the guide line', () {
       for (final id in foundations) {
         final type = prdCoreDocType(set, id);
         for (final section in type.sections) {

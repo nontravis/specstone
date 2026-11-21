@@ -64,7 +64,7 @@ sections:
           message: 'a second "shall"; guide line: Use one "shall" and a positive form'
           in: text
         - id: trace_outside_field
-          # A scenario ID, a "traces Scenario" or "Traces from" phrase, "Scenario N of", or a scenario link.
+          # A scenario ID, a "traces Scenario" or "Traces from [Scenario" phrase, "Scenario N of", or a scenario link.
           pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of\b|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
           message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
           in: all
@@ -157,7 +157,7 @@ sections:
           message: 'edge case states an exit status; guide line: State no exit status'
           in: all
         - id: trace_outside_field
-          # A scenario ID, a "traces Scenario" or "Traces from" phrase, "Scenario N of", or a scenario link.
+          # A scenario ID, a "traces Scenario" or "Traces from [Scenario" phrase, "Scenario N of", or a scenario link.
           pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of\b|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
           message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
           in: all
@@ -172,7 +172,7 @@ sections:
     lint:
       banned_patterns:
         - id: trace_outside_field
-          # A scenario ID, a "traces Scenario" or "Traces from" phrase, "Scenario N of", or a scenario link.
+          # A scenario ID, a "traces Scenario" or "Traces from [Scenario" phrase, "Scenario N of", or a scenario link.
           pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of\b|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
           message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
           in: all

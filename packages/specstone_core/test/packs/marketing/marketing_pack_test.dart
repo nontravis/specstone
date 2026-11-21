@@ -290,7 +290,7 @@ void main() {
       expect(lines, noLink);
     });
 
-    test('the entry names the guide line the audience guide prints', () {
+    test('the message reads the guide line', () {
       final entry = sectionOf(
         prdCoreDocType(set, 'audience'),
         'segments',

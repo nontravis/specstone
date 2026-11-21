@@ -230,7 +230,30 @@ void main() {
       expect(lines, isEmpty);
     });
 
-    test('the entry names the Props guide line the guide prints', () async {
+    test('a Prop, Description, Type table flags its type column, since the '
+        'guide names the second column', () async {
+      final lines = await flaggedProps(
+        '## Props\n\n| Prop | Description | Type |\n|---|---|---|\n'
+        '| label | the caption | text |\n',
+      );
+      expect(lines, [
+        '| Prop | Description | Type |',
+        '| label | the caption | text |',
+      ]);
+      final component = prdCoreDocType(
+        await resolveSoftwareDesignSystem(),
+        'component',
+      );
+      expect(
+        component.renderGuide(),
+        contains(
+          'Write one row per prop, its type one of `text`, `number`, '
+          '`boolean`, `choice`, and `on-tap` in the second column.',
+        ),
+      );
+    });
+
+    test('the message reads the guide line', () async {
       final component = prdCoreDocType(
         await resolveSoftwareDesignSystem(),
         'component',
@@ -243,7 +266,7 @@ void main() {
         entry.message,
         'prop type is not text, number, boolean, choice, or on-tap; guide '
         'line: Write one row per prop, its type one of `text`, `number`, '
-        '`boolean`, `choice`, and `on-tap`.',
+        '`boolean`, `choice`, and `on-tap` in the second column.',
       );
     });
   });
