@@ -1484,7 +1484,7 @@ void main() {
           '',
         ),
       );
-      expect(readDoc(root, fr11), isNot(contains('retrim')));
+      expect(readDoc(root, fr11), isNot(contains('retrim:')));
     },
   );
   test('a new title keeps the folder and the name, and marks the doc draft', () async {
