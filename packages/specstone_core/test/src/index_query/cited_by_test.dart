@@ -117,6 +117,25 @@ void main() {
     expect(_of(cited, _domain, 'INV-14').single.bySection, leadKey);
   });
 
+  test(
+    'a link on a section header line names that section, not the one before it',
+    () async {
+      const header = '## Related [INV-14](../f02_signup/DOMAIN.md#invariants)';
+      final index = await _index(
+        'Check it.',
+        extra: {
+          'docs/specs/topics/guide.md':
+              '# Guide\n\n## Purpose\nNothing.\n\n$header\nMore.\n',
+        },
+      );
+      final guide = index.docs.singleWhere((doc) => doc.name == 'guide');
+      final related = index.contentOf(guide).sections.last.key;
+      final by = _of(_citedBy(index), _domain, 'INV-14').single.bySection;
+      expect(by, related);
+      expect(by, isNot('purpose'));
+    },
+  );
+
   test('a filtered index drops links from the given docs into the given docs alone', () async {
     const guideLine = 'Also [INV-14](../f02_signup/DOMAIN.md#invariants).';
     final index = await _index(

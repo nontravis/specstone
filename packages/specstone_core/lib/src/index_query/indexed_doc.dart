@@ -48,9 +48,12 @@ const nfType = 'nf';
 /// Returns the SHA-256 of [bytes] as lowercase hex.
 String contentHashOf(List<int> bytes) => sha256.convert(bytes).toString();
 
-/// Returns the size of [text] in tokens: its code points divided by 4, rounded
-/// down.
-int tokenSizeOf(String text) => text.runes.length ~/ 4;
+/// The code points one est. token counts.
+const runesPerToken = 4;
+
+/// Returns the size of [text] in tokens: its code points divided by
+/// [runesPerToken], rounded down.
+int tokenSizeOf(String text) => text.runes.length ~/ runesPerToken;
 
 final _outsideKey = RegExp(r'[^\p{L}\p{M}\p{N} _-]', unicode: true);
 final _keySeparators = RegExp('[ _-]+');

@@ -9,7 +9,7 @@ import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
     show featurePatternDocAddress, featurePatternListName;
 import 'package:specstone_core/src/index_query/folder_prune.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
-    show tokenSizeOf;
+    show runesPerToken, tokenSizeOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 import 'package:specstone_core/src/index_query/models/read_plan.dart';
@@ -48,9 +48,6 @@ const _refsIsReadFirst = 'the refs file is the read-first file';
 /// tokens at 63,968 tokens, so 24,000 stays about 4% under the 25,000-token cap
 /// of a Read.
 const readRangeTokenLimit = 24000;
-
-/// The code points an est. token counts, the divisor of [tokenSizeOf].
-const _runesPerToken = 4;
 
 const _headingMark = '## ';
 
@@ -284,7 +281,7 @@ final class _RangeCutter {
   /// [tokenSizeOf] counts the joined text.
   int _tokens(int first, int last) {
     final runes = _runesThrough[last] - _runesThrough[first - 1];
-    return (runes + last - first) ~/ _runesPerToken;
+    return (runes + last - first) ~/ runesPerToken;
   }
 
   bool _fits(int first, int last) =>

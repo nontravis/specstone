@@ -528,13 +528,13 @@ final class _Doc {
   String sectionKeyHolding(int line) {
     final at = _sectionHolding(line);
     if (at < 0) return leadKey;
-    return sectionAt(at)?.key ?? content.sections[at].key;
+    return _sections[at].key;
   }
 
-  /// Returns the index of the section that holds file line [line], or -1 for
-  /// a line before the first section.
+  /// Returns the index of the section that holds file line [line], its header
+  /// line included, or -1 for a line before the first section.
   int _sectionHolding(int line) =>
-      facts.sectionLines.lastIndexWhere((start) => start < line);
+      facts.sectionLines.lastIndexWhere((start) => start <= line);
 
   List<_ItemExtent> _extentsAt(int at) => _extents[at] ??= _extentsOf(at);
 
