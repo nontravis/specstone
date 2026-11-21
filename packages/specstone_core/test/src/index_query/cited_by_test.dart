@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart' show leadKey;
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
@@ -68,22 +69,23 @@ List<CitedBy> _ofDoc(CitedByIndex cited, String docPath) =>
     const [];
 
 void main() {
-  test(
-    'an item link from an item of another doc gives its line, doc, and item',
-    () async {
-      const line = '1. E01 — A wrong password → refused, by $_inv14.';
-      final cited = _citedBy(await _index('Check it.', edge: line));
-      expect(_of(cited, _domain, 'INV-14'), [
-        const CitedBy(
-          docPath: _frPath,
-          name: _frName,
-          docType: 'fr',
-          byItem: 'E01',
-          line: line,
-        ),
-      ]);
-    },
-  );
+  test('a cited-by line names the citer, its item, and its section, with no link text', () async {
+    const line = '1. E01 — A wrong password → refused, by $_inv14.';
+    final cited = _citedBy(await _index('Check it.', edge: line));
+    expect(_of(cited, _domain, 'INV-14'), [
+      const CitedBy(
+        docPath: _frPath,
+        name: _frName,
+        docType: 'fr',
+        byItem: 'E01',
+        bySection: 'edge_cases',
+      ),
+    ]);
+    expect(
+      citedByLineOf(_of(cited, _domain, 'INV-14').single),
+      '  · cited by $_frName (fr) E01 #edge_cases',
+    );
+  });
 
   test('a link on a line that belongs to no item reads no item', () async {
     const line = 'The system shall lock, by $_inv13.';
@@ -94,9 +96,25 @@ void main() {
         name: _frName,
         docType: 'fr',
         byItem: null,
-        line: line,
+        bySection: 'statement',
       ),
     ]);
+    expect(
+      citedByLineOf(_of(cited, _domain, 'INV-13').single),
+      '  · cited by $_frName (fr) — #statement',
+    );
+  });
+
+  test("a link in a doc's lead names the lead's section key", () async {
+    final cited = _citedBy(
+      await _index(
+        'Check it.',
+        extra: {
+          'docs/specs/topics/guide.md': '# Guide\n\nSee [INV-14](../f02_signup/DOMAIN.md#invariants).\n\n## Purpose\nNothing.\n',
+        },
+      ),
+    );
+    expect(_of(cited, _domain, 'INV-14').single.bySection, leadKey);
   });
 
   test('a filtered index drops links from the given docs into the given docs alone', () async {
@@ -118,7 +136,7 @@ void main() {
         name: guide.name,
         docType: 'topic',
         byItem: null,
-        line: guideLine,
+        bySection: 'purpose',
       ),
     ]);
     expect(
@@ -148,7 +166,7 @@ void main() {
           name: guide.name,
           docType: 'topic',
           byItem: null,
-          line: line,
+          bySection: 'purpose',
         ),
       ], reason: id);
     }
@@ -206,7 +224,13 @@ void main() {
       },
     );
     test('a design bundle prints no cited-by line after it', () async {
-      final i = await _index(statement, extra: glossaryFile);
+      final i = await _index(
+        statement,
+        extra: {
+          ...glossaryFile,
+          'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [E01](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md#edge-cases).\n',
+        },
+      );
       final a = answerContext(
         i,
         pickBundle(i, [_frName], BundleMode.design, noProject: false),
@@ -221,7 +245,7 @@ void main() {
         afterHead.substring(0, afterHead.indexOf('==> ')),
         isNot(contains('cited by')),
       );
-      expect(a.text, contains('  · cited by $_frName (fr) —: $statement'));
+      expect(a.text, contains('  · cited by guide (topic) — #purpose'));
     });
   });
 
@@ -241,29 +265,55 @@ void main() {
     },
   );
 
-  test('an item many docs cite gets one line per link, none dropped', () async {
-    final index = await _index(
-      'Check it, by $_inv14.',
-      edge: '1. E01 — Refused, by $_inv14.',
-      extra: {
-        'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nFirst [INV-14](../f02_signup/DOMAIN.md#invariants).\n\nSecond [INV-14](../f02_signup/DOMAIN.md#invariants).\n',
-      },
-    );
-    final cited = _of(_citedBy(index), _domain, 'INV-14');
-    expect(cited.map((c) => (c.name, c.byItem)), [
-      (_frName, null),
-      (_frName, 'E01'),
-      ('guide', null),
-      ('guide', null),
-    ]);
-  });
+  test(
+    'an item many docs cite gets one line per citing doc, item, and section',
+    () async {
+      final index = await _index(
+        'Check it, by $_inv14.',
+        edge: '1. E01 — Refused, by $_inv14.',
+        extra: {
+          'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nFirst [INV-14](../f02_signup/DOMAIN.md#invariants).\n\n## Notes\nSecond [INV-14](../f02_signup/DOMAIN.md#invariants).\n',
+        },
+      );
+      final cited = _of(_citedBy(index), _domain, 'INV-14');
+      expect(cited.map((c) => (c.name, c.byItem, c.bySection)), [
+        (_frName, null, 'statement'),
+        (_frName, 'E01', 'edge_cases'),
+        ('guide', null, 'purpose'),
+        ('guide', null, 'notes'),
+      ]);
+    },
+  );
 
   test(
-    'two links to one item on one line give one line each, none dropped',
+    'two links from one item and section into one place give one line',
     () async {
-      const line = 'Both $_inv14 and $_inv14.';
-      final cited = _of(_citedBy(await _index(line)), _domain, 'INV-14');
-      expect(cited.map((c) => c.line), [line, line]);
+      const edge = '1. E01 — Refused, by $_inv14 and $_inv14.';
+      final index = await _index('Both $_inv14 and $_inv14.', edge: edge);
+      final cited = _of(_citedBy(index), _domain, 'INV-14');
+      expect(cited.map((c) => (c.byItem, c.bySection)), [
+        (null, 'statement'),
+        ('E01', 'edge_cases'),
+      ]);
+      expect({for (final by in cited) citedByLineOf(by)}.length, cited.length);
+    },
+  );
+
+  test(
+    'ID-less items of one section linking one place print one line',
+    () async {
+      final index = await _index(
+        'Check it.',
+        extra: {
+          'docs/specs/topics/guide.md':
+              '# Guide\n\n## Purpose\n- First [INV-14](../f02_signup/DOMAIN.md#invariants).\n'
+              '- Second [INV-14](../f02_signup/DOMAIN.md#invariants).\n',
+        },
+      );
+      final cited = _of(_citedBy(index), _domain, 'INV-14');
+      expect(cited.map((c) => (c.name, c.byItem, c.bySection)), [
+        ('guide', null, 'purpose'),
+      ]);
     },
   );
 
@@ -284,7 +334,7 @@ void main() {
     }
   });
 
-  test('two separate ranges on one line count apart', () async {
+  test('two separate ranges on one line give an item both span one entry', () async {
     const line =
         'See [RULE-2](ranges.md#rules) to [RULE-3](ranges.md#rules) and [RULE-2](ranges.md#rules) to [RULE-4](ranges.md#rules).';
     final index = await _index(
@@ -292,7 +342,7 @@ void main() {
       extra: {'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n'},
     );
     final cited = _citedBy(index);
-    const counts = {'RULE-2': 2, 'RULE-3': 2, 'RULE-4': 1};
+    const counts = {'RULE-2': 1, 'RULE-3': 1, 'RULE-4': 1};
     for (final MapEntry(key: id, value: count) in counts.entries) {
       expect(
         _of(cited, 'specs/topics/ranges.md', id),
@@ -314,7 +364,7 @@ void main() {
           name: 'a',
           docType: 'fr',
           byItem: null,
-          line: 'outer',
+          bySection: 'statement',
         ),
       ],
     );
@@ -329,41 +379,43 @@ void main() {
           name: 'b',
           docType: 'fr',
           byItem: 'E01',
-          line: 'inner',
+          bySection: 'edge_cases',
         ),
       ],
     );
     expect(citedLinesAfter(null, [inner, outer]), {
-      7: ['  · cited by b (fr) E01: inner', '  · cited by a (fr) —: outer'],
+      7: [
+        '  · cited by b (fr) E01 #edge_cases',
+        '  · cited by a (fr) — #statement',
+      ],
     });
   });
 
-  test('a section or whole-doc link many docs cite gets one line per link, none dropped', () async {
+  test('a section or whole-doc link many docs cite gets one line per citing section', () async {
     const toDomain = '../f02_signup/DOMAIN.md';
     final index = await _index(
       'See [the invariants]($_specs/f02_signup/DOMAIN.md#invariants) and [the domain]($_specs/f02_signup/DOMAIN.md).',
       extra: {
         'docs/specs/topics/guide.md':
             '# Guide\n\n## Purpose\nFirst [i]($toDomain#invariants).\n\nSecond [i]($toDomain#invariants).\n\n'
-            'Third [d]($toDomain).\n\nFourth [d]($toDomain).\n',
+            'Third [d]($toDomain).\n\nFourth [d]($toDomain).\n\n'
+            '## Notes\nFifth [i]($toDomain#invariants).\n',
       },
     );
     final cited = _citedBy(index);
 
-    expect(_ofSection(cited, _domain, 'invariants').map((c) => c.name), [
-      _frName,
-      'guide',
-      'guide',
-    ]);
-    expect(_ofDoc(cited, _domain).map((c) => c.name), [
-      _frName,
-      'guide',
-      'guide',
-    ]);
     expect(
-      _ofSection(cited, _domain, 'invariants').skip(1).map((c) => c.line),
-      ['First [i]($toDomain#invariants).', 'Second [i]($toDomain#invariants).'],
+      _ofSection(
+        cited,
+        _domain,
+        'invariants',
+      ).map((c) => (c.name, c.bySection)),
+      [(_frName, 'statement'), ('guide', 'purpose'), ('guide', 'notes')],
     );
+    expect(_ofDoc(cited, _domain).map((c) => (c.name, c.bySection)), [
+      (_frName, 'statement'),
+      ('guide', 'purpose'),
+    ]);
   });
 
   test('a persona field, a journey step, and an FR traced_from give no line', () async {
@@ -419,7 +471,7 @@ void main() {
       File('${project.path}/docs/specs/f02_signup/DOMAIN.md').deleteSync();
       File('${project.path}/$_fr').deleteSync();
       final cited = _of(citedByIndex(session.index), _domain, 'INV-14');
-      expect(cited.single.line, 'Lock, by $_inv14.');
+      expect(cited.single.bySection, 'statement');
     },
   );
 
@@ -438,21 +490,13 @@ void main() {
     List<Map<String, Object?>> docsOf(ContextAnswer answer) =>
         (answer.json['docs']! as List).cast<Map<String, Object?>>();
 
-    test(
-      'a section link prints one line right after the section header',
-      () async {
-        const line = 'Lock, as [the invariants]($toDomain#invariants) say.';
-        final text = design(await _index(line)).text;
+    test('a section link into an appended section prints no line', () async {
+      const line = 'Lock, as [the invariants]($toDomain#invariants) say.';
+      final text = design(await _index(line)).text;
 
-        expect(
-          text,
-          contains(
-            '## Invariants\n  · cited by $_frName (fr) —: $line\n- **INV-13**',
-          ),
-        );
-        expect('cited by $_frName'.allMatches(text), hasLength(1));
-      },
-    );
+      expect(text, contains('## Invariants\n- **INV-13**'));
+      expect(text, isNot(contains('cited by')));
+    });
 
     test('a section link to a picked doc prints right after its header, none under its items', () async {
       const line = 'See [the edge cases]($toFr#edge-cases).';
@@ -467,13 +511,13 @@ void main() {
 
       expect(
         text,
-        contains('## Edge cases\n  · cited by guide (topic) —: $line\n'),
+        contains('## Edge cases\n  · cited by guide (topic) — #purpose\n'),
       );
       expect('cited by guide'.allMatches(text), hasLength(1));
     });
 
     test(
-      'a whole-doc link prints one line right after the naming line',
+      'a whole-doc link into an appended summary doc prints no line',
       () async {
         const line = 'Lock, see [the domain]($toDomain).';
         final text = design(await _index(line)).text;
@@ -482,11 +526,10 @@ void main() {
           text,
           contains(
             '==> signup (domain) · specs/f02_signup/DOMAIN.md · summary · cited <==\n'
-            '  · cited by $_frName (fr) —: $line\n'
             '# Sign-up domain',
           ),
         );
-        expect('cited by $_frName'.allMatches(text), hasLength(1));
+        expect(text, isNot(contains('cited by')));
       },
     );
 
@@ -505,45 +548,55 @@ void main() {
         text,
         contains(
           '==> $_frName (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
-          '  · cited by guide (topic) —: $line\n'
+          '  · cited by guide (topic) — #purpose\n'
           '---\nverify_method: test',
         ),
       );
     });
 
-    test(
-      'a block link prints right after its heading line, kind item',
-      () async {
-        const line = 'See [a note]($_specs/topics/blocks.md#a-note).';
-        final answer = design(
-          await _index(
-            line,
-            extra: {
-              'docs/specs/topics/blocks.md':
-                  '# Blocks\n\n## Examples\n### A note\nShort.\n',
-            },
-          ),
-        );
-
-        expect(
-          answer.text,
-          contains('### A note\n  · cited by $_frName (fr) —: $line\nShort.'),
-        );
-        final part = docsOf(answer)
-            .firstWhere((d) => d['path'] == 'specs/topics/blocks.md');
-        expect(part['citedBy'], [
-          {
-            'kind': 'item',
-            'item': 'a-note',
-            'section': null,
-            'name': _frName,
-            'docType': 'fr',
-            'byItem': null,
-            'line': line,
+    test('a block link into an appended block prints no line and its part has no citedBy key', () async {
+      const line = 'See [a note]($_specs/topics/blocks.md#a-note).';
+      final answer = design(
+        await _index(
+          line,
+          extra: {
+            'docs/specs/topics/blocks.md':
+                '# Blocks\n\n## Examples\n### A note\nShort.\n',
           },
-        ]);
-      },
-    );
+        ),
+      );
+
+      expect(answer.text, contains('### A note\nShort.'));
+      expect(answer.text, isNot(contains('cited by')));
+      final part = docsOf(answer)
+          .firstWhere((d) => d['path'] == 'specs/topics/blocks.md');
+      expect(part.containsKey('citedBy'), isFalse);
+    });
+
+    test("a picked part's --json citedBy entry names its citing section, with no line", () async {
+      const line = 'See [the edge cases]($toFr#edge-cases).';
+      final answer = design(
+        await _index(
+          'Check it.',
+          extra: {
+            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n',
+          },
+        ),
+      );
+
+      final picked = docsOf(answer).firstWhere((d) => d['name'] == _frName);
+      expect(picked['citedBy'], [
+        {
+          'kind': 'section',
+          'item': null,
+          'section': 'edge_cases',
+          'name': 'guide',
+          'docType': 'topic',
+          'byItem': null,
+          'bySection': 'purpose',
+        },
+      ]);
+    });
 
     test('an unplaced anchor joins the doc-level entry', () async {
       const line = 'See [the title]($toFr#validate-credentials).';
@@ -554,7 +607,7 @@ void main() {
       final cited = _citedBy(index);
       final fr = index.at(_fr.substring('docs/'.length))!.docPath;
 
-      expect(_ofDoc(cited, fr).map((c) => c.line), [line]);
+      expect(_ofDoc(cited, fr).map((c) => c.bySection), ['purpose']);
       expect(_ofSection(cited, fr, 'statement'), isEmpty);
       final picked = docsOf(design(index))
           .firstWhere((d) => d['name'] == _frName);
@@ -576,7 +629,7 @@ void main() {
         text,
         contains(
           '==> $_frName (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
-          '  · cited by guide (topic) —: $line\n'
+          '  · cited by guide (topic) — #purpose\n'
           '---\nverify_method: test',
         ),
       );
@@ -593,9 +646,11 @@ void main() {
       const line = 'See $_inv14 and [the invariants]($toDomain#invariants).';
       final cited = _citedBy(await _index(line));
 
-      expect(_of(cited, _domain, 'INV-14').map((c) => c.line), [line]);
-      expect(_ofSection(cited, _domain, 'invariants').map((c) => c.line), [
-        line,
+      expect(_of(cited, _domain, 'INV-14').map((c) => c.bySection), [
+        'statement',
+      ]);
+      expect(_ofSection(cited, _domain, 'invariants').map((c) => c.bySection), [
+        'statement',
       ]);
     });
 
@@ -611,21 +666,21 @@ void main() {
       },
     );
 
-    test('json entries carry kind and section', () {
+    test('the --json citedBy entry carries bySection and no line', () {
       const by = <CitedBy>[
         CitedBy(
           docPath: 'specs/topics/guide.md',
           name: 'guide',
           docType: 'topic',
           byItem: null,
-          line: 'x',
+          bySection: 'purpose',
         ),
       ];
       const own = {
         'name': 'guide',
         'docType': 'topic',
         'byItem': null,
-        'line': 'x',
+        'bySection': 'purpose',
       };
 
       expect(
@@ -684,12 +739,20 @@ void main() {
   });
 
   group('a split design bundle', () {
-    const edge = '1. E01 — A wrong password → refused, by $_inv14.';
-    const invHead =
-        '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14';
+    const edge = '1. E01 — A wrong password → refused.';
+    const citedLine = '  · cited by guide (topic) — #purpose';
+    const frHead = '==> $_frName (fr) · $_frPath#edge_cases · item E01';
+    const guide =
+        '# Guide\n\n## Purpose\nSee [E01](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md#edge-cases).\n';
+
+    Future<DocIndex> citedIndex() => _index(
+      'Check it.',
+      edge: edge,
+      extra: {'docs/specs/topics/guide.md': guide},
+    );
 
     Future<ContextAnswer> splitDesign() async {
-      final i = await _index('Check it.', edge: edge);
+      final i = await citedIndex();
       return answerContext(
         i,
         pickBundle(i, [_frName], BundleMode.design, noProject: false),
@@ -703,27 +766,12 @@ void main() {
       final a = await splitDesign();
 
       expect(a.text, isNot(contains('cited by')));
-      expect(
-        a.refs!.text,
-        contains(
-          '$invHead · cited <==\n'
-          '- **INV-14** An account locks after five failures.\n\n'
-          '$invHead · cited by <==\n'
-          '  · cited by $_frName (fr) E01: $edge\n'
-          '==> bundle: ',
-        ),
-      );
+      expect(a.refs!.text, contains('$frHead · cited by <==\n$citedLine\n'));
     });
-    test('lists each cited-by part after the item it cites', () async {
+    test('lists each cited-by part in the refs list', () async {
       final a = await splitDesign();
 
-      expect(
-        a.refs!.text,
-        contains(
-          '- signup (domain) · cited invariants [INV-14]\n'
-          '- signup (domain) · cited by [INV-14]\n',
-        ),
-      );
+      expect(a.refs!.text, contains('- $_frName (fr) · cited by [E01]\n'));
     });
     test('marks each cited-by part as one in its entry', () async {
       final a = await splitDesign();
@@ -732,14 +780,14 @@ void main() {
         (e) => e.kind == BundleEntryKind.citedBy && e.itemId != null,
       );
       final lines = a.refs!.text.split('\n');
-      expect(entry.doc.name, 'signup');
-      expect(entry.sectionKey, 'invariants');
-      expect(entry.itemId, 'INV-14');
-      expect(lines[entry.first - 1], '$invHead · cited by <==');
+      expect(entry.doc.name, _frName);
+      expect(entry.sectionKey, 'edge_cases');
+      expect(entry.itemId, 'E01');
+      expect(lines[entry.first - 1], '$frHead · cited by <==');
       expect(entry.last, entry.first + 1);
     });
     test('an item whose lines print inline leaves no part for them', () async {
-      final i = await _index('Check it.', edge: edge);
+      final i = await citedIndex();
       final a = answerContext(
         i,
         pickBundle(i, [_frName], BundleMode.design, noProject: false),
@@ -747,7 +795,7 @@ void main() {
         byCode: false,
       );
 
-      expect(a.text, contains('  · cited by $_frName (fr) E01: $edge\n'));
+      expect(a.text, contains('$edge\n$citedLine\n'));
       expect(a.text, isNot(contains('· cited by <==')));
       expect(a.refs, isNull);
     });
@@ -765,7 +813,7 @@ void main() {
           name: 'guide',
           docType: 'topic',
           byItem: null,
-          line: 'x',
+          bySection: 'purpose',
         ),
       ],
     );
@@ -774,7 +822,7 @@ void main() {
 
     expect(citedLinesAfter(parts, [item]), isEmpty);
     expect(citedLinesAfter(inline, [item]), {
-      3: ['  · cited by guide (topic) —: x'],
+      3: ['  · cited by guide (topic) — #purpose'],
     });
   });
 
@@ -852,7 +900,9 @@ void main() {
       ),
     );
 
-    expect(_of(cited, _domain, 'INV-14').map((by) => by.line), [last]);
+    expect(_of(cited, _domain, 'INV-14').map((by) => by.bySection), [
+      'purpose',
+    ]);
   });
 
   group('citedItemsIn', () {

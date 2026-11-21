@@ -5,51 +5,51 @@ CitedBy citedBy(
   String name,
   String docType,
   String? byItem,
-  String line, {
+  String bySection, {
   String docPath = 'a.md',
 }) => CitedBy(
   docPath: docPath,
   name: name,
   docType: docType,
   byItem: byItem,
-  line: line,
+  bySection: bySection,
 );
 
 void main() {
   group('CitedBy', () {
-    test(
-      'equals another CitedBy with the same doc path, name, type, item, line',
-      () {
-        expect(citedBy('a', 'fr', 'E01', 'x'), citedBy('a', 'fr', 'E01', 'x'));
-        expect(
-          citedBy('a', 'fr', 'E01', 'x'),
-          isNot(citedBy('b', 'fr', 'E01', 'x')),
-        );
-        expect(
-          citedBy('a', 'fr', 'E01', 'x'),
-          isNot(citedBy('a', 'topic', 'E01', 'x')),
-        );
-        expect(
-          citedBy('a', 'fr', 'E01', 'x'),
-          isNot(citedBy('a', 'fr', null, 'x')),
-        );
-        expect(
-          citedBy('a', 'fr', 'E01', 'x'),
-          isNot(citedBy('a', 'fr', 'E01', 'y')),
-        );
-        expect(
-          citedBy('a', 'fr', 'E01', 'x'),
-          isNot(citedBy('a', 'fr', 'E01', 'x', docPath: 'b.md')),
-        );
-        expect(
-          citedBy('a', 'fr', 'E01', 'x').hashCode,
-          citedBy('a', 'fr', 'E01', 'x').hashCode,
-        );
-        expect(
-          citedBy('a', 'fr', 'E01', 'x').hashCode,
-          isNot(citedBy('a', 'fr', 'E01', 'x', docPath: 'b.md').hashCode),
-        );
-      },
-    );
+    test('equals a CitedBy with the same path, name, type, item, section', () {
+      expect(
+        citedBy('a', 'fr', 'E01', 'statement'),
+        citedBy('a', 'fr', 'E01', 'statement'),
+      );
+      expect(
+        citedBy('a', 'fr', 'E01', 'statement'),
+        isNot(citedBy('b', 'fr', 'E01', 'statement')),
+      );
+      expect(
+        citedBy('a', 'fr', 'E01', 'statement'),
+        isNot(citedBy('a', 'topic', 'E01', 'statement')),
+      );
+      expect(
+        citedBy('a', 'fr', 'E01', 'statement'),
+        isNot(citedBy('a', 'fr', null, 'statement')),
+      );
+      expect(
+        citedBy('a', 'fr', 'E01', 'statement'),
+        isNot(citedBy('a', 'fr', 'E01', 'edge_cases')),
+      );
+      expect(
+        citedBy('a', 'fr', 'E01', 'statement'),
+        isNot(citedBy('a', 'fr', 'E01', 'statement', docPath: 'b.md')),
+      );
+      expect(
+        citedBy('a', 'fr', 'E01', 'statement').hashCode,
+        citedBy('a', 'fr', 'E01', 'statement').hashCode,
+      );
+      expect(
+        citedBy('a', 'fr', 'E01', 'statement').hashCode,
+        isNot(citedBy('a', 'fr', 'E01', 'statement', docPath: 'b.md').hashCode),
+      );
+    });
   });
 }

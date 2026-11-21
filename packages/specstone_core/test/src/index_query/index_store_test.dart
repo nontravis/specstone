@@ -1450,6 +1450,21 @@ void main() {
     expect(store.readStamp(), isNull);
   });
 
+  test('is at layout 34, and rebuilds an index stamped 33, whose cited-by '
+      'rows hold the link line', () async {
+    final r = await root();
+    final store = IndexStore.open(r);
+    addTearDown(store.close);
+    const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+    store.write(() => store.reset(stamp));
+    expect(indexLayoutVersion, 34);
+    expect(store.readStamp(), stamp);
+    final raw = sqlite3.open(file(r, indexFilePath).path);
+    addTearDown(raw.close);
+    raw.execute('UPDATE meta SET layout = 33');
+    expect(store.readStamp(), isNull);
+  });
+
   group('IndexStore cited-by lines', () {
     const first = CitedPlace(
       docPath: 'a.md',
@@ -1463,7 +1478,7 @@ void main() {
         name: 'c',
         docType: 'fr',
         byItem: null,
-        line: 'See [b](b.md).',
+        bySection: 'purpose',
       ),
     ];
     const onFirst = [
@@ -1472,14 +1487,14 @@ void main() {
         name: 'c',
         docType: 'fr',
         byItem: 'E01',
-        line: 'Holds [INV-1](a.md#invariants).',
+        bySection: 'edge_cases',
       ),
       CitedBy(
         docPath: 'd.md',
         name: 'd',
         docType: 'topic',
         byItem: null,
-        line: 'Also [INV-1](a.md#invariants).',
+        bySection: '_lead',
       ),
     ];
     final lines = {second: onSecond, first: onFirst};

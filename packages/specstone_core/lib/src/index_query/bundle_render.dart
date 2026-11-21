@@ -209,7 +209,6 @@ ContextAnswer answerContext(
   final parts = followLinks(
     index,
     bundle,
-    citedBy: citedBy,
     ancestorPieceRanges: ancestors.pieceRanges,
   );
   final partBlocks = [for (final part in parts) _partBlock(part)];
@@ -227,7 +226,7 @@ ContextAnswer answerContext(
       printOf: (doc) => docPrints[doc],
     ),
     ..._listPieces(index, bundle, splits: splits),
-    for (final (i, part) in parts.indexed) ...[
+    for (final (i, part) in parts.indexed)
       _Piece(
         partBlocks[i],
         doc: part.doc,
@@ -239,8 +238,6 @@ ContextAnswer answerContext(
         sectionKey: part.sectionKey,
         itemId: part.itemId,
       ),
-      if (splits) ..._citedByPieces(part.doc, part.cited),
-    ],
   ];
   final tokens = tokenSizeOf(_shownOf(pieces));
   final named = byCode && index.hasTwins ? bundle.codeTarget : null;
@@ -304,7 +301,6 @@ ContextAnswer answerContext(
           if (!part.pathOnly && !part.nameOnly)
             'text': _blockBody(partBlocks[i]),
           ..._partKeys(part),
-          ..._citedByKey(part.cited, citedBy),
         },
     ],
     if (bundle.mode == BundleMode.design)

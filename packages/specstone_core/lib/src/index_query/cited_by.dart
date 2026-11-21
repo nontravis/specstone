@@ -69,10 +69,12 @@ final _citedLinksOf = Expando<Map<CitedPlace, List<CitedBy>>>();
 /// Returns who cites each place, read from the links of [docs], the docs in
 /// tree order, whose content [contentOf] gives and whose doc types [set] holds.
 ///
-/// One line per link from a typed doc other than the cited doc's own, an item
-/// range giving one to each item it spans, in tree order of the citing docs
-/// and then line order. A place of a doc whose type's `bundle:` list holds
-/// `design` has none, since that doc prints in every design bundle.
+/// One entry per citing doc, item, and section of a typed doc other than the
+/// cited doc's own, an item range giving one to each item it spans, in tree
+/// order of the citing docs and then line order; links from one item and
+/// section into one place give one entry. A place of a doc whose type's
+/// `bundle:` list holds `design` has none, since that doc prints in every
+/// design bundle.
 /// [classifyLink] reads each link, so it cites a place here exactly when
 /// `check` and the follow read it so: an item, a `###` block, a section, or
 /// the whole doc, which an anchor no section or block places also names. A
@@ -110,6 +112,7 @@ Map<CitedPlace, List<CitedBy>> scanCitedBy(
   }
 
   final cited = <CitedPlace, List<CitedBy>>{};
+  final seen = <CitedPlace, Set<CitedBy>>{};
   for (final source in docs) {
     if (!sources.contains(source.docPath)) continue;
     final reader = targets.contains(source.docPath)
@@ -119,28 +122,26 @@ Map<CitedPlace, List<CitedBy>> scanCitedBy(
     for (final line in reader.linkLines) {
       final places = _citesOn(byPath, reader, line, targetOf);
       if (places.isEmpty) continue;
-      final byItem = reader.itemHolding(line);
-      final text = reader.lineText(line).trim();
+      final by = CitedBy(
+        docPath: source.docPath,
+        name: source.name,
+        docType: reader.docTypeId,
+        byItem: reader.itemHolding(line),
+        bySection: reader.sectionKeyHolding(line),
+      );
       for (final place in places) {
-        (cited[place] ??= []).add(
-          CitedBy(
-            docPath: source.docPath,
-            name: source.name,
-            docType: reader.docTypeId,
-            byItem: byItem,
-            line: text,
-          ),
-        );
+        if ((seen[place] ??= {}).add(by)) (cited[place] ??= []).add(by);
       }
     }
   }
   return cited;
 }
 
-/// Returns `  · cited by <name> (<doc type>) <item ID>: <line>` for [by], the
-/// item ID `—` when it has none.
+/// Returns `  · cited by <name> (<doc type>) <item ID> #<section>` for [by],
+/// the item ID `—` when it has none.
 String citedByLineOf(CitedBy by) =>
-    '  · cited by ${by.name} (${by.docType}) ${by.byItem ?? '—'}: ${by.line}';
+    '  · cited by ${by.name} (${by.docType}) ${by.byItem ?? '—'} '
+    '#${by.bySection}';
 
 /// Returns the items and `###` blocks of the section [at] of [doc], whose held
 /// sections [section] reads, that [cited] holds lines for and whose lines lie
@@ -367,9 +368,9 @@ String citedByListName(IndexedDoc doc, CitedItem item) {
   return '${nameWithType(doc)} · cited by$mark';
 }
 
-/// Returns [items] as the `citedBy` objects of `--json`, one per line: the
+/// Returns [items] as the `citedBy` objects of `--json`, one per citer: the
 /// place's `kind`, its `item`, and its `section` (the key of a section entry,
-/// else null) ahead of the line's own keys.
+/// else null) ahead of the citer's own keys, `bySection` last.
 List<Map<String, Object?>> citedByJson(List<CitedItem> items) => [
   for (final item in items)
     for (final by in item.by)
@@ -380,7 +381,7 @@ List<Map<String, Object?>> citedByJson(List<CitedItem> items) => [
         'name': by.name,
         'docType': by.docType,
         'byItem': by.byItem,
-        'line': by.line,
+        'bySection': by.bySection,
       },
 ];
 
@@ -508,8 +509,7 @@ final class _Doc {
   /// Returns the ID of the item whose lines hold file line [line], the
   /// innermost when items nest, or null when none does.
   String? itemHolding(int line) {
-    final starts = facts.sectionLines;
-    final at = starts.lastIndexWhere((start) => start < line);
+    final at = _sectionHolding(line);
     if (at < 0) return null;
     String? holding;
     var span = 0x7fffffff;
@@ -522,6 +522,19 @@ final class _Doc {
     }
     return holding;
   }
+
+  /// Returns the key of the section that holds file line [line], the lead's
+  /// key for a line before the first section.
+  String sectionKeyHolding(int line) {
+    final at = _sectionHolding(line);
+    if (at < 0) return leadKey;
+    return sectionAt(at)?.key ?? content.sections[at].key;
+  }
+
+  /// Returns the index of the section that holds file line [line], or -1 for
+  /// a line before the first section.
+  int _sectionHolding(int line) =>
+      facts.sectionLines.lastIndexWhere((start) => start < line);
 
   List<_ItemExtent> _extentsAt(int at) => _extents[at] ??= _extentsOf(at);
 

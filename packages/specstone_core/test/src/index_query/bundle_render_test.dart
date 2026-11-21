@@ -111,7 +111,7 @@ const _shopDesignUnsplit =
     '\n'
     '## Edge cases\n'
     '1. E01 — A sold-out item → refused, by [INV-1](../../../../../specs/f01_shop/DOMAIN.md#invariants) and [INV-7](../../../../../specs/f02_pay/DOMAIN.md#invariants).\n'
-    '  · cited by guide (topic) —: See [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).\n'
+    '  · cited by guide (topic) — #purpose\n'
     '\n'
     '==> shop/cart/drop_item (user_story) · prds/features/f01_shop/f01_cart/us02_drop_item/USER_STORY.md · summary <==\n'
     '# Agent drops an item\n'
@@ -124,7 +124,7 @@ const _shopDesignUnsplit =
     '\n'
     '## Invariants\n'
     '- **INV-1** An order holds a line.\n'
-    '  · cited by shop/cart/add_item/check_stock (fr) E01: 1. E01 — A sold-out item → refused, by [INV-1](../../../../../specs/f01_shop/DOMAIN.md#invariants) and [INV-7](../../../../../specs/f02_pay/DOMAIN.md#invariants).\n'
+    '  · cited by shop/cart/add_item/check_stock (fr) E01 #edge_cases\n'
     '- **INV-2** An order has an owner.\n'
     '\n'
     '==> names: shop (feature) <==\n'
@@ -132,8 +132,7 @@ const _shopDesignUnsplit =
     '\n'
     '==> pay (domain) · specs/f02_pay/DOMAIN.md#invariants · item INV-7 · cited <==\n'
     '- **INV-7** A payment has a payer.\n'
-    '  · cited by shop/cart/add_item/check_stock (fr) E01: 1. E01 — A sold-out item → refused, by [INV-1](../../../../../specs/f01_shop/DOMAIN.md#invariants) and [INV-7](../../../../../specs/f02_pay/DOMAIN.md#invariants).\n'
-    '==> bundle: 9 docs, 510 tokens <==\n'
+    '==> bundle: 9 docs, 396 tokens <==\n'
     '- gnfr (gnfr)\n'
     '- project (project)\n'
     '- tech_stack (tech_stack)\n'
@@ -1134,25 +1133,36 @@ void main() {
         a.text,
         contains(
           '## Edge cases\n\n$e01\n2. E02 — A locked account → refused.\n'
-          '  · cited by guide (topic) —: $guideLine\n',
+          '  · cited by guide (topic) — #purpose\n',
         ),
       );
       expect(a.json['tokens'], tokenSizeOf(shown(a)));
     });
-    test(
-      'an appended item prints its cited-by line, with the citing item',
-      () async {
-        final a = design(await citedIndex());
-        expect(
-          a.text,
-          contains(
-            '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==\n'
-            '- **INV-14** Locks after five failures.\n'
-            '  · cited by $frName (fr) E01: $e01\n',
-          ),
-        );
-      },
-    );
+    test("a picked part's item prints its cited-by lines right after it in a design bundle", () async {
+      final a = design(await citedIndex());
+      expect(
+        a.text,
+        contains(
+          '2. E02 — A locked account → refused.\n'
+          '  · cited by guide (topic) — #purpose\n',
+        ),
+      );
+      expect('cited by guide'.allMatches(a.text), hasLength(1));
+    });
+    test('an appended item prints no cited-by line', () async {
+      final a = design(await citedIndex());
+      expect(
+        a.text,
+        contains(
+          '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==\n'
+          '- **INV-14** Locks after five failures.\n'
+          '==> ',
+        ),
+      );
+      expect(a.text, isNot(contains('cited by $frName')));
+      final part = docsOf(a).firstWhere((d) => d['item'] == 'INV-14');
+      expect(part.containsKey('citedBy'), isFalse);
+    });
     test(
       'an implement or query bundle prints no cited-by line and no citedBy key',
       () async {
@@ -1181,7 +1191,7 @@ void main() {
         );
         expect(a.text, contains('### PV-01 — One system'));
         expect(a.text, isNot(contains('PV-01 — One system\nText.\n  · cited')));
-        expect(a.text, isNot(contains('cited by $frName (fr) —: Cites')));
+        expect(a.text, isNot(contains('cited by $frName (fr) — #statement')));
       },
     );
     test('under --json a doc object gains citedBy, one object per line, after its other keys', () async {
@@ -1204,57 +1214,45 @@ void main() {
           'name': 'guide',
           'docType': 'topic',
           'byItem': null,
-          'line': guideLine,
+          'bySection': 'purpose',
         },
       ]);
       final part = docs.firstWhere((d) => d['item'] == 'INV-14');
-      expect(part.keys.last, 'citedBy');
-      expect(part['citedBy'], [
-        {
-          'kind': 'item',
-          'item': 'INV-14',
-          'section': null,
-          'name': frName,
-          'docType': 'fr',
-          'byItem': 'E01',
-          'line': e01,
-        },
-      ]);
+      expect(part.containsKey('citedBy'), isFalse);
       final feature = docs.firstWhere(
         (d) => d['name'] == 'login' && d['docType'] == 'feature',
       );
       expect(feature['citedBy'], isEmpty);
       expect(
-        docs.where((d) => !d.containsKey('citedBy')),
+        docs.where((d) => !d.containsKey('citedBy') && d['cited'] != true),
         isEmpty,
-        reason: 'each doc object of a design bundle carries citedBy',
+        reason: 'each picked doc object of a design bundle carries citedBy',
       );
     });
-    test('a nested item that ends on its cited parent last line keeps its line in the text', () async {
-      final a = design(
-        await citedIndex('Lock, by $inv14.', {
-          'docs/specs/f02_signup/DOMAIN.md':
-              '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
-              '- **INV-14** Locks after five failures.\n'
-              '  - **INV-15** Mails its owner.\n',
-          'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [INV-14](../f02_signup/DOMAIN.md#invariants) and [INV-15](../f02_signup/DOMAIN.md#invariants).\n',
-        }),
-      );
-      final text = a.text;
-      expect(
-        text,
-        contains(
-          '  - **INV-15** Mails its owner.\n  · cited by guide (topic) —: See [INV-14]',
-        ),
-      );
-      expect(
-        RegExp('  · cited by guide').allMatches(text).length,
-        2,
-        reason: 'one line for INV-14 and one for INV-15',
-      );
-      final part = docsOf(a).firstWhere((d) => d['item'] == 'INV-14');
-      expect(part['citedBy']! as List, hasLength(4));
-    });
+    test(
+      'the nested items of an appended part print no cited-by line',
+      () async {
+        final a = design(
+          await citedIndex('Lock, by $inv14.', {
+            'docs/specs/f02_signup/DOMAIN.md':
+                '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+                '- **INV-14** Locks after five failures.\n'
+                '  - **INV-15** Mails its owner.\n',
+            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [INV-14](../f02_signup/DOMAIN.md#invariants) and [INV-15](../f02_signup/DOMAIN.md#invariants).\n',
+          }),
+        );
+        expect(
+          a.text,
+          contains(
+            '- **INV-14** Locks after five failures.\n'
+            '  - **INV-15** Mails its owner.\n',
+          ),
+        );
+        expect(a.text, isNot(contains('cited by guide')));
+        final part = docsOf(a).firstWhere((d) => d['item'] == 'INV-14');
+        expect(part.containsKey('citedBy'), isFalse);
+      },
+    );
     test(
       'a summary doc prints its whole-printed items with their cited-by lines',
       () async {
@@ -1270,7 +1268,7 @@ void main() {
           a.text,
           contains(
             '## Rules\n- **BR-1** Links expire.\n'
-            '  · cited by $frName (fr) —: Resets, by [BR-1]',
+            '  · cited by $frName (fr) — #statement',
           ),
         );
         final summary = docsOf(a).firstWhere(
@@ -1282,7 +1280,7 @@ void main() {
         );
       },
     );
-    test('an appended summary doc part prints its items with their cited-by lines', () async {
+    test('an appended summary doc part prints no cited-by line', () async {
       final a = design(
         await citedIndex(
           'See [sign-up](../../f02_signup/us01_create_account/USER_STORY.md).',
@@ -1296,11 +1294,11 @@ void main() {
         a.text,
         contains(
           '· summary · cited <==\n'
-          '  · cited by $frName (fr) —: See [sign-up](../../f02_signup/us01_create_account/USER_STORY.md).\n'
-          '# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n'
-          '  · cited by guide (topic) —: See [BR-1]',
+          '# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n',
         ),
       );
+      expect(a.text, isNot(contains('cited by $frName')));
+      expect(a.text, isNot(contains('· cited by guide')));
     });
     test('the lines count toward the budget', () async {
       final i = await citedIndex();
@@ -1318,7 +1316,6 @@ void main() {
           .join('\n');
 
       expect(text, contains('  · cited by guide (topic)'));
-      expect(text, contains('  · cited by $frName (fr)'));
       final room = tokenSizeOf(withoutLines);
       expect(room, lessThan(a.json['tokens']! as int));
       expect(design(i, budget: room).exitStatus, 1);
@@ -1979,7 +1976,7 @@ void main() {
       expect(text, isNot(contains('## Method')));
       expect(text, isNot(contains('## Open causes')));
     });
-    test('a summary_rows section keeps the cited-by lines of the items its cut prints whole and drops the others', () async {
+    test('an appended summary_rows cut prints no cited-by line', () async {
       final i = await indexWith({
         '.specstone/templates/measurement.yaml':
             'sections:\n  - id: results\n    prefix_id: RUN-\n',
@@ -1991,23 +1988,14 @@ void main() {
       });
       final a = ctxIn(i, 'project', BundleMode.design);
 
-      expect(
-        a.text,
-        contains(
-          '## Results\n- **RUN-1** First run.\n  · cited by guide (topic) —: See [RUN-1]',
-        ),
-      );
-      final summary = (a.json['docs']! as List)
+      expect(a.text, contains('## Results\n- **RUN-1** First run.\n'));
+      expect(a.text, isNot(contains('cited by')));
+      final cut = (a.json['docs']! as List)
           .cast<Map<String, Object?>>()
           .firstWhere(
             (d) => d['name'] == 'fewer_resets' && d['summary'] == true,
           );
-      final entries = (summary['citedBy']! as List)
-          .cast<Map<String, Object?>>();
-      expect(entries.where((c) => c['kind'] == 'item').map((c) => c['item']), [
-        'RUN-1',
-      ]);
-      expect(entries.where((c) => c['kind'] == 'doc'), hasLength(1));
+      expect(cut.containsKey('citedBy'), isFalse);
     });
     test('a goal bundle prints a measurement whose Results is prose whole in its summary', () async {
       final i = await indexWith({
@@ -2465,7 +2453,6 @@ void main() {
           '- login (domain)\n'
           '- login (error)\n'
           '- password_rules (reference) · summary · cited\n'
-          '- password_rules (reference) · cited by\n'
           'Read a summary doc whole with: specstone context <name> --for design\n',
         ),
       );
@@ -2489,7 +2476,6 @@ void main() {
         '- login/reset_password (user_story) · summary',
         '- login/reset_password/send_reset_link (fr) · summary',
         '- password_rules (reference) · summary · cited',
-        '- password_rules (reference) · cited by',
       ]);
       expect(
         a.refs!.text,
@@ -2634,7 +2620,6 @@ void main() {
           BundleEntryKind.doc,
           BundleEntryKind.doc,
           BundleEntryKind.cited,
-          BundleEntryKind.citedBy,
         ],
       );
     });
@@ -2671,14 +2656,13 @@ void main() {
         '- shop/cart/drop_item (user_story) · summary',
         '- shop (domain)',
         '- pay (domain) · cited invariants [INV-7]',
-        '- pay (domain) · cited by [INV-7]',
       ]);
       expect(a.text, isNot(contains('· cited by')));
       expect(
         a.refs!.text,
         contains(
           '==> shop/cart/add_item/check_stock (fr) · prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge_cases · item E01 · cited by <==\n'
-          '  · cited by guide (topic) —: See [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).\n',
+          '  · cited by guide (topic) — #purpose\n',
         ),
       );
     });
@@ -2698,8 +2682,7 @@ void main() {
         byCode: false,
         split: split,
       );
-      const citedLine =
-          '  · cited by guide (topic) —: See [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).';
+      const citedLine = '  · cited by guide (topic) — #purpose';
 
       final unsplitFirst = answer(split: false);
       final splitAfter = answer(split: true);
@@ -3127,7 +3110,16 @@ void main() {
         expect(a.text, contains('- **INV-2** An order has an owner.'));
         expect(a.text, isNot(contains('· cites <==')));
         expect(a.text, isNot(contains('#invariants · item INV-1')));
-        expect(a.text, isNot(contains('#interaction')));
+        expect(
+          a.text,
+          isNot(
+            contains('shop (architecture) · specs/f02_shop/ARCHITECTURE.md#'),
+          ),
+        );
+        expect(
+          a.text,
+          contains('  · cited by shop (architecture) — #interaction'),
+        );
         expect(a.refs, isNull);
         expect([
           for (final e in a.entries) e.kind,
@@ -3879,7 +3871,7 @@ void main() {
             a.refs!.text,
             contains(
               '==> shop (domain) · $shopDomain#invariants · item INV-1 · cited by <==\n'
-              '  · cited by shop/pay/card (user_story) —: Pays, by [INV-1]($toStory).\n',
+              '  · cited by shop/pay/card (user_story) — #use_case\n',
             ),
           );
           expect(
@@ -3921,7 +3913,7 @@ void main() {
             a.refs!.text,
             contains(
               '==> shop (domain) · $shopDomain#invariants · cited by <==\n'
-              '  · cited by shop/pay/card (user_story) —: Pays under [the invariants]($toStory).\n',
+              '  · cited by shop/pay/card (user_story) — #use_case\n',
             ),
           );
           expect(
@@ -3951,9 +3943,7 @@ void main() {
           expect('  · cited by '.allMatches(a.refs!.text), hasLength(1));
           expect(
             a.refs!.text,
-            contains(
-              '  · cited by shop/pay/card (user_story) —: Pays, by [INV-1]($toStory).\n',
-            ),
+            contains('  · cited by shop/pay/card (user_story) — #use_case\n'),
           );
           expect(a.refs!.text, isNot(contains('check_stock')));
         });
@@ -4005,8 +3995,8 @@ void main() {
             a.text,
             contains(
               '- **INV-1** An order holds a line.\n'
-              '  · cited by shop/cart/add_item/check_stock (fr) —: Holds [INV-1]($toStory).\n'
-              '  · cited by shop/pay/card (user_story) —: Pays, by [INV-1]($toStory).\n',
+              '  · cited by shop/cart/add_item/check_stock (fr) — #statement\n'
+              '  · cited by shop/pay/card (user_story) — #use_case\n',
             ),
           );
         });

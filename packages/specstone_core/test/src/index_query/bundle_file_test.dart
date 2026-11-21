@@ -1459,7 +1459,7 @@ void main() {
       expect(listed, matches(RegExp(r' · cited by \[#entities\]$')));
       expect(
         answer.refs!.text,
-        contains('$naming\n  · cited by guide (topic) —: See [entities]'),
+        contains('$naming\n  · cited by guide (topic) — #purpose\n'),
       );
       final entry = domainParts(answer).single;
       expect((entry.sectionKey, entry.itemId), ('entities', null));

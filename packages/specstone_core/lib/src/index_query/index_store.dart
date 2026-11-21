@@ -93,8 +93,10 @@ const _notWritableMessage =
 /// line facts, so an index of layout 31, which holds none, is rebuilt.
 /// Layout 33 stores a Verification matrix test row's literals as a list and a
 /// per-FR row's edge case as null, so an index of layout 32, whose rows hold
-/// one literal and an edge case, is rebuilt.
-const indexLayoutVersion = 33;
+/// one literal and an edge case, is rebuilt. Layout 34 stores each cited-by
+/// row's citing section in place of its link line, so an index of layout 33,
+/// whose rows hold a `line` column, is rebuilt.
+const indexLayoutVersion = 34;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -166,7 +168,7 @@ CREATE TABLE cited_by (
   by_name TEXT NOT NULL,
   by_type TEXT NOT NULL,
   by_item TEXT,
-  line TEXT NOT NULL
+  by_section TEXT NOT NULL
 );
 CREATE TABLE diagram_parses (
   block_hash TEXT NOT NULL,
@@ -759,7 +761,7 @@ final class IndexStore {
     _db.execute('DELETE FROM cited_by');
     final insert = _db.prepare(
       'INSERT INTO cited_by (place_doc, place_kind, place_key, by_doc, '
-      'by_name, by_type, by_item, line) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'by_name, by_type, by_item, by_section) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     );
     try {
       for (final MapEntry(key: place, value: lines) in cited.entries) {
@@ -772,7 +774,7 @@ final class IndexStore {
             by.name,
             by.docType,
             by.byItem,
-            by.line,
+            by.bySection,
           ]);
         }
       }
@@ -787,7 +789,7 @@ final class IndexStore {
     final cited = <CitedPlace, List<CitedBy>>{};
     for (final row in _db.select(
       'SELECT place_doc, place_kind, place_key, by_doc, by_name, by_type, '
-      'by_item, line FROM cited_by ORDER BY seq',
+      'by_item, by_section FROM cited_by ORDER BY seq',
     )) {
       final place = CitedPlace(
         docPath: row['place_doc'] as String,
@@ -800,7 +802,7 @@ final class IndexStore {
           name: row['by_name'] as String,
           docType: row['by_type'] as String,
           byItem: row['by_item'] as String?,
-          line: row['line'] as String,
+          bySection: row['by_section'] as String,
         ),
       );
     }
