@@ -13,6 +13,7 @@ Other drafts: <type>:<name>, ..., or none
 Move: specstone move <target> … --under <parent>, or … --top
 Check: <path>
 Guide: <txt path>, <json path>
+Sections: <type>:<name>#<key>, …
 Findings: <each finding left after step 4, each finding or hit outside the drafts, or none>
 ```
 
@@ -24,3 +25,5 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
   counted; one of yours it shows as no draft, under `Findings:`.
 - `Move:` only for a moved doc, item, or scenario: one line per target parent or `--top`, copied to the relay block.
   Run no `move`.
+- `Sections:` one `<type>:<name>#<key>` per section this pass wrote: step 2's name list, each section found needed
+  after edits began, and each sweep list together; a whole doc, one per section written. The re-audit reads them.

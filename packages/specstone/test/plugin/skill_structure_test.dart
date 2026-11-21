@@ -22,6 +22,7 @@ void main() {
   group('trim reference', _trimReferenceTests);
   group('brainstorm rounds', _brainstormRoundTests);
   group('re-audit reading', _reauditReadingTests);
+  group('author fix round', _authorFixRoundTests);
 }
 
 // MARK: - Fixtures and readers
@@ -2837,3 +2838,43 @@ void _reauditReadingTests() {
     }
   });
 }
+
+void _authorFixRoundTests() {
+  test('the author reports a Sections line', () {
+    final report = _pluginText(_authorReport);
+    final open = report.indexOf('```');
+    final template = report.substring(open, report.indexOf('```', open + 3));
+    expect(template, contains('Sections:'));
+    expect(
+      template.indexOf('Sections:'),
+      greaterThan(template.indexOf('Check:')),
+    );
+  });
+
+  test('a resumed message naming a fix file takes its mode', () {
+    expect(
+      _hasSentenceWith(_pluginText(_engineer), ['fix file', '`mode: author`']),
+      isTrue,
+    );
+  });
+
+  test("a fix round's author takes no style line", () {
+    const styleToo = '(`[style]` too)';
+    expect(_pluginText(_engineer), isNot(contains(styleToo)));
+    expect(_pluginText(_authorReference), isNot(contains(styleToo)));
+    expect(
+      _hasSentenceWith(_pluginText(_engineer), ['untagged', 'fix round']),
+      isTrue,
+    );
+  });
+
+  test("a resumed fix round writes the fix file's report path", () {
+    final output = _sectionOf(_pluginText(_engineer), '## Output Format');
+    expect(
+      _hasSentenceWith(output, ['resumed', 'fix file', '`report:`']),
+      isTrue,
+    );
+  });
+}
+
+const _authorReport = 'specstone-brainstorming-sdd/references/author-report.md';
