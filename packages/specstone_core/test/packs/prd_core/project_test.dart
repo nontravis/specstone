@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' as check;
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 
 void main() {
@@ -62,6 +64,20 @@ void main() {
       ],
       ['roles', 'out_of_scope'],
     );
+  });
+
+  test('a Project name section with no Code line gives pattern_missing '
+      'code_line', () async {
+    const codeLine = '- **Code:** `login_demo`';
+    Future<List<String>> missing(String replacement) => missingPatterns(
+      check.edit(check.projectDoc, [(codeLine, replacement)]),
+      check.projectDoc,
+    );
+
+    expect(await missing(codeLine), isEmpty);
+    expect(await missing(''), ['code_line']);
+    expect(await missing('- Code: login_demo'), ['code_line']);
+    expect(await missing('```text\n$codeLine\n```'), ['code_line']);
   });
 
   test('the vision template labels each entry line in English', () {

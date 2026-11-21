@@ -23,11 +23,7 @@ Map<String, String> _retrimProject(
       '${fingerprintFor(loginScenario2)}\n---',
       '${fingerprintFor(loginScenario2)}\nretrim:\n$retrimLines\n---',
     ),
-    if (emptyVerification)
-      (
-        '## Verification\n\nTest: a wrong password is refused.\n',
-        '## Verification\n',
-      ),
+    if (emptyVerification) (loginFrVerification, '## Verification\n'),
   ]),
 };
 

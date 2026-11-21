@@ -59,7 +59,7 @@ sections:
     required: true
     description: |-
       Title each scenario `### Scenario N — [happy|edge|error] <what differs> (BR-NN)`.
-      Chain extra outcomes with And or But.
+      Chain at most two extra outcomes with And or But; more outcomes make a second scenario.
       Make each Then observable by the person or an external system, in the domain's words.
       Write an `[error]` scenario, or write "Error cases: N/A — <reason>".
     template: |-
@@ -82,6 +82,8 @@ sections:
         prefixes:
           - line_prefix: "- **When**"
             count: 1
+          - line_prefix: "- **Then**"
+            count: 1
       banned_patterns:
         - id: scenario_title
           pattern: '^### Scenario(?! \d+ — \[(?:happy|edge|error)\] \S)'
@@ -99,6 +101,7 @@ sections:
     template: |-
       - <question>
 lint:
+  title_no_number: true
   required_field_groups:
     - [vision, goals]
   banned_patterns:

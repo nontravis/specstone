@@ -95,8 +95,8 @@ void main() {
       kind: FindingKind.itemIdDuplicate,
     );
     expect(found, hasLength(1));
-    expect(found.single.line, 21);
-    expect(found.single.message, 'PV-01 is already held at line 14');
+    expect(found.single.line, 23);
+    expect(found.single.message, 'PV-01 is already held at line 16');
     expect(
       found.single.toJson(),
       allOf(containsPair('id', 'PV-01'), containsPair('section', 'vision')),

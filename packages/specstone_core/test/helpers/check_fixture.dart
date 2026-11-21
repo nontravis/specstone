@@ -93,6 +93,16 @@ const loginScenario2 =
 const loginNfrStatement =
     '- **Statement:** The system shall answer a sign-in within 2 s.';
 
+/// The Pass criteria and Level lines every fixture FR and NFR Verification
+/// ends with, the lines the `prd-core` Verification lint requires.
+const verificationLines =
+    '- **Pass criteria:** each edge case holds.\n- **Level:** unit\n';
+
+/// The Verification section of the fixture [loginFr], as the file holds it.
+const loginFrVerification =
+    '## Verification\n\nTest: a wrong password is refused.\n\n'
+    '$verificationLines';
+
 /// The statement of the check-password requirement.
 const checkPasswordStatement =
     'The system shall refuse a wrong password within 1 s.';
@@ -103,7 +113,7 @@ const checkPasswordStatement =
 Map<String, String> checkProjectFiles() => {
   '.specstone/config.yaml': shippedPinsConfig(),
   'docs/$projectDoc':
-      '---\nowner: Owner\n---\n\n# Login demo\n\n## Project name\n\nLogin demo\n\n'
+      '---\nowner: Owner\n---\n\n# Login demo\n\n## Project name\n\nLogin demo\n\n- **Code:** `login_demo`\n\n'
       '## Project vision\n\n### PV-01 — One sign-in\n\n> en: One sign-in for every app.\n'
       '- **Why:** One sign-in saves every user a password.\n'
       '- **Problem:** Each app asks for its own password.\n'
@@ -137,7 +147,7 @@ Map<String, String> checkProjectFiles() => {
       'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n---\n\n'
       '# Check the password\n\n## Statement\n\n$checkPasswordStatement\n\n'
       '## Edge cases\n\n1. E01 — An empty password → refused.\n\n## Rationale\n\nA wrong password must not sign in.\n\n'
-      '## Verification\n\nTest: a wrong password is refused.\n',
+      '## Verification\n\nTest: a wrong password is refused.\n\n$verificationLines',
   loginRecord:
       "---\nstatuses:\n  - 'email_login:implemented'\n"
       "  - 'email_login/check_password:implemented'\nimplements:\n"
@@ -149,7 +159,7 @@ Map<String, String> checkProjectFiles() => {
       '---\nkind: tighten\noverrides: NFR-P01\nverify_method: test\nconfirmed:\n'
       '  - NFR-P01 ${fingerprintFor(loginNfrStatement)}\n---\n\n# Sign-in time\n\n'
       '## Statement\n\nThe system shall sign in within 1 s.\n\n## Rationale\n\nUsers wait.\n\n'
-      '## Verification\n\nTest: a timed sign-in.\n',
+      '## Verification\n\nTest: a timed sign-in.\n\n$verificationLines',
   'docs/$techStack':
       '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n| Slot | Choice |\n'
       '|---|---|\n| Language | Dart |\n\n## Naming\n\n- snake_case file names\n',

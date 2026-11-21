@@ -4,6 +4,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' as check;
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/write_fixture.dart' as write;
 
@@ -58,6 +59,33 @@ void main() {
       expect(pattern.regExp.hasMatch('- **Metric:** a fast tool'), isTrue);
       expect(pattern.regExp.hasMatch('**Metric:** 3 calls'), isFalse);
     }
+  });
+
+  test('the description states the next-number rule and no reuse clause', () {
+    final lines = goal.description!.split('\n');
+
+    expect(
+      lines,
+      contains(
+        "A new goal takes the next number above the doc's highest `PG-` ID.",
+      ),
+    );
+    expect(goal.description, isNot(contains('reused')));
+  });
+
+  test('by_line is a per-subsection required entry on mid_term and '
+      'short_term, and long_term holds none', () {
+    for (final id in ['mid_term', 'short_term']) {
+      final entry = sectionOf(
+        goal,
+        id,
+      ).requiredPatterns!.singleWhere((p) => p.id == 'by_line');
+      expect(entry.perSubsection, isTrue, reason: id);
+      expect(entry.regExp.hasMatch('- **By:** 1.3.0 release'), isTrue);
+      expect(entry.regExp.hasMatch('**Serves:** PV-01'), isFalse);
+      expect(entry.message, contains('guide line: '), reason: id);
+    }
+    expect(sectionOf(goal, 'long_term').requiredPatterns, isNull);
   });
 
   group('a project holding the shipped goal doc', () {
@@ -205,6 +233,43 @@ void main() {
         ],
         [check.loginFeature],
       );
+    });
+
+    test('a mid-term or short-term goal with no By line gives by_line at its '
+        'own heading, whichever goal lacks it, and a goal with one gives '
+        'none', () async {
+      const byLine = '- **By:** 1.3.0 release\n';
+      String goalOf(String id, {required bool by}) =>
+          '### $id — Goal $id\n\n**Serves:** PV-01\n${by ? byLine : ''}'
+          'Text.\n\n';
+      final withBy = goalOf('PG-01', by: true);
+      final noBy = goalOf('PG-02', by: false);
+
+      for (final horizon in ['mid', 'short']) {
+        Map<String, String> held(String text) =>
+            horizon == 'mid' ? goals(mid: text) : goals(short: text);
+        final reason = horizon;
+
+        expect(await missingPatterns(held(withBy + noBy), check.goalDoc), [
+          'by_line @ PG-02 — Goal PG-02',
+        ], reason: reason);
+        expect(
+          await missingPatterns(
+            held(goalOf('PG-01', by: false) + goalOf('PG-02', by: true)),
+            check.goalDoc,
+          ),
+          ['by_line @ PG-01 — Goal PG-01'],
+          reason: reason,
+        );
+        expect(
+          await missingPatterns(
+            held(withBy + goalOf('PG-02', by: true)),
+            check.goalDoc,
+          ),
+          isEmpty,
+          reason: reason,
+        );
+      }
     });
 
     test('a long-term goal with no By line gives no finding', () async {

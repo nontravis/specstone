@@ -464,12 +464,31 @@ void main() {
         'goal.short_term': ['metric_number'],
         'feature.out_of_scope': ['out_of_scope_owner'],
         'user_story.acceptance_criteria': ['scenario_title'],
-        'fr.statement': ['second_shall'],
-        'fr.edge_cases': ['edge_case_arrow'],
+        'fr.statement': ['second_shall', 'trace_outside_field'],
+        'fr.edge_cases': [
+          'edge_case_arrow',
+          'exit_status',
+          'trace_outside_field',
+        ],
+        'fr.rationale': ['trace_outside_field'],
+        'glossary.terms': ['term_bullet_form'],
         'fr.verification': ['test_file_named'],
-        'nf.statement': ['second_shall', 'statement_number'],
+        'measurement.scope': ['history'],
+        'measurement.method': ['history', 'method_numbered'],
+        'measurement.baseline': ['history'],
+        'measurement.open_causes': ['history'],
+        'reference.summary': ['fact_locator'],
+        'nf.statement': [
+          'second_shall',
+          'statement_number',
+          'trace_outside_field',
+        ],
         for (final category in _gnfrCategories)
-          'gnfr.$category': ['second_shall', 'statement_number'],
+          'gnfr.$category': [
+            'second_shall',
+            'statement_number',
+            'trace_outside_field',
+          ],
       });
     });
 
@@ -523,21 +542,9 @@ void main() {
       }
     });
 
-    test('title_no_number is true on persona, anti_persona, feature, '
-        'journey, and measurement, and unset on the others', () {
-      const numbered = {
-        'persona',
-        'anti_persona',
-        'feature',
-        'journey',
-        'measurement',
-      };
+    test('title_no_number is true on every prd-core doc type', () {
       for (final docType in set.docTypes) {
-        expect(
-          docType.lint.titleNoNumber,
-          numbered.contains(docType.id) ? isTrue : isNull,
-          reason: docType.id,
-        );
+        expect(docType.lint.titleNoNumber, isTrue, reason: docType.id);
       }
     });
 
@@ -556,7 +563,7 @@ void main() {
       expect((stories.min, stories.max, stories.perSubsection), (3, 5, true));
       expect(
         [for (final p in stories.prefixes) (p.linePrefix, p.count)],
-        [('- **When**', 1)],
+        [('- **When**', 1), ('- **Then**', 1)],
       );
       final jobs = section('persona', 'jobs').itemCount!;
       expect((jobs.min, jobs.max, jobs.perSubsection), (3, 4, false));

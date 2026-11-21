@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 
 const _docPath = 'measurements/grounding_cost/MEASUREMENT.md';
@@ -111,18 +112,142 @@ void main() {
       );
     });
 
-    test('a method written as prose and a results table with other '
-        'columns have no finding', () async {
+    test('a results table with other columns has no finding', () async {
       expect(
         await kindsAt(
           _measurement(
-            method: 'Run the task, then count the calls.\n',
             results:
                 'Newest first. Met: at most 3 calls.\n\n'
                 '| When | Tokens |\n|---|---|\n| 2026-11-15 | 120 |\n',
           ),
         ),
         isEmpty,
+      );
+    });
+  });
+
+  group('the log rule', () {
+    Future<List<String>> flagged(String pattern, String text) =>
+        bannedLines({'docs/$_docPath': text}, _docPath, pattern);
+
+    const historyLine = 'Previously a run took 9 calls.';
+
+    test('history prose in Results is no finding, and the same prose in '
+        'Scope, Method, Baseline, or Open causes is history', () async {
+      expect(
+        await flagged(
+          'history',
+          _measurement(
+            results:
+                'Newest first. Met: at most 3 calls.\n\n'
+                '| Date | Version | Run | Calls | Met |\n'
+                '|---|---|---|---|---|\n'
+                '| 2026-11-15 | 1.3.0 | formerly run 2, no longer 9 | 3 | yes '
+                '|\n$historyLine\n',
+          ),
+        ),
+        isEmpty,
+      );
+
+      final text = _measurement(
+        baseline:
+            '| Metric | Run | Value | Date | Source |\n|---|---|---|---|---|\n'
+            '| Calls | 1 | 9 | 2026-11-01 | formerly 12 |\n',
+        openCauses: '$historyLine\n',
+      ).replaceFirst('- One run per feature.', '- Formerly one run.');
+      expect(await flagged('history', text), [
+        '- Formerly one run.',
+        '| Calls | 1 | 9 | 2026-11-01 | formerly 12 |',
+        historyLine,
+      ]);
+      expect(
+        await flagged(
+          'history',
+          _measurement(method: '1. Previously run the task.\n'),
+        ),
+        ['1. Previously run the task.'],
+      );
+    });
+
+    test('a Method line not opening with a number is method_numbered, and a '
+        'numbered step, a wrapped line, a blank line, the header, and a '
+        'fenced line are not', () async {
+      expect(
+        await flagged(
+          'method_numbered',
+          _measurement(
+            method:
+                '1. Run the task.\n'
+                '   then count the calls.\n'
+                '2. Record the result:\n\n'
+                '   - the count\n\n'
+                '```sh\nspecstone check\n```\n'
+                '10. Close the run.\n',
+          ),
+        ),
+        isEmpty,
+      );
+      const loose = [
+        'Run the task, then count the calls.',
+        '- Run the task.',
+        '`specstone check`, then count.',
+        '| Step | Action |',
+        '1.Run the task.',
+      ];
+      expect(
+        await flagged(
+          'method_numbered',
+          _measurement(method: '1. Run the task.\n${loose.join('\n')}\n'),
+        ),
+        loose,
+      );
+    });
+
+    test('method_numbered reads the Method section alone', () async {
+      expect(
+        await flagged(
+          'method_numbered',
+          _measurement(
+            openCauses: 'The cache missed.\n',
+            baseline:
+                '| Metric | Run | Value | Date | Source |\n'
+                '|---|---|---|---|---|\n| Calls | 1 | 9 | 2026-11-01 | a |\n',
+          ),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('history sits on four sections and not on Results, and the doc '
+        'level keeps doc_citation alone', () {
+      expect(
+        [for (final p in measurement.lint.bannedPatterns!) p.id],
+        ['doc_citation'],
+      );
+      for (final section in measurement.sections) {
+        expect(
+          [
+            for (final p in section.bannedPatterns ?? const <PatternEntry>[])
+              p.id,
+          ],
+          switch (section.id) {
+            'results' => isEmpty,
+            'method' => ['history', 'method_numbered'],
+            _ => ['history'],
+          },
+          reason: section.id,
+        );
+      }
+    });
+
+    test('the guide prints no present_truth line, and the log rule stays', () {
+      final guide = measurement.renderGuide();
+
+      expect(guide, isNot(contains('State the present truth')));
+      expect(guide, contains('Results is a log'));
+      expect(
+        measurement.sharedLines.map((l) => l.id),
+        isNot(contains('present_truth')),
       );
     });
   });

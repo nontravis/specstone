@@ -63,6 +63,11 @@ sections:
           pattern: '\bshall\b.*\bshall\b'
           message: 'a second "shall"; guide line: Use one "shall" and a positive form'
           in: text
+        - id: trace_outside_field
+          # A scenario ID, a "traces Scenario" or "Traces from" phrase, "Scenario N of", or a scenario link.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from|Scenarios?)\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of\b|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
+          message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
+          in: all
       banned_words:
         - flexible
         - easy
@@ -147,14 +152,30 @@ sections:
           pattern: '^(?:\d+\.|[-*]) (?!.*→)'
           message: 'edge case has no →; guide line: E01 — <trigger> → <response>'
           in: all
+        - id: exit_status
+          pattern: '\b[Ee]xit status\b'
+          message: 'edge case states an exit status; guide line: State no exit status'
+          in: all
+        - id: trace_outside_field
+          # A scenario ID, a "traces Scenario" or "Traces from" phrase, "Scenario N of", or a scenario link.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from|Scenarios?)\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of\b|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
+          message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
+          in: all
   - id: rationale
     header: Rationale
     required: true
     description: |-
-      Link the scenario the requirement traces from; confirm each assumption before the baseline.
+      Confirm each assumption before the baseline.
       When the statement mandates a method, say why only that method will do.
     template: |-
       <reason, assumptions, related requirements, design constraints>
+    lint:
+      banned_patterns:
+        - id: trace_outside_field
+          # A scenario ID, a "traces Scenario" or "Traces from" phrase, "Scenario N of", or a scenario link.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from|Scenarios?)\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of\b|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
+          message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
+          in: all
   - id: verification
     header: Verification
     required: true
@@ -179,6 +200,13 @@ sections:
           pattern: '(?<![\w-])(?!(?<=(?:^|[^\w/.-])(?:(?:test|analysis|inspection|demonstration)/)*)tests?/(?:(?:test|analysis|inspection|demonstration)/)*(?:test|analysis|inspection|demonstration)(?![\w/-]|\.\w))tests?/(?![^\s`]*(?:_test|\.test|\.spec)\.\w)(?=[\w.-]|[`\s]|$)|\w(?:_test|\.test|\.spec)\.[A-Za-z0-9]+'
           message: 'Verification names a test file; guide line: Name no test file here'
           in: all
+      required_patterns:
+        - id: level_line
+          pattern: '^- \*\*Level:\*\*'
+          message: 'no Level line; guide line: Give the proof level'
+        - id: pass_criteria_line
+          pattern: '^- \*\*Pass criteria:\*\* each edge case holds\.\s*$'
+          message: 'no Pass criteria line; guide line: Write `- **Pass criteria:** each edge case holds.`'
   - id: tbr
     header: TBR
     description: |-
@@ -193,6 +221,7 @@ sections:
       banned_words:
         - TBD
 lint:
+  title_no_number: true
   banned_patterns:
     - id: doc_citation
       # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.

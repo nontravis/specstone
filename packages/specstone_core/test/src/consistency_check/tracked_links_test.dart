@@ -380,7 +380,7 @@ void main() {
           'docs/$lock':
               '---\ntraced_from:\n  - self-derived\nverify_method: test\n---\n\n'
               '# Lock the account\n\n## Statement\n\n$lockStatement\n\n## Edge cases\n\n1. E01 — Five failures → locked.\n\n'
-              '## Rationale\n\nIt stops guessing.\n\n## Verification\n\nTest: five failures lock it.\n',
+              '## Rationale\n\nIt stops guessing.\n\n## Verification\n\nTest: five failures lock it.\n\n$verificationLines',
           ...edit(loginApi, [
             (
               '---\n\n# Login API',

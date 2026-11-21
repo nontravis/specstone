@@ -33,6 +33,13 @@ sections:
       Give each fact's page or section.
     template: |-
       - <A fact the project relies on> (<page or section>)
+    lint:
+      banned_patterns:
+        - id: fact_locator
+          # A bullet line that does not end in a non-empty `(...)` tail; a wrapped, blank, table, or header line is no bullet.
+          pattern: '^[-*+] (?!.*\([^()]+\)\.?\s*$)'
+          message: "fact has no `(<page or section>)` tail; guide line: Give each fact's page or section"
+          in: all
   - id: key_terms
     header: Key terms
     description: |-
@@ -40,5 +47,6 @@ sections:
     template: |-
       - **<Term>:** <the source's definition> (<page or section>)
 lint:
+  title_no_number: true
   max_lines: 400
   max_chars: 20000

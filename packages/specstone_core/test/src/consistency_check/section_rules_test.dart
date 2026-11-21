@@ -101,7 +101,7 @@ void main() {
         await writeCheckProject(
           extra: {
             'docs/$loginFr':
-                '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 396}',
+                '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 394}',
           },
         ),
       );
@@ -410,7 +410,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.visionQuoteMissing), [
-        '$projectDoc:18: vision_quote_missing',
+        '$projectDoc:20: vision_quote_missing',
       ]);
     },
   );
@@ -898,16 +898,16 @@ void main() {
       },
     );
 
-    test(
-      'the same title in a doc type without the key has no finding',
-      () async {
-        final project = await writeCheckProject(extra: numbered);
-        expect(
-          (await checkOf(project)).findings.map((f) => f.kind),
-          isNot(contains(FindingKind.titleNumbered)),
-        );
-      },
-    );
+    test('the same title in a doc type whose layer sets the key false has no '
+        'finding', () async {
+      final project = await writeCheckProject(
+        extra: {layer: 'lint:\n  title_no_number: false\n', ...numbered},
+      );
+      expect(
+        (await checkOf(project)).findings.map((f) => f.kind),
+        isNot(contains(FindingKind.titleNumbered)),
+      );
+    });
 
     test('a title with no digit has no finding under the key', () async {
       final project = await writeCheckProject(
@@ -1428,10 +1428,7 @@ void main() {
 
     test('a blank last section with no final break is missing', () async {
       final project = await writeCheckProject(
-        extra: fr(
-          '## Verification\n\nTest: a wrong password is refused.\n',
-          '## Verification',
-        ),
+        extra: fr(loginFrVerification, '## Verification'),
       );
       final missing = await missingOf(project, 'verification');
       expect(missing, hasLength(1));

@@ -1,6 +1,8 @@
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' as check;
 import '../../helpers/prd_core.dart';
 
 void main() {
@@ -53,6 +55,63 @@ void main() {
   test('rules carries its item floor', () {
     final items = sectionOf(story, 'rules').itemCount!;
     expect((items.min, items.max), (2, null));
+  });
+
+  test('the acceptance criteria description chains at most two extra '
+      'outcomes and counts one Then per scenario', () {
+    final acceptance = sectionOf(story, 'acceptance_criteria');
+
+    expect(
+      acceptance.description!.split('\n'),
+      contains(
+        'Chain at most two extra outcomes with And or But; more outcomes '
+        'make a second scenario.',
+      ),
+    );
+    expect(acceptance.description, isNot(contains('Chain extra outcomes')));
+    expect(
+      [for (final p in acceptance.itemCount!.prefixes) (p.linePrefix, p.count)],
+      [('- **When**', 1), ('- **Then**', 1)],
+    );
+  });
+
+  test('a scenario of two Then lines is prefix_count_mismatch, and And and '
+      'But lines add none', () async {
+    Future<List<String>> mismatches(String thenLines) async {
+      final report = await check.checkOf(
+        await check.writeCheckProject(
+          extra: check.doc(
+            check.loginStory,
+            '- **Then** the Agent sees the home page',
+            thenLines,
+          ),
+        ),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.prefixCountMismatch) f.path,
+      ];
+    }
+
+    expect(
+      await mismatches('- **Then** the Agent sees the home page'),
+      isEmpty,
+    );
+    expect(
+      await mismatches(
+        '- **Then** the Agent sees the home page\n'
+        '- **And** the Agent sees a greeting\n'
+        '- **But** the Agent sees no banner',
+      ),
+      isEmpty,
+    );
+    expect(
+      await mismatches(
+        '- **Then** the Agent sees the home page\n'
+        '- **Then** the Agent sees a greeting',
+      ),
+      [check.loginStory],
+    );
   });
 
   test('user_story marks use_case and rules summary', () {

@@ -29,6 +29,10 @@ sections:
       - **Code:** `<snake_case_code_name>`
     lint:
       max_item_lines: 1
+      required_patterns:
+        - id: code_line
+          pattern: '^- \*\*Code:\*\*'
+          message: 'no Code line; guide line: The Code line stays here'
   - id: vision
     header: Project vision
     prefix_id: PV-
@@ -92,6 +96,7 @@ sections:
       - <thing the project will NOT do>
     query: true
 lint:
+  title_no_number: true
   banned_patterns:
     - id: doc_citation
       # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.

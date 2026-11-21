@@ -9,7 +9,7 @@ description: |-
   Keep the persona behavioral: demographics alone describe a marketing segment.
   Keep it editable by anyone; never polish it into an artifact nobody can update.
   Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
-  Keep a bound in the item it limits, and the research trace in `basis:` and the Sources section, never in the prose.
+  Keep a bound in the item it limits; keep the research trace in `basis:` and the Sources section, out of a narrative section's prose; a Vocabulary item names its own source.
 path: prds/personas/{slug}/PERSONA.md
 fields:
   - id: role
@@ -93,6 +93,20 @@ sections:
       - **Tools or devices:** <what the persona uses>
       - **Frequency:** <how often>
       - **Use:** <chosen or required>
+    lint:
+      required_patterns:
+        - id: setting_line
+          pattern: '^(?:- )?\*\*Setting:\*\*'
+          message: 'no Setting line; guide line: State the setting, tools or devices, frequency, and whether use is chosen or required'
+        - id: tools_line
+          pattern: '^(?:- )?\*\*Tools or devices:\*\*'
+          message: 'no Tools or devices line; guide line: State the setting, tools or devices, frequency, and whether use is chosen or required'
+        - id: frequency_line
+          pattern: '^(?:- )?\*\*Frequency:\*\*'
+          message: 'no Frequency line; guide line: State the setting, tools or devices, frequency, and whether use is chosen or required'
+        - id: use_line
+          pattern: '^(?:- )?\*\*Use:\*\*'
+          message: 'no Use line; guide line: State the setting, tools or devices, frequency, and whether use is chosen or required'
   - id: pains
     header: Pains
     required: true
@@ -116,6 +130,14 @@ sections:
     template: |-
       - **Anxiety:** <a worry about the new option>
       - **Habit:** <a habit that keeps the old way>
+    lint:
+      required_patterns:
+        - id: anxiety_line
+          pattern: '^(?:- )?\*\*Anxiety:\*\*'
+          message: 'no Anxiety line; guide line: Write barriers as anxieties about the new option and habits that keep the old one'
+        - id: habit_line
+          pattern: '^(?:- )?\*\*Habit:\*\*'
+          message: 'no Habit line; guide line: Write barriers as anxieties about the new option and habits that keep the old one'
   - id: alternatives
     header: Current alternatives
     required: true
@@ -169,6 +191,14 @@ sections:
     template: |-
       - **Voice guide:** <link>
       - **Tone shift:** <how the tone changes for the persona>
+    lint:
+      required_patterns:
+        - id: voice_guide_line
+          pattern: '^(?:- )?\*\*Voice guide:\*\*.*\[[^\]]+\]\([^)]+\)'
+          message: 'no Voice guide line with a link; guide line: Link the brand voice guide and state only the tone shift'
+        - id: tone_shift_line
+          pattern: '^(?:- )?\*\*Tone shift:\*\*'
+          message: 'no Tone shift line; guide line: Link the brand voice guide and state only the tone shift'
 lint:
   title_no_number: true
   banned_patterns:

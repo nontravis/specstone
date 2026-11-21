@@ -25,8 +25,10 @@ const _sharedLines = <String, String>{
   'cite_by_link': _citeLine,
 };
 
-/// The doc types whose lint holds the `history` pattern.
-const _historyIds = [
+/// The doc types the `present_truth` line reaches: those whose lint holds
+/// `history` at doc level, which leaves `measurement` out, since its Results
+/// section is a log.
+const _presentTruthIds = [
   'anti_persona',
   'feature',
   'features',
@@ -35,7 +37,6 @@ const _historyIds = [
   'gnfr',
   'goal',
   'journey',
-  'measurement',
   'nf',
   'persona',
   'project',
@@ -138,10 +139,20 @@ void main() {
         {for (final l in shared.lines) l.id: l.forDocTypes},
         {
           for (final id in _sharedLines.keys)
-            id: id == 'present_truth' ? _historyIds : null,
+            id: id == 'present_truth' ? _presentTruthIds : null,
         },
       );
       expect(shared.fields, isEmpty);
+    });
+
+    test('the present_truth entry reaches twelve doc types, measurement '
+        'not among them', () {
+      final line = _prdCoreManifest().shared.lines.singleWhere(
+        (l) => l.id == 'present_truth',
+      );
+
+      expect(line.forDocTypes, hasLength(12));
+      expect(line.forDocTypes, isNot(contains('measurement')));
     });
 
     test('no prd-core shared line names another shared line', () {
@@ -186,6 +197,16 @@ void main() {
   });
 
   group('prd-core doc types', () {
+    test('every doc type titles with no number, so each sets '
+        'lint.title_no_number', () async {
+      final set = await resolvePrdCore();
+
+      expect(prdCoreIds, hasLength(14));
+      for (final id in prdCoreIds) {
+        expect(prdCoreDocType(set, id).lint.titleNoNumber, isTrue, reason: id);
+      }
+    });
+
     test('each section the pack file gives a template keeps it, and no '
         'description holds a YAML key', () async {
       final set = await resolvePrdCore();
@@ -276,7 +297,8 @@ void main() {
         }
         expect(docType.sharedLines.map((l) => l.id), [
           for (final id in _sharedLines.keys)
-            if (id != 'present_truth' || _historyIds.contains(docType.id)) id,
+            if (id != 'present_truth' || _presentTruthIds.contains(docType.id))
+              id,
         ], reason: docType.id);
       }
     });

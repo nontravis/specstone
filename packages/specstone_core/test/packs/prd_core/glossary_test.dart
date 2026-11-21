@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/write_fixture.dart'
     show readDoc, writeIn, writeWriteProject;
@@ -119,6 +120,69 @@ void main() {
       ),
       contains(endsWith('item_over_limit')),
     );
+  });
+
+  group('the term form and the title', () {
+    Future<List<String>> flagged(List<String> lines) => bannedLines(
+      {
+        'docs/$_glossaryDoc':
+            '# Domain glossary\n\n## Terms\n\n${lines.join('\n')}\n',
+      },
+      _glossaryDoc,
+      'term_bullet_form',
+    );
+
+    test('a bullet in the template form gives no finding', () async {
+      expect(
+        await flagged([
+          '- **Agent** — the coding agent that writes the docs.',
+          '- **C++ code** — the `src/` files.',
+          '- **Doc type** — a kind of doc: a path, sections, and lint.',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a bullet with a hyphen for the em dash, with no bold term, with a '
+        'star marker, or with no definition gives term_bullet_form', () async {
+      const loose = [
+        '- **Agent** - the coding agent.',
+        '- Agent — the coding agent.',
+        '* **Agent** — the coding agent.',
+        '- **Agent**— the coding agent.',
+        '- **Agent** — ',
+        '- **Agent**',
+      ];
+
+      expect(await flagged(loose), loose);
+    });
+
+    test('a wrapped line, a blank line, a table line, and a fenced line give '
+        'no finding', () async {
+      expect(
+        await flagged([
+          '- **Agent** — the coding agent',
+          '  that writes the docs.',
+          '',
+          '| Term | Meaning |',
+          '```text',
+          '- Agent - plain',
+          '```',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a title holding a digit is title_numbered', () async {
+      Future<List<String>> spots(String title) =>
+          _glossarySpots('$title\n\n## Terms\n');
+
+      expect(await spots('# Domain glossary 2'), [
+        endsWith(': title_numbered'),
+      ]);
+      expect(await spots('# Domain glossary'), isEmpty);
+      expect(glossary.lint.titleNoNumber, isTrue);
+    });
   });
 
   test('duplicate terms and unordered entries give no finding', () async {

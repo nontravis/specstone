@@ -68,6 +68,11 @@ sections:
           pattern: '^(?!.*\d)\S.*\bshall\b'
           message: 'statement holds no number; guide line: one "shall" and a quantified value'
           in: all
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: 'trace in the Statement; guide line: Keep the trace in `traced_from` alone, never in the Statement'
+          in: all
       banned_words:
         - flexible
         - easy
@@ -116,6 +121,11 @@ sections:
     template: |-
       - **Pass criteria:** <what shows the requirement holds>
       - **Level:** <level>
+    lint:
+      required_patterns:
+        - id: level_line
+          pattern: '^- \*\*Level:\*\*'
+          message: 'no Level line; guide line: Give the proof level'
   - id: tbr
     header: TBR
     description: |-
@@ -127,6 +137,7 @@ sections:
       - **Who:** <name>
       - **By when:** <date or milestone>
 lint:
+  title_no_number: true
   banned_patterns:
     - id: doc_citation
       # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.

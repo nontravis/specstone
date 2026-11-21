@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' as check;
+import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 
 void main() {
@@ -194,7 +196,169 @@ void main() {
       lessThanOrEqualTo(_maxSectionDescriptionLines),
     );
   });
+
+  group('trace and verification entries', () {
+    for (final place in _places) {
+      test('${place.section} flags each trace form and passes the links the '
+          'story rules and other FRs take', () async {
+        final hits = await bannedLines(
+          place.put([for (final form in _traceHits) place.line(form)]),
+          check.loginFr,
+          'trace_outside_field',
+        );
+        final passes = await bannedLines(
+          place.put([for (final form in _tracePasses) place.line(form)]),
+          check.loginFr,
+          'trace_outside_field',
+        );
+
+        expect(hits, [for (final form in _traceHits) place.line(form)]);
+        expect(passes, isEmpty);
+      });
+    }
+
+    test('the same trace forms in an Input / Output row and in a fenced '
+        'block give no finding', () async {
+      final found = await bannedLines(
+        check.edit(check.loginFr, [
+          (
+            '## Edge cases',
+            '## Input / Output\n\n**Input**\n| Field | Type | Required | Notes |\n'
+                '|---|---|---|---|\n'
+                '| id | string | yes | `S2`, [Scenario 2](USER_STORY.md) |\n\n'
+                '## Edge cases',
+          ),
+          (
+            'A wrong password must not sign in.',
+            'A wrong password must not sign in.\n\n```text\n'
+                'It traces Scenario 2 as S2.\n```',
+          ),
+        ]),
+        check.loginFr,
+        'trace_outside_field',
+      );
+
+      expect(found, isEmpty);
+    });
+
+    test(
+      'an edge case holding the words exit status gives exit_status',
+      () async {
+        Future<List<String>> flagged(
+          String edgeCase, {
+          String rationale = '',
+        }) => bannedLines(
+          check.edit(check.loginFr, [
+            ('1. E01 — An empty password → refused.', edgeCase),
+            if (rationale.isNotEmpty)
+              ('A wrong password must not sign in.', rationale),
+          ]),
+          check.loginFr,
+          'exit_status',
+        );
+
+        const crash = '1. E01 — A crash → the run stops with exit status 2.';
+        expect(await flagged(crash), [crash]);
+        expect(
+          await flagged('1. E01 — A crash → the run stops, code E_RUN.'),
+          isEmpty,
+        );
+        expect(await flagged(crash.replaceFirst('exit', 'Exit')), hasLength(1));
+        expect(
+          await flagged(
+            '1. E01 — An empty password → refused.',
+            rationale: 'The run ends with exit status 2.',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test(
+      'a Verification with no Level line gives pattern_missing level_line, '
+      'and one with no Pass criteria line gives pass_criteria_line',
+      () async {
+        Future<List<String>> missing(String verification) => missingPatterns(
+          check.fr(
+            check.loginFrVerification,
+            '## Verification\n\n$verification',
+          ),
+          check.loginFr,
+        );
+
+        expect(await missing(check.verificationLines), isEmpty);
+        expect(await missing('- **Pass criteria:** each edge case holds.\n'), [
+          'level_line',
+        ]);
+        expect(await missing('- **Level:** unit\n'), ['pass_criteria_line']);
+        expect(
+          await missing('Test: a wrong password is refused.\n'),
+          unorderedEquals(['pass_criteria_line', 'level_line']),
+        );
+        expect(
+          await missing(
+            '- **Pass criteria:** the run is fast.\n- **Level:** unit\n',
+          ),
+          ['pass_criteria_line'],
+        );
+      },
+    );
+
+    test('the Rationale description no longer asks for the scenario link', () {
+      expect(
+        sectionOf(fr, 'rationale').description,
+        isNot(contains('Link the scenario')),
+      );
+    });
+  });
 }
+
+/// One FR section the `trace_outside_field` entry reads: how a form reads as a
+/// line of it, and the fixture FR holding those lines in it.
+final class _Place {
+  const new(this.section, this.line, this.put);
+
+  final String section;
+  final String Function(String form) line;
+  final Map<String, String> Function(List<String> lines) put;
+}
+
+final _places = [
+  _Place(
+    'statement',
+    (form) => form,
+    (lines) => check.fr(check.checkPasswordStatement, lines.join('\n')),
+  ),
+  _Place(
+    'edge_cases',
+    (form) => '1. E01 — $form → refused.',
+    (lines) =>
+        check.fr('1. E01 — An empty password → refused.', lines.join('\n')),
+  ),
+  _Place(
+    'rationale',
+    (form) => form,
+    (lines) => check.fr('A wrong password must not sign in.', lines.join('\n')),
+  ),
+];
+
+/// The forms of a scenario trace outside `traced_from`.
+const _traceHits = <String>[
+  'A wrong password is refused, as `S2` states.',
+  'It traces Scenario 2.',
+  'It traces Scenarios 2 and 3.',
+  'Traces from [Scenario 2](USER_STORY.md#scenario-2--wrong-password).',
+  'Scenario 2 of [the story](USER_STORY.md) refuses it.',
+  'Scenarios 2 and 3 of [the story](USER_STORY.md) refuse it.',
+  'A wrong password is refused ([Scenario 2](USER_STORY.md#scenario-2)).',
+];
+
+/// The links and words that name no scenario.
+const _tracePasses = <String>[
+  'It follows [BR-02](USER_STORY.md#rules).',
+  'It extends [Lock the account](fr02_lock_account.md#edge-cases).',
+  'A scenario with a wrong password is refused.',
+];
 
 /// The edge case lines of the description, in the order it states them.
 const _edgeCaseLines = <String>[
