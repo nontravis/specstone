@@ -63,7 +63,8 @@ doc and decision.
    steps 1.2 and 1.3, with `since` by `sweep.md` section 1.
 3. **Sweep**: ground by `sweep.md` section 2, then run its section 3 for each kept decision, in list order. Run no
    `get`. Run again a `specstone` command that ends `index_busy`; it is no CLI error.
-4. **Report**: write the report of `sweep.md` section 5; then stop.
+4. **Report**: write the report of `sweep.md` section 5, one `Rows:` row per `gap` reader and none for a `held` hit;
+   then stop.
 
 ## Output Format
 

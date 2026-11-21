@@ -2478,4 +2478,86 @@ void _brainstormRoundTests() {
       isTrue,
     );
   });
+
+  test('the Reader missed lens takes gap hits alone', () {
+    final lens = _bulletOf(
+      _pluginText(_designCheckReference),
+      '- **Reader missed:**',
+    );
+    expect(lens, contains('`gap` hit'));
+    expect(_hasSentenceWith(lens, ['`held` hit', 'none']), isTrue);
+  });
+
+  test('the sweep marks each hit by three marks and the check prints a Held '
+      'line', () {
+    final sweep = _pluginText(_sweepReference);
+    final marks = _sectionOf(sweep, '## 3. Sweep each decision');
+    expect(marks, contains('covered|gap|held: <why>'));
+    for (final words in [
+      ['`covered` only', 'Decisions cell', '`whole`', 'bare key'],
+      ['stay true', '`held: <why>`'],
+      ['with no covering row', '(`gap` and `held`)'],
+    ]) {
+      expect(_hasSentenceWith(marks, words), isTrue, reason: words.join(', '));
+    }
+    expect(
+      sweep,
+      contains(
+        'Swept: D<n>: <term>, <term>; <n> items hit, <m> with no row, <h> held',
+      ),
+    );
+    expect(
+      _hasSentenceWith(_sectionOf(sweep, '## 2. Ground'), [
+        "A story's",
+        "an FR's",
+        '`--summary`',
+        '`context project`',
+        'several-target bundle',
+        'stands in for none',
+      ]),
+      isTrue,
+    );
+    final check = _pluginText(_designCheckReference);
+    final block = _fencedBlock
+        .firstMatch(check.substring(check.indexOf('## 4. Report')))!
+        .group(1)!;
+    expect(block.indexOf('Swept: '), isNonNegative);
+    expect(block.indexOf('Held: '), greaterThan(block.indexOf('Swept: ')));
+    for (final (file, heading) in [
+      (_designCheckReference, '## 4. Report'),
+      (_auditor, '## Output Format'),
+    ]) {
+      final relay = _sentencesOf(_sectionOf(_pluginText(file), heading))
+          .firstWhere(
+            (sentence) =>
+                sentence.contains('`Swept:`') && sentence.contains('`Held:`'),
+            orElse: () => '',
+          );
+      expect(
+        relay.indexOf('`Held:`'),
+        greaterThan(relay.indexOf('`Swept:`')),
+        reason: file,
+      );
+    }
+    expect(
+      _hasSentenceWith(_sectionOf(_pluginText(_sweeper), '## Workflow'), [
+        '`Rows:`',
+        '`gap`',
+        '`held`',
+        'none',
+      ]),
+      isTrue,
+    );
+  });
+}
+
+/// The text of the bullet of [markdown] whose first line starts with [lead],
+/// with its indented lines, every whitespace run as one space; empty when no
+/// line starts with [lead].
+String _bulletOf(String markdown, String lead) {
+  final lines = markdown.split('\n');
+  final start = lines.indexWhere((line) => line.startsWith(lead));
+  if (start < 0) return '';
+  final rest = lines.skip(start + 1).takeWhile((line) => line.startsWith('  '));
+  return _oneLine([lines[start], ...rest].join('\n'));
 }
