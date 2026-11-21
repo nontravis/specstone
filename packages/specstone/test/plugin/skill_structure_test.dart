@@ -2006,6 +2006,22 @@ const _trimRound = 'specstone-expert-sdd/references/trim-round.md';
 
 const _trimReference = 'specstone-expert-sdd/references/trim.md';
 
+const _trimStepsHeading = "## A skill's or agent's steps";
+
+const _trimMapHeading = '## The guide lines per section';
+
+/// The table rows under [heading] of [markdown], up to the next `## ` heading.
+List<String> _tableRowsOf(String markdown, String heading) {
+  final lines = markdown.split('\n');
+  final start = lines.indexOf(heading);
+  if (start < 0) return [];
+  return lines
+      .skip(start + 1)
+      .takeWhile((line) => !line.startsWith('## '))
+      .where((line) => line.startsWith('|'))
+      .toList();
+}
+
 const _bootstrapProcedures = [
   'specstone-bootstrap-prd/references/procedure.md',
   'specstone-bootstrap-spec/references/procedure.md',
@@ -2050,6 +2066,82 @@ void _trimReferenceTests() {
     ]) {
       expect(text, contains(word), reason: word);
     }
+  });
+
+  test('trim.md cuts steps, keeps component roles, and prunes diagrams to '
+      'contract', () {
+    final text = _pluginText(_trimReference);
+    final cutRow = text.split('\n').singleWhere((l) => l.startsWith('| cut |'));
+    expect(cutRow, contains("a skill's or agent's steps"));
+    final section = _sectionOf(text, _trimStepsHeading);
+    for (final words in [
+      [
+        'Outside a Components row and a diagram',
+        'move them nowhere',
+        "skill's or agent's own files",
+      ],
+      ['only steps', '`kept: top ID`'],
+      [
+        'Components row',
+        'Responsibility',
+        "component's role",
+        'never delete the row',
+      ],
+      ['Behavior diagram', 'contract nodes', '`fr` guide', 'skill or agent'],
+      ['in-edges', 'out-edges', 'labels', 'decision node'],
+      [
+        'Interaction sequence diagram',
+        'contract messages',
+        'a question to the Owner',
+        "a dispatch's inputs",
+        'a report',
+        'a CLI write call with its flags',
+        'a limit',
+      ],
+      ['CLI read call', 'unless', '`--budget`'],
+      ["plugin's own parts", 'step order'],
+      ['no node or message', 'optional section'],
+    ]) {
+      expect(
+        _hasSentenceWith(section, words),
+        isTrue,
+        reason: words.join(', '),
+      );
+    }
+  });
+
+  test('trim.md maps each marked section to its guide lines', () {
+    final rows = _tableRowsOf(_pluginText(_trimReference), _trimMapHeading);
+    for (final words in [
+      [
+        '`fr` Input / Output and Behavior',
+        'item shape line',
+        'skill and agent sentences',
+        '`behavior`',
+      ],
+      ['`fr` Edge cases', 'four edge-case lines'],
+      ['`fr` Verification', '`verification`'],
+      [
+        '`architecture` Components, Component details, and Interaction',
+        '`architecture` description line',
+        "section's own lines",
+      ],
+      ['`domain` and `project_domain` Invariants', '`invariants`'],
+      ['Value objects', '`value_objects`'],
+    ]) {
+      expect(
+        rows.where((row) => words.every(row.contains)),
+        hasLength(1),
+        reason: words.join(', '),
+      );
+    }
+    expect(
+      _hasSentenceWith(
+        _sectionOf(_pluginText(_trimReference), _trimMapHeading),
+        ['delete each item', 'except a Components row'],
+      ),
+      isTrue,
+    );
   });
 
   test('trim.md keeps IDs and the top ID, and removes every copy of the '
