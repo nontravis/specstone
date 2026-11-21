@@ -2549,7 +2549,66 @@ void _brainstormRoundTests() {
       isTrue,
     );
   });
+
+  test('design.md gives each Docs to change row form', () {
+    final text = _pluginText(_designReference);
+    final step = _bulletOf(text, '6. **Docs to change**');
+    for (final (form, words) in [
+      (
+        'changed section',
+        [
+          'by its `get` key',
+          'item list in parentheses',
+          '`new E19` if added',
+          '`E24: <note>`',
+        ],
+      ),
+      (
+        'item in the list',
+        [
+          "item IDs, a row's first cell, a node ID,",
+          'a scenario number, quoted words',
+        ],
+      ),
+      ('section rewritten whole', ['`<key> whole` for one rewritten whole']),
+      (
+        'new doc or every section',
+        ['`whole` for a new doc or a rewrite of every section'],
+      ),
+      ('bare key', ['A key with neither: a design-check line']),
+      ("amend's rows", ["Each amend's rows form an `Amend <N> rows` table"]),
+    ]) {
+      for (final word in words) {
+        expect(step, contains(word), reason: '$form: $word');
+      }
+    }
+    expect(
+      _hasSentenceWith(_sectionOf(text, '## 3. Write the document'), [
+        'removes a decision',
+        '`removal.md`',
+        'stub rows',
+      ]),
+      isTrue,
+      reason: 'stub row',
+    );
+  });
+
+  test('removal.md writes a stub row by key with its item list or whole', () {
+    final bullet = _bulletOf(_pluginText(_removalReference), '- **Stub rows**');
+    expect(
+      _hasSentenceWith(bullet, [
+        '`take out the D<n> text: <sections>` in Sections',
+        'each with its item list or `whole`',
+        '`design.md`',
+        'never `all`',
+        '`D<n> (Amend <N>, removed)` in Decisions',
+      ]),
+      isTrue,
+    );
+  });
 }
+
+const _removalReference = 'specstone-brainstorming-sdd/references/removal.md';
 
 /// The text of the bullet of [markdown] whose first line starts with [lead],
 /// with its indented lines, every whitespace run as one space; empty when no
