@@ -4259,6 +4259,26 @@ void main() {
       expect(texts.where(keyedHeading.hasMatch), isEmpty);
       expect(texts.where((t) => t.contains('## Use Case\n')), isNotEmpty);
     });
+    test("json text keeps a heading's trailing spaces", () async {
+      final i = await indexWith({
+        'docs/prds/features/f01_login/FEATURE.md':
+            '---\nvision:\n  - PV-01\n---\n\n# Login\n\n'
+            '## Problem  \nUsers sign in.\n',
+      });
+
+      final a = ctxIn(i, 'login/email_login', BundleMode.implement);
+      final feature = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere(
+            (d) => d['name'] == 'login' && d['docType'] == 'feature',
+          );
+
+      expect(a.text, contains('## Problem {#problem}\nUsers sign in.'));
+      expect(
+        (feature['text']! as String).split('\n'),
+        contains('## Problem  '),
+      );
+    });
     test('a query bundle keys its printed headings', () {
       final text = ctx(
         'login/email_login/validate_credentials',

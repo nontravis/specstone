@@ -322,7 +322,9 @@ ContextAnswer _answerContext(
           'docType': ?ordered[doc].docTypeId,
           'path': ordered[doc].docPath,
           'tokens': tokenSizeOf(block),
-          'text': _blockBody(_withoutHeadingKeys(docPrints[doc], block)),
+          'text': _blockBody(
+            _withVerbatimHeadings(index, ordered[doc], docPrints[doc], block),
+          ),
           if (inSummary(ordered[doc])) 'summary': true,
           ..._citedByKey(docPrints[doc].cited, citedBy),
         },
@@ -979,19 +981,25 @@ List<String> _byTreeOrder(DocIndex index, Set<String> paths) => [
     if (paths.contains(doc.docPath)) doc.docPath,
 ];
 
-/// Returns [block], the text of [print], with the ` {#<key>}` suffix taken off
-/// each section header line [print] locates, as a JSON `text` keeps its
-/// headings verbatim.
+/// Returns [block], the text of [print] of [doc], with each section header
+/// line [print] locates set back to the header line the index holds, as a JSON
+/// `text` keeps its headings verbatim.
 ///
 /// It reads the lines [DocPrint.sections] gives, never a pattern, so a body
 /// line that ends in `{#...}` stays.
-String _withoutHeadingKeys(DocPrint print, String block) {
+String _withVerbatimHeadings(
+  DocIndex index,
+  IndexedDoc doc,
+  DocPrint print,
+  String block,
+) {
+  final headers = {
+    for (final section in index.contentOf(doc).sections)
+      section.key: section.headerLine,
+  };
   final lines = block.split('\n');
   for (final SectionLine(:key, :line) in print.sections) {
-    final keyed = ' {#$key}';
-    if (lines[line].endsWith(keyed)) {
-      lines[line] = lines[line].substring(0, lines[line].length - keyed.length);
-    }
+    if (headers[key] case final header?) lines[line] = header;
   }
   return lines.join('\n');
 }
