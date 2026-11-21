@@ -113,8 +113,8 @@ final class MergedField {
 
   /// Returns the JSON object of this field with only the keys set.
   ///
-  /// `list` and `required` print only when true; `root` prints only
-  /// when a layer writes it.
+  /// `list` and `required` print only when true; `root` and `bundleWith` print
+  /// only when a layer writes them.
   Map<String, Object> toJson() => {
     'id': id,
     'type': type.wire,
@@ -124,6 +124,7 @@ final class MergedField {
     'docTypes': ?docTypes,
     'pointer': ?pointer?.wire,
     'root': ?root?.wire,
+    'bundleWith': ?bundleWith,
     'description': ?description,
     'lint': ?lint?.toJson(),
   };
