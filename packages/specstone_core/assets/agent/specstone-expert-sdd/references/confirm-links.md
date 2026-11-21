@@ -1,33 +1,28 @@
 # Traced and cited links
 
-The steps of `specstone-expert-sdd`'s rule 4, and what rule 7's cite links do.
-
-Each `check` here saves to its own file: `<role>` is your caller's role, `<folder>` and `XXXXXX` the project gate's.
-Search it for the target's lines, never read it whole.
+Rule 4 and rule 7 of `specstone-expert-sdd`. Save each `check` here to its own file: `<role>` your caller's role,
+`<folder>` and `XXXXXX` the project gate's.
 
 ## Traced links (rule 4)
 
-When you write an FR (`fr`), an nf (`nf`), or an API row (`api`), record its `confirmed` entries: run
-`specstone check <target> --out "<folder>/reports/check.<role>.<XXXXXX>.txt"` to save each link it traces, its upstream
-block, then its fingerprint; read the block, then write the entries with
-`specstone set <target> --field confirmed --base <hash>`. Take `<hash>` from `bases.fields.confirmed` in
-`specstone get <target> --json`, never from a fingerprint `check` prints.
-
-A `suspect` link's upstream block moved on since the entry was recorded: re-read it and confirm again the same way.
-Your approval request to the Owner then says what changed upstream.
-Under the `auto` mode, the approved list of `specstone-expert-sdd`'s Get the drafts approved names the upstream
-change.
+- Writing an FR (`fr`), nf (`nf`), or API row (`api`): run
+  `specstone check <target> --out "<folder>/reports/check.<role>.<XXXXXX>.txt"` to save each traced link's upstream
+  block and fingerprint.
+- Read the block, then write the `confirmed` entries with `specstone set <target> --field confirmed --base <hash>`.
+- Take `<hash>` from `bases.fields.confirmed` of `specstone get <target> --json`, never from a `check` fingerprint.
+- A `suspect` link: re-read its upstream block and confirm again the same way.
+- Say in the approval request what changed upstream; under `auto`, the approved list names it.
 
 ## Override lines (rule 4)
 
-With each `Overrides:` line you write in a spec doc, record its `overrides` entry: one per overridden item, written
-`<doc type>:<name>#<ID> <fingerprint>`. Run
-`specstone check <target> --out "<folder>/reports/check.<role>.<XXXXXX>.txt"` to save each fingerprint, then write the
-entries with `specstone set <target> --field overrides --base <hash>`, as you write `confirmed` entries. Take `<hash>`
-from `bases.fields.overrides` in `specstone get <target> --json`. Until the entry matches, `check` reports the line
-`unconfirmed`; in a draft the line stays `unconfirmed` even when the entry matches, and waits for the Owner's approval.
+- Record one `overrides` entry per item each `Overrides:` line overrides: `<doc type>:<name>#<ID> <fingerprint>`.
+- Run the same `check --out` for each fingerprint, then write
+  `specstone set <target> --field overrides --base <hash>`, `<hash>` from `bases.fields.overrides` of
+  `specstone get <target> --json`.
+- Until the entry matches, `check` reports the line `unconfirmed`; in a draft it stays `unconfirmed` and waits for the
+  Owner's approval.
 
 ## Cited links (rule 7)
 
-`specstone refs <owner>` lists each doc that cites it by a link, and `specstone context` follows the link, but a
-citation pins no hash: it never turns `suspect` when the owner changes, and takes no `confirmed` entry.
+- A citation pins no hash: it never turns `suspect` and takes no `confirmed` entry; `specstone refs <owner>` lists
+  its citers.
