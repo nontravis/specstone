@@ -28,6 +28,63 @@ void checkSlug(String slug) {
   );
 }
 
+/// Throws [IndexFault] `argument_invalid` unless every `/` part of [slug] is
+/// a slug; an empty part names its place and quotes the whole [slug].
+void checkSlugParts(String slug) {
+  final parts = slug.split('/');
+  for (final (at, part) in parts.indexed) {
+    if (part.isNotEmpty) continue;
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'part ${at + 1} of --slug "$slug" is empty: each part takes lowercase '
+      'letters, digits, and _',
+    );
+  }
+  parts.forEach(checkSlug);
+}
+
+/// The parts of a `--slug`: one per group folder, then the own segment's.
+final class SlugParts {
+  const new({required this.groups, required this.own});
+
+  /// The `{slug}` value of each group folder, outermost first.
+  final List<String> groups;
+
+  /// The `{slug}` value of the own segment; null when it holds none.
+  final String? own;
+}
+
+/// Returns the parts of [slug], split on `/`, one per `{slug}` of [shape]'s
+/// own segment and its group folders.
+///
+/// Throws [IndexFault] `argument_invalid` when [slug] holds more parts than
+/// [DocPathShape.slugParts] (checked first), an empty part, or a part that is
+/// no slug, and `argument_missing` when it holds fewer parts or is absent
+/// where one is due.
+SlugParts slugPartsOf(MergedDocType docType, DocPathShape shape, String? slug) {
+  final parts = slug?.split('/') ?? const <String>[];
+  if (parts.length > shape.slugParts) {
+    final noun = shape.slugParts == 1 ? 'slug part' : 'slug parts';
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      '${docType.id} takes ${shape.slugParts} $noun, got ${parts.length}',
+    );
+  }
+  if (slug != null) checkSlugParts(slug);
+  if (parts.length < shape.slugParts) {
+    final named = List.filled(shape.slugParts, '<slug>').join('/');
+    throw IndexFault(
+      IndexFaultCode.argumentMissing,
+      '${docType.id} needs --slug $named, lowercase letters, digits, and _, '
+      'for ${shape.segments.join('/')}',
+    );
+  }
+  return SlugParts(
+    groups: parts.take(shape.groupCount).toList(),
+    own: shape.slugged ? parts.last : null,
+  );
+}
+
 /// Whether [own], an entry that fits [shape]'s own segment, holds the doc.
 ///
 /// A folder with no doc file under it is no sibling: only docs count. A

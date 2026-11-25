@@ -7,6 +7,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/skill_doc_fixture.dart';
 
 const _frLayer = '.specstone/templates/fr.yaml';
@@ -137,6 +138,21 @@ void main() {
       expect(checked.left(loginArchitecture), isEmpty);
     },
   );
+
+  test('a grouped feature titled with its numbered slug gets the title finding, not one titled with its group', () async {
+    for (final (title, count) in [('recipes', 1), ('kitchen', 0)]) {
+      final project = await writeGroupedProject(
+        extra: {'docs/$kitchenRecipes': '# $title\n'},
+      );
+      final found = (await checkOf(project)).findings.where(
+        (f) =>
+            f.kind == FindingKind.templateTextLeft &&
+            f.path == kitchenRecipes &&
+            f.toJson()['section'] == '_title',
+      );
+      expect(found, hasLength(count), reason: 'title "$title"');
+    }
+  });
 
   test('a skill doc titled with its own slug gets no title finding', () async {
     final checked = await _check(

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/grouped_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart'
@@ -637,6 +638,36 @@ void main() {
         expect(result.stderr, '--out goes with --plan-out or --dry-run\n');
         expect(File('${root.path}/plan.txt').existsSync(), isFalse);
       },
+    );
+  });
+
+  test('move feature to the top in a grouped project exits 64', () async {
+    final root = await writeGroupedProject(
+      extra: {
+        'docs/prds/features/kitchen/f01_recipes/f01_sub/FEATURE.md': '# Sub\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root, console: FakeConsole());
+    expect(
+      await runner.run([
+        'move',
+        'feature:kitchen/recipes/sub',
+        '--top',
+        '--json',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      (jsonDecode(err.toString()) as Map)['error'],
+      allOf(
+        containsPair('code', 'argument_invalid'),
+        containsPair(
+          'message',
+          'feature:kitchen/recipes/sub cannot move to top; its feature path: '
+              'holds a group segment that --top cannot name',
+        ),
+      ),
     );
   });
 }

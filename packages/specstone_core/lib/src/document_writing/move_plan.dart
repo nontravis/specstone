@@ -196,9 +196,10 @@ final class _LineReader {
     return address;
   }
 
+  /// Checks each `/` part of [slug]; the part count is left to `planNewDoc`.
   String _checkedSlug(String slug) {
     try {
-      checkSlug(slug);
+      checkSlugParts(slug);
     } on IndexFault catch (fault) {
       throw refuse(fault.message);
     }

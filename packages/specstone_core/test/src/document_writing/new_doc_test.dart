@@ -24,6 +24,7 @@ import 'package:test/test.dart';
 import '../../helpers/fixed_numbers_fixture.dart'
     show decisionLayer, decisionLayerFile;
 import '../../helpers/forwarding_entities.dart';
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
@@ -372,7 +373,197 @@ void main() {
     );
   });
 
-  test('a missing --slug, a --parent or --slug the type takes no value for, or a bad slug is refused', () async {
+  Matcher argumentMissingNaming(List<String> parts) => isA<IndexFault>()
+      .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+      .having(
+        (f) => f.message,
+        'message',
+        allOf([for (final part in parts) contains(part)]),
+      );
+
+  test('a one-part slug on a grouped feature is argument_missing naming both parts and the path', () async {
+    final root = await writeGroupedProject();
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'feature', slug: 'herbs'),
+      ),
+      throwsA(
+        argumentMissingNaming([
+          '<slug>/<slug>',
+          'prds/features/{slug}/f{nn}_{slug}/FEATURE.md',
+        ]),
+      ),
+    );
+    expect(
+      Directory('${root.path}/docs/prds/features/herbs').existsSync(),
+      isFalse,
+    );
+  });
+
+  test(
+    'no slug on a grouped feature is argument_missing and creates nothing',
+    () async {
+      final root = await writeGroupedProject();
+      expect(
+        () => writeIn(root, (s) => answerNew(s, docTypeId: 'feature')),
+        throwsA(argumentMissingNaming(['<slug>/<slug>'])),
+      );
+      expect(
+        Directory('${root.path}/docs/prds/features')
+            .listSync()
+            .map((e) => e.uri.pathSegments.where((s) => s.isNotEmpty).last)
+            .toSet(),
+        {'kitchen'},
+      );
+    },
+  );
+
+  test(
+    'no slug on a flat story is argument_missing naming one part and the path',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'user_story', parent: 'login'),
+        ),
+        throwsA(
+          argumentMissingNaming([
+            '<slug>',
+            'prds/features/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md',
+          ]),
+        ),
+      );
+    },
+  );
+
+  Set<String> namesUnder(Directory root, String docsRelative) =>
+      Directory('${root.path}/docs/$docsRelative')
+          .listSync()
+          .map((e) => e.uri.pathSegments.where((s) => s.isNotEmpty).last)
+          .toSet();
+
+  Matcher argumentInvalidNaming(String text) => isA<IndexFault>()
+      .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+      .having((f) => f.message, 'message', contains(text));
+
+  test(
+    'a group slug before an unslugged number takes --slug, one part',
+    () async {
+      final root = await writeGroupedProject(
+        extra: {
+          '.specstone/templates/decision.yaml':
+              'id: decision\n'
+              'description: A fixture decision\n'
+              'path: specs/{slug}/d{nn}.md\n',
+        },
+      );
+      final answer = writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'decision', slug: 'storage'),
+      );
+      expect(docOf(answer)['path'], 'specs/storage/d01.md');
+      expect(hasDoc(root, 'specs/storage/d01.md'), isTrue);
+    },
+  );
+
+  test('a three-part slug on a grouped feature is argument_invalid and creates nothing', () async {
+    final root = await writeGroupedProject();
+    final before = namesUnder(root, 'prds/features/kitchen');
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'feature', slug: 'kitchen/drinks/extra'),
+      ),
+      throwsA(argumentInvalidNaming('takes 2 slug parts, got 3')),
+    );
+    expect(namesUnder(root, 'prds/features/kitchen'), before);
+  });
+
+  for (final MapEntry(key: slug, value: named) in {
+    'kitchen/': 'part 2 of --slug "kitchen/" is empty',
+    '/drinks': 'part 1 of --slug "/drinks" is empty',
+    'kitchen//drinks': 'takes 2 slug parts, got 3',
+  }.entries) {
+    test('an empty group part in "$slug" is argument_invalid and creates '
+        'nothing', () async {
+      final root = await writeGroupedProject();
+      final before = namesUnder(root, 'prds/features');
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'feature', slug: slug),
+        ),
+        throwsA(argumentInvalidNaming(named)),
+      );
+      expect(namesUnder(root, 'prds/features'), before);
+    });
+  }
+
+  test(
+    'a bad part among too many parts names the count, not the part',
+    () async {
+      final root = await writeGroupedProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) =>
+              answerNew(s, docTypeId: 'feature', slug: 'Kitchen/drinks/extra'),
+        ),
+        throwsA(argumentInvalidNaming('takes 2 slug parts, got 3')),
+      );
+    },
+  );
+
+  for (final slug in ['Kitchen/drinks', 'kit-chen/drinks']) {
+    test('a malformed group part in "$slug" is argument_invalid', () async {
+      final root = await writeGroupedProject();
+      final before = namesUnder(root, 'prds/features');
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'feature', slug: slug),
+        ),
+        throwsA(argumentInvalidNaming('is no slug')),
+      );
+      expect(namesUnder(root, 'prds/features'), before);
+    });
+  }
+
+  test('a slash in a grouped sub-feature slug is argument_invalid', () async {
+    final root = await writeGroupedProject();
+    final before = namesUnder(root, 'prds/features/kitchen/f01_recipes');
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'feature',
+          parent: 'kitchen/recipes',
+          slug: 'a/b',
+        ),
+      ),
+      throwsA(argumentInvalidNaming('takes 1 slug part, got 2')),
+    );
+    expect(namesUnder(root, 'prds/features/kitchen/f01_recipes'), before);
+  });
+
+  test('a slash in a flat story slug is argument_invalid', () async {
+    final root = await writeWriteProject();
+    final before = namesUnder(root, 'prds/features/f01_login');
+    expect(
+      () => writeIn(
+        root,
+        (s) =>
+            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'a/b'),
+      ),
+      throwsA(argumentInvalidNaming('takes 1 slug part, got 2')),
+    );
+    expect(namesUnder(root, 'prds/features/f01_login'), before);
+  });
+
+  test('a --parent or --slug the type takes no value for, or a bad slug is refused', () async {
     final root = await writeWriteProject();
     void refuses(
       IndexFaultCode code,
@@ -388,12 +579,6 @@ void main() {
       throwsA(indexFault(code, message)),
     );
     refuses(
-      IndexFaultCode.argumentMissing,
-      'user_story needs --slug, lowercase letters, digits, and _',
-      type: 'user_story',
-      parent: 'login',
-    );
-    refuses(
       IndexFaultCode.argumentInvalid,
       'api takes no --slug',
       type: 'api',
@@ -405,6 +590,165 @@ void main() {
       'Bad is no slug: use lowercase letters, digits, and _',
       type: 'feature',
       slug: 'Bad',
+    );
+  });
+
+  test('a two-part slug places a top feature in a new group folder', () async {
+    final root = await writeGroupedProject();
+    final answer = writeIn(
+      root,
+      (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/herbs'),
+    );
+    const path = 'prds/features/garden/f01_herbs/FEATURE.md';
+    expect(docOf(answer)['path'], path);
+    expect(answer.text, '==> garden/herbs (feature) · $path <==\n');
+    expect(hasDoc(root, path), isTrue);
+  });
+
+  test("a grouped feature's skeleton title is its last slug part", () async {
+    final root = await writeGroupedProject();
+    writeIn(
+      root,
+      (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/herbs'),
+    );
+    final lines = const LineSplitter().convert(
+      readDoc(root, 'prds/features/garden/f01_herbs/FEATURE.md'),
+    );
+    expect(lines.where((l) => l.startsWith('# ')), ['# herbs']);
+  });
+
+  test('a two-part slug lands in an existing group folder', () async {
+    final root = await writeGroupedProject();
+    final answer = writeIn(
+      root,
+      (s) => answerNew(s, docTypeId: 'feature', slug: 'kitchen/drinks'),
+    );
+    expect(
+      docOf(answer)['path'],
+      'prds/features/kitchen/f03_drinks/FEATURE.md',
+    );
+    expect(
+      Directory('${root.path}/docs/prds/features/kitchen/f03_kitchen')
+          .existsSync(),
+      isFalse,
+    );
+  });
+
+  test(
+    'a grouped feature takes the next number in its own group only',
+    () async {
+      final root = await writeGroupedProject(
+        extra: {'docs/prds/features/garden/f07_herbs/FEATURE.md': '# Herbs\n'},
+      );
+      final answer = writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'feature', slug: 'kitchen/drinks'),
+      );
+      expect(
+        docOf(answer)['path'],
+        'prds/features/kitchen/f03_drinks/FEATURE.md',
+      );
+    },
+  );
+
+  test(
+    'a group folder with no feature yet gives the first feature 01',
+    () async {
+      final root = await writeGroupedProject();
+      Directory('${root.path}/docs/prds/features/garden').createSync();
+      final answer = writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/herbs'),
+      );
+      expect(
+        docOf(answer)['path'],
+        'prds/features/garden/f01_herbs/FEATURE.md',
+      );
+      expect(hasDoc(root, 'prds/features/garden/f01_herbs/FEATURE.md'), isTrue);
+    },
+  );
+
+  test('the same slug in another group is no clash', () async {
+    final root = await writeGroupedProject();
+    final recipes = writeIn(
+      root,
+      (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/recipes'),
+    );
+    final menus = writeIn(
+      root,
+      (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/menus'),
+    );
+    expect(
+      docOf(recipes)['path'],
+      'prds/features/garden/f01_recipes/FEATURE.md',
+    );
+    expect(docOf(menus)['path'], 'prds/features/garden/f02_menus/FEATURE.md');
+  });
+
+  test(
+    'the same slug in one group is doc_exists and creates nothing',
+    () async {
+      final root = await writeGroupedProject();
+      final before = namesUnder(root, 'prds/features/kitchen');
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'feature', slug: 'kitchen/recipes'),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having((f) => f.file, 'file', kitchenRecipes),
+        ),
+      );
+      expect(namesUnder(root, 'prds/features/kitchen'), before);
+    },
+  );
+
+  test('two grouped creates in one group at once take two numbers', () async {
+    final root = await writeGroupedProject();
+    final path = root.path;
+    String create(String slug) => WriteSession.run(
+      (s) => answerNew(s, docTypeId: 'feature', slug: slug).text,
+      templates: TemplateResolver(),
+      workingDirectory: Directory(path),
+      homeDirectory: null,
+    );
+    await Future.wait([
+      Isolate.run(() => create('kitchen/a')),
+      Isolate.run(() => create('kitchen/b')),
+    ]);
+    expect(
+      hasDoc(root, 'prds/features/kitchen/f03_a/FEATURE.md') &&
+              hasDoc(root, 'prds/features/kitchen/f04_b/FEATURE.md') ||
+          hasDoc(root, 'prds/features/kitchen/f03_b/FEATURE.md') &&
+              hasDoc(root, 'prds/features/kitchen/f04_a/FEATURE.md'),
+      isTrue,
+    );
+  });
+
+  test('a sub-feature under a grouped feature takes a one-part slug', () async {
+    final root = await writeGroupedProject();
+    final answer = writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        parent: 'kitchen/recipes',
+        slug: 'sub',
+      ),
+    );
+    expect(
+      docOf(answer)['path'],
+      'prds/features/kitchen/f01_recipes/f01_sub/FEATURE.md',
+    );
+    expect(
+      Directory('${root.path}/docs/prds/features/kitchen/f01_recipes')
+          .listSync()
+          .whereType<Directory>()
+          .map((e) => e.uri.pathSegments.where((s) => s.isNotEmpty).last)
+          .toSet(),
+      {'f01_sub', 'us01_add_dish'},
     );
   });
 

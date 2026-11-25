@@ -55,7 +55,8 @@ typedef NewDocFill = String Function(
 /// Creates a doc of [docTypeId] from its template at its next sibling number.
 ///
 /// [parent] names a doc of the doc type's `parent:`, or of the nesting type
-/// below `max_depth`; [slug] fills `{slug}`; a non-empty [text] is the doc,
+/// below `max_depth`; [slug] takes one `/`-joined part per `{slug}` of the
+/// doc's path, group folders first; a non-empty [text] is the doc,
 /// forced to `draft: true`. [codeTarget] narrows [parent] to that target's
 /// docs and the shared docs, and places a per-target doc type's doc in that
 /// target's spec folder when the project names two or more targets. Under the
@@ -63,15 +64,17 @@ typedef NewDocFill = String Function(
 /// exclusive create writes it. The json holds one `docs` element: name,
 /// docType, path, base, and bases, as `get` gives them.
 /// Throws [TemplateFault] `doc_type_unknown` for [docTypeId] or a [parent]
-/// that names another doc type id, [IndexFault] `argument_missing`
-/// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
-/// not take, a per-target doc type with no [codeTarget] among two or more
-/// targets, a [codeTarget] the project does not name, a [parent] already at
-/// `max_depth`, or a [text] that holds a naming line at column 0 outside
-/// fenced code, [WriteFault] `doc_exists` when the doc is there and
-/// `field_not_writable` when [text] holds an `approved` key, and
-/// [RenderFault] `output_not_writable` when the disk refuses or the doc path
-/// holds a `.` or `..` name, after removing what this call created.
+/// that names another doc type id, [IndexFault] `argument_missing` or
+/// `argument_invalid` for a [parent] or [slug] the doc type needs or does not
+/// take, a [slug] with fewer parts than the path holds `{slug}` (an absent one
+/// too, `argument_missing`), a [slug] with more parts, an empty part, or a
+/// part that is no slug (`argument_invalid`), a per-target doc type with no
+/// [codeTarget] among two or more targets, a [codeTarget] the project does not
+/// name, a [parent] already at `max_depth`, or a [text] that holds a naming
+/// line at column 0 outside fenced code, [WriteFault] `doc_exists` when the
+/// doc is there and `field_not_writable` when [text] holds an `approved` key,
+/// and [RenderFault] `output_not_writable` when the disk refuses or the doc
+/// path holds a `.` or `..` name, after removing what this call created.
 ReadAnswer answerNew(
   WriteSession session, {
   required String docTypeId,
@@ -113,7 +116,7 @@ ReadAnswer answerNew(
         placed,
         docType,
         parentValues,
-        slug,
+        place.slug,
         highest + 1,
         created,
         placedIn,
@@ -190,7 +193,8 @@ final class NewDocPlace {
   /// The doc the new doc nests under; null for a doc with no parent.
   final IndexedDoc? parentDoc;
 
-  /// The placeholder values the parent's path holds.
+  /// The placeholder values the parent's path holds, then the group folders'
+  /// `{slug}` values.
   final List<String> parentValues;
 
   /// The code target whose spec folder holds the new doc; null for none.
@@ -242,9 +246,8 @@ final class NewDocPlace {
 /// Returns where a new doc of [docTypeId] under [parent] with [slug] goes,
 /// writing nothing.
 ///
-/// [parentNamed], when given, reads [parent] in place of
-/// [WriteSession.parentTarget], as a plan reads it among the docs its `new`
-/// lines create too.
+/// [parentNamed] reads [parent] in place of [WriteSession.parentTarget];
+/// [onSlugFault] builds the fault thrown for a wrong `--slug` part count.
 /// Throws as [answerNew] does before its lock.
 NewDocPlace planNewDoc(
   WriteSession session, {
@@ -253,6 +256,7 @@ NewDocPlace planNewDoc(
   String? slug,
   String? codeTarget,
   IndexedDoc Function(String parent, String parentTypeId)? parentNamed,
+  IndexFault Function(IndexFault fault)? onSlugFault,
 }) {
   session.index.checkCodeTarget(codeTarget);
   final set = session.index.set;
@@ -286,13 +290,20 @@ NewDocPlace planNewDoc(
         IndexFaultCode.argumentInvalid,
         '$docTypeId has no path to create a doc at depth $depth',
       ));
+  final SlugParts parts;
+  try {
+    parts = slugPartsOf(docType, placed, slug);
+  } on IndexFault catch (fault) {
+    if (onSlugFault == null) rethrow;
+    throw onSlugFault(fault);
+  }
   return NewDocPlace(
     docType: docType,
     shape: placed,
     parentDoc: parentDoc,
-    parentValues: parentLayout?.values ?? const <String>[],
+    parentValues: [...?parentLayout?.values, ...parts.groups],
     placedIn: placedIn,
-    slug: slug,
+    slug: parts.own,
   );
 }
 
@@ -331,8 +342,8 @@ String? _parentTypeIdOf(MergedDocType docType, MergedSet set) {
       : null;
 }
 
-/// Throws the fault for a [parent] or [slug] that [docType] needs and lacks,
-/// or takes no value for, or a [slug] that is no slug.
+/// Throws the fault for a [parent] that [docType] needs and lacks, or a
+/// [parent] or [slug] it takes no value for.
 void _checkArguments(
   MergedDocType docType,
   DocPathShape shape,
@@ -348,25 +359,18 @@ void _checkArguments(
       '<doc type>:<name>, a bare name, or a path',
     );
   }
-  if (shape.slugged && slug == null) {
-    throw IndexFault(
-      IndexFaultCode.argumentMissing,
-      '${docType.id} needs --slug, lowercase letters, digits, and _',
-    );
-  }
   if (parentTypeId == null && parent != null) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       '${docType.id} takes no --parent',
     );
   }
-  if (!shape.slugged && slug != null) {
+  if (shape.slugParts == 0 && slug != null) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       '${docType.id} takes no --slug',
     );
   }
-  if (slug != null) checkSlug(slug);
 }
 
 /// Returns the code target whose spec folder holds the new doc of [docType],

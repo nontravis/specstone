@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/grouped_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart'
     show cartRecord;
 import '../../../../specstone_core/test/helpers/per_fr_row_fixture.dart';
@@ -105,6 +106,26 @@ void main() {
       final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
       expect(error['code'], code, reason: target);
     }
+    expect(_docsOf(root), before);
+  });
+
+  test('rename with a slash in --to exits 64', () async {
+    final root = await writeGroupedProject();
+    final before = _docsOf(root);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'feature:kitchen/menus',
+        '--to',
+        'garden/dishes',
+        '--json',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
+    expect(error['code'], 'argument_invalid');
     expect(_docsOf(root), before);
   });
 

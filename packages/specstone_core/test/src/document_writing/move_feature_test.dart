@@ -8,12 +8,16 @@ import 'package:specstone_core/src/consistency_check/finding.dart'
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_doc.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/move_plan.dart';
+import 'package:specstone_core/src/document_writing/move_plan_engine.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor, spots;
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/write_fixture.dart';
@@ -853,5 +857,98 @@ void main() {
         isNot(contains(startsWith('$shopDomain:'))),
       );
     });
+  });
+
+  test('a grouped top feature moved under another feature moves only its own folders, the group kept', () async {
+    final root = await writeGroupedProject();
+    final answer = moveAll(root, [
+      'feature:kitchen/recipes',
+    ], under: 'kitchen/menus');
+    expect(movedPairs(answer), [
+      'prds/features/kitchen/f01_recipes/ prds/features/kitchen/f02_menus/f01_recipes/',
+      'specs/kitchen/f01_recipes/ specs/kitchen/f02_menus/f01_recipes/',
+    ]);
+    expect(
+      hasDoc(root, 'prds/features/kitchen/f02_menus/f01_recipes/FEATURE.md'),
+      isTrue,
+    );
+    expect(hasDoc(root, kitchenMenus), isTrue);
+  });
+
+  group('--top in a grouped project', () {
+    const subFeature = {
+      'docs/prds/features/kitchen/f01_recipes/f01_sub/FEATURE.md': '# Sub\n',
+    };
+
+    Matcher topRefused() => isA<IndexFault>()
+        .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+        .having((f) => f.exitStatus, 'exitStatus', 64)
+        .having(
+          (f) => f.message,
+          'message',
+          allOf(contains('group segment'), contains('--top')),
+        );
+
+    test('moving a grouped sub-feature to the top is argument_invalid and moves nothing', () async {
+      final root = await writeGroupedProject(extra: subFeature);
+      writeIn(root, (s) => s.target('feature:kitchen/recipes'));
+      final before = tree(root);
+      expect(
+        () => moveAll(root, ['feature:kitchen/recipes/sub'], top: true),
+        throwsA(topRefused()),
+      );
+      expect(tree(root), before);
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+      );
+    });
+
+    test(
+      'a dry-run move to the top in a grouped project is refused the same way',
+      () async {
+        final root = await writeGroupedProject(extra: subFeature);
+        writeIn(root, (s) => s.target('feature:kitchen/recipes'));
+        final before = tree(root);
+        expect(
+          () => moveAll(
+            root,
+            ['feature:kitchen/recipes/sub'],
+            top: true,
+            dryRun: true,
+          ),
+          throwsA(topRefused()),
+        );
+        expect(tree(root), before);
+      },
+    );
+
+    test(
+      'a plan line moving a grouped top feature to top is refused the same way',
+      () async {
+        final root = await writeGroupedProject();
+        writeIn(root, (s) => s.target('feature:kitchen/recipes'));
+        final before = tree(root);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerPlanMove(
+              s,
+              parseMovePlan(
+                'feature:kitchen/recipes -> top\n',
+                path: 'plan.txt',
+              ),
+              dryRun: false,
+            ),
+          ),
+          throwsA(topRefused()),
+        );
+        expect(tree(root), before);
+        expect(
+          File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+          isFalse,
+        );
+      },
+    );
   });
 }

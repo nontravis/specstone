@@ -1,9 +1,17 @@
+// The test names are plan text kept as written.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
 import 'package:test/test.dart';
 
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
+import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -163,6 +171,107 @@ void main() {
       ]);
     });
   });
+
+  group('grouped feature path', () {
+    late MergedSet grouped;
+
+    setUpAll(() async {
+      grouped = openProject(await writeGroupedProject()).set;
+    });
+
+    DocPathShape groupedShape(String id, {int depth = 0}) =>
+        DocPathShape.of(grouped.lookup(id)!, grouped, depth: depth)!;
+
+    test('a grouped feature path spans its own segment over the group and the numbered folder', () {
+      final feature = groupedShape('feature');
+      expect(
+        [
+          feature.ownStart,
+          feature.ownIndex,
+          feature.groupCount,
+          feature.containerCount,
+          feature.slugParts,
+          feature.numbered,
+          feature.slugged,
+        ],
+        [2, 3, 1, 1, 2, true, true],
+      );
+      expect(feature.containerOf(['kitchen']), 'prds/features/kitchen/');
+      expect(
+        feature.ownPathOf(kitchenRecipes),
+        'prds/features/kitchen/f01_recipes/',
+      );
+    });
+
+    test('two group folders count two groups and three slug parts', () async {
+      final two = openProject(
+        await writeGroupedProject(
+          extra: {
+            '.specstone/templates/decision.yaml':
+                'id: decision\n'
+                'description: A fixture decision\n'
+                'path: specs/{slug}/{slug}/d{nn}_{slug}.md\n',
+          },
+        ),
+      ).set;
+      final decision = DocPathShape.of(two.lookup('decision')!, two)!;
+      expect(
+        [
+          decision.ownStart,
+          decision.ownIndex,
+          decision.groupCount,
+          decision.containerCount,
+          decision.slugParts,
+        ],
+        [1, 3, 2, 2, 3],
+      );
+      expect(
+        decision.containerOf(['kitchen', 'menus']),
+        'specs/kitchen/menus/',
+      );
+    });
+
+    test('a story under a grouped feature keeps a one-segment own part', () {
+      final story = groupedShape('user_story');
+      expect(story.ownStart, story.ownIndex);
+      expect(story.parentCount, 3);
+      expect(story.groupCount, 0);
+    });
+
+    test('a grouped sub-feature keeps a one-segment own part', () {
+      final subFeature = groupedShape('feature', depth: 1);
+      expect(subFeature.ownStart, subFeature.ownIndex);
+      expect(subFeature.parentCount, 3);
+      expect(subFeature.slugParts, 1);
+    });
+  });
+
+  test(
+    'every shipped pack doc type keeps ownStart equal to ownIndex',
+    () async {
+      final all = openProject(
+        await writeTree({
+          '.specstone/config.yaml': shippedPinsConfig(
+            shippedPackVersions().keys.toList(),
+          ),
+        }),
+      ).set;
+      final shapes = [
+        for (final docType in all.docTypes)
+          for (var depth = 0; depth < docType.paths.length; depth++)
+            DocPathShape.of(docType, all, depth: depth),
+      ].nonNulls.toList();
+      expect(shapes, isNotEmpty);
+      for (final shape in shapes) {
+        expect(
+          shape.ownStart,
+          shape.ownIndex,
+          reason: shape.segments.join('/'),
+        );
+        expect(shape.groupCount, 0, reason: shape.segments.join('/'));
+      }
+    },
+  );
 
   group('ofDoc with a code target', () {
     test('a per-target doc takes the shape of its target folder', () async {

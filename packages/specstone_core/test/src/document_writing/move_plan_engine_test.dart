@@ -15,6 +15,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, spots;
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/write_fixture.dart';
@@ -100,6 +101,53 @@ Object _refusal(Directory root, String plan, {bool dryRun = false}) {
 }
 
 void main() {
+  test("a plan's new line creates a grouped feature and a later line moves a story into it", () async {
+    final root = await writeGroupedProject();
+    _apply(
+      root,
+      'new feature --slug garden/herbs\n'
+      'user_story:kitchen/recipes/add_dish -> feature:garden/herbs\n',
+    );
+    const herbs = 'prds/features/garden/f01_herbs/FEATURE.md';
+    expect(_isDraft(root, herbs), isTrue);
+    expect(
+      hasDoc(
+        root,
+        'prds/features/garden/f01_herbs/us01_add_dish/USER_STORY.md',
+      ),
+      isTrue,
+    );
+    expect(hasDoc(root, kitchenAddDish), isFalse);
+  });
+
+  test("a plan's new line with a one-part slug in a grouped project is argument_missing with its line prefix", () async {
+    final root = await writeGroupedProject();
+    final fault = _refusal(root, 'new feature --slug herbs\n');
+    expect(
+      fault,
+      isA<IndexFault>()
+          .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+          .having((f) => f.message, 'message', startsWith('plan.txt:1: '))
+          .having((f) => f.message, 'message', contains('needs --slug')),
+    );
+  });
+
+  test("a plan's new line with a three-part slug is argument_invalid with its line prefix", () async {
+    final root = await writeGroupedProject();
+    final fault = _refusal(root, 'new feature --slug garden/herbs/extra\n');
+    expect(
+      fault,
+      isA<IndexFault>()
+          .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+          .having((f) => f.message, 'message', startsWith('plan.txt:1: '))
+          .having(
+            (f) => f.message,
+            'message',
+            contains('feature takes 2 slug parts, got 3'),
+          ),
+    );
+  });
+
   test('plan with a new line creates a draft doc and moves units into it', () async {
     final root = await _project();
     final answer = _apply(
@@ -581,6 +629,16 @@ void main() {
     expect(readDoc(root, movedFr), isNot(contains('E01')));
     expect(readDoc(root, keepCart), contains('E02 — A sold-out item'));
   });
+
+  test(
+    'keep doc lines of features in two group folders are no sibling order',
+    () async {
+      final root = await writeGroupedProject(
+        extra: {'docs/prds/features/garden/f01_herbs/FEATURE.md': '# Herbs\n'},
+      );
+      _apply(root, 'feature:kitchen/menus keep\nfeature:garden/herbs keep\n');
+    },
+  );
 
   test('keep doc lines past sibling 99 follow the numeric order', () async {
     String story(String title) =>

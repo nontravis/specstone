@@ -8,6 +8,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart' show baseHashOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/grouped_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
@@ -40,6 +41,66 @@ void main() {
     final text = File('${root.path}/docs/$newStory').readAsStringSync();
     expect(text, startsWith('---\ndraft: true\n---\n\n# recover_account\n'));
     expect(text, contains('## Use Case'));
+  });
+  test('new feature with a group slug prints the grouped naming '
+      'line', () async {
+    final root = await writeGroupedProject();
+    final (:runner, :out, :err) = writeRunner(root, console: FakeConsole());
+    expect(await runner.run(['new', 'feature', '--slug', 'garden/herbs']), 0);
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      '==> garden/herbs (feature) · prds/features/garden/f01_herbs/FEATURE.md '
+      '<==\n',
+    );
+  });
+  test(
+    'new feature with a one-part slug in a grouped project exits 64',
+    () async {
+      final root = await writeGroupedProject();
+      final (:runner, :out, :err) = writeRunner(root, console: FakeConsole());
+      expect(
+        await runner.run(['new', 'feature', '--slug', 'herbs', '--json']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
+      expect(error['code'], 'argument_missing');
+      expect(error['message'], contains('--slug <slug>/<slug>'));
+      expect(
+        Directory('${root.path}/docs/prds/features/herbs').existsSync(),
+        isFalse,
+      );
+    },
+  );
+  test('new with a slash in a one-slug segment exits 64', () async {
+    final root = await writeWriteProject();
+    final loginFolder = Directory('${root.path}/docs/prds/features/f01_login');
+    final before = [
+      for (final e in loginFolder.listSync(recursive: true)) e.path,
+    ]..sort();
+    final (:runner, :out, :err) = writeRunner(root, console: FakeConsole());
+    expect(
+      await runner.run([
+        'new',
+        'user_story',
+        '--parent',
+        'login',
+        '--slug',
+        'a/b',
+        '--json',
+      ]),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      (jsonDecode(err.toString()) as Map)['error'],
+      containsPair('code', 'argument_invalid'),
+    );
+    expect(
+      [for (final e in loginFolder.listSync(recursive: true)) e.path]..sort(),
+      before,
+    );
   });
   test('new refuses while a migration is unfinished', () async {
     final root = await writeWriteProject();

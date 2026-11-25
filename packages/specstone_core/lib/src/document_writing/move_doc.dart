@@ -477,7 +477,7 @@ List<PathMove> _renameMoves(
   final oldValues =
       shape.valuesOf(target.docPath) ??
       (throw StateError('${target.docPath} does not match its doc type'));
-  final parentValues = oldValues.take(shape.parentCount).toList();
+  final parentValues = oldValues.take(shape.containerCount).toList();
   final siblings = siblingsOnDisk(session.project, shape, parentValues);
   final own = _ownEntry(
     siblings,
@@ -557,7 +557,7 @@ List<PathMove> _movesFor(
   final targetValues =
       shape.valuesOf(target.docPath) ??
       (throw StateError('${target.docPath} does not match its doc type'));
-  final parentValues = targetValues.take(shape.parentCount).toList();
+  final parentValues = targetValues.take(shape.containerCount).toList();
   final siblings = siblingsOnDisk(session.project, shape, parentValues);
   if (wanted < 1 || wanted > siblings.length) {
     throw WriteFault(

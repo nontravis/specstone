@@ -26,6 +26,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart' as check show checkOf, loginApi;
 import '../../helpers/failing_rename.dart';
 import '../../helpers/git_repo.dart';
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
@@ -2049,6 +2050,53 @@ void main() {
     expect(hasDoc(root, payCard), isTrue);
     expect(hasDoc(root, shopDomain), isTrue);
   });
+
+  test(
+    'deleting a grouped feature removes its own folder and keeps the group',
+    () async {
+      final root = await writeGroupedProject(
+        extra: {'docs/specs/kitchen/f02_menus/ARCHITECTURE.md': '# Menus\n'},
+      );
+      del(
+        root,
+        ['feature:kitchen/recipes'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+      expect(hasDoc(root, kitchenMenus), isTrue);
+      for (final folder in [
+        'prds/features/kitchen/f01_recipes',
+        'specs/kitchen/f01_recipes',
+      ]) {
+        expect(Directory('${root.path}/docs/$folder').existsSync(), isFalse);
+      }
+      for (final group in ['prds/features/kitchen', 'specs/kitchen']) {
+        expect(Directory('${root.path}/docs/$group').existsSync(), isTrue);
+      }
+    },
+  );
+
+  test(
+    'deleting the only feature of a group prunes the emptied group folders',
+    () async {
+      final root = await writeGroupedProject(
+        extra: {
+          'docs/prds/features/garden/f01_herbs/FEATURE.md': '# Herbs\n',
+          'docs/specs/garden/f01_herbs/ARCHITECTURE.md': '# Herbs\n',
+        },
+      );
+      del(
+        root,
+        ['feature:garden/herbs'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+      for (final folder in ['prds/features/garden', 'specs/garden']) {
+        expect(Directory('${root.path}/docs/$folder').existsSync(), isFalse);
+      }
+      expect(hasDoc(root, kitchenRecipes), isTrue);
+    },
+  );
 
   test('a doc outside that links into a sub-feature is doc_referenced, and nothing is removed', () async {
     final root = await writeNestedProject();

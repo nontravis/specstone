@@ -7,6 +7,12 @@ Matcher _argumentInvalid(String message) => isA<IndexFault>()
     .having((fault) => fault.message, 'message', contains(message));
 
 void main() {
+  test('a new line reads a group slug', () {
+    final plan = parseMovePlan('new feature --slug garden/herbs', path: 'p');
+
+    expect((plan.lines.single as NewLine).slug, 'garden/herbs');
+  });
+
   test('plan reads source, new, move, and keep lines', () {
     final plan = parseMovePlan(
       [
@@ -62,6 +68,24 @@ void main() {
 
     expect(plan.lines, hasLength(2));
     expect((plan.lines[1] as MoveLine).destination?.body, 'd');
+  });
+
+  test('a bad part after a valid group part is refused naming the part', () {
+    for (final MapEntry(key: slug, value: named) in {
+      'garden/Bad': 'Bad is no slug',
+      'garden/': 'part 2 of --slug "garden/" is empty',
+    }.entries) {
+      expect(
+        () => parseMovePlan('new feature --slug $slug\n', path: 'plan.txt'),
+        throwsA(_argumentInvalid('plan.txt:1: ')),
+        reason: slug,
+      );
+      expect(
+        () => parseMovePlan('new feature --slug $slug\n', path: 'plan.txt'),
+        throwsA(_argumentInvalid(named)),
+        reason: slug,
+      );
+    }
   });
 
   test('unreadable line is argument_invalid with path and line', () {

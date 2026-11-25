@@ -42,6 +42,7 @@ final class _Segment {
 final class DocPathShape {
   new _(
     this.segments,
+    this.ownStart,
     this.ownIndex,
     this.parentCount,
     this.depth,
@@ -90,15 +91,23 @@ final class DocPathShape {
     final segments = path.split('/');
     final patterns = [for (final s in segments) _Segment(s)];
     var running = 0;
-    var ownIndex = segments.length - 1;
+    var ownStart = segments.length - 1;
     for (var i = 0; i < patterns.length; i++) {
       running += patterns[i].tokens.length;
       if (running > parentCount) {
-        ownIndex = i;
+        ownStart = i;
         break;
       }
     }
-    return DocPathShape._(segments, ownIndex, parentCount, depth, patterns);
+    final ownIndex = _firstNumberedFrom(patterns, ownStart) ?? ownStart;
+    return DocPathShape._(
+      segments,
+      ownStart,
+      ownIndex,
+      parentCount,
+      depth,
+      patterns,
+    );
   }
 
   /// Returns the shape of the depth whose pattern [docPath] matches, or null
@@ -134,13 +143,26 @@ final class DocPathShape {
         : null;
   }
 
+  static int? _firstNumberedFrom(List<_Segment> patterns, int start) {
+    for (var i = start; i < patterns.length; i++) {
+      if (patterns[i].tokens.contains(_numberToken)) return i;
+    }
+    return null;
+  }
+
   static int _placeholdersIn(String path) =>
       _placeholder.allMatches(path).length;
 
   /// The pattern at [depth], split on `/`.
   final List<String> segments;
 
-  /// The index of the segment that names the doc itself.
+  /// The index of the first segment whose placeholders run past the parent's.
+  final int ownStart;
+
+  /// The index of the segment that names the doc itself: the first segment
+  /// from [ownStart] on that holds `{nn}`, else [ownStart].
+  ///
+  /// The segments from [ownStart] up to it are the group folders.
   final int ownIndex;
 
   /// The number of placeholders in the parent pattern at [depth]; for the
@@ -151,6 +173,24 @@ final class DocPathShape {
   final int depth;
 
   final List<_Segment> _patterns;
+
+  /// The `{slug}` placeholders in the group folders, the segments from
+  /// [ownStart] up to [ownIndex].
+  int get groupCount => _patterns
+      .sublist(ownStart, ownIndex)
+      .fold(
+        0,
+        (sum, pattern) =>
+            sum + pattern.tokens.where((token) => token != _numberToken).length,
+      );
+
+  /// How many values [containerOf] and the sibling lists take: the parent's
+  /// placeholders and the group folders'.
+  int get containerCount => parentCount + groupCount;
+
+  /// How many `/`-joined parts `--slug` takes: one per group folder, and one
+  /// for the own segment when it holds `{slug}`.
+  int get slugParts => groupCount + (slugged ? 1 : 0);
 
   /// Whether the own segment is the file, not a folder.
   bool get ownIsFile => ownIndex == segments.length - 1;

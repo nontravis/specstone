@@ -43,6 +43,7 @@ import '../../helpers/cold_node.dart';
 import '../../helpers/failing_rename.dart';
 import '../../helpers/fixed_numbers_fixture.dart';
 import '../../helpers/git_repo.dart' show hasGit;
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/legacy_fixture.dart' show commitRepo;
 import '../../helpers/nested_fixture.dart';
@@ -926,6 +927,54 @@ void main() {
     expect(hasDoc(root, persona), isTrue);
   });
 
+  test('reorder of a grouped feature renumbers within its group', () async {
+    final root = await writeGroupedProject(
+      extra: {'docs/prds/features/garden/f01_herbs/FEATURE.md': '# Herbs\n'},
+    );
+    reorder(root, 'feature:kitchen/menus', '1');
+    expect(hasDoc(root, 'prds/features/kitchen/f01_menus/FEATURE.md'), isTrue);
+    expect(
+      hasDoc(root, 'prds/features/kitchen/f02_recipes/FEATURE.md'),
+      isTrue,
+    );
+    expect(hasDoc(root, 'prds/features/garden/f01_herbs/FEATURE.md'), isTrue);
+    expect(hasDoc(root, 'specs/kitchen/f02_recipes/ARCHITECTURE.md'), isTrue);
+    expect(hasDoc(root, kitchenRecipes), isFalse);
+    expect(hasDoc(root, kitchenMenus), isFalse);
+    expect(hasDoc(root, kitchenRecipesArchitecture), isFalse);
+  });
+
+  test('rename of a grouped feature keeps its group and number', () async {
+    final root = await writeGroupedProject(
+      extra: {'docs/specs/kitchen/f02_menus/ARCHITECTURE.md': '# Menus\n'},
+    );
+    rename(root, 'feature:kitchen/menus', 'dishes');
+    expect(hasDoc(root, 'prds/features/kitchen/f02_dishes/FEATURE.md'), isTrue);
+    expect(hasDoc(root, 'specs/kitchen/f02_dishes/ARCHITECTURE.md'), isTrue);
+    expect(hasDoc(root, kitchenRecipes), isTrue);
+    expect(hasDoc(root, kitchenRecipesArchitecture), isTrue);
+    expect(hasDoc(root, kitchenMenus), isFalse);
+    expect(hasDoc(root, 'specs/kitchen/f02_menus/ARCHITECTURE.md'), isFalse);
+  });
+
+  test('rename of a grouped feature with a slash in its new slug is '
+      'argument_invalid', () async {
+    final root = await writeGroupedProject();
+    writeIn(root, (s) => s.target('feature:kitchen/menus'));
+    final before = treeBytes(root);
+    expect(
+      () => rename(root, 'feature:kitchen/menus', 'garden/dishes'),
+      throwsA(
+        isA<IndexFault>().having(
+          (f) => f.code,
+          'code',
+          IndexFaultCode.argumentInvalid,
+        ),
+      ),
+    );
+    expect(treeBytes(root), before);
+  });
+
   group('nested features', () {
     const shop = 'prds/features/f02_shop';
     const payDomain = 'specs/f02_shop/f02_pay/DOMAIN.md';
@@ -1096,6 +1145,22 @@ void main() {
       expect(hasDoc(root, payCard), isTrue);
       expect(hasDoc(root, payRefund), isTrue);
     });
+
+    test(
+      "a story moved under a grouped feature lands in that feature's folder",
+      () async {
+        final root = await writeGroupedProject();
+        move(root, 'user_story:kitchen/recipes/add_dish', 'kitchen/menus');
+        expect(
+          hasDoc(
+            root,
+            'prds/features/kitchen/f02_menus/us01_add_dish/USER_STORY.md',
+          ),
+          isTrue,
+        );
+        expect(hasDoc(root, kitchenAddDish), isFalse);
+      },
+    );
 
     test("shop's api cell and confirmed label become pay/add_item/check_stock, and a step, a link, and a path mention follow", () async {
       final root = await writeNestedProject(

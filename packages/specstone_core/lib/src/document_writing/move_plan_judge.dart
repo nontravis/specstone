@@ -175,6 +175,7 @@ final class _PlanJudge {
       codeTarget: codeTarget,
       parentNamed: (value, parentTypeId) =>
           _parentNamed(line, value, parentTypeId),
+      onSlugFault: (fault) => _lineFault(line, fault.message, code: fault.code),
     );
     _creates.add(place);
     _created
@@ -411,8 +412,15 @@ final class _PlanJudge {
     DocAddress? destination,
   ) {
     if (destination == null) {
-      if (type.id == featureType) return const TopDestination();
-      throw _topFault(line, written);
+      if (type.id != featureType) throw _topFault(line, written);
+      if ((DocPathShape.of(type, _index.set)?.groupCount ?? 0) > 0) {
+        throw _lineFault(
+          line,
+          '$written cannot move to top; its feature path: holds a group '
+          'segment that --top cannot name',
+        );
+      }
+      return const TopDestination();
     }
     final parentTypeId = type.id == featureType
         ? featureType
@@ -547,9 +555,13 @@ final class _PlanJudge {
   /// Throws [IndexFault] `argument_invalid` when [doc], kept in place, comes
   /// before a sibling of its type an earlier `keep` line names.
   void _requireSiblingOrder(PlanLine line, String written, IndexedDoc doc) {
-    final number = _siblingNumberOf(doc);
-    if (number == null) return;
-    final key = '${_index.parentOf(doc)?.docPath} ${doc.docTypeId}';
+    final shape = _shapeOf(doc);
+    final number = shape
+        ?.matchOwn(doc.docPath.split('/')[shape.ownIndex])
+        ?.number;
+    if (shape == null || number == null) return;
+    final container = doc.docPath.split('/').take(shape.ownIndex).join('/');
+    final key = '$container ${doc.docTypeId}';
     final last = _keptDocs[key];
     _keptDocs[key] = number;
     if (last == null || last < number) return;
@@ -560,15 +572,11 @@ final class _PlanJudge {
     );
   }
 
-  /// Returns the number [doc]'s own segment carries among its siblings; null
-  /// for a doc type that numbers none.
-  int? _siblingNumberOf(IndexedDoc doc) {
+  DocPathShape? _shapeOf(IndexedDoc doc) {
     final type = _index.typeOf(doc);
-    final shape = type == null
+    return type == null
         ? null
         : DocPathShape.ofDoc(type, _index.set, doc.docPath, target: doc.target);
-    if (shape == null) return null;
-    return shape.matchOwn(doc.docPath.split('/')[shape.ownIndex])?.number;
   }
 
   /// Throws [IndexFault] `argument_invalid` when [parent] would hold stories
@@ -588,9 +596,15 @@ final class _PlanJudge {
     );
   }
 
-  IndexFault _lineFault(PlanLine line, String reason) => IndexFault(
-    IndexFaultCode.argumentInvalid,
-    '${plan.path}:${line.lineNumber}: $reason',
+  /// Returns the fault for [line]; a plan with no path, an argv `move`, gets
+  /// no `<path>:<line>: ` prefix.
+  IndexFault _lineFault(
+    PlanLine line,
+    String reason, {
+    IndexFaultCode code = IndexFaultCode.argumentInvalid,
+  }) => IndexFault(
+    code,
+    plan.path.isEmpty ? reason : '${plan.path}:${line.lineNumber}: $reason',
   );
 }
 
