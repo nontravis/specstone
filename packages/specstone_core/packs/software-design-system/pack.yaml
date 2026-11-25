@@ -1,9 +1,15 @@
 name: software-design-system
-version: 1.4.0
+version: 1.5.0
 extends: software-tech
 shared_lines:
   - id: serve_library_builders
     text: These docs serve the team that builds the library, not the library's consumers.
+    for_doc_types: [accessibility, color, component, component_group, content, contributing, discovery, elevation, guidelines, icon, layout, motion, setup, shape, spacing, theme, tokens, typography, ui_pattern]
+  - id: library_spec_scope
+    text: 'Write only what a plan needs and code cannot show: a decision and its why, a contract callers rely on, a constraint code honors.'
+    for_doc_types: [accessibility, color, component, component_group, content, contributing, discovery, elevation, guidelines, icon, layout, motion, setup, shape, spacing, theme, tokens, typography, ui_pattern]
+  - id: library_code_detail_home
+    text: Leave signatures, field lists, names, file layout, and steps to the code, or to the plan before the code exists.
     for_doc_types: [accessibility, color, component, component_group, content, contributing, discovery, elevation, guidelines, icon, layout, motion, setup, shape, spacing, theme, tokens, typography, ui_pattern]
 shared_banned_patterns:
   - id: token_value

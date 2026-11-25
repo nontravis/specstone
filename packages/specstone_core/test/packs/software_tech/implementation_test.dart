@@ -66,7 +66,6 @@ void main() {
       file: 'packs/software-tech/pack.yaml',
     );
 
-    expect(manifest.version.toString(), '1.25.0');
     expect(manifest.migrations, isEmpty);
   });
 

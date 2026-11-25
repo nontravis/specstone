@@ -98,7 +98,6 @@ enum FindingKind {
   coversPathMissing('covers_path_missing'),
   coversEntryEmpty('covers_entry_empty'),
   codeRootMissing('code_root_missing'),
-  codeUncovered('code_uncovered'),
   docRefUnresolved('doc_ref_unresolved'),
   docRefDuplicate('doc_ref_duplicate'),
   docRefSelf('doc_ref_self'),
@@ -203,7 +202,6 @@ enum FindingKind {
 
   /// Whether the kind is reported against the project, not one doc.
   bool get isProjectLevel =>
-      this == codeUncovered ||
       this == docCitedInCode ||
       this == referenceDocUnresolved ||
       this == agentBlockStale ||

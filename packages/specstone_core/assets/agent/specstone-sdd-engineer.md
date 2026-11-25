@@ -52,11 +52,11 @@ your drafts approved, and every audit goes to `specstone-sdd-auditor`, a fresh r
   under the reports folder; it is your work list and your gate, so run no gate `check`.
 - **`feature`** (sync; this or `scope` required): the feature name the Owner gave, never sent with `scope`; your group
   file holds every code link of the feature.
-- **`scope`** (sync; this or `feature` required): one group of a sync with no feature named, `feature:<name>`,
-  `<type>:<name>`, or `uncovered`; you write only that scope's docs, so other groups' engineers run beside you.
-- **`picks`** (sync, bootstrap, optional): each Owner pick whose fix lands in a spec doc. Sync: a fix-the-spec pick
-  per `Mismatches:` point or a write-a-spec pick per `Uncovered:` file. Bootstrap: a write-a-spec pick per
-  `Uncovered:` file.
+- **`scope`** (sync; this or `feature` required): one group of a sync with no feature named, `feature:<name>` or
+  `<type>:<name>`; you write only that scope's docs, so other groups' engineers run beside you.
+- **`picks`** (sync, optional): each Owner pick on a `Mismatches:` point. A fix-the-spec pick's fix lands in a spec
+  doc. A change-the-PRD pick is a handed behavior: you write no doc for it and list it under your handed behaviors,
+  for `specstone-brainstorming-sdd`.
 - **`change note`** (sync, optional): at a plan's last sync and its reruns, the path of the change note whose
   `(decided)` decisions are the decided lines your drafts take, each drafted with no Owner pick.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, each leftover to the home its finding's `fix`

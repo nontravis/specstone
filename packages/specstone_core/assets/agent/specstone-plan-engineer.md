@@ -76,8 +76,9 @@ it; list the conflict under Open questions for the Owner. A later source wins on
 Every task names the doc it builds (a story, FR, NFR, or spec doc), by doc name, and takes its test from that doc's
 Verification field, or the CI commands a doc of its bundle names when it has none; a Decided task cites its decided line instead
 (Workflow step 7). A task that would build behavior on the Observable contract that no doc states is a spec gap: list
-it under Open questions, never plan it. An okayed decided line is no spec gap: Workflow step 4 plans its task, or,
-past one work group, names it under Open questions when no part plans it.
+it under Open questions as a requirement change the Owner decides in the PRD first, never plan it. An okayed
+decided line is no spec gap: Workflow step 4 plans its task, or, past one work group, names it under Open questions
+when no part plans it.
 
 **Code target:** with one given, every Ground `context` call and each task's read line
 adds `--target <code target>`, and the plan holds that target's tasks alone. With none given, add no `--target`.
@@ -171,6 +172,8 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      `--target <code target>` before `--out` when one is given, else it has none. Its test comes from the decided
      line's `when <input or state>, <outcome>`.
    - **Critical files**: it names each file it touches, each existing file and symbol one you opened.
+   - **Seed**: it carries the code-level seed its builder needs before the code exists, such as a signature, a field
+     table, or a path. A seed is plan text, never doc text.
    - **Trade-off**: it states its own trade-off behind each implementation choice, such as a doc that can be built
      more than one way.
    - **Tests step**: a task that adds, renames, moves, or removes a test for an FR writes out a step that declares
@@ -254,6 +257,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      for each constraint's longest phrase (its longest run of words between punctuation) and each step phrase that
      restates a doc's point. Rewrite each hit as a citation of the doc name and its ID or section anchor (`BR-02`,
      `E05`, `#verification`).
+     A task's seed is no hit: it is plan text, so this search skips it.
    - **Own lines**: each task that builds a doc writes out its own read line, trade-off, and steps (step 7).
    - **Printed names**: each name a task cites is one a Ground bundle printed. List each name no bundle printed, and
      each file or symbol not found, under `Findings:`, never cited.
@@ -302,7 +306,7 @@ Check: <the check file of Workflow step 3>
   `approval_stale` FR a story target holds; one row with no task per other doc among `targets`. The rows of the
   merge planner are every group's target rows, from the parts' reports; a target in no group keeps the grouping
   pass's row alone (Workflow step 2).
-- **Open questions**: each spec gap, each conflict on the Observable contract, a refused plan path, each draft or
+- **Open questions**: each spec gap, as a requirement change the Owner decides in the PRD first, each conflict on the Observable contract, a refused plan path, each draft or
   `approval_stale` doc the plan only reads, each `(decided)` decision of a note with no `Owner ok:` line, and, from
   the merge planner, each okayed decision no part plans; `none` when empty.
 - **`Plan:`**: `none` when no target and no `(decided)` decision gets a task, and from a group planner, whose tasks

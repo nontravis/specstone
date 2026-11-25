@@ -8,7 +8,7 @@ description: Use when the PRD docs of a Specstone project lag behind its format 
 This skill takes `check` findings under `prds/` or `measurements/`, and an `untyped_doc` on an old file whose
 content goes into a `prds/` or `measurements/` doc, a `specs/` path included. A leftover goes by the doc that holds it.
 A leftover on a PRD doc whose every `to` type lies outside `prd-core` goes to `specstone-bootstrap-spec`, as does an old
-file whose finding's `to` lists such a type. So do other findings under `specs/` and `code_uncovered`. Follow
+file whose finding's `to` lists such a type. So do other findings under `specs/`. Follow
 `specstone-expert-sdd` for every write.
 
 ## 1. Gate: the first call

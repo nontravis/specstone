@@ -49,7 +49,7 @@ Exit 75, `base_mismatch`: read the target again and merge before you retry. Any 
 stop.
 
 The `code` field lists the folders the code will live in, relative to the root. Fill it before you ask
-for approval: while it is empty, `check` reports no uncovered code at all. A listed folder that does not
+for approval. A listed folder that does not
 exist yet draws no finding while no record entry of its code target is `implemented`, and `code_root_missing` once one
 is and the folder is still missing; keep the entry either way.
 

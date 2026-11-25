@@ -12,7 +12,6 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/marketing.dart';
-import '../../helpers/posix_modes.dart';
 import '../../helpers/rulebook_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_doc_fixture.dart';
@@ -175,48 +174,7 @@ void main() {
   Map<String, String> narrow(String covers) =>
       doc(loginRecord, '  - app/lib/\n', '  - $covers\n');
 
-  test(
-    'a file under the code root no covers entry reaches is code_uncovered',
-    () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {
-            ...narrow('app/lib/src/'),
-            'app/lib/src/a.dart': '',
-            'app/lib/main.dart': '',
-          },
-        ),
-      );
-      expect(spots(report), [
-        '$techStack:4: code_uncovered',
-        '$techStack:4: code_uncovered',
-      ]);
-      expect(
-        report.findings.last.message,
-        'app/lib/main.dart is under the code root app/lib/ and no covers entry reaches it',
-      );
-      expect(
-        [for (final f in report.findings) f.toJson()['codePath']],
-        ['app/lib/login.dart', 'app/lib/main.dart'],
-      );
-    },
-  );
-
-  test('a ./ covers entry reaches the files of a ./ code entry', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          ...doc(techStack, '  - app/lib/\n', '  - ./app/lib/\n'),
-          ...doc(loginRecord, '  - app/lib/\n', '  - ./app/lib/\n'),
-          'app/lib/src/a.dart': '',
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.codeUncovered), isEmpty);
-    expect(spots(report, FindingKind.coversPathMissing), isEmpty);
-  });
-
-  test('code_root: covers and code resolve under the code folder; code_uncovered names a path from it', () async {
+  test('code_root: covers and code resolve under the code folder', () async {
     final report = await checkOf(
       await writeCheckProject(
         extra: {
@@ -230,17 +188,7 @@ void main() {
         without: {'app/lib/login.dart'},
       ),
     );
-    expect(spots(report), [
-      '$techStack:4: code_uncovered',
-      '$techStack:4: code_uncovered',
-    ]);
-    expect(
-      [
-        for (final f in report.findings)
-          if (f.kind == FindingKind.codeUncovered) f.toJson()['codePath'],
-      ],
-      ['app/lib/login.dart', 'app/lib/x.dart'],
-    );
+    expect(spots(report), isEmpty);
   });
 
   test('covers and code roots resolve against a code_root outside the project '
@@ -266,92 +214,8 @@ void main() {
     expect(_of(report, FindingKind.codeRootMissing), ['$techStack: api/lib/']);
   });
 
-  test('the files listed under a code_root outside the project root are '
-      'named from that code root', () async {
-    final project = await _outsideRootProject(
-      docs: {
-        ...doc(techStack, '  - app/lib/\n', '  - lib/\n'),
-        loginRecord: _record(_plannedStatuses, covers: ['lib/a.dart']),
-      },
-      outside: {'lib/a.dart': '', 'lib/b.dart': ''},
-    );
-
-    final report = await _run(project);
-
-    expect(_of(report, FindingKind.codeUncovered), ['$techStack: lib/b.dart']);
-    expect(report.findings.single.message, startsWith('lib/b.dart '));
-  });
-
-  test('an uncovered generated file still gives code_uncovered, as no exclude '
-      'list exists', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {...narrow('app/lib/login.dart'), 'app/lib/a.g.dart': ''},
-      ),
-    );
-
-    expect(_of(report, FindingKind.codeUncovered), [
-      '$techStack: app/lib/a.g.dart',
-    ]);
-  });
-
-  test('with no code field the check does not run', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          ...narrow('app/lib/src/'),
-          ...doc(techStack, '---\ncode:\n  - app/lib/\n---\n\n', ''),
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.codeUncovered), isEmpty);
-  });
-
   test(
-    'dot names and links are skipped; generated files have no exclude',
-    skip: Platform.isWindows
-        ? 'a symbolic link needs a privilege on Windows'
-        : null,
-    () async {
-      final outside = await writeTree({'x.dart': ''});
-      final project = await writeCheckProject(
-        extra: {...narrow('app/lib/login.dart'), 'app/lib/.DS_Store': ''},
-      );
-      Link('${project.path}/app/lib/linked').createSync(outside.path);
-      expect(spots(await checkOf(project), FindingKind.codeUncovered), isEmpty);
-      final generated = await checkOf(
-        await writeCheckProject(extra: {'app/lib/login.g.dart': ''}),
-      );
-      expect(spots(generated, FindingKind.codeUncovered), isEmpty);
-    },
-  );
-
-  test(
-    'a folder entry reaches only the files inside it, by path segment',
-    () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {...narrow('app/lib/src'), 'app/lib/srcx/a.dart': ''},
-        ),
-      );
-      expect([
-        for (final f in report.findings) f.toJson()['codePath'],
-      ], contains('app/lib/srcx/a.dart'));
-    },
-  );
-
-  test('a check on one feature leaves uncovered code out', () async {
-    final project = await writeCheckProject(
-      extra: {...narrow('app/lib/src/'), 'app/lib/main.dart': ''},
-    );
-    expect(
-      spots(await checkOf(project, target: 'login'), FindingKind.codeUncovered),
-      isEmpty,
-    );
-  });
-
-  test(
-    'a missing root is code_root_missing; the other root is still listed',
+    'a missing root is code_root_missing; the other root gives no finding',
     () async {
       final report = await checkOf(
         await writeCheckProject(
@@ -362,10 +226,7 @@ void main() {
           },
         ),
       );
-      expect(spots(report), [
-        '$techStack:4: code_uncovered',
-        '$techStack:5: code_root_missing',
-      ]);
+      expect(spots(report), ['$techStack:5: code_root_missing']);
     },
   );
 
@@ -427,78 +288,6 @@ void main() {
       '$loginRecord: app/lib/ 9A1C03BE55D2',
     ]);
   });
-
-  test(
-    'a file under a covers folder that ends in a fingerprint is covered',
-    () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {...narrow('app/lib/ 9a1c03be55d2'), 'app/lib/main.dart': ''},
-        ),
-      );
-
-      expect(spots(report, FindingKind.codeUncovered), isEmpty);
-    },
-  );
-
-  test('a file under two roots is reported once, under the first root that lists it', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - app/\n'),
-          ...narrow('app/lib/login.dart'),
-          'app/lib/main.dart': '',
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.codeUncovered), [
-      '$techStack:4: code_uncovered',
-    ]);
-  });
-
-  test(
-    'a code root that cannot be listed gives a warning and no finding',
-    skip: unreadablePathSkipReason(),
-    () async {
-      final project = await writeCheckProject(
-        extra: {
-          ...narrow('app/lib/src/'),
-          'app/lib/src/b.dart': '',
-          'app/lib/sealed/a.dart': '',
-        },
-      );
-      final path = '${project.path}/app/lib/sealed';
-      Process.runSync('chmod', ['000', path]);
-      addTearDown(() => Process.runSync('chmod', ['755', path]));
-      final report = await checkOf(project);
-      expect(spots(report, FindingKind.codeUncovered), [
-        '$techStack:4: code_uncovered',
-      ]);
-      expect(report.warnings, [
-        'app/lib/sealed: cannot list the folder; files under it are not checked for covers or fingerprints',
-        'app/lib/sealed: cannot list the folder; files under it are not checked for doc names',
-      ]);
-    },
-  );
-
-  test(
-    'a code entry that names a file is checked for covers as that file',
-    () async {
-      final uncovered = await checkOf(
-        await writeCheckProject(
-          extra: {
-            ...doc(techStack, '- app/lib/\n', '- app/lib/other.dart\n'),
-            ...narrow('app/lib/login.dart'),
-            'app/lib/other.dart': '',
-          },
-        ),
-      );
-      expect(
-        [for (final f in uncovered.findings) f.toJson()['codePath']],
-        ['app/lib/other.dart'],
-      );
-    },
-  );
 
   group('the wait for the first implemented entry of a target', () {
     test(
@@ -705,38 +494,19 @@ void main() {
       expect(_of(report, FindingKind.codeRootMissing), ['$_flutterTech: api/']);
     });
 
-    test('each target lists its files under its own code root and matches its own covers only', () async {
+    test('a target with no code yet raises no missing root', () async {
       final project = await _twin(
         extra: {
-          'flutter_ws/app/lib/main.dart': '',
-          'jaspr_ws/app/lib/web.dart': '',
-          _flutterRecord: _record(const [], covers: ['app/lib/']),
-          _jasprRecord: _record(const [], covers: ['app/lib/login.dart']),
+          _flutterRecord: _record([_implemented], covers: ['app/lib/']),
+          'docs/$_jasprTech': _tech(['web/']),
+          _jasprRecord: _record(const [], covers: ['web/']),
         },
+        without: {'jaspr_ws/app/lib/login.dart'},
       );
       final report = await _run(project);
-      expect(_of(report, FindingKind.codeUncovered), [
-        '$_jasprTech: app/lib/web.dart',
-      ]);
+      expect(_of(report, FindingKind.codeRootMissing), isEmpty);
+      expect(_of(report, FindingKind.coversPathMissing), isEmpty);
     });
-
-    test(
-      'a target with no code yet lists nothing and raises no missing root',
-      () async {
-        final project = await _twin(
-          extra: {
-            _flutterRecord: _record([_implemented], covers: ['app/lib/']),
-            'docs/$_jasprTech': _tech(['web/']),
-            _jasprRecord: _record(const [], covers: ['web/']),
-          },
-          without: {'jaspr_ws/app/lib/login.dart'},
-        );
-        final report = await _run(project);
-        expect(_of(report, FindingKind.codeUncovered), isEmpty);
-        expect(_of(report, FindingKind.codeRootMissing), isEmpty);
-        expect(_of(report, FindingKind.coversPathMissing), isEmpty);
-      },
-    );
 
     test('a shared doc with covers in a project of two targets is shared_doc_code_path, once, at the key line', () async {
       final project = await _twin(extra: {'docs/$_sharedTopic': _sharedTopic1});
@@ -785,8 +555,7 @@ void main() {
       );
     });
 
-    test('the paths of a shared doc resolve against no code root and cover no '
-        'file', () async {
+    test('the paths of a shared doc resolve against no code root', () async {
       const topic =
           '---\ncovers:\n  - app/lib/\n  - app/lib/gone/\n---\n\n# Doc model\n\n'
           '## Purpose\n\nOne rule set.\n\n## Scope\n\nThe lib folder.\n';
@@ -798,18 +567,12 @@ void main() {
           ),
           _jasprRecord: _record([_implemented], covers: ['app/lib/login.dart']),
           'docs/$_sharedTopic': topic,
-          'flutter_ws/app/lib/main.dart': '',
-          'jaspr_ws/app/lib/main.dart': '',
         },
       );
 
       final report = await _run(project);
 
       expect(_of(report, FindingKind.coversPathMissing), isEmpty);
-      expect(_of(report, FindingKind.codeUncovered), [
-        '$_flutterTech: app/lib/main.dart',
-        '$_jasprTech: app/lib/main.dart',
-      ]);
     });
 
     test('a shared doc with covers beside one named target is no '
@@ -881,49 +644,6 @@ void main() {
       final report = await _run(project);
 
       expect(_kindsAt(report, techStack), [FindingKind.sharedDocCodePath]);
-    });
-
-    test('a --target run lists the files of that target only', () async {
-      final project = await _twin(
-        extra: {
-          'flutter_ws/app/lib/main.dart': '',
-          'jaspr_ws/app/lib/web.dart': '',
-          _flutterRecord: _record(const [], covers: ['app/lib/login.dart']),
-          _jasprRecord: _record(const [], covers: ['app/lib/login.dart']),
-        },
-      );
-      expect(
-        _of(
-          await _run(project, codeTarget: 'jaspr'),
-          FindingKind.codeUncovered,
-        ),
-        ['$_jasprTech: app/lib/web.dart'],
-      );
-    });
-
-    test('with nested code roots a file counts for the target of the longest root only', () async {
-      final project = await _twin(
-        extra: {
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}targets:\n'
-              '  flutter:\n    code_root: ws\n'
-              '  jaspr:\n    code_root: ws/web\n',
-          'ws/lib/a.dart': '',
-          'ws/web/lib/b.dart': '',
-          'docs/$_flutterTech': _tech(['lib/', 'web/']),
-          'docs/$_jasprTech': _tech(['lib/']),
-          _flutterRecord: _record(const [], covers: ['lib/login.dart']),
-          _jasprRecord: _record(const [], covers: ['lib/login.dart']),
-        },
-        without: {
-          'flutter_ws/app/lib/login.dart',
-          'jaspr_ws/app/lib/login.dart',
-        },
-      );
-      expect(_of(await _run(project), FindingKind.codeUncovered), [
-        '$_flutterTech: lib/a.dart',
-        '$_jasprTech: lib/b.dart',
-      ]);
     });
   });
 
@@ -1009,24 +729,6 @@ void main() {
       expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
     });
 
-    test('covers the files it reaches under a code root, so none is '
-        'code_uncovered', () async {
-      final techWithTool = doc(
-        techStack,
-        '  - app/lib/\n',
-        '  - app/lib/\n  - tool/\n',
-      );
-      final covered = await checkOf(
-        await _architectureProject([reached], extra: techWithTool),
-      );
-      final control = await checkOf(
-        await _architectureProject(const [], extra: techWithTool),
-      );
-
-      expect(_of(covered, FindingKind.codeUncovered), isEmpty);
-      expect(_of(control, FindingKind.codeUncovered), ['$techStack: $reached']);
-    });
-
     test(
       'resolves from the project root when the config sets a code_root',
       () async {
@@ -1056,28 +758,6 @@ void main() {
 
       expect(_of(report, FindingKind.coversPathMissing), [
         '$_projectArchitecture: tool/gone/',
-      ]);
-    });
-
-    test('covers the files it reaches under a code_root beside the project '
-        'root, so none is code_uncovered', () async {
-      Future<Directory> project(List<String> covers) => _architectureProject(
-        covers,
-        extra: {
-          '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
-          'code/app/lib/login.dart': checkProjectFiles()['app/lib/login.dart']!,
-          'code/tool/build.dart': 'void main() {}\n',
-          ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - tool/\n'),
-        },
-        without: {'app/lib/login.dart'},
-      );
-
-      final covered = await checkOf(await project(['code/tool/']));
-      final control = await checkOf(await project(const []));
-
-      expect(_of(covered, FindingKind.codeUncovered), isEmpty);
-      expect(_of(control, FindingKind.codeUncovered), [
-        '$techStack: tool/build.dart',
       ]);
     });
   });
@@ -1148,151 +828,27 @@ void main() {
       expect(_of(report, FindingKind.codeSuspect), ['$skillDoc: $skillFile']);
     });
 
-    group(
-      'a project-root covers entry covers a skill file under a code root',
-      () {
+    test(
+      'a skill file under a code root gives no shared_doc_code_path with two '
+      'targets',
+      () async {
         const skillUnderRoot = 'skills/review/SKILL.md';
+        final project = await _twin(
+          extra: {
+            '.specstone/config.yaml':
+                '${skillPinsConfig()}targets:\n  flutter:\n    code_root: .\n'
+                '  jaspr:\n    code_root: jaspr_ws\n',
+            'docs/$_flutterTech': _tech(['skills/']),
+            ...skillDocFile([skillUnderRoot]),
+            skillUnderRoot: skillText,
+          },
+        );
 
-        test('with one target', () async {
-          final report = await checkOf(
-            await writeCheckProject(
-              extra: {
-                '.specstone/config.yaml': skillPinsConfig(),
-                ...doc(
-                  techStack,
-                  '  - app/lib/\n',
-                  '  - app/lib/\n  - skills/\n',
-                ),
-                ...skillDocFile([skillUnderRoot]),
-                skillUnderRoot: skillText,
-              },
-            ),
-          );
+        final report = await _run(project);
 
-          expect(_of(report, FindingKind.codeUncovered), isEmpty);
-        });
-
-        test('with two targets', () async {
-          final project = await _twin(
-            extra: {
-              '.specstone/config.yaml':
-                  '${skillPinsConfig()}targets:\n  flutter:\n    code_root: .\n'
-                  '  jaspr:\n    code_root: jaspr_ws\n',
-              'docs/$_flutterTech': _tech(['skills/']),
-              ...skillDocFile([skillUnderRoot]),
-              skillUnderRoot: skillText,
-            },
-          );
-
-          final report = await _run(project);
-
-          expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
-          expect(_of(report, FindingKind.codeUncovered), isEmpty);
-        });
+        expect(spots(report, FindingKind.sharedDocCodePath), isEmpty);
       },
     );
-
-    test('a file under the code root no entry of either kind reaches stays '
-        'code_uncovered', () async {
-      const reached = 'skills/review/SKILL.md';
-      const other = 'skills/other/SKILL.md';
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {
-            '.specstone/config.yaml': skillPinsConfig(),
-            ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
-            ...skillDocFile([reached]),
-            reached: skillText,
-            other: skillText,
-          },
-        ),
-      );
-
-      expect(_of(report, FindingKind.codeUncovered), ['$techStack: $other']);
-    });
-
-    test('a project-root entry never reaches a code root outside the '
-        'project', () async {
-      const skillUnderRoot = 'skills/review/SKILL.md';
-      final project = await _outsideRootProject(
-        config: '${skillPinsConfig()}code_root: ../stratum_ui/example\n',
-        docs: {
-          ...doc(techStack, '  - app/lib/\n', '  - skills/\n'),
-          ...skillDocFile([skillUnderRoot]),
-          skillUnderRoot: skillText,
-        },
-        outside: {skillUnderRoot: skillText},
-        without: {loginRecord},
-      );
-
-      final report = await _run(project);
-
-      expect(_of(report, FindingKind.codeUncovered), [
-        '$techStack: $skillUnderRoot',
-      ]);
-    });
-
-    test('a code root below the project root is reached by the entry written '
-        'from the project root only', () async {
-      const reached = 'code/skills/x/a.md';
-      Future<List<String>> uncovered(String entry) async {
-        final report = await checkOf(
-          await writeCheckProject(
-            extra: {
-              '.specstone/config.yaml': '${skillPinsConfig()}code_root: code\n',
-              'code/app/lib/login.dart':
-                  checkProjectFiles()['app/lib/login.dart']!,
-              ...doc(
-                techStack,
-                '  - app/lib/\n',
-                '  - app/lib/\n  - skills/\n',
-              ),
-              ...skillDocFile([entry]),
-              reached: skillText,
-            },
-            without: {'app/lib/login.dart'},
-          ),
-        );
-        return _of(report, FindingKind.codeUncovered);
-      }
-
-      expect(await uncovered('code/skills/x/'), isEmpty);
-      expect(await uncovered('skills/x/'), ['$techStack: skills/x/a.md']);
-    });
-
-    test('a project-root entry needs whole segments to match', () async {
-      const entry = 'skills/rev';
-      const longer = 'skills/review/SKILL.md';
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {
-            '.specstone/config.yaml': skillPinsConfig(),
-            ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
-            ...skillDocFile([entry]),
-            entry: skillText,
-            longer: skillText,
-          },
-        ),
-      );
-
-      expect(_of(report, FindingKind.codeUncovered), ['$techStack: $longer']);
-    });
-
-    test('an entry naming the project root reaches nothing', () async {
-      const other = 'skills/other/SKILL.md';
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {
-            '.specstone/config.yaml': skillPinsConfig(),
-            ...doc(techStack, '  - app/lib/\n', '  - app/lib/\n  - skills/\n'),
-            ...skillDocFile(['./']),
-            other: skillText,
-          },
-        ),
-      );
-
-      expect(_of(report, FindingKind.codeUncovered), ['$techStack: $other']);
-    });
   });
 
   test('an empty covers entry gives covers_entry_empty alone, in each empty '
@@ -1324,11 +880,6 @@ void main() {
         FindingKind.coversEntryEmpty,
       ], reason: form);
       expect(_of(report, FindingKind.coversPathMissing), isEmpty, reason: form);
-      // The empty entry covers no file, so every listed code file stays
-      // uncovered beside it.
-      expect(_of(report, FindingKind.codeUncovered), [
-        '$techStack: app/lib/login.dart',
-      ], reason: form);
     }
   });
 
@@ -1345,9 +896,6 @@ void main() {
     expect(finding.waitsFor, WaitsFor.owner);
     expect(finding.textLines.single, endsWith(' (waits for the Owner)'));
     expect(_of(report, FindingKind.coversPathMissing), isEmpty);
-    expect(_of(report, FindingKind.codeUncovered), [
-      '$techStack: app/lib/login.dart',
-    ]);
   });
 
   test(

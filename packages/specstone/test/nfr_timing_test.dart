@@ -378,7 +378,6 @@ void main() {
       'implements_missing',
       'record_entry_unresolved',
       'record_entry_duplicate',
-      'code_uncovered',
       'code_suspect',
       'code_unconfirmed',
     ]) {

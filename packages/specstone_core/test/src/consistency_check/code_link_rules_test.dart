@@ -1136,6 +1136,36 @@ void main() {
     expect(_suspects(await _run(project, codeTarget: 'jaspr')), hasLength(1));
   });
 
+  test("with nested code roots a parent's covers folder leaves out the "
+      "child root's files", () async {
+    const parentFile = 'lib/a.dart';
+    final project = await writeTwinProject(
+      extra: {
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: ws\n'
+            '  jaspr:\n    code_root: ws/lib/web\n',
+        'ws/$parentFile': 'a\n',
+        'ws/lib/web/b.dart': 'b\n',
+      },
+      without: {'flutter_ws/app/lib/login.dart', 'jaspr_ws/app/lib/login.dart'},
+    );
+    final fingerprint = _folderFingerprintOf({parentFile: 'a\n'});
+    File('${project.path}/$_flutterRecord').writeAsStringSync(
+      "---\nstatuses:\n  - '$_implemented'\n"
+      'covers:\n  - lib/ $fingerprint\n---\n\n# Record\n',
+    );
+    List<String> flutterSuspects(CheckReport report) => [
+      for (final f in _suspects(report))
+        if (f.path == _flutterRecord) f.path,
+    ];
+
+    expect(flutterSuspects(await _run(project)), isEmpty);
+
+    File('${project.path}/ws/$parentFile').writeAsStringSync('a2\n');
+    expect(flutterSuspects(await _run(project)), [_flutterRecord]);
+  });
+
   group('currentCodeFingerprint', () {
     test('hashes each file by the given file hash, the current rule by '
         'default', () async {

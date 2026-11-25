@@ -35,6 +35,7 @@ import 'package:specstone_core/src/setup_migration/migrate_run.dart'
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pack_floors.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
@@ -148,6 +149,7 @@ void main() {
   _dropSectionTests();
   _renameStampTests();
   _addedPinsTests();
+  _floorPinsTests();
   _dropSharedLinesTests();
   _markRetrimTests();
   _matrixFoldTests();
@@ -3600,6 +3602,30 @@ String _configWrittenBy(RunPlan plan) => _rewriteAt(
 
 PackVersion _version(String text) =>
     PackVersion.parse(text, file: _configPath, key: 'packs');
+
+void _floorPinsTests() {
+  test('a project pinned at every shipped floor upgrades to the carried '
+      'versions with no step', () async {
+    String pins(Map<String, Object> versions) => [
+      'packs:\n',
+      for (final pack in PackFloors.shipped.byPack.keys)
+        '  $pack: ${versions[pack]}\n',
+    ].join();
+    final project = await writeTree({
+      _configPath: pins(PackFloors.shipped.byPack),
+    });
+
+    final plan = planUpgradeRun(
+      project,
+      templates: TemplateResolver(),
+      homeDirectory: null,
+    );
+
+    expect(plan.lists.steps, isEmpty);
+    expect(plan.moves, isEmpty);
+    expect(_configWrittenBy(plan), pins(shippedPackVersions()));
+  });
+}
 
 void _addedPinsTests() {
   group('added pins', () {

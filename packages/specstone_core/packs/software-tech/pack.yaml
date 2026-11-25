@@ -1,5 +1,5 @@
 name: software-tech
-version: 1.25.0
+version: 1.26.0
 extends: prd-core
 shared_lines:
   - id: cite_spec_docs
@@ -29,6 +29,12 @@ shared_lines:
   - id: mechanism_home
     text: A lock, retry, or parser mechanism lives in the feature's `architecture` doc, never in the FR.
     for_doc_types: [fr]
+  - id: spec_scope
+    text: 'Write only what a plan needs and code cannot show: a decision and its why, a contract callers rely on, a constraint code honors.'
+    for_doc_types: [api, architecture, decision, integration, project_api, project_architecture, project_security, security, tech_stack]
+  - id: code_detail_home
+    text: Leave signatures, field lists, names, file layout, and steps to the code, or to the plan before the code exists.
+    for_doc_types: [api, architecture, decision, integration, project_api, project_architecture, project_security, security, tech_stack]
 leftover_homes:
   - doc_types: [architecture, project_architecture]
     section: {id: value_objects, header: Value objects}

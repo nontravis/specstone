@@ -15,7 +15,8 @@ follow `re-review.md`, never a second trim audit.
 3. **Trim lens**: read each deleted, moved, and cut item against the guide line its `trims` report names, and each
    rewritten cite against the cite table of `../../specstone-expert-sdd/references/trim.md`. A removed item stating
    behavior no other doc states is a `Findings:` line whose fix restores it. A contract part the `fr` guide names for
-   a skill or agent is behavior to restore, and a removed step, per trim.md, is none.
+   a skill or agent is behavior to restore, and a removed step, per trim.md, is none. A removed internal code-level
+   fact is none to restore either, since its code states it.
 
 ```
 Findings:

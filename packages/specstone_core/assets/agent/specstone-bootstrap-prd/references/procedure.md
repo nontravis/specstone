@@ -1,7 +1,7 @@
 Your batch's findings are in the `check:` file, else in your gate's file.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
-Other findings under `specs/`, `code_uncovered`, and a PRD doc leftover whose every `to` type lies outside
+Other findings under `specs/` and a PRD doc leftover whose every `to` type lies outside
 `prd-core` go to `specstone-bootstrap-spec`. Follow
 `specstone-expert-sdd` for every write; before the first, run `specstone guide <type> …` once, naming every type you
 write; a later type gets its call before its first write.

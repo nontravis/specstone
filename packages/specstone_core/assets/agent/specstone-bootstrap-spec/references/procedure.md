@@ -13,8 +13,7 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 
 Fix the first unhandled finding of your batch, then run
 `specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again and search it.
-Stop when each left goes to `specstone-bootstrap-prd`, clears with no write, is a reported
-`code_uncovered`, or is tagged `(waits for the Owner)`, except an unanswered size finding.
+Stop when each left goes to `specstone-bootstrap-prd`, clears with no write, or is tagged `(waits for the Owner)`, except an unanswered size finding.
 
 Write each fix as rule 2 of `../../specstone-expert-sdd/SKILL.md` says.
 
@@ -26,7 +25,7 @@ the Owner only when no text bears on a whole section.
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
 | `singular_doc_missing` | `specstone new <type>`, then step 6 |
 | `section_undeclared` | move each statement to the home the finding's `fix` names, else into the section that takes it, else the closest, even if another doc holds it, so none is lost, then drop the section |
-| `field_undeclared` on `implements`, `code_uncovered` | step 3 |
+| `field_undeclared` on `implements` | step 3 |
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` whose content goes into a `specs/` doc | step 4 |
@@ -41,11 +40,6 @@ the Owner only when no text bears on a whole section.
 - **`implements` on a spec doc:** move each entry to the record entry of the story or FR it serves
   with `specstone set <record address> --field implements --base <hash>`, per
   `../../specstone-expert-sdd/references/write.md`, then drop the key.
-- **`code_uncovered`:** apply `../../specstone-sync-sdd/references/helpers.md` first: a helper joins its feature's
-  record `covers` or waits, never reported under `Uncovered:` or asked, and a waiting one is written by a later round
-  once its draft is approved. For any other, read the file and write nothing; report it under `Uncovered:` in the form of step 3 of
-  `../../specstone-sync-sdd/references/procedure.md`. On a write-a-spec pick sent to you, with its file:
-  add the file or its folder to `covers` of its feature's record.
 
 ## 4. Merge an old file
 
@@ -73,5 +67,4 @@ root.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
-Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; under
-`Pointers:`, each helper file joined or waiting; then get each approved through step 5's Owner confirmation.
+Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; then get each approved through step 5's Owner confirmation.

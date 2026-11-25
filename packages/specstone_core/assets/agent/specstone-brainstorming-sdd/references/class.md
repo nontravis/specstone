@@ -15,7 +15,7 @@ asked in order:
 |---|---|---|
 | Doc-only | one section or field of one doc changes | follow the `specstone-update-sdd` skill |
 | Restore | the work built from the docs, such as code, tests, or content, departs from an approved doc | the fix changes that work only, and no doc |
-| Internal | no observable behavior changes, only the record entries' paths and `covers:` entries | those change through the `specstone-sync-sdd` skill |
+| Internal | no observable behavior changes. An internal code-level change, such as an internal signature, a field, or a file split, is Internal, since it needs no doc statement. At most the record entries' paths and `covers:` entries change | those change through the `specstone-sync-sdd` skill |
 | Undecided | observable behavior is added or changed that the Owner has not stated as decided lines | docs first: go on to the skill's step 4 |
 | Decided | observable behavior is added or changed that the Owner stated as decided lines | the work first: dispatch no writer, run no builder check, question round, or fix loop, and follow `specstone-plan-sdd` with the change note's path |
 

@@ -1,6 +1,6 @@
 ---
 name: specstone-expert-sdd
-description: Use when about to write, edit, or confirm a PRD or spec doc in a Specstone project, when a doc's upstream changed after it was confirmed, when code adds or changes observable behavior no spec states, or when another Specstone skill names `specstone-expert-sdd`.
+description: Use when about to write, edit, or confirm a PRD or spec doc in a Specstone project, when a doc's upstream changed after it was confirmed, when code adds or changes observable behavior no PRD doc states, or when another Specstone skill names `specstone-expert-sdd`.
 ---
 
 # Specstone cross-doc rules
@@ -21,9 +21,9 @@ Never look for `.specstone/`.
 ## Rules
 
 1. **Docs lead.** The PRD owns product behavior, and each spec type owns the facts its guide lists. Work built from
-   the docs, such as code or content, that adds or changes observable behavior no spec states gets a spec draft
-   first. Its one exception is a decided line of a change note: work built from it may lead the docs until the
-   plan's last task.
+   the docs, such as code or content, that adds or changes observable behavior no PRD doc states is a requirement
+   change: the Owner decides it in the PRD first. Its one exception is a decided line of a change note: work built
+   from it may lead the docs until the plan's last task.
 2. **Write through the CLI.** Create with `new`, change with `set`; never edit a doc file with a
    file tool or shell. Read `references/write.md` before the run's first `set` or `new`, and, with two or more code
    targets or for a new feature, its first `specstone` command.

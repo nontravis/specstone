@@ -35,7 +35,6 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 const _smallLineLimit = 40;
 
 const _featureScope = 'feature';
-const _uncoveredScope = 'uncovered';
 const _separator = ':';
 const _diffHunkMark = '@@';
 const _diffFileMark = 'diff --git ';
@@ -50,9 +49,6 @@ enum SyncRoute {
 
   /// An engineer, dispatched at once beside the other groups.
   engineer,
-
-  /// An engineer, after every other group's report.
-  last,
 }
 
 /// One code link of a sync group and the commit its diff is taken from.
@@ -129,7 +125,7 @@ final class SyncGroup {
   });
 
   /// `feature:<name>` for a top-level feature, `<type>:<name>` for a doc under
-  /// no feature, or `uncovered`.
+  /// no feature.
   final String scope;
 
   final SyncRoute route;
@@ -148,7 +144,7 @@ final class SyncGroup {
 /// matrix-row findings of the check; a [feature] names one top-level feature,
 /// whose group then holds every code link that takes a state, findings or
 /// not. [codeTarget] names the one code target the links are read for; null
-/// reads every target. The groups sort by scope, `uncovered` last.
+/// reads every target. The groups sort by scope.
 List<SyncGroup> syncGroupsOf(
   CheckContext context,
   CheckReport report, {
@@ -198,7 +194,6 @@ List<SyncGroup> syncGroupsOf(
         scope: scope,
         route: _routeOf(
           context,
-          scope,
           findings,
           links,
           isFeatureTarget: featureScope != null,
@@ -211,19 +206,13 @@ List<SyncGroup> syncGroupsOf(
   return groups..sort(_byScope);
 }
 
-int _byScope(SyncGroup a, SyncGroup b) {
-  final byRoute = (a.route == SyncRoute.last ? 1 : 0).compareTo(
-    b.route == SyncRoute.last ? 1 : 0,
-  );
-  return byRoute != 0 ? byRoute : compareCodePoints(a.scope, b.scope);
-}
+int _byScope(SyncGroup a, SyncGroup b) => compareCodePoints(a.scope, b.scope);
 
 /// Returns the scope [finding] joins, null when it joins no group.
 String? _scopeOfFinding(CheckContext context, Finding finding) {
   if (!finding.isForAgent || !_isWorkKind(context, finding)) {
     return null;
   }
-  if (finding.kind == FindingKind.codeUncovered) return _uncoveredScope;
   final doc = context.index.at(finding.path);
   return doc == null ? null : _scopeOfDoc(context.index, doc);
 }
@@ -240,7 +229,6 @@ bool _isWorkKind(CheckContext context, Finding finding) =>
       FindingKind.implementsPathUnresolved ||
       FindingKind.implementsSymbolUnresolved ||
       FindingKind.coversPathMissing ||
-      FindingKind.codeUncovered ||
       FindingKind.testsUnresolved ||
       FindingKind.matrixTestUnresolved => true,
       FindingKind.matrixRowMalformed => _isRefusedFormRow(finding),
@@ -365,12 +353,10 @@ List<String> _nestedRootsOf(CheckContext context, CodeLink link) =>
 
 SyncRoute _routeOf(
   CheckContext context,
-  String scope,
   List<Finding> findings,
   List<SyncLinkWork> links, {
   required bool isFeatureTarget,
 }) {
-  if (scope == _uncoveredScope) return SyncRoute.last;
   if (isFeatureTarget || !_isSmall(context, findings, links)) {
     return SyncRoute.engineer;
   }

@@ -69,7 +69,6 @@ void main() {
       'covers_path_missing',
       'covers_entry_empty',
       'code_root_missing',
-      'code_uncovered',
       'doc_ref_unresolved',
       'doc_ref_duplicate',
       'doc_ref_self',
@@ -185,7 +184,6 @@ void main() {
       ],
       [
         FindingKind.docCitedInCode,
-        FindingKind.codeUncovered,
         FindingKind.referenceDocUnresolved,
         FindingKind.agentBlockStale,
         FindingKind.singularDocMissing,

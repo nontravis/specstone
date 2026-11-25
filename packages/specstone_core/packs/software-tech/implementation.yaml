@@ -11,6 +11,7 @@ description: |-
   `covers` names one line per folder or file of the target's own code that the record's feature owns; write a planned folder before its code exists, and none for a feature that owns no code.
   Code and tests never name this doc.
   Write one rule per ID: one entry per story and FR, each rule one sentence.
+  Each entry points at code and copies none of it.
 path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
 parent: feature
 per_target: true

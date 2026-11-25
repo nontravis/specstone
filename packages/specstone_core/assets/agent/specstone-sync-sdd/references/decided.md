@@ -6,7 +6,6 @@ decided lines are its `D<n> (decided): <text>` decisions; the procedure's other 
 - Read the change note's Decisions once; list each `(decided)` decision.
 - A judged link whose work built from the docs does what a decided line states, no spec stating that behavior yet:
   decided work, with no Owner pick and no `Mismatches:` point.
-- A `code_uncovered` file whose work does what a decided line states takes the same drafts, with no Owner pick.
 - Work that departs from its decided line: one `Mismatches:` point per difference, naming the line's `D<n>`, what the
   line states, and what the work does, with nothing written for that behavior until the Owner's pick. A judged link's
   point is its `mismatch` line.
@@ -23,10 +22,8 @@ Before your first write, run the reader step of `../../specstone-brainstorming-s
   by `specstone-expert-sdd`'s rules: `specstone set <doc>#<section key> --base <hash>` for a section, and
   `specstone new <type>` for a story or FR no doc holds yet, as a draft.
 - Hand no decided behavior to `specstone-brainstorming-sdd`.
-- Write the drafts before procedure step 4. Judge the link's line `match` against them; `specstone set --sync` lists it
+- Write the drafts before procedure step 3. Judge the link's line `match` against them; `specstone set --sync` lists it
   under `Waiting:` until their approval.
-- A `code_uncovered` file you drafted: write no pointer to it, and list it under `Pointers:` as waiting on its drafts'
-  approval.
 
 ## Report
 

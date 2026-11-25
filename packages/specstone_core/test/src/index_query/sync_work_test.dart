@@ -359,27 +359,22 @@ void main() {
       expect(group.route, SyncRoute.small);
     });
 
-    test('a code_uncovered finding is the last group', () async {
-      final project = await writeCheckProject(extra: _extras());
-      _append(project.path, _shared, 1);
-
-      final groups = await _groupsOf(
-        project,
-        extra: [
-          _finding(FindingKind.codeSuspect, _cartArchitecture),
-          _finding(
-            FindingKind.codeUncovered,
-            techStack,
-            keys: {'codePath': 'app/lib/x.dart'},
-          ),
-        ],
+    test('a new file under a code root that no doc covers or implements adds '
+        'no group', () async {
+      final project = await _committedProject(
+        extra: doc(
+          techStack,
+          '  - app/lib/\n',
+          '  - app/lib/\n  - app/tools/\n',
+        ),
       );
+      expect(await _groupsOf(project), isEmpty);
 
-      expect(
-        [for (final group in groups) group.scope],
-        ['charter:shared', 'feature:cart', 'feature:login', 'uncovered'],
-      );
-      expect(groups.last.route, SyncRoute.last);
+      File('${project.path}/app/tools/new.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('class New {}\n');
+
+      expect(await _groupsOf(project), isEmpty);
     });
   });
 }

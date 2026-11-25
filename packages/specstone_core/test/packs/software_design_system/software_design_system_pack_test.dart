@@ -91,10 +91,12 @@ const _plainDocTypes = <String, (String, List<(String, String)>)>{
 };
 
 /// The ids of the shared lines each guide prints, in print order: the
-/// `prd-core` lines that reach every doc type, then the pack's own line.
+/// `prd-core` lines that reach every doc type, then the pack's own lines.
 const _sharedLineIds = <String>[
   ...everyTypeSharedLineIds,
   'serve_library_builders',
+  'library_spec_scope',
+  'library_code_detail_home',
 ];
 
 PackManifest _manifest() => PackManifest.parse(
@@ -120,7 +122,7 @@ void main() {
 
   group('manifest', () {
     test(
-      'ships at 1.4.0, extends software-tech, and carries nineteen doc types',
+      'ships at 1.5.0, extends software-tech, and carries nineteen doc types',
       () {
         final bytes = shippedPackFiles['software-design-system/pack.yaml'];
         expect(bytes, isNotNull);
@@ -129,7 +131,7 @@ void main() {
           file: 'packs/software-design-system/pack.yaml',
         );
         expect(manifest.name, 'software-design-system');
-        expect(manifest.version.toString(), '1.4.0');
+        expect(manifest.version.toString(), '1.5.0');
         expect(manifest.extendsPack, 'software-tech');
         expect(
           shippedPackFiles.keys.where(
@@ -144,15 +146,36 @@ void main() {
       },
     );
 
-    test('ships the one shared line serve_library_builders, naming its '
-        'nineteen doc types, and no shared field', () {
+    test('ships the shared lines serve_library_builders, library_spec_scope, '
+        'and library_code_detail_home, naming nineteen doc types, and no '
+        'shared field', () {
       final shared = _manifest().shared;
       expect(
         [for (final l in shared.lines) (l.id, l.disabled)],
-        [('serve_library_builders', false)],
+        [
+          ('serve_library_builders', false),
+          ('library_spec_scope', false),
+          ('library_code_detail_home', false),
+        ],
       );
-      expect(shared.lines.single.forDocTypes, softwareDesignSystemIds);
+      for (final line in shared.lines) {
+        expect(line.forDocTypes, softwareDesignSystemIds, reason: line.id);
+      }
       expect(shared.fields, isEmpty);
+    });
+
+    test('library_spec_scope and library_code_detail_home hold the text of '
+        "software-tech's spec_scope and code_detail_home", () {
+      final tech = {
+        for (final l in PackManifest.parse(
+          utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+          file: 'packs/software-tech/pack.yaml',
+        ).shared.lines)
+          l.id: l.text,
+      };
+      final library = {for (final l in _manifest().shared.lines) l.id: l.text};
+      expect(library['library_spec_scope'], tech['spec_scope']);
+      expect(library['library_code_detail_home'], tech['code_detail_home']);
     });
 
     test('shares token_value once, over six doc types and seven sections', () {
@@ -310,6 +333,18 @@ void main() {
         for (final line in type.sharedLines) {
           expect(guide, contains(line.text), reason: id);
         }
+      }
+    });
+
+    test('with software-design-system listed, every software-tech doc type '
+        'but implementation still prints spec_scope and code_detail_home', () {
+      for (final id in softwareTechIds.where((id) => id != 'implementation')) {
+        final ids = prdCoreDocType(set, id).sharedLines.map((l) => l.id);
+        expect(
+          ids,
+          containsAll(['spec_scope', 'code_detail_home']),
+          reason: id,
+        );
       }
     });
 

@@ -72,7 +72,9 @@ A refused `set --batch`: follow `author-recovery.md`, then rerun the batch.
 - Walk each item you wrote against the rule lines of your saved `guide <type>` output: the description lines of the doc
   part, of each section the draft holds, and of each field in `Frontmatter:`. Templates and the `Banned
   words:`, `Required …`, `Optional …`, and `Limits:` lines are no rule lines. With several types, each type's rule
-  lines take its `==> shared <==` lines too. List a line you cannot meet under `Findings:`.
+  lines take its `==> shared <==` lines too. A spec draft's rule lines also take the pack's `spec_scope` and
+  `code_detail_home` lines, a design-system draft's `library_spec_scope` and `library_code_detail_home`. List a line you
+  cannot meet under `Findings:`.
 - After your last write and the walk, run `specstone check --out "<folder>/reports/check.author.<XXXXXX>.txt"`; `Check:`
   names it. Fix each finding of it in a section your writes touched, even one the first run had; list a finding in an
   untouched section under `Findings:`, unfixed.

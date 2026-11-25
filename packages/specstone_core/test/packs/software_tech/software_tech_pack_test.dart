@@ -46,6 +46,19 @@ const _outputRows = <String, List<Object?>>{
   'project_security': ['specs/SECURITY.md', null, true],
 };
 
+/// The nine doc types the two scope lines reach: all but `implementation`.
+const _scopeIds = [
+  'api',
+  'architecture',
+  'decision',
+  'integration',
+  'project_api',
+  'project_architecture',
+  'project_security',
+  'security',
+  'tech_stack',
+];
+
 /// The doc types each shared line names.
 const _lineReach = <String, List<String>>{
   'cite_spec_docs': softwareTechIds,
@@ -57,6 +70,8 @@ const _lineReach = <String, List<String>>{
   'overrides_line_table': ['architecture', 'security'],
   'wire_fact_home': ['fr'],
   'mechanism_home': ['fr'],
+  'spec_scope': _scopeIds,
+  'code_detail_home': _scopeIds,
 };
 
 /// The `leftover_homes:` entries in the order of the Leftover homes table:
@@ -185,7 +200,7 @@ const _builtIns = [
 
 void main() {
   group('software-tech manifest', () {
-    test('software-tech ships at 1.25.0 and extends prd-core', () {
+    test('software-tech ships at 1.26.0 and extends prd-core', () {
       final bytes = shippedPackFiles['software-tech/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -193,7 +208,7 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.25.0');
+      expect(manifest.version.toString(), '1.26.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 

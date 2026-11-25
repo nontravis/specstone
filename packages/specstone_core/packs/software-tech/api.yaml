@@ -5,6 +5,7 @@ description: |-
   Copy no request or response schema; the source of truth owns it.
   Put no stack trace or internals in any error body.
   A fact whose change breaks a caller's code goes in this doc's operation, not in the FR. Every other fact of that operation stays in its FR.
+  Write a Library block only for a symbol another code base calls; an internal symbol's signature goes in the plan.
   Write one rule per ID: one `###` per operation, filled as Operations gives; state every other rule in one sentence.
   Put a rule every feature uses in the project's API doc.
 path: specs/f{nn}_{slug}/API.md

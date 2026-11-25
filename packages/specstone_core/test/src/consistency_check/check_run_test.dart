@@ -687,8 +687,7 @@ void main() {
     },
   );
 
-  test('a targeted run holds no code_uncovered and no doc_cited_in_code '
-      'finding', () async {
+  test('a targeted run holds no doc_cited_in_code finding', () async {
     final project = await writeCheckProject(
       extra: {
         ...doc(loginRecord, '  - app/lib/\n', '  - app/lib/login.dart\n'),
@@ -696,12 +695,10 @@ void main() {
       },
     );
     final whole = await checkOf(project);
-    expect(spots(whole, FindingKind.codeUncovered), isNotEmpty);
     expect(spots(whole, FindingKind.docCitedInCode), isNotEmpty);
 
     final targeted = await checkOf(project, target: 'login');
 
-    expect(spots(targeted, FindingKind.codeUncovered), isEmpty);
     expect(spots(targeted, FindingKind.docCitedInCode), isEmpty);
   });
 
@@ -870,7 +867,6 @@ void main() {
       'prds/GLOSSARY.md:1: singular_doc_missing',
       'prds/features/f01_login/notes.md:1: untyped_doc',
       '$loginFr:1: required_field_missing',
-      'specs/TECH_STACK.md:4: code_uncovered',
       '$loginApi:19: link_target_missing',
     ]);
     final session = openSession(project);

@@ -14,6 +14,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_doc_fixture.dart'
     show skillDocFile, skillPinsConfig;
 import '../../helpers/target_fixture.dart';
@@ -359,6 +360,61 @@ void main() {
         expect(_cited(await run(codeTarget: 'jaspr')), [
           'jaspr_ws/app/lib/b.dart:1 $_fr',
         ]);
+      },
+    );
+
+    test('with nested code roots a file is read for the target of the longest '
+        'root only', () async {
+      String techListing(String code) => checkProjectFiles()['docs/$techStack']!
+          .replaceFirst('  - app/lib/\n', code);
+      final report = await checkOf(
+        await writeTwinProject(
+          extra: {
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}targets:\n'
+                '  flutter:\n    code_root: ws\n'
+                '  jaspr:\n    code_root: ws/web\n',
+            'docs/specs/flutter/TECH_STACK.md': techListing(
+              '  - lib/\n  - web/\n',
+            ),
+            'docs/specs/jaspr/TECH_STACK.md': techListing('  - lib/\n'),
+            'ws/lib/a.dart': '// `$_fr`\n',
+            'ws/web/lib/b.dart': '// `$_fr`\n',
+          },
+          without: {
+            'flutter_ws/app/lib/login.dart',
+            'jaspr_ws/app/lib/login.dart',
+          },
+        ),
+      );
+      expect(_cited(report), [
+        'ws/lib/a.dart:1 $_fr',
+        'ws/web/lib/b.dart:1 $_fr',
+      ]);
+    });
+
+    test(
+      'a folder that cannot be listed gives a warning and no stop',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final project = await writeCheckProject(
+          extra: {
+            'app/lib/auth.dart': '// `$_fr`\n',
+            'app/lib/sealed/a.dart': '// `$_fr`\n',
+          },
+        );
+        final path = '${project.path}/app/lib/sealed';
+        Process.runSync('chmod', ['000', path]);
+        addTearDown(() => Process.runSync('chmod', ['755', path]));
+        final report = await checkOf(project);
+        expect(_cited(report), ['app/lib/auth.dart:1 $_fr']);
+        expect(
+          report.warnings,
+          contains(
+            'app/lib/sealed: cannot list the folder; files under it are not '
+            'checked for doc names',
+          ),
+        );
       },
     );
 

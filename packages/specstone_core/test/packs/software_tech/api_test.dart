@@ -33,6 +33,16 @@ void main() {
     ]);
   });
 
+  test('the api description carries the Library block line', () {
+    expect(
+      api.description,
+      contains(
+        'Write a Library block only for a symbol another code base calls; '
+        "an internal symbol's signature goes in the plan.",
+      ),
+    );
+  });
+
   test('errors and the project error model carry the catalog and the '
       'two one-sentence column caps', () async {
     final projectApi = prdCoreDocType(

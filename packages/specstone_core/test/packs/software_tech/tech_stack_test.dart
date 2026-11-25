@@ -31,6 +31,12 @@ void main() {
     expect(techStack.title, 'Tech stack');
   });
 
+  test('the code field describes the doc-name read and no coverage report', () {
+    final note = fieldOf(techStack, 'code').description!;
+    expect(note, contains('doc names in code'));
+    expect(note, isNot(contains('covers')));
+  });
+
   test('stack caps its Why column at one sentence', () {
     final caps = sectionOf(techStack, 'stack').maxSentences!;
     expect([for (final c in caps) (c.count, c.column)], [(1, 'Why')]);

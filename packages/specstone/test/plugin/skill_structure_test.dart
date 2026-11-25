@@ -63,7 +63,6 @@ const _agentNames = [
 const _procedures = <String>[
   'specstone-sync-sdd/references/procedure.md',
   'specstone-sync-sdd/references/routes.md',
-  'specstone-sync-sdd/references/helpers.md',
   'specstone-sync-sdd/references/task-refs.md',
   'specstone-sync-sdd/references/matrix-rows.md',
   _syncDecided,
@@ -508,12 +507,14 @@ void _syncRouteTests() {
     expect(skill, isNot(contains('`check:`')));
   });
 
-  test('sync routes run a no-feature doc beside features, uncovered last', () {
+  test('sync routes run every group at once, with no uncovered group last', () {
     final rows = _tableRowsOf(_pluginText(_syncRoutes), _routesHeading);
     String rowOf(String word) =>
         rows.singleWhere((row) => row.startsWith('| `$word` |'));
-    expect(rows.where((row) => row.startsWith('| `')), hasLength(3));
+    expect(rows.where((row) => row.startsWith('| `')), hasLength(2));
     expect(rowOf('small'), contains('`specstone set --sync`'));
+    expect(rowOf('engineer'), contains('at once'));
+    expect(_pluginText(_syncSkill), isNot(contains('`last`')));
   });
 
   test('no later sync step runs a second context --for sync call', () {
@@ -540,8 +541,6 @@ const _syncProcedure = 'specstone-sync-sdd/references/procedure.md';
 
 const _syncMatrixRows = 'specstone-sync-sdd/references/matrix-rows.md';
 
-const _syncHelpers = 'specstone-sync-sdd/references/helpers.md';
-
 /// The decided-line steps of a sync engineer given a change note.
 const _syncDecided = 'specstone-sync-sdd/references/decided.md';
 
@@ -555,11 +554,38 @@ void _syncProcedureTests() {
         '`specstone set --sync <group file>`'.allMatches(procedure),
         hasLength(1),
       );
-      expect(procedure, isNot(contains('context --code')));
+      expect('context --code'.allMatches(procedure), hasLength(1));
       expect('specstone check'.allMatches(procedure), hasLength(1));
       for (final file in [_syncSkill, _syncProcedure, _syncMatrixRows]) {
         expect(_pluginText(file), isNot(contains('--stamp')), reason: file);
       }
+    },
+  );
+
+  test(
+    'sync names an unstated behavior point and routes it to a PRD change',
+    () {
+      final judging = _sectionOf(
+        _pluginText(_syncProcedure),
+        '## 2. Judge each line',
+      ).split('\n');
+      expect(
+        judging.any(
+          (line) =>
+              line.contains('`unstated behavior`') &&
+              line.contains('`specstone context --code ') &&
+              line.contains(' --for implement --out`'),
+        ),
+        isTrue,
+        reason: 'the PRD docs of the path are read before the point',
+      );
+      expect(
+        _hasSentenceWith(
+          _sectionOf(_pluginText(_syncSkill), '## 3. After the report'),
+          ['unstated behavior', 'PRD'],
+        ),
+        isTrue,
+      );
     },
   );
 
@@ -574,10 +600,27 @@ void _syncProcedureTests() {
     },
   );
 
-  test('a helper joins covers by set --field covers with no fingerprint', () {
-    final helpers = _pluginText(_syncHelpers);
-    expect(helpers, isNot(contains('--stamp')));
-    expect(helpers, isNot(contains('specstone check')));
+  test('no sync file names uncovered code, its scope, or a helper test', () {
+    final files = [
+      _syncSkill,
+      ..._procedures.where((file) => file.startsWith('specstone-sync-sdd/')),
+      _syncEntry,
+      _engineer,
+    ];
+    final removed = [
+      RegExp('`code_uncovered`'),
+      RegExp('Uncovered:'),
+      RegExp(r'`(scope:\s+)?uncovered`'),
+      RegExp(r'uncovered`?\s+scope'),
+      RegExp(r'write(-|\s+)a(-|\s+)spec'),
+      RegExp(r'helpers\.md'),
+    ];
+    for (final file in files) {
+      final text = _pluginText(file);
+      for (final pattern in removed) {
+        expect(text, isNot(contains(pattern)), reason: '$file: $pattern');
+      }
+    }
   });
 
   test('no sync file runs a set --remove-task left waiting for main', () {
@@ -618,7 +661,6 @@ void _syncEngineerTests() {
     final sync = _pluginText(_syncEntry);
     for (final name in [
       '`procedure.md`',
-      '`helpers.md`',
       '`task-refs.md`',
       '`matrix-rows.md`',
     ]) {
@@ -645,9 +687,27 @@ void _syncEngineerTests() {
     final procedure = _pluginText(_syncProcedure).split('\n');
     expect(
       procedure,
-      containsAll(['## 1. Read the group file', '## 6. Spec drafts']),
+      containsAll(['## 1. Read the group file', '## 5. Spec drafts']),
     );
   });
+
+  test(
+    'the engineer hands a change-the-PRD pick on and writes no doc for it',
+    () {
+      final picks = _sectionOf(_pluginText(_engineer), '## Input Contract')
+          .split(RegExp(r'(?= - \*\*`)'))
+          .singleWhere((bullet) => bullet.contains('**`picks`**'));
+      expect(
+        picks,
+        matches(
+          RegExp(
+            r'change-the-PRD\s+pick[\s\S]*handed\s+behavior'
+            r'[\s\S]*writes?\s+no\s+doc',
+          ),
+        ),
+      );
+    },
+  );
 }
 
 // MARK: - token budget
@@ -2006,6 +2066,31 @@ void _approveStepTests() {
     );
   });
 
+  test('expert-sdd sends behavior no PRD doc states to the Owner, never to a '
+      'spec draft', () {
+    final text = _pluginText(_expertSdd);
+    final flat = _oneLine(text);
+    final start = flat.indexOf('1. **Docs lead.**');
+    final rule = flat.substring(start, flat.indexOf(' 2. ', start));
+    expect(
+      rule,
+      matches(RegExp(r'requirement\s+change.*Owner\s+decides.*PRD\s+first')),
+    );
+    expect(rule, isNot(contains('spec draft')));
+    expect(
+      rule,
+      matches(
+        RegExp(
+          r'one\s+exception.*decided\s+line.*until\s+the\s+plan.s\s+last\s+task',
+        ),
+      ),
+    );
+    final description = text
+        .split('\n')
+        .firstWhere((line) => line.startsWith('description:'));
+    expect(description, isNot(contains('no spec states')));
+  });
+
   test('gated-plan names the delete and migrate plan commands and Owner '
       'confirmation points to it twice', () {
     final plan = _pluginText('specstone-expert-sdd/references/gated-plan.md');
@@ -2317,6 +2402,23 @@ void _trimReferenceTests() {
     expect(check, contains('- Misplaced: <doc>#<key>: <point>'));
   });
 
+  test(
+    'a Misplaced item sends an internal code-level spec fact to the plan',
+    () {
+      final text = _pluginText(_auditReference);
+      expect(
+        _bulletOf(text, '   - `Misplaced`'),
+        allOf(
+          contains('code-level'),
+          contains('`code_detail_home`'),
+          contains('`library_code_detail_home`'),
+          contains('plan'),
+        ),
+      );
+      expect(_bulletOf(text, '   - `Guess`'), contains('code-level'));
+    },
+  );
+
   test('a feature pattern item neither covered nor skipped is one Not carried '
       'line', () {
     final check = _sectionOf(
@@ -2500,7 +2602,37 @@ void _brainstormFlowTests() {
       );
     }
   });
+
+  test(
+    'the class test asks Doc-only first and Decided last, calls an internal '
+    'code-level change Internal, and takes a doubtful change as Undecided',
+    () {
+      final text = _pluginText(_classReference);
+      final questions = text.substring(0, text.indexOf('| Class |'));
+      final docOnly = questions.indexOf('Doc-only');
+      expect(docOnly, isNonNegative);
+      expect(docOnly, lessThan(questions.indexOf('Decided')));
+      expect(
+        _oneLine(text),
+        contains(
+          RegExp(
+            r'\| Internal \| no observable behavior changes\.'
+            r' An internal code-level change\b[^|]*\bis Internal\b',
+          ),
+        ),
+      );
+      final closing = text.substring(
+        text.indexOf('A change not shown Decided'),
+      );
+      expect(closing, contains('is Undecided'));
+      expect(closing, contains('- its class is in doubt'));
+      expect(closing, contains('neither `(decided)` nor `(plan)`'));
+      expect(closing, contains('have no `Owner ok:` line in the note'));
+    },
+  );
 }
+
+const _classReference = 'specstone-brainstorming-sdd/references/class.md';
 
 const _authorReference = 'specstone-brainstorming-sdd/references/author.md';
 
@@ -2536,6 +2668,14 @@ void _reReviewTests() {
       expect(audit, contains('Notes: - <observation>'));
     },
   );
+
+  test('the trim lens restores no removed code-level fact', () {
+    final audit = _sectionOf(
+      _pluginText(_trimAuditReference),
+      _trimAuditHeading,
+    );
+    expect(_hasSentenceWith(audit, ['code-level', 'restore']), isTrue);
+  });
 
   test('the auditor names a Notes section for each of its five jobs', () {
     final text = _pluginText(_auditor);
@@ -2933,9 +3073,20 @@ void _planFlowTests() {
     expect(ground, contains('**Code target:**'));
   });
 
+  test('plan-engineer lists a spec gap as a PRD change for the Owner', () {
+    final ground = _sectionOf(_pluginText(_planAgent), '## Ground');
+    expect(_hasSentenceWith(ground, ['spec gap', 'PRD']), isTrue);
+  });
+
   test('plan-engineer ends each task but the last with its own sync step', () {
     final workflow = _sectionOf(_pluginText(_planAgent), '## Workflow');
     expect(workflow, contains('`specstone context --for sync --out`'));
+  });
+
+  test('plan-engineer writes a code-level seed into each task', () {
+    final workflow = _sectionOf(_pluginText(_planAgent), '## Workflow');
+    expect(workflow, contains('**Seed**'));
+    expect(workflow, contains('code-level'));
   });
 
   test('plan-engineer writes tests lines before row lines', () {
@@ -3029,5 +3180,25 @@ void _bootstrapRoutingTests() {
         reason: file,
       );
     }
+  });
+
+  test('no bootstrap or init file takes code_uncovered, an Uncovered file, '
+      'or a picks input', () {
+    for (final file in [..._bootstrapSpecFiles, ..._bootstrapPrdFiles]) {
+      final text = _pluginText(file);
+      expect(text, isNot(contains('code_uncovered')), reason: file);
+      expect(text, isNot(contains('`Uncovered:`')), reason: file);
+      expect(text, isNot(contains('`picks`')), reason: file);
+      expect(text, isNot(contains('`picks:`')), reason: file);
+    }
+    expect(
+      _pluginText('specstone-init/SKILL.md'),
+      isNot(matches(RegExp(r'uncovered\s+code'))),
+    );
+    final picks = _sectionOf(_pluginText(_engineer), '## Input Contract')
+        .split(RegExp(r'(?= - \*\*`)'))
+        .singleWhere((bullet) => bullet.contains('**`picks`**'));
+    expect(picks, contains('sync'));
+    expect(picks, isNot(contains('bootstrap')));
   });
 }

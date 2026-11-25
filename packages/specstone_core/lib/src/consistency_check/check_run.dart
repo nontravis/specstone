@@ -94,7 +94,6 @@ Future<CheckReport> runCheck(
   }
   if (scope.isProject) {
     findings
-      ..addAll(uncoveredCode(context, work))
       ..addAll(docNamesInCode(context, work))
       ..addAll(unresolvedTemplateReferences(context))
       ..addAll(staleAgentBlocks(context))

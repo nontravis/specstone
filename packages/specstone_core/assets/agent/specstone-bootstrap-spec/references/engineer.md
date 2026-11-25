@@ -4,7 +4,7 @@ Scope Boundaries stay yours; `procedure.md` names `merge-untyped.md` at the step
 1. **Gate**: Workflow step 1 of `specstone-sdd-engineer` ran it; in bootstrap mode with `check` passed it ran none:
    your `check` file is your gate. Start at step 2.
 2. **Bootstrap**: follow `procedure.md` from its step 2 on `batch`'s lines of your gate file, its step 6 only for docs
-   `batch` names, each write through `--base`; write each of `picks` by its step 3; list other findings. Then step 3 of
+   `batch` names, each write through `--base`; list other findings. Then step 3 of
    this file.
    - A `batch: repeats` follows `../../specstone-expert-sdd/references/repeats.md` in place of the procedure, then step
      3 of this file.
@@ -31,7 +31,7 @@ Write these lines:
   folder, `sdd-engineer.bootstrap.plan.<XXXXXX>.txt`, written after the trim by
   `specstone move --plan-out <fr> --out "<folder>/reports/sdd-engineer.bootstrap.plan.<XXXXXX>.txt"`. The main
   session applies it with one `specstone move --plan-file "<file>"` and no Owner ok.
-- Open questions; under `Pointers:`, each helper file joined or waiting; each `Uncovered:` file; one
+- Open questions; one
   `specstone delete …` line; each repeat group kept.
 - Findings outside `batch`, and each untyped referrer outside it with the file it names; `Waits on the Owner:`, each
   `item_over_limit` finding on a `batch` path when `batch` does not name `item_over_limit`.
