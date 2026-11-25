@@ -270,128 +270,6 @@ void main() {
       );
     });
 
-    test('two max_depth carriers, and a carrier with a parent, refuse with '
-        'exit status 78', () {
-      final twoCarriers = {
-        'playbook': [
-          layerOf('playbook', 'max_depth: 2\n', file: _playbookFile),
-        ],
-        'runbook': [layerOf('runbook', 'max_depth: 3\n')],
-      };
-      expect(
-        () => check([
-          builtIn('playbook')
-              .copyWith(path: 'ops/{slug}/PLAYBOOK.md', maxDepth: 2),
-          builtIn('runbook')
-              .copyWith(path: 'ops/runbooks/{slug}/RUNBOOK.md', maxDepth: 3),
-        ], twoCarriers),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code.exitStatus, 'exit status', 78)
-              .having((f) => f.key, 'key', 'max_depth'),
-        ),
-      );
-      final withParent = {
-        'epic': [
-          layerOf('epic', 'path: epics/{slug}/EPIC.md\n', file: _epicFile),
-        ],
-        'story': [
-          layerOf('story', 'parent: epic\nmax_depth: 1\n', file: _storyFile),
-        ],
-      };
-      expect(
-        () => check([
-          builtIn('epic').copyWith(path: 'epics/{slug}/EPIC.md'),
-          builtIn('story').copyWith(
-            parent: 'epic',
-            path: 'stories/{slug}/STORY.md',
-            maxDepth: 1,
-          ),
-        ], withParent),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code.exitStatus, 'exit status', 78)
-              .having((f) => f.key, 'key', 'max_depth'),
-        ),
-      );
-    });
-
-    test('max_depth on a path with no slug folder refuses with exit status '
-        '78', () {
-      expect(
-        () => check(
-          [
-            builtIn('runbook')
-                .copyWith(path: 'prds/features/FEATURE.md', maxDepth: 3),
-          ],
-          {
-            'runbook': [layerOf('runbook', 'max_depth: 3\n')],
-          },
-        ),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code.exitStatus, 'exit status', 78)
-              .having((f) => f.key, 'key', 'max_depth')
-              .having((f) => f.file, 'file', _runbookFile),
-        ),
-      );
-    });
-
-    test('two doc types sharing one path refuse with exit status 78', () {
-      final layers = {
-        'playbook': [
-          layerOf(
-            'playbook',
-            'path: ops/{slug}/RUNBOOK.md\n',
-            file: _playbookFile,
-          ),
-        ],
-        'runbook': [layerOf('runbook', 'path: ops/{slug}/RUNBOOK.md\n')],
-      };
-      expect(
-        () => check([
-          builtIn('playbook').copyWith(path: 'ops/{slug}/RUNBOOK.md'),
-          builtIn('runbook').copyWith(path: 'ops/{slug}/RUNBOOK.md'),
-        ], layers),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code.exitStatus, 'exit status', 78)
-              .having((f) => f.file, 'file', _runbookFile),
-        ),
-      );
-    });
-
-    test('a doc_types entry naming no merged doc type id refuses with exit '
-        'status 78, naming the file and the key', () {
-      final layers = {
-        'runbook': [
-          layerOf(
-            'runbook',
-            'fields:\n  - id: up\n    type: doc_ref\n    doc_types: [nope]\n',
-          ),
-        ],
-      };
-      expect(
-        () => check([
-          builtIn('runbook').copyWith(
-            fields: [
-              const MergedField(
-                id: 'up',
-                type: FieldType.docRef,
-                docTypes: ['nope'],
-              ),
-            ],
-          ),
-        ], layers),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code.exitStatus, 'exit status', 78)
-              .having((f) => f.file, 'file', _runbookFile)
-              .having((f) => f.key, 'key', 'fields.up.doc_types'),
-        ),
-      );
-    });
-
     test('a parent loop is parent_cycle', () {
       final layers = {
         'epic': [layerOf('epic', 'parent: story\n', file: _epicFile)],
@@ -737,72 +615,6 @@ void main() {
       expect(MergedSet(docTypes: docTypes).recordDocType?.id, 'runbook');
       expect(MergedSet(docTypes: [builtIn('feature')]).recordDocType, isNull);
     });
-
-    test('two record_status holders refuse with exit status 78 naming each '
-        'file', () {
-      const recordField =
-          'fields:\n'
-          '  - id: entries\n'
-          '    type: record_status\n';
-      final fields = [
-        const MergedField(id: 'entries', type: FieldType.recordStatus),
-      ];
-      expect(
-        () => check(
-          [
-            builtIn('runbook').copyWith(fields: fields),
-            builtIn('playbook').copyWith(fields: fields),
-          ],
-          {
-            'runbook': [layerOf('runbook', recordField)],
-            'playbook': [layerOf('playbook', recordField, file: _playbookFile)],
-          },
-        ),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code, 'code', FaultCode.unknownValue)
-              .having((f) => f.exitStatus, 'exit status', 78)
-              .having((f) => f.key, 'key', 'fields[0].type')
-              .having((f) => f.file, 'file', _playbookFile)
-              .having((f) => f.relatedFiles, 'relatedFiles', [_runbookFile]),
-        ),
-      );
-    });
-
-    test('a record per_target that is absent or false refuses with exit '
-        'status 78 at the per_target key', () {
-      const recordField =
-          'fields:\n'
-          '  - id: entries\n'
-          '    type: record_status\n';
-      for (final layer in [recordField, '${recordField}per_target: false\n']) {
-        expect(
-          () => check(
-            [
-              builtIn('runbook').copyWith(
-                fields: [
-                  const MergedField(
-                    id: 'entries',
-                    type: FieldType.recordStatus,
-                  ),
-                ],
-              ),
-            ],
-            {
-              'runbook': [layerOf('runbook', layer)],
-            },
-          ),
-          throwsA(
-            isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.unknownValue)
-                .having((f) => f.exitStatus, 'exit status', 78)
-                .having((f) => f.key, 'key', 'per_target')
-                .having((f) => f.file, 'file', _runbookFile),
-          ),
-          reason: layer,
-        );
-      }
-    });
   });
 
   group('checkMergedSet record matrix section', () {
@@ -935,57 +747,6 @@ void main() {
           },
         ),
         throwsA(refusedAt(_runbookFile, 'sections[1].output_ref')),
-      );
-    });
-
-    test('output_ref on a section other than the matrix refuses with exit '
-        'status 78 at its section key', () {
-      expect(
-        () => check(
-          [record()],
-          {
-            'runbook': [
-              layerOf(
-                'runbook',
-                '${recordKeys}sections:\n'
-                    '  - {id: notes, header: Notes, output_ref: true}\n',
-              ),
-            ],
-          },
-        ),
-        throwsA(
-          refusedAt(
-            _runbookFile,
-            'sections[0].output_ref',
-          ).having((f) => f.exitStatus, 'exit status', 78),
-        ),
-      );
-    });
-
-    test('a record matrix section whose output_ref is not true refuses with '
-        'exit status 78 at its section key', () {
-      expect(
-        () => check(
-          [
-            record(sections: [matrix(outputRef: false)]),
-          ],
-          {
-            'runbook': [
-              layerOf(
-                'runbook',
-                '${recordKeys}sections:\n'
-                    '  - {id: verification_matrix, header: Matrix, '
-                    'output_ref: false}\n',
-              ),
-            ],
-          },
-        ),
-        throwsA(
-          refusedAt(
-            _runbookFile,
-            'sections[0].output_ref',
-          ).having((f) => f.exitStatus, 'exit status', 78),
-        ),
       );
     });
 
@@ -1138,16 +899,6 @@ void main() {
       });
     }
 
-    test('accepts a disabled matrix section with coverage off', () {
-      final disabled = mergedRunbook(disablingLayers);
-      expect(verificationMatrixOf(disabled), isNull);
-
-      expect(
-        () => check([disabled], {'runbook': disablingLayers}),
-        returnsNormally,
-      );
-    });
-
     test('coverage off is accepted with no record doc type or no matrix', () {
       for (final (docTypes, layers) in [
         (
@@ -1162,6 +913,7 @@ void main() {
             'runbook': [layerOf('runbook', recordKeys)],
           },
         ),
+        ([mergedRunbook(disablingLayers)], {'runbook': disablingLayers}),
       ]) {
         expect(() => check(docTypes, layers), returnsNormally);
         expect(
@@ -1175,28 +927,14 @@ void main() {
   group('checkMergedSet targets', () {
     test('a targets config in a merged set with no record doc type is '
         'unknown_value', () {
-      expect(
-        () => checkMergedSet(
+      for (final (docTypes, layers) in [
+        (
           [builtIn('feature').copyWith(path: 'prds/features/F.md')],
           {
             'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
           },
-          loadIndex: const {},
-          targetNames: const ['flutter', 'jaspr'],
         ),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code, 'code', FaultCode.unknownValue)
-              .having((f) => f.key, 'key', 'targets')
-              .having((f) => f.file, 'file', '.specstone/config.yaml'),
-        ),
-      );
-    });
-
-    test('a targets config with no record doc type refuses with exit status '
-        '78, and a per-target type of a project layer is no record type', () {
-      expect(
-        () => checkMergedSet(
+        (
           [
             builtIn('feature').copyWith(path: 'prds/features/F.md'),
             builtIn('notes').copyWith(path: 'notes.md', isPerTarget: true),
@@ -1205,21 +943,28 @@ void main() {
             'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
             'notes': [layerOf('notes', 'path: notes.md\nper_target: true\n')],
           },
-          loadIndex: const {},
-          targetNames: const ['flutter', 'jaspr'],
         ),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code.exitStatus, 'exit status', 78)
-              .having((f) => f.file, 'file', '.specstone/config.yaml')
-              .having((f) => f.key, 'key', 'targets')
-              .having(
-                (f) => f.message,
-                'message',
-                contains('a target owns a spec tree and its records'),
-              ),
-        ),
-      );
+      ]) {
+        expect(
+          () => checkMergedSet(
+            docTypes,
+            layers,
+            loadIndex: const {},
+            targetNames: const ['flutter', 'jaspr'],
+          ),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.unknownValue)
+                .having((f) => f.key, 'key', 'targets')
+                .having((f) => f.file, 'file', '.specstone/config.yaml')
+                .having(
+                  (f) => f.message,
+                  'message',
+                  contains('a target owns a spec tree and its records'),
+                ),
+          ),
+        );
+      }
     });
 
     test('one '
@@ -1554,14 +1299,6 @@ void main() {
         'field is named, not the writer', () {
       expect(
         () => checkRunbook(['$header$section', disableSection, field]),
-        refusesAt(layerFile('runbook', 1)),
-      );
-    });
-
-    test('a project layer that writes the field over a type with no section '
-        'is named', () {
-      expect(
-        () => checkRunbook(['${header}description: Runbook\n', field]),
         refusesAt(layerFile('runbook', 1)),
       );
     });

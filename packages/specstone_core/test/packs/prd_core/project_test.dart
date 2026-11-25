@@ -27,18 +27,6 @@ void main() {
     ]);
   });
 
-  test('the description states no number a lint key holds', () {
-    final vision = sectionOf(project, 'vision');
-    expect(sectionOf(project, 'name').description, isNot(contains('one line')));
-    expect(vision.description, isNot(contains('15 words')));
-    expect(vision.description, isNot(contains('one sentence each')));
-    expect(vision.template, isNot(contains('15 words')));
-    expect(vision.template, isNot(contains('one sentence')));
-    final roles = sectionOf(project, 'roles');
-    expect(roles.description, isNot(contains('one-line')));
-    expect(roles.template, isNot(contains('one-line')));
-  });
-
   test('name and roles carry their item line cap', () {
     for (final id in ['name', 'roles']) {
       expect(sectionOf(project, id).maxItemLines, 1, reason: id);

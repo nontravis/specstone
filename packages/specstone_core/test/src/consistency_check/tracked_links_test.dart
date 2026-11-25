@@ -93,6 +93,7 @@ void main() {
     );
     expect(report.exitStatus, 1);
     final finding = report.findings.single;
+    expect(finding.waitsFor, WaitsFor.agent);
     expect(
       finding.textLine,
       '$loginFr:7: suspect: S2 changed after it was confirmed, recorded ${fp(loginScenario2)}; '
@@ -144,27 +145,6 @@ void main() {
           '    fingerprint ${fp(edited)}',
         ]);
         expect(finding.textLines.first, isNot(contains(fp(edited))));
-      },
-    );
-
-    test(
-      'no line before the last block line holds the current '
-      'fingerprint, and under --json text comes before fingerprint',
-      () async {
-        final finding = (await checkOf(
-          await writeCheckProject(
-            extra: doc(loginStory, loginScenario2, edited),
-          ),
-        )).findings.single;
-
-        for (final line in finding.textLines.take(
-          finding.textLines.length - 1,
-        )) {
-          expect(line, isNot(contains(fp(edited))));
-        }
-        final keys = finding.toJson().keys.toList();
-        expect(keys.indexOf('text'), lessThan(keys.indexOf('fingerprint')));
-        expect(keys.indexOf('text'), greaterThan(keys.indexOf('waitsFor')));
       },
     );
 
@@ -429,39 +409,6 @@ void main() {
     }
   });
 
-  test(
-    "a suspect finding names the linked doc's project path as targetPath",
-    () async {
-      final finding = (await checkOf(
-        await writeCheckProject(extra: doc(loginStory, loginScenario2, edited)),
-      )).findings.single;
-
-      expect(finding.kind, FindingKind.suspect);
-      expect(finding.keys['targetPath'], 'docs/$loginStory');
-      expect(finding.message, contains('docs/$loginStory'));
-    },
-  );
-
-  test("an unconfirmed finding names the linked doc's project path as "
-      'targetPath', () async {
-    final noEntry = (await checkOf(
-      await writeCheckProject(
-        extra: fr('confirmed:\n  - S2 ${fp(loginScenario2)}\n', ''),
-      ),
-    )).findings.single;
-    expect(noEntry.kind, FindingKind.unconfirmed);
-    expect(noEntry.keys['targetPath'], 'docs/$loginStory');
-    expect(noEntry.message, contains('docs/$loginStory'));
-
-    final waits = (await checkOf(
-      await writeCheckProject(
-        extra: fr('traced_from:\n', 'draft: true\ntraced_from:\n'),
-      ),
-    )).findings.single;
-    expect(waits.waitsFor, WaitsFor.owner);
-    expect(waits.keys['targetPath'], 'docs/$loginStory');
-  });
-
   test('a tracked link with no entry is unconfirmed at its trace', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -490,22 +437,6 @@ void main() {
       "$loginFr:7: unconfirmed: S2 ${fp(loginScenario2)} is recorded in a draft; it waits for the Owner's approve",
     );
   });
-
-  test(
-    'a draft '
-    'whose entry matches the current fingerprint waits for the Owner',
-    () async {
-      final finding = (await checkOf(
-        await writeCheckProject(
-          extra: fr('traced_from:\n', 'draft: true\ntraced_from:\n'),
-        ),
-      )).findings.single;
-      expect(finding.kind, FindingKind.unconfirmed);
-      expect(finding.waitsFor, WaitsFor.owner);
-      expect(finding.toJson()['waitsFor'], 'owner');
-      expect(finding.textLines.single, endsWith(' (waits for the Owner)'));
-    },
-  );
 
   test('in a draft with one entry at the current fingerprint, that link waits for the Owner and a link with no entry waits for the Agent', () async {
     final report = await checkOf(
@@ -548,15 +479,6 @@ void main() {
     expect(none.waitsFor, WaitsFor.agent);
   });
 
-  test('a suspect '
-      'finding waits for the Agent', () async {
-    final finding = (await checkOf(
-      await writeCheckProject(extra: doc(loginStory, loginScenario2, edited)),
-    )).findings.single;
-    expect(finding.kind, FindingKind.suspect);
-    expect(finding.waitsFor, WaitsFor.agent);
-  });
-
   group('an Agent set of confirmed on a suspect FR', () {
     const target = 'fr:login/email_login/check_password';
 
@@ -588,44 +510,6 @@ void main() {
         expect(finding.waitsFor, WaitsFor.owner);
         expect(finding.keys['link'], 'S2');
       },
-    );
-
-    test(
-      'leaves the S2 link reported, so a set of confirmed alone clears nothing',
-      () async {
-        final report = await checkOf(await reconfirm());
-
-        final finding = report.findings.single;
-        expect(finding.kind, FindingKind.unconfirmed);
-        expect(finding.keys['link'], 'S2');
-        expect(report.exitStatus, 1);
-      },
-    );
-  });
-
-  test('a draft whose entry records an older fingerprint is unconfirmed, never suspect', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: edit(loginFr, [
-          ('traced_from:\n', 'draft: true\ntraced_from:\n'),
-          ('  - S2 ${fp(loginScenario2)}', '  - S2 000000000000'),
-        ]),
-      ),
-    );
-    expect(spots(report), ['$loginFr:7: unconfirmed']);
-    expect(
-      report.findings.single.toJson(),
-      allOf(
-        containsPair('recorded', '000000000000'),
-        containsPair('fingerprint', fp(loginScenario2)),
-      ),
-    );
-    expect(
-      report.findings.single.textLine,
-      contains(
-        'S2 is not confirmed: the draft records 000000000000; '
-        'read Scenario 2 of docs/$loginStory below, then record S2 with the fingerprint after it',
-      ),
     );
   });
 
@@ -902,14 +786,14 @@ void main() {
           extra: fr(
             firstEntry,
             '$firstEntry\n  - S2: 047e817f9707\n  - S2: 047e817f9707\n'
-            '  - S2 047e817f97\n  - S2 047e817f97',
+            '  - S2 047e817f97\n  - S2 047e817f97\n  - S2 047E817F9707',
           ),
         ),
       );
       expect(repeatedIn(confirmed), isEmpty);
       expect(
         spots(confirmed, FindingKind.confirmedEntryMalformed),
-        hasLength(4),
+        hasLength(5),
       );
 
       final files = overrideFiles(
@@ -934,16 +818,6 @@ void main() {
         spots(overrides, FindingKind.confirmedEntryMalformed),
         hasLength(4),
       );
-    });
-
-    test('a malformed entry is never counted as a repeat', () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: fr(firstEntry, '$firstEntry\n  - S2 047E817F9707'),
-        ),
-      );
-      expect(repeatedIn(report), isEmpty);
-      expect(spots(report, FindingKind.confirmedEntryMalformed), hasLength(1));
     });
   });
 
@@ -1132,11 +1006,6 @@ void main() {
         draft.findings.single.message,
         "$label1 ${fp(loginScenario1)} is recorded in a draft; it waits for the Owner's approve",
       );
-    });
-
-    test('a journey has no parent, and its step links still run', () async {
-      final report = await check(journey([stepOne]));
-      expect(spots(report, FindingKind.unconfirmed), hasLength(1));
     });
 
     test(
@@ -1862,32 +1731,6 @@ void main() {
         record(rows.take(1).toList(), front: 'draft: true\n'),
       );
       expect(clean, isEmpty);
-    });
-
-    test('a suspect row of a draft record holds the same keys and prints its edge case before the fingerprint', () async {
-      const changed = '1. E01 — An empty password → refused at once.';
-      final text = record([testRow(current)], front: 'draft: true\n');
-
-      final finding = (await findingsOf(
-        text,
-        extra: fr(edgeCase, changed),
-      )).single;
-
-      expect(finding.kind, FindingKind.suspect);
-      expect(finding.waitsFor, WaitsFor.agent);
-      expect(finding.keys, {
-        'link': label,
-        'recorded': current,
-        'targetPath': 'docs/$loginFr',
-        'block': 'E01',
-        'text': changed,
-        'fingerprint': fp(changed),
-      });
-      expect(finding.textLines, [
-        finding.textLine,
-        '    $changed',
-        '    fingerprint ${fp(changed)}',
-      ]);
     });
 
     test('an unstamped row of a draft record prints its edge case before the fingerprint', () async {

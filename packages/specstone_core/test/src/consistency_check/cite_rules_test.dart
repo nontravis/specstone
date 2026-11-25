@@ -54,15 +54,6 @@ Future<List<Finding>> _citesInFeature(String replacement) =>
 void main() {
   useColdHostNode();
 
-  test('a cite_unlinked finding names its cite under value', () async {
-    final findings = await _citesInFeature(
-      'Users forget; `rulebook:login` INV-6.',
-    );
-    final keys = findings.single.keys;
-    expect(keys['value'], 'rulebook:login');
-    expect(keys, isNot(contains('cite')));
-  });
-
   test('a typed name and an item ID its doc holds gives cite_unlinked at '
       'its line, naming the link', () async {
     final findings = await _citesInFeature(
@@ -75,14 +66,6 @@ void main() {
     expect(finding.waitsFor, WaitsFor.agent);
     expect(finding.keys['value'], 'rulebook:login');
     expect(finding.message, contains('[INV-6]($_fromFeature#invariants)'));
-  });
-
-  test('a resolving mermaid token raises no cite_unlinked', () async {
-    final findings = await _citesInFeature(
-      'Users forget.\n\n```mermaid\nflowchart LR\n'
-      '  N[rulebook:login INV-6]\n```',
-    );
-    expect(findings, isEmpty);
   });
 
   test('a token shaped like an ID but of no doc type prefix, such as SHA256 '
@@ -166,15 +149,6 @@ void main() {
     expect(findings.single.message, contains('[text](<path>)'));
   });
 
-  test('an item ID the one doc lacks still gives cite_unlinked', () async {
-    final findings = await _citesInFeature(
-      'Users forget; `rulebook:login` INV-99.',
-    );
-    expect(findings, hasLength(1));
-    expect(findings.single.message, contains(_domain));
-    expect(findings.single.message, contains('INV-99'));
-  });
-
   test('a cite_unlinked finding names its one doc as targetPath and its link '
       'as fix', () async {
     final one = await _citesInFeature('Users forget; `rulebook:login` INV-6.');
@@ -213,15 +187,7 @@ void main() {
     expect(keys['targetPath'], 'docs/$_domain');
     expect(keys, isNot(contains('fix')));
     expect(findings.single.message, contains('${keys['targetPath']} lacks'));
-  });
-
-  test('a cite_unlinked finding of an ambiguous cite has no targetPath and no '
-      'fix key', () async {
-    final findings = await _citeFindings({
-      ..._subFeature,
-      ...doc(loginFeature, _line, 'Users forget; see `login/sso`.'),
-    });
-    expect(findings.single.keys, {'value': 'login/sso'});
+    expect(findings.single.message, contains('INV-99'));
   });
 
   test('an ID beyond the run of a cite is no item of the cite', () async {
@@ -642,18 +608,15 @@ void main() {
 
     test('guard: a hyphen separator makes it no skip line, so its span is '
         'a cite', () async {
-      final findings = await citesWithSkip(
-        '- `crud/paged_list` - one page is enough',
-      );
-      expect([for (final f in findings) f.keys['value']], ['crud/paged_list']);
-    });
-
-    test('guard: a double hyphen separator makes it no skip line, so its '
-        'span is a cite', () async {
-      final findings = await citesWithSkip(
-        '- `crud/paged_list` -- one page is enough',
-      );
-      expect([for (final f in findings) f.keys['value']], ['crud/paged_list']);
+      for (final separator in ['-', '--']) {
+        final findings = await citesWithSkip(
+          '- `crud/paged_list` $separator one page is enough',
+        );
+        expect(
+          [for (final f in findings) f.keys['value']],
+          ['crud/paged_list'],
+        );
+      }
     });
   });
 

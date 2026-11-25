@@ -143,6 +143,10 @@ void main() {
 
       expect(text, isNot(contains('---')));
       expect(text, '## Feature name\n\nn\n\n## Feature goal\n\ng\n');
+      expect(
+        _format('## Feature name\n\nx\n\n## Feature goal\n\ng\n', feature),
+        '## Feature name\n\nx\n\n## Feature goal\n\ng\n',
+      );
     });
 
     test('a missing required key is not '
@@ -179,8 +183,7 @@ void main() {
       );
     });
 
-    test('unknown headers are refused as '
-        'written, in file order', () async {
+    test('unknown headers are refused as written, in file order', () async {
       final feature = await _feature();
 
       final refused = _refused(
@@ -190,10 +193,17 @@ void main() {
 
       expect(refused.unknownHeaders, ['## Feature goals', '## Notes']);
       expect(refused.duplicateHeaders, isEmpty);
+      expect(refused.unclosedFence, isFalse);
+
+      final both = _refused(
+        '## Notes\nx\n## Feature name\na\n## Feature name\nb\n',
+        feature,
+      );
+      expect(both.unknownHeaders, ['## Notes']);
+      expect(both.duplicateHeaders, ['## Feature name']);
     });
 
-    test('a duplicate header is refused in '
-        'template form', () async {
+    test('a duplicate header is refused in template form', () async {
       final feature = await _feature();
 
       final refused = _refused(
@@ -203,19 +213,13 @@ void main() {
 
       expect(refused.duplicateHeaders, ['## Feature name']);
       expect(refused.unknownHeaders, isEmpty);
-    });
 
-    test('a header three times is listed once, '
-        'in file order', () async {
-      final feature = await _feature();
-
-      final refused = _refused(
+      final thrice = _refused(
         '## Feature goal\n1\n## Feature name\n2\n## Feature goal\n3\n'
         '## Feature name\n4\n## Feature goal\n5\n',
         feature,
       );
-
-      expect(refused.duplicateHeaders, ['## Feature goal', '## Feature name']);
+      expect(thrice.duplicateHeaders, ['## Feature goal', '## Feature name']);
     });
 
     test('a doc that ends inside a fence is refused, with no '
@@ -278,27 +282,7 @@ void main() {
       expect(identical((outcome as Formatted).doc, doc), isTrue);
     });
 
-    test('a header fault is not unclosedFence', () async {
-      final feature = await _feature();
-
-      expect(_refused('## Notes\nx\n', feature).unclosedFence, isFalse);
-    });
-
-    test('a doc with both faults '
-        'reports both lists', () async {
-      final feature = await _feature();
-
-      final refused = _refused(
-        '## Notes\nx\n## Feature name\na\n## Feature name\nb\n',
-        feature,
-      );
-
-      expect(refused.unknownHeaders, ['## Notes']);
-      expect(refused.duplicateHeaders, ['## Feature name']);
-    });
-
-    test('a missing required '
-        'section stays absent', () async {
+    test('a missing required section stays absent', () async {
       final feature = await _feature();
 
       expect(
@@ -309,18 +293,11 @@ void main() {
         _format('## Feature goal\n\ng\n', feature),
         '## Feature goal\n\ng\n',
       );
-    });
-
-    test('a missing optional '
-        'section stays absent', () async {
-      final feature = await _feature();
-
-      final text = _format(
+      final optional = _format(
         '## Feature name\n\nn\n\n## Feature goal\n\ng\n',
         feature,
       );
-
-      expect(text, isNot(contains('Feature flow')));
+      expect(optional, isNot(contains('Feature flow')));
     });
 
     test('draft stays as '
@@ -353,22 +330,21 @@ void main() {
       );
     });
 
-    test('a laid-out '
-        'doc comes back byte-equal', () async {
+    // ignore: lines_longer_than_80_chars -- the test name stays one literal
+    test('a frontmatter line starting "# " and a key block line ending in spaces stay verbatim', () async {
       final feature = await _feature();
-      const disk = '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
+      const blockScalar =
+          '---\nstatus: planned\nnote: |\n  first line  \n  second line\t\n'
+          '---\n\n## Feature name\n\nn\n';
+      const disks = [
+        '---\n# comment  \nstatus: planned  \n---\n\n## Feature name\n\nn\n',
+        '## Feature name\n\nn\n\n## Feature goal\n\ng\n',
+        blockScalar,
+      ];
 
-      expect(_format(disk, feature), disk);
-    });
-
-    test('a frontmatter line starting "# " and a key block line ending in '
-        'spaces stay verbatim', () async {
-      final feature = await _feature();
-      const disk =
-          '---\n# comment  \nstatus: planned  \n---\n\n'
-          '## Feature name\n\nn\n';
-
-      expect(_format(disk, feature), disk);
+      for (final disk in disks) {
+        expect(_format(disk, feature), disk);
+      }
     });
 
     test('a doc with approved keeps it and gains no section', () async {
@@ -383,16 +359,6 @@ void main() {
       expect(_format(both, feature), both);
     });
 
-    test('a block scalar line ending in spaces stays unchanged through '
-        'format', () async {
-      final feature = await _feature();
-      const disk =
-          '---\nstatus: planned\nnote: |\n  first line  \n  second line\t\n'
-          '---\n\n## Feature name\n\nn\n';
-
-      expect(_format(disk, feature), disk);
-    });
-
     test('frontmatter with no key line at all stays one verbatim leading '
         'block', () async {
       final feature = await _feature();
@@ -404,8 +370,7 @@ void main() {
       expect(_format(disk, feature), disk);
     });
 
-    test('a keyless frontmatter block is '
-        'emitted first and verbatim', () async {
+    test('a keyless frontmatter block is emitted first and verbatim', () async {
       final feature = await _feature();
       const above =
           '---\n  orphan: line\nvision:\n  - PV-01\nstatus: planned\n---\n\n'
@@ -418,26 +383,10 @@ void main() {
         '---\n  orphan: line\nstatus: planned\nvision:\n  - PV-01\n---\n\n'
         '## Feature name\n\nn\n\n## Feature goal\n\ng\n',
       );
-    });
-
-    test('a keyless block in an already formatted doc '
-        'survives formatting unchanged', () async {
-      final feature = await _feature();
-      const disk =
+      const formatted =
           '---\n  orphan: line\nstatus: planned\n---\n\n'
           '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
-
-      expect(_format(disk, feature), disk);
-    });
-
-    test('empty head: a doc with no frontmatter and no head starts with its '
-        'first section', () async {
-      final feature = await _feature();
-
-      expect(
-        _format('## Feature name\n\nx\n\n## Feature goal\n\ng\n', feature),
-        '## Feature name\n\nx\n\n## Feature goal\n\ng\n',
-      );
+      expect(_format(formatted, feature), formatted);
     });
 
     test('empty head: frontmatter and an empty head put exactly one blank '

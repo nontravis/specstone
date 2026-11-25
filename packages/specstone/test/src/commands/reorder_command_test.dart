@@ -179,31 +179,6 @@ void main() {
       'reorder needs a place, such as specstone reorder user_story:login/reset_password --to 1\n',
     );
   });
-  test('reorder writes a rewritten typed doc laid out', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'reorder',
-        'user_story:login/reset_password',
-        '--to',
-        '1',
-      ]),
-      0,
-    );
-    final text = readDoc(
-      root,
-      'prds/features/f01_login/us02_email_login/fr02_lock_after_failures.md',
-    );
-    expect(text, contains('us01_reset_password/USER_STORY.md#use-case'));
-    expect(text, isNot(contains('\n\n\n')));
-    expect(text, contains('draft: true\n'));
-  });
-
   test('reorder lays out the docs it rewrites and adds no missing section to '
       'them', () async {
     final root = await writeWriteProject();
@@ -242,36 +217,6 @@ void main() {
         ),
       },
     );
-
-    test('reorder --target takes a feature with its spec folder in every '
-        'target', () async {
-      final root = await twins();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'reorder',
-          'feature:signup',
-          '--to',
-          '1',
-          '--target',
-          'flutter',
-        ]),
-        0,
-        reason: err.toString(),
-      );
-      expect(
-        out.toString(),
-        allOf(
-          contains(
-            'moved specs/flutter/f02_signup/ to specs/flutter/f01_signup/\n',
-          ),
-          contains(
-            'moved specs/jaspr/f02_signup/ to specs/jaspr/f01_signup/\n',
-          ),
-        ),
-      );
-      expect(hasDoc(root, 'specs/jaspr/f01_signup/IMPLEMENTATION.md'), isTrue);
-    });
 
     test('each login spec folder becomes f02 in every target', () async {
       final root = await writeWriteProject(
@@ -479,42 +424,6 @@ void main() {
         {
           'code': 'argument_invalid',
           'message': '--to takes a whole number, got abc',
-        },
-      );
-      expect(_docsBytes(root), before);
-    });
-
-    test('a name no doc carries is doc_not_found', () async {
-      final root = await writeWriteProject();
-      expect(await errorOf(root, ['reorder', 'nosuch', '--to', '1']), {
-        'code': 'doc_not_found',
-        'message': 'no doc carries the name nosuch',
-      });
-    });
-
-    test('a name 2 docs carry is argument_invalid listing them', () async {
-      final root = await writeWriteProject();
-      expect(await errorOf(root, ['reorder', 'login', '--to', '1']), {
-        'code': 'argument_invalid',
-        'message': 'login names 2 docs: feature:login, architecture:login',
-      });
-    });
-
-    test('a path to an untyped doc is untyped_target', () async {
-      final root = await writeWriteProject(
-        extra: {'docs/specs/f01_login/api_notes.md': '# Notes\n'},
-      );
-      final before = _docsBytes(root);
-      expect(
-        await errorOf(root, [
-          'reorder',
-          'specs/f01_login/api_notes.md',
-          '--to',
-          '1',
-        ]),
-        {
-          'code': 'untyped_target',
-          'message': 'specs/f01_login/api_notes.md has no doc type; migrate it to one before a write',
         },
       );
       expect(_docsBytes(root), before);

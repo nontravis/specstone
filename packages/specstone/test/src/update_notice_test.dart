@@ -242,13 +242,14 @@ void main() {
         return expectNoCheckFor(const ['upgrade']);
       });
 
-      test('the hook post-edit command sends nothing and writes no record', () {
-        return expectNoCheckFor(const ['hook', 'post-edit']);
-      });
-
-      test('the hook pre-shell command sends nothing and writes no record', () {
-        return expectNoCheckFor(const ['hook', 'pre-shell']);
-      });
+      test(
+        'the hook post-edit command sends nothing and writes no record',
+        () async {
+          for (final hook in ['post-edit', 'pre-shell']) {
+            await expectNoCheckFor(['hook', hook]);
+          }
+        },
+      );
 
       test(
         'a record from less than 24 hours ago, kept latest or not',

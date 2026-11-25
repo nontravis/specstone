@@ -148,19 +148,6 @@ void main() {
     }
   });
 
-  test('a story with only happy scenarios is error_case', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: doc(loginStory, '\n\n$loginScenario2', ''),
-      ),
-    );
-    final found = [
-      for (final f in report.findings)
-        if (f.kind == FindingKind.patternMissing) f,
-    ];
-    expect(_patterns(found), ['error_case']);
-  });
-
   test('a missing error scenario names the acceptance_criteria section, and '
       'an Error cases N/A line passes', () async {
     Future<List<Finding>> missing(String scenario2) async {

@@ -115,9 +115,6 @@ items:
         () => parsePattern('id: auth\ntitle: Sign in\n'),
         throwsA(_fault(FaultCode.unknownKey, key: 'title')),
       );
-    });
-
-    test('refuses a key an item does not define', () {
       expect(
         () => parsePattern('id: auth\nitems:\n  - {id: a, text: t, why: w}\n'),
         throwsA(_fault(FaultCode.unknownKey, key: 'items[0].why')),
@@ -171,9 +168,6 @@ items:
         () => parsePattern('description: d\n'),
         throwsA(_fault(FaultCode.missingKey, key: 'id')),
       );
-    });
-
-    test('refuses an item with no id', () {
       expect(
         () => parsePattern('id: auth\nitems:\n  - {text: t}\n'),
         throwsA(_fault(FaultCode.missingKey, key: 'items[0].id')),
@@ -181,17 +175,16 @@ items:
     });
 
     test('refuses an item with neither text nor disabled', () {
-      expect(
-        () => parsePattern('id: auth\nitems:\n  - {id: a}\n'),
-        throwsA(_fault(FaultCode.missingKey, key: 'items[0].text')),
-      );
-    });
-
-    test('refuses an item that writes disabled false and no text', () {
-      expect(
-        () => parsePattern('id: auth\nitems:\n  - {id: a, disabled: false}\n'),
-        throwsA(_fault(FaultCode.missingKey, key: 'items[0].text')),
-      );
+      for (final (reason, item) in [
+        ('neither', '{id: a}'),
+        ('disabled false', '{id: a, disabled: false}'),
+      ]) {
+        expect(
+          () => parsePattern('id: auth\nitems:\n  - $item\n'),
+          throwsA(_fault(FaultCode.missingKey, key: 'items[0].text')),
+          reason: reason,
+        );
+      }
     });
 
     test('refuses an id that differs from the file name', () {

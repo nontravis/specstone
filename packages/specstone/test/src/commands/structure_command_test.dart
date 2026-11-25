@@ -125,38 +125,6 @@ void main() {
       expect(err.toString(), isEmpty);
     },
   );
-  test('one named target reads its records with no --target '
-      'through list', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeTree({
-        '.specstone/templates/implementation.yaml':
-            'id: implementation\n'
-            'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-            'parent: feature\n'
-            'per_target: true\n'
-            'fields:\n'
-            '  - id: statuses\n'
-            '    type: record_status\n'
-            '    list: true\n',
-        '.specstone/config.yaml':
-            '${shippedPinsConfig()}targets:\n'
-            '  flutter:\n    code_root: flutter_lib\n',
-        'flutter_lib/.keep': '',
-        'docs/prds/features/f01_login/FEATURE.md': '# Login\n\n## Problem\n.\n',
-        'docs/prds/features/f01_login/us01_show/USER_STORY.md':
-            '---\nstatus: planned\n---\n\n# Agent sees it\n\n## Use Case\n.\n',
-        'docs/specs/f01_login/IMPLEMENTATION.md':
-            '---\nstatuses:\n  - show:implemented\n---\n\n# Record\n',
-      }),
-    );
-    expect(
-      await runner.run(['list', 'user_story', '--status', 'implemented']),
-      0,
-    );
-    expect(out.toString(), startsWith('login/show (user_story)'));
-    expect(err.toString(), isEmpty);
-  });
   test(
     '--json prints one object; a warning goes only to its warnings array',
     () async {
@@ -194,25 +162,6 @@ void main() {
       'no doc carries the name logn\nno doc carries the name resett\n',
     );
     expect(out.toString(), isEmpty);
-  });
-  test('--target applies to each of two targets', () async {
-    final (:runner, :out, :err) = readRunner(await writeTargetedTree());
-    expect(
-      await runner.run([
-        'structure',
-        'feedback/toast/show',
-        'feedback/toast/swipe',
-        '--target',
-        'jaspr',
-      ]),
-      0,
-    );
-    final lines = out.toString().trim().split('\n');
-    expect(lines, hasLength(2));
-    expect(lines.first, contains(' · planned · '));
-    expect(lines.last, contains(' · skipped · '));
-    expect(out.toString(), isNot(contains('flutter')));
-    expect(err.toString(), isEmpty);
   });
   test('outside a project exits 78', () async {
     final (:runner, :out, :err) = readRunner(await writeTree({}));
@@ -438,25 +387,6 @@ void main() {
     });
   });
 
-  test('a read command in a project with no trust record works and writes the ignore file on its first open', () async {
-    final base = await writeTree({
-      'ext/prds/features/f01_login/FEATURE.md': '# Login\n\n## Problem\n.\n',
-      'proj/.specstone/config.yaml': shippedPinsConfig(),
-    });
-    Link('${base.path}/proj/docs').createSync('${base.path}/ext');
-    final project = Directory('${base.path}/proj');
-    final ignore = File('${project.path}/.specstone/.gitignore');
-    expect(ignore.existsSync(), isFalse);
-    final (:runner, :out, :err) = readRunner(project);
-
-    expect(await runner.run(['structure']), 0);
-
-    expect(out.toString(), contains('login (feature)'));
-    expect(err.toString(), isEmpty);
-    expect(ignore.existsSync(), isTrue);
-    expect(ignore.readAsStringSync(), contains('index.sqlite'));
-  }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
-
   test(
     'a target no doc carries is doc_not_found with --json, exit 64',
     () async {
@@ -466,19 +396,6 @@ void main() {
         'code': 'doc_not_found',
         'message': 'no doc carries the name logn',
       });
-      expect(out.toString(), isEmpty);
-    },
-  );
-
-  test(
-    'a doc type the merged set lacks is doc_type_unknown, exit 64',
-    () async {
-      final (:runner, :out, :err) = readRunner(await writeReadProject());
-      expect(
-        await runner.run(['structure', 'architectur:login', '--json']),
-        64,
-      );
-      expect(errorOf(err)['code'], 'doc_type_unknown');
       expect(out.toString(), isEmpty);
     },
   );

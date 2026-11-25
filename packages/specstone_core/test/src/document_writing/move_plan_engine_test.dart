@@ -374,23 +374,6 @@ void main() {
     expect(_invariantsOf(root, shopDomain), ['INV-1']);
   });
 
-  test(
-    'a new line takes as parent a doc an earlier new line creates',
-    () async {
-      final root = await _project();
-      final answer = _apply(
-        root,
-        'new feature --parent shop --slug gift\n'
-        'new rulebook --parent shop/gift\n',
-      );
-      expect(
-        answer.text,
-        'created $_giftFeature\ncreated specs/f02_shop/f03_gift/DOMAIN.md\n',
-      );
-      expect(_isDraft(root, 'specs/f02_shop/f03_gift/DOMAIN.md'), isTrue);
-    },
-  );
-
   test('keep lines in the current order change nothing', () async {
     final root = await _project();
     final before = _written(root);

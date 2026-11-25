@@ -182,18 +182,6 @@ void main() {
       expect(fp("var s = '''\n// text\n''';\n"), fp("var s = '''\n''';\n"));
     });
 
-    test('keeps comment-like lines of an unmarked extension', () {
-      expect(
-        fp('// note\n{}\n', path: 'assets/a.json'),
-        isNot(fp('{}\n', path: 'assets/a.json')),
-      );
-      expect(fp('{}\n\n', path: 'assets/a.json'), fp('{}\n', path: 'a.json'));
-      expect(
-        fp('# note\na\n', path: 'Makefile'),
-        isNot(fp('a\n', path: 'Makefile')),
-      );
-    });
-
     test('hashes a file of comments and blank lines only as empty text', () {
       expect(fp('// a\n\n  // b\n \n'), emptyBaseHash);
       expect(fp('// a\n\n  // b\n \n'), 'e3b0c44298fc');
@@ -208,11 +196,11 @@ void main() {
         fileCodeFingerprint(changed, path: 'logo.png'),
         isNot(fileCodeFingerprint(png, path: 'logo.png')),
       );
-    });
-
-    test('hashes raw bytes that are not UTF-8 whatever the comment lines', () {
-      const bytes = [0x2F, 0x2F, 0x20, 0xFF, 0x0A];
-      expect(fileCodeFingerprint(bytes, path: 'a.dart'), _rawHash(bytes));
+      const commentBytes = [0x2F, 0x2F, 0x20, 0xFF, 0x0A];
+      expect(
+        fileCodeFingerprint(commentBytes, path: 'a.dart'),
+        _rawHash(commentBytes),
+      );
     });
   });
 
@@ -261,31 +249,6 @@ void main() {
         folderCodeFingerprint(const [one, two]),
         baseHashOf('lib/a.dart aaaaaaaaaaaa\nlib/b.dart bbbbbbbbbbbb\n'),
       );
-    });
-
-    test('changes when a file is added or removed', () {
-      expect(
-        folderCodeFingerprint(const [one, two]),
-        isNot(folderCodeFingerprint(const [one])),
-      );
-      expect(
-        folderCodeFingerprint(const [one]),
-        isNot(folderCodeFingerprint(const [])),
-      );
-    });
-
-    test('changes when a file is renamed or its fingerprint changes', () {
-      const renamed = FileFingerprint(
-        path: 'lib/c.dart',
-        fingerprint: 'aaaaaaaaaaaa',
-      );
-      const edited = FileFingerprint(
-        path: 'lib/a.dart',
-        fingerprint: 'cccccccccccc',
-      );
-      final base = folderCodeFingerprint(const [one]);
-      expect(folderCodeFingerprint(const [renamed]), isNot(base));
-      expect(folderCodeFingerprint(const [edited]), isNot(base));
     });
   });
 

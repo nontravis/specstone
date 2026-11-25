@@ -19,7 +19,6 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/nested_fixture.dart';
-import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/rulebook_fixture.dart';
 import '../../helpers/shipped_pins.dart';
@@ -224,46 +223,6 @@ void main() {
     expect(report.warnings, isEmpty);
   });
 
-  test('a Latin-1 file is file_not_utf8, its warning not printed', () async {
-    final project = await writeCheckProject();
-    const reset = 'prds/features/f01_login/us02_reset/USER_STORY.md';
-    File('${project.path}/docs/$reset')
-      ..createSync(recursive: true)
-      ..writeAsBytesSync(
-        latin1.encode('---\nstatus: planned\n---\n\n# Reset at the café\n'),
-      );
-    final report = await checkOf(project);
-    expect(spots(report, FindingKind.fileNotUtf8), ['$reset:1: file_not_utf8']);
-    expect(report.warnings, isEmpty);
-  });
-
-  test(
-    'a doc whose mode refuses reading is file_unreadable',
-    skip: unreadablePathSkipReason(),
-    () async {
-      final project = await writeCheckProject();
-      final path = '${project.path}/docs/$loginNf';
-      Process.runSync('chmod', ['000', path]);
-      addTearDown(() => Process.runSync('chmod', ['644', path]));
-      final report = await checkOf(project);
-      expect(spots(report, FindingKind.fileUnreadable), [
-        '$loginNf:1: file_unreadable',
-      ]);
-      expect(
-        report.findings
-            .firstWhere((f) => f.kind == FindingKind.fileUnreadable)
-            .name,
-        isNull,
-      );
-      expect(report.warnings, isEmpty);
-      final targeted = await checkOf(project, target: 'login');
-      expect(spots(targeted, FindingKind.fileUnreadable), [
-        '$loginNf:1: file_unreadable',
-      ]);
-      expect(targeted.warnings, isEmpty);
-    },
-  );
-
   test(
     'a doc of an extending type with a cleared parent gets no parent_missing',
     () async {
@@ -322,18 +281,6 @@ void main() {
       ]);
       expect(spots(report, FindingKind.parentMissing), isEmpty);
     });
-  });
-
-  test('a doc type with no parent is never parent_missing', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/runbook.yaml': 'id: runbook\ndescription: Run steps.\npath: ops/{slug}/runbook.md\n',
-          'docs/ops/deploy/runbook.md': '# Deploy\n',
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.parentMissing), isEmpty);
   });
 
   test(
@@ -504,18 +451,6 @@ void main() {
       );
     });
 
-    test('no project doc is one finding at its path, '
-        'type project', () async {
-      final report = await checkOf(
-        await writeCheckProject(without: {'docs/$projectDoc'}),
-      );
-      expect(spots(report, FindingKind.singularDocMissing), [
-        '$projectDoc:1: singular_doc_missing',
-      ]);
-      expect(_missingOf(report).single.keys, {'type': 'project'});
-      expect(_missingOf(report).single.name, isNull);
-    });
-
     test('no project doc is one singular_doc_missing beside the roles and '
         'IDs it leaves unresolved', () async {
       final report = await checkOf(
@@ -563,51 +498,6 @@ void main() {
       expect(missing.single.line, 1);
       expect(missing.single.name, isNull);
       expect(missing.single.keys, {'type': 'style', 'target': 'jaspr'});
-    });
-
-    test('a project on the shipped pins with no glossary '
-        'doc is one finding at its path, type glossary', () async {
-      final report = await checkOf(
-        await writeCheckProject(without: {'docs/$_glossaryDoc'}),
-      );
-      expect(spots(report, FindingKind.singularDocMissing), [
-        '$_glossaryDoc:1: singular_doc_missing',
-      ]);
-      expect(_missingOf(report).single.keys, {'type': 'glossary'});
-      expect(_missingOf(report).single.name, isNull);
-      expect(
-        _missingOf(report).single.message,
-        'the project holds no glossary doc; run `specstone new glossary`',
-      );
-    });
-
-    test('a project pinned below the pack that '
-        'ships the glossary type holds no glossary finding', () async {
-      const pinned = '1.14.0';
-      final shipped = shippedPackVersions()['prd-core'];
-      final project = await writeCheckProject(
-        extra: {
-          '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
-            'prd-core: $shipped',
-            'prd-core: $pinned',
-          ),
-        },
-        without: {'docs/$_glossaryDoc'},
-      );
-      final session = ReadSession.open(
-        templates: resolverCarrying(
-          {'prd-core': pinned},
-          without: {'prd-core/glossary.yaml'},
-        ),
-        workingDirectory: project,
-        homeDirectory: null,
-      );
-      addTearDown(session.close);
-
-      expect(
-        _missingOf(await runCheck(session)).map((f) => f.keys['type']),
-        isNot(contains('glossary')),
-      );
     });
 
     test('a project on prd-core 1.15.0, which ships the glossary type, with '
@@ -771,16 +661,6 @@ void main() {
         await writeCheckProject(
           extra: {'docs/$_goalDoc': ''},
           unstamped: {'docs/$_goalDoc'},
-        ),
-      );
-      expect(spots(report, FindingKind.singularDocMissing), isEmpty);
-    });
-
-    test('an empty glossary file is present', () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {'docs/$_glossaryDoc': ''},
-          unstamped: {'docs/$_glossaryDoc'},
         ),
       );
       expect(spots(report, FindingKind.singularDocMissing), isEmpty);

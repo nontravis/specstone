@@ -172,15 +172,12 @@ void main() {
         expect(git(root, ['add', '-A']).exitCode, 0);
 
         expect(_walk(root), instructionFilesOnly);
+
+        final outside = await unreadyProject();
+        expect(_walk(outside), instructionFilesOnly);
       },
       skip: _skip,
     );
-
-    test('reads the instruction files alone outside a git work tree', () async {
-      final root = await unreadyProject();
-
-      expect(_walk(root), instructionFilesOnly);
-    }, skip: _skip);
 
     test('reads the instruction files alone when git cannot start', () async {
       final root = await unreadyProject();

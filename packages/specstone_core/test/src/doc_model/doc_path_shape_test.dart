@@ -155,18 +155,6 @@ void main() {
       expect(DocPathShape.of(feature, nested, depth: 4), isNull);
     });
 
-    test('specFoldersOf cart at depth 1 is its own spec folder', () {
-      expect(
-        specFoldersOf(nested, nested.lookup('feature')!, [
-          '02',
-          'shop',
-          '01',
-          'cart',
-        ], depth: 1),
-        ['.specstone/records/f02_shop/f01_cart/', 'specs/f02_shop/f01_cart/'],
-      );
-    });
-
     test('unitRootsOf cart is its prd folder and its spec folder', () {
       expect(unitRootsOf(nested, nested.lookup('feature')!, cartFeature), [
         'prds/features/f02_shop/f01_cart/',

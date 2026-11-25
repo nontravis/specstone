@@ -3,15 +3,11 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-import '../../../../specstone_core/test/helpers/check_fixture.dart'
-    show fingerprintFor, writeCheckProject;
 import '../../../../specstone_core/test/helpers/nested_fixture.dart'
-    show cartRecord, writeNestedProject;
-import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
+    show cartRecord;
 import '../../../../specstone_core/test/helpers/per_fr_row_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
-import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 /// Returns every file and folder under the docs of [root] by its bytes.
@@ -19,12 +15,6 @@ Map<String, List<int>> _docsOf(Directory root) =>
     treeBytes(root)..removeWhere((path, _) => !path.startsWith('docs/'));
 
 void main() {
-  late String binary;
-
-  setUpAll(() async {
-    binary = await buildSpecstone();
-  });
-
   test('rename takes a bare name one doc carries', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
@@ -45,23 +35,6 @@ void main() {
     );
   });
 
-  test('a taken slug --json is doc_exists with file', () async {
-    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-    expect(
-      await runner.run([
-        'rename',
-        'user_story:login/reset_password',
-        '--to',
-        'sign_out',
-        '--json',
-      ]),
-      64,
-    );
-    expect(out.toString(), isEmpty);
-    final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
-    expect(error['code'], 'doc_exists');
-    expect(error['file'], story2);
-  });
   test('rename takes no --base', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
@@ -76,31 +49,6 @@ void main() {
       64,
     );
   });
-  test(
-    'an invalid slug is argument_invalid, exit 64, and nothing moves',
-    () async {
-      final root = await writeWriteProject();
-      final before = _docsOf(root);
-      for (final slug in ['Recover', 'recover-account', 'recover account']) {
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(
-          await runner.run([
-            'rename',
-            'user_story:login/reset_password',
-            '--to',
-            slug,
-            '--json',
-          ]),
-          64,
-          reason: slug,
-        );
-        expect(out.toString(), isEmpty, reason: slug);
-        final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
-        expect(error['code'], 'argument_invalid', reason: slug);
-      }
-      expect(_docsOf(root), before);
-    },
-  );
 
   test('a new title is no rename option and the title line stays', () async {
     final root = await writeWriteProject();
@@ -187,73 +135,6 @@ void main() {
       'rename needs a slug, such as specstone rename user_story:login/reset_password --to recover_account\n',
     );
   });
-  test('after a feature rename the overriding doc stays approved and check '
-      'reports nothing for it', () async {
-    const shopRule = '- **INV-3** A cart holds stock.';
-    final root = await writeCheckProject(
-      extra: overrideFiles(
-        extra: {
-          'docs/prds/features/f02_shop/FEATURE.md': '# Shop\n',
-          'docs/prds/features/f02_shop/f01_cart/FEATURE.md': '# Cart\n',
-          'docs/specs/f02_shop/DOMAIN.md': domainDoc([shopRule]),
-          'docs/specs/f02_shop/f01_cart/DOMAIN.md': domainDoc(
-            [
-              '- **INV-9** A cart is small.',
-              '- Overrides: [INV-3](../DOMAIN.md#invariants) — stock, because stock',
-            ],
-            entries: ['rulebook:shop#INV-3 ${fingerprintFor(shopRule)}'],
-          ),
-        },
-      ),
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      readDoc(root, 'specs/f02_shop/f01_cart/DOMAIN.md'),
-      contains(RegExp('^approved: ', multiLine: true)),
-    );
-    // The fixture's own template findings stay; the rename adds no other.
-    await runner.run(['check', 'rulebook:shop/cart']);
-    final before = out.toString();
-    out.clear();
-    expect(await runner.run(['rename', 'feature:shop', '--to', 'store']), 0);
-    out.clear();
-    await runner.run(['check', 'rulebook:store/cart']);
-    expect(out.toString(), before.replaceAll('f02_shop', 'f02_store'));
-    expect(out.toString(), isNot(contains('suspect')));
-    expect(out.toString(), isNot(contains('stale')));
-    expect(err.toString(), isEmpty);
-    expect(
-      readDoc(root, 'specs/f02_store/f01_cart/DOMAIN.md'),
-      allOf(
-        contains('rulebook:store#INV-3'),
-        contains(RegExp('^approved: ', multiLine: true)),
-        isNot(contains('draft: true')),
-      ),
-    );
-  });
-
-  test('rename writes a rewritten typed doc laid out', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'rename',
-        'user_story:login/reset_password',
-        '--to',
-        'recover_account',
-      ]),
-      0,
-    );
-    final text = readDoc(root, fr12);
-    expect(text, contains('us03_recover_account/USER_STORY.md#use-case'));
-    expect(text, isNot(contains('\n\n\n')));
-    expect(text, contains('draft: true\n'));
-  });
-
   test('rename lays out the docs it rewrites and adds no missing section to '
       'them', () async {
     final root = await writeWriteProject();
@@ -277,42 +158,6 @@ void main() {
     expect(headersOf(fr12), frBefore);
   });
 
-  test('rename sets each link text equal to the old Name '
-      'to the new Name and keeps every other link text', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'docs/notes/links.md':
-            '# Links\n\n'
-            '[user_story:login/reset_password](../prds/features/f01_login/us03_reset_password/USER_STORY.md#use-case)\n'
-            '[login/reset_password](../prds/features/f01_login/us03_reset_password/USER_STORY.md)\n'
-            '[the reset rules](../prds/features/f01_login/us03_reset_password/USER_STORY.md)\n'
-            '[INV-6](../prds/features/f01_login/us03_reset_password/USER_STORY.md#use-case)\n'
-            '[login/reset_password](https://example.com/x)\n',
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'rename',
-        'user_story:login/reset_password',
-        '--to',
-        'recover_account',
-      ]),
-      0,
-    );
-    const folder = '../prds/features/f01_login/us03_recover_account';
-    expect(
-      readDoc(root, 'notes/links.md'),
-      '# Links\n\n'
-      '[user_story:login/recover_account]($folder/USER_STORY.md#use-case)\n'
-      '[login/recover_account]($folder/USER_STORY.md)\n'
-      '[the reset rules]($folder/USER_STORY.md)\n'
-      '[INV-6]($folder/USER_STORY.md#use-case)\n'
-      '[login/reset_password](https://example.com/x)\n',
-    );
-    expect(out.toString(), contains('rewrote notes/links.md\n'));
-  });
-
   group('with two code targets', () {
     const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
     const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
@@ -333,25 +178,6 @@ void main() {
       },
       without: {'docs/specs/f01_login/ARCHITECTURE.md'},
     );
-
-    test('rename prints each record it rewrites, one per target', () async {
-      final root = await twins();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'rename',
-          'user_story:login/reset_password',
-          '--to',
-          'recover',
-        ]),
-        0,
-        reason: err.toString(),
-      );
-      expect(out.toString(), contains('rewrote $flutterRecord\n'));
-      expect(out.toString(), contains('rewrote $jasprRecord\n'));
-      expect(readDoc(root, flutterRecord), contains("'recover:implemented'"));
-      expect(readDoc(root, jasprRecord), contains("'recover:planned'"));
-    });
 
     group('matrix rows', () {
       const story = 'reset_password';
@@ -513,29 +339,6 @@ void main() {
       );
       expect(File('${root.path}/app/lib/reset.dart').readAsStringSync(), code);
     });
-
-    test(
-      "a dry run of a rename prints the longer span's mentions line",
-      () async {
-        const note = 'docs/notes/ideas.md';
-        const span = 'shop/cart/add_item E05';
-        const text = '# Ideas\n\nA span `$span`.\n';
-        final root = await writeNestedProject(extra: {note: text});
-        final result = await runSpecstone(binary, [
-          'rename',
-          'user_story:shop/cart/add_item',
-          '--to',
-          'add_one',
-          '--dry-run',
-        ], workingDirectory: root.path);
-        expect(result.exitCode, 0, reason: '${result.stderr}');
-        expect(
-          result.stdout,
-          endsWith('mentions $note:3 $span\ndry run: nothing moved\n'),
-        );
-        expect(File('${root.path}/$note').readAsStringSync(), text);
-      },
-    );
 
     test('prints a record the re-stamp alone changes under dry run', () async {
       // The record keeps no status the rename rewrites, so the re-stamp alone

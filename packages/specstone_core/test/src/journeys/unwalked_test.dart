@@ -75,6 +75,13 @@ void main() {
     expect(lines[2], '  S3 [happy] Step 3');
     final docs = answer.json['docs']! as List;
     expect((docs.single as Map)['unwalked'], ['S2', 'S3']);
+
+    final none = await _unwalked(_files([]));
+    expect(_lines(none).skip(1), [
+      '  S1 [happy] Sign in',
+      '  S2 [error] Wrong password',
+      '  S3 [happy] Step 3',
+    ]);
   });
 
   test('a story whose scenarios are all '
@@ -85,16 +92,6 @@ void main() {
     expect(answer.text, isEmpty);
     expect(answer.json, {'docs': <Object?>[]});
     expect(answer.exitStatus, 0);
-  });
-
-  test('with no journey every story with a scenario lists '
-      'each one', () async {
-    final answer = await _unwalked(_files([]));
-    expect(_lines(answer).skip(1), [
-      '  S1 [happy] Sign in',
-      '  S2 [error] Wrong password',
-      '  S3 [happy] Step 3',
-    ]);
   });
 
   test('a step of a draft journey walks its scenario', () async {

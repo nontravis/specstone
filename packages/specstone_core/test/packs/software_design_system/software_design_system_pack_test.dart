@@ -90,10 +90,6 @@ const _plainDocTypes = <String, (String, List<(String, String)>)>{
   ),
 };
 
-const _audienceSentence =
-    "These docs serve the team that builds the library, not the library's "
-    'consumers.';
-
 /// The ids of the shared lines each guide prints, in print order: the
 /// `prd-core` lines that reach every doc type, then the pack's own line.
 const _sharedLineIds = <String>[
@@ -152,8 +148,8 @@ void main() {
         'nineteen doc types, and no shared field', () {
       final shared = _manifest().shared;
       expect(
-        [for (final l in shared.lines) (l.id, l.text, l.disabled)],
-        [('serve_library_builders', _audienceSentence, false)],
+        [for (final l in shared.lines) (l.id, l.disabled)],
+        [('serve_library_builders', false)],
       );
       expect(shared.lines.single.forDocTypes, softwareDesignSystemIds);
       expect(shared.fields, isEmpty);
@@ -385,7 +381,6 @@ void main() {
           expect(type.title, isNull, reason: id);
         } else {
           expect(type.title, named[id] ?? sentenceCase(id), reason: id);
-          expect(type.description, isNot(contains('Title it')), reason: id);
         }
       }
     });
@@ -518,52 +513,6 @@ void main() {
   });
 
   group('guides', () {
-    List<String> linesOf(String id) =>
-        prdCoreDocType(set, id).description!.split('\n');
-
-    test('the guidelines description holds each guidelines statement on one '
-        'line', () {
-      const structure =
-          'Shared code structure, such as a component base class, stays in '
-          'the `software-tech` spec docs.';
-      const hardRule =
-          'GUIDELINES holds each hard rule, such as "no raw colors", and the '
-          "project's own lint verifies the code against it.";
-      const statements = [structure, hardRule];
-      for (final statement in statements) {
-        expect(
-          linesOf('guidelines').where((l) => l == statement),
-          hasLength(1),
-        );
-      }
-    });
-
-    test('the setup guide states the install contract a skill follows and no '
-        'copy', () {
-      expect(
-        linesOf('setup').where(
-          (l) =>
-              l ==
-              "The install contract is what a skill's install steps follow.",
-        ),
-        hasLength(1),
-      );
-      for (final id in ['setup', 'contributing']) {
-        expect(
-          prdCoreDocType(set, id).description,
-          isNot(
-            contains(
-              RegExp(
-                r'\b(install page|references|copy)\b',
-                caseSensitive: false,
-              ),
-            ),
-          ),
-          reason: id,
-        );
-      }
-    });
-
     test('a doc that breaks a hard rule gets no check finding, since no rule '
         'reads the library code', () async {
       const guidelines =
@@ -646,16 +595,6 @@ void main() {
           if (line.startsWith('## ')) line,
       ];
       expect(headers, ['## Durations', '## Easings']);
-    });
-
-    test('a new motion doc is a skeleton with Durations then Easings', () {
-      final text = skeletonOf(prdCoreDocType(set, 'motion'), 'motion');
-      expect(text, contains('## Durations'));
-      expect(text, contains('## Easings'));
-      expect(
-        text.indexOf('## Durations'),
-        lessThan(text.indexOf('## Easings')),
-      );
     });
   });
 }

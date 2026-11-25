@@ -324,6 +324,12 @@ void main() {
             if (line.toLowerCase().contains(target.toLowerCase())) line,
         ];
         expect(naming, hasLength(1), reason: r.stderr as String);
+        const reason = 'The system cannot find the file specified.';
+        expect(naming.single, contains(reason));
+        expect(
+          naming.single.toLowerCase().indexOf(target.toLowerCase()),
+          lessThan(naming.single.indexOf(reason)),
+        );
         // Windows PowerShell 5.1 may decorate a native command's stderr when
         // its own stderr is a pipe; cmd shows the one line alone.
         if (shell == StnShell.cmd) {
@@ -372,32 +378,6 @@ void main() {
           expect(r.exitCode, 0, reason: '$name: ${r.stderr}');
           expect(nonBlank(r.stdout), containsAll([out, err]), reason: name);
         }
-      });
-
-      test('a missing specstone.exe names the system reason beside its '
-          'path on one stderr line', () async {
-        final sb = await createShimSandbox();
-        final target = '${sb.bin.path}\\specstone.exe';
-        File(target).deleteSync();
-
-        final r = await sb.typeStn(
-          ['stn check'],
-          shell: shell,
-          path: '${sb.bin.path};$system32',
-        );
-
-        expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
-        final naming = [
-          for (final line in nonBlank(r.stderr))
-            if (line.toLowerCase().contains(target.toLowerCase())) line,
-        ];
-        expect(naming, hasLength(1), reason: r.stderr as String);
-        const reason = 'The system cannot find the file specified.';
-        expect(naming.single, contains(reason));
-        expect(
-          naming.single.toLowerCase().indexOf(target.toLowerCase()),
-          lessThan(naming.single.indexOf(reason)),
-        );
       });
 
       test('the target gets the environment the shim got, '

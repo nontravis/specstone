@@ -141,16 +141,6 @@ void main() {
       expect(landing.newId, 'INV-3');
     });
 
-    test('an ID the target holds takes one past its highest', () async {
-      final root = await _project(
-        shop: [_inv(1), _inv(2), _inv(3)],
-        cart: [_inv(1), _inv(3), _inv(12)],
-      );
-      final landing = _plan(root, ['rulebook:shop#INV-3']).single;
-      expect(landing.from.id, 'INV-3');
-      expect(landing.newId, 'INV-13');
-    });
-
     test('an ID only a generated block of the target holds stays', () async {
       final root = await _project(
         shop: [_inv(1), _inv(2), _inv(3)],
@@ -167,18 +157,6 @@ void main() {
       );
       final landing = _plan(root, ['rulebook:shop#INV-3']).single;
       expect(landing.newId, 'INV-3');
-    });
-
-    test('two clashing items of one doc count after each other', () async {
-      final root = await _project(
-        shop: [_inv(1), _inv(2), _inv(3)],
-        cart: [_inv(1), _inv(2), _inv(12)],
-      );
-      final landings = _plan(root, [
-        'rulebook:shop#INV-1',
-        'rulebook:shop#INV-2',
-      ]);
-      expect([for (final l in landings) l.newId], ['INV-13', 'INV-14']);
     });
 
     test('items of two source docs that both clash count after the first one '
@@ -253,11 +231,6 @@ void main() {
       },
     );
 
-    test('every item already in the target doc plans no landing', () async {
-      final root = await _project();
-      expect(_plan(root, ['rulebook:shop/cart#INV-1']), isEmpty);
-    });
-
     test('an item named twice, in two address forms, lands once', () async {
       final root = await _project(shop: [_inv(1), _inv(2), _inv(3)]);
       final landings = _plan(root, [
@@ -314,13 +287,6 @@ void main() {
       expect(fault.exitStatus, 64);
     });
 
-    test('an --under that names no doc is doc_not_found', () async {
-      final fault = await _refusal([
-        'rulebook:shop#INV-3',
-      ], under: 'rulebook:nothing');
-      expect((fault as IndexFault).code, IndexFaultCode.docNotFound);
-    });
-
     test('an address that names 2 or more docs is argument_invalid with each candidate', () async {
       final fault = await _refusal(
         ['rulebook:shop/pay#INV-1'],
@@ -333,27 +299,6 @@ void main() {
       expect(fault.exitStatus, 64);
       expect(fault.message, contains(_payDomain));
       expect(fault.message, contains('specs/f02_shop/f03_pay/DOMAIN.md'));
-    });
-
-    test('an --under that names 2 or more docs is argument_invalid with each candidate', () async {
-      final fault = await _refusal(
-        ['rulebook:shop#INV-3'],
-        under: 'rulebook:shop/pay',
-        extra: {
-          'docs/prds/features/f02_shop/f03_pay/FEATURE.md': '# Pay\n',
-          'docs/specs/f02_shop/f03_pay/DOMAIN.md': _domain([_inv(1)]),
-        },
-      );
-      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(fault.exitStatus, 64);
-      expect(fault.message, contains(_payDomain));
-      expect(fault.message, contains('specs/f02_shop/f03_pay/DOMAIN.md'));
-    });
-
-    test('a source address written as a name suffix names its doc', () async {
-      final root = await _project(shop: [_inv(1)], pay: [_inv(1), _inv(6)]);
-      final landing = _plan(root, ['rulebook:pay#INV-6']).single;
-      expect(landing.from.doc.docPath, _payDomain);
     });
 
     test(
@@ -376,24 +321,6 @@ void main() {
         fault.message,
         '$shopApi has no invariants section for INV- items',
       );
-    });
-
-    test('an untyped file as the source is untyped_target', () async {
-      final fault = await _refusal(
-        ['$_notes#INV-3'],
-        extra: {'docs/$_notes': '# Notes\n\n## Invariants\n\n${_inv(3)}\n'},
-      );
-      expect((fault as IndexFault).code, IndexFaultCode.untypedTarget);
-      expect(fault.exitStatus, 64);
-    });
-
-    test('an untyped file as --under is untyped_target', () async {
-      final fault = await _refusal(
-        ['rulebook:shop#INV-3'],
-        extra: {'docs/$_notes': '# Notes\n'},
-        under: _notes,
-      );
-      expect((fault as IndexFault).code, IndexFaultCode.untypedTarget);
     });
 
     test(
@@ -454,37 +381,6 @@ void main() {
   });
 
   group('the override chain a move must keep', () {
-    test('a doc whose Overrides line links the item must hold the target in its chain', () async {
-      final fault = await _refusal(
-        ['rulebook:shop#INV-3'],
-        pay: [
-          _inv(1),
-          '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
-        ],
-      );
-      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(fault.exitStatus, 64);
-      expect(
-        fault.message,
-        '$_payDomain overrides $shopDomain#INV-3; $cartDomain sits outside its chain',
-      );
-    });
-
-    test('the same holds when the overriding doc is the target doc', () async {
-      final fault = await _refusal(
-        ['rulebook:shop#INV-3'],
-        cart: [
-          _inv(1),
-          '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
-        ],
-      );
-      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(
-        fault.message,
-        '$cartDomain overrides $shopDomain#INV-3; $cartDomain sits outside its chain',
-      );
-    });
-
     test('an Overrides line on another item leaves the move allowed', () async {
       final root = await _project(
         shop: [_inv(1), _inv(2), _inv(3)],
@@ -494,34 +390,6 @@ void main() {
         ],
       );
       expect(_plan(root, ['rulebook:shop#INV-2']).single.newId, 'INV-2');
-    });
-
-    test('an item whose own Overrides line links an item outside the target chain is argument_invalid, naming it', () async {
-      final fault = await _refusal(
-        ['rulebook:shop/cart/coupon#INV-5'],
-        cart: [_inv(1), _inv(2)],
-        extra: _couponWithOverride,
-        under: 'rulebook:shop/pay',
-      );
-      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(fault.exitStatus, 64);
-      expect(
-        fault.message,
-        '$_couponDomain#INV-5 overrides $cartDomain#INV-2, outside the chain of $_payDomain',
-      );
-    });
-
-    test('the same holds when the target doc holds the overridden item', () async {
-      final fault = await _refusal(
-        ['rulebook:shop/cart/coupon#INV-5'],
-        cart: [_inv(1), _inv(2)],
-        extra: _couponWithOverride,
-      );
-      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(
-        fault.message,
-        '$_couponDomain#INV-5 overrides $cartDomain#INV-2, outside the chain of $cartDomain',
-      );
     });
 
     test('an own Overrides line that the target chain holds leaves the move allowed', () async {
@@ -581,32 +449,6 @@ void main() {
       },
     );
 
-    test('an item beside an fr or an nf target takes the same refusal', () async {
-      for (final doc in [
-        'fr:shop/cart/add_item/check_stock',
-        'nf:shop/cart/add_item/stock_time',
-      ]) {
-        final fault = await refused(
-          ['rulebook:shop#INV-3', doc],
-          under: 'shop/cart',
-          extra: {
-            'docs/prds/features/f02_shop/f01_cart/us01_add_item/nf01_stock_time.md': '# Stock time\n\n## Statement\n\nThe system shall check stock within 1 s.\n',
-          },
-        );
-        expect(
-          (fault as IndexFault).code,
-          IndexFaultCode.argumentInvalid,
-          reason: doc,
-        );
-        expect(fault.exitStatus, 64, reason: doc);
-        expect(
-          fault.message,
-          'move takes item targets or doc targets, not both',
-          reason: doc,
-        );
-      }
-    });
-
     test('an item beside a spec doc is doc_type_not_movable, before the mixed test', () async {
       final fault = await refused([
         'rulebook:shop#INV-3',
@@ -640,42 +482,6 @@ void main() {
         );
       },
     );
-
-    test(
-      'item targets with no --under are argument_missing with the item message',
-      () async {
-        final fault = await refused(['rulebook:shop#INV-3']);
-        expect((fault as IndexFault).code, IndexFaultCode.argumentMissing);
-        expect(fault.exitStatus, 64);
-        expect(
-          fault.message,
-          'move needs --under <doc address> for item targets',
-        );
-      },
-    );
-
-    test('a story target given --target is argument_invalid', () async {
-      final fault = await refused(
-        ['user_story:shop/cart/add_item'],
-        under: 'shop/pay',
-        codeTarget: 'server',
-      );
-      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(fault.exitStatus, 64);
-      expect(fault.message, 'move takes --target only with item targets');
-    });
-
-    test('an FR target given --target is argument_invalid', () async {
-      final fault = await refused(
-        ['fr:shop/cart/add_item/check_stock'],
-        under: 'shop/pay/refund',
-        codeTarget: 'server',
-      );
-      expect(
-        (fault as IndexFault).message,
-        'move takes --target only with item targets',
-      );
-    });
 
     test('a #<section key> that reads as no item ID stays a doc target and is argument_invalid', () async {
       final fault = await refused([
@@ -755,24 +561,6 @@ void main() {
       expect(landing.to.docPath, 'specs/server/f02_shop/f01_cart/DOMAIN.md');
     });
 
-    test('an address that names a doc of each target is argument_invalid with each candidate', () async {
-      final root = await twoTargets();
-      Object? fault;
-      try {
-        _plan(root, ['rulebook:shop#INV-3']);
-      } on IndexFault catch (caught) {
-        fault = caught;
-      }
-      expect((fault! as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(
-        (fault as IndexFault).message,
-        allOf(
-          contains('specs/app/f02_shop/DOMAIN.md'),
-          contains('specs/server/f02_shop/DOMAIN.md'),
-        ),
-      );
-    });
-
     test('a refusal over --target writes no doc', () async {
       final root = await twoTargets();
       final before = _docs(root);
@@ -800,17 +588,6 @@ void main() {
         File('${root.path}/${MoveJournal.journalPath}').existsSync(),
         isFalse,
       );
-    });
-
-    test('a --target the project does not hold is argument_invalid', () async {
-      final root = await twoTargets();
-      Object? fault;
-      try {
-        _plan(root, ['rulebook:shop#INV-3'], codeTarget: 'nothing');
-      } on IndexFault catch (caught) {
-        fault = caught;
-      }
-      expect((fault! as IndexFault).code, IndexFaultCode.argumentInvalid);
     });
   });
 

@@ -91,16 +91,6 @@ void main() {
     expect(read.counted, '- A rule holds\n  - nested one\n  - nested two');
   });
 
-  test('note closes its table cell', () {
-    final read = traceNotesOf(
-      '| A rule (RULE-5) | next cell |',
-      _prefixes,
-      isTableRow: true,
-    );
-    expect(read.notes, [const TraceNote(text: '(RULE-5)', closes: true)]);
-    expect(read.counted, '| A rule | next cell |');
-  });
-
   test('each table cell closes its own note', () {
     final read = traceNotesOf(
       '| A (RULE-1) | B (RULE-2). |',
@@ -109,6 +99,13 @@ void main() {
     );
     expect(read.notes.every((note) => note.closes), isTrue);
     expect(read.counted, '| A | B |');
+    final single = traceNotesOf(
+      '| A rule (RULE-5) | next cell |',
+      _prefixes,
+      isTableRow: true,
+    );
+    expect(single.notes, [const TraceNote(text: '(RULE-5)', closes: true)]);
+    expect(single.counted, '| A rule | next cell |');
   });
 
   test('ownership note in thai is no note', () {
@@ -210,7 +207,11 @@ void main() {
     );
   });
 
-  test('doc link inside a group is no note', () {
+  test('a section link in a closing group is no note and its words count', () {
+    const text = 'Rule ([invariants](DOMAIN.md#invariants)).';
+    final read = traceNotesOf(text, _prefixes, isTableRow: false);
+    expect(read.notes, isEmpty);
+    expect(read.counted, text);
     expect(
       traceNotesOf(
         'Rule ([the doc](DOMAIN.md)).',
@@ -219,13 +220,6 @@ void main() {
       ).notes,
       isEmpty,
     );
-  });
-
-  test('a section link in a closing group is no note and its words count', () {
-    const text = 'Rule ([invariants](DOMAIN.md#invariants)).';
-    final read = traceNotesOf(text, _prefixes, isTableRow: false);
-    expect(read.notes, isEmpty);
-    expect(read.counted, text);
   });
 
   test('a link inside the words of an ownership clause makes it no note', () {

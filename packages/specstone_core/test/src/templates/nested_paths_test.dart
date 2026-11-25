@@ -116,6 +116,11 @@ void main() {
       final set = MergedSet(docTypes: [feature(maxDepth: 2), notes]);
 
       expect(set.lookup('notes')!.paths, ['specs/notes/{slug}.md']);
+
+      final x = docType('x', 'specs/g{nn}_{slug}/X.md', parent: 'feature');
+      final withX = MergedSet(docTypes: [feature(maxDepth: 2), x]);
+
+      expect(withX.lookup('x')!.paths, ['specs/g{nn}_{slug}/X.md']);
     });
 
     test('a doc type with no path has no patterns', () {
@@ -146,14 +151,6 @@ void main() {
       expect(set.lookup('notes')!.paths, ['specs/f{nn}_{slug}/NOTES.md']);
     });
 
-    test('a child of feature at specs/g{nn}_{slug}/X.md keeps one '
-        'pattern', () {
-      final x = docType('x', 'specs/g{nn}_{slug}/X.md', parent: 'feature');
-      final set = MergedSet(docTypes: [feature(maxDepth: 2), x]);
-
-      expect(set.lookup('x')!.paths, ['specs/g{nn}_{slug}/X.md']);
-    });
-
     test('a doc type that does not nest is the same object in the set', () {
       final set = MergedSet(docTypes: [feature(maxDepth: 2), story, topic]);
 
@@ -167,6 +164,12 @@ void main() {
 
       expect(copy.nestedPaths, isNull);
       expect(copy.paths, ['specs/{slug}.md']);
+
+      final byDepth = set.lookup('feature')!.copyWith(maxDepth: 1);
+      final byParent = set.lookup('user_story')!.copyWith(parent: 'charter');
+
+      expect(byDepth.nestedPaths, isNull);
+      expect(byParent.nestedPaths, isNull);
     });
 
     test(
@@ -180,20 +183,6 @@ void main() {
         expect(copy.nestedPaths, nested.nestedPaths);
       },
     );
-
-    test('copyWith drops nestedPaths when maxDepth is given', () {
-      final set = MergedSet(docTypes: [feature(maxDepth: 2), story]);
-      final copy = set.lookup('feature')!.copyWith(maxDepth: 1);
-
-      expect(copy.nestedPaths, isNull);
-    });
-
-    test('copyWith drops nestedPaths when parent is given', () {
-      final set = MergedSet(docTypes: [feature(maxDepth: 2), story]);
-      final copy = set.lookup('user_story')!.copyWith(parent: 'charter');
-
-      expect(copy.nestedPaths, isNull);
-    });
 
     test('copyWith takes the nestedPaths it is given over the old list', () {
       final set = MergedSet(docTypes: [feature(maxDepth: 2), story]);

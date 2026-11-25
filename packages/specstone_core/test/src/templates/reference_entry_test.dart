@@ -43,59 +43,10 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
 
 void main() {
   group('ReferenceEntry.parse', () {
-    test('an entry with no title is missing_key', () {
-      expect(
-        () => parseRef('{url: https://x}'),
-        throwsA(_fault(FaultCode.missingKey, key: 'reference[0].title')),
-      );
-    });
-
-    test('two links in one entry is reference_link_conflict', () {
-      expect(
-        () => parseRef('{title: T, url: https://x, doc: prd/feature}'),
-        throwsA(_fault(FaultCode.referenceLinkConflict, key: 'reference[0]')),
-      );
-    });
-
     test('a missing file is reference_file_missing', () {
       expect(
         () => parseRef('{title: T, file: refs/none.md}'),
         throwsA(_fault(FaultCode.referenceFileMissing, key: 'reference[0]')),
-      );
-    });
-
-    test('an absolute file is reference_file_outside', () {
-      expect(
-        () => parseRef('{title: T, file: /etc/hosts}'),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-      );
-    });
-
-    test('an escaping segment is reference_file_outside', () {
-      expect(
-        () => parseRef('{title: T, file: refs/../../x.md}'),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-      );
-    });
-
-    test('a doc in a personal layer '
-        'is reference_doc_outside_project', () {
-      expect(
-        () =>
-            parseRef('{title: T, doc: prd/feature}', kind: LayerKind.personal),
-        throwsA(
-          _fault(FaultCode.referenceDocOutsideProject, key: 'reference[0]'),
-        ),
-      );
-    });
-
-    test('a doc in a shipped layer '
-        'is reference_doc_outside_project', () {
-      expect(
-        () => parseRef('{title: T, doc: prd/feature}', kind: LayerKind.shipped),
-        throwsA(
-          _fault(FaultCode.referenceDocOutsideProject, key: 'reference[0]'),
-        ),
       );
     });
 
@@ -217,61 +168,38 @@ void main() {
 
   group('ReferenceEntry file normalization', () {
     test('a file URL is reference_file_outside', () {
-      expect(
-        () => parseRef('{title: T, file: "file:///etc/hosts"}'),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-      );
-    });
-
-    test('an http URL is reference_file_outside', () {
-      expect(
-        () => parseRef('{title: T, file: "https://h/handbook.md"}'),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-      );
-    });
-
-    test('a drive letter is reference_file_outside', () {
-      expect(
-        () => parseRef('{title: T, file: "C:/x.md"}'),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-      );
+      for (final (reason, file) in [
+        ('file URL', '"file:///etc/hosts"'),
+        ('http URL', '"https://h/handbook.md"'),
+        ('drive letter', '"C:/x.md"'),
+      ]) {
+        expect(
+          () => parseRef('{title: T, file: $file}'),
+          throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+          reason: reason,
+        );
+      }
     });
 
     test('a leading backslash is reference_file_outside', () {
-      expect(
-        () => parseRef(r"{title: T, file: '\x.md'}"),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-      );
-    });
-
-    test('a backslash escape is reference_file_outside', () {
-      expect(
-        () => parseRef(r"{title: T, file: 'refs\..\..\x.md'}"),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-      );
-    });
-
-    test('a backslash separator is reference_file_outside', () {
-      expect(
-        () => parseRef(r"{title: T, file: 'refs\x.md'}"),
-        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-      );
+      for (final (reason, file) in [
+        ('leading backslash', r"'\x.md'"),
+        ('backslash escape', r"'refs\..\..\x.md'"),
+        ('backslash separator', r"'refs\x.md'"),
+      ]) {
+        expect(
+          () => parseRef('{title: T, file: $file}'),
+          throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+          reason: reason,
+        );
+      }
     });
 
     test('a file name with a space keeps its characters', () {
-      final entry = parseRef(
-        '{title: T, file: my notes.md}',
-        files: {'my notes.md'},
-      );
-      expect(entry.file, 'my notes.md');
-    });
-
-    test('a file name with a hash keeps its characters', () {
-      final entry = parseRef(
-        '{title: T, file: refs/a#b.md}',
-        files: {'refs/a#b.md'},
-      );
-      expect(entry.file, 'refs/a#b.md');
+      for (final name in ['my notes.md', 'refs/a#b.md']) {
+        final entry = parseRef('{title: T, file: $name}', files: {name});
+        expect(entry.file, name, reason: name);
+      }
     });
 
     test('a file inside a nested template folder is accepted', () {

@@ -140,35 +140,6 @@ void main() {
     expect(result.out.replaceFirst(heading, ''), changed);
   });
 
-  test('a stale section block prints its fault line and its current section under its naming line, exit 75, no doc written', () async {
-    final root = await writeWriteProject();
-    const section = 'user_story:login/sign_out#use_case';
-    final text = await getText(root, [section]);
-    final file = await batchFile(
-      edit(text, 'Sign out.', 'Sign out everywhere.'),
-    );
-    docFile(root, story2).writeAsStringSync(
-      readDoc(root, story2).replaceFirst('Sign out.', 'Sign out now.'),
-    );
-    final before = docBytes(root);
-
-    final result = await specstone(root, ['set', '--batch', file]);
-
-    expect(result.code, 75);
-    expect(docBytes(root), before);
-    expect(
-      result.err,
-      matches(
-        RegExp(
-          '^${RegExp.escape(story2)}: use_case: the section changed since base [0-9a-f]{12}\n\$',
-        ),
-      ),
-    );
-    final current = await getText(root, [section]);
-    expect(current, contains('Sign out now.'));
-    expect(result.out, current);
-  });
-
   test('two stale blocks print each current text under its naming line, in file order, on stdout only', () async {
     final root = await writeWriteProject();
     var text = await getText(root, [story2, fr11]);
@@ -263,82 +234,9 @@ void main() {
   });
 
   group('options beside --batch', () {
-    test('a doc address beside --batch refuses argument_conflict, before the file is read', () async {
-      final root = await writeWriteProject();
-      final before = docBytes(root);
-
-      final result = await specstone(root, [
-        'set',
-        'user_story:login/sign_out#use_case',
-        '--batch',
-        'missing.md',
-        '--json',
-      ]);
-
-      expect(result.code, 64);
-      expect(result.out, isEmpty);
-      expect(
-        (decode(result.err)['error']! as Map)['code'],
-        'argument_conflict',
-      );
-      expect(docBytes(root), before);
-    });
-
-    test('--base beside --batch refuses argument_conflict', () async {
-      final root = await writeWriteProject();
-      final file = await batchFile(await getText(root, [story2]));
-
-      final result = await specstone(root, [
-        'set',
-        '--batch',
-        file,
-        '--base',
-        '7e11fc4a24d2',
-        '--json',
-      ]);
-
-      expect(result.code, 64);
-      expect(
-        (decode(result.err)['error']! as Map)['code'],
-        'argument_conflict',
-      );
-    });
-
-    test('--field or --title beside --batch refuses argument_conflict and writes nothing', () async {
-      final root = await writeWriteProject();
-      final text = edit(
-        await getText(root, [story2]),
-        'Sign out.',
-        'Sign out everywhere.',
-      );
-      final file = await batchFile(text);
-      final before = docBytes(root);
-
-      for (final flag in [
-        ['--field', 'size'],
-        ['--title'],
-      ]) {
-        final result = await specstone(root, [
-          'set',
-          '--batch',
-          file,
-          ...flag,
-          '--json',
-        ]);
-
-        expect(result.code, 64, reason: '$flag');
-        expect(result.out, isEmpty);
-        expect(
-          (decode(result.err)['error']! as Map)['code'],
-          'argument_conflict',
-          reason: '$flag',
-        );
-        expect(docBytes(root), before);
-      }
-    });
-
     test('each option beside --batch names the conflict on stderr, exit 64, also outside a project', () async {
       final root = await writeWriteProject();
+      final before = docBytes(root);
       final outside = await Directory.systemTemp.createTemp('specstone_batch_');
       addTearDown(() => outside.delete(recursive: true));
       const message =
@@ -365,6 +263,30 @@ void main() {
           expect(result.err, contains(message), reason: reason);
         }
       }
+
+      for (final beside in [
+        ['user_story:login/sign_out'],
+        ['--base', '7e11fc4a24d2'],
+        ['--field', 'size'],
+        ['--title'],
+      ]) {
+        final result = await specstone(root, [
+          'set',
+          '--batch',
+          'missing.md',
+          ...beside,
+          '--json',
+        ]);
+
+        expect(result.code, 64, reason: '$beside');
+        expect(result.out, isEmpty, reason: '$beside');
+        expect(
+          (decode(result.err)['error']! as Map)['code'],
+          'argument_conflict',
+          reason: '$beside',
+        );
+      }
+      expect(docBytes(root), before);
     });
 
     test('stdin is never read: an open pipe that never closes does not hold the run, and its text is ignored', () async {

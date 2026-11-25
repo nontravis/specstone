@@ -69,20 +69,13 @@ void main() {
     );
   });
 
-  test('a path two doc types match is '
-      'ambiguous, with their ids', () async {
+  test('a path two doc types match is ambiguous, with their ids', () async {
     final read = await _read(_feature, '# T\n', extra: {'zeta.yaml': _zeta});
 
     expect(read, isA<AmbiguousDoc>());
     expect((read as AmbiguousDoc).docTypeIds, ['feature', 'zeta']);
-  });
-
-  test('Plan decision 9: an ambiguous doc has the skip warning naming its '
-      'doc types', () async {
-    final read = await _read(_feature, '# T\n', extra: {'zeta.yaml': _zeta});
-
     expect(
-      (read as AmbiguousDoc).warning,
+      read.warning,
       'docs/$_feature: doc types feature, zeta match this path; skipped',
     );
   });

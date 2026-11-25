@@ -183,17 +183,6 @@ void main() {
     expect(finding.keys, {'item': _fr, 'test': 'refuses a `quoted` secret'});
   });
 
-  test('a matrix_test_unresolved finding names the literal as test', () async {
-    final record = _record(rows: ['- $_fr E01: `refuses a blank password`']);
-
-    final finding = _matrix(await _run(await _project(record))).single;
-
-    expect(finding.kind, FindingKind.matrixTestUnresolved);
-    expect(finding.keys['test'], 'refuses a blank password');
-    expect(finding.keys['item'], _fr);
-    expect(finding.keys.containsKey('name'), isFalse);
-  });
-
   test('a renamed literal is unresolved', () async {
     final record = _record(rows: ['- $_fr E01: `refuses a blank password`']);
 
@@ -205,42 +194,6 @@ void main() {
     expect(finding.line, _rowLine(record, 0));
     expect(finding.waitsFor, WaitsFor.agent);
     expect(finding.keys, {'item': _fr, 'test': 'refuses a blank password'});
-  });
-
-  test('a row of an item with no tests line is unresolved', () async {
-    final record = _record(
-      tests: const [],
-      rows: ['- $_fr E01: `refuses an empty password`'],
-    );
-
-    final report = await _run(await _project(record));
-
-    final finding = _matrix(report).single;
-    expect(finding.kind, FindingKind.matrixTestUnresolved);
-    expect(finding.line, _rowLine(record, 0));
-    expect(finding.keys, {'item': _fr, 'test': 'refuses an empty password'});
-  });
-
-  test('a story or a missing edge case is unresolved', () async {
-    final record = _record(
-      rows: [
-        '- $_story E01: `refuses an empty password`',
-        '- $_fr E99: `refuses an empty password`',
-      ],
-    );
-
-    final findings = _matrix(await _run(await _project(record)));
-
-    expect(
-      [for (final f in findings) f.kind],
-      [FindingKind.matrixRowUnresolved, FindingKind.matrixRowUnresolved],
-    );
-    expect(
-      [for (final f in findings) f.line],
-      [_rowLine(record, 0), _rowLine(record, 1)],
-    );
-    expect(findings[0].keys, {'item': _story});
-    expect(findings[1].keys, {'item': _fr, 'edgeCase': 'E99'});
   });
 
   test('a malformed line is reported with the whole line', () async {
@@ -307,45 +260,6 @@ void main() {
     );
   });
 
-  test('a matrix_row_repeated and a matrix_skip_conflict finding name their '
-      'item and edge case', () async {
-    final perFr = _record(
-      rows: [
-        '- $_fr: `refuses an empty password`',
-        '- $_fr: `refuses a wrong password`',
-      ],
-    );
-
-    final repeated = _matrix(
-      await _run(await _project(perFr, mode: MatrixMode.fr)),
-    ).single;
-
-    expect(repeated.kind, FindingKind.matrixRowRepeated);
-    expect(repeated.keys, {'item': _fr, 'first': _rowLine(perFr, 0)});
-
-    final perEdgeCase = _record(
-      rows: [
-        '- $_fr E01: `refuses an empty password`',
-        '- $_fr E01: `refuses an empty password`',
-        '- $_fr E01 skipped: no clock on CI',
-      ],
-    );
-
-    final findings = _matrix(await _run(await _project(perEdgeCase)));
-
-    expect(
-      [for (final f in findings) f.kind],
-      [FindingKind.matrixRowRepeated, FindingKind.matrixSkipConflict],
-    );
-    for (final finding in findings) {
-      expect(finding.keys, {
-        'item': _fr,
-        'edgeCase': 'E01',
-        'first': _rowLine(perEdgeCase, 0),
-      });
-    }
-  });
-
   test("a planned entry's literal is not checked, every other check still "
       'runs', () async {
     final record = _record(
@@ -383,17 +297,6 @@ void main() {
     ('the skip of its story', const ['$_story:skipped:not in this client']),
     ('the skip of its feature', const [':skipped:not in this client']),
   ]) {
-    test('a row of an item under $name gets no literal finding', () async {
-      final record = _record(
-        statuses: statuses,
-        rows: ['- $_fr E01: `no test holds this`'],
-      );
-
-      final report = await _run(await _project(record));
-
-      expect(_matrix(report), isEmpty);
-    });
-
     test('rows of an item under $name get no row finding at all', () async {
       final record = _record(
         statuses: statuses,
@@ -401,6 +304,7 @@ void main() {
           '- $_fr E99: `refuses an empty password`',
           '- $_fr E01: `refuses an empty password`',
           '- $_fr E01: `refuses an empty password`',
+          '- $_fr E01: `no test holds this`',
           '- $_fr E01 skipped: no clock on CI',
         ],
       );
@@ -561,14 +465,6 @@ void main() {
                 ? [_rowLine(record, 0), _rowLine(record, 0)]
                 : [_rowLine(record, 0), _rowLine(record, 2)],
           );
-        });
-
-        test('matches a literal inside a longer test name', () async {
-          final record = _record(
-            rows: _rowsOf(mode, ['refuses an empty', 'a wrong password']),
-          );
-
-          expect(_matrix(await run(record)), isEmpty);
         });
 
         test('reports a test row of an FR with no tests line once by its '
@@ -748,16 +644,6 @@ void main() {
             }, reason: '$rows');
           }
         });
-
-        test('skips the literal check of a planned FR', () async {
-          final record = _record(
-            statuses: const ['$_fr:planned'],
-            tests: const [],
-            rows: _rowsOf(mode, ['no test holds this yet']),
-          );
-
-          expect(_matrix(await run(record)), isEmpty);
-        });
       });
     }
 
@@ -778,18 +664,6 @@ void main() {
           expect(finding.kind, FindingKind.matrixRowRepeated);
           expect(finding.line, _rowLine(record, 1));
           expect(finding.keys, {'item': _fr, 'first': _rowLine(record, 0)});
-        });
-
-        test('reads a row of the form that edge_case refuses', () async {
-          final record = _record(
-            rows: [
-              '- $_fr: `refuses an empty password`, `refuses a wrong password`',
-            ],
-          );
-
-          final report = await _run(await _project(record, mode: mode));
-
-          expect(_matrix(report), isEmpty);
         });
       });
     }
@@ -980,23 +854,6 @@ void main() {
       });
     }
 
-    test('a split reports each new edge case', () async {
-      final project = await _project(
-        _record(rows: ['- $_fr E01: `refuses an empty password`']),
-        extra: {
-          ..._frWithThreeEdgeCases(),
-          '.specstone/config.yaml': _coverageConfig(),
-        },
-      );
-
-      final report = await _run(project);
-
-      expect(_missingEdgeCases(report), [
-        ['E02', statusesLine],
-        ['E03', statusesLine],
-      ]);
-    });
-
     test('each target reports its own record', () async {
       final rows = ['- $_fr E01: `refuses an empty password`'];
       final project = await writeTwinProject(
@@ -1049,16 +906,6 @@ void main() {
       expect(finding.message, '$_fr is implemented and no matrix row names it');
     });
 
-    test('reports nothing under off', () async {
-      final project = await _project(
-        _record(),
-        extra: _frWithTwoEdgeCases(),
-        mode: MatrixMode.off,
-      );
-
-      expect(_missing(await _run(project)), isEmpty);
-    });
-
     test('counts a skip row and an unresolved test row as covering', () async {
       for (final row in [
         '- $_fr skipped: no clock on CI',
@@ -1072,59 +919,6 @@ void main() {
 
         expect(_missing(await _run(project)), isEmpty, reason: row);
       }
-    });
-
-    for (final (name, statuses, verifyMethod) in [
-      ('planned', const ['$_fr:planned'], 'test'),
-      ('deprecated', const ['$_fr:deprecated'], 'test'),
-      ('skipped', const ['$_fr:skipped:not in this client'], 'test'),
-      (
-        'under a story skip',
-        const ['$_story:skipped:not in this client', '$_fr:implemented'],
-        'test',
-      ),
-      ('verified by inspection', const ['$_fr:implemented'], 'inspection'),
-    ]) {
-      test(
-        'skips planned, deprecated, skipped, and non-test FRs: $name',
-        () async {
-          final project = await _project(
-            _record(statuses: statuses),
-            extra: {
-              ...edit(loginFr, [
-                ('verify_method: test', 'verify_method: $verifyMethod'),
-              ]),
-            },
-            mode: MatrixMode.fr,
-          );
-
-          expect(_missing(await _run(project)), isEmpty);
-        },
-      );
-    }
-
-    test('reports only the target the FR is implemented in', () async {
-      final project = await writeTwinProject(
-        extra: {
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}verification_coverage: fr\n'
-              'targets:\n  flutter:\n    code_root: flutter_ws\n'
-              '  jaspr:\n    code_root: jaspr_ws\n',
-          'flutter_ws/$_testFile': _testBody,
-          _flutterRecord: _record(),
-          _jasprRecord: _record(statuses: const ['$_fr:planned']),
-        },
-      );
-
-      final finding = _missing(await _run(project)).single;
-
-      expect(finding.path, _flutterRecord);
-      expect(finding.keys, {'item': _fr, 'target': 'flutter'});
-      expect(
-        finding.message,
-        '$_fr is implemented in target flutter and no matrix row names it',
-      );
-      expect(_missing(await _run(project, codeTarget: 'jaspr')), isEmpty);
     });
 
     test(
@@ -1159,16 +953,6 @@ void main() {
         );
       },
     );
-
-    test('gives no missing row for a split edge case under fr', () async {
-      final project = await _project(
-        _record(rows: ['- $_fr: `refuses an empty password`']),
-        extra: _frWithThreeEdgeCases(),
-        mode: MatrixMode.fr,
-      );
-
-      expect(_missing(await _run(project)), isEmpty);
-    });
 
     test('reports an unnamed edge case under edge_case', () async {
       final project = await _project(

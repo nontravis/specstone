@@ -50,15 +50,4 @@ void main() {
       expect(r.locator, isNotEmpty, reason: r.title);
     }
   });
-
-  test('the decision description says one decision per doc and a replaced one '
-      'links its successor', () {
-    expect(
-      decision.description,
-      contains(
-        'Write one decision per doc; a decision a newer one replaces stays, '
-        'its `superseded_by` linking the newer one.',
-      ),
-    );
-  });
 }

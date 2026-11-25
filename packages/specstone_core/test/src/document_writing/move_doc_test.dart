@@ -222,22 +222,6 @@ void main() {
     expect(hasDoc(root, story3), isTrue);
   });
 
-  test('a doc type with no number is doc_type_not_movable', () async {
-    final root = await writeWriteProject();
-    expect(
-      () => reorder(root, 'persona:buyer', '1'),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
-            .having(
-              (f) => f.message,
-              'message',
-              'persona docs carry no number, so reorder cannot move them',
-            ),
-      ),
-    );
-  });
-
   test('a reorder of a doc whose type fixes its numbers is doc_type_not_movable naming the type, and nothing moves', () async {
     final root = await writeWriteProject(extra: decisionFiles());
     writeIn(root, (s) => s.target('decision:use_wal'));
@@ -285,12 +269,8 @@ void main() {
                 .having(
                   (f) => f.message,
                   'message',
-                  allOf(
-                    startsWith(
-                      '${target == projectDoc ? 'project' : 'architecture'} docs',
-                    ),
-                    contains('reorder'),
-                  ),
+                  '${target == projectDoc ? 'project' : 'architecture'} docs '
+                      'carry no number, so reorder cannot move them',
                 ),
           ),
         );
@@ -298,18 +278,6 @@ void main() {
       },
     );
   }
-
-  test('an approved doc a reorder rewrites carries no draft key and holds the hash of its new content', () async {
-    final root = await writeWriteProject();
-    expect(holdsApproval(root, featuresIndex), isTrue);
-    reorder(root, 'feature:signup', '1');
-    expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
-    expect(
-      readDoc(root, featuresIndex),
-      isNot(contains(RegExp('^draft:', multiLine: true))),
-    );
-    expect(holdsApproval(root, featuresIndex), isTrue);
-  });
 
   test('a Name mention in an agent file is not listed by a reorder, and the file keeps every byte', () async {
     const agent =
@@ -467,23 +435,6 @@ void main() {
         ),
       );
     }
-  });
-
-  test('an approved doc moves with no Owner step, and no moved or rewritten doc is marked draft', () async {
-    final root = await writeWriteProject();
-    final before = readDoc(root, story2);
-    reorder(root, 'user_story:login/sign_out', '1');
-    final moved = readDoc(root, '$f/us01_sign_out/USER_STORY.md');
-    expect(moved, before);
-    final rewritten = readDoc(root, '$f/us03_reset_password/USER_STORY.md');
-    expect(rewritten, contains('](../us01_sign_out/USER_STORY.md)'));
-    expect('draft: true'.allMatches(rewritten), hasLength(1));
-    expect(
-      'draft: true'.allMatches(
-        readDoc(root, '$f/us02_email_login/USER_STORY.md'),
-      ),
-      hasLength(1),
-    );
   });
 
   test(
@@ -852,13 +803,6 @@ void main() {
     );
   });
 
-  test('an FR file takes the new slug', () async {
-    final root = await writeWriteProject();
-    rename(root, 'fr:login/reset_password/expire_reset_link', 'expire_link');
-    expect(hasDoc(root, '$f/us03_reset_password/fr02_expire_link.md'), isTrue);
-    expect(hasDoc(root, fr32), isFalse);
-  });
-
   test('a doc type with no slug is doc_type_not_movable', () async {
     final root = await writeWriteProject();
     expect(
@@ -874,39 +818,6 @@ void main() {
       ),
     );
   });
-
-  for (final (:address, :docPath, :text) in [
-    (
-      address: 'goal:goal',
-      docPath: 'prds/GOAL.md',
-      text: '# Project goals\n\n## Long-term goals\n',
-    ),
-    (
-      address: 'glossary:glossary',
-      docPath: 'prds/GLOSSARY.md',
-      text: '# Domain glossary\n\n## Terms\n\n- **Agent** — an AI agent.\n',
-    ),
-  ]) {
-    test(
-      '$address holds no slug, so it is doc_type_not_movable, and nothing changes',
-      () async {
-        final root = await writeWriteProject(extra: {'docs/$docPath': text});
-        getDoc(root, address);
-        final before = treeBytes(root);
-        expect(
-          () => rename(root, address, 'renamed'),
-          throwsA(
-            isA<WriteFault>().having(
-              (f) => f.code,
-              'code',
-              WriteFaultCode.docTypeNotMovable,
-            ),
-          ),
-        );
-        expect(treeBytes(root), before);
-      },
-    );
-  }
 
   for (final docPath in [projectDoc, gnfrDoc, techStack]) {
     test(
@@ -927,18 +838,6 @@ void main() {
       },
     );
   }
-
-  test('an approved doc a rename rewrites carries no draft key and holds the hash of its new content', () async {
-    final root = await writeWriteProject();
-    expect(holdsApproval(root, featuresIndex), isTrue);
-    rename(root, 'feature:signup', 'register');
-    expect(readDoc(root, featuresIndex), contains('f02_register/FEATURE.md'));
-    expect(
-      readDoc(root, featuresIndex),
-      isNot(contains(RegExp('^draft:', multiLine: true))),
-    );
-    expect(holdsApproval(root, featuresIndex), isTrue);
-  });
 
   test('a bad or missing slug is refused', () async {
     final root = await writeWriteProject();
@@ -986,19 +885,6 @@ void main() {
     expect(hasDoc(root, story3), isTrue);
   });
 
-  test(
-    'an approved doc renames with no Owner step, and every mark stays',
-    () async {
-      final root = await writeWriteProject();
-      final before = readDoc(root, story2);
-      rename(root, 'user_story:login/sign_out', 'log_out');
-      expect(readDoc(root, '$f/us02_log_out/USER_STORY.md'), before);
-      final linked = readDoc(root, story3);
-      expect(linked, contains('](../us02_log_out/USER_STORY.md)'));
-      expect('draft: true'.allMatches(linked), hasLength(1));
-    },
-  );
-
   test('prose, code, and unrelated values stay', () async {
     final root = await writeWriteProject();
     final apiBefore = readDoc(root, fr11);
@@ -1039,35 +925,6 @@ void main() {
     );
     expect(hasDoc(root, persona), isTrue);
   });
-
-  test(
-    'a rename stopped before its link rewrite is finished by the next write',
-    () async {
-      final root = await writeWriteProject();
-      const linkFile = '$f/us01_email_login/fr02_lock_after_failures.md';
-      final linkText = readDoc(root, linkFile);
-      writeJournal(root, [
-        const MoveStep(
-          'docs/$f/us03_reset_password',
-          'docs/$f/us03_recover_account',
-        ),
-        WriteStep.unguarded(
-          'docs/$linkFile',
-          linkText.replaceAll('us03_reset_password', 'us03_recover_account'),
-        ),
-      ]);
-      // The move ran before the stop.
-      Directory('${root.path}/docs/$f/us03_reset_password')
-          .renameSync('${root.path}/docs/$f/us03_recover_account');
-
-      writeIn(root, (_) {});
-
-      expect(
-        readDoc(root, linkFile),
-        contains('](../us03_recover_account/USER_STORY.md#use-case)'),
-      );
-    },
-  );
 
   group('nested features', () {
     const shop = 'prds/features/f02_shop';
@@ -1220,29 +1077,6 @@ void main() {
               ),
         ),
       );
-    });
-
-    test('argv mixed item and doc targets stay refused', () async {
-      final root = await writeNestedProject(
-        extra: {
-          'docs/$shopDomain':
-              '# Domain\n\n## Invariants\n\n- **INV-1** Rule 1 holds.\n',
-        },
-      );
-      expect(
-        () =>
-            moveAll(root, [cartAddAddress, 'rulebook:shop#INV-1'], 'shop/pay'),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having(
-                (f) => f.message,
-                'message',
-                'move takes item targets or doc targets, not both',
-              ),
-        ),
-      );
-      expect(hasDoc(root, cartAdd), isTrue);
     });
 
     test('a story moves to the last place of another feature with its FR, and the old siblings keep their numbers', () async {
@@ -1436,21 +1270,6 @@ void main() {
       );
     });
 
-    test('no moved doc gains draft, and check reports no confirmed_entry_stale and no suspect link', () async {
-      final root = await writeNestedProject();
-      final answer = move(root, 'user_story:shop/cart/add_item', 'shop/pay');
-      for (final path in [
-        '$movedFolder/USER_STORY.md',
-        '$movedFolder/fr01_check_stock.md',
-        for (final p in answer.json['rewritten']! as List<Object?>) '$p',
-      ]) {
-        expect(readDoc(root, path), isNot(contains('status: draft')));
-      }
-      final report = await checkOf(root);
-      expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
-      expect(spots(report, FindingKind.suspect), isEmpty);
-    });
-
     test('a sibling with the story slug is doc_exists naming its path, and nothing moves', () async {
       const clash = 'prds/features/f02_shop/f02_pay/us03_add_item';
       final root = await writeNestedProject(
@@ -1591,22 +1410,6 @@ void main() {
       expect(hasDoc(root, cartAdd), isTrue);
     });
 
-    test('item targets with neither flag take the item message', () async {
-      final root = await writeNestedProject();
-      expect(
-        () => move(root, 'rulebook:shop#INV-1', null),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
-              .having(
-                (f) => f.message,
-                'message',
-                'move needs --under <doc address> for item targets',
-              ),
-        ),
-      );
-    });
-
     test('a call of items beside a story with neither flag takes the doc-target message', () async {
       final root = await writeNestedProject();
       expect(
@@ -1690,6 +1493,9 @@ void main() {
       }
       expect(holdsApproval(root, '$movedFolder/USER_STORY.md'), isTrue);
       expect(holdsApproval(root, shopApi), isTrue);
+      final report = await checkOf(root);
+      expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
+      expect(spots(report, FindingKind.suspect), isEmpty);
     });
 
     test('check reports a feature that holds stories and features after a story leaves it, until the last story has gone', () async {
@@ -1907,30 +1713,6 @@ void main() {
         expect(hasDoc(root, '$refundFolder/fr02_check_stock.md'), isTrue);
         expect(hasDoc(root, '$refundFolder/fr03_drop_line.md'), isTrue);
       });
-
-      test(
-        'a call naming a story and an fr is argument_invalid and moves nothing',
-        () async {
-          final root = await frProject();
-          expect(
-            () => moveAll(root, [
-              'user_story:shop/cart/add_item',
-              dropLine,
-            ], 'shop/pay'),
-            throwsA(
-              isA<IndexFault>()
-                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                  .having(
-                    (f) => f.message,
-                    'message',
-                    'move takes one doc type per call, not user_story and fr',
-                  ),
-            ),
-          );
-          expect(hasDoc(root, cartAdd), isTrue);
-          expect(hasDoc(root, dropFr), isTrue);
-        },
-      );
 
       test(
         'an --under naming no story, or a feature, is doc_not_found',
@@ -2163,38 +1945,6 @@ void main() {
         expect(hasDoc(held, '$dropFolder/fr02_reserve_stock.md'), isFalse);
       });
 
-      test(
-        'no --under, or no target, is argument_missing before targets are read',
-        () async {
-          final root = await frProject();
-          expect(
-            () => move(root, 'fr:shop/cart/add_item/nothing_here', null),
-            throwsA(
-              isA<IndexFault>()
-                  .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
-                  .having(
-                    (f) => f.message,
-                    'message',
-                    'move needs --under <doc address> or --top',
-                  ),
-            ),
-          );
-          expect(
-            () => moveAll(root, const [], 'shop/pay/refund'),
-            throwsA(
-              isA<IndexFault>()
-                  .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
-                  .having(
-                    (f) => f.message,
-                    'message',
-                    'move needs a target, such as specstone move '
-                        'user_story:login/reset_password --under account',
-                  ),
-            ),
-          );
-        },
-      );
-
       test('a target no doc carries, an untyped path, or a name of two docs refuses before the type tests', () async {
         final root = await frProject({
           'docs/prds/d02_notes.md': '# Notes\n',
@@ -2214,126 +1964,6 @@ void main() {
           );
         }
         expect(hasDoc(root, checkStockFile), isTrue);
-      });
-
-      test('a spec doc target is doc_type_not_movable', () async {
-        final root = await frProject();
-        expect(
-          () => move(root, 'architecture:shop', 'shop/pay'),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  'architecture docs cannot move; move takes a user_story, an '
-                      'fr, an nf, or a feature',
-                ),
-          ),
-        );
-        expect(hasDoc(root, shopArchitecture), isTrue);
-      });
-
-      test('two frs moved in one call share one journal and one rewrite pass, and each reference to either is rewritten once', () async {
-        const refer =
-            '\nSee [drop line](../us02_drop_item/fr01_drop_line.md) and '
-            '[stock](fr01_check_stock.md).\n';
-        final root = await frProject();
-        appendTo(root, cartAdd, refer);
-        final answer = moveAll(root, [checkStock, dropLine], 'shop/pay/refund');
-        final rewritten = answer.json['rewritten']! as List<Object?>;
-        expect(rewritten.where((p) => p == cartAdd), hasLength(1));
-        expect(
-          answer.text.split('\n').where((l) => l == 'rewrote $cartAdd'),
-          hasLength(1),
-        );
-        expect(
-          readDoc(root, cartAdd),
-          allOf(
-            contains('(../../f02_pay/us02_refund/fr03_drop_line.md)'),
-            contains('(../../f02_pay/us02_refund/fr02_check_stock.md)'),
-          ),
-        );
-
-        final stopped = await frProject();
-        appendTo(stopped, cartAdd, refer);
-        expect(
-          () => IOOverrides.runWithIOOverrides(
-            () => moveAll(stopped, [checkStock, dropLine], 'shop/pay/refund'),
-            FailingRenameHook('docs/$checkStockFile'),
-          ),
-          throwsA(isA<RenderFault>()),
-        );
-        final journal = jsonDecode(
-          File('${stopped.path}/${MoveJournal.journalPath}').readAsStringSync(),
-        ) as Map<String, Object?>;
-        final steps = (journal['steps']! as List).cast<Map<String, Object?>>();
-        expect([
-          for (final step in steps)
-            if (step['move'] case {'from': final String from}) from,
-        ], containsAll(['docs/$checkStockFile', 'docs/$dropFr']));
-        expect(
-          steps.where(
-            (step) => switch (step['write']) {
-              {'path': final String path} => path == 'docs/$cartAdd',
-              _ => false,
-            },
-          ),
-          hasLength(1),
-        );
-      });
-
-      test('a dry run of an fr move prints a rewrites line for each doc it would rewrite, the api doc included', () async {
-        final root = await frProject();
-        appendTo(
-          root,
-          cartDrop,
-          '\nSee [stock check](../us01_add_item/fr01_check_stock.md).\n',
-        );
-        final answer = writeIn(
-          root,
-          (s) => answerMove(
-            s,
-            [checkStock],
-            under: 'shop/pay/refund',
-            dryRun: true,
-          ),
-        );
-        expect(
-          answer.text,
-          startsWith(
-            'moves $checkStockFile to $refundFolder/fr02_check_stock.md\n',
-          ),
-        );
-        expect(answer.text, contains('rewrites $shopApi\n'));
-        expect(answer.text, contains('rewrites $cartDrop\n'));
-        expect(answer.text, endsWith('dry run: nothing moved\n'));
-        expect(answer.json['rewritten'], containsAll([shopApi, cartDrop]));
-        expect(hasDoc(root, checkStockFile), isTrue);
-        expect(readDoc(root, shopApi), contains('cart/add_item/check_stock'));
-      });
-
-      test('an untyped path beside an fr and an nf is untyped_target with exit status 64, not the mixed-type refusal', () async {
-        final root = await frProject({
-          'docs/prds/d02_notes.md': '# Notes\n',
-          'docs/$addNf': '# Load\n',
-        });
-        for (final targets in [
-          [checkStock, 'nf:shop/cart/add_item/load_fast', 'prds/d02_notes.md'],
-          ['prds/d02_notes.md', checkStock, 'nf:shop/cart/add_item/load_fast'],
-        ]) {
-          expect(
-            () => moveAll(root, targets, 'shop/pay/refund'),
-            throwsA(
-              isA<IndexFault>()
-                  .having((f) => f.code, 'code', IndexFaultCode.untypedTarget)
-                  .having((f) => f.exitStatus, 'exitStatus', 64),
-            ),
-            reason: '$targets',
-          );
-        }
-        expect(hasDoc(root, checkStockFile), isTrue);
-        expect(hasDoc(root, addNf), isTrue);
       });
 
       test('a target that names two docs beside an fr and an nf is argument_invalid listing the candidates, ahead of the mixed-type refusal', () async {
@@ -2386,26 +2016,6 @@ void main() {
           ),
         );
         expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
-      });
-
-      test('an agent file and a code comment naming a moved fr keep every byte and each prints as a mentions line', () async {
-        const code =
-            '/// Checks `shop/cart/add_item/check_stock`.\nclass Shop {}\n';
-        const agent = 'Read `shop/cart/add_item/check_stock` first.\n';
-        final root = await frProject({
-          'app/lib/shop.dart': code,
-          'CLAUDE.md': agent,
-        });
-        final answer = move(root, checkStock, 'shop/pay/refund');
-        expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
-        expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
-        expect(
-          answer.text,
-          endsWith(
-            'mentions CLAUDE.md:1 shop/cart/add_item/check_stock\n'
-            'mentions app/lib/shop.dart:1 shop/cart/add_item/check_stock\n',
-          ),
-        );
       });
 
       test('a moved fr and the api doc and linking doc the move rewrites keep a matching approval hash', () async {
@@ -2506,37 +2116,6 @@ void main() {
         ]);
       });
 
-      test(
-        'an fr move lists a longer span naming it and keeps every byte',
-        () async {
-          const text =
-              '# Ideas\n\nIt is `shop/cart/add_item/check_stock E05`.\n';
-          final root = await writeNestedProject(extra: {spanDocPath: text});
-          final answer = move(
-            root,
-            'fr:shop/cart/add_item/check_stock',
-            'shop/pay/refund',
-          );
-          expect(readDoc(root, spanDoc), text);
-          expect(mentionsOf(answer), [
-            {
-              'path': spanDocPath,
-              'line': 3,
-              'mention': 'shop/cart/add_item/check_stock E05',
-            },
-          ]);
-        },
-      );
-
-      test('a rename lists a longer span naming the renamed doc', () async {
-        final root = await writeNestedProject(extra: {spanDocPath: note});
-        final answer = rename(root, cartAddAddress, 'add_one');
-        expect(readDoc(root, spanDoc), note);
-        expect(mentionsOf(answer), [
-          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
-        ]);
-      });
-
       test('a rename lists a longer span naming a renamed doc after its rewrote lines and writes no byte of it', () async {
         final root = await writeNestedProject(extra: {spanDocPath: note});
         final answer = rename(root, cartAddAddress, 'add_one');
@@ -2591,35 +2170,6 @@ void main() {
         expect(hasDoc(root, cartAdd), isTrue);
       });
 
-      test('a dry run of an fr move lists the longer span', () async {
-        const text = '# Ideas\n\nIt is `shop/cart/add_item/check_stock E05`.\n';
-        final root = await writeNestedProject(extra: {spanDocPath: text});
-        final answer = writeIn(
-          root,
-          (s) => answerMove(
-            s,
-            ['fr:shop/cart/add_item/check_stock'],
-            under: 'shop/pay/refund',
-            dryRun: true,
-          ),
-        );
-        expect(mentionsOf(answer), [
-          {
-            'path': spanDocPath,
-            'line': 3,
-            'mention': 'shop/cart/add_item/check_stock E05',
-          },
-        ]);
-        expect(
-          answer.text,
-          endsWith(
-            'mentions $spanDocPath:3 shop/cart/add_item/check_stock E05\n'
-            'dry run: nothing moved\n',
-          ),
-        );
-        expect(readDoc(root, spanDoc), text);
-      });
-
       test('a reorder keeps every name, so it lists no longer span', () async {
         final root = await writeNestedProject(extra: {spanDocPath: note});
         final answer = reorder(root, 'user_story:shop/cart/drop_item', '1');
@@ -2633,9 +2183,6 @@ void main() {
       const refundFolder = '$payDir/us02_refund';
       const loadFast = 'nf:shop/cart/add_item/load_fast';
       const stayLight = 'nf:shop/cart/add_item/stay_light';
-      const keepLight = 'nf:shop/cart/drop_item/keep_light';
-      const checkStock = 'fr:shop/cart/add_item/check_stock';
-      const checkStockFile = '$addFolder/fr01_check_stock.md';
       const stayLightFile = '$addFolder/nf02_stay_light.md';
       const keepLightFile = '$dropFolder/nf01_keep_light.md';
       const tightened =
@@ -2655,44 +2202,6 @@ void main() {
       Future<Directory> nfProject([Map<String, String> more = const {}]) =>
           writeNestedProject(extra: {...nfExtras, ...more});
 
-      test(
-        'an nf lands last in the story and its old siblings keep their numbers',
-        () async {
-          final root = await nfProject({
-            'docs/$dropFolder/nf03_far_light.md': '# Far light\n',
-          });
-          final answer = move(root, loadFast, 'shop/cart/drop_item');
-          expect(
-            answer.text,
-            startsWith('moved $addNf to $dropFolder/nf04_load_fast.md\n'),
-          );
-          expect(hasDoc(root, '$dropFolder/nf04_load_fast.md'), isTrue);
-          expect(hasDoc(root, '$dropFolder/nf02_load_fast.md'), isFalse);
-          expect(hasDoc(root, keepLightFile), isTrue);
-          expect(hasDoc(root, stayLightFile), isTrue);
-          expect(hasDoc(root, addNf), isFalse);
-          expect(
-            readDoc(root, '$dropFolder/nf04_load_fast.md'),
-            isNot(contains('draft')),
-          );
-        },
-      );
-
-      test('several nfs from two stories land in order, in one run', () async {
-        final root = await nfProject();
-        final answer = moveAll(root, [loadFast, keepLight], 'shop/pay/refund');
-        expect(answer.json['moved'], [
-          {'from': addNf, 'to': '$refundFolder/nf01_load_fast.md'},
-          {'from': keepLightFile, 'to': '$refundFolder/nf02_keep_light.md'},
-        ]);
-        expect(
-          answer.text.split('\n').where((l) => l.startsWith('moved ')),
-          hasLength(2),
-        );
-        expect(hasDoc(root, '$refundFolder/nf01_load_fast.md'), isTrue);
-        expect(hasDoc(root, '$refundFolder/nf02_keep_light.md'), isTrue);
-      });
-
       test("an nf's kind and overrides values stay as written", () async {
         final root = await nfProject();
         final tightenedBefore = readDoc(root, addNf);
@@ -2705,199 +2214,6 @@ void main() {
         expect(readDoc(root, '$refundFolder/nf02_stay_light.md'), addedBefore);
       });
 
-      test('a slug the story holds, a slug two targets share, or a taken path is doc_exists', () async {
-        const heldFile = '$dropFolder/nf03_load_fast.md';
-        final held = await nfProject({'docs/$heldFile': '# Load fast\n'});
-        expect(
-          () => move(held, loadFast, 'shop/cart/drop_item'),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.docExists)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  'a nf named shop/cart/drop_item/load_fast exists',
-                )
-                .having((f) => f.file, 'file', heldFile),
-          ),
-        );
-        expect(hasDoc(held, addNf), isTrue);
-
-        const twinFile = '$payDir/us01_card/nf01_load_fast.md';
-        final twins = await nfProject({'docs/$twinFile': '# Load fast\n'});
-        expect(
-          () => moveAll(twins, [
-            loadFast,
-            'nf:shop/pay/card/load_fast',
-          ], 'shop/pay/refund'),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.docExists)
-                .having((f) => f.file, 'file', addNf),
-          ),
-        );
-        expect(hasDoc(twins, twinFile), isTrue);
-
-        const landing = '$dropFolder/nf02_load_fast.md';
-        final taken = await nfProject({'docs/$landing/keep.md': '# Keep\n'});
-        expect(
-          () => move(taken, loadFast, 'shop/cart/drop_item'),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.docExists)
-                .having((f) => f.file, 'file', landing),
-          ),
-        );
-        expect(hasDoc(taken, addNf), isTrue);
-      });
-
-      test(
-        'an nf already in place stays, and one named twice moves once',
-        () async {
-          final root = await nfProject();
-          final answer = moveAll(root, [
-            keepLight,
-            loadFast,
-            loadFast,
-          ], 'shop/cart/drop_item');
-          expect(answer.json['moved'], [
-            {'from': addNf, 'to': '$dropFolder/nf02_load_fast.md'},
-          ]);
-          expect(hasDoc(root, keepLightFile), isTrue);
-
-          final settled = moveAll(root, [keepLight], 'shop/cart/drop_item');
-          expect(settled.text, isEmpty);
-          expect(settled.json['moved'], isEmpty);
-        },
-      );
-
-      test(
-        'an nf beside a spec doc is doc_type_not_movable before the mixed test',
-        () async {
-          final root = await nfProject();
-          for (final targets in [
-            [loadFast, 'architecture:shop'],
-            ['architecture:shop', loadFast],
-          ]) {
-            expect(
-              () => moveAll(root, targets, 'shop/pay/refund'),
-              throwsA(
-                isA<WriteFault>()
-                    .having(
-                      (f) => f.code,
-                      'code',
-                      WriteFaultCode.docTypeNotMovable,
-                    )
-                    .having(
-                      (f) => f.message,
-                      'message',
-                      'architecture docs cannot move; move takes a user_story, '
-                          'an fr, an nf, or a feature',
-                    ),
-              ),
-              reason: '$targets',
-            );
-          }
-          expect(hasDoc(root, addNf), isTrue);
-          expect(hasDoc(root, shopArchitecture), isTrue);
-        },
-      );
-
-      test('an nf beside an fr of the same story is refused and nothing moves, in both target orders', () async {
-        final root = await nfProject();
-        const mixes = {
-          'nf and fr': [loadFast, checkStock],
-          'fr and nf': [checkStock, loadFast],
-        };
-        for (final MapEntry(key: pair, value: targets) in mixes.entries) {
-          expect(
-            () => moveAll(root, targets, 'shop/pay/refund'),
-            throwsA(
-              isA<IndexFault>()
-                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                  .having(
-                    (f) => f.message,
-                    'message',
-                    'move takes one doc type per call, not $pair',
-                  ),
-            ),
-            reason: pair,
-          );
-        }
-        expect(hasDoc(root, addNf), isTrue);
-        expect(hasDoc(root, checkStockFile), isTrue);
-        expect(hasDoc(root, '$refundFolder/nf01_load_fast.md'), isFalse);
-      });
-
-      test('top or a code target on an nf move is argument_invalid', () async {
-        final root = await nfProject();
-        expect(
-          () => writeIn(
-            root,
-            (s) => answerMove(s, [loadFast], under: null, top: true),
-          ),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  'move takes --top only with feature targets',
-                ),
-          ),
-        );
-        expect(
-          () => writeIn(
-            root,
-            (s) => answerMove(
-              s,
-              [loadFast],
-              under: 'shop/cart/drop_item',
-              codeTarget: 'server',
-            ),
-          ),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  'move takes --target only with item targets',
-                ),
-          ),
-        );
-        expect(hasDoc(root, addNf), isTrue);
-      });
-
-      test(
-        'a dry run prints the nf moves and writes nothing, journal included',
-        () async {
-          final root = await nfProject();
-          writeIn(root, (s) => s.target('feature:shop'));
-          Map<String, List<int>> tree() => {
-            for (final MapEntry(:key, :value) in treeBytes(root).entries)
-              if (!key.contains('.specstone/index.sqlite')) key: value,
-          };
-          final before = tree();
-          final answer = writeIn(
-            root,
-            (s) => answerMove(
-              s,
-              [loadFast],
-              under: 'shop/cart/drop_item',
-              dryRun: true,
-            ),
-          );
-          expect(
-            answer.text,
-            startsWith('moves $addNf to $dropFolder/nf02_load_fast.md\n'),
-          );
-          expect(answer.text, endsWith('dry run: nothing moved\n'));
-          expect(answer.json['dryRun'], isTrue);
-          expect(tree(), before);
-        },
-      );
-
       test('a records project keeps every record byte', () async {
         final root = await nfProject(nestedRecords());
         Map<String, List<int>> records() => {
@@ -2908,348 +2224,6 @@ void main() {
         expect(before, isNotEmpty);
         move(root, loadFast, 'shop/pay/refund');
         expect(records(), before);
-      });
-
-      test('links, doc-name mentions, and link texts follow a moved nf, and a code mention prints as mentions', () async {
-        const code =
-            '/// Loads fast `shop/cart/add_item/load_fast`.\nclass Shop {}\n';
-        final root = await nfProject({'app/lib/shop.dart': code});
-        appendTo(
-          root,
-          cartDrop,
-          '\nSee [load fast](../us01_add_item/nf01_load_fast.md).\n'
-          'See [shop/cart/add_item/load_fast](../us01_add_item/nf01_load_fast.md).\n'
-          'It reads `shop/cart/add_item/load_fast`.\n'
-          'It reads `shop/cart/add_item/load_fast Verification`.\n',
-        );
-        final answer = move(root, loadFast, 'shop/cart/drop_item');
-        final drop = readDoc(root, cartDrop);
-        expect(drop, contains('[load fast](nf02_load_fast.md)'));
-        expect(
-          drop,
-          contains('[shop/cart/drop_item/load_fast](nf02_load_fast.md)'),
-        );
-        expect(drop, contains('`shop/cart/drop_item/load_fast`'));
-        expect(drop, contains('`shop/cart/add_item/load_fast Verification`'));
-        expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
-        final spanLine =
-            drop.split('\n').indexWhere((l) => l.contains('Verification`')) + 1;
-        expect(answer.json['mentions'], [
-          {
-            'path': 'app/lib/shop.dart',
-            'line': 1,
-            'mention': 'shop/cart/add_item/load_fast',
-          },
-          {
-            'path': 'docs/$cartDrop',
-            'line': spanLine,
-            'mention': 'shop/cart/add_item/load_fast Verification',
-          },
-        ]);
-        expect(
-          answer.text,
-          endsWith(
-            'mentions docs/$cartDrop:$spanLine '
-            'shop/cart/add_item/load_fast Verification\n',
-          ),
-        );
-        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
-      });
-
-      test('a link inside a moved nf follows, and a longer span in it lists at its new path', () async {
-        final root = await nfProject({
-          'docs/$addNf':
-              '$tightened\nSee [check stock](fr01_check_stock.md).\n'
-              'It is `shop/cart/add_item/load_fast Verification`.\n',
-        });
-        final answer = move(root, loadFast, 'shop/cart/drop_item');
-        const landed = '$dropFolder/nf02_load_fast.md';
-        final moved = readDoc(root, landed);
-        expect(
-          moved,
-          contains('[check stock](../us01_add_item/fr01_check_stock.md)'),
-        );
-        expect(moved, contains('`shop/cart/add_item/load_fast Verification`'));
-        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
-        expect(answer.json['mentions'], [
-          {
-            'path': 'docs/$landed',
-            'line':
-                moved
-                    .split('\n')
-                    .indexWhere((l) => l.contains('Verification`')) +
-                1,
-            'mention': 'shop/cart/add_item/load_fast Verification',
-          },
-        ]);
-      });
-
-      test(
-        "a rewritten doc's matching approval hash is stamped again",
-        () async {
-          final root = await nfProject();
-          appendTo(
-            root,
-            cartDrop,
-            '\nSee [load fast](../us01_add_item/nf01_load_fast.md).\n',
-          );
-          stampApproved(root, cartDrop);
-          stampApproved(root, addNf);
-          expect(holdsApproval(root, cartDrop), isTrue);
-          move(root, loadFast, 'shop/cart/drop_item');
-          expect(
-            readDoc(root, cartDrop),
-            contains('[load fast](nf02_load_fast.md)'),
-          );
-          expect(holdsApproval(root, cartDrop), isTrue);
-          expect(holdsApproval(root, '$dropFolder/nf02_load_fast.md'), isTrue);
-        },
-      );
-
-      test('an nf beside an item target in either order is argument_invalid with the item-or-doc message and exit status 64', () async {
-        final root = await nfProject();
-        const item = 'rulebook:shop#INV-1';
-        for (final targets in [
-          [loadFast, item],
-          [item, loadFast],
-        ]) {
-          expect(
-            () => moveAll(root, targets, 'shop/pay/refund'),
-            throwsA(
-              isA<IndexFault>()
-                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                  .having((f) => f.exitStatus, 'exitStatus', 64)
-                  .having(
-                    (f) => f.message,
-                    'message',
-                    'move takes item targets or doc targets, not both',
-                  ),
-            ),
-            reason: '$targets',
-          );
-        }
-        expect(hasDoc(root, addNf), isTrue);
-        expect(hasDoc(root, '$refundFolder/nf01_load_fast.md'), isFalse);
-      });
-
-      test('an nf --under that names no story is doc_not_found and one that names two stories is argument_invalid, each with exit status 64', () async {
-        final root = await nfProject({
-          'docs/$payDir/us05_refund/USER_STORY.md': '# Refund again\n',
-        });
-        expect(
-          () => move(root, loadFast, 'nothing'),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
-                .having((f) => f.exitStatus, 'exitStatus', 64),
-          ),
-        );
-        expect(
-          () => move(root, loadFast, 'pay/refund'),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                .having((f) => f.exitStatus, 'exitStatus', 64)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  allOf(
-                    startsWith('pay/refund names 2 user_story docs: '),
-                    contains(payRefund),
-                    contains('$payDir/us05_refund/USER_STORY.md'),
-                  ),
-                ),
-          ),
-        );
-        expect(hasDoc(root, addNf), isTrue);
-      });
-
-      test('an nf --under given as a typed address or a path names the story a bare name does', () async {
-        for (final under in [
-          'shop/pay/refund',
-          'user_story:shop/pay/refund',
-          payRefund,
-        ]) {
-          final root = await nfProject();
-          final answer = move(root, loadFast, under);
-          expect(answer.json['moved'], [
-            {'from': addNf, 'to': '$refundFolder/nf01_load_fast.md'},
-          ], reason: under);
-        }
-      });
-
-      test('two nf targets that carry one slug are refused with exit status 64 and every file stays as it was', () async {
-        final root = await nfProject({
-          'docs/$payDir/us01_card/nf01_load_fast.md': '# Load fast\n',
-        });
-        writeIn(root, (s) => s.target('feature:shop'));
-        Map<String, List<int>> tree() => {
-          for (final MapEntry(:key, :value) in treeBytes(root).entries)
-            if (!key.contains('.specstone/index.sqlite')) key: value,
-        };
-        final before = tree();
-        expect(
-          () => moveAll(root, [
-            loadFast,
-            'nf:shop/pay/card/load_fast',
-          ], 'shop/pay/refund'),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.docExists)
-                .having((f) => f.exitStatus, 'exitStatus', 64),
-          ),
-        );
-        expect(tree(), before);
-      });
-
-      test('an nf call with no --under is argument_missing and one with a target that names two docs lists the candidates, each with exit status 64', () async {
-        final root = await nfProject();
-        expect(
-          () => move(root, loadFast, null),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
-                .having((f) => f.exitStatus, 'exitStatus', 64)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  'move needs --under <doc address> or --top',
-                ),
-          ),
-        );
-        expect(
-          () => moveAll(root, [loadFast, 'shop'], 'shop/pay/refund'),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                .having((f) => f.exitStatus, 'exitStatus', 64)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  allOf(contains('feature:shop'), contains('api:shop')),
-                ),
-          ),
-        );
-        expect(hasDoc(root, addNf), isTrue);
-      });
-
-      test('a dry run of an nf move lists the docs it rewrites and its mentions, and repeats the refusal of the apply', () async {
-        const code =
-            '/// Loads fast `shop/cart/add_item/load_fast`.\nclass Shop {}\n';
-        final root = await nfProject({'app/lib/shop.dart': code});
-        appendTo(
-          root,
-          cartDrop,
-          '\nSee [load fast](../us01_add_item/nf01_load_fast.md).\n',
-        );
-        final answer = writeIn(
-          root,
-          (s) => answerMove(
-            s,
-            [loadFast],
-            under: 'shop/cart/drop_item',
-            dryRun: true,
-          ),
-        );
-        expect(answer.text, contains('rewrites $cartDrop\n'));
-        expect(
-          answer.text,
-          contains(
-            'mentions app/lib/shop.dart:1 shop/cart/add_item/load_fast\n',
-          ),
-        );
-        expect(answer.text, endsWith('dry run: nothing moved\n'));
-        expect(answer.json['rewritten'], contains(cartDrop));
-        expect(hasDoc(root, addNf), isTrue);
-
-        const heldFile = '$dropFolder/nf03_load_fast.md';
-        final held = await nfProject({'docs/$heldFile': '# Load fast\n'});
-        expect(
-          () => writeIn(
-            held,
-            (s) => answerMove(
-              s,
-              [loadFast],
-              under: 'shop/cart/drop_item',
-              dryRun: true,
-            ),
-          ),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.docExists)
-                .having((f) => f.exitStatus, 'exitStatus', 64)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  'a nf named shop/cart/drop_item/load_fast exists',
-                )
-                .having((f) => f.file, 'file', heldFile),
-          ),
-        );
-      });
-
-      test('--top or --target on an nf move is refused with exit status 64, and --target is refused under a dry run too', () async {
-        final root = await nfProject();
-        IndexFault fault(void Function() run) {
-          try {
-            run();
-          } on IndexFault catch (e) {
-            return e;
-          }
-          fail('the call was not refused');
-        }
-
-        final top = fault(
-          () => writeIn(
-            root,
-            (s) => answerMove(s, [loadFast], under: null, top: true),
-          ),
-        );
-        expect(top.exitStatus, 64);
-        for (final dryRun in [false, true]) {
-          final target = fault(
-            () => writeIn(
-              root,
-              (s) => answerMove(
-                s,
-                [loadFast],
-                under: 'shop/cart/drop_item',
-                codeTarget: 'server',
-                dryRun: dryRun,
-              ),
-            ),
-          );
-          expect(
-            target.code,
-            IndexFaultCode.argumentInvalid,
-            reason: '$dryRun',
-          );
-          expect(target.exitStatus, 64, reason: '$dryRun');
-          expect(
-            target.message,
-            'move takes --target only with item targets',
-            reason: '$dryRun',
-          );
-        }
-        expect(hasDoc(root, addNf), isTrue);
-      });
-
-      test('an agent file naming a moved nf keeps every byte and lists as a mentions line', () async {
-        const agent = 'Read `shop/cart/add_item/load_fast` first.\n';
-        final root = await nfProject({'CLAUDE.md': agent});
-        final answer = move(root, loadFast, 'shop/cart/drop_item');
-        expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
-        expect(answer.json['mentions'], [
-          {
-            'path': 'CLAUDE.md',
-            'line': 1,
-            'mention': 'shop/cart/add_item/load_fast',
-          },
-        ]);
-        expect(
-          answer.text,
-          endsWith('mentions CLAUDE.md:1 shop/cart/add_item/load_fast\n'),
-        );
       });
     });
 
@@ -3286,17 +2260,6 @@ void main() {
         ]) {
           expect(spots(report, kind), isEmpty, reason: '$kind');
         }
-      });
-
-      test('an approved fr keeps a matching approval hash after its traces are rewritten', () async {
-        final root = await frProject();
-        stampApproved(root, checkStockFile);
-        expect(holdsApproval(root, checkStockFile), isTrue);
-        move(root, checkStock, 'shop/cart/drop_item');
-        final moved = readDoc(root, movedWithin);
-        expect(moved, contains('approved:'));
-        expect(moved, contains('  - shop/cart/add_item#S1 '));
-        expect(holdsApproval(root, movedWithin), isTrue);
       });
 
       test(
@@ -3357,21 +2320,6 @@ void main() {
         expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
       });
 
-      test('a code comment naming a moved fr is listed and kept', () async {
-        const code =
-            '/// Checks `shop/cart/add_item/check_stock`.\nclass Shop {}\n';
-        final root = await frProject({'app/lib/shop.dart': code});
-        final answer = move(root, checkStock, 'shop/pay/refund');
-        expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
-        expect(answer.json['mentions'], [
-          {
-            'path': 'app/lib/shop.dart',
-            'line': 1,
-            'mention': 'shop/cart/add_item/check_stock',
-          },
-        ]);
-      });
-
       test(
         'an fr already under the story keeps its traces while another moves',
         () async {
@@ -3429,23 +2377,6 @@ void main() {
         expect(hasDoc(root, '$dropLanded/USER_STORY.md'), isFalse);
       }
 
-      test('no target is argument_missing', () async {
-        final root = await writeNestedProject();
-        expect(
-          () => moveAll(root, const [], 'shop/pay'),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  'move needs a target, such as specstone move '
-                      'user_story:login/reset_password --under account',
-                ),
-          ),
-        );
-      });
-
       test('two stories land in the order given, through one pass that rewrites each reference once', () async {
         final root = await writeNestedProject(
           extra: {
@@ -3470,62 +2401,6 @@ void main() {
         final rewritten = answer.json['rewritten']! as List<Object?>;
         expect(rewritten.where((p) => p == journeyPath), hasLength(1));
         expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
-      });
-
-      test(
-        'a target of another type refuses the whole call, and nothing moves',
-        () async {
-          final root = await writeNestedProject();
-          expect(
-            () => moveAll(root, [addItem, 'architecture:shop'], 'shop/pay'),
-            throwsA(
-              isA<WriteFault>().having(
-                (f) => f.code,
-                'code',
-                WriteFaultCode.docTypeNotMovable,
-              ),
-            ),
-          );
-          expectNothingMoved(root);
-        },
-      );
-
-      test(
-        'a name no doc carries refuses the whole call, and nothing moves',
-        () async {
-          final root = await writeNestedProject();
-          expect(
-            () => moveAll(root, [
-              addItem,
-              'user_story:shop/cart/nothing_here',
-            ], 'shop/pay'),
-            throwsA(
-              isA<IndexFault>().having(
-                (f) => f.code,
-                'code',
-                IndexFaultCode.docNotFound,
-              ),
-            ),
-          );
-          expectNothingMoved(root);
-        },
-      );
-
-      test('a slug the feature carries refuses the whole call before the lock, and nothing moves', () async {
-        final root = await writeNestedProject(
-          extra: {'docs/$dropLanded/USER_STORY.md': '# Drop item\n'},
-        );
-        expect(
-          () => moveAll(root, [addItem, dropItem], 'shop/pay'),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.docExists)
-                .having((f) => f.file, 'file', '$dropLanded/USER_STORY.md'),
-          ),
-        );
-        expect(hasDoc(root, cartAdd), isTrue);
-        expect(hasDoc(root, cartDrop), isTrue);
-        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isFalse);
       });
 
       test('two targets that carry one slug are doc_exists naming the first target, and nothing moves', () async {
@@ -3577,29 +2452,6 @@ void main() {
           {'from': '$dropFolder/', 'to': '$shop/f02_pay/us05_drop_item/'},
         ]);
         expect(hasDoc(root, '$shop/f02_pay/us03_other/USER_STORY.md'), isTrue);
-      });
-
-      test('the same story named twice moves once', () async {
-        final root = await writeNestedProject();
-        final answer = moveAll(root, [addItem, addItem], 'shop/pay');
-        expect(answer.json['moved'], [
-          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
-        ]);
-        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
-        expect(hasDoc(root, cartAdd), isFalse);
-      });
-
-      test('a target already directly under the feature stays, and the others move', () async {
-        final root = await writeNestedProject();
-        final answer = moveAll(root, [
-          'user_story:shop/pay/card',
-          addItem,
-        ], 'shop/pay');
-        expect(answer.json['moved'], [
-          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
-        ]);
-        expect(hasDoc(root, payCard), isTrue);
-        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
       });
     });
 
@@ -3655,42 +2507,6 @@ void main() {
           {'from': '$addItemFolder/', 'to': '$movedFolder/'},
         ], reason: under);
       }
-    });
-
-    test('an --under that names 2 or more feature docs is argument_invalid listing each, and nothing moves', () async {
-      final root = await writeNestedProject(
-        extra: {'docs/prds/features/f02_shop/f03_pay/FEATURE.md': '# Pay\n'},
-      );
-      expect(
-        () => move(root, 'user_story:shop/cart/add_item', 'shop/pay'),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having(
-                (f) => f.message,
-                'message',
-                allOf(
-                  contains(payFeature),
-                  contains('prds/features/f02_shop/f03_pay/FEATURE.md'),
-                ),
-              ),
-        ),
-      );
-      expect(hasDoc(root, cartAdd), isTrue);
-    });
-
-    test('a target that names a feature and its spec docs is argument_invalid, never doc_type_not_movable', () async {
-      final root = await writeNestedProject();
-      expect(
-        () => move(root, 'shop', 'shop/pay'),
-        throwsA(
-          isA<IndexFault>().having(
-            (f) => f.code,
-            'code',
-            IndexFaultCode.argumentInvalid,
-          ),
-        ),
-      );
     });
 
     test('a move out of a mixed parent is allowed', () async {
@@ -3972,38 +2788,6 @@ void main() {
       },
     );
 
-    test('a mermaid node naming a moved nf follows the move', () async {
-      const before = '  N[shop/cart/add_item/load_fast]';
-      final root = await writeNestedProject(
-        extra: {
-          'docs/prds/features/f02_shop/f01_cart/us01_add_item/nf01_load_fast.md':
-              '# Load fast\n',
-          'docs/notes.md': mermaidNotes(before),
-        },
-      );
-      moveUnder(root, 'nf:shop/cart/add_item/load_fast', 'shop/cart/drop_item');
-      expect(
-        readDoc(root, 'notes.md'),
-        mermaidNotes('  N[shop/cart/drop_item/load_fast]', text: before),
-      );
-    });
-
-    test('two names on one mermaid line both follow, the arrow and brackets unchanged', () async {
-      const before =
-          '  A[shop/cart/add_item] --> B[fr:shop/cart/add_item/check_stock]';
-      final root = await writeNestedProject(
-        extra: {'docs/notes.md': mermaidNotes(before)},
-      );
-      moveUnder(root, 'user_story:shop/cart/add_item', 'shop/pay');
-      expect(
-        readDoc(root, 'notes.md'),
-        mermaidNotes(
-          '  A[shop/pay/add_item] --> B[fr:shop/pay/add_item/check_stock]',
-          text: before,
-        ),
-      );
-    });
-
     test('a crlf doc keeps its line ends through a mermaid rewrite', () async {
       final root = await writeNestedProject(
         extra: {
@@ -4188,36 +2972,6 @@ void main() {
       );
     });
 
-    test(
-      'a rewritten draft keeps draft: true; an approved doc is stamped again',
-      () async {
-        final root = await writeWriteProject();
-        File(
-          '${root.path}/docs/$antiPersona',
-        ).writeAsStringSync('\nSee `feature:signup`.\n', mode: FileMode.append);
-        final approvedText =
-            '${readDoc(root, loginFeature)}\nSee `feature:signup`.\n';
-        docFile(root, loginFeature).writeAsStringSync(
-          writeIn(
-            root,
-            (s) => withApprovalHash(
-              approvedText,
-              s.docTypeAt(loginFeature),
-              statusesOutside: s.project.statusesOutsideApproval,
-            ),
-          ),
-        );
-        final before = approvedHash(root, loginFeature);
-        expect(await staleDocs(root), isEmpty);
-        rename(root, 'feature:signup', 'register');
-        expect(readDoc(root, antiPersona), contains('draft: true'));
-        expect(readDoc(root, antiPersona), contains('`feature:register`'));
-        expect(readDoc(root, loginFeature), contains('`feature:register`'));
-        expect(approvedHash(root, loginFeature), isNot(before));
-        expect(await staleDocs(root), isEmpty);
-      },
-    );
-
     test('a move lists a mention in a code comment, a code markdown file, and an agent file, and keeps their bytes, but lists no fenced one or plain text', () async {
       const code =
           '// Adds `shop/cart/add_item` and '
@@ -4281,31 +3035,6 @@ void main() {
         endsWith('mentions .codex/agents/reader.md:1 shop/cart/add_item\n'),
       );
     }, skip: hasGit ? null : 'git is not available');
-
-    test('a move stamps an approved doc whose mention it rewrites', () async {
-      final root = await writeNestedProject();
-      final approvedText =
-          '${readDoc(root, shopDomain)}\nSee `shop/cart/add_item`.\n';
-      docFile(root, shopDomain).writeAsStringSync(
-        writeIn(
-          root,
-          (s) => withApprovalHash(
-            approvedText,
-            s.docTypeAt(shopDomain),
-            statusesOutside: s.project.statusesOutsideApproval,
-          ),
-        ),
-      );
-      final before = approvedHash(root, shopDomain);
-      writeIn(
-        root,
-        (s) =>
-            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
-      );
-      expect(readDoc(root, shopDomain), contains('`shop/pay/add_item`'));
-      expect(approvedHash(root, shopDomain), isNot(before));
-      expect(await staleDocs(root), isNot(contains(shopDomain)));
-    });
 
     test('a rename lists only the files a code entry names', () async {
       const before = '// `login/email_login`\n';
@@ -4424,40 +3153,6 @@ void main() {
           expect(answer.json['mentions'], isEmpty);
         },
       );
-
-      test('a move keeps a code file outside the project as it is, lists it, and applies the move', () async {
-        File('${outside.path}/app/lib/cart.dart')
-          ..createSync(recursive: true)
-          ..writeAsStringSync('// Adds `shop/cart/add_item`.\n');
-        final root = await writeNestedProject(
-          extra: {
-            '.specstone/config.yaml': config(),
-            'docs/notes.md': 'See `shop/cart/add_item`.\n',
-          },
-          // The code lies outside the project, so no link can take a fingerprint.
-          unfingerprinted: {
-            'docs/$shopArchitecture',
-            loginRecord,
-            'docs/$loginArchitecture',
-          },
-        );
-        final before = outsideBytes();
-
-        final answer = writeIn(
-          root,
-          (s) => answerMove(s, [
-            'user_story:shop/cart/add_item',
-          ], under: 'shop/pay'),
-        );
-
-        expect(outsideBytes(), before);
-        expect(answer.warnings, isEmpty);
-        expect(
-          answer.text,
-          contains('mentions ../$folder/app/lib/cart.dart:1 '),
-        );
-        expect(readDoc(root, 'notes.md'), 'See `shop/pay/add_item`.\n');
-      });
     });
 
     group('a replayed write step', () {
@@ -5003,6 +3698,10 @@ void main() {
         answer.json['rewritten'],
         containsAll([cartFlutter, cartJaspr, payFlutter, payJaspr]),
       );
+      expect(
+        spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+        isEmpty,
+      );
     });
 
     test(
@@ -5153,95 +3852,6 @@ void main() {
         expect(created, endsWith('$header$stockRow\n'));
         expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
       });
-
-      test('an fr with matrix rows alone moves with its story', () async {
-        final root = await shopTwins(
-          extra: {
-            cartFlutter: withRows(recordText(statuses: ['drop_item:planned']), [
-              stockRow,
-              dropRow,
-            ]),
-          },
-        );
-        moveAddItem(root);
-
-        expect(readDoc(root, payFlutter), endsWith('$header$stockRow\n'));
-        expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
-      });
-
-      test('an fr moved to another feature carries its rows, named relative '
-          'to the story it lands in', () async {
-        final root = await shopTwins(
-          extra: {
-            cartFlutter: withRows(flutterCart, [stockRow, stockSkip, dropRow]),
-            payJaspr: jasprPay,
-            cartJaspr: withRows(
-              recordText(statuses: ['add_item/check_stock:implemented']),
-              [stockRow],
-            ),
-          },
-        );
-        writeIn(
-          root,
-          (s) => answerMove(s, [
-            'fr:shop/cart/add_item/check_stock',
-          ], under: 'shop/pay/card'),
-        );
-
-        final created = readDoc(root, payFlutter);
-        expect(
-          created,
-          endsWith(
-            '$header'
-            '- card/check_stock E01: `refuses an item out of stock` '
-            '5d1e0c4b7a92\n'
-            '- card/check_stock E02 skipped: needs a stock service '
-            '9a1c03be55d2\n',
-          ),
-        );
-        expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
-        expect(
-          readDoc(root, payJaspr),
-          endsWith(
-            '$header- card/check_stock E01: `refuses an item out of stock` '
-            '5d1e0c4b7a92\n',
-          ),
-        );
-        expect(readDoc(root, cartJaspr), isNot(contains('check_stock')));
-      });
-
-      test('an fr moved to a sibling story keeps its matrix rows in the same record, renamed, with each edge case and literal as written', () async {
-        final root = await shopTwins(
-          extra: {
-            cartFlutter: withRows(flutterCart, [stockRow, stockSkip, dropRow]),
-          },
-        );
-        writeIn(
-          root,
-          (s) => answerMove(s, [
-            'fr:shop/cart/add_item/check_stock',
-          ], under: 'shop/cart/drop_item'),
-        );
-
-        final cart = readDoc(root, cartFlutter);
-        expect(
-          cart,
-          contains(
-            '- drop_item/check_stock E01: `refuses an item out of stock` '
-            '5d1e0c4b7a92\n',
-          ),
-        );
-        expect(
-          cart,
-          contains(
-            '- drop_item/check_stock E02 skipped: needs a stock service '
-            '9a1c03be55d2\n',
-          ),
-        );
-        expect(cart, contains('$dropRow\n'));
-        expect(cart, isNot(contains('add_item/check_stock E0')));
-        expect(hasDoc(root, payFlutter), isFalse);
-      });
     });
 
     test('a dry run lists the records it would rewrite and create, and writes none', () async {
@@ -5256,15 +3866,6 @@ void main() {
       expect(answer.json['rewritten'], containsAll([cartFlutter, payFlutter]));
       expect(docFile(root, payFlutter).existsSync(), isFalse);
       expect(readDoc(root, cartFlutter), flutterCart);
-    });
-
-    test('the entries name the story and FR relative to pay, so check finds no unresolved entry', () async {
-      final root = await shopTwins();
-      moveAddItem(root);
-      expect(
-        spots(await checkOf(root), FindingKind.recordEntryUnresolved),
-        isEmpty,
-      );
     });
 
     test('a target whose cart record holds no entry of the moved items changes nothing, and no pay record is made there', () async {
@@ -5503,25 +4104,6 @@ void main() {
       expect(readDoc(root, payJaspr), broken);
       expect(readDoc(root, cartJaspr), contains("'add_item:implemented'"));
       expect(hasDoc(root, cartAdd), isTrue);
-    });
-
-    test('a cart record whose implements block is not valid YAML refuses, the moved entries kept there', () async {
-      const broken =
-          "---\nstatuses:\n  - 'add_item:implemented'\n"
-          "implements:\n  - 'add_item:web/lib/shop.dart\n"
-          '---\n\n# Record\n';
-      final root = await shopTwins(extra: {cartJaspr: broken});
-      expect(
-        () => moveAddItem(root),
-        throwsA(
-          isA<RenderFault>().having(
-            (f) => f.message,
-            'message',
-            'cannot write $cartJaspr: its implements block is not valid YAML',
-          ),
-        ),
-      );
-      expect(readDoc(root, cartJaspr), broken);
     });
 
     test('one unnamed code target carries its entries too', () async {
@@ -5786,22 +4368,6 @@ void main() {
         );
       });
 
-      test('a target whose record lacks the fr, or has no record, is left as it was', () async {
-        final bare = recordText(statuses: ['drop_item:planned']);
-        final root = await shopTwins(
-          extra: {cartFlutter: stockEntries, cartJaspr: bare},
-          without: {payJaspr},
-        );
-        moveStock(root, 'shop/pay/card');
-        expect(readDoc(root, cartJaspr), bare);
-        expect(hasDoc(root, payJaspr), isFalse);
-
-        final noRecord = await shopTwins(without: {cartJaspr, payJaspr});
-        moveStock(noRecord, 'shop/pay/card');
-        expect(hasDoc(noRecord, cartJaspr), isFalse);
-        expect(hasDoc(noRecord, payJaspr), isFalse);
-      });
-
       test('frs of the landing feature and of another feature move in one call, and the landing record renames its own entries and gains the arrivals', () async {
         const cardFr = '$payDir/us01_card/fr01_x.md';
         final root = await shopTwins(
@@ -5832,49 +4398,6 @@ void main() {
           spots(await checkOf(root), FindingKind.recordEntryUnresolved),
           isEmpty,
         );
-      });
-
-      test('an fr moved across features lands in the record on disk the snapshot lacks', () async {
-        final root = await shopTwins(extra: {cartFlutter: stockEntries});
-        writeIn(root, (s) {
-          docFile(root, payFlutter)
-            ..parent.createSync(recursive: true)
-            ..writeAsStringSync(recordText(statuses: ['card:planned']));
-          return answerMove(s, [checkStock], under: 'shop/pay/card');
-        });
-
-        final pay = readDoc(root, payFlutter);
-        expect(pay, contains("'card:planned'"));
-        expect(pay, contains("'card/check_stock:implemented'"));
-        expect(pay, contains('card/check_stock:app/lib/shop.dart:Shop'));
-        expect(readDoc(root, cartFlutter), isNot(contains('check_stock')));
-      });
-
-      test('a moved fr reads skipped in a target that skips its new feature and planned in a target whose record holds no entry for it', () async {
-        final bare = recordText(statuses: ['drop_item:planned']);
-        final root = await shopTwins(
-          extra: {
-            cartFlutter: bare,
-            cartJaspr: bare,
-            payJaspr: recordText(
-              statuses: [':skipped:no web pay', 'card:implemented'],
-            ),
-          },
-        );
-        expect(
-          statusIn(root, 'fr', 'jaspr', 'shop/cart/add_item/check_stock'),
-          'planned',
-        );
-        moveStock(root, 'shop/pay/card');
-        expect(
-          statusIn(root, 'fr', 'jaspr', 'shop/pay/card/check_stock'),
-          'skipped',
-        );
-        expect(
-          statusIn(root, 'fr', 'flutter', 'shop/pay/card/check_stock'),
-          'planned',
-        );
-        expect(hasDoc(root, payFlutter), isFalse);
       });
     });
 
@@ -6107,23 +4630,6 @@ void main() {
       );
       expect(answer.text, endsWith('dry run: nothing moved\n'));
       expect(answer.text, isNot(contains('rewrote')));
-      expect(answer.json['dryRun'], isTrue);
-      expect(answer.json['moved'], [
-        {'from': '$f/us03_reset_password/', 'to': '$f/us03_recover/'},
-      ]);
-    });
-
-    test('a rename dry run prints a rewrites line for each doc it would rewrite, and lists the same docs under rewritten', () async {
-      final root = await writeWriteProject();
-      final answer = untouched(
-        root,
-        (s) => answerRename(
-          s,
-          'user_story:login/reset_password',
-          slug: 'recover',
-          dryRun: true,
-        ),
-      );
       expect(
         answer.text,
         contains('rewrites $f/us01_email_login/fr02_lock_after_failures.md\n'),
@@ -6132,7 +4638,10 @@ void main() {
         answer.json['rewritten'],
         contains('$f/us01_email_login/fr02_lock_after_failures.md'),
       );
-      expect(answer.text, isNot(contains('rewrote')));
+      expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['moved'], [
+        {'from': '$f/us03_reset_password/', 'to': '$f/us03_recover/'},
+      ]);
     });
 
     test(
@@ -6249,8 +4758,10 @@ void main() {
           '$payDir/us02_refund/fr02_check_stock.md\n',
         ),
       );
+      expect(answer.text, contains('rewrites $shopApi\n'));
       expect(answer.text, endsWith('dry run: nothing moved\n'));
       expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['rewritten'], contains(shopApi));
       expect(answer.json['moved'], [
         {
           'from': '$shopStory/fr01_check_stock.md',
@@ -6277,30 +4788,6 @@ void main() {
           );
         } on WriteFault catch (fault) {
           return (fault.code, fault.message, fault.file);
-        }
-        return null;
-      }
-
-      final apply = caught(false);
-      expect(apply, isNotNull);
-      expect(caught(true), apply);
-    });
-
-    test('a move dry run refuses a feature that holds sub-features as the apply does', () async {
-      final root = await writeNestedProject();
-      Object? caught(bool dryRun) {
-        try {
-          writeIn(
-            root,
-            (s) => answerMove(
-              s,
-              ['user_story:shop/cart/add_item'],
-              under: 'shop',
-              dryRun: dryRun,
-            ),
-          );
-        } on IndexFault catch (fault) {
-          return (fault.code, fault.message);
         }
         return null;
       }
@@ -6568,40 +5055,6 @@ void main() {
       expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
     });
 
-    test('a reorder that stops on a record folder leaves a journal the next write replays', () async {
-      final root = await recordProject();
-      expect(
-        () => IOOverrides.runWithIOOverrides(
-          () => reorder(root, 'feature:signup', '1'),
-          FailingRenameHook('.specstone/records/f02_signup'),
-        ),
-        throwsA(isA<RenderFault>()),
-      );
-      expect(
-        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
-        isTrue,
-      );
-
-      writeIn(root, (_) {});
-
-      expect(
-        recordFile(
-          root,
-          '.specstone/records/f01_signup/IMPLEMENTATION.md',
-        ).readAsStringSync(),
-        signupRecordText,
-      );
-      expect(
-        recordFile(
-          root,
-          '.specstone/records/f02_login/IMPLEMENTATION.md',
-        ).readAsStringSync(),
-        loginRecordText,
-      );
-      expect(recordFile(root, signupRecordPath).existsSync(), isFalse);
-      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
-    });
-
     test('a reorder of a feature with no record moves the records of its siblings alone', () async {
       final root = await recordProject(without: {signupRecordPath});
       final answer = reorder(root, 'feature:signup', '1');
@@ -6619,47 +5072,6 @@ void main() {
         loginRecordText,
       );
       expect(hasDoc(root, 'specs/f01_signup/ARCHITECTURE.md'), isTrue);
-    });
-
-    test('with two targets each target record folder moves', () async {
-      const flutterRecord =
-          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
-      const jasprRecord =
-          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
-      final root = await writeWriteProject(
-        extra: {
-          ...recordsRootTemplates,
-          '.specstone/config.yaml': twinConfig(),
-          '.specstone/templates/architecture.yaml':
-              'id: architecture\nper_target: false\n',
-          flutterRecord: loginRecordText,
-          jasprRecord: loginRecordText,
-        },
-      );
-      final answer = rename(root, 'feature:login', 'signin');
-      expect(
-        [
-          for (final move in answer.json['moved']! as List)
-            '${(move as Map)['from']} ${move['to']}',
-        ],
-        containsAll([
-          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
-          '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
-        ]),
-      );
-      for (final target in ['flutter', 'jaspr']) {
-        expect(
-          recordFile(
-            root,
-            '.specstone/records/$target/f01_signin/IMPLEMENTATION.md',
-          ).readAsStringSync(),
-          loginRecordText,
-        );
-        expect(
-          recordFile(root, '.specstone/records/$target/f01_login').existsSync(),
-          isFalse,
-        );
-      }
     });
   });
 

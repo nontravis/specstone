@@ -179,34 +179,17 @@ items:
           ],
         }),
         throwsA(
-          fault(
-            FaultCode.overrideIdNotFound,
-            file: '$_project/auth.yaml',
-            key: 'items',
-          ),
-        ),
-      );
-    });
-
-    test('the override_id_not_found message names the item id the base '
-        'lacks', () {
-      expect(
-        () => merge({
-          'auth': [
-            layerOf('auth', authYaml()),
-            projectOf('auth', '''
-id: auth
-items:
-  - id: ghost
-    disabled: true
-'''),
-          ],
-        }),
-        throwsA(
-          isA<TemplateFault>().having(
-            (f) => f.message,
-            'message',
-            contains('"ghost"'),
+          allOf(
+            fault(
+              FaultCode.overrideIdNotFound,
+              file: '$_project/auth.yaml',
+              key: 'items',
+            ),
+            isA<TemplateFault>().having(
+              (f) => f.message,
+              'message',
+              contains('"ghost"'),
+            ),
           ),
         ),
       );

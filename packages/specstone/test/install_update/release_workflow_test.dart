@@ -62,32 +62,21 @@ void main() {
     ci = _load('ci.yaml');
   });
 
-  test('only publish holds contents: write', () {
-    for (final name in ['version', 'test', 'build']) {
-      expect(
-        _job(release, name).containsKey('permissions'),
-        isFalse,
-        reason: name,
-      );
-    }
-    expect(_job(release, 'publish')['permissions'], {'contents': 'write'});
-  });
-
-  test('no leg of the ci test job can pass while its tests fail', () {
-    final job = _job(ci, 'test');
-    expect(job.containsKey('continue-on-error'), isFalse);
-    expect(job.containsKey('if'), isFalse);
-    for (final s in _steps(job)) {
-      expect(s.containsKey('continue-on-error'), isFalse, reason: '$s');
+  test('no leg of the ci test or timing job can pass while its tests fail', () {
+    for (final name in ['test', 'timing']) {
+      final job = _job(ci, name);
+      expect(job.containsKey('continue-on-error'), isFalse, reason: name);
+      expect(job.containsKey('if'), isFalse, reason: name);
+      for (final s in _steps(job)) {
+        expect(s.containsKey('continue-on-error'), isFalse, reason: '$s');
+        if (name == 'timing') {
+          expect(s.containsKey('if'), isFalse, reason: '$s');
+        }
+      }
     }
     final call = _job(release, 'test');
     expect(call['uses'], './.github/workflows/ci.yaml');
     expect(call.containsKey('with'), isFalse);
-  });
-
-  test('build waits for test and publish waits for build', () {
-    expect(_job(release, 'build')['needs'], contains('test'));
-    expect(_job(release, 'publish')['needs'], contains('build'));
   });
 
   test('every build upload name matches the publish download pattern', () {
@@ -138,6 +127,49 @@ void main() {
     expect(matrix['os'], ['ubuntu-latest', 'macos-latest', 'windows-latest']);
     expect(matrix.containsKey('include'), isFalse);
     expect(matrix.containsKey('exclude'), isFalse);
+  });
+
+  test('the ci cli suite runs one leg per CLI_SHARDS shard', () {
+    final shards = int.parse('${(ci['env'] as YamlMap)['CLI_SHARDS']}');
+    final legs =
+        (((_job(ci, 'test')['strategy'] as YamlMap)['matrix'] as YamlMap)['leg']
+                as YamlList)
+            .where((leg) => (leg as YamlMap)['suite'] == 'cli');
+    expect(
+      legs.map((leg) => (leg as YamlMap)['shard']),
+      List.generate(shards, (i) => i),
+    );
+    final steps = _steps(_job(ci, 'test'));
+    final cliSteps = steps.where(
+      (s) => '${s['if']}'.contains("matrix.leg.suite == 'cli'"),
+    );
+    final cliTests = cliSteps.where((s) => s.containsKey('run')).toList();
+    expect(cliTests, hasLength(3));
+    for (final s in cliTests) {
+      final run = '${s['run']}';
+      expect(run, contains(r'--total-shards=${{ env.CLI_SHARDS }}'));
+      expect(run, contains(r'--shard-index=${{ matrix.leg.shard }}'));
+    }
+    final upload = cliSteps.singleWhere(
+      (s) => '${s['uses']}'.startsWith('actions/upload-'),
+    );
+    expect(
+      '${(upload['with'] as YamlMap)['name']}',
+      contains('matrix.leg.shard'),
+    );
+  });
+
+  test('the timing gate runs in its own job on the three runners', () {
+    final timing = _job(ci, 'timing');
+    final matrix = (timing['strategy'] as YamlMap)['matrix'] as YamlMap;
+    expect(matrix['os'], ['ubuntu-latest', 'macos-latest', 'windows-latest']);
+    final timingRuns = _steps(timing).map((s) => '${s['run'] ?? ''}');
+    expect(timingRuns.where((r) => r.contains('--tags timing')), [
+      'dart test --tags timing test/nfr_timing_test.dart',
+    ]);
+    for (final s in _steps(_job(ci, 'test'))) {
+      expect('${s['run'] ?? ''}', isNot(contains('--tags timing')));
+    }
   });
 
   test('ci runs on a push to main, develop, and release branches', () {
@@ -514,11 +546,6 @@ void main() {
       final r = await runCheck('v$specstoneVersion');
       expect(r.exitCode, 0, reason: '${r.stderr}');
     });
-
-    test('a tag off version.dart fails', () async {
-      final r = await runCheck('v$specstoneVersion.1');
-      expect(r.exitCode, 1);
-    });
   }, testOn: '!windows');
 
   group('the archive steps', () {
@@ -590,6 +617,15 @@ void main() {
 
       expect(entries, contains('bin/stn'));
       expect(entries, isNot(contains('bin/stn.exe')));
+      expect(
+        entries,
+        containsAll([
+          'bin/specstone',
+          'lib/native.so',
+          'LICENSE',
+          'THIRD_PARTY_NOTICES',
+        ]),
+      );
       final check = runStep('Check the shim in the archive', os: 'Linux');
       expect(check.exitCode, 0, reason: '${check.stderr}');
 
@@ -604,21 +640,6 @@ void main() {
       final rejected = runStep('Check the shim in the archive', os: 'Linux');
       expect(rejected.exitCode, 1);
       expect(rejected.stderr, contains('stn.exe packed into'));
-    });
-
-    test('a packed archive holds bin, lib, LICENSE, and the notices', () {
-      final entries = packedTar();
-
-      expect(
-        entries,
-        containsAll([
-          'bin/specstone',
-          'bin/stn',
-          'lib/native.so',
-          'LICENSE',
-          'THIRD_PARTY_NOTICES',
-        ]),
-      );
     });
 
     test('a zip archive holds bin/stn.exe and neither stn nor stn.cmd', () {

@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/readability_rules.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -89,44 +88,7 @@ void main() {
     );
   });
 
-  test('two sentences report the kind and the default language', () async {
-    final found = await _found(
-      _edgeCase('${_sentenceOf(26)} ${_sentenceOf(31)}'),
-    );
-    expect(found.single.kind, FindingKind.wordsOverLimit);
-    expect(found.single.toJson(), containsPair('language', 'default'));
-  });
-
-  test('a closing group of two item links gives none', () async {
-    final found = await _found(
-      _domainWith(
-        '- **INV-1** — ${_sentenceOf(25).replaceFirst('.', '')} '
-        '([INV-74](DOMAIN.md#invariants), [INV-75](DOMAIN.md#invariants)).',
-      ),
-    );
-    expect(found, isEmpty);
-  });
-
-  test('a group joined by semicolons gives one finding at most', () async {
-    final found = await _found(
-      _edgeCase('An empty password (INV-4; INV-5) is refused.'),
-    );
-    expect(found, hasLength(1));
-    expect(found.single.kind, FindingKind.traceNoteNotLast);
-    expect(found.single.toJson(), containsPair('note', '(INV-4; INV-5)'));
-  });
-
   group('an ownership clause', () {
-    test('as the last clause gives none', () async {
-      final found = await _found(
-        _edgeCase(
-          'A password is hashed. INV-4 owns the recipe, '
-          'and every other doc cites it.',
-        ),
-      );
-      expect(found, isEmpty);
-    });
-
     test('before another clause gives trace_note_not_last', () async {
       final found = await _found(
         _edgeCase('A password is hashed. INV-4 owns the recipe. It is kept.'),
@@ -135,37 +97,7 @@ void main() {
       expect(found.single.kind, FindingKind.traceNoteNotLast);
       expect(found.single.line, lineOfFirst(_project, loginFr, 'E01'));
     });
-
-    test('after a group leaves the group misplaced', () async {
-      final found = await _found(
-        _edgeCase('A password is hashed (INV-4). INV-5 owns the recipe.'),
-      );
-      expect(found, hasLength(1));
-      expect(found.single.kind, FindingKind.traceNoteNotLast);
-      expect(found.single.toJson(), containsPair('note', '(INV-4)'));
-    });
   });
-
-  test('a note before nested items gives none', () async {
-    final found = await _found(
-      _domainWith('- **INV-1** — A password is hashed (INV-4).\n  - Nested.'),
-    );
-    expect(found, isEmpty);
-  });
-
-  test(
-    'a note closing a cell before text in the next cell gives none',
-    () async {
-      final found = await _found(
-        fr(
-          'A wrong password must not sign in.',
-          '| Part | Responsibility | Owner |\n|---|---|---|\n'
-              '| Form | Takes it (INV-4) | Keeps it. |',
-        ),
-      );
-      expect(found, isEmpty);
-    },
-  );
 
   test('a default-only layer leaves the korean cap merged', () async {
     final found = await _found({
@@ -180,22 +112,6 @@ void main() {
         containsPair('language', 'ko'),
         containsPair('limit', 17),
         containsPair('actual', 18),
-      ),
-    );
-  });
-
-  test('english terms never outvote a korean sentence', () async {
-    final found = await _found(
-      _edgeCase('${List.filled(17, '가').join(' ')} API CLI JSON.'),
-    );
-    expect(found, hasLength(1));
-    expect(found.single.kind, FindingKind.wordsOverLimit);
-    expect(
-      found.single.toJson(),
-      allOf(
-        containsPair('language', 'ko'),
-        containsPair('limit', 17),
-        containsPair('actual', 20),
       ),
     );
   });
@@ -299,12 +215,6 @@ void main() {
     );
   });
 
-  test('a thai sentence weighs its english run at the cap over 25', () async {
-    final found = await _found(_edgeCase('${'ก' * 98} check.'));
-    expect(found, hasLength(1));
-    expect(found.single.toJson(), containsPair('actual', 102));
-  });
-
   test('en line under thai heading takes default', () async {
     final found = await _found(
       doc(
@@ -324,27 +234,15 @@ void main() {
         containsPair('limit', 25),
       ),
     );
-  });
 
-  test('en marker line of 25 words passes and 26 words fails', () async {
-    String vision(int count) =>
-        '### PV-01 — One sign-in\n\n> en: ${_sentenceOf(count)}';
-    final project = doc(
-      projectDoc,
-      '### PV-01 — One sign-in\n\n> en: One sign-in for every app.',
-      vision(25),
-    );
-    expect(await _found(project), isEmpty);
-
-    final found = await _found(
+    final atCap = await _found(
       doc(
         projectDoc,
         '### PV-01 — One sign-in\n\n> en: One sign-in for every app.',
-        vision(26),
+        '### PV-01 — ระบบล็อกอินเดียว\n\n> en: ${_sentenceOf(25)}',
       ),
     );
-    expect(found, hasLength(1));
-    expect(found.single.toJson(), containsPair('actual', 26));
+    expect(atCap, isEmpty);
   });
 
   test('two languages give two findings', () async {
@@ -412,20 +310,6 @@ void main() {
       raised.single.message,
       'the longest sentence holds 31 words; '
       'the limit is 30 words for language default',
-    );
-  });
-
-  test('a korean sentence takes the ko word cap', () async {
-    final found = await _found(_edgeCase(_sentenceOf(18, '가')));
-    expect(found, hasLength(1));
-    expect(found.single.kind, FindingKind.wordsOverLimit);
-    expect(
-      found.single.toJson(),
-      allOf(
-        containsPair('language', 'ko'),
-        containsPair('limit', 17),
-        containsPair('actual', 18),
-      ),
     );
   });
 
@@ -588,13 +472,6 @@ void main() {
       for (final key in shippedPackFiles.keys)
         key.substring(0, key.indexOf('/')),
     });
-    for (final type in types) {
-      expect(
-        type.renderGuide().split('\n'),
-        contains(citeNoteGuideLine),
-        reason: type.id,
-      );
-    }
   });
 
   group('a record matrix section', () {

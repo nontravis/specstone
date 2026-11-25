@@ -199,6 +199,16 @@ void main() {
       expect(result.exitCode, isGood ? 0 : 1, reason: stderr);
       expect(stderr, contains('could not remove'));
       expect(stderr, contains(leftover.resolveSymbolicLinksSync()));
+      expect(
+        stderr,
+        matches(
+          RegExp(
+            '^install_local: could not remove '
+            '${RegExp.escape(leftover.resolveSymbolicLinksSync())}: \\S.*\$',
+            multiLine: true,
+          ),
+        ),
+      );
       if (isGood) {
         expect(
           result.stdout,
@@ -451,7 +461,11 @@ void main() {
 
       expect(result.exitCode, isNot(0), reason: aside);
       expect(result.stderr, contains('${installDir()}/$folder'), reason: aside);
-      expect(result.stderr, contains('stub: mv failed'), reason: aside);
+      expect(
+        result.stderr,
+        contains('stub: mv failed; run install_local again'),
+        reason: aside,
+      );
       expect(installEntries(), [remaining], reason: aside);
       expect(repo.tmpIsEmpty, isTrue, reason: aside);
       if (remaining == 'bin') {
@@ -605,6 +619,7 @@ void main() {
 
       expect(result.exitCode, 1, reason: label);
       expect(result.stderr, contains('HOME'), reason: label);
+      expect(result.stderr, contains('no home folder'), reason: label);
       expect(repo.sandbox.logOf('dart'), isEmpty, reason: label);
       expect(
         repo.sandbox.logOf('git'),
@@ -623,6 +638,7 @@ void main() {
     final result = await repo.run(tool, env: {'TMPDIR': 'rel/tmp'});
 
     expect(result.exitCode, 1);
+    expect(result.stderr, contains('TMPDIR'));
     expect(result.stderr, contains('not an absolute path'));
     expect(result.stderr, contains(_unchangedText));
     expect(await repo.checkoutState(), stateBefore);
@@ -630,42 +646,6 @@ void main() {
     expect(repo.sandbox.snapshot(), before);
     expect(repo.worktrees(), hasLength(1));
     expect(repo.sandbox.logOf('dart'), isEmpty);
-  });
-
-  test('a failed move into place asks for a new install run', () async {
-    for (final aside in ['.lib.new', '.bin.new']) {
-      Directory(installDir()).deleteSync(recursive: true);
-      repo.sandbox.installFake();
-      failOn('mv', aside);
-
-      final result = await repo.run(tool);
-
-      expect(result.exitCode, isNot(0), reason: aside);
-      expect(
-        result.stderr,
-        contains('stub: mv failed; run install_local again'),
-        reason: aside,
-      );
-    }
-  });
-
-  test('a relative TMPDIR refusal names TMPDIR', () async {
-    final result = await repo.run(tool, env: {'TMPDIR': 'rel/tmp'});
-
-    expect(result.exitCode, 1);
-    expect(result.stderr, contains('TMPDIR'));
-  });
-
-  test('a refusal for no usable HOME says no home folder resolves', () async {
-    for (final env in [
-      {'HOME': ''},
-      {'HOME': 'rel/home'},
-    ]) {
-      final result = await repo.run(tool, env: env);
-
-      expect(result.exitCode, 1, reason: '$env');
-      expect(result.stderr, contains('no home folder'), reason: '$env');
-    }
   });
 
   test('a refusal before the temp folder runs no git call after it', () async {
@@ -713,46 +693,14 @@ void main() {
       expect(result.exitCode, 1, reason: label);
       expect(repo.sandbox.logOf('git'), calls, reason: label);
     }
-  });
 
-  test('a refusal for no merged tag runs no git call after it', () async {
-    final commit = repo.sha('develop');
     git(repo.work, ['tag', '-d', 'v0.9.0']);
+    File('${repo.sandbox.logs.path}/git.log').writeAsStringSync('');
 
-    final result = await repo.run(tool);
+    final noTag = await repo.run(tool);
 
-    expect(result.exitCode, isNot(0));
-    expect(repo.sandbox.logOf('git'), [
-      'rev-parse --verify --quiet develop^{commit}',
-      'cat-file -e $commit:$shimPath',
-      'tag --no-column --merged $commit',
-      'rev-parse --short $commit',
-    ]);
-  });
-
-  test('a temp folder delete failure names the folder and the error', () async {
-    final result = await repo.run(tool, env: {'STUB_DART_LOCK': '1'});
-
-    final leftover = Directory('${repo.sandbox.root.path}/tmp')
-        .listSync()
-        .single;
-    addTearDown(() {
-      if (!leftover.existsSync()) return;
-      Process.runSync('chmod', ['755', '${leftover.path}/locked']);
-      Directory(leftover.path).deleteSync(recursive: true);
-    });
-    final folder = leftover.resolveSymbolicLinksSync();
-    expect(result.exitCode, 0, reason: '${result.stderr}');
-    expect(
-      result.stderr,
-      matches(
-        RegExp(
-          '^install_local: could not remove ${RegExp.escape(folder)}: '
-          r'\S.*$',
-          multiLine: true,
-        ),
-      ),
-    );
+    expect(noTag.exitCode, isNot(0), reason: 'no merged tag');
+    expect(repo.sandbox.logOf('git'), [verify, shim, tags, short]);
   });
 
   test(
@@ -865,11 +813,17 @@ exec /bin/cp "$@"''');
   }
 
   test('SIGTERM ends the build at once and keeps the temp folder', () async {
-    await expectSignalEndsBuildAtOnce(ProcessSignal.sigterm);
-  });
-
-  test('SIGHUP ends the build at once and keeps the temp folder', () async {
-    await expectSignalEndsBuildAtOnce(ProcessSignal.sighup);
+    for (final signal in [ProcessSignal.sigterm, ProcessSignal.sighup]) {
+      // Start each signal with no marker and an empty temp folder.
+      final building = File('${repo.sandbox.logs.path}/building');
+      if (building.existsSync()) building.deleteSync();
+      for (final leftover in Directory(
+        '${repo.sandbox.root.path}/tmp',
+      ).listSync()) {
+        leftover.deleteSync(recursive: true);
+      }
+      await expectSignalEndsBuildAtOnce(signal);
+    }
   });
 
   test('the shim check runs before the dev Version is computed', () async {

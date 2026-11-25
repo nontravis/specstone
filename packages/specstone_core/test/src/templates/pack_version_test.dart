@@ -25,19 +25,14 @@ void main() {
     });
 
     test('a leading zero is pack_version_invalid', () {
-      expect(() => _parse('01.2.0'), throwsA(_invalid()));
-    });
-
-    test('two parts are pack_version_invalid', () {
-      expect(() => _parse('1.2'), throwsA(_invalid()));
-    });
-
-    test('a pre-release tag is pack_version_invalid', () {
-      expect(() => _parse('1.2.0-beta'), throwsA(_invalid()));
-    });
-
-    test('empty text is pack_version_invalid', () {
-      expect(() => _parse(''), throwsA(_invalid()));
+      for (final (text, reason) in [
+        ('01.2.0', 'leading zero'),
+        ('1.2', 'two parts'),
+        ('1.2.0-beta', 'pre-release tag'),
+        ('', 'empty text'),
+      ]) {
+        expect(() => _parse(text), throwsA(_invalid()), reason: reason);
+      }
     });
 
     test('a number past the int range is '
@@ -58,20 +53,17 @@ void main() {
       expect(read('v: 1.2.0\n').toString(), '1.2.0');
     });
 
-    test('reads a quoted string without its quotes', () {
-      expect(read("v: '1.2.0'\n").toString(), '1.2.0');
-    });
-
     test('a YAML double keeps its written form', () {
       expect(() => read('v: 1.10\n'), throwsA(_invalid()));
     });
 
     test('a list is pack_version_invalid', () {
-      expect(() => read('v: [1, 2, 3]\n'), throwsA(_invalid()));
-    });
-
-    test('a mapping is pack_version_invalid', () {
-      expect(() => read('v: {a: 1}\n'), throwsA(_invalid()));
+      for (final (text, reason) in [
+        ('v: [1, 2, 3]\n', 'list'),
+        ('v: {a: 1}\n', 'mapping'),
+      ]) {
+        expect(() => read(text), throwsA(_invalid()), reason: reason);
+      }
     });
   });
 

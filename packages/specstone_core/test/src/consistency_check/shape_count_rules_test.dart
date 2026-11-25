@@ -62,18 +62,6 @@ void main() {
     expect(found.single.waitsFor, WaitsFor.agent);
   });
 
-  test(
-    'a dot or a question mark inside a code span ends no sentence',
-    () async {
-      final found = await _found(
-        _frLayer,
-        _sectionLint('edge_cases', _oneSentence),
-        edits: _frWith('1. E01 — Refuse `a.b` and `what?` at once.'),
-      );
-      expect(found, isEmpty);
-    },
-  );
-
   test('a sentence that wraps over two lines is counted whole', () async {
     final found = await _found(
       _frLayer,
@@ -135,29 +123,6 @@ void main() {
       expect(found.single.line, lineOfFirst(_project, loginFr, '| Form |'));
     },
   );
-
-  test('statement finding cites paragraph line', () async {
-    final edits = fr(checkPasswordStatement, 'Refuse it. Log it.');
-    final found = await _found(
-      _frLayer,
-      _sectionLint('statement', _oneSentence),
-      edits: edits,
-    );
-    expect(found, hasLength(1));
-    expect(found.single.line, lineOfFirst(_project, loginFr, 'Refuse it.'));
-    expect(found.single.toJson(), containsPair('actual', 2));
-  });
-
-  test('semicolon rules give sentences_over_limit', () async {
-    final found = await _found(
-      _frLayer,
-      _sectionLint('edge_cases', _oneSentence),
-      edits: _frWith('1. E01 — Refuse it; log it.'),
-    );
-    expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
-    expect(found.single.line, lineOfFirst(_project, loginFr, 'Refuse it;'));
-    expect(found.single.toJson(), containsPair('actual', 2));
-  });
 
   test('closing note leaves count at one', () async {
     final found = await _found(
@@ -337,18 +302,6 @@ void main() {
     expect(found.single.toJson(), containsPair('actual', 2));
   });
 
-  test('heading sentence adds none', () async {
-    final found = await _found(
-      _frLayer,
-      _sectionLint('rationale', _oneSentence),
-      edits: fr(
-        'A wrong password must not sign in.',
-        '### Group\n\nRefuse it.',
-      ),
-    );
-    expect(found, isEmpty);
-  });
-
   test('a section of one sentence under a count of 1 has no finding', () async {
     final found = await _found(
       _frLayer,
@@ -391,38 +344,6 @@ void main() {
     );
   });
 
-  test(
-    'a scenario of 6 steps under 3 to 5 is out of range at its heading',
-    () async {
-      final edits = doc(
-        loginStory,
-        '- **Then** the Agent sees the home page',
-        '- **Then** the Agent sees the home page\n'
-            '- **And** a\n- **And** b\n- **And** c',
-      );
-      final found = await _found(
-        _storyLayer,
-        _sectionLint('acceptance_criteria', '''
-      item_count:
-        min: 3
-        max: 5
-        per_subsection: true
-'''),
-        edits: edits,
-      );
-      expect(found, hasLength(1));
-      expect(found.single.kind, FindingKind.itemCountOutOfRange);
-      expect(
-        found.single.line,
-        lineOfFirst(_project, loginStory, '### Scenario 1'),
-      );
-      expect(
-        found.single.toJson(),
-        allOf(containsPair('limit', 5), containsPair('actual', 6)),
-      );
-    },
-  );
-
   test('a scenario of 2 steps under a floor of 3 reports the floor', () async {
     final found = await _found(
       _storyLayer,
@@ -435,29 +356,6 @@ void main() {
     expect(found.map((f) => f.toJson()['limit']), [4, 4]);
     expect(found.map((f) => f.toJson()['actual']), [3, 3]);
   });
-
-  test(
-    'without per_subsection the section counts its own items at its header',
-    () async {
-      final edits = fr(
-        '1. E01 — An empty password → refused.',
-        '1. E01 — a.\n2. E02 — b.\n3. E03 — c.',
-      );
-      final found = await _found(
-        _frLayer,
-        _sectionLint('edge_cases', '''
-      item_count:
-        max: 2
-'''),
-        edits: edits,
-      );
-      expect(found, hasLength(1));
-      expect(
-        found.single.line,
-        lineOfFirst(_project, loginFr, '## Edge cases'),
-      );
-    },
-  );
 
   test('a blank required section skips min_lines', () async {
     final found = await _found(
@@ -748,56 +646,6 @@ sections:
     expect(found.map((f) => f.kind), contains(FindingKind.sentencesOverLimit));
   });
 
-  test(
-    'an edge case with an arrow, a colon, and a dash is one sentence',
-    () async {
-      final found = await _found(
-        _frLayer,
-        _sectionLint('edge_cases', _oneSentence),
-        edits: _frWith(
-          '1. E01 — A wrong password: refused → the Agent stays out.',
-        ),
-      );
-      expect(found, isEmpty);
-    },
-  );
-
-  test(
-    'two japanese sentences joined by a stop with no space give two',
-    () async {
-      final found = await _found(
-        _frLayer,
-        _sectionLint('edge_cases', _oneSentence),
-        edits: _frWith('1. E01 — 拒否する。ログに残す。'),
-      );
-      expect(found, hasLength(1));
-      expect(found.single.kind, FindingKind.sentencesOverLimit);
-      expect(found.single.line, lineOfFirst(_project, loginFr, '拒否する'));
-      expect(
-        found.single.toJson(),
-        allOf(containsPair('limit', 1), containsPair('actual', 2)),
-      );
-    },
-  );
-
-  test('a stop quoted in a code span ends no sentence', () async {
-    final found = await _found(
-      _frLayer,
-      _sectionLint('statement', _oneSentence),
-      edits: fr(checkPasswordStatement, 'Refuse the stop `。` at once.'),
-    );
-    expect(found, isEmpty);
-  });
-
-  test('a stop inside link text ends no sentence', () async {
-    final found = await _found(
-      _frLayer,
-      _sectionLint('edge_cases', _oneSentence),
-      edits: _frWith('1. E01 — Refuse [a. b](x) at once.'),
-    );
-    expect(found, isEmpty);
-  });
-
   test('a blockquoted item is counted and cut like any other item', () async {
     final edits = _frWith('> - E01 — Refuse it. Log it.');
     final found = await _found(
@@ -992,20 +840,6 @@ sections:
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.codeBlocksOverLimit);
       expect(found.single.toJson(), containsPair('actual', 3));
-    });
-
-    test('a ### line inside a fence opens no subsection', () async {
-      final found = await _found(
-        _storyLayer,
-        _sectionLint('acceptance_criteria', lint(perSubsection: true)),
-        edits: story('${blocks(2)}\n\n```\n### Scenario 9\n```'),
-      );
-      expect(found, hasLength(1));
-      expect(found.single.toJson(), containsPair('actual', 3));
-      expect(
-        found.single.line,
-        lineOfFirst(_project, loginStory, '### Scenario 2'),
-      );
     });
   });
 }

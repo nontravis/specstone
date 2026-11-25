@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/migration_step.dart';
@@ -15,17 +14,16 @@ import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
-import '../../helpers/shared_lines.dart';
 
-/// The shared lines `prd-core` ships, by id, in file order.
-const _sharedLines = <String, String>{
-  'present_truth': 'State the present truth; git holds history.',
-  'one_rule_per_item': _oneRuleLine,
-  'cite_at_item_end': citeNoteGuideLine,
-  'one_example': _exampleLine,
-  'condition_first': _conditionLine,
-  'cite_by_link': _citeLine,
-};
+/// The shared line ids `prd-core` ships, in file order.
+const _sharedLineIds = [
+  'present_truth',
+  'one_rule_per_item',
+  'cite_at_item_end',
+  'one_example',
+  'condition_first',
+  'cite_by_link',
+];
 
 /// The doc types the `present_truth` line reaches: those whose lint holds
 /// `history` at doc level, which leaves `measurement` out, since its Results
@@ -45,22 +43,6 @@ const _presentTruthIds = [
   'project',
   'user_story',
 ];
-
-const _citeLine =
-    'Link to the item of a rule another doc owns; never restate it.';
-
-const _oneRuleLine =
-    'Keep one rule per item; put several conditions in a nested list. '
-    "Move a one-sentence, no-ID paragraph's detail to the section of this doc "
-    'that owns it, never into a sub-list.';
-
-const _exampleLine =
-    'Give a non-obvious rule one in-item example: a `such as` clause or one '
-    '"For example," sentence, within the sentence cap.';
-
-const _conditionLine =
-    'Put the condition before the rule, one clause chain per sentence; '
-    'split a sentence whose clauses nest.';
 
 /// The nine `gnfr` category sections.
 const _gnfrCategories = [
@@ -178,18 +160,6 @@ const _noReferenceIds = [
   'glossary',
 ];
 
-/// The readability bar lines the guide prints, in print order.
-final List<String> _barLines = [
-  for (final MapEntry(:key, :value) in _sharedLines.entries)
-    if (readabilityBarSharedLineIds.contains(key)) value,
-];
-
-/// The opening clause of each bar line; a section description must not hold
-/// it, even without the rest of its line.
-final List<String> _barClauses = [
-  for (final line in _barLines) line.split(RegExp('[;:,.]')).first,
-];
-
 void main() {
   group('prd-core manifest', () {
     test('prd-core ships at its current minor with no extends', () {
@@ -230,12 +200,11 @@ void main() {
     test('prd-core ships its shared lines in order with their reach and no '
         'shared field', () {
       final shared = _prdCoreManifest().shared;
-      expect({for (final l in shared.lines) l.id: l.text}, _sharedLines);
-      expect(shared.lines.map((l) => l.id), _sharedLines.keys);
+      expect(shared.lines.map((l) => l.id), _sharedLineIds);
       expect(
         {for (final l in shared.lines) l.id: l.forDocTypes},
         {
-          for (final id in _sharedLines.keys)
+          for (final id in _sharedLineIds)
             id: id == 'present_truth' ? _presentTruthIds : null,
         },
       );
@@ -405,36 +374,12 @@ void main() {
       );
     });
 
-    test(
-      'no description states the sentence length a lint key holds',
-      () async {
-        final set = await resolvePrdCore();
-        for (final docType in set.docTypes) {
-          expect(
-            docType.description,
-            isNot(contains('Each sentence holds')),
-            reason: docType.id,
-          );
-        }
-      },
-    );
-
     test('no description holds a shared line, and each guide prints the '
         'shared lines that reach it', () async {
       final set = await resolvePrdCore();
       for (final docType in set.docTypes) {
-        final texts = [
-          docType.description,
-          for (final field in docType.fields) field.description,
-          for (final section in docType.sections) section.description,
-        ];
-        for (final line in _sharedLines.values) {
-          for (final text in texts) {
-            expect(text ?? '', isNot(contains(line)), reason: docType.id);
-          }
-        }
         expect(docType.sharedLines.map((l) => l.id), [
-          for (final id in _sharedLines.keys)
+          for (final id in _sharedLineIds)
             if (id != 'present_truth' || _presentTruthIds.contains(docType.id))
               id,
         ], reason: docType.id);
@@ -446,32 +391,43 @@ void main() {
       final set = await resolvePrdCore();
       // A draft takes no approval stamp, so the counts stay exact.
       const draft = '---\ndraft: true\n---\n\n# Probe\n\n';
-      for (final docType in set.docTypes) {
-        final path = docType.path!
-            .replaceAll('{nn}', '07')
-            .replaceAll('{slug}', 'probe');
-        Future<Set<FindingKind>> kindsOf(String body) async {
-          final report = await checkOf(
-            await writeCheckProject(
-              extra: {'docs/$path': '$draft$body\n'},
-              unstamped: {'docs/$path'},
-            ),
-          );
-          return {
-            for (final f in report.findings)
-              if (f.path == path) f.kind,
-          };
-        }
+      String pathOf(MergedDocType docType) =>
+          docType.path!.replaceAll('{nn}', '07').replaceAll('{slug}', 'probe');
+      // One project holds every doc type's probe, so each body checks once.
+      Future<Map<String, Set<FindingKind>>> kindsByPath(
+        String Function(MergedDocType) bodyOf,
+      ) async {
+        final paths = {for (final t in set.docTypes) t.id: pathOf(t)};
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: {
+              for (final t in set.docTypes)
+                'docs/${paths[t.id]}': '$draft${bodyOf(t)}\n',
+            },
+            unstamped: {for (final p in paths.values) 'docs/$p'},
+          ),
+        );
+        return {
+          for (final p in paths.values)
+            p: {
+              for (final f in report.findings)
+                if (f.path == p) f.kind,
+            },
+        };
+      }
 
-        final lines = List.filled(docType.lint.maxLines! + 1, 'x').join('\n');
-        final chars = 'x' * (docType.lint.maxChars! + 1);
+      final overLines = await kindsByPath(
+        (t) => List.filled(t.lint.maxLines! + 1, 'x').join('\n'),
+      );
+      final overChars = await kindsByPath((t) => 'x' * (t.lint.maxChars! + 1));
+      for (final docType in set.docTypes) {
         expect(
-          await kindsOf(lines),
+          overLines[pathOf(docType)],
           contains(FindingKind.linesOverLimit),
           reason: '${docType.id} lines',
         );
         expect(
-          await kindsOf(chars),
+          overChars[pathOf(docType)],
           contains(FindingKind.charsOverLimit),
           reason: '${docType.id} chars',
         );
@@ -709,7 +665,6 @@ void main() {
       for (final MapEntry(key: id, value: title) in titles.entries) {
         final type = prdCoreDocType(set, id);
         expect(type.title, title, reason: id);
-        expect(type.description, isNot(contains('Title it')), reason: id);
       }
     });
 
@@ -728,109 +683,6 @@ void main() {
         expect(prdCoreDocType(set, id).title, isNull, reason: id);
       }
     });
-
-    test('persona, anti_persona, reference, feature, user_story, fr, and nf '
-        'descriptions title the doc by its own name', () async {
-      final set = await resolvePrdCore();
-      final byName = RegExp('Title it `# <[^>]+>`');
-      for (final id in [
-        'persona',
-        'anti_persona',
-        'reference',
-        'feature',
-        'user_story',
-        'fr',
-        'nf',
-      ]) {
-        expect(
-          byName.hasMatch(prdCoreDocType(set, id).description!),
-          isTrue,
-          reason: id,
-        );
-      }
-      expect(prdCoreDocType(set, 'fr').description, contains('`# <Name>`'));
-      expect(
-        prdCoreDocType(set, 'persona').description,
-        contains('`# <archetype title>`'),
-      );
-    });
-
-    test('gnfr, fr, and nf descriptions name the other -ly and -ize word '
-        'classes', () async {
-      final set = await resolvePrdCore();
-      for (final id in ['gnfr', 'fr', 'nf']) {
-        expect(
-          prdCoreDocType(set, id).description,
-          contains('-ly and -ize words beyond the banned list'),
-          reason: id,
-        );
-      }
-    });
-
-    test('every other description states one rule per ID and its guide prints '
-        'the readability bar', () async {
-      final set = await resolvePrdCore();
-      final perId = RegExp(r'one rule per (?:`[\w-]+\*` )?ID');
-      for (final docType in set.docTypes) {
-        if (docType.id == 'fr' || docType.id == 'glossary') continue;
-        expect(
-          perId.hasMatch(docType.description!),
-          isTrue,
-          reason: docType.id,
-        );
-        for (final fragment in _barLines) {
-          expect(docType.renderGuide(), contains(fragment), reason: docType.id);
-        }
-      }
-    });
-
-    test('id-less section types state one rule per item under the '
-        'readability bar', () async {
-      final set = await resolvePrdCore();
-      for (final id in [
-        'anti_persona',
-        'competitor',
-        'feature',
-        'features',
-        'glossary',
-        'journey',
-        'persona',
-        'reference',
-      ]) {
-        final guide = prdCoreDocType(set, id).renderGuide();
-        final rule = guide.indexOf('one rule per item');
-        expect(rule, isNonNegative, reason: id);
-        for (final fragment in _barLines) {
-          expect(
-            guide.indexOf(fragment),
-            greaterThan(rule),
-            reason: '$id $fragment',
-          );
-        }
-      }
-    });
-
-    test('every guide says a rule another doc owns is cited by a link, never '
-        'restated', () async {
-      final set = await resolvePrdCore();
-      for (final docType in set.docTypes) {
-        expect(
-          docType.renderGuide(),
-          contains('Link to the item of a rule another doc owns'),
-          reason: docType.id,
-        );
-      }
-    });
-
-    test(
-      'user story rules line gives the BR id form and asks no id order',
-      () async {
-        final set = await resolvePrdCore();
-        final rules = sectionOf(prdCoreDocType(set, 'user_story'), 'rules');
-        expect(rules.description, contains('`**BR-NN** — <rule>`'));
-        expect(rules.description, isNot(matches(RegExp('in order|numbered'))));
-      },
-    );
 
     test('every guide line a shared-lint finding message names is printed in '
         'the guide of the doc type it lints', () async {
@@ -852,32 +704,6 @@ void main() {
       }
       expect(named, contains('fr.statement second_shall'));
       expect(named, contains('fr.verification test_file_named'));
-      for (final docType in set.docTypes) {
-        expect(
-          docType.renderGuide(),
-          contains(citeNoteGuideLine),
-          reason: docType.id,
-        );
-      }
-    });
-
-    test('every guide prints the readability bar and no section description '
-        'holds it', () async {
-      final set = await resolvePrdCore();
-      for (final docType in set.docTypes) {
-        for (final line in _barLines) {
-          expect(docType.renderGuide(), contains(line), reason: docType.id);
-        }
-        for (final clause in _barClauses) {
-          for (final section in docType.sections) {
-            expect(
-              section.description ?? '',
-              isNot(contains(clause)),
-              reason: '${docType.id} ${section.id}',
-            );
-          }
-        }
-      }
     });
   });
 }

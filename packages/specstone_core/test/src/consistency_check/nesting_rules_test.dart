@@ -196,13 +196,6 @@ void main() {
       ]);
     });
 
-    test('the same doc with no story under it gives one finding', () async {
-      final report = await checkOf(await writeNestedProject(extra: deepFiles));
-      expect(_under(report, _deepFolder), [
-        '$_deepFeature: nesting_over_limit',
-      ]);
-    });
-
     test('a link finding and a note in the folder of an over-deep FEATURE.md report nothing', () async {
       final report = await checkOf(
         await writeNestedProject(

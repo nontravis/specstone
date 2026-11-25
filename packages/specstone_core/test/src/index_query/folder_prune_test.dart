@@ -9,6 +9,15 @@ import 'package:yaml/yaml.dart';
 import '../../helpers/forwarding_entities.dart';
 
 const _folders = ['bundles', 'reports'];
+// Agent files each folder holds besides plain files; age alone prunes them.
+const _agentFiles = {
+  'reports': [
+    'check.all.txt',
+    'get.feature-login.txt',
+    'sources/spec.md',
+    'sdd-engineer.audit.snapshot.a1b2c3.md',
+  ],
+};
 const _hour = Duration(hours: 1);
 const _day = Duration(days: 1);
 const _megabyte = 1000000;
@@ -95,10 +104,17 @@ void main() {
           'a.txt',
           modified: age + const Duration(hours: 1),
         );
+        final agentFiles = [
+          for (final relative in _agentFiles[name] ?? const <String>[])
+            put(name, relative, modified: age + const Duration(hours: 1)),
+        ];
 
         prune();
 
         expect(old.existsSync(), isFalse);
+        for (final file in agentFiles) {
+          expect(file.existsSync(), isFalse, reason: file.path);
+        }
       });
 
       test('$name keeps a file at the bound and a newer one', () {
@@ -304,18 +320,6 @@ void main() {
       now: now,
     );
 
-    test('a file deleted between the listing and its delete is dropped', () {
-      final vanishing = put('bundles', 'a.txt', modified: _day * 9);
-      final other = put('bundles', 'b.txt', modified: _day * 9);
-
-      expect(
-        () => pruneListed(listing([_Vanishing(vanishing), other])),
-        returnsNormally,
-      );
-
-      expect(other.existsSync(), isFalse);
-    });
-
     test('a file the age step cannot delete keeps its size in the total', () {
       final stuck = put('bundles', 'a.txt', modified: _day * 9, bytes: 400000);
       final other = put('bundles', 'b.txt', modified: _hour * 3, bytes: 300000);
@@ -335,7 +339,13 @@ void main() {
       );
       final other = put('bundles', 'b.txt', modified: _hour * 3, bytes: 300000);
 
-      pruneListed(listing([_Vanishing(vanishing), other]), maxBytes: 500000);
+      expect(
+        () => pruneListed(
+          listing([_Vanishing(vanishing), other]),
+          maxBytes: 500000,
+        ),
+        returnsNormally,
+      );
 
       expect(other.existsSync(), isFalse);
     });
@@ -680,44 +690,6 @@ void main() {
 
       expect(kept.existsSync(), isTrue);
       expect(expired.existsSync(), isFalse);
-    });
-  });
-
-  group('the agent files of reports', () {
-    test('reports prune a report, a batch file, a source copy, and a design '
-        'snapshot by age alone', () {
-      final report = put('reports', 'check.all.txt', modified: _day * 8);
-      final batch = put('reports', 'get.feature-login.txt', modified: _day * 8);
-      final copy = put('reports', 'sources/spec.md', modified: _day * 8);
-      final snapshot = put(
-        'reports',
-        'sdd-engineer.audit.snapshot.a1b2c3.md',
-        modified: _day * 8,
-      );
-      final inUse = put(
-        'reports',
-        'check.feature-login.json',
-        modified: _day * 8,
-        read: _day,
-      );
-
-      prune();
-
-      expect(report.existsSync(), isFalse);
-      expect(batch.existsSync(), isFalse);
-      expect(copy.existsSync(), isFalse);
-      expect(snapshot.existsSync(), isFalse);
-      expect(inUse.existsSync(), isTrue);
-    });
-
-    test('a run prunes both folders in one pass', () {
-      final bundle = put('bundles', 'a.txt', modified: _day * 2);
-      final report = put('reports', 'a.txt', modified: _day * 8);
-
-      prune();
-
-      expect(bundle.existsSync(), isFalse);
-      expect(report.existsSync(), isFalse);
     });
   });
 

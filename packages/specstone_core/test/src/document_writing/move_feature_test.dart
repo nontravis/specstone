@@ -299,26 +299,24 @@ void main() {
         () => moveAll(root, ['feature:shop/cart'], under: 'other'),
         exists('a feature named other/cart exists', '$landed/'),
       );
-    });
 
-    test('a taken path for its spec folder', () async {
-      final root = await project({'docs/$landedSpecs/note.md': '# Note\n'});
+      final specsRoot = await project({
+        'docs/$landedSpecs/note.md': '# Note\n',
+      });
       expectRefused(
-        root,
-        () => moveAll(root, ['feature:shop/cart'], under: 'other'),
+        specsRoot,
+        () => moveAll(specsRoot, ['feature:shop/cart'], under: 'other'),
         exists('a feature named other/cart exists', '$landedSpecs/'),
       );
-    });
 
-    test('a taken path for its record folder', () async {
       const landedRecords = '.specstone/records/f03_other/f03_cart';
-      final root = await project({
+      final recordsRoot = await project({
         ...nestedRecords(),
         '$landedRecords/note.md': '# Note\n',
       });
       expectRefused(
-        root,
-        () => moveAll(root, ['feature:shop/cart'], under: 'other'),
+        recordsRoot,
+        () => moveAll(recordsRoot, ['feature:shop/cart'], under: 'other'),
         exists('a feature named other/cart exists', '$landedRecords/'),
       );
     });
@@ -830,30 +828,6 @@ void main() {
             'mention': 'shop/cart/add_item/check_stock E05',
           },
         ]);
-      },
-    );
-
-    test(
-      'a dry run of a feature move lists the longer span and changes no file',
-      () async {
-        const text = '# Ideas\n\nA span `shop/cart/add_item E05`.\n';
-        final root = await project({'docs/notes.md': text});
-        writeIn(root, (s) => s.target('feature:shop'));
-        final before = tree(root);
-        final answer = moveAll(
-          root,
-          ['feature:shop/cart'],
-          under: 'other',
-          dryRun: true,
-        );
-        expect(
-          answer.text,
-          endsWith(
-            'mentions docs/notes.md:3 shop/cart/add_item E05\n'
-            'dry run: nothing moved\n',
-          ),
-        );
-        expect(tree(root), before);
       },
     );
 

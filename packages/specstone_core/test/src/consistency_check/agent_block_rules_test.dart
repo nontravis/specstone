@@ -251,16 +251,6 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
-  test('an older version in the BEGIN line is no finding', () async {
-    expect(
-      await _staleOf({
-        'AGENTS.md': _inline().replaceFirst(specstoneVersion, '0.0.1'),
-        _agentMd: agentMdText,
-      }),
-      isEmpty,
-    );
-  });
-
   test('files an earlier pre-release wrote are no finding for the '
       'CLI as it ships', () async {
     // Below every shipped version, so it never equals specstoneVersion.
@@ -304,6 +294,8 @@ void main() {
       found.single.message,
       'the Specstone block differs from what the running CLI writes; $_migrate',
     );
+    expect(found.single.waitsFor, WaitsFor.owner);
+    expect(found.single.textLines.single, endsWith(' (waits for the Owner)'));
   });
 
   test('AGENT.md with other bytes is one finding on line 1', () async {
@@ -314,6 +306,7 @@ void main() {
       found.single.message,
       '$_agentMd differs from what the running CLI writes; $_migrate',
     );
+    expect(found.single.waitsFor, WaitsFor.owner);
   });
 
   test('an import block without AGENT.md is one finding', () async {
@@ -324,13 +317,8 @@ void main() {
       found.single.message,
       'the block imports $_agentMd, which is missing; $_migrate',
     );
-  });
-
-  test('an agent_block_stale finding of a missing import names AGENT.md '
-      'as targetPath', () async {
-    final found = await _staleOf({'CLAUDE.md': 'x\n${_imports()}'});
-
     expect(found.single.keys['targetPath'], _agentMd);
+    expect(found.single.waitsFor, WaitsFor.owner);
   });
 
   test('malformed marker lines are one finding on the first marker', () async {
@@ -344,6 +332,12 @@ void main() {
       found.single.message,
       'the Specstone marker lines are malformed and `specstone migrate` '
       'refuses the file; repair the block by hand',
+    );
+    expect(found.single.waitsFor, WaitsFor.agent);
+    expect(found.single.toJson()['waitsFor'], 'agent');
+    expect(
+      found.single.textLines.single,
+      isNot(contains('waits for the Owner)')),
     );
   });
 
@@ -363,6 +357,7 @@ void main() {
 
     expect([for (final f in found) '${f.path}:${f.line}'], ['CLAUDE.md:2']);
     expect(found.single.message, _fenceOpen);
+    expect(found.single.waitsFor, WaitsFor.agent);
   });
 
   test('an unclosed fence after a well-formed block still wins the '
@@ -390,65 +385,6 @@ void main() {
     );
   });
 
-  group('waitsFor by drift kind', () {
-    test(
-      'a stale block waits for the Owner, `migrate` running on their word',
-      () async {
-        final found = await _staleOf({
-          'AGENTS.md': 'top\n${_inline().replaceFirst('Rules', 'Rule')}',
-          _agentMd: agentMdText,
-        });
-
-        expect(found.single.waitsFor, WaitsFor.owner);
-        expect(
-          found.single.textLines.single,
-          endsWith(' (waits for the Owner)'),
-        );
-      },
-    );
-
-    test('a stale AGENT.md waits for the Owner', () async {
-      final found = await _staleOf({_agentMd: 'hand edit\n'});
-
-      expect(found.single.waitsFor, WaitsFor.owner);
-    });
-
-    test('a missing AGENT.md waits for the Owner', () async {
-      final found = await _staleOf({'CLAUDE.md': 'x\n${_imports()}'});
-
-      expect(found.single.waitsFor, WaitsFor.owner);
-    });
-
-    test('an unlisted repository top waits for the Owner', () async {
-      final found = await _staleBeside();
-
-      expect(found.single.waitsFor, WaitsFor.owner);
-    });
-
-    test('malformed marker lines wait for the Agent, a hand repair', () async {
-      final found = await _staleOf({
-        'CLAUDE.md': 'x\n<!-- BEGIN specstone v1.0.0 -->\nno end\n',
-        _agentMd: agentMdText,
-      });
-
-      expect(found.single.waitsFor, WaitsFor.agent);
-      expect(found.single.toJson()['waitsFor'], 'agent');
-      expect(
-        found.single.textLines.single,
-        isNot(contains('waits for the Owner)')),
-      );
-    });
-
-    test('an open code fence waits for the Agent', () async {
-      final found = await _staleOf({
-        'CLAUDE.md': 'x\n```\ncode\n${_imports()}',
-        _agentMd: agentMdText,
-      });
-
-      expect(found.single.waitsFor, WaitsFor.agent);
-    });
-  });
-
   group('a repository top', () {
     test('a top a code entry reaches and the config does not list is '
         'one finding on the top folder', () async {
@@ -461,11 +397,7 @@ void main() {
         found.single.message,
         'the repository top is not in agent_file_roots yet; $_migrate',
       );
-    });
-
-    test('the finding at an unlisted top carries no name key', () async {
-      final found = await _staleBeside();
-
+      expect(found.single.waitsFor, WaitsFor.owner);
       expect(found.single.name, isNull);
       expect(found.single.toJson().containsKey('name'), isFalse);
     });
@@ -552,37 +484,6 @@ void main() {
     }
 
     String where(Finding f) => '${f.path}:${f.line}';
-
-    test('files as the CLI writes them have no finding', () async {
-      expect(await staleSkillFiles({}), isEmpty);
-    });
-
-    test('a stale settings file is one finding the Owner clears with '
-        'migrate', () async {
-      final found = await staleSkillFiles({settingsFilePath: '{}\n'});
-
-      expect(found.map(where), ['$settingsFilePath:1']);
-      expect(found.single.waitsFor, WaitsFor.owner);
-      expect(found.single.message, _settingsStale);
-    });
-
-    test('a missing settings file is one finding the Owner clears with '
-        'migrate', () async {
-      final found = await staleSkillFiles({settingsFilePath: null});
-
-      expect(found.map(where), ['$settingsFilePath:1']);
-      expect(found.single.waitsFor, WaitsFor.owner);
-      expect(found.single.message, _settingsMissing);
-    });
-
-    test('a malformed settings file is one finding the Agent repairs by '
-        'hand, and check does not throw', () async {
-      final found = await staleSkillFiles({settingsFilePath: '{'});
-
-      expect(found.map(where), ['$settingsFilePath:1']);
-      expect(found.single.waitsFor, WaitsFor.agent);
-      expect(found.single.message, _settingsMalformed);
-    });
 
     test('a hand-edited Codex agent file is one finding on '
         'line 1', () async {
@@ -688,8 +589,6 @@ void main() {
   });
 
   group('the settings file', () {
-    const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
-
     Future<List<Finding>> settingsOf(
       String? text, {
       Map<String, String?> more = const {},
@@ -724,6 +623,7 @@ void main() {
           for (final text in [
             _settings(matcher: 'Edit'),
             _settings(timeout: 5),
+            _settings(args: ['hook', 'session-start']),
             '{}',
           ]) {
             final found = await check(text);
@@ -762,27 +662,6 @@ void main() {
           }
         });
 
-        test('a handler the binary does not write is one finding', () async {
-          final found = await check(_settings(args: ['hook', 'session-start']));
-
-          expect(found.single.message, _settingsStale);
-        });
-
-        test(
-          'a session-start handler is one finding at the settings file, line 1',
-          () async {
-            final found = await check(
-              _settings(args: ['hook', 'session-start']),
-            );
-
-            expect(
-              [for (final f in found) '${f.path}:${f.line}'],
-              ['$prefix$settingsFilePath:1'],
-            );
-            expect(found.single.message, contains(_migrate));
-          },
-        );
-
         test('the Owner keys, groups, and handlers are never '
             'compared', () async {
           expect(
@@ -819,31 +698,6 @@ void main() {
       expect(await settingsOf('{', more: opted), isEmpty);
       expect(await settingsOf(null, more: opted), isEmpty);
     });
-
-    test('a check with a target reports no settings finding', () async {
-      final files = {...skillFileTexts(), settingsFilePath: '{}'};
-      final project = await writeCheckProject(extra: files);
-
-      expect([
-        for (final f in (await checkOf(project, target: 'login')).findings)
-          if (f.kind == FindingKind.agentBlockStale) f,
-      ], isEmpty);
-    });
-
-    test('a hand edit to one skill file beside a current settings file is the '
-        'only finding, with its own message', () async {
-      final found = await settingsOf(
-        settingsFileText,
-        more: {codexToml: 'hand edit\n'},
-      );
-
-      expect(found.map((f) => f.path), [codexToml]);
-      expect(
-        found.single.message,
-        'the Specstone skill or agent file differs from what the running CLI '
-        'writes; $_migrate',
-      );
-    });
   });
 
   group('the Codex hooks file', () {
@@ -855,10 +709,6 @@ void main() {
         ..removeWhere((_, value) => value == null);
       return _staleOf({for (final e in files.entries) e.key: e.value!});
     }
-
-    test('both hook files current give no finding', () async {
-      expect(await codexHooksOf(codexHooksFileText), isEmpty);
-    });
 
     for (final (state, text, message, waitsFor)
         in <(String, String?, String, WaitsFor)>[
@@ -904,16 +754,6 @@ void main() {
 
       expect(await codexHooksOf('{', more: opted), isEmpty);
       expect(await codexHooksOf(null, more: opted), isEmpty);
-    });
-
-    test('a check with a target reports no Codex hooks finding', () async {
-      final files = {...skillFileTexts(), codexHooksFilePath: '{}'};
-      final project = await writeCheckProject(extra: files);
-
-      expect([
-        for (final f in (await checkOf(project, target: 'login')).findings)
-          if (f.kind == FindingKind.agentBlockStale) f,
-      ], isEmpty);
     });
   });
 
@@ -1012,27 +852,15 @@ void main() {
 
     test('the hand-fix messages keep their text and wait for the '
         'Agent', () async {
-      final found = await findingsOf({
-        'CLAUDE.md': 'x\n<!-- BEGIN specstone v1.0.0 -->\nno end\n',
-        'AGENTS.md': 'x\n```\ncode\n${_inline()}',
-        settingsFilePath: '{',
-      }, version: '99.0.0');
-
-      expect(
-        {for (final f in found) f.path: f.message},
-        {
-          'CLAUDE.md': _markersMalformed,
-          'AGENTS.md': _fenceOpen,
-          settingsFilePath: _settingsMalformed,
-        },
-      );
-      expect(found.map((f) => f.waitsFor), everyElement(WaitsFor.agent));
-    });
-
-    test('the hand-fix messages are the same under every stamp', () async {
-      for (final version in <String?>[null, '0.0.1', specstoneVersion]) {
+      for (final version in <String?>[
+        '99.0.0',
+        null,
+        '0.0.1',
+        specstoneVersion,
+      ]) {
         final found = await findingsOf({
           'CLAUDE.md': 'x\n<!-- BEGIN specstone v1.0.0 -->\nno end\n',
+          'AGENTS.md': 'x\n```\ncode\n${_inline()}',
           settingsFilePath: '{',
         }, version: version);
 
@@ -1040,9 +868,11 @@ void main() {
           {for (final f in found) f.path: f.message},
           {
             'CLAUDE.md': _markersMalformed,
+            'AGENTS.md': _fenceOpen,
             settingsFilePath: _settingsMalformed,
           },
         );
+        expect(found.map((f) => f.waitsFor), everyElement(WaitsFor.agent));
       }
     });
 

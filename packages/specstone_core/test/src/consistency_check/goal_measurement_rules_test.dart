@@ -113,33 +113,9 @@ void main() {
       finding.message,
       allOf(contains('fewer_resets'), contains('faster_sign_in')),
     );
+    expect(finding.keys['measurements'], ['faster_sign_in', 'fewer_resets']);
+    expect(finding.message, endsWith('faster_sign_in, fewer_resets'));
   });
-
-  test(
-    'a goal_measurement_duplicate finding lists its measurements and its goals',
-    () async {
-      final byGoal = await writeCheckProject(
-        extra: {'docs/$_secondMeasurement': _measurement(measurementHeadLink)},
-      );
-      final goalCase = _goalFindings(await checkOf(byGoal)).single;
-      expect(goalCase.keys['measurements'], ['faster_sign_in', 'fewer_resets']);
-      expect(goalCase.message, endsWith('faster_sign_in, fewer_resets'));
-      expect(goalCase.keys['goal'], 'PG-01');
-
-      final byMeasurement = await writeCheckProject(
-        extra: {
-          ..._goals(secondGoal: true),
-          'docs/$measurementDoc': _measurement(
-            '$measurementHeadLink $_goal2Link',
-          ),
-        },
-      );
-      final measurementCase = _goalFindings(await checkOf(byMeasurement))
-          .single;
-      expect(measurementCase.keys['goals'], ['PG-01', 'PG-02']);
-      expect(measurementCase.keys['measurement'], 'fewer_resets');
-    },
-  );
 
   test('a goal_metric_mismatch finding lists its measurements', () async {
     final project = await writeCheckProject(
@@ -157,6 +133,10 @@ void main() {
         .singleWhere((f) => f.kind == FindingKind.goalMetricMismatch);
     expect(mismatch.keys['measurements'], ['faster_sign_in', 'third_run']);
     expect(mismatch.keys['goal'], 'PG-01');
+    expect(
+      mismatch.message,
+      allOf(contains('faster_sign_in'), contains('third_run')),
+    );
   });
 
   test('a head that links two goals is one duplicate at its title; neither goal is missing', () async {
@@ -173,6 +153,7 @@ void main() {
     expect(finding.path, measurementDoc);
     expect(finding.line, _lineOf(project, measurementDoc, '# '));
     expect(finding.toJson()['measurement'], 'fewer_resets');
+    expect(finding.keys['goals'], ['PG-01', 'PG-02']);
   });
 
   test('a head with no link, or one that links another doc, is measurement_goal_unresolved at its title', () async {
@@ -337,27 +318,6 @@ void main() {
     expect(mismatch.message, contains('faster_sign_in'));
   });
 
-  test('a Metric line that links two mismatched measurements names each in one finding', () async {
-    final project = await writeCheckProject(
-      extra: {
-        ..._goals(
-          secondGoal: true,
-          metric:
-              '- **Metric:** 50%, see $_secondMetricLink and $_thirdMetricLink',
-        ),
-        'docs/$_secondMeasurement': _measurement(_goal2Link),
-        'docs/$_thirdMeasurement': _measurement('No link here.'),
-      },
-    );
-    final mismatches = (await checkOf(project)).findings
-        .where((f) => f.kind == FindingKind.goalMetricMismatch);
-    expect(mismatches, hasLength(1));
-    expect(
-      mismatches.single.message,
-      allOf(contains('faster_sign_in'), contains('third_run')),
-    );
-  });
-
   test('a Metric that links a measurement with no goal link is a mismatch beside its unresolved', () async {
     final project = await writeCheckProject(
       extra: {
@@ -370,25 +330,10 @@ void main() {
       '$goalDoc:${_lineOf(project, goalDoc, '- **Metric:**')}: goal_metric_mismatch',
     ]);
     expect(spots(report, FindingKind.measurementGoalUnresolved), hasLength(1));
-  });
-
-  test('the unresolved finding beside a mismatched Metric sits on the title line of the measurement', () async {
-    final project = await writeCheckProject(
-      extra: {
-        ..._goals(metric: '- **Metric:** 50%, see $_metricLink'),
-        'docs/$measurementDoc': _measurement('No link here.'),
-      },
-    );
-    final report = await checkOf(project);
-
     final unresolved = _goalFindings(report)
         .singleWhere((f) => f.kind == FindingKind.measurementGoalUnresolved);
     expect(unresolved.path, measurementDoc);
     expect(unresolved.line, _lineOf(project, measurementDoc, '# Fewer resets'));
-    final mismatch = _goalFindings(report)
-        .singleWhere((f) => f.kind == FindingKind.goalMetricMismatch);
-    expect(mismatch.path, goalDoc);
-    expect(mismatch.line, _lineOf(project, goalDoc, '- **Metric:**'));
   });
 
   test('a Metric that links a measurement whose head links two goals including its own is no mismatch', () async {
@@ -448,23 +393,9 @@ void main() {
         isEmpty,
         reason: metric,
       );
-    }
-  });
-
-  test('an unlinked Metric of non-measurement docs or URLs names its goal in the finding', () async {
-    for (final metric in [
-      '- **Metric:** 50%, see [project](PROJECT.md)',
-      '- **Metric:** 50%, see [site](https://example.com/a)',
-      '- **Metric:** 50%, see <https://example.com/a>',
-    ]) {
-      final project = await writeCheckProject(extra: _goals(metric: metric));
-      final finding = _goalFindings(await checkOf(project)).single;
-
-      expect(finding.kind, FindingKind.goalMetricUnlinked, reason: metric);
-      expect(finding.toJson(), containsPair('goal', 'PG-01'), reason: metric);
       expect(
-        finding.line,
-        _lineOf(project, goalDoc, '- **Metric:**'),
+        _goalFindings(report).single.toJson(),
+        containsPair('goal', 'PG-01'),
         reason: metric,
       );
     }

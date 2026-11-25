@@ -581,24 +581,30 @@ void main() {
     );
 
     test('a whole-doc link to a picked doc prints right after its naming line', () async {
-      const line = 'See [the rule]($toFr).';
-      final text = design(
-        await _index(
-          'Check it.',
-          extra: {
-            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n',
-          },
-        ),
-      ).text;
+      const lines = {
+        'a whole-doc link': 'See [the rule]($toFr).',
+        'an unplaced anchor': 'See [the title]($toFr#validate-credentials).',
+      };
+      for (final MapEntry(key: reason, value: line) in lines.entries) {
+        final text = design(
+          await _index(
+            'Check it.',
+            extra: {
+              'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n',
+            },
+          ),
+        ).text;
 
-      expect(
-        text,
-        contains(
-          '==> $_frName (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
-          '  · cited by guide (charter) — #purpose\n'
-          '---\nverify_method: test',
-        ),
-      );
+        expect(
+          text,
+          contains(
+            '==> $_frName (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
+            '  · cited by guide (charter) — #purpose\n'
+            '---\nverify_method: test',
+          ),
+          reason: reason,
+        );
+      }
     });
 
     test('a block link into an appended block prints no line and its part has no citedBy key', () async {
@@ -659,28 +665,6 @@ void main() {
       final picked = docsOf(design(index))
           .firstWhere((d) => d['name'] == _frName);
       expect((picked['citedBy']! as List).single, containsPair('kind', 'doc'));
-    });
-
-    test('an unplaced-anchor line prints right after the naming line of the doc', () async {
-      const line = 'See [the title]($toFr#validate-credentials).';
-      final text = design(
-        await _index(
-          'Check it.',
-          extra: {
-            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n',
-          },
-        ),
-      ).text;
-
-      expect(
-        text,
-        contains(
-          '==> $_frName (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
-          '  · cited by guide (charter) — #purpose\n'
-          '---\nverify_method: test',
-        ),
-      );
-      expect('cited by guide'.allMatches(text), hasLength(1));
     });
 
     test('an anchor matching nothing gets no line', () async {

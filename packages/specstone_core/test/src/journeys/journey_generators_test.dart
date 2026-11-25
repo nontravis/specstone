@@ -337,19 +337,6 @@ void main() {
       expect(scenarioCopyOf('### Scenario 1 — x'), '');
     });
 
-    test('a table row right under the heading is copied in the layout', () {
-      expect(
-        scenarioCopyOf(
-          '### Scenario 1 — x\n| a   | b  |\n|-----|----|\n| 1 | 2 |',
-        ),
-        '| a | b |\n|---|---|\n| 1 | 2 |',
-      );
-    });
-
-    test('blank lines under the heading are left out', () {
-      expect(scenarioCopyOf('### Scenario 1 — x\n\n\n- a\n- b'), '- a\n- b');
-    });
-
     test('a padded table is copied in the format layout', () {
       const block =
           '### Scenario 1 — x\n\n'

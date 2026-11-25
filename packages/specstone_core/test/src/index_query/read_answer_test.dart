@@ -218,13 +218,6 @@ void main() {
         }
       },
     );
-    test('a malformed hash leaves the path whole', () {
-      final read = readNamingLine(
-        '==> a (feature) · p.md · base abc123abc12 <==',
-      );
-      expect(read!.path, 'p.md');
-      expect(read.base, isNull);
-    });
     test('a line whose path is empty reads as none', () {
       for (final bad in [
         '==>  <==',
@@ -239,6 +232,7 @@ void main() {
         final read = readNamingLine(namingLine(typed, base: bad));
         expect(read, isNotNull, reason: bad);
         expect(read!.base, isNull, reason: bad);
+        expect(read.path, typedPath, reason: bad);
       }
     });
   });
@@ -252,6 +246,8 @@ void main() {
         '==> a (feature) · p.md · base abc123abc123 <==\u00A0',
         '==> a (feature) · p.md · base abc123abc123 <== \t\u2003',
         '==><==',
+        namingLine(typed, base: hash),
+        '==> feature <==',
       ]) {
         expect(hasNamingLineShape(line), isTrue, reason: line);
       }
@@ -269,10 +265,6 @@ void main() {
       ]) {
         expect(hasNamingLineShape(line), isFalse, reason: line);
       }
-    });
-    test('every line readNamingLine reads has the shape', () {
-      expect(hasNamingLineShape(namingLine(typed, base: hash)), isTrue);
-      expect(hasNamingLineShape('==> feature <=='), isTrue);
     });
   });
 }

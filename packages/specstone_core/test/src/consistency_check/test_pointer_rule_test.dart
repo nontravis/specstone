@@ -164,30 +164,18 @@ void main() {
       'spaces included', () async {
     final report = await _run(
       await _project(
-        _record(tests: ['$_fr:$_testFile:shows a toast: then hides it']),
+        _record(
+          tests: [
+            '$_fr:$_testFile:shows a toast: then hides it',
+            '$_fr:$_testFile:hows a to',
+            '$_fr:$_testFile:ides it toda',
+          ],
+        ),
       ),
     );
 
     expect(_spots(report), isEmpty);
   });
-
-  test(
-    'a name that starts or ends in the middle of a word still matches',
-    () async {
-      final report = await _run(
-        await _project(
-          _record(
-            tests: [
-              '$_fr:$_testFile:hows a to',
-              '$_fr:$_testFile:ides it toda',
-            ],
-          ),
-        ),
-      );
-
-      expect(_spots(report), isEmpty);
-    },
-  );
 
   test('a tests line ending in 12 hex characters reads the token as part of '
       'the name', () async {
@@ -239,18 +227,9 @@ void main() {
           containsPair('waitsFor', 'agent'),
         ),
       );
+      expect(finding.keys.containsKey('name'), isFalse);
     },
   );
-
-  test('a tests_unresolved finding names the missing test as test', () async {
-    final report = await _run(
-      await _project(_record(tests: ['$_fr:$_testFile:hides the toast'])),
-    );
-
-    final keys = _only(report).keys;
-    expect(keys['test'], 'hides the toast');
-    expect(keys.containsKey('name'), isFalse);
-  });
 
   test('a folder, or a file not present, is tests_unresolved with no name '
       'key', () async {

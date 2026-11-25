@@ -27,6 +27,10 @@ void main() {
         const TbrMarkerLine(line: 0, rest: 'pick one'),
         const TbrMarkerLine(line: 0, rest: 'and two'),
       ]);
+      expect(tbrMarkerLinesIn('TBR — a and TBR — b\n'), [
+        const TbrMarkerLine(line: 0, rest: 'a and'),
+        const TbrMarkerLine(line: 0, rest: 'b'),
+      ]);
     });
 
     test('a '
@@ -92,6 +96,10 @@ void main() {
           'TBR —no space\n'
           'TBR – en dash\n';
       expect(tbrMarkerLinesIn(body), isEmpty);
+      expect(tbrMarkerLinesIn('TBR—x\nTBR -\nTBR —x TBR - y\n'), isEmpty);
+      expect(tbrMarkerLinesIn('TBR —x TBR — y\n'), [
+        const TbrMarkerLine(line: 0, rest: 'y'),
+      ]);
     });
 
     test('a '
@@ -107,15 +115,6 @@ void main() {
       ]);
     });
 
-    test('a '
-        'dash with no space after it, or a hyphen, is no marker even at a '
-        'line end', () {
-      expect(tbrMarkerLinesIn('TBR—x\nTBR -\nTBR —x TBR - y\n'), isEmpty);
-      expect(tbrMarkerLinesIn('TBR —x TBR — y\n'), [
-        const TbrMarkerLine(line: 0, rest: 'y'),
-      ]);
-    });
-
     test('a marker '
         'at the start of a line and after a bold label is read', () {
       const body =
@@ -124,14 +123,6 @@ void main() {
       expect(tbrMarkerLinesIn(body), [
         const TbrMarkerLine(line: 0, rest: 'first'),
         const TbrMarkerLine(line: 1, rest: 'legacy states none'),
-      ]);
-    });
-
-    test('two '
-        'markers on one line give two places at that line', () {
-      expect(tbrMarkerLinesIn('TBR — a and TBR — b\n'), [
-        const TbrMarkerLine(line: 0, rest: 'a and'),
-        const TbrMarkerLine(line: 0, rest: 'b'),
       ]);
     });
 

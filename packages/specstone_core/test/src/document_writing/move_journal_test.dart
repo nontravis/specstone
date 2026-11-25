@@ -878,6 +878,7 @@ void main() {
       isA<RenderFault>()
           .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
           .having((f) => f.file, 'file', MoveJournal.journalPath)
+          .having((f) => f.exitStatus, 'exit', 73)
           .having(
             (f) => f.message,
             'message',
@@ -888,57 +889,51 @@ void main() {
     JournalTarget target() =>
         JournalTarget.of(openProject(root), homeDirectory: testHome());
 
-    test('a journal no run on this machine recorded is refused before any '
-        'step, and nothing moves', () {
-      final before = readDoc(root, story1);
-      writeJournal(root, [
+    final unrecordedJournals = <String, Future<void> Function()>{
+      'never recorded': () async => writeJournal(root, [
         const MoveStep('docs/$story1', '$_trashDocs/$story1'),
         const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
-      ], recorded: false);
+      ], recorded: false),
+      'recorded for another project': () async {
+        final other = await writeWriteProject();
+        writeJournal(other, const [
+          WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
+        ]);
+        Directory('${root.path}/${MoveJournal.trashPath}')
+            .createSync(recursive: true);
+        File('${other.path}/${MoveJournal.journalPath}')
+            .copySync('${root.path}/${MoveJournal.journalPath}');
+      },
+      'edited after its run recorded it': () async {
+        writeJournal(root, const [
+          WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
+        ]);
+        final journal = File('${root.path}/${MoveJournal.journalPath}');
+        journal.writeAsStringSync(
+          journal.readAsStringSync().replaceFirst('PROJECT.md', 'PROJECT2.md'),
+        );
+      },
+    };
 
-      expect(
-        () => MoveJournal.replay(target()),
-        untrusted('no Specstone run on this machine wrote it'),
-      );
-      expect(
-        () => MoveJournal.remaining(target()),
-        untrusted('no Specstone run on this machine wrote it'),
-      );
+    for (final entry in unrecordedJournals.entries) {
+      test('a journal no run on this machine recorded is refused before any '
+          'step, and nothing moves: ${entry.key}', () async {
+        final before = readDoc(root, story1);
+        await entry.value();
 
-      expect(readDoc(root, story1), before);
-      expect(journalExists(), isTrue);
-    });
+        expect(
+          () => MoveJournal.replay(target()),
+          untrusted('no Specstone run on this machine wrote it'),
+        );
+        expect(
+          () => MoveJournal.remaining(target()),
+          untrusted('no Specstone run on this machine wrote it'),
+        );
 
-    test('a journal recorded for another project is refused', () async {
-      final other = await writeWriteProject();
-      writeJournal(other, const [
-        WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
-      ]);
-      Directory('${root.path}/${MoveJournal.trashPath}')
-          .createSync(recursive: true);
-      File('${other.path}/${MoveJournal.journalPath}')
-          .copySync('${root.path}/${MoveJournal.journalPath}');
-
-      expect(
-        () => MoveJournal.replay(target()),
-        untrusted('no Specstone run on this machine wrote it'),
-      );
-    });
-
-    test('a journal edited after its run recorded it is refused', () {
-      writeJournal(root, const [
-        WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
-      ]);
-      final journal = File('${root.path}/${MoveJournal.journalPath}');
-      journal.writeAsStringSync(
-        journal.readAsStringSync().replaceFirst('PROJECT.md', 'PROJECT2.md'),
-      );
-
-      expect(
-        () => MoveJournal.replay(target()),
-        untrusted('no Specstone run on this machine wrote it'),
-      );
-    });
+        expect(readDoc(root, story1), before);
+        expect(journalExists(), isTrue);
+      });
+    }
 
     test('a journal with no home folder to hold its record is refused', () {
       writeJournal(root, const [
@@ -950,35 +945,6 @@ void main() {
           JournalTarget.of(openProject(root), homeDirectory: null),
         ),
         untrusted('no Specstone run on this machine wrote it'),
-      );
-    });
-
-    test('an unrecorded journal is refused with exit status 73', () {
-      writeJournal(root, [
-        const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
-      ], recorded: false);
-
-      expect(
-        () => MoveJournal.replay(target()),
-        throwsA(
-          isA<RenderFault>()
-              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-              .having((f) => f.exitStatus, 'exit', 73),
-        ),
-      );
-      expect(journalExists(), isTrue);
-    });
-
-    test('a journal read with no home folder exits 73', () {
-      writeJournal(root, [
-        const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
-      ]);
-
-      expect(
-        () => MoveJournal.replay(
-          JournalTarget.of(openProject(root), homeDirectory: null),
-        ),
-        throwsA(isA<RenderFault>().having((f) => f.exitStatus, 'exit', 73)),
       );
     });
 
@@ -2082,7 +2048,10 @@ void main() {
     test('a run records the count of steps finished in the cursor file', () {
       stopAfterChain();
 
-      expect(cursorFile().readAsStringSync(), '2');
+      expect(
+        File('${tree.path}/.specstone/trash/journal.cursor').readAsStringSync(),
+        '2',
+      );
       expect(
         journal().readAsStringSync(),
         jsonEncode(const MoveJournal(stopped).toJson()),
@@ -2135,19 +2104,6 @@ void main() {
       );
     });
 
-    test(
-      'a stopped run keeps its cursor in .specstone/trash/journal.cursor',
-      () {
-        stopAfterChain();
-
-        expect(
-          File('${tree.path}/.specstone/trash/journal.cursor')
-              .readAsStringSync(),
-          '2',
-        );
-      },
-    );
-
     test('a run writes cursor 0 before it writes the journal', () {
       Directory('${tree.path}/${MoveJournal.trashPath}')
           .createSync(recursive: true);
@@ -2170,28 +2126,6 @@ void main() {
       expect(cursorWhenJournalWritten, ['0']);
       expectChainLanded();
     });
-
-    test(
-      'a run resets a cursor file no journal owns before its first step',
-      () {
-        Directory('${tree.path}/${MoveJournal.trashPath}')
-            .createSync(recursive: true);
-        cursorFile().writeAsStringSync('2');
-        jamStuck();
-
-        expect(
-          () => const MoveJournal(firstFails).run(_target(tree)),
-          throwsA(isA<RenderFault>()),
-        );
-        unjamStuck();
-
-        expect(cursorFile().readAsStringSync(), '0');
-        expect(
-          MoveJournal.remaining(_target(tree)).first.describe(),
-          'write $stuck',
-        );
-      },
-    );
 
     test('a run stopped after a chain replays from its cursor and leaves the '
         'landed doc alone', () {

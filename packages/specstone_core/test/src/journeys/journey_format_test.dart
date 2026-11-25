@@ -170,36 +170,14 @@ void main() {
     expect(build.html, contains('<pre class="mermaid">'));
     expect(build.html, contains('flowchart TD'));
     expect(build.html, contains('s1 --&gt; s2'));
-    expect(build.html, isNot(contains('src="http')));
-  });
-
-  test('an html build of a journey renders its flowchart with the pinned '
-      'inline script once', () async {
-    final root = await _project(
-      _journey([_step('1', 'Open', 'S1'), _step('2', 'Type', 'S1')]),
-    );
-    _format(root);
-    final project = _open(root);
-
-    final build = buildHtml(
-      project,
-      project.resolveTarget(
-        null,
-        workingDirectory: root,
-        defaultsToDocsRoot: true,
-      ),
-    );
-
-    expect(build.html, contains(mermaidScript));
-    expect(
-      build.html.indexOf(mermaidScript),
-      build.html.lastIndexOf(mermaidScript),
-    );
     expect(
       build.html.replaceAll(mermaidScript, ''),
       isNot(contains('src="http')),
     );
-    expect(build.html, contains('<pre class="mermaid">'));
+    expect(
+      build.html.indexOf(mermaidScript),
+      build.html.lastIndexOf(mermaidScript),
+    );
   });
 
   test('a copy block under a step that names a missing scenario stays as it '

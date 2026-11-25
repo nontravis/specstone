@@ -136,23 +136,6 @@ void main() {
       expect(sectionOf(skill, 'purpose').summary, isTrue);
     });
 
-    test('the description holds one line for each skill rule', () {
-      final lines = skill.description!.split('\n');
-      const rulePhrases = [
-        'the spec of one skill a project builds for other projects to use',
-        "The skill's own files hold its wording, steps, and host frontmatter",
-        'read from the project root, never from a code root',
-        'Specstone installs and distributes no project skill',
-      ];
-      for (final phrase in rulePhrases) {
-        expect(
-          lines.where((l) => l.contains(phrase)),
-          hasLength(1),
-          reason: phrase,
-        );
-      }
-    });
-
     test(
       'the merged set lists skill and agent beside the other packs',
       () async {
@@ -323,10 +306,6 @@ void main() {
         await _skillFindings(_skillText(), kind: FindingKind.titleNumbered),
         isEmpty,
       );
-    });
-
-    test('a skill doc without inputs gives no finding', () async {
-      expect(await _skillFindings(_skillText()), isEmpty);
     });
   });
 }

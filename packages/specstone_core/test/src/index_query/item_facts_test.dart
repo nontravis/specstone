@@ -983,19 +983,18 @@ void main() {
         [(id: null, line: 7, chars: 15)],
       ]);
       expect(jsonEncode(back.toJson()), jsonEncode(facts.toJson()));
-    });
 
-    test('a round trip through JSON text gives the same facts', () {
-      final facts = factsOf(
+      final edge = factsOf(
         _frPath,
         '# V\n\nLead.\n\n## Edge cases\n1. E01 — a\n2. E02 — b\n',
       );
-      final back = ItemFacts.fromJson(jsonDecode(jsonEncode(facts.toJson())));
-
-      expect(back.lead, facts.lead);
-      expect(plainItems(back.leadItems), plainItems(facts.leadItems));
-      expect(plainSections(back), plainSections(facts));
-      expect(jsonEncode(back.toJson()), jsonEncode(facts.toJson()));
+      final edgeBack = ItemFacts.fromJson(
+        jsonDecode(jsonEncode(edge.toJson())),
+      );
+      expect(edgeBack.lead, edge.lead);
+      expect(plainItems(edgeBack.leadItems), plainItems(edge.leadItems));
+      expect(plainSections(edgeBack), plainSections(edge));
+      expect(jsonEncode(edgeBack.toJson()), jsonEncode(edge.toJson()));
     });
 
     test('a round trip keeps a null lead and a section with no item', () {

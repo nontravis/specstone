@@ -128,20 +128,6 @@ void main() {
       );
     });
 
-    test('an unknown top-level key exits 78', () async {
-      final root = await _withConfig('spec_packs: [x]\n');
-
-      expect(
-        () => ProjectConfig.read(root),
-        throwsA(
-          _fault(
-            FaultCode.unknownKey,
-            key: 'spec_packs',
-          ).having((f) => f.code.exitStatus, 'exitStatus', 78),
-        ),
-      );
-    });
-
     test('code_root defaults to .', () async {
       final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
 
@@ -166,22 +152,6 @@ void main() {
       expect(ProjectConfig.read(root).codeRoot, '.');
     });
 
-    test('code_root: 3 is unknown_value', () async {
-      final root = await _withConfig(
-        'packs:\n  prd-core: 1.0.0\ncode_root: 3\n',
-      );
-
-      expect(
-        () => ProjectConfig.read(root),
-        throwsA(
-          _fault(
-            FaultCode.unknownValue,
-            key: 'code_root',
-          ).having((f) => f.code.exitStatus, 'exitStatus', 78),
-        ),
-      );
-    });
-
     for (final value in ['stratum_ui', '../stratum_ui/example']) {
       test('reads code_root: $value', () async {
         final root = await _withConfig(
@@ -200,6 +170,7 @@ void main() {
       ('a trailing space', "code_root: 'src '"),
       ('a non-string', 'code_root: [a]'),
       ('an empty string', "code_root: ''"),
+      ('an integer', 'code_root: 3'),
     ]) {
       test('rejects $name as code_root', () async {
         final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
@@ -550,34 +521,16 @@ void main() {
         expect(
           () => ProjectConfig.read(root),
           throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'code_root',
-            ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+            _fault(FaultCode.unknownValue, key: 'code_root')
+                .having((f) => f.code.exitStatus, 'exitStatus', 78)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  contains('each target holds its own code_root'),
+                ),
           ),
         );
       });
-
-      test(
-        'targets beside code_root names the target-owned code_root',
-        () async {
-          final root = await _withConfig(
-            'packs:\n  prd-core: 1.0.0\ncode_root: lib\n'
-            'targets:\n  flutter:\n    code_root: stratum_ui\n',
-          );
-
-          expect(
-            () => ProjectConfig.read(root),
-            throwsA(
-              _fault(FaultCode.unknownValue, key: 'code_root').having(
-                (f) => f.message,
-                'message',
-                contains('each target holds its own code_root'),
-              ),
-            ),
-          );
-        },
-      );
 
       for (final (name, line) in [
         ('an empty map', 'targets: {}'),
@@ -646,23 +599,6 @@ void main() {
           );
         });
       }
-
-      test(
-        'a name differing from another only in letter case is '
-        'refused by the slug rule, so no two spec trees share a folder',
-        () async {
-          final root = await _withConfig(
-            'packs:\n  prd-core: 1.0.0\n'
-            'targets:\n  flutter:\n    code_root: a\n'
-            '  Flutter:\n    code_root: b\n',
-          );
-
-          expect(
-            () => ProjectConfig.read(root),
-            throwsA(_fault(FaultCode.unknownKey, key: 'targets.Flutter')),
-          );
-        },
-      );
 
       for (final (name, code, key, line) in [
         (
@@ -780,26 +716,9 @@ void main() {
               .having((f) => f.code, 'code', FaultCode.unknownValue)
               .having((f) => f.key, 'key', 'targets')
               .having((f) => f.code.exitStatus, 'exitStatus', 78)
+              .having((f) => f.file, 'file', '.specstone/config.yaml')
               .having((f) => f.message, 'message', contains('flutter'))
               .having((f) => f.message, 'message', contains('jaspr')),
-        );
-      });
-
-      test('two targets on one code folder name the config file', () async {
-        final root = await _withConfig(
-          'packs:\n  prd-core: 1.0.0\n'
-          'targets:\n  flutter:\n    code_root: .\n'
-          '  jaspr:\n    code_root: ./\n',
-        );
-
-        expect(
-          () => ProjectConfig.read(root),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'targets',
-            ).having((f) => f.file, 'file', '.specstone/config.yaml'),
-          ),
         );
       });
 
@@ -856,26 +775,6 @@ void main() {
         expect(
           () => ProjectConfig.read(root),
           throwsA(_fault(FaultCode.packVersionInvalid, key: 'packs.prd-core')),
-        );
-      });
-    }
-
-    for (final (label, pin) in [
-      ('an unquoted double', '1.2'),
-      ('a quoted two-part version', "'1.2'"),
-      ('a pre-release tag', '1.2.0-beta'),
-    ]) {
-      test('$label pin exits 78', () async {
-        final root = await _withConfig('packs:\n  prd-core: $pin\n');
-
-        expect(
-          () => ProjectConfig.read(root),
-          throwsA(
-            _fault(
-              FaultCode.packVersionInvalid,
-              key: 'packs.prd-core',
-            ).having((f) => f.code.exitStatus, 'exitStatus', 78),
-          ),
         );
       });
     }

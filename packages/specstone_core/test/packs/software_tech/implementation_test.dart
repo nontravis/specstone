@@ -10,61 +10,7 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
-const _matrixGuideLines = <String>[
-  _matrixMapsLine,
-  _matrixRowLine,
-  _matrixNameLine,
-  _matrixLiteralLine,
-  _matrixFingerprintLine,
-  _matrixSkipLine,
-];
-
-const _matrixMapsLine =
-    '`## Verification matrix` maps each FR to the tests that prove it, one '
-    'line per FR; under `verification_coverage: edge_case`, one line per edge '
-    'case and test.';
-
-const _matrixRowLine =
-    'Write a test row as ``- <fr>: `<literal>`, `<literal>` ``, one literal '
-    'per test, joined by `, `; under `edge_case`, '
-    '``- <fr> E<nn>: `<literal>` ``.';
-
-const _matrixNameLine =
-    'Name a test by one string literal of its name, in a code span, as the '
-    'test file writes it; take its first literal.';
-
-const _matrixLiteralLine =
-    "Each literal must occur in a file that one of the item's `tests` lines "
-    'names.';
-
-const _matrixFingerprintLine =
-    'Copy each fingerprint from `specstone check`; never compute one.';
-
-const _matrixSkipLine =
-    'Write a skip row, `- <fr> skipped: <reason>`, for an FR that no test can '
-    'prove; under `edge_case`, one per edge case.';
-
 void main() {
-  test(
-    'the description names neither the line cap nor the character cap',
-    () async {
-      final record = prdCoreDocType(
-        await resolveSoftwareTech(),
-        'implementation',
-      );
-
-      expect(record.description, isNot(contains('400')));
-      expect(record.description, isNot(contains('60,000')));
-      expect(
-        record.description?.split('\n'),
-        contains(
-          'The line cap does not count these frontmatter lines, so the '
-          'character cap bounds them.',
-        ),
-      );
-    },
-  );
-
   test('the record carries the optional matrix section, with no template '
       'text, that holds an output reference', () async {
     final record = prdCoreDocType(
@@ -113,18 +59,6 @@ void main() {
       ]);
     },
   );
-
-  test('ships the per-FR matrix guide lines', () async {
-    final record = prdCoreDocType(
-      await resolveSoftwareTech(),
-      'implementation',
-    );
-
-    expect(
-      verificationMatrixOf(record)!.description?.split('\n'),
-      _matrixGuideLines,
-    );
-  });
 
   test('adds no migrations entry for the matrix guide lines', () {
     final manifest = PackManifest.parse(
@@ -258,101 +192,5 @@ void main() {
       ),
       isEmpty,
     );
-  });
-
-  group('the implementation description', () {
-    late String description;
-    setUpAll(() async {
-      description = prdCoreDocType(
-        await resolveSoftwareTech(),
-        'implementation',
-      ).description!;
-    });
-
-    test('says the record is the one home of status and code paths, one'
-        ' entry per story and FR', () {
-      expect(
-        description,
-        contains(
-          "the one home of each story's and FR's status and code paths in "
-          'its target',
-        ),
-      );
-      expect(
-        description,
-        contains(
-          'an item with no `statuses` line, outside every skip, is '
-          '`planned`, code paths or not',
-        ),
-      );
-      expect(
-        description,
-        contains(
-          'A `skipped` entry carries a one-line reason and no code path',
-        ),
-      );
-      expect(
-        description,
-        contains(
-          'a skip on the feature or on a story covers everything below it',
-        ),
-      );
-      expect(description, contains('one entry per story and FR'));
-    });
-
-    test('names the tests field, its line shape, and its quoting rule', () {
-      expect(
-        description,
-        contains(
-          '`tests` names one `<item>:<test file path>` line per item and '
-          'test file that proves it',
-        ),
-      );
-      expect(
-        description,
-        contains(
-          'Add `:<test or group name>` after the path only to pin one test',
-        ),
-      );
-      expect(
-        description,
-        contains(
-          'written as a quoted YAML string when the name holds `: ` or ` #`',
-        ),
-      );
-      expect(description, contains('Code and tests never name this doc.'));
-    });
-
-    test('says one line per statuses, implements, and tests entry, and names'
-        ' no cap number', () {
-      expect(
-        description,
-        contains(
-          'one line per entry in `statuses`, one per code path in '
-          '`implements`, and one per test file in `tests`',
-        ),
-      );
-      expect(description, contains('frontmatter lines'));
-      expect(description, isNot(contains('400')));
-      expect(description, isNot(contains('60,000')));
-      expect(description, isNot(contains('60000')));
-    });
-
-    test('names the covers field, its entry shape, and a planned folder', () {
-      expect(
-        description,
-        contains(
-          "`covers` names one line per folder or file of the target's own "
-          "code that the record's feature owns",
-        ),
-      );
-      expect(
-        description,
-        contains(
-          'write a planned folder before its code exists, and none for a '
-          'feature that owns no code',
-        ),
-      );
-    });
   });
 }

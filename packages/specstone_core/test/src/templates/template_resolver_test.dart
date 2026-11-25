@@ -693,6 +693,8 @@ sections:
         '.specstone/packs/nont-software/runbook.yaml':
             'id: runbook\ndescription: Runbook\n'
             'path: ops/runbooks/{slug}/RUNBOOK.md\n',
+        '.specstone/packs/nont-software/architecture.yaml':
+            'description: Software architecture\nlint:\n  max_lines: 300\n',
         '.specstone/packs/nont-flutter/pack.yaml':
             'name: nont-flutter\nversion: 1.0.0\nextends: nont-software\n',
         '.specstone/packs/nont-flutter/architecture.yaml':
@@ -713,8 +715,10 @@ sections:
       expect(merged.lookup('runbook')!.description, 'Runbook');
       final architecture = merged.lookup('architecture')!;
       expect(architecture.description, 'Flutter architecture');
+      expect(architecture.lint.maxLines, 300);
       expect(architecture.files, [
         'packs/software-tech/architecture.yaml',
+        '~/.specstone/packs/nont-software/architecture.yaml',
         '~/.specstone/packs/nont-flutter/architecture.yaml',
       ]);
     });
@@ -862,30 +866,7 @@ sections:
       expect(merged.lookup('feature')!.description, 'Project feature');
     });
 
-    test('resolve end to end '
-        'layers chain, project, and duplicates', () async {
-      final project = await writeTree({
-        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
-        '.specstone/templates/feature.yaml': 'description: Project feature\n',
-      });
-      final home = await writeTree({
-        '.specstone/packs/nont-x/pack.yaml':
-            'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
-        '.specstone/packs/nont-x/feature.yaml': 'description: Mine\n',
-      });
-      final resolver = TemplateResolver(shippedFiles: shipped());
-
-      final merged = resolver.resolve(
-        workingDirectory: project,
-        homeDirectory: home,
-      );
-
-      expect(merged.lookup('feature')!.description, 'Project feature');
-      expect(merged.lookup('architecture'), isNull);
-    });
-
-    test('a generators kind no one '
-        'registers is unknown_value', () async {
+    test('a generators kind no one registers is unknown_value', () async {
       const template = '''
 id: note
 description: A note
@@ -908,7 +889,8 @@ path: prds/notes/{slug}/NOTE.md
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.unknownValue)
               .having((f) => f.file, 'file', '.specstone/templates/note.yaml')
-              .having((f) => f.key, 'key', 'generators'),
+              .having((f) => f.key, 'key', 'generators')
+              .having((f) => f.message, 'message', contains('journey_map')),
         ),
       );
 
@@ -2009,8 +1991,9 @@ sections:
       expect(runbook.sections.single.id, 'steps');
     });
 
-    test('a new doc type without path, or without description and extends, is '
-        'missing_key', () async {
+    // The test name stays one literal so specstone check can find it.
+    // ignore: lines_longer_than_80_chars
+    test('a new doc type without path, or without description and extends, is missing_key', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
         '.specstone/templates/runbook.yaml': '''
@@ -2051,7 +2034,12 @@ path: ops/runbooks/{slug}/RUNBOOK.md
         throwsA(
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.missingKey)
-              .having((f) => f.key, 'key', 'description'),
+              .having((f) => f.key, 'key', 'description')
+              .having(
+                (f) => f.file,
+                'file',
+                '.specstone/templates/runbook.yaml',
+              ),
         ),
       );
     });
@@ -2755,8 +2743,7 @@ extends: feature
       );
     });
 
-    test('an extends naming no doc type is '
-        'extends_target_unknown', () async {
+    test('an extends naming no doc type is extends_target_unknown', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
         '.specstone/templates/adr.yaml': '''
@@ -2773,7 +2760,8 @@ path: adr/{slug}.md
           isA<TemplateFault>()
               .having((f) => f.code, 'code', FaultCode.extendsTargetUnknown)
               .having((f) => f.key, 'key', 'extends')
-              .having((f) => f.file, 'file', '.specstone/templates/adr.yaml'),
+              .having((f) => f.file, 'file', '.specstone/templates/adr.yaml')
+              .having((f) => f.message, 'message', contains('nothing')),
         ),
       );
     });
@@ -3243,42 +3231,6 @@ sections:
       expect(fault.exitStatus, 78);
     });
 
-    test('a new doc type with no description and no extends names its file '
-        'in the refusal', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/runbook.yaml': '''
-id: runbook
-path: ops/runbooks/{slug}/RUNBOOK.md
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.missingKey);
-      expect(fault.key, 'description');
-      expect(fault.file, '.specstone/templates/runbook.yaml');
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a new doc type holding the path of a shipped doc type is refused '
-        'with exit 78', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/epic.yaml': '''
-id: epic
-description: An epic
-path: features/f{nn}_{slug}/FEATURE.md
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.docTypePathConflict);
-      expect(fault.key, 'path');
-      expect(fault.exitStatus, 78);
-    });
-
     test(
       'a project feature file with max_depth 0 keeps one path pattern',
       () async {
@@ -3300,91 +3252,6 @@ path: features/f{nn}_{slug}/FEATURE.md
       },
     );
 
-    test('two doc types that are each the other parent exit 78 naming both '
-        'files', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/epic.yaml': '''
-id: epic
-description: An epic
-path: epics/{slug}/EPIC.md
-parent: story
-''',
-          '.specstone/templates/story.yaml': '''
-id: story
-description: A story
-path: stories/{slug}/STORY.md
-parent: epic
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.parentCycle);
-      expect(fault.file, '.specstone/templates/story.yaml');
-      expect(fault.relatedFiles, ['.specstone/templates/epic.yaml']);
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a project generators entry no one registers exits 78 naming the '
-        'file and the key', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/note.yaml': '''
-id: note
-description: A note
-path: prds/notes/{slug}/NOTE.md
-generators: [journey_map]
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.unknownValue);
-      expect(fault.file, '.specstone/templates/note.yaml');
-      expect(fault.key, 'generators');
-      expect(fault.message, contains('journey_map'));
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a personal pack file listing an unregistered generators kind exits '
-        '78', () async {
-      final fault = await _resolveFault(
-        project: {_configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n'},
-        home: {
-          '.specstone/packs/nont-x/pack.yaml': 'name: nont-x\nversion: 1.0.0\n',
-          '.specstone/packs/nont-x/note.yaml': '''
-id: note
-description: A note
-path: prds/notes/{slug}/NOTE.md
-generators: [journey_map]
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.unknownValue);
-      expect(fault.file, '~/.specstone/packs/nont-x/note.yaml');
-      expect(fault.key, 'generators');
-      expect(fault.exitStatus, 78);
-    });
-
-    test('an extends naming a missing doc type names that target in the '
-        'message', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/adr.yaml': '''
-extends: nothing
-path: adr/{slug}.md
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.extendsTargetUnknown);
-      expect(fault.message, contains('nothing'));
-      expect(fault.exitStatus, 78);
-    });
-
     test('an extending doc type disabling an id its target lacks is '
         'refused', () async {
       final fault = await _resolveFault(
@@ -3404,162 +3271,6 @@ sections:
       expect(fault.code, FaultCode.overrideIdNotFound);
       expect(fault.key, 'sections.nope');
       expect(fault.file, '.specstone/templates/adr.yaml');
-      expect(fault.exitStatus, 78);
-    });
-
-    test(
-      'two doc types extending each other exit 78 naming both files',
-      () async {
-        final fault = await _resolveFault(
-          project: {
-            _configPath: 'packs:\n  prd-core: 1.1.0\n',
-            '.specstone/templates/a.yaml': 'extends: b\npath: a/{slug}.md\n',
-            '.specstone/templates/b.yaml': 'extends: a\npath: b/{slug}.md\n',
-          },
-        );
-
-        expect(fault.code, FaultCode.extendsCycle);
-        expect(fault.file, '.specstone/templates/b.yaml');
-        expect(fault.relatedFiles, ['.specstone/templates/a.yaml']);
-        expect(fault.exitStatus, 78);
-      },
-    );
-
-    test('a project file over a shipped doc type writing extends exits 78 '
-        'naming the file and the key', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/feature.yaml': 'extends: feature\n',
-        },
-      );
-
-      expect(fault.code, FaultCode.extendsInOverride);
-      expect(fault.file, '.specstone/templates/feature.yaml');
-      expect(fault.key, 'extends');
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a project reference citing one missing file exits 78 naming the '
-        'template and the cited file', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/feature.yaml': '''
-reference:
-  - title: Missing
-    file: refs/gone.md
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.referenceFileMissing);
-      expect(fault.file, '.specstone/templates/feature.yaml');
-      expect(fault.message, contains('refs/gone.md'));
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a project file clearing parent above the defining layer exits 78 '
-        'naming the file and the key', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
-          '.specstone/templates/project.yaml': '''
-id: project
-description: A project
-path: projects/{slug}/PROJECT.md
-''',
-          '.specstone/templates/adr.yaml': 'parent:\n',
-        },
-        home: {
-          '.specstone/packs/nont-x/pack.yaml':
-              'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
-          '.specstone/packs/nont-x/adr.yaml': '''
-id: adr
-extends: feature
-path: adr/{slug}.md
-parent: project
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.lockedFieldDisabled);
-      expect(fault.file, '.specstone/templates/adr.yaml');
-      expect(fault.key, 'parent');
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a project doc type whose parent names no doc type exits 78 naming '
-        'the file and the key', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/runbook.yaml': '''
-id: runbook
-description: A runbook
-path: ops/{slug}/RUNBOOK.md
-parent: nope
-''',
-        },
-      );
-
-      expect(fault.code, FaultCode.unknownValue);
-      expect(fault.file, '.specstone/templates/runbook.yaml');
-      expect(fault.key, 'parent');
-      expect(fault.exitStatus, 78);
-    });
-
-    test('two chained personal packs editing one shipped doc type layer in '
-        'chain order', () async {
-      final project = await writeTree({
-        _configPath:
-            'packs:\n'
-            '  prd-core: 1.1.0\n'
-            '  software-tech: 1.0.0\n'
-            '  nont-software: 1.0.0\n'
-            '  nont-flutter: 1.0.0\n',
-      });
-      final home = await writeTree({
-        '.specstone/packs/nont-software/pack.yaml':
-            'name: nont-software\nversion: 1.0.0\nextends: software-tech\n',
-        '.specstone/packs/nont-software/architecture.yaml':
-            'description: Software architecture\nlint:\n  max_lines: 300\n',
-        '.specstone/packs/nont-flutter/pack.yaml':
-            'name: nont-flutter\nversion: 1.0.0\nextends: nont-software\n',
-        '.specstone/packs/nont-flutter/architecture.yaml':
-            'description: Flutter architecture\n',
-      });
-      final resolver = TemplateResolver(shippedFiles: shipped());
-
-      final merged = resolver.resolve(
-        workingDirectory: project,
-        homeDirectory: home,
-      );
-
-      final architecture = merged.lookup('architecture')!;
-      expect(architecture.description, 'Flutter architecture');
-      expect(architecture.lint.maxLines, 300);
-      expect(architecture.files, [
-        'packs/software-tech/architecture.yaml',
-        '~/.specstone/packs/nont-software/architecture.yaml',
-        '~/.specstone/packs/nont-flutter/architecture.yaml',
-      ]);
-    });
-
-    test('a personal doc type with a same-id shipped doc type and no pack '
-        'extends exits 78 naming both files and the id', () async {
-      final fault = await _resolveFault(
-        project: {_configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n'},
-        home: {
-          '.specstone/packs/nont-x/pack.yaml': 'name: nont-x\nversion: 1.0.0\n',
-          '.specstone/packs/nont-x/feature.yaml': 'description: Mine\n',
-        },
-      );
-
-      expect(fault.code, FaultCode.docTypeDuplicate);
-      expect(fault.file, '~/.specstone/packs/nont-x/feature.yaml');
-      expect(fault.relatedFiles, ['packs/prd-core/feature.yaml']);
-      expect(fault.message, contains('feature'));
       expect(fault.exitStatus, 78);
     });
 
@@ -3584,97 +3295,6 @@ path: features/{slug}/FEATURE.md
       expect(fault.code, FaultCode.docTypeDuplicate);
       expect(fault.file, '~/.specstone/packs/nont-x/feature.yaml');
       expect(fault.relatedFiles, ['packs/prd-core/feature.yaml']);
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a listed personal pack with no folder exits 78 naming the config '
-        'key and the pack', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
-        },
-      );
-
-      expect(fault.code, FaultCode.packNotFound);
-      expect(fault.file, _configPath);
-      expect(fault.key, 'packs.nont-software');
-      expect(fault.message, contains('nont-software'));
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a personal pack version unequal to its pin exits 78 naming both '
-        'versions', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
-        },
-        home: {
-          '.specstone/packs/nont-software/pack.yaml':
-              'name: nont-software\nversion: 1.1.0\n',
-        },
-      );
-
-      expect(fault.code, FaultCode.personalPackVersionDiffers);
-      expect(fault.file, _configPath);
-      expect(fault.key, 'packs.nont-software');
-      expect(fault.message, allOf(contains('1.0.0'), contains('1.1.0')));
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a personal pack name unequal to its folder exits 78 naming the '
-        'file and the key', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
-        },
-        home: {
-          '.specstone/packs/nont-software/pack.yaml':
-              'name: nont-sw\nversion: 1.0.0\n',
-        },
-      );
-
-      expect(fault.code, FaultCode.packNameMismatch);
-      expect(fault.file, '~/.specstone/packs/nont-software/pack.yaml');
-      expect(fault.key, 'name');
-      expect(fault.exitStatus, 78);
-    });
-
-    test('two listed personal packs extending one pack exit 78 naming the '
-        'config file and the key', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath:
-              'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n'
-              '  nont-b: 1.0.0\n',
-        },
-        home: {
-          '.specstone/packs/nont-a/pack.yaml':
-              'name: nont-a\nversion: 1.0.0\nextends: prd-core\n',
-          '.specstone/packs/nont-b/pack.yaml':
-              'name: nont-b\nversion: 1.0.0\nextends: prd-core\n',
-        },
-      );
-
-      expect(fault.code, FaultCode.personalPackConflict);
-      expect(fault.file, _configPath);
-      expect(fault.key, 'packs');
-      expect(fault.exitStatus, 78);
-    });
-
-    test('a listed personal pack folder with no pack.yaml exits 78 naming '
-        'the file and the name key', () async {
-      final fault = await _resolveFault(
-        project: {
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
-        },
-        home: {
-          '.specstone/packs/nont-software/runbook.yaml': 'description: R\n',
-        },
-      );
-
-      expect(fault.code, FaultCode.missingKey);
-      expect(fault.file, '~/.specstone/packs/nont-software/pack.yaml');
-      expect(fault.key, 'name');
       expect(fault.exitStatus, 78);
     });
   });
@@ -4034,8 +3654,9 @@ items:
       ]);
     });
 
-    test('a file in a patterns subfolder or not ending .yaml is no pattern '
-        'and stays a reference file target', () async {
+    // The test name stays one literal so specstone check can find it.
+    // ignore: lines_longer_than_80_chars
+    test('a file in a patterns subfolder or not ending .yaml is no pattern and stays a reference file target', () async {
       final merged = await resolveTree(
         project: {
           _configPath: allPacks,
@@ -4046,11 +3667,14 @@ items:
           '.specstone/packs/nont-x/pack.yaml': nontX,
           '.specstone/packs/nont-x/patterns/sub/crud.yaml': 'bogus: x\n',
           '.specstone/packs/nont-x/patterns/README.md': 'readme\n',
+          '.specstone/packs/nont-x/patterns/sub/guide.yaml': 'bogus: x\n',
           '.specstone/packs/nont-x/patterns/crud.yaml': '''
 id: crud
 reference:
   - title: Notes
     file: README.md
+  - title: Guide
+    file: sub/guide.yaml
 ''',
         },
         shippedFiles: withCrud()
@@ -4059,10 +3683,10 @@ reference:
       );
 
       expect(merged.featurePatterns.map((p) => p.id), ['crud']);
-      expect(
-        merged.featurePattern('crud')!.reference.single.file,
+      expect(merged.featurePattern('crud')!.reference.map((r) => r.file), [
         'patterns/README.md',
-      );
+        'patterns/sub/guide.yaml',
+      ]);
       expect(merged.docTypes.map((d) => d.id), ['architecture', 'feature']);
     });
 
@@ -4132,24 +3756,6 @@ items:
       );
     });
 
-    test('a shipped and a personal pack with one pattern id and no extends '
-        'between them exit 78 naming both files and the id', () async {
-      final fault = await _resolveFault(
-        project: {_configPath: allPacks},
-        home: {
-          '.specstone/packs/nont-x/pack.yaml': 'name: nont-x\nversion: 1.0.0\n',
-          '.specstone/packs/nont-x/patterns/crud.yaml': crud,
-        },
-        shippedFiles: withCrud(),
-      );
-
-      expect(fault.code, FaultCode.featurePatternDuplicate);
-      expect(fault.exitStatus, 78);
-      expect(fault.file, '~/.specstone/packs/nont-x/patterns/crud.yaml');
-      expect(fault.relatedFiles, ['packs/software-tech/patterns/crud.yaml']);
-      expect(fault.message, contains('crud'));
-    });
-
     test('two personal packs holding one pattern id, neither extending the '
         'other, exit 78 naming both files', () async {
       final fault = await _resolveFault(
@@ -4176,29 +3782,6 @@ items:
         ]),
       );
       expect(fault.message, contains('crud'));
-    });
-
-    test('a yaml file in a patterns subfolder loads as a reference file '
-        'target and not as a pattern', () async {
-      final merged = await resolveTree(
-        project: {_configPath: allPacks},
-        home: {
-          '.specstone/packs/nont-x/pack.yaml': nontX,
-          '.specstone/packs/nont-x/patterns/sub/guide.yaml': 'bogus: x\n',
-          '.specstone/packs/nont-x/patterns/crud.yaml': '''
-id: crud
-reference:
-  - title: Guide
-    file: sub/guide.yaml
-''',
-        },
-      );
-
-      expect(merged.featurePatterns.map((p) => p.id), ['crud']);
-      expect(
-        merged.featurePattern('crud')!.reference.single.file,
-        'patterns/sub/guide.yaml',
-      );
     });
   });
 

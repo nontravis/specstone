@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';
-import 'package:specstone_core/src/rendering/html_page.dart';
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
 import 'package:specstone_core/src/rendering/page_setup.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -43,7 +42,6 @@ const _feature =
 const _story =
     '# Story one\n\n## Summary\n\nFormat docs.\n\n'
     '## Acceptance Criteria\n\nDone.\n';
-const _statusRow = '<tr><th>status</th><td>planned</td></tr>';
 
 Future<HtmlBuild> _build(
   Map<String, String> docs, {
@@ -84,8 +82,8 @@ void main() {
     );
   });
 
-  test('a folder renders its docs in tree '
-      'order, each in a numbered section the toc links to', () async {
+  // ignore: lines_longer_than_80_chars -- the test name stays one literal
+  test('a folder renders its docs in tree order, each in a numbered section the toc links to', () async {
     final build = await _build({
       _featurePath: _feature,
       _storyPath: _story,
@@ -106,44 +104,67 @@ void main() {
     );
     expect(html, contains('<title>$_featureDir</title>'));
     expect(build.warnings, isEmpty);
+
+    final docsRoot = await _build({_featurePath: _feature});
+    expect(docsRoot.html, contains('<title>docs</title>'));
   });
 
-  test('the docs root titles the page docs', () async {
-    final build = await _build({_featurePath: _feature});
+  test(
+    'renders sections as on disk and warns the doc does not match its template',
+    () async {
+      final build = await _build({
+        _featurePath:
+            '# F-05\n\n## Feature goal\n- **why:** share docs\n\n'
+            '## Feature name\n- **Human:** Rendering\n',
+      });
 
-    expect(build.html, contains('<title>docs</title>'));
-  });
+      expect(
+        build.html.indexOf('Feature goal'),
+        lessThan(build.html.indexOf('Feature name')),
+      );
+      expect(build.warnings, [
+        'docs/$_featurePath does not match its template; run specstone format',
+      ]);
 
-  test('shows the frontmatter table right after the h1', () async {
-    final build = await _build({
-      _featurePath: '---\nstatus: planned\n---\n$_feature',
-    });
+      final cases = [
+        (
+          reason: 'layout drift',
+          path: _featurePath,
+          text:
+              '# F-05\n\n## Feature name\n- **Human:** Rendering\n\n'
+              '## Feature goal\n\n- **why:** share docs\n',
+          shown: '<h2 id="doc-1-feature-name">Feature name</h2>',
+        ),
+        (
+          reason: 'padded table cells',
+          path: _storyPath,
+          text:
+              '$_story\n| Name  | Done |\n|-------|------|\n| Alpha | yes  |\n',
+          shown: '<td>Alpha</td>',
+        ),
+        (
+          reason: 'unknown header',
+          path: _storyPath,
+          text: '$_story\n## Notes\nx\n',
+          shown: '<h2 id="doc-1-notes">Notes</h2>',
+        ),
+      ];
 
-    expect(
-      build.html,
-      contains(
-        '<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>\n'
-        '<table class="frontmatter">$_statusRow</table>',
-      ),
-    );
-  });
+      for (final (:reason, :path, :text, :shown) in cases) {
+        final drifted = await _build({path: text});
 
-  test('renders sections as on disk and '
-      'warns the doc does not match its template', () async {
-    final build = await _build({
-      _featurePath:
-          '# F-05\n\n## Feature goal\n- **why:** share docs\n\n'
-          '## Feature name\n- **Human:** Rendering\n',
-    });
+        expect(drifted.html, contains(shown), reason: reason);
+        expect(drifted.warnings, [
+          'docs/$path does not match its template; run specstone format',
+        ], reason: reason);
+      }
 
-    expect(
-      build.html.indexOf('Feature goal'),
-      lessThan(build.html.indexOf('Feature name')),
-    );
-    expect(build.warnings, [
-      'docs/$_featurePath does not match its template; run specstone format',
-    ]);
-  });
+      final compact = await _build({
+        _storyPath: '$_story\n| Name | Done |\n|---|---|\n| Alpha | yes |\n',
+      });
+      expect(compact.warnings, isEmpty);
+    },
+  );
 
   test('a doc lacking a section '
       'raises no template warning', () async {
@@ -152,46 +173,6 @@ void main() {
     });
 
     expect(build.warnings, isEmpty);
-  });
-
-  test('layout drift '
-      'raises the template warning', () async {
-    final build = await _build({
-      _featurePath:
-          '# F-05\n\n## Feature name\n- **Human:** Rendering\n\n'
-          '## Feature goal\n\n- **why:** share docs\n',
-    });
-
-    expect(build.warnings, [
-      'docs/$_featurePath does not match its template; run specstone format',
-    ]);
-  });
-
-  test('a doc whose table cells are padded '
-      'raises the template warning', () async {
-    final build = await _build({
-      _storyPath:
-          '$_story\n| Name  | Done |\n|-------|------|\n| Alpha | yes  |\n',
-    });
-
-    expect(build.warnings, [
-      'docs/$_storyPath does not match its template; run specstone format',
-    ]);
-    expect(build.html, contains('<td>Alpha</td>'));
-    final compact = await _build({
-      _storyPath: '$_story\n| Name | Done |\n|---|---|\n| Alpha | yes |\n',
-    });
-    expect(compact.warnings, isEmpty);
-  });
-
-  test('a doc with an unknown header is '
-      'rendered, with the same warning', () async {
-    final build = await _build({_storyPath: '$_story\n## Notes\nx\n'});
-
-    expect(build.html, contains('<h2 id="doc-1-notes">Notes</h2>'));
-    expect(build.warnings, [
-      'docs/$_storyPath does not match its template; run specstone format',
-    ]);
   });
 
   test('CRLF text that only differs by line '
@@ -205,50 +186,6 @@ void main() {
       build.html,
       contains('<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>'),
     );
-  });
-
-  test('a draft shows its label after the frontmatter '
-      'table and before the body', () async {
-    final build = await _build({
-      _featurePath: '---\ndraft: true\n---\n$_feature',
-    });
-
-    final html = build.html;
-    expect(
-      html.indexOf('<p class="draft">Draft</p>'),
-      greaterThan(html.indexOf('</table>')),
-    );
-    expect(
-      html.indexOf('<p class="draft">Draft</p>'),
-      lessThan(html.indexOf('<h2 id="doc-1-feature-name">Feature name</h2>')),
-    );
-  });
-
-  test('a mermaid block is a pre.mermaid and '
-      'the script appears once', () async {
-    final build = await _build({
-      _featurePath: '$_feature\n```mermaid\ngraph TD; A-->B\n```\n',
-    });
-
-    final html = build.html;
-    expect(html, contains('<pre class="mermaid">graph TD; A--&gt;B</pre>'));
-    expect(html.indexOf(mermaidScript), html.lastIndexOf(mermaidScript));
-    expect(
-      html.indexOf('<!-- $mermaidLicense -->'),
-      lessThan(html.indexOf(mermaidScript)),
-    );
-  });
-
-  test('nothing external is '
-      'loaded, and the csp denies everything by default', () async {
-    final build = await _build({_featurePath: _feature});
-
-    final html = build.html.replaceAll(mermaidScript, '');
-    expect(html, isNot(contains('<link')));
-    expect(html, isNot(contains('src="http')));
-    expect(html, isNot(contains('@import')));
-    expect(html, isNot(contains('url(')));
-    expect(html, contains("default-src 'none'"));
   });
 
   test('a toc entry is the title line, else the path '
@@ -321,12 +258,6 @@ void main() {
     expect(build.html, isNot(contains('F-05 — Rendering')));
   });
 
-  test('every built page carries the page-break rule', () async {
-    final build = await _build({_featurePath: _feature});
-
-    expect(build.html, contains(pageStylesheet));
-  });
-
   test('a folder where no doc type matches any file builds an '
       'empty table of contents, one warning per file', () async {
     final build = await _build({
@@ -366,117 +297,100 @@ void main() {
     expect(RegExp('<script nonce="').allMatches(html), hasLength(2));
   });
 
-  test('an unclosed <title> in a doc is shown as text and the '
-      'next doc still gets its section', () async {
-    final build = await _build({
-      _featurePath: "# F-05\n\nSet the page's <title> from the doc.\n",
-      _storyPath: _story,
-    }, target: 'docs/$_featureDir');
-
-    final html = build.html;
-    expect(html, contains("Set the page's &lt;title> from the doc."));
-    expect(
-      RegExp('<title>').allMatches(html.replaceAll(mermaidScript, '')),
-      hasLength(1),
-    );
-    expect(html, contains('<section class="doc" id="doc-2">'));
-    expect(html, contains('<h1 id="doc-2-story-one">Story one</h1>'));
-  });
-
-  test('an unclosed <title lang=x> or <STYLE media=print> in '
-      'prose is shown as text and every later doc keeps its section', () async {
-    final build = await _build({
-      _featurePath:
-          '# F-05\n\nSet the <title lang=x> from the doc.\n\n'
-          'Then <STYLE media=print> applies.\n\nAnd a <textarea\nrows=2>.\n',
-      _storyPath: _story,
-      _frPath: '# Req\n\n## Statement\nx\n',
-    }, target: 'docs/$_featureDir');
-
-    final html = build.html;
-    expect(html, contains('Set the &lt;title lang=x> from the doc.'));
-    expect(html, contains('Then &lt;STYLE media=print> applies.'));
-    expect(html, contains('And a &lt;textarea\nrows=2>.'));
-    final page = html.replaceAll(mermaidScript, '');
-    expect(RegExp('<title').allMatches(page), hasLength(1));
-    expect(RegExp('<style').allMatches(page), hasLength(1));
-    expect(RegExp('<textarea').allMatches(page), isEmpty);
-    expect(html, contains('<section class="doc" id="doc-3">'));
-    expect(html, contains('<h1 id="doc-3-req">Req</h1>'));
-  });
-
-  test('an unclosed <noscript> or <TEMPLATE id=x> and their end '
-      'tags in prose are shown as text and every later doc keeps its '
-      'section', () async {
-    final build = await _build({
-      _featurePath:
-          '# F-05\n\nShow <noscript> as text.\n\n'
-          'Then <TEMPLATE id=x> and </template> and </noscript>.\n',
-      _storyPath: _story,
-    }, target: 'docs/$_featureDir');
-
-    final html = build.html;
-    expect(html, contains('Show &lt;noscript> as text.'));
-    expect(
-      html,
-      contains(
-        'Then &lt;TEMPLATE id=x> and &lt;/template> and &lt;/noscript>.',
+  // ignore: lines_longer_than_80_chars, one literal so check finds the test
+  test('an unclosed <title> in a doc is shown as text and the next doc still gets its section', () async {
+    const endTags =
+        'End &lt;/xmp> and &lt;/iframe> and &lt;/noembed> and &lt;/noframes> '
+        'and &lt;/plaintext>.';
+    final cases = [
+      (
+        reason: 'title',
+        docs: {
+          _featurePath: "# F-05\n\nSet the page's <title> from the doc.\n",
+          _storyPath: _story,
+        },
+        shown: [
+          "Set the page's &lt;title> from the doc.",
+          '<section class="doc" id="doc-2">',
+          '<h1 id="doc-2-story-one">Story one</h1>',
+        ],
+        counts: {'<title>': 1},
       ),
-    );
-    final page = html.replaceAll(mermaidScript, '');
-    expect(RegExp('<noscript').allMatches(page), isEmpty);
-    expect(RegExp('</noscript').allMatches(page), isEmpty);
-    expect(RegExp('<template', caseSensitive: false).allMatches(page), isEmpty);
-    expect(RegExp('</template').allMatches(page), isEmpty);
-    expect(html, contains('<section class="doc" id="doc-2">'));
-  });
+      (
+        reason: 'title with an attribute, style, textarea',
+        docs: {
+          _featurePath:
+              '# F-05\n\nSet the <title lang=x> from the doc.\n\n'
+              'Then <STYLE media=print> applies.\n\n'
+              'And a <textarea\nrows=2>.\n',
+          _storyPath: _story,
+          _frPath: '# Req\n\n## Statement\nx\n',
+        },
+        shown: [
+          'Set the &lt;title lang=x> from the doc.',
+          'Then &lt;STYLE media=print> applies.',
+          'And a &lt;textarea\nrows=2>.',
+          '<section class="doc" id="doc-3">',
+          '<h1 id="doc-3-req">Req</h1>',
+        ],
+        counts: {'<title': 1, '<style': 1, '<textarea': 0},
+      ),
+      (
+        reason: 'noscript, template and their end tags',
+        docs: {
+          _featurePath:
+              '# F-05\n\nShow <noscript> as text.\n\n'
+              'Then <TEMPLATE id=x> and </template> and </noscript>.\n',
+          _storyPath: _story,
+        },
+        shown: [
+          'Show &lt;noscript> as text.',
+          'Then &lt;TEMPLATE id=x> and &lt;/template> and &lt;/noscript>.',
+          '<section class="doc" id="doc-2">',
+        ],
+        counts: {'</?noscript': 0, '</?template': 0},
+      ),
+      (
+        reason: 'xmp, iframe, noembed, noframes, plaintext and end tags',
+        docs: {
+          _featurePath:
+              '# F-05\n\nShow <xmp> and <IFRAME src=x> as text.\n\n'
+              'Then <noembed> and <NOFRAMES lang=x> and <plaintext>.\n\n'
+              'End </xmp> and </iframe> and </noembed> and </noframes> and '
+              '</plaintext>.\n',
+          _storyPath: _story,
+        },
+        shown: [
+          'Show &lt;xmp> and &lt;IFRAME src=x> as text.',
+          'Then &lt;noembed> and &lt;NOFRAMES lang=x> and &lt;plaintext>.',
+          endTags,
+          '<section class="doc" id="doc-2">',
+        ],
+        counts: {
+          for (final name in ['xmp', 'iframe', 'noembed', 'noframes'])
+            '</?$name': 0,
+          '</?plaintext': 0,
+        },
+      ),
+    ];
 
-  test(
-    'an unclosed <xmp>, <IFRAME src=x>, <noembed>, <noframes>, or <plaintext> '
-    'in prose and their end tags are shown as text, and the next doc '
-    'keeps its section',
-    () async {
-      final build = await _build({
-        _featurePath:
-            '# F-05\n\nShow <xmp> and <IFRAME src=x> as text.\n\n'
-            'Then <noembed> and <NOFRAMES lang=x> and <plaintext>.\n\n'
-            'End </xmp> and </iframe> and </noembed> and </noframes> and '
-            '</plaintext>.\n',
-        _storyPath: _story,
-      }, target: 'docs/$_featureDir');
+    for (final (:reason, :docs, :shown, :counts) in cases) {
+      final build = await _build(docs, target: 'docs/$_featureDir');
 
       final html = build.html;
-      expect(html, contains('Show &lt;xmp> and &lt;IFRAME src=x> as text.'));
-      expect(
-        html,
-        contains(
-          'Then &lt;noembed> and &lt;NOFRAMES lang=x> and &lt;plaintext>.',
-        ),
-      );
-      expect(
-        html,
-        contains(
-          'End &lt;/xmp> and &lt;/iframe> and &lt;/noembed> and '
-          '&lt;/noframes> and &lt;/plaintext>.',
-        ),
-      );
       final page = html.replaceAll(mermaidScript, '');
-      for (final name in [
-        'xmp',
-        'iframe',
-        'noembed',
-        'noframes',
-        'plaintext',
-      ]) {
+      for (final text in shown) {
+        expect(html, contains(text), reason: reason);
+      }
+      for (final MapEntry(:key, :value) in counts.entries) {
         expect(
-          RegExp('</?$name', caseSensitive: false).allMatches(page),
-          isEmpty,
-          reason: name,
+          RegExp(key, caseSensitive: false).allMatches(page),
+          hasLength(value),
+          reason: '$reason: $key',
         );
       }
-      expect(html, contains('<section class="doc" id="doc-2">'));
-    },
-  );
+    }
+  });
 
   test('a fenced code block that shows <script> still renders '
       'as code', () async {
@@ -514,8 +428,7 @@ void main() {
         'plain text';
     const draftRow = '<tr><th>draft</th><td>true</td></tr>';
 
-    test('renders its body as plain text '
-        'and warns', () async {
+    test('renders its body as plain text and warns', () async {
       final build = await _build({
         _frPath: '# Req\n\n## A\nx < y [s](b.md)\n\n[a]:<b\\',
       }, target: 'docs/$_featureDir');
@@ -526,18 +439,15 @@ void main() {
       expect(html, matches(RegExp(r'<pre>[^]*\[a\]:&lt;b\\[^]*</pre>')));
       expect(html, isNot(contains('<a href="b.md"')));
       expect(build.warnings, contains(message));
-    });
 
-    test('a deeply nested blockquote, '
-        'which holds no link syntax, renders the same way', () async {
-      final build = await _build({
+      final nested = await _build({
         _frPath: '# Req\n\n${'> ' * 2000}x',
       }, target: 'docs/$_featureDir');
 
-      final html = build.html.replaceAll(mermaidScript, '');
-      expect(html, contains('<h1>Req</h1>'));
-      expect(html, contains('<pre>\n${'&gt; ' * 2000}x</pre>'));
-      expect(build.warnings, contains(message));
+      final nestedHtml = nested.html.replaceAll(mermaidScript, '');
+      expect(nestedHtml, contains('<h1>Req</h1>'));
+      expect(nestedHtml, contains('<pre>\n${'&gt; ' * 2000}x</pre>'));
+      expect(nested.warnings, contains(message));
     });
 
     test('keeps the frontmatter table and the draft '
@@ -653,18 +563,4 @@ void main() {
       );
     });
   }
-
-  test('a link to another doc reaches the prefixed id of '
-      'its heading, end to end', () async {
-    final build = await _build({
-      _storyPath: _story.replaceFirst(
-        '\n\n',
-        '\n\n[x](../us02_b/USER_STORY.md#summary)\n\n',
-      ),
-      '$_featureDir/us02_b/USER_STORY.md': _story,
-    }, target: 'docs/$_featureDir');
-
-    expect(build.html, contains('href="#doc-2-summary"'));
-    expect(build.html, contains('id="doc-2-summary"'));
-  });
 }

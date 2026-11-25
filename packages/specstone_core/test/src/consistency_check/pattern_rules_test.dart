@@ -529,15 +529,6 @@ sections:
       expect(found.single.waitsFor, WaitsFor.agent);
     });
 
-    test('a pattern held by one subsection does not cover the other', () async {
-      final found = await _findings(
-        layer,
-        edits: edgeCases('### First\n\nLabel: set\n\n### Second\n\nnone'),
-        kind: FindingKind.patternMissing,
-      );
-      expect(found.map((f) => f.toJson()['subsection']), ['Second']);
-    });
-
     test('a section with no subsection has no finding', () async {
       final found = await _findings(layer, kind: FindingKind.patternMissing);
       expect(found, isEmpty);
@@ -664,19 +655,15 @@ sections:
     }
 
     test('a banned pattern match is not reported', () async {
-      expect(
-        await citationsIn('$open\n- Applies the ruling.\n$generatedEndMarker'),
-        isEmpty,
-      );
-    });
-
-    test('a history match is not reported', () async {
-      expect(
-        await citationsIn(
-          '$open\n- Previously the login was slow.\n$generatedEndMarker',
-        ),
-        isEmpty,
-      );
+      for (final line in [
+        'Applies the ruling.',
+        'Previously the login was slow.',
+      ]) {
+        expect(
+          await citationsIn('$open\n- $line\n$generatedEndMarker'),
+          isEmpty,
+        );
+      }
     });
 
     test('the same text beside the block is reported', () async {

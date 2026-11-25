@@ -171,10 +171,6 @@ void main() {
         targeted.fill(['01', 'login']),
         'specs/jaspr/f01_login/ARCHITECTURE.md',
       );
-    });
-
-    test('a two-segment pattern takes the target as a '
-        'folder of its own', () {
       expect(
         PathPattern('specs/TECH_STACK.md').forTarget('jaspr').source,
         'specs/jaspr/TECH_STACK.md',
@@ -212,10 +208,6 @@ void main() {
             .targetFolder('jaspr'),
         '.specstone/records/jaspr/',
       );
-    });
-
-    test('targetFolder is the first folder and the '
-        'target, where forTarget puts it', () {
       expect(
         PathPattern('specs/f{nn}_{slug}/ARCHITECTURE.md').targetFolder('jaspr'),
         'specs/jaspr/',
@@ -241,15 +233,11 @@ void main() {
         'ops/deploy/r03.md',
       );
       expect(PathPattern('ops/{slug}/r{nn}.md').valuesOf('ops/x.md'), isNull);
-    });
 
-    test('valuesOf reads {nn} before {slug}, and fill '
-        'output matches the pattern again', () {
-      final pattern = PathPattern('prds/features/f{nn}_{slug}/FEATURE.md');
-      final values = pattern.valuesOf('prds/features/f06_setup/FEATURE.md');
-
+      final feature = PathPattern('prds/features/f{nn}_{slug}/FEATURE.md');
+      final values = feature.valuesOf('prds/features/f06_setup/FEATURE.md');
       expect(values, ['06', 'setup']);
-      expect(pattern.matches(pattern.fill(values!)), isTrue);
+      expect(feature.matches(feature.fill(values!)), isTrue);
     });
 
     test('fill refuses a value count that differs from '

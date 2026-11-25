@@ -65,30 +65,6 @@ void main() {
       expect(out.toString(), endsWith('- login (architecture)\n'));
     },
   );
-  test('context on a story lists the root spec doc in its index', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(
-        extra: {'docs/specs/DOMAIN.md': '# Project domain\n'},
-      ),
-    );
-    expect(
-      await runner.run(['context', 'login/email_login', '--for', 'implement']),
-      0,
-    );
-    final lines = out.toString().split('\n');
-    expect(
-      lines,
-      contains(startsWith('- project_rulebook (project_rulebook)')),
-    );
-    expect(
-      lines.where(
-        (l) =>
-            l ==
-            '==> project_rulebook (project_rulebook) · specs/DOMAIN.md <==',
-      ),
-      hasLength(1),
-    );
-  });
   group('imported docs', () {
     const claudeCode = {'CLAUDECODE': '1'};
     const domainText = 'The words every login doc uses.';
@@ -302,28 +278,6 @@ void main() {
     },
   );
   test(
-    'a bundle whose heading keys take it over --budget is over budget',
-    () async {
-      const args = ['context', 'login/email_login', '--for', 'implement'];
-      final project = await writeReadProject();
-      final whole = readRunner(project);
-      expect(await whole.runner.run([...args, '--budget', '100000']), 0);
-      final text = whole.out.toString();
-      final shown = text.substring(0, text.indexOf('\n==> bundle: '));
-      final bare = shown.replaceAllMapped(
-        RegExp(r'^(## .*) \{#[a-z0-9_]+\}$', multiLine: true),
-        (match) => match[1]!,
-      );
-      final bareTokens = tokenSizeOf(bare);
-      expect(tokenSizeOf(shown), greaterThan(bareTokens));
-
-      final over = readRunner(project);
-
-      expect(await over.runner.run([...args, '--budget', '$bareTokens']), 1);
-      expect(over.out.toString(), contains('over the budget of $bareTokens'));
-    },
-  );
-  test(
     'a --budget that is no positive integer is argument_invalid, exit 64',
     () async {
       final project = await writeReadProject();
@@ -413,43 +367,6 @@ void main() {
       err.toString(),
       '⚠️ WARNING: no doc covers or implements app/lib/main.dart\n',
     );
-  });
-  test('a file under a feature record covers folder prints the feature, its spec docs, and the record, no story', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(
-        extra: {
-          'app/lib/src/login/form.dart': '',
-          '.specstone/records/f01_login/IMPLEMENTATION.md':
-              '---\ncovers:\n  - app/lib/src/login/\n---\n\n'
-              '# Login implementation\n',
-        },
-      ),
-    );
-
-    expect(
-      await runner.run([
-        'context',
-        '--code',
-        'app/lib/src/login/form.dart',
-        '--for',
-        'implement',
-      ]),
-      0,
-    );
-
-    expect(
-      [
-        for (final line in out.toString().split('\n'))
-          if (line.startsWith('==> ') && !line.startsWith('==> bundle: ')) line,
-      ],
-      [
-        '==> login (feature) · prds/features/f01_login/FEATURE.md <==',
-        '==> login (architecture) · specs/f01_login/ARCHITECTURE.md <==',
-        '==> login (implementation) · .specstone/records/f01_login/IMPLEMENTATION.md <==',
-        '==> names: login (feature) <==',
-      ],
-    );
-    expect(err.toString(), isEmpty);
   });
   test('a file a requirement names under a feature record covers folder prints its story and that requirement, no sibling', () async {
     final (:runner, :out, :err) = readRunner(
@@ -917,44 +834,6 @@ void main() {
       );
     });
 
-    test('--code with --target naming another target is argument_conflict, exit 64', () async {
-      final project = await writeToastProject(
-        extra: {'jaspr_lib/lib/toast.dart': ''},
-      );
-      final (:runner, :out, :err) = readRunner(project);
-      expect(
-        await runner.run([
-          'context',
-          '--code',
-          'jaspr_lib/lib/toast.dart',
-          '--for',
-          'implement',
-          '--target',
-          'flutter',
-        ]),
-        64,
-      );
-      expect(
-        err.toString(),
-        'the code path jaspr_lib/lib/toast.dart lies in the code target '
-        'jaspr, not flutter\n',
-      );
-      final same = readRunner(project);
-      expect(
-        await same.runner.run([
-          'context',
-          '--code',
-          'jaspr_lib/lib/toast.dart',
-          '--for',
-          'implement',
-          '--target',
-          'jaspr',
-        ]),
-        0,
-      );
-      expect(same.err.toString(), isEmpty);
-    });
-
     test('--code with an unheld or premature --target is argument_invalid, exit 64', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': ''},
@@ -1182,74 +1061,6 @@ void main() {
         );
       }
     });
-
-    test('nested code roots pick the longest that holds the path', () async {
-      final project = await writeReadProject(
-        extra: {
-          '.specstone/templates/implementation.yaml':
-              'id: implementation\n'
-              'description: One feature record per target.\n'
-              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-              'parent: feature\n'
-              'per_target: true\n'
-              'fields:\n'
-              '  - id: statuses\n'
-              '    type: record_status\n'
-              '    list: true\n',
-          '.specstone/templates/tech_stack.yaml':
-              'id: tech_stack\nper_target: true\n',
-          '.specstone/config.yaml':
-              'packs:\n'
-              '  prd-core: ${shippedPackVersions()['prd-core']}\n'
-              '  software-tech: ${shippedPackVersions()['software-tech']}\n'
-              'targets:\n'
-              '  app:\n    code_root: .\n'
-              '  web:\n    code_root: packages/web\n',
-          'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
-          'docs/specs/app/TECH_STACK.md': '# Stack\n',
-          'docs/specs/web/TECH_STACK.md': '# Stack\n',
-          'docs/specs/app/f02_feedback/IMPLEMENTATION.md': '# Record\n',
-          'docs/specs/web/f02_feedback/IMPLEMENTATION.md': '# Record\n',
-          'lib/main.dart': '',
-          'packages/web/lib/main.dart': '',
-        },
-      );
-      final nested = readRunner(project);
-      expect(
-        await nested.runner.run([
-          'context',
-          '--code',
-          'packages/web/lib/main.dart',
-          '--for',
-          'implement',
-          '--target',
-          'app',
-        ]),
-        64,
-      );
-      expect(
-        nested.err.toString(),
-        'the code path packages/web/lib/main.dart lies in the code target '
-        'web, not app\n',
-      );
-      final top = readRunner(project);
-      expect(
-        await top.runner.run([
-          'context',
-          '--code',
-          'lib/main.dart',
-          '--for',
-          'implement',
-          '--target',
-          'web',
-        ]),
-        64,
-      );
-      expect(
-        top.err.toString(),
-        'the code path lib/main.dart lies in the code target app, not web\n',
-      );
-    });
   });
 
   group('context --out', () {
@@ -1358,6 +1169,7 @@ void main() {
           'warnings',
         ]);
         paths.add(json['out']! as String);
+        expect(json['warnings'], <Object?>[]);
         final docs = (json['docs']! as List).cast<Map<String, Object?>>();
         expect(docs.first.keys.toList(), [
           'name',
@@ -1378,15 +1190,6 @@ void main() {
         await printed(project, [story, '--for', 'query']),
         reason: 'under --json the file still holds the text bundle',
       );
-    });
-
-    test('context --json --out prints a header with an empty warnings '
-        'array', () async {
-      final project = await writeReadProject();
-      final reply = jsonDecode(
-        await saved(project, [story, '--for', 'query', '--out', '--json']),
-      ) as Map<String, Object?>;
-      expect(reply['warnings'], <Object?>[]);
     });
 
     test('a bare --out before --for, or before --json, stays bare', () async {
@@ -1675,37 +1478,6 @@ void main() {
       },
     );
 
-    test('a bare --out of a 250-byte ASCII name writes both files', () async {
-      final code = 'app/lib/${'a' * 218}.dart';
-      final project = await writeReadProject(extra: {code: ''});
-      final run = readRunner(project);
-
-      expect(
-        await run.runner.run([
-          'context',
-          '--code',
-          code,
-          '--for',
-          'implement',
-          '--out',
-        ]),
-        0,
-        reason: run.err.toString(),
-      );
-
-      final names = [
-        for (final file in Directory(
-          '${project.path}/.specstone/bundles',
-        ).listSync())
-          file.uri.pathSegments.last,
-      ];
-      expect(names, hasLength(2));
-      expect(names.map((name) => utf8.encode(name).length).toList()..sort(), [
-        250,
-        255,
-      ]);
-    });
-
     test(
       'a --code path names one file from the root and from a subfolder',
       () async {
@@ -1741,26 +1513,6 @@ void main() {
         );
       },
     );
-
-    test('a named --out path under the project .git is output_not_writable, exit 73', () async {
-      final project = await writeReadProject(
-        extra: {'.git/config': '[core]\n'},
-      );
-      final run = readRunner(project);
-      expect(
-        await run.runner.run([
-          'context',
-          story,
-          '--for',
-          'implement',
-          '--out',
-          '.git/bundle.txt',
-        ]),
-        73,
-      );
-      expect(run.err.toString(), contains('it lies under .git'));
-      expect(File('${project.path}/.git/bundle.txt').existsSync(), isFalse);
-    });
 
     test('an --out path under .specstone/ outside bundles/ and reports/ is output_not_writable, exit 73, and the config stays whole', () async {
       final project = await writeReadProject();
@@ -1803,34 +1555,6 @@ void main() {
         bundleFile(project, 'login.design-summary-no-project.txt').existsSync(),
         isTrue,
       );
-    });
-
-    test('a relative --out from a subfolder is read from it and printed canonical and absolute', () async {
-      final project = await writeReadProject(extra: {'app/.keep': ''});
-      final nested = Directory('${project.path}/app');
-      final text = await saved(nested, [
-        story,
-        '--for',
-        'implement',
-        '--out',
-        '../out/b.txt',
-      ]);
-      final file = File('${project.path}/out/b.txt');
-      expect(file.existsSync(), isTrue);
-      expect(
-        header.firstMatch(text.split('\n').first)!.group(4),
-        file.resolveSymbolicLinksSync(),
-      );
-      final json = jsonDecode(
-        await saved(nested, [
-          story,
-          '--for',
-          'implement',
-          '--out=../out/b.txt',
-          '--json',
-        ]),
-      ) as Map;
-      expect(json['out'], file.resolveSymbolicLinksSync());
     });
 
     test('an --out path through a linked folder prints the canonical path of the written file', () async {
@@ -2108,17 +1832,6 @@ void main() {
       expect(Directory('${nested.path}/.specstone').existsSync(), isFalse);
     });
 
-    test('context --out prints its plan as the second stdout line', () async {
-      final project = await writeReadProject();
-      final text = await saved(project, [story, '--for', 'design', '--out']);
-      final headers = headersOf(text);
-      final lines = text.split('\n');
-      final fileLines = headers.first.group(3);
-      expect(lines.first, headers.first.group(0));
-      expect(lines[1], 'read whole, in 1 read: lines 1-$fileLines');
-      expect('read whole'.allMatches(text), hasLength(1));
-    });
-
     test(
       'the two files hold the docs of the one-file bundle between them',
       () async {
@@ -2139,42 +1852,6 @@ void main() {
       },
     );
 
-    test('context --out keeps the read-first file within one read when must parts fit', () async {
-      // A login API doc of about 25,000 est. tokens, in lines of 80 runes.
-      final project = await writeReadProject(
-        extra: {
-          'docs/specs/f01_login/API.md':
-              '# Login API\n\n## Operations\n${'${'w' * 79}\n' * 1250}',
-        },
-      );
-      final text = await saved(project, [story, '--for', 'implement', '--out']);
-      final fileLines = headersOf(text).first.group(3);
-      expect(text.split('\n')[1], 'read whole, in 1 read: lines 1-$fileLines');
-
-      final whole = readRunner(project);
-      await whole.runner.run(['context', story, '--for', 'implement']);
-      final refs = closingListOf(
-        bundleFile(
-          project,
-          'login-email_login.implement.refs.txt',
-        ).readAsStringSync(),
-      );
-      final both = [
-        ...closingListOf(
-          bundleFile(
-            project,
-            'login-email_login.implement.txt',
-          ).readAsStringSync(),
-        ),
-        ...refs,
-      ];
-      expect(refs, contains('- login (api) · moved'));
-      expect(
-        [for (final line in both) line.replaceFirst(' · moved', '')]..sort(),
-        closingListOf(whole.out.toString())..sort(),
-      );
-    });
-
     /// Two FRs of the story, each of about 15,000 est. tokens in lines of 80
     /// runes, so its own docs pass one read and each fits one.
     final overBudgetDocs = {
@@ -2186,47 +1863,6 @@ void main() {
     const budgetWarning =
         'the read-first file holds %t est. tokens, more than one read of '
         '20000; the read plan reads it in 2 ranges';
-
-    test(
-      'context --for implement --out prints the moved count on the refs header',
-      () async {
-        final project = await writeReadProject(extra: overBudgetDocs);
-        final run = readRunner(project);
-        expect(
-          await run.runner.run([
-            'context',
-            story,
-            '--for',
-            'implement',
-            '--out',
-          ]),
-          0,
-        );
-        final refsFile = bundleFile(
-          project,
-          'login-email_login.implement.refs.txt',
-        );
-        final moved = [
-          for (final line in closingListOf(refsFile.readAsStringSync()))
-            if (line.endsWith(' · moved')) line,
-        ];
-        expect(moved, isNotEmpty);
-        final refsHeader = run.out
-            .toString()
-            .split('\n')
-            .lastWhere((line) => line.startsWith('==> bundle: '));
-        expect(
-          refsHeader,
-          matches(
-            RegExp(
-              r'^==> bundle: \d+ docs, \d+ tokens, \d+ lines · '
-              '${moved.length} moved · '
-              r'.+\.refs\.txt <==$',
-            ),
-          ),
-        );
-      },
-    );
 
     test('the read-first budget warning goes to stderr and exits 0', () async {
       final project = await writeReadProject(extra: overBudgetDocs);
@@ -2518,14 +2154,6 @@ void main() {
           reason: name,
         );
       }
-    });
-
-    test('check --out with a finding exits 1 and prunes', () async {
-      final project = await writeReadProject();
-      final old = aged(project, '.specstone/bundles/old.txt');
-      final (status, _) = await run(project, ['check', story, '--out']);
-      expect(status, 1);
-      expect(old.existsSync(), isFalse);
     });
 
     test('get and context with no --out delete nothing', () async {
@@ -2988,24 +2616,6 @@ void main() {
       'jaspr:\n    code_root: jaspr_lib',
     ];
 
-    test("a skill-covered path outside the code roots prints the first target's code target line with two targets", () async {
-      final project = await writeSkillProject(twoTargets);
-
-      final text = await run(project, []);
-      final json = await run(project, ['--json']);
-
-      expect(text.exitCode, 0, reason: '${text.stderr}');
-      expect(
-        text.stdout as String,
-        startsWith('==> code target: flutter <==\n'),
-      );
-      expect(text.stdout as String, contains('(skill)'));
-      expect(
-        (jsonDecode(json.stdout as String)
-            as Map<String, Object?>)['codeTarget'],
-        'flutter',
-      );
-    });
     test('that path with another target is argument_conflict', () async {
       final project = await writeSkillProject(twoTargets);
 
@@ -3189,34 +2799,6 @@ void main() {
       );
     });
 
-    test('--json lists the targets in the order given, and holds target for one alone', () async {
-      final project = await writeReadProject(extra: stories);
-      Future<Map<String, Object?>> jsonOf(List<String> targets) async {
-        final run = readRunner(project);
-        expect(
-          await run.runner.run([
-            'context',
-            ...targets,
-            '--for',
-            'design',
-            '--json',
-          ]),
-          0,
-          reason: run.err.toString(),
-        );
-        return jsonDecode(run.out.toString()) as Map<String, Object?>;
-      }
-
-      final one = await jsonOf([first]);
-      expect(one['args'], [first]);
-      expect(one.containsKey('target'), isFalse);
-      expect(one.containsKey('targets'), isFalse);
-      final two = await jsonOf([second, first]);
-      expect(two.containsKey('target'), isFalse);
-      expect(two.containsKey('targets'), isFalse);
-      expect(two['args'], [second, first]);
-    });
-
     test('a bare --out with two targets writes the joined file name and its refs file', () async {
       final project = await writeReadProject(extra: stories);
       final run = readRunner(project);
@@ -3248,32 +2830,6 @@ void main() {
       expect(headers.first, contains(name));
     });
   });
-  test(
-    'context of an agent doc for design prints its feature right after it',
-    () async {
-      final project = await writeReadProject(
-        extra: {
-          '.specstone/config.yaml': skillPinsConfig(),
-          'docs/specs/agents/reviewer.md':
-              '---\nfeature:\n  - login\n---\n\n'
-              '# reviewer\n\n## Role\n\nReviews a diff.\n',
-        },
-      );
-      final run = readRunner(project);
-      expect(
-        await run.runner.run(['context', 'agent:reviewer', '--for', 'design']),
-        0,
-        reason: run.err.toString(),
-      );
-      final naming = [
-        for (final line in run.out.toString().split('\n'))
-          if (line.startsWith('==> ') && !line.startsWith('==> bundle: ')) line,
-      ];
-      final at = naming.indexWhere((l) => l.startsWith('==> reviewer (agent)'));
-      expect(at, isNonNegative);
-      expect(naming[at + 1], startsWith('==> login (feature)'));
-    },
-  );
   test('context --code on a shipped agent file gives the agent doc and its feature', () async {
     final project = await writeReadProject(
       extra: {

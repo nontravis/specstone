@@ -113,6 +113,7 @@ void main() {
           '../../../../diagram.png',
           '../../../../../packages/specstone_core/lib/a.dart',
           '../../../../specs/f01_login/',
+          '#edge-cases',
         ]) {
           final owner = _ownerInFr(
             index,
@@ -123,15 +124,6 @@ void main() {
         }
       },
     );
-
-    test('an ID after a bare anchor link belongs to its own doc', () async {
-      final owner = _ownerInFr(
-        await indexWith(),
-        _id('E03', const LinkCitation(destination: '#edge-cases')),
-      );
-      expect(owner?.doc.docPath, _fr);
-      expect(owner?.isOwnDoc, isTrue);
-    });
 
     test(
       'an ID after a code-span cite of one typed doc belongs to that doc',

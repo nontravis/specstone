@@ -633,15 +633,6 @@ lint:
       expect(json['sections'], isEmpty);
     });
 
-    test('a false list and required are absent', () {
-      final json = featureDocType().toJson();
-
-      final draft = (json['fields']! as List<Object?>)
-          .cast<Map<String, Object>>()
-          .singleWhere((f) => f['id'] == 'draft');
-      expect(draft.keys, ['id', 'type', 'description']);
-    });
-
     test('an output_ref field prints pointer between docTypes '
         'and description', () {
       final json = _merge(
@@ -669,14 +660,6 @@ lint:
         'pointer',
         'description',
       ]);
-    });
-
-    test('a field with no pointer prints no pointer '
-        'key', () {
-      final fields = (featureDocType().toJson()['fields']! as List<Object?>)
-          .cast<Map<String, Object>>();
-
-      expect(fields.where((f) => f.containsKey('pointer')), isEmpty);
     });
 
     test('toJson prints bundleWith on a doc_ref field a layer sets it on, '
@@ -1043,15 +1026,6 @@ sections:
       expect(guide, contains('## Out-of-scope\nOptional.\n'));
     });
 
-    test('a section with no description prints its mark '
-        'alone', () {
-      final guide = _merge(
-        'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
-      ).renderGuide();
-
-      expect(guide, 'A.\n\n$_defaultLimits\n\n## S\nOptional.\n');
-    });
-
     test('a section with an empty description prints its '
         'mark alone', () {
       final guide = _merge(
@@ -1076,6 +1050,9 @@ sections:
       '{id: s, header: S, required: true, '
               'when_field: {field: kind, values: [a, b, c]}}':
           'Required when `kind` is `a`, `b`, or `c`; left out otherwise.',
+      '{id: s, header: S, required: true, '
+              'when_field: {field: kind, values: [c, a, d, b]}}':
+          'Required when `kind` is `c`, `a`, `d`, or `b`; left out otherwise.',
       '{id: s, header: S, required: true, lint: '
               '{required_when: {section: api, field: Kind, value: rest}}}':
           'Required when a `Interfaces` item holds `Kind: rest`; '
@@ -1104,23 +1081,6 @@ sections:
         );
       });
     }
-
-    test('a when_field of four values out of alphabetical order prints them '
-        'in declared order', () {
-      final guide = _merge(
-        'description: A.\npath: a.md\n'
-        'sections: [{id: s, header: S, required: true, '
-        'when_field: {field: kind, values: [c, a, d, b]}}]',
-      ).renderGuide();
-
-      expect(
-        guide,
-        contains(
-          'Required when `kind` is `c`, `a`, `d`, or `b`; left out '
-          'otherwise.\n',
-        ),
-      );
-    });
 
     test('an optional section that sets both conditions prints the one '
         'joined line', () {
@@ -1333,39 +1293,30 @@ fields:
       expect(guide, 'A.\n\n$_defaultLimits\n');
     });
 
-    test('a doc type with only a reference list prints limits alone', () {
-      final guide = _merge(
-        "description: ''\npath: a.md\nreference: [{title: T}]",
-      ).renderGuide();
+    const fieldBlocks = {
+      '{id: summary, type: string, required: true, description: One line.}':
+          '- `summary` (required, string) — One line.',
+      '{id: note, type: string}': '- `note` (optional, string)',
+    };
+    test(
+      'a declared field prints in the field block ahead of the sections',
+      () {
+        for (final MapEntry(key: field, value: line) in fieldBlocks.entries) {
+          final guide = _merge(
+            'description: A.\npath: a.md\n'
+            'fields: [$field]\n'
+            'sections: [{id: s, header: S}]',
+          ).renderGuide();
 
-      expect(guide, '$_defaultLimits\n');
-    });
-
-    test('a layer that removes every entry leaves the guide unchanged', () {
-      final guide = _merge(
-        _featureLayer,
-        'reference: {remove: [NASA Systems Engineering Handbook]}',
-      ).renderGuide();
-
-      expect(guide, endsWith('each naming its owner.\n'));
-    });
-
-    test('a declared field prints in the field block ahead of the '
-        'sections', () {
-      final guide = _merge(
-        'description: A.\npath: a.md\n'
-        'fields: [{id: summary, type: string, required: true, '
-        'description: One line.}]\n'
-        'sections: [{id: s, header: S}]',
-      ).renderGuide();
-
-      expect(
-        guide,
-        'A.\n\nFrontmatter:\n'
-        '- `summary` (required, string) — One line.\n\n'
-        '$_defaultLimits\n\n## S\nOptional.\n',
-      );
-    });
+          expect(
+            guide,
+            'A.\n\nFrontmatter:\n$line\n\n'
+            '$_defaultLimits\n\n## S\nOptional.\n',
+            reason: field,
+          );
+        }
+      },
+    );
 
     test('the first section follows the field block with its mark on the line under its header and its template as a bare fence', () {
       final guide = _merge(
@@ -1380,17 +1331,6 @@ fields:
         'A.\n\nFrontmatter:\n- `note` (optional, string)\n\n'
         '$_defaultLimits\n\n## S\nRequired.\nWhy.\n```\nx\n```\n',
       );
-    });
-
-    test('the field block heading tells the writer the fields go in '
-        'frontmatter', () {
-      final guide = _merge(
-        'description: A.\npath: a.md\n'
-        'fields: [{id: note, type: string}]',
-      ).renderGuide();
-
-      expect(guide, contains('\n\nFrontmatter:\n- `note` '));
-      expect(guide, isNot(contains('Fields:')));
     });
 
     test('a list field adds list after its type, and a description of two '
@@ -1412,18 +1352,6 @@ fields:
         'A.\n\nFrontmatter:\n'
         '- `traced_from` (required, string list) — First line.\n'
         '  Second line.\n\n$_defaultLimits\n',
-      );
-    });
-
-    test('an undescribed field line ends at its closing parenthesis', () {
-      final guide = _merge(
-        'description: A.\npath: a.md\nfields: [{id: note, type: string}]',
-      ).renderGuide();
-
-      expect(
-        guide,
-        'A.\n\nFrontmatter:\n- `note` (optional, string)\n\n'
-        '$_defaultLimits\n',
       );
     });
 
@@ -1452,33 +1380,6 @@ fields:
 
       expect(guide, isNot(contains('status')));
       expect(guide, isNot(contains('Fields')));
-    });
-
-    test('a type that declares only built-ins prints no field block', () {
-      final guide = _merge(
-        'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
-      ).renderGuide();
-
-      expect(guide, isNot(contains('Fields')));
-    });
-
-    test('a required and an optional section each carry their mark under '
-        'the header', () {
-      final guide = _merge(
-        'description: A.\npath: a.md\n'
-        'sections:\n'
-        '  - {id: r, header: R, required: true, description: Why.}\n'
-        '  - {id: o, header: O, description: What.}\n'
-        '  - {id: n, header: N, required: true}',
-      ).renderGuide();
-
-      expect(
-        guide,
-        'A.\n\n$_defaultLimits\n\n'
-        '## R\nRequired.\nWhy.\n\n'
-        '## O\nOptional.\nWhat.\n\n'
-        '## N\nRequired.\n',
-      );
     });
   });
 

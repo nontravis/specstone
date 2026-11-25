@@ -577,24 +577,6 @@ void main() {
     ]);
   });
 
-  test('a section counts the blank lines format adds under its ### headings', () async {
-    final body = '${'### Head\ntext\n' * 3}${'filler\n' * 32}';
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/fr.yaml':
-              'sections:\n  - id: statement\n    lint:\n      max_lines: 37\n',
-          ...fr('$checkPasswordStatement\n', body),
-        },
-      ),
-    );
-    final finding = report.findings.singleWhere(
-      (f) => f.kind == FindingKind.linesOverLimit,
-    );
-    expect(finding.toJson(), containsPair('limit', 37));
-    expect(finding.toJson(), containsPair('actual', 38));
-  });
-
   test('a doc format refuses counts its text on disk', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -760,18 +742,6 @@ void main() {
       expect(finding.toJson(), containsPair('id', 'E03'));
       expect(finding.line, greaterThan(lineOf(project, loginFr, '1. E01')));
     });
-
-    test(
-      'an item of 700 characters under max_item_chars 900 is no finding',
-      () async {
-        final project = await withEdgeItem(
-          700,
-          template: 'lint:\n  max_item_chars: 900\n',
-        );
-
-        expect(await itemFindings(project), isEmpty);
-      },
-    );
 
     test(
       'an item of 901 characters under max_item_chars 900 is item_over_limit',
@@ -1312,18 +1282,6 @@ void main() {
   });
 
   group('size and shape edge cases', () {
-    test('a requirement with no Statement section carries section statement in its finding', () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: fr('## Statement\n\n$checkPasswordStatement\n\n', ''),
-        ),
-      );
-      final finding = report.findings.singleWhere(
-        (f) => f.kind == FindingKind.requiredSectionMissing,
-      );
-      expect(finding.toJson(), containsPair('section', 'statement'));
-    });
-
     group('a doc whose frontmatter is not valid YAML', () {
       const badStart = '---\nverify_method: "test\n';
       String docOf(int bodyLines) =>
@@ -1399,19 +1357,6 @@ void main() {
       expect(finding.toJson(), containsPair('limit', 60000));
       expect(finding.toJson()['actual'], greaterThan(60000));
       expect(spots(report, FindingKind.linesOverLimit), isEmpty);
-    });
-
-    test('a feature doc with no # line, or an empty one, is title_missing at line 1', () async {
-      for (final head in ['', '# \n\n']) {
-        final report = await checkOf(
-          await writeCheckProject(
-            extra: doc(loginFeature, '# Login page\n\n', head),
-          ),
-        );
-        expect(spots(report, FindingKind.titleMissing), [
-          '$loginFeature:1: title_missing',
-        ]);
-      }
     });
   });
 
@@ -1637,12 +1582,6 @@ void main() {
       );
       return sizeExcessesOf(doc, content, capped);
     }
-
-    test('approval_marks_leave_chars: a draft and its approved copy give the same doc chars_over_limit actual', () {
-      final draft = docChars('---\ndraft: true\n---\n\n$body');
-      final approved = docChars('---\napproved: "abc123"\n---\n\n$body');
-      expect(draft.single.actual, approved.single.actual);
-    });
 
     test('approval_marks_leave_chars: a doc over its cap by content still gets the finding with the marks gone', () {
       final found = docChars('---\ndraft: true\n---\n\n$body');

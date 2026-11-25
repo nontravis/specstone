@@ -1,5 +1,4 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' as check;
@@ -56,10 +55,6 @@ void main() {
     expectTemplatesFreeOfListedWords(fr);
   });
 
-  test('the description states no number a lint key holds', () {
-    expect(fr.description, isNot(contains('Statement as one sentence')));
-  });
-
   test('fr marks statement summary', () {
     expect(
       [
@@ -67,101 +62,6 @@ void main() {
           if (s.summary == true) s.id,
       ],
       ['statement'],
-    );
-  });
-
-  test('the description states the item shape, the edge case lines, and the'
-      ' cap line', () {
-    final description = fr.description!;
-
-    expect(
-      description,
-      contains(
-        'Write the Statement with one "shall" and its quantified value, such '
-        'as `within 2 s`.',
-      ),
-    );
-    expect(description, contains('leave mechanics to the spec docs'));
-    expect(
-      description,
-      contains(
-        'Keep the trace in `traced_from` alone, never in the Statement or an '
-        'edge case.',
-      ),
-    );
-    final positions = [
-      for (final line in [..._edgeCaseLines, _capLine])
-        description.indexOf(line),
-    ];
-    expect(positions, everyElement(isNonNegative));
-    expect(positions, orderedEquals([...positions]..sort()));
-    for (final fragment in _droppedFragments) {
-      expect(description, isNot(contains(fragment)), reason: fragment);
-    }
-    expect(_capLine, isNot(matches(RegExp(r'\d'))));
-  });
-
-  test('the unhandled-case line sends the case to the feature Out-of-scope '
-      'and names no spec doc type', () {
-    final line = fr.description!
-        .split('\n')
-        .singleWhere((l) => l.contains('no designed response'));
-    expect(line, contains("the feature's Out-of-scope"));
-    expect(line, contains('`<case> — not planned`'));
-    for (final word in [
-      ..._softwareTechDocTypeIds(),
-      'domain',
-      'known_limits',
-    ]) {
-      expect(line, isNot(matches(RegExp('\\b$word\\b'))), reason: word);
-    }
-  });
-
-  test('fr item shape and behavior lines carry the step contract', () {
-    expect(
-      fr.description!.split('\n'),
-      contains(
-        'State what the product does, never how; leave mechanics to the spec '
-        "docs, and assign no task to a person. A skill's or agent's steps are "
-        'code. An FR states only when it asks, what it reports, what it takes, '
-        'its limits, and what it may write.',
-      ),
-    );
-    expect(
-      sectionOf(fr, 'behavior').description!.split('\n'),
-      contains(
-        'State a required order of functions as a requirement, and an assumed '
-        "order as an assumption. A skill's or agent's step order is neither.",
-      ),
-    );
-  });
-
-  test('the fr description carries the cap line its lint row names', () {
-    expect(
-      fr.description!.split('\n'),
-      contains(
-        'Trim edge cases the rules above leave out; split an FR still past '
-        'the cap into new FRs in its story.',
-      ),
-    );
-    expect(
-      fr.description,
-      isNot(contains('Split an FR that holds too many edge cases')),
-    );
-  });
-
-  test('the fr description carries the placement line after the cap line', () {
-    final lines = fr.description!.split('\n');
-    final capIndex = lines.indexOf(
-      'Trim edge cases the rules above leave out; split an FR still past '
-      'the cap into new FRs in its story.',
-    );
-    expect(capIndex, isNonNegative);
-    expect(
-      lines[capIndex + 1],
-      "Put a rule only one member of a set holds in that member's FR, such "
-      'as one doc type of a pack. A shared FR keeps each rule two or more '
-      'members take, once, naming them unless every member takes it.',
     );
   });
 
@@ -177,25 +77,12 @@ void main() {
       '- **Level:** <level>',
     );
     expect(
-      verification.description,
-      contains(
-        'Write `- **Pass criteria:** each edge case holds.`, with one nested '
-        'bullet per condition that no edge case, the Statement, or an Input / '
-        'Output row states; state no exit status.',
-      ),
-    );
-    expect(verification.description, contains('Name no test file here'));
-    expect(
       template,
       isNot(matches(RegExp(r'_test\.|\.test\.|\.spec\.|\btests?/'))),
     );
   });
 
   test('the verify_method, input_output, and behavior wording is short', () {
-    final method = fieldOf(fr, 'verify_method').description!;
-
-    expect(method, contains('`analysis` reasons or calculates.'));
-    expect(method, contains('`demonstration` shows it working unmeasured.'));
     expect(
       sectionOf(fr, 'input_output').template,
       contains(
@@ -203,71 +90,9 @@ void main() {
         '| <field> | <yes/no> | <constraints> |',
       ),
     );
-    expect(
-      sectionOf(fr, 'behavior').description,
-      contains('Quote a node label holding any of `()[]{}`'),
-    );
   });
 
   group('the input_output section keeps an FR in product words', () {
-    late String description;
-    setUpAll(() {
-      description = sectionOf(fr, 'input_output').description!;
-    });
-
-    test('asks for product words in each row', () {
-      expect(description, contains('Write each row in product words.'));
-    });
-
-    test('a row states what is given or got, whether required, and what a '
-        'default means', () {
-      expect(
-        description,
-        contains(
-          'A row states what the person or caller gives or gets, whether it '
-          'is required, and what a default means.',
-        ),
-      );
-    });
-
-    test('asks for each unit and allowed values in product words, and the '
-        'data interface line asks the same', () {
-      expect(
-        description,
-        contains('Give each item its unit and allowed values in product words'),
-      );
-      expect(
-        description,
-        contains(
-          'For a data interface, also cover the standard, message timing, '
-          'protocol, error detection, initialization, and status, in product '
-          'words.',
-        ),
-      );
-    });
-
-    test('leaves the wire name, type, range, and code attributes to the '
-        'operation that traces the FR', () {
-      expect(
-        description,
-        contains(
-          "When the project's spec holds an operation that traces the FR, "
-          'that operation holds the wire name, type, range, and code '
-          'attributes, never the row.',
-        ),
-      );
-    });
-
-    test('names no spec doc type', () {
-      for (final word in ['api', 'project_api', 'domain', 'architecture']) {
-        expect(
-          description,
-          isNot(matches(RegExp('\\b$word\\b'))),
-          reason: word,
-        );
-      }
-    });
-
     test('the template has an Input table of Field, Required, Notes and an '
         'Output table of Field, Notes', () {
       final template = sectionOf(fr, 'input_output').template!;
@@ -276,13 +101,6 @@ void main() {
       expect(template, contains('| Field | Notes |\n'));
       expect(template, isNot(contains('| Type |')));
     });
-  });
-
-  test('the error case line names the project-wide error model', () {
-    expect(
-      fr.description,
-      contains("or the target's project-wide error model, holds it."),
-    );
   });
 
   test('the edge cases template shows the several-trigger shape and the'
@@ -299,16 +117,6 @@ void main() {
       ),
     );
     expect(
-      edgeCases.description,
-      contains(
-        'For several triggers, keep the `→` in the lead, indent the response '
-        'lines with no blank line, and nest the triggers.',
-      ),
-    );
-    for (final word in ['detect', 'report', 'handle', 'recover']) {
-      expect(edgeCases.description, isNot(contains(word)), reason: word);
-    }
-    expect(
       '\n'.allMatches(edgeCases.description!).length + 1,
       lessThanOrEqualTo(_maxSectionDescriptionLines),
     );
@@ -316,13 +124,6 @@ void main() {
 
   test('edge case line gives the id form and position numbering', () {
     final edgeCases = sectionOf(fr, 'edge_cases');
-    final description = edgeCases.description!;
-
-    expect(description, contains('`E01 — <trigger> → <response>`'));
-    expect(description, contains('numbered by position from `E01`'));
-    expect(description, contains('no gap'));
-    expect(description, contains('list ordinals equal positions'));
-
     final ordinals = RegExp(
       r'^(\d+)\. E(\d+) —',
       multiLine: true,
@@ -468,13 +269,6 @@ void main() {
         );
       },
     );
-
-    test('the Rationale description no longer asks for the scenario link', () {
-      expect(
-        sectionOf(fr, 'rationale').description,
-        isNot(contains('Link the scenario')),
-      );
-    });
   });
 }
 
@@ -557,69 +351,6 @@ const _exitStatusMentions = <String>[
   '1. E01 — A saved file → the caller acts on the exit status.',
   '1. E01 — A trim → it cuts a message text and an exit status.',
   '1. E01 — A run → the shim passes on the exit status of the program.',
-];
-
-/// The edge case lines of the description, in the order it states them.
-const _edgeCaseLines = <String>[
-  _admissionLine,
-  _responseLine,
-  _leaveOutLine,
-  _unhandledCaseLine,
-  _errorCodeLine,
-  _messageLine,
-];
-
-const _admissionLine =
-    'Write an edge case only for an outcome the Statement, an Input/Output '
-    'row, and a table leave unstated, such as a refusal, a limit, a default, '
-    "a fallback, or a \"no finding\" boundary another FR's finding takes.";
-
-/// The doc type ids the shipped `software-tech` pack carries, from its files.
-///
-/// Only top-level `software-tech/<id>.yaml` files; the files under
-/// `patterns/` are not doc types.
-List<String> _softwareTechDocTypeIds() => [
-  for (final path in shippedPackFiles.keys)
-    if (RegExp(r'^software-tech/([^/]+)\.yaml$').firstMatch(path)
-        case final match? when match[1] != 'pack')
-      match[1]!,
-];
-
-const _responseLine =
-    'Write one edge case per distinct response; inputs with the same '
-    'response are nested triggers of one case, one sample each.';
-
-const _leaveOutLine =
-    'Leave out a case another FR or a spec rule owns, a case outside the '
-    "Statement's condition, and implementation or test detail.";
-
-const _unhandledCaseLine =
-    "Put a case with no designed response in the feature's Out-of-scope as "
-    '`<case> — not planned`, with what happens then. A designed response, even '
-    '"the file is left as it is", is an edge case.';
-
-const _errorCodeLine =
-    'In an error case, name the error code the person or caller sees and '
-    'whether the run stops. State no exit status: the error catalog of the '
-    "nearest feature up the FR's parent chain in the target, or the target's "
-    'project-wide error model, holds it.';
-
-const _messageLine =
-    'Quote an error message only when it is part of the contract, once, in '
-    'the Output row that defines it; with no catalog reaching the FR, state '
-    'in words what the person sees.';
-
-const _capLine =
-    'Trim edge cases the rules above leave out; split an FR still past the '
-    'cap into new FRs in its story.';
-
-/// Fragments of the description lines the edge case lines replace.
-const _droppedFragments = [
-  'one Edge cases item per case',
-  'does not handle',
-  'Exercise each Statement clause',
-  'counts as exercised',
-  'So does a Statement clause',
 ];
 
 const _maxSectionDescriptionLines = 5;

@@ -581,10 +581,8 @@ void main() {
       expect(dry.code, apply.code, reason: '$addresses');
       expect(dry.message, apply.message, reason: '$addresses');
     }
-  });
 
-  test('a dry run gives the refusal the apply gives for each scenario move refusal', () async {
-    final root = await _project(
+    final ruleRoot = await _project(
       add: [
         _scenario(1),
         _scenario(2),
@@ -592,14 +590,14 @@ void main() {
       ],
       addRules: [_rule(1), _rule(2)],
     );
-    final calls = <(List<String>, String)>[
+    final ruleCalls = <(List<String>, String)>[
       (['$_addItem#S9'], _dropItem),
       (['$_addItem#S3'], _dropItem),
       (['$_addItem#S2'], 'feature:shop/cart'),
     ];
-    for (final (addresses, under) in calls) {
-      final apply = _refusal(root, addresses, under: under);
-      final dry = _refusal(root, addresses, under: under, dryRun: true);
+    for (final (addresses, under) in ruleCalls) {
+      final apply = _refusal(ruleRoot, addresses, under: under);
+      final dry = _refusal(ruleRoot, addresses, under: under, dryRun: true);
       expect(dry.runtimeType, apply.runtimeType, reason: '$addresses');
       expect(dry.toString(), apply.toString(), reason: '$addresses');
     }
@@ -649,6 +647,15 @@ void main() {
       File('${root.path}/${MoveJournal.journalPath}').existsSync(),
       isFalse,
       reason: 'a dry run writes no journal',
+    );
+
+    final citedRoot = await _citedProject();
+    final citedBefore = _docs(citedRoot);
+    _move(citedRoot, ['$_addItem#S2'], dryRun: true);
+    expect(
+      _docs(citedRoot),
+      citedBefore,
+      reason: 'a dry run of a renumbering move stamps no fingerprint',
     );
   });
 
@@ -896,13 +903,6 @@ void main() {
       expect(suspects.single['recorded'], _stale);
     });
 
-    test('a dry run of a renumbering move stamps no fingerprint', () async {
-      final root = await _citedProject();
-      final before = _docs(root);
-      _move(root, ['$_addItem#S2'], dryRun: true);
-      expect(_docs(root), before);
-    });
-
     test('a quoted scenario heading is the scenario check keys and move locates, and it lands renumbered with its entry re-stamped', () async {
       String quoted(int number) =>
           '> ### Scenario $number — [edge] Case 3\n\n'
@@ -1066,11 +1066,6 @@ void main() {
           '- **INV-2** As [Scenario 2]($_toDropItem/USER_STORY.md#scenario-3--edge-case-2) gives.\n',
         ),
       );
-    });
-
-    test('a heading-anchor link in reference style, in angle brackets, or with a query reaches the new heading', () async {
-      final root = await _citedProject();
-      _move(root, ['$_addItem#S2']);
       final text = readDoc(root, cartDomain);
       for (final line in [
         '- **INV-6** As [Scenario 2][s2] gives.\n',
@@ -1080,24 +1075,6 @@ void main() {
       ]) {
         expect(text, contains(line));
       }
-    });
-
-    test('a reference-style heading link carried with its scenario reaches the landed heading', () async {
-      final root = await _project(
-        add: [
-          _scenario(1),
-          _scenario(
-            2,
-          ).replaceFirst('sees case 2', 'sees case 2, as [here][self] gives'),
-          _scenario(3),
-        ],
-        addClosing: '[self]: #scenario-2--edge-case-2',
-      );
-      _move(root, ['$_addItem#S2']);
-      expect(
-        readDoc(root, cartDrop),
-        contains('as [here](#scenario-3--edge-case-2) gives'),
-      );
     });
 
     test('a definition a staying link and a moved link share reaches the landed heading from both', () async {

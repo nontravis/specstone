@@ -106,32 +106,24 @@ void main() {
 
   test('a move_file whose to pattern holds other placeholders than its from is '
       'unknown_value', () {
-    expect(
-      () => parseMigrationsOf(
-        '- from: 1.0.0\n  steps:\n    - move_file: {doc_type: runbook, from: "a/{slug}.md", to: "b/{nn}_{slug}.md"}\n',
-      ),
-      throwsA(
-        _fault(
-          FaultCode.unknownValue,
-          key: 'migrations[0].steps[0].move_file.to',
+    for (final (from, to) in [
+      ('a/{slug}.md', 'b/{nn}_{slug}.md'),
+      ('a/{nn}_{slug}.md', 'b/{slug}_{nn}.md'),
+    ]) {
+      expect(
+        () => parseMigrationsOf(
+          '- from: 1.0.0\n  steps:\n    - move_file: '
+          '{doc_type: runbook, from: "$from", to: "$to"}\n',
         ),
-      ),
-    );
-  });
-
-  test('a move_file whose to pattern holds the from '
-      'placeholders in another order is unknown_value', () {
-    expect(
-      () => parseMigrationsOf(
-        '- from: 1.0.0\n  steps:\n    - move_file: {doc_type: runbook, from: "a/{nn}_{slug}.md", to: "b/{slug}_{nn}.md"}\n',
-      ),
-      throwsA(
-        _fault(
-          FaultCode.unknownValue,
-          key: 'migrations[0].steps[0].move_file.to',
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'migrations[0].steps[0].move_file.to',
+          ),
         ),
-      ),
-    );
+        reason: '$from to $to',
+      );
+    }
   });
 
   test('an entry that is not a mapping is unknown_value', () {

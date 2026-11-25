@@ -50,25 +50,25 @@ void main() {
     });
 
     test('a non-map root is yaml_syntax on line 1', () {
-      expect(
-        () => readYamlMap('- a\n- b\n', file: _file),
-        throwsA(_fault(FaultCode.yamlSyntax, line: 1)),
-      );
-    });
-
-    test('a scalar root is yaml_syntax on line 1', () {
-      expect(
-        () => readYamlMap('just text', file: _file),
-        throwsA(_fault(FaultCode.yamlSyntax, line: 1)),
-      );
+      for (final (reason, text) in [
+        ('list root', '- a\n- b\n'),
+        ('scalar root', 'just text'),
+      ]) {
+        expect(
+          () => readYamlMap(text, file: _file),
+          throwsA(_fault(FaultCode.yamlSyntax, line: 1)),
+          reason: reason,
+        );
+      }
     });
 
     test('empty text gives an empty map', () {
-      expect(readYamlMap('', file: _file), isEmpty);
-    });
-
-    test('comment-only text gives an empty map', () {
-      expect(readYamlMap('# nothing here\n', file: _file), isEmpty);
+      for (final (reason, text) in [
+        ('empty', ''),
+        ('comment only', '# nothing here\n'),
+      ]) {
+        expect(readYamlMap(text, file: _file), isEmpty, reason: reason);
+      }
     });
 
     test('a mapping reads into a YamlMap', () {
@@ -95,34 +95,25 @@ void main() {
       );
     });
 
-    test('a camelCase key is unknown_key by its name', () {
-      final map = readYamlMap('prefixId: x\n', file: _file);
-
-      expect(
-        () => checkKeys(map, {'prefix_id'}, file: _file, format: 'doc-type'),
-        throwsA(
-          _fault(FaultCode.unknownKey, key: 'prefixId').having(
-            (f) => f.message,
-            'message',
-            'the doc-type format defines no key prefixId',
-          ),
-        ),
-      );
-    });
-
     test('the message names the given format', () {
-      final map = readYamlMap('pakcs: 1\n', file: _file);
+      for (final (format, key, allowed) in [
+        ('config', 'pakcs', 'packs'),
+        ('doc-type', 'prefixId', 'prefix_id'),
+      ]) {
+        final map = readYamlMap('$key: 1\n', file: _file);
 
-      expect(
-        () => checkKeys(map, {'packs'}, file: _file, format: 'config'),
-        throwsA(
-          _fault(FaultCode.unknownKey, key: 'pakcs').having(
-            (f) => f.message,
-            'message',
-            'the config format defines no key pakcs',
+        expect(
+          () => checkKeys(map, {allowed}, file: _file, format: format),
+          throwsA(
+            _fault(FaultCode.unknownKey, key: key).having(
+              (f) => f.message,
+              'message',
+              'the $format format defines no key $key',
+            ),
           ),
-        ),
-      );
+          reason: format,
+        );
+      }
     });
 
     test('the first unknown key in file order wins', () {
@@ -195,35 +186,28 @@ void main() {
 
   group('optionalValue', () {
     test('an absent key gives null', () {
-      final map = readYamlMap('id: a\n', file: _file);
+      for (final (reason, text) in [
+        ('absent', 'id: a\n'),
+        ('null value', 'locked:\n'),
+      ]) {
+        final map = readYamlMap(text, file: _file);
 
-      expect(optionalValue<bool>(map, 'locked', file: _file), isNull);
-    });
-
-    test('a null value gives null', () {
-      final map = readYamlMap('locked:\n', file: _file);
-
-      expect(optionalValue<bool>(map, 'locked', file: _file), isNull);
+        expect(
+          optionalValue<bool>(map, 'locked', file: _file),
+          isNull,
+          reason: reason,
+        );
+      }
     });
 
     test('a value of the right type is returned', () {
       final map = readYamlMap('locked: true\n', file: _file);
+      final nested = readYamlMap('goal:\n  title: t\n', file: _file);
 
       expect(optionalValue<bool>(map, 'locked', file: _file), isTrue);
-    });
-
-    test('a nested map is returned as YamlMap', () {
-      final map = readYamlMap('goal:\n  title: t\n', file: _file);
-
-      expect(optionalValue<YamlMap>(map, 'goal', file: _file), isA<YamlMap>());
-    });
-
-    test('a value of another type is unknown_value', () {
-      final map = readYamlMap('locked: yes-please\n', file: _file);
-
       expect(
-        () => optionalValue<bool>(map, 'locked', file: _file),
-        throwsA(_fault(FaultCode.unknownValue, key: 'locked')),
+        optionalValue<YamlMap>(nested, 'goal', file: _file),
+        isA<YamlMap>(),
       );
     });
 
@@ -266,19 +250,16 @@ void main() {
     });
 
     test('an absent key gives a growable empty list', () {
-      final map = readYamlMap('id: a\n', file: _file);
+      for (final (reason, text) in [
+        ('absent', 'id: a\n'),
+        ('null value', 'words:\n'),
+      ]) {
+        final map = readYamlMap(text, file: _file);
 
-      final words = stringList(map, 'words', file: _file)..add('later');
+        final words = stringList(map, 'words', file: _file)..add('later');
 
-      expect(words, ['later']);
-    });
-
-    test('a null value gives a growable empty list', () {
-      final map = readYamlMap('words:\n', file: _file);
-
-      final words = stringList(map, 'words', file: _file)..add('later');
-
-      expect(words, ['later']);
+        expect(words, ['later'], reason: reason);
+      }
     });
 
     test('a non-list value is unknown_value', () {

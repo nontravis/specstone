@@ -109,21 +109,6 @@ void main() {
       ]);
     });
 
-    test('a step below an off-path step with no after: is '
-        'off path too', () {
-      final steps = _read([
-        '### 1. A',
-        '### 2. B',
-        'step: a/b S1',
-        'after: 9',
-        '### 3. C',
-      ]);
-
-      expect(steps.offPathIndexes, [1, 2]);
-      expect(steps.unresolvedAfterIndexes, [1]);
-      expect(steps.edges, isEmpty);
-    });
-
     test('a second ### 3. heading is a duplicate, and an '
         'after: 3 below it follows the first step 3', () {
       final steps = _read([
@@ -198,11 +183,8 @@ void main() {
       expect(readStepTarget('login S'), isNull);
       expect(readStepTarget('login/email  S1'), isNull);
       expect(readStepTarget('login S99999999999999999999'), isNull);
-      expect(readStepTarget('login/email S2')!.label, 'login/email#S2');
-    });
-
-    test('a lettered scenario number gives no target', () {
       expect(readStepTarget('setup_migration/set_up_new_project S1a'), isNull);
+      expect(readStepTarget('login/email S2')!.label, 'login/email#S2');
     });
 
     test('a step number keeps its letters', () {

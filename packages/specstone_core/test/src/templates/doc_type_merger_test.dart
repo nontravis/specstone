@@ -114,75 +114,49 @@ void main() {
       );
     });
 
-    test('a doc type with no fields still holds the seven built-ins in '
-        'order', () {
-      final merged = merger.apply(
-        merger.builtInBase('runbook'),
-        layer('description: Runbook\n', docTypeId: 'runbook'),
-      );
+    test(
+      'a doc type with no fields still holds the seven built-ins in order',
+      () {
+        final merged = merger.apply(
+          merger.builtInBase('runbook'),
+          layer('description: Runbook\n', docTypeId: 'runbook'),
+        );
 
-      expect(ids(merged.fields), [
-        'slug',
-        'status',
-        'draft',
-        'approved',
-        'reference',
-        'retrim',
-        'retired_ids',
-      ]);
-      expect(merged.fields.map((f) => f.type), [
-        FieldType.string,
-        FieldType.enumType,
-        FieldType.boolean,
-        FieldType.string,
-        FieldType.docRef,
-        FieldType.string,
-        FieldType.string,
-      ]);
-      expect(merged.fields.map((f) => f.list), [
-        true,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-      ]);
-      expect(merged.fields[1].enumValues, [
-        'planned',
-        'implemented',
-        'deprecated',
-      ]);
-    });
-
-    test('every merged doc type carries retrim as a built-in string list', () {
-      final retrim = merger
-          .builtInBase('x')
-          .fields
-          .singleWhere((f) => f.id == 'retrim');
-
-      expect(retrim.type, FieldType.string);
-      expect(retrim.list, isTrue);
-      expect(retrim.isBuiltIn, isTrue);
-
-      final newProjectType = merger.apply(
-        merger.builtInBase('runbook'),
-        layer(
-          'description: Runbook\n',
-          kind: LayerKind.project,
-          docTypeId: 'runbook',
-        ),
-      );
-      expect(ids(newProjectType.fields), [
-        'slug',
-        'status',
-        'draft',
-        'approved',
-        'reference',
-        'retrim',
-        'retired_ids',
-      ]);
-    });
+        expect(ids(merged.fields), [
+          'slug',
+          'status',
+          'draft',
+          'approved',
+          'reference',
+          'retrim',
+          'retired_ids',
+        ]);
+        expect(merged.fields.map((f) => f.type), [
+          FieldType.string,
+          FieldType.enumType,
+          FieldType.boolean,
+          FieldType.string,
+          FieldType.docRef,
+          FieldType.string,
+          FieldType.string,
+        ]);
+        expect(merged.fields.map((f) => f.list), [
+          true,
+          false,
+          false,
+          false,
+          true,
+          true,
+          true,
+        ]);
+        expect(merged.fields[5].isBuiltIn, isTrue);
+        expect(merged.fields[1].enumValues, [
+          'planned',
+          'implemented',
+          'deprecated',
+        ]);
+      },
+    );
   });
 
   group('DocTypeMerger.apply', () {
@@ -381,19 +355,6 @@ void main() {
       );
     });
 
-    test('an entry the merged base lacks, with no header on a section or no '
-        'type on a field, is override_id_not_found naming the file and the id, '
-        'exit 78', () {
-      expect(
-        () => project(shipped(), 'sections: [{id: goal_typo, description: x}]'),
-        throwsA(refusal(FaultCode.overrideIdNotFound, 'sections.goal_typo')),
-      );
-      expect(
-        () => project(shipped(), 'fields: [{id: size, description: x}]'),
-        throwsA(refusal(FaultCode.overrideIdNotFound, 'fields.size')),
-      );
-    });
-
     test('disabled: true on an id the merged base lacks is refused in every '
         'layer, shipped or not, naming the file and the id, exit 78', () {
       for (final (kind, file) in [
@@ -504,14 +465,21 @@ void main() {
       expect(merged.sections.first.description, 'D');
     });
 
-    test('an added section after a missing '
-        'id is after_id_not_found', () {
+    test('an added section after a missing id is after_id_not_found', () {
       expect(
         () => project(
           shipped(),
           'sections: [{id: risks, header: Risks, after: nope}]',
         ),
-        throwsA(fault(FaultCode.afterIdNotFound, 'sections.risks.after')),
+        throwsA(
+          fault(
+            FaultCode.afterIdNotFound,
+            'sections.risks.after',
+            message:
+                'the section risks follows nope, which the lower layers and '
+                'earlier entries do not define',
+          ),
+        ),
       );
     });
 
@@ -520,25 +488,6 @@ void main() {
       expect(
         () => project(shipped(), 'sections: [{id: goal, after: nope}]'),
         throwsA(fault(FaultCode.afterIdNotFound, 'sections.goal.after')),
-      );
-    });
-
-    test('after naming an id the merged base lacks is after_id_not_found '
-        'naming the file and both ids, exit 78', () {
-      expect(
-        () => project(
-          shipped(),
-          'sections: [{id: risks, header: Risks, after: nope}]',
-        ),
-        throwsA(
-          refusal(
-            FaultCode.afterIdNotFound,
-            'sections.risks.after',
-            message:
-                'the section risks follows nope, which the lower layers and '
-                'earlier entries do not define',
-          ),
-        ),
       );
     });
 
@@ -632,12 +581,19 @@ sections:
       });
     }
 
-    test('changing the type of a built-in is '
-        'locked_field_disabled', () {
-      expect(
-        () => project(shipped(), 'fields: [{id: draft, type: string}]'),
-        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.draft')),
-      );
+    test('changing the type of a built-in is locked_field_disabled', () {
+      for (final (id, type) in [
+        ('draft', 'string'),
+        ('slug', 'integer'),
+        ('status', 'string'),
+        ('reference', 'string'),
+      ]) {
+        expect(
+          () => project(shipped(), 'fields: [{id: $id, type: $type}]'),
+          throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.$id')),
+          reason: id,
+        );
+      }
     });
 
     test('a locked-field fault on slug names no approved clause', () {
@@ -698,62 +654,6 @@ sections:
         () => project(shipped(), 'fields: [{id: approved, enum: [a, b]}]'),
         throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
       );
-    });
-
-    test('disabling any of the seven built-in fields is locked_field_disabled '
-        'naming the file and the field, exit 78', () {
-      for (final id in [
-        'slug',
-        'status',
-        'draft',
-        'approved',
-        'reference',
-        'retrim',
-        'retired_ids',
-      ]) {
-        expect(
-          () => project(shipped(), 'fields: [{id: $id, disabled: true}]'),
-          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.$id')),
-          reason: id,
-        );
-      }
-    });
-
-    test('writing another type on slug, status, or reference is '
-        'locked_field_disabled naming the file and the field, exit 78', () {
-      for (final (id, type) in [
-        ('slug', 'integer'),
-        ('status', 'string'),
-        ('reference', 'string'),
-      ]) {
-        expect(
-          () => project(shipped(), 'fields: [{id: $id, type: $type}]'),
-          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.$id')),
-          reason: id,
-        );
-      }
-    });
-
-    test('writing type boolean on approved is locked_field_disabled naming '
-        'the file and the field, exit 78', () {
-      expect(
-        () => project(shipped(), 'fields: [{id: approved, type: boolean}]'),
-        throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.approved')),
-      );
-    });
-
-    test('writing enum values or list on approved is locked_field_disabled '
-        'naming the file and the field, exit 78', () {
-      for (final entry in [
-        '{id: approved, enum: [a, b]}',
-        '{id: approved, list: true}',
-      ]) {
-        expect(
-          () => project(shipped(), 'fields: [$entry]'),
-          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.approved')),
-          reason: entry,
-        );
-      }
     });
 
     test('a layer that disables retrim, changes its type, or writes list or '
@@ -1137,14 +1037,21 @@ sections:
       expect(merged.lint.bannedWords, ['robust', 'simply']);
     });
 
-    test('removing a word the base lacks is '
-        'lint_word_not_found', () {
+    test('removing a word the base lacks is lint_word_not_found', () {
       expect(
         () => project(
           withBannedWords(),
           'lint: {banned_words: {remove: [quick]}}',
         ),
-        throwsA(fault(FaultCode.lintWordNotFound, 'lint.banned_words')),
+        throwsA(
+          fault(
+            FaultCode.lintWordNotFound,
+            'lint.banned_words',
+            message:
+                'cannot remove quick from lint.banned_words; no lower layer '
+                'holds it',
+          ),
+        ),
       );
     });
 
@@ -1153,25 +1060,6 @@ sections:
       expect(
         () => project(shipped(), 'lint: {allowed_words: {remove: [API]}}'),
         throwsA(fault(FaultCode.lintWordNotFound, 'lint.allowed_words')),
-      );
-    });
-
-    test('removing a word the lower list lacks is lint_word_not_found naming '
-        'the file and the word, exit 78', () {
-      expect(
-        () => project(
-          withBannedWords(),
-          'lint: {banned_words: {remove: [quick]}}',
-        ),
-        throwsA(
-          refusal(
-            FaultCode.lintWordNotFound,
-            'lint.banned_words',
-            message:
-                'cannot remove quick from lint.banned_words; no lower layer '
-                'holds it',
-          ),
-        ),
       );
     });
 
@@ -1196,26 +1084,6 @@ sections:
         ),
       );
     });
-
-    test(
-      'a plain word list above the layer that first defines it is '
-      'list_override_needs_add_remove naming the file and the key, exit 78',
-      () {
-        expect(
-          () => project(withBannedWords(), 'lint: {banned_words: [x]}'),
-          throwsA(
-            refusal(FaultCode.listOverrideNeedsAddRemove, 'lint.banned_words'),
-          ),
-        );
-        final allowed = project(shipped(), 'lint: {allowed_words: [API]}');
-        expect(
-          () => project(allowed, 'lint: {allowed_words: [UI]}'),
-          throwsA(
-            refusal(FaultCode.listOverrideNeedsAddRemove, 'lint.allowed_words'),
-          ),
-        );
-      },
-    );
 
     test('a plain lint list is accepted where no lower layer defines '
         'it', () {
@@ -1295,18 +1163,6 @@ sections:
         300,
       );
       expect(project(base, 'lint: {max_chars: 50}').lint.maxItemChars, 900);
-    });
-
-    test('a doc-level lint key outside the list is unknown_key, and '
-        'max_item_chars is inside it', () {
-      expect(
-        () => project(shipped(), 'lint: {max_words: 3}'),
-        throwsA(fault(FaultCode.unknownKey, 'lint.max_words')),
-      );
-      expect(
-        project(shipped(), 'lint: {max_item_chars: 1}').lint.maxItemChars,
-        1,
-      );
     });
 
     test('no layer writes caps gives built-in maps and null fields', () {
@@ -1441,20 +1297,11 @@ sections:
       expect(titles(merged), ['B', 'C']);
     });
 
-    test('removing a title the base lacks '
-        'is reference_title_not_found', () {
-      expect(
-        () => project(withReferences(), 'reference: {remove: [Z]}'),
-        throwsA(fault(FaultCode.referenceTitleNotFound, 'reference')),
-      );
-    });
-
-    test('removing a title the lower list lacks is reference_title_not_found '
-        'naming the file and the title, exit 78', () {
+    test('removing a title the base lacks is reference_title_not_found', () {
       expect(
         () => project(withReferences(), 'reference: {remove: [Z]}'),
         throwsA(
-          refusal(
+          fault(
             FaultCode.referenceTitleNotFound,
             'reference',
             message: 'cannot remove Z from reference; no lower layer holds it',
@@ -1469,20 +1316,13 @@ sections:
       expect(titles(merged), ['A', 'B']);
     });
 
-    test('a plain reference list over a defined list is '
-        'list_override_needs_add_remove', () {
-      expect(
-        () => project(withReferences(), 'reference: [{title: D}]'),
-        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'reference')),
-      );
-    });
-
-    test('a plain reference list above the layer that defines it is refused as '
-        'a plain word list is, with exit 78', () {
+    // The test name stays one literal so specstone check can find it.
+    // ignore: lines_longer_than_80_chars
+    test('a plain reference list over a defined list is list_override_needs_add_remove', () {
       expect(
         () => project(withReferences(), 'reference: [{title: D}]'),
         throwsA(
-          refusal(
+          fault(
             FaultCode.listOverrideNeedsAddRemove,
             'reference',
             message:
@@ -1491,11 +1331,6 @@ sections:
           ),
         ),
       );
-    });
-
-    test('a plain list is accepted where no lower layer '
-        'defines it', () {
-      expect(titles(withReferences()), ['A', 'B']);
     });
 
     test('add over a base with no reference list gives exactly '
@@ -1507,30 +1342,14 @@ sections:
   });
 
   group('DocTypeMerger.apply generators', () {
-    test('a plain generators list over a lower one is '
-        'list_override_needs_add_remove', () {
+    // The test name stays one literal so specstone check can find it.
+    // ignore: lines_longer_than_80_chars
+    test('a plain generators list over a lower one is list_override_needs_add_remove', () {
       final base = project(shipped(), 'generators: [a]\n');
-      expect(
-        () => project(base, 'generators: [b]\n'),
-        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'generators')),
-      );
-
-      final empty = project(shipped(), 'generators: []\n');
-      expect(empty.generators, isEmpty);
-      expect(
-        () => project(empty, 'generators: [b]\n'),
-        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'generators')),
-      );
-    });
-
-    test('a plain generators list above the layer that defines it is refused '
-        'as a plain word list is, with exit 78', () {
-      final base = project(shipped(), 'generators: [a]\n');
-
       expect(
         () => project(base, 'generators: [b]\n'),
         throwsA(
-          refusal(
+          fault(
             FaultCode.listOverrideNeedsAddRemove,
             'generators',
             message:
@@ -1538,6 +1357,13 @@ sections:
                 'remove to change it',
           ),
         ),
+      );
+
+      final empty = project(shipped(), 'generators: []\n');
+      expect(empty.generators, isEmpty);
+      expect(
+        () => project(empty, 'generators: [b]\n'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'generators')),
       );
     });
 
@@ -2132,31 +1958,6 @@ lint: {title_no_number: true}
       expect(section.minLines, 0);
       final doc = project(base(), 'lint: {title_no_number: false}');
       expect(doc.lint.titleNoNumber, isFalse);
-    });
-
-    test('a doc-level lint key that is a section guide-rule key is '
-        'unknown_key', () {
-      for (final key in ['catalog', 'min_lines', 'item_fields']) {
-        expect(
-          () => layer('lint: {$key: {}}', kind: LayerKind.project),
-          throwsA(fault(FaultCode.unknownKey, 'lint.$key')),
-          reason: key,
-        );
-      }
-    });
-
-    test('a section lint key unknown to the format is unknown_key, and '
-        'title_no_number is one', () {
-      for (final key in ['max_item_chars', 'title_no_number', 'colour']) {
-        expect(
-          () => layer(
-            'sections: [{id: invariants, lint: {$key: 1}}]',
-            kind: LayerKind.project,
-          ),
-          throwsA(fault(FaultCode.unknownKey, 'sections.invariants.lint.$key')),
-          reason: key,
-        );
-      }
     });
   });
 

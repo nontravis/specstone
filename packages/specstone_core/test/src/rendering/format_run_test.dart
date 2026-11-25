@@ -216,33 +216,36 @@ String _fresh() => '$_toc\ntoc R1\n$_end';
 String _stale() => '$_toc\nold\n$_end';
 
 void main() {
-  test('a CRLF doc out of order is written with CRLF '
-      'only', () async {
-    final run = await _open({
-      _feature: _featureOutOfOrder.replaceAll('\n', '\r\n'),
-    });
-
-    final report = _run(run);
-
-    expect(report.files.single.status, FileStatus.formatted);
-    expect(_read(run, _feature), _featureFormatted.replaceAll('\n', '\r\n'));
-  });
-
-  test('a CRLF doc with a padded table and a trailing space is laid out and '
-      'written with CRLF only', () async {
-    const disk =
+  // ignore: lines_longer_than_80_chars -- the test name stays one literal
+  test('a CRLF doc with a padded table and a trailing space is laid out and written with CRLF only', () async {
+    const padded =
         '# F-05\n\n## Feature name\n\n- **Human:** Rendering   \n\n'
         '## Feature goal\n\n| Field     | Type   |\n|-----------|--------|\n'
         '| why       | share  |\n';
     const laidOut =
         '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n\n'
         '## Feature goal\n\n| Field | Type |\n|---|---|\n| why | share |\n';
-    final run = await _open({_feature: disk.replaceAll('\n', '\r\n')});
+    final cases = [
+      (
+        reason: 'out of order',
+        disk: _featureOutOfOrder,
+        written: _featureFormatted,
+      ),
+      (reason: 'padded table', disk: padded, written: laidOut),
+    ];
 
-    final report = _run(run);
+    for (final (:reason, :disk, :written) in cases) {
+      final run = await _open({_feature: disk.replaceAll('\n', '\r\n')});
 
-    expect(report.files.single.status, FileStatus.formatted);
-    expect(_read(run, _feature), laidOut.replaceAll('\n', '\r\n'));
+      final report = _run(run);
+
+      expect(report.files.single.status, FileStatus.formatted, reason: reason);
+      expect(
+        _read(run, _feature),
+        written.replaceAll('\n', '\r\n'),
+        reason: reason,
+      );
+    }
   });
 
   test('a BOM doc out of order is rewritten with the BOM first '
@@ -318,8 +321,8 @@ void main() {
     expect(cleanReport.exitStatus, 0);
   });
 
-  test('check lists a doc two doc types match, a doc whose layout changes its '
-      'structure, an open block, and a duplicate header; exit 1', () async {
+  // ignore: lines_longer_than_80_chars, one literal so check finds the test
+  test('check lists a doc two doc types match, a doc whose layout changes its structure, an open block, and a duplicate header; exit 1', () async {
     const structure = '---\n# F-05\n\n## Feature name\nx\n--- \n';
     final openDoc = '# A\n\n## Contents\n$_toc\nno end\n\n## Steps\nx\n';
     final cases = [
@@ -347,6 +350,12 @@ void main() {
         extra: const <String, String>{},
         line: '$_story: refused: duplicate header "## Summary"\n',
       ),
+      (
+        path: _feature,
+        text: '# F-05\n\n```\n',
+        extra: const <String, String>{},
+        line: '$_feature: refused: unclosed code fence\n',
+      ),
     ];
 
     for (final (:path, :text, :extra, :line) in cases) {
@@ -360,43 +369,40 @@ void main() {
     }
   });
 
-  test('check skips a doc no doc type matches with a warning and lists '
-      'nothing for it', () async {
-    final run = await _open({_feature: _featureFormatted, _notes: 'free text'});
+  // ignore: lines_longer_than_80_chars -- the test name stays one literal
+  test('a doc no doc type matches is skipped with a warning; the others are still formatted', () async {
+    final cases = [
+      (
+        check: false,
+        feature: _featureOutOfOrder,
+        status: FileStatus.formatted,
+        after: _featureFormatted,
+      ),
+      (
+        check: true,
+        feature: _featureFormatted,
+        status: FileStatus.unchanged,
+        after: _featureFormatted,
+      ),
+    ];
 
-    final report = _run(run, check: true);
+    for (final (:check, :feature, :status, :after) in cases) {
+      final run = await _open({_feature: feature, _notes: 'free text'});
 
-    expect(
-      [for (final f in report.files) (f.path, f.status)],
-      [(_feature, FileStatus.unchanged), (_notes, FileStatus.skipped)],
-    );
-    expect(report.warnings, [
-      '$_notes: no doc type matches this path; skipped',
-    ]);
-    expect(report.toText(), '');
-    expect(report.exitStatus, 0);
-    expect(_read(run, _notes), 'free text');
-  });
+      final report = _run(run, check: check);
 
-  test('a doc no doc type matches is '
-      'skipped with a warning; the others are still formatted', () async {
-    final run = await _open({
-      _feature: _featureOutOfOrder,
-      _notes: 'free text',
-    });
-
-    final report = _run(run);
-
-    expect(
-      [for (final f in report.files) (f.path, f.status)],
-      [(_feature, FileStatus.formatted), (_notes, FileStatus.skipped)],
-    );
-    expect(report.warnings, [
-      '$_notes: no doc type matches this path; skipped',
-    ]);
-    expect(report.exitStatus, 0);
-    expect(_read(run, _feature), _featureFormatted);
-    expect(_read(run, _notes), 'free text');
+      expect(
+        [for (final f in report.files) (f.path, f.status)],
+        [(_feature, status), (_notes, FileStatus.skipped)],
+        reason: 'check $check',
+      );
+      expect(report.warnings, [
+        '$_notes: no doc type matches this path; skipped',
+      ], reason: 'check $check');
+      expect(report.exitStatus, 0, reason: 'check $check');
+      expect(_read(run, _feature), after, reason: 'check $check');
+      expect(_read(run, _notes), 'free text', reason: 'check $check');
+    }
   });
 
   test('hidden files are neither listed nor warned '
@@ -535,98 +541,67 @@ void main() {
     }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
   });
 
-  test('a doc two doc types match is refused '
-      'with their ids and left alone', () async {
-    final run = await _open(
-      {_feature: _featureOutOfOrder},
-      extra: {'zeta.yaml': _zeta},
-    );
+  // ignore: lines_longer_than_80_chars -- the test name stays one literal
+  test('a doc refused for two doc types, a duplicate header, or a layout that changes its structure leaves the other docs written; exit 1', () async {
+    const structure = '---\n# F-05\n\n## Feature name\nx\n--- \n';
+    final cases = [
+      (
+        docs: {_feature: _featureOutOfOrder, _story: _storyUnknown},
+        extra: const <String, String>{},
+        refused: _story,
+        written: _feature,
+        writtenText: _featureFormatted,
+        text:
+            '$_feature: formatted\n'
+            '$_story: refused: unknown header "## Notes"\n',
+      ),
+      (
+        docs: {_feature: _featureOutOfOrder, _story: _storyOutOfOrder},
+        extra: {'zeta.yaml': _zeta},
+        refused: _feature,
+        written: _story,
+        writtenText: _storyFormatted,
+        text:
+            '$_feature: refused: doc types feature, zeta match this path\n'
+            '$_story: formatted\n',
+      ),
+      (
+        docs: {
+          _feature: _featureOutOfOrder,
+          _story: '$_storyFormatted\n## Summary\ntwice\n',
+        },
+        extra: const <String, String>{},
+        refused: _story,
+        written: _feature,
+        writtenText: _featureFormatted,
+        text:
+            '$_feature: formatted\n'
+            '$_story: refused: duplicate header "## Summary"\n',
+      ),
+      (
+        docs: {_feature: structure, _story: _storyOutOfOrder},
+        extra: const <String, String>{},
+        refused: _feature,
+        written: _story,
+        writtenText: _storyFormatted,
+        text:
+            '$_feature: refused: layout would change the doc structure\n'
+            '$_story: formatted\n',
+      ),
+    ];
 
-    final report = _run(run);
+    for (final (:docs, :extra, :refused, :written, :writtenText, :text)
+        in cases) {
+      final run = await _open(docs, extra: extra);
 
-    final file = report.files.single;
-    expect(file.status, FileStatus.refused);
-    expect(file.docTypes, ['feature', 'zeta']);
-    expect(
-      report.toText(),
-      '$_feature: refused: doc types feature, zeta match this path\n',
-    );
-    expect(report.exitStatus, 1);
-    expect(_read(run, _feature), _featureOutOfOrder);
+      final report = _run(run);
+
+      expect(report.toText(), text, reason: refused);
+      expect(report.exitStatus, 1, reason: refused);
+      expect(_read(run, refused), docs[refused], reason: refused);
+      expect(_read(run, written), writtenText, reason: written);
+    }
   });
-
-  test('a refused doc does not stop the others '
-      'from being written; exit 1', () async {
-    final run = await _open({
-      _feature: _featureOutOfOrder,
-      _story: _storyUnknown,
-    });
-
-    final report = _run(run);
-
-    expect(_read(run, _feature), _featureFormatted);
-    expect(_read(run, _story), _storyUnknown);
-    expect(report.exitStatus, 1);
-    expect(
-      report.toText(),
-      '$_feature: formatted\n$_story: refused: unknown header "## Notes"\n',
-    );
-  });
-
-  test(
-    'a doc refused for two doc types, a duplicate header, or a layout '
-    'that changes its structure leaves the other docs written; exit 1',
-    () async {
-      const structure = '---\n# F-05\n\n## Feature name\nx\n--- \n';
-      final cases = [
-        (
-          docs: {_feature: _featureOutOfOrder, _story: _storyOutOfOrder},
-          extra: {'zeta.yaml': _zeta},
-          refused: _feature,
-          written: _story,
-          writtenText: _storyFormatted,
-          text:
-              '$_feature: refused: doc types feature, zeta match this path\n'
-              '$_story: formatted\n',
-        ),
-        (
-          docs: {
-            _feature: _featureOutOfOrder,
-            _story: '$_storyFormatted\n## Summary\ntwice\n',
-          },
-          extra: const <String, String>{},
-          refused: _story,
-          written: _feature,
-          writtenText: _featureFormatted,
-          text:
-              '$_feature: formatted\n'
-              '$_story: refused: duplicate header "## Summary"\n',
-        ),
-        (
-          docs: {_feature: structure, _story: _storyOutOfOrder},
-          extra: const <String, String>{},
-          refused: _feature,
-          written: _story,
-          writtenText: _storyFormatted,
-          text:
-              '$_feature: refused: layout would change the doc structure\n'
-              '$_story: formatted\n',
-        ),
-      ];
-
-      for (final (:docs, :extra, :refused, :written, :writtenText, :text)
-          in cases) {
-        final run = await _open(docs, extra: extra);
-
-        final report = _run(run);
-
-        expect(report.toText(), text, reason: refused);
-        expect(report.exitStatus, 1, reason: refused);
-        expect(_read(run, refused), docs[refused], reason: refused);
-        expect(_read(run, written), writtenText, reason: written);
-      }
-    },
-  );
 
   test('a doc that ends inside a code fence is refused and left '
       'alone; a second run adds no section either', () async {
@@ -650,16 +625,6 @@ void main() {
       expect(_read(run, _feature), unclosed);
       expect(_read(run, _story), _storyFormatted);
     }
-  });
-
-  test('under check a doc ending inside a fence is listed '
-      'as refused and exits 1', () async {
-    final run = await _open({_feature: '# F-05\n\n```\n'});
-
-    final report = _run(run, check: true);
-
-    expect(report.toText(), '$_feature: refused: unclosed code fence\n');
-    expect(report.exitStatus, 1);
   });
 
   test('toJson carries unclosedFence only when true', () async {
@@ -694,19 +659,6 @@ void main() {
     ]);
     expect(report.exitStatus, 1);
     expect(_read(run, _feature), text);
-  });
-
-  test('a refused doc lists a duplicate header with its '
-      'template form', () async {
-    final run = await _open({_story: '$_storyFormatted\n## Summary\ntwice\n'});
-
-    final report = _run(run, check: true);
-
-    expect(
-      report.toText(),
-      '$_story: refused: duplicate header "## Summary"\n',
-    );
-    expect(report.files.single.duplicateHeaders, ['## Summary']);
   });
 
   test('toJson holds every file in tree '
@@ -757,19 +709,6 @@ void main() {
     expect(json['warnings'], isEmpty);
   });
 
-  test('every doc already formatted prints nothing, exit '
-      '0', () async {
-    final run = await _open({
-      _feature: _featureFormatted,
-      _story: _storyFormatted,
-    });
-
-    final report = _run(run);
-
-    expect(report.toText(), '');
-    expect(report.exitStatus, 0);
-  });
-
   test('a run leaves no temp file under '
       'docs/', () async {
     final run = await _open({
@@ -786,19 +725,6 @@ void main() {
         if (entity.path.endsWith('.specstone.tmp')) entity.path,
     ];
     expect(leftovers, isEmpty);
-  });
-
-  test('Plan decision 8: a doc that is not UTF-8 is skipped with a '
-      'warning and left alone', () async {
-    final run = await _open({_feature: ''});
-    _file(run, _feature).writeAsBytesSync([0xFF, 0xFE]);
-
-    final report = _run(run);
-
-    expect(report.files.single.status, FileStatus.skipped);
-    expect(report.warnings, ['$_feature: not UTF-8 text; skipped']);
-    expect(report.exitStatus, 0);
-    expect(_file(run, _feature).readAsBytesSync(), [0xFF, 0xFE]);
   });
 
   test('a doc that is not UTF-8 does not stop the other docs from being '
@@ -1137,13 +1063,35 @@ void main() {
   }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
 
   group('generated blocks', () {
-    test('format rewrites a stale block and '
-        'keeps every other byte, draft and confirmed included', () async {
-      const draft = '---\ndraft: true\n---\n';
-      const confirmed = '---\ndraft: false\n---\n';
+    // ignore: lines_longer_than_80_chars, one literal so check finds the test
+    test('format rewrites a stale block and keeps every other byte, draft and confirmed included', () async {
+      final cases = [
+        (reason: 'draft', front: '---\ndraft: true\n---\n', block: _stale()),
+        (
+          reason: 'confirmed',
+          front: '---\ndraft: false\n---\n',
+          block: _stale(),
+        ),
+        (
+          reason: 'approved',
+          front: '---\napproved: true\n---\n',
+          block: _stale(),
+        ),
+        (
+          reason: 'approved hash',
+          front: '---\napproved: "0123456789ab"\n---\n',
+          block: _stale(),
+        ),
+        (reason: 'no front matter', front: '', block: _stale()),
+        (
+          reason: 'hand edit',
+          front: '',
+          block: '$_toc\nhand edit\nmore\n$_end',
+        ),
+      ];
       final run = await _openNotes({
-        _noteA: _noteDoc(_stale(), front: draft),
-        _noteB: _noteDoc(_stale(), front: confirmed),
+        for (final (i, c) in cases.indexed)
+          'docs/notes/c$i.md': _noteDoc(c.block, front: c.front),
       });
 
       final report = _runNotes(run, _tocRun(_Calls()));
@@ -1152,21 +1100,13 @@ void main() {
         report.files.map((f) => f.status),
         everyElement(FileStatus.formatted),
       );
-      expect(_read(run, _noteA), _noteDoc(_fresh(), front: draft));
-      expect(_read(run, _noteB), _noteDoc(_fresh(), front: confirmed));
-    });
-
-    test('format inserts a missing block', () async {
-      final run = await _openNotes({
-        _noteA: '# A\n\n## Contents\n\nbody\n\n## Steps\n\nx\n',
-      });
-
-      _runNotes(run, _tocRun(_Calls()));
-
-      expect(
-        _read(run, _noteA),
-        '# A\n\n## Contents\n\n${_fresh()}\n\nbody\n\n## Steps\n\nx\n',
-      );
+      for (final (i, c) in cases.indexed) {
+        expect(
+          _read(run, 'docs/notes/c$i.md'),
+          _noteDoc(_fresh(), front: c.front),
+          reason: c.reason,
+        );
+      }
     });
 
     test('format --check lists a doc with a stale block, writes nothing, '
@@ -1178,18 +1118,6 @@ void main() {
       expect(report.toText(), '$_noteA\n');
       expect(report.exitStatus, 1);
       expect(_read(run, _noteA), _noteDoc(_stale()));
-    });
-
-    test('format, then format --check, lists nothing and '
-        'exits 0', () async {
-      final run = await _openNotes({_noteA: _noteDoc(_stale())});
-      final generators = _tocRun(_Calls());
-
-      _runNotes(run, generators);
-      final report = _runNotes(run, generators, check: true);
-
-      expect(report.toText(), '');
-      expect(report.exitStatus, 0);
     });
 
     test('a block that cannot be resolved is not listed', () async {
@@ -1204,31 +1132,6 @@ void main() {
       expect(report.toText(), '');
       expect(report.exitStatus, 0);
       expect(_read(run, _noteA), _noteDoc(_stale()));
-    });
-
-    test('a hand edit inside a block is '
-        'replaced', () async {
-      final run = await _openNotes({
-        _noteA: _noteDoc('$_toc\nhand edit\nmore\n$_end'),
-      });
-
-      _runNotes(run, _tocRun(_Calls()));
-
-      expect(_read(run, _noteA), _noteDoc(_fresh()));
-    });
-
-    test("an approved doc's block is "
-        'rewritten and no draft: true is added', () async {
-      final run = await _openNotes({
-        _noteA: _noteDoc(_stale(), front: '---\ndraft: false\n---\n'),
-      });
-
-      _runNotes(run, _tocRun(_Calls()));
-
-      final text = _read(run, _noteA);
-      expect(text, contains('draft: false'));
-      expect(text, isNot(contains('draft: true')));
-      expect(text, contains('toc R1'));
     });
 
     test('a doc outside the Target is not '
@@ -1404,48 +1307,6 @@ void main() {
       );
       final again = _runNotes(run, generators, check: true);
       expect(again.files.single.status, FileStatus.unchanged);
-    });
-
-    test('an approved doc '
-        'and a draft doc that need a change keep their key block and gain no '
-        'draft: true', () async {
-      const approved = '---\napproved: true\n---\n';
-      const draft = '---\ndraft: true\n---\n';
-      final run = await _openNotes({
-        _noteA: _noteDoc(_stale(), front: approved),
-        _noteB: _noteDoc(_stale(), front: draft),
-      });
-
-      _runNotes(run, _tocRun(_Calls()));
-
-      expect(_read(run, _noteA), _noteDoc(_fresh(), front: approved));
-      expect(_read(run, _noteB), _noteDoc(_fresh(), front: draft));
-    });
-
-    test('a doc that holds an '
-        'approved hash keeps the key block byte for byte', () async {
-      const hashed = '---\napproved: "0123456789ab"\n---\n';
-      final run = await _openNotes({_noteA: _noteDoc(_stale(), front: hashed)});
-
-      _runNotes(run, _tocRun(_Calls()));
-
-      expect(_read(run, _noteA), _noteDoc(_fresh(), front: hashed));
-    });
-
-    test('an approved doc whose block changed is written with no '
-        'draft: true', () async {
-      const approved = '---\napproved: true\n---\n';
-      final run = await _openNotes({
-        _noteA: _noteDoc(_stale(), front: approved),
-      });
-
-      final report = _runNotes(run, _tocRun(_Calls()));
-
-      expect(report.files.single.status, FileStatus.formatted);
-      final text = _read(run, _noteA);
-      expect(text, contains('approved: true'));
-      expect(text, isNot(contains('draft')));
-      expect(text, contains('toc R1'));
     });
   });
 }

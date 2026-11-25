@@ -125,6 +125,9 @@ void main() {
       ['shop/cart/add_item', 'shop/cart/drop_item'],
       ['shop/pay/card'],
     ]);
+    for (final group in groups) {
+      expect(group.tokens, lessThanOrEqualTo(workGroupBudget));
+    }
   });
 
   test(
@@ -193,15 +196,4 @@ void main() {
       expect(again.map(_shapeOf).toList(), first);
     },
   );
-
-  test('each group but a lone work unit past the budget stays within the group budget', () async {
-    final groups = _groups(
-      await nestedIndexWith(_threeLargeStories()),
-      _largeTargets,
-    );
-    expect(groups, hasLength(2));
-    for (final group in groups) {
-      expect(group.tokens, lessThanOrEqualTo(workGroupBudget));
-    }
-  });
 }

@@ -518,30 +518,11 @@ void main() {
     expect(part, contains('match $cartRecord $_entryOf $_staleStamp\n'));
   });
 
-  test(
-    'a closing commit gives a remove-task line per link of a listed task',
-    () async {
-      final project = await _committedLogin(extra: _tasksCharter);
-      File('${project.path}/$_login')
-          .writeAsStringSync('int v = 1;\n', mode: FileMode.append);
-      commitAll(project, 'feat: add v\n\nFixes ENG-42\nRefs ENG-50');
-
-      final part = await _verdictOf(project, 'feature:login');
-
-      expect(
-        part,
-        contains('remove-task ENG-42 $loginRecord $_implementsEntry\n'),
-      );
-      expect(part, contains('remove-task ENG-42 $loginRecord app/lib/\n'));
-      expect(part, isNot(contains('remove-task ENG-50')));
-    },
-  );
-
   test('a covers entry two docs share gives lines for its own doc', () async {
     final project = await _committedLogin(extra: _tasksCharter);
     File('${project.path}/$_login')
         .writeAsStringSync('int v = 1;\n', mode: FileMode.append);
-    commitAll(project, 'feat: add v\n\nFixes ENG-42');
+    commitAll(project, 'feat: add v\n\nFixes ENG-42\nRefs ENG-50');
 
     final part = await _verdictOf(project, 'feature:login');
 

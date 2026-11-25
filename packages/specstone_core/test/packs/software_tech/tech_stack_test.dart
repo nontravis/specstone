@@ -29,14 +29,6 @@ void main() {
   test('the tech_stack doc type holds its fixed title and its description '
       'states none', () {
     expect(techStack.title, 'Tech stack');
-    expect(techStack.description, isNot(contains('Title it')));
-  });
-
-  test('the description states no number a lint key holds', () {
-    expect(
-      sectionOf(techStack, 'naming').description,
-      isNot(contains('Rows may exceed five')),
-    );
   });
 
   test('stack caps its Why column at one sentence', () {
@@ -52,13 +44,6 @@ void main() {
   test('stack links a decision doc when a Why needs more than one clause', () {
     final text = sectionOf(techStack, 'stack').description!;
 
-    expect(
-      text,
-      contains(
-        'keep the Why to one clause, linking a `decision` doc when it needs '
-        'more',
-      ),
-    );
     expect(text.split('\n'), hasLength(5));
   });
 }

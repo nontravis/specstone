@@ -167,7 +167,7 @@ void main() {
       expect(_cells(_rows(_text(index)).single)[1], 'Sells things.');
     });
 
-    for (final summary in ['[a, b]', '42', 'true', '{k: v}', '""']) {
+    for (final summary in ['[a, b]', '42', 'true', '{k: v}', '""', '"  "']) {
       test('the summary $summary shows a dash in the what it does '
           'cell', () async {
         final index = await _open(
@@ -178,25 +178,18 @@ void main() {
       });
     }
 
-    test('a summary of spaces alone shows a dash in the what it does '
-        'cell', () async {
-      final index = await _open(
-        _feature('f01_a', 'A', front: 'summary: "  "\n'),
-      );
-
-      expect(_cells(_rows(_text(index)).single)[1], _dash);
-    });
-
     test('a blank line between summary lines and outer spaces give one '
         'trimmed space', () async {
-      final index = await _open(
-        _feature('f01_a', 'A', front: 'summary: "  One\\n\\ntwo.  "\n'),
-      );
+      for (final summary in [r'"  One\n\ntwo.  "', r'"One\ntwo."']) {
+        final index = await _open(
+          _feature('f01_a', 'A', front: 'summary: $summary\n'),
+        );
 
-      final rows = _rows(_text(index));
+        final rows = _rows(_text(index));
 
-      expect(rows, hasLength(1));
-      expect(_cells(rows.single)[1], 'One two.');
+        expect(rows, hasLength(1), reason: summary);
+        expect(_cells(rows.single)[1], 'One two.', reason: summary);
+      }
     });
 
     test('a top feature serves its vision values then its goals values, or a '
@@ -254,9 +247,19 @@ void main() {
     test(
       'a tree with no feature doc gives the zero line and no table',
       () async {
-        final index = await _open({});
+        for (final targets in [
+          <String>[],
+          ['flutter', 'jaspr'],
+          ['flutter'],
+        ]) {
+          final index = await _open({}, targets: targets);
 
-        expect(_text(index), '0 features · 0 stories');
+          expect(
+            _text(index),
+            '0 features · 0 stories',
+            reason: 'targets $targets',
+          );
+        }
       },
     );
 
@@ -298,17 +301,6 @@ void main() {
 
       expect(row, contains(r'Reads \\\| writes.'));
       expect(_cells(row), hasLength(5));
-    });
-
-    test('a summary that spans lines stays in one row', () async {
-      final index = await _open(
-        _feature('f01_a', 'A', front: 'summary: "One\\ntwo."\n'),
-      );
-
-      final rows = _rows(_text(index));
-
-      expect(rows, hasLength(1));
-      expect(_cells(rows.single)[1], 'One two.');
     });
 
     test('top features keep the order of the index', () async {
@@ -383,23 +375,6 @@ void main() {
           'flutter: 2 stories, 1 implemented',
         );
         expect(_cells(_rows(text).single)[3], 'jaspr: 1/2, flutter: 2/2');
-      });
-
-      test('a tree with no feature doc gives the zero line with no part per '
-          'target', () async {
-        final index = await _open({}, targets: ['flutter', 'jaspr']);
-
-        expect(_text(index), '0 features · 0 stories');
-      });
-
-      test('a tree with no feature doc and one named target gives the zero '
-          'line and no table', () async {
-        final index = await _open({}, targets: ['flutter']);
-
-        final text = _text(index);
-
-        expect(text, '0 features · 0 stories');
-        expect(text, isNot(contains(_tableHeader)));
       });
     });
 

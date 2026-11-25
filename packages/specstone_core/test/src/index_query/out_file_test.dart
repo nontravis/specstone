@@ -244,9 +244,6 @@ void main() {
 
     test('refuses the config', () {
       expectRefused('.specstone/config.yaml', message: insideSpecstone);
-    });
-
-    test('refuses a record under .specstone/', () {
       expectRefused('.specstone/records/x.md', message: insideSpecstone);
     });
 

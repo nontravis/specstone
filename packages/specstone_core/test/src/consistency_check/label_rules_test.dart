@@ -133,19 +133,15 @@ void main() {
     expect(findings, isEmpty);
   });
 
-  test('a partial label that resolves to no doc gives one '
-      'finding as any label does', () async {
-    final findings = await labelsInFeature('Cite ${fr(9)} here.');
-    expect(findings, hasLength(1));
-    expect(findings.single.keys, {'label': fr(9)});
-  });
-
   test('UTF-8, UTF-16, and x-FR-12 give none, a bracket, a space, '
       'or a comma before a label gives one', () async {
-    final none = await labelsInFeature(
+    final noneTexts = [
       'UTF-8 and `UTF-16` and x-${fr(12)} here.',
-    );
-    expect(none, isEmpty);
+      'Files are UTF-16 here, not UTF-8, and x-${fr(12)} stays.',
+    ];
+    for (final text in noneTexts) {
+      expect(await labelsInFeature(text), isEmpty, reason: text);
+    }
     final some = await labelsInFeature('Cite (${f(1)}), ${us(2)} here.');
     expect(some.map((f) => f.keys['label']), [f(1), us(2)]);
   });
@@ -163,24 +159,20 @@ void main() {
     },
   );
 
-  test(
-    'UTF-16 and UTF-8 in plain prose outside a code span give none',
-    () async {
-      final findings = await labelsInFeature(
-        'Files are UTF-16 here, not UTF-8, and x-${fr(12)} stays.',
-      );
-      expect(findings, isEmpty);
-    },
-  );
-
   test('plain-text story and FR labels give one finding keyed by both labels '
       'as written', () async {
-    final run = '${us(7)} ${fr(8)}';
-    final findings = await labelsInFeature('Cite $run for the rule.');
+    final labels = [
+      '${us(7)} ${fr(8)}',
+      // A partial label that resolves to no doc reads as any label does.
+      fr(9),
+    ];
+    for (final run in labels) {
+      final findings = await labelsInFeature('Cite $run for the rule.');
 
-    expect(findings, hasLength(1));
-    expect(findings.single.line, _lineNumber);
-    expect(findings.single.keys, {'label': run});
+      expect(findings, hasLength(1), reason: run);
+      expect(findings.single.line, _lineNumber);
+      expect(findings.single.keys, {'label': run});
+    }
   });
 
   test('a placeholder label gives none', () async {

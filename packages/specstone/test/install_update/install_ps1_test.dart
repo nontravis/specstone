@@ -670,6 +670,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
           'the named version installs from its own release ($label)',
           () async {
             final sb = await sandboxServing('1.2.0-beta.1');
+            sb.installFake();
 
             final r = await runHarness(
               sb,
@@ -779,25 +780,6 @@ if ($env:HARNESS_MODE -eq 'iex') {
             reason: named(version),
           );
         }
-        expect(sb.logOf('web'), isEmpty);
-        expect(sb.snapshot(), before);
-      });
-
-      test('a process given a refused form throws and the session goes on '
-          '(iex line)', () async {
-        final sb = await createScriptSandbox();
-        sb.installFake();
-        final before = sb.snapshot();
-
-        final r = await runHarness(
-          sb,
-          shape: _Shape.iex,
-          iexArgs: '-Version v1.2.0',
-        );
-
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(flat(r.stdout), contains('CAUGHT=${refusal('v1.2.0')}'));
-        expect(r.stdout, contains('PRINTABLE=True'));
         expect(sb.logOf('web'), isEmpty);
         expect(sb.snapshot(), before);
       });
@@ -990,20 +972,6 @@ if ($env:HARNESS_MODE -eq 'iex') {
           contains('specstone 1.0.0-A installed in ${binDir(sb)}'),
         );
         expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.0.0-A');
-      });
-
-      pathTest('a named version replaces an older CLI', () async {
-        final sb = await sandboxServing('1.2.0-beta.1');
-        sb.installFake();
-
-        final r = await runHarness(sb, version: '1.2.0-beta.1');
-
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(
-          flat(r.stdout),
-          contains('specstone 1.2.0-beta.1 installed in ${binDir(sb)}'),
-        );
-        expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.2.0-beta.1');
       });
     });
 
@@ -1262,30 +1230,18 @@ function Invoke-WebRequest {
       );
 
       pathTest('git 2.45.1.windows.1 warns about nothing', () async {
-        final sb = await sandboxWith();
-        stubGit(sb, '2.45.1.windows.1');
-
-        final r = await runInstall(sb);
-
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(stdoutOf(r), isNot(contains('specstone: git')));
-        expect(stdoutOf(r), isNot(contains('Git for Windows')));
-        expect(stdoutOf(r), isNot(contains('Claude Code')));
-      });
-
-      pathTest(
-        'a git build that names no windows warns about nothing',
-        () async {
+        for (final version in ['2.45.1.windows.1', '2.45.1']) {
           final sb = await sandboxWith();
-          stubGit(sb, '2.45.1');
+          stubGit(sb, version);
 
           final r = await runInstall(sb);
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.exitCode, 0, reason: '$version: ${r.stderr}');
           expect(stdoutOf(r), isNot(contains('specstone: git')));
           expect(stdoutOf(r), isNot(contains('Git for Windows')));
-        },
-      );
+          expect(stdoutOf(r), isNot(contains('Claude Code')));
+        }
+      });
 
       pathTest('git 2.20.0.windows.1 warns naming the floor only', () async {
         final sb = await sandboxWith();
@@ -1310,24 +1266,12 @@ function Invoke-WebRequest {
         expect(stdoutOf(r), isNot(contains('Git for Windows')));
         expect(stdoutOf(r), isNot(contains('Claude Code')));
         expect(versionOf('${binDir(sb)}\\specstone.exe'), specstoneVersion);
+        final warnings = [
+          for (final line in stdoutOf(r).split('\n'))
+            if (line.startsWith('specstone: ')) line,
+        ];
+        expect(warnings, [floorLine.trimRight()]);
       });
-
-      pathTest(
-        'a machine with no git prints exactly one warning line',
-        () async {
-          final sb = await sandboxWith();
-          stubGit(sb, null);
-
-          final r = await runInstall(sb);
-
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          final warnings = [
-            for (final line in stdoutOf(r).split('\n'))
-              if (line.startsWith('specstone: ')) line,
-          ];
-          expect(warnings, [floorLine.trimRight()]);
-        },
-      );
 
       pathTest('a git on a relative PATH entry only is missing', () async {
         final sb = await sandboxWith();

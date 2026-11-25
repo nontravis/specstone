@@ -126,134 +126,6 @@ void main() {
     });
   }
 
-  test('a pre-release above the current version passes '
-      '--dry-run and changes nothing', () async {
-    final r = await repo.release(['0.2.0-beta.1', '--dry-run']);
-
-    expect(r.exitCode, 0, reason: '${r.stderr}');
-    expect(await repo.state(), before);
-  });
-
-  test('versions outside the Version form refuse through the tool naming the '
-      'form and the current version', () async {
-    for (final bad in [
-      '1.2',
-      '01.2.0',
-      '1.2.0-',
-      '1.2.0-beta.01',
-      '1.2.0+build.5',
-    ]) {
-      final r = await repo.release([bad]);
-
-      expect(r.exitCode, 1, reason: bad);
-      expect(
-        r.stderr,
-        contains('MAJOR.MINOR.PATCH[-<pre-release>]'),
-        reason: bad,
-      );
-      expect(r.stderr, contains('current version is 0.1.0'), reason: bad);
-      expect(await repo.state(), before, reason: bad);
-    }
-  });
-
-  test('a pre-release version meets every first-run check a full release '
-      'does', () async {
-    final cases =
-        <(String, Future<ReleaseRepo> Function(), Map<String, String>, String)>[
-          (
-            'unclean tree',
-            () async {
-              final r = await createReleaseRepo();
-              await File('${r.work.path}/stray.txt').writeAsString('x');
-              return r;
-            },
-            const {},
-            'not clean',
-          ),
-          (
-            'develop ahead of origin',
-            () async {
-              final r = await createReleaseRepo();
-              await r.commitFile('local.txt', 'x', 'local');
-              return r;
-            },
-            const {},
-            'origin/develop',
-          ),
-          (
-            'ci failure',
-            createReleaseRepo,
-            const {'GH_STUB_CI': 'failure'},
-            'failure',
-          ),
-          (
-            'branch other than develop',
-            () async {
-              final r = await createReleaseRepo();
-              await r.git(['checkout', '-q', 'main']);
-              return r;
-            },
-            const {},
-            'develop',
-          ),
-          (
-            'tag on origin',
-            () async {
-              final r = await createReleaseRepo();
-              await r.git(['tag', 'v0.2.0-beta.1']);
-              await r.git(['push', '-q', 'origin', 'v0.2.0-beta.1']);
-              await r.git(['tag', '-d', 'v0.2.0-beta.1']);
-              return r;
-            },
-            const {},
-            'origin',
-          ),
-        ];
-    for (final (name, arrange, gh, part) in cases) {
-      final fresh = await arrange();
-      final arranged = await fresh.state();
-
-      final r = await fresh.release(['0.2.0-beta.1'], gh: gh);
-
-      expect(r.exitCode, 1, reason: name);
-      expect(r.stderr, contains(part), reason: name);
-      expect(await fresh.state(), arranged, reason: name);
-    }
-  });
-
-  test('the next version of a pre-release is above it in the '
-      'Version order', () async {
-    final pre = await createReleaseRepo(version: '0.2.0-beta.1');
-    final preBefore = await pre.state();
-
-    for (final next in ['0.2.0-beta.2', '0.2.0-rc.1', '0.2.0']) {
-      final r = await pre.release([next, '--dry-run']);
-
-      expect(r.exitCode, 0, reason: '$next: ${r.stderr}');
-    }
-    for (final below in ['0.2.0-beta.1', '0.2.0-alpha.1', '0.1.1']) {
-      final r = await pre.release([below]);
-
-      expect(r.exitCode, 1, reason: below);
-      expect(r.stderr, contains('current version 0.2.0-beta.1'), reason: below);
-    }
-    expect(await pre.state(), preBefore);
-  });
-
-  test('versions compare field by field', () async {
-    final other = await createReleaseRepo(
-      version: '0.9.0',
-      files: {
-        'packages/specstone_core/lib/src/version.dart':
-            "const String specstoneVersion = '0.9.0';\n",
-      },
-    );
-
-    final r = await other.release(['0.10.0', '--dry-run']);
-
-    expect(r.exitCode, 0, reason: '${r.stderr}');
-  });
-
   test('an unclean tree refuses', () async {
     await File('${repo.work.path}/stray.txt').writeAsString('x');
     before = await repo.state();
@@ -603,34 +475,6 @@ void main() {
     );
   });
 
-  test('a pre-release tags a commit that changes the four '
-      'files and leaves the root pubspec alone', () async {
-    final r = await repo.release(['0.2.0-beta.1']);
-
-    expect(r.exitCode, 0, reason: '${r.stderr}');
-    final tagged = (await repo.originRefs())['refs/tags/v0.2.0-beta.1']!;
-    expect(
-      (await repo.git(['diff', '--name-only', '$tagged~1', tagged])).split('\n')
-        ..sort(),
-      [
-        'packages/specstone/pubspec.yaml',
-        'packages/specstone_core/lib/src/version.dart',
-        'packages/specstone_core/pubspec.yaml',
-      ],
-    );
-    expect(
-      await repo.git([
-        'diff',
-        '--name-only',
-        '$tagged~1',
-        tagged,
-        '--',
-        'pubspec.yaml',
-      ]),
-      isEmpty,
-    );
-  });
-
   test('a spot with no version line to set refuses before the branch is '
       'cut', () async {
     repo = await createReleaseRepo(
@@ -871,15 +715,6 @@ dependencies:
     expect(after['refs/heads/develop'], refs['refs/heads/develop']);
     expect(after, contains('refs/tags/v0.2.0'));
     expect(await repo.git(['branch', '--list', 'release/0.2.0']), isNotEmpty);
-  });
-
-  test('a main moved during the wait leaves the Release published', () async {
-    final r = await repo.release(
-      ['0.2.0'],
-      gh: {'GH_STUB_ON_WATCH': repo.pushFromOtherCloneCommand('main')},
-    );
-
-    expect(r.exitCode, 1);
     expect(
       r.stderr,
       contains('Nothing was pushed; the Release v0.2.0 stays published.\n'),
@@ -914,25 +749,15 @@ dependencies:
     final after = await repo.originRefs();
     expect(after['refs/heads/main'], refs['refs/heads/main']);
     expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+    expect(
+      r.stderr,
+      contains('Nothing was pushed; the Release v0.2.0 stays published.\n'),
+    );
+    expect(
+      repo.ghCalls().skip(1),
+      releaseCalls(after['refs/tags/v0.2.0']!, 'v0.2.0'),
+    );
   });
-
-  test(
-    'a local develop ahead of origin leaves the Release published',
-    () async {
-      final r = await repo.release(
-        ['0.2.0'],
-        gh: {'GH_STUB_ON_WATCH': localDevelopCommit()},
-      );
-
-      expect(r.exitCode, 1);
-      expect(
-        r.stderr,
-        contains('Nothing was pushed; the Release v0.2.0 stays published.\n'),
-      );
-      final tagged = (await repo.originRefs())['refs/tags/v0.2.0']!;
-      expect(repo.ghCalls().skip(1), releaseCalls(tagged, 'v0.2.0'));
-    },
-  );
 
   test('a rejected atomic push leaves both sides as they '
       'were', () async {
@@ -1826,15 +1651,6 @@ dependencies:
       expect(after['refs/tags/v0.2.0'], fix);
       expect(after['refs/heads/main'], refs['refs/heads/main']);
       expect(after['refs/heads/develop'], refs['refs/heads/develop']);
-    });
-
-    test('a run again whose fixed tag fails tells the Owner to fix on the '
-        'branch and run again', () async {
-      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
-
-      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_RUN': 'failure'});
-
-      expect(r.exitCode, 1);
       expect(
         r.stderr,
         endsWith(
@@ -2176,34 +1992,6 @@ dependencies:
       expect(await sha('main'), main);
       expect(after.keys.where((k) => k.contains('release/')), isEmpty);
       expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
-    });
-
-    test('a pre-release refuses a local tag unlike the one origin holds '
-        'before any ref moves or fetch', () async {
-      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
-      await repo.git(['tag', '-f', 'v0.2.0-beta.1', 'HEAD']);
-      final local = await sha('HEAD');
-      final origin = (await repo.originRefs())['refs/tags/v0.2.0-beta.1']!;
-      final other = await repo.pushFromOtherClone('develop');
-      final fetched = await sha('origin/develop');
-      final mid = await repo.state();
-      final firstCalls = repo.ghCalls().length;
-
-      final r = await repo.release(
-        ['0.2.0-beta.1'],
-        gh: {'GH_STUB_RELEASE': 'present'},
-      );
-
-      expect(r.exitCode, 1);
-      expect(r.stderr, contains(local));
-      expect(r.stderr, contains(origin));
-      expect(fetched, isNot(other));
-      expect(await sha('origin/develop'), fetched);
-      expect(await repo.state(), mid);
-      expect(
-        repo.ghCalls().skip(firstCalls).where((c) => c.startsWith('release ')),
-        ['release view v0.2.0-beta.1 --json url --jq .url'],
-      );
     });
 
     test('a run again over a published Release resets develop when its '

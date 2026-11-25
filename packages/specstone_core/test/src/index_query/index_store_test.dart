@@ -161,17 +161,25 @@ void main() {
       IndexStore.open(r).close();
       expect(file(r, '.gitignore').readAsStringSync(), 'node_modules/\n');
     });
-    test('an existing ignore file keeps its lines first', () async {
-      final r = await writeTree({
-        '.specstone/config.yaml': '',
-        '.specstone/.gitignore': '*.tmp',
-      });
-      IndexStore.open(r).close();
-      expect(
-        file(r, '.specstone/.gitignore').readAsStringSync(),
+    for (final (held, expected) in [
+      (
+        '*.tmp',
         '*.tmp\nindex.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
-      );
-    });
+      ),
+      (
+        'index.sqlite*\nbuild/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
+      ),
+    ]) {
+      test('an existing ignore file keeps its lines first', () async {
+        final r = await writeTree({
+          '.specstone/config.yaml': '',
+          '.specstone/.gitignore': held,
+        });
+        IndexStore.open(r).close();
+        expect(file(r, '.specstone/.gitignore').readAsStringSync(), expected);
+      });
+    }
     test('a file holding all six lines is left untouched', () async {
       const text =
           'reports/\nbuild/\n# mine\ntrash/\nbundles/\napproved/\nindex.sqlite*\n';
@@ -181,17 +189,6 @@ void main() {
       });
       IndexStore.open(r).close();
       expect(file(r, '.specstone/.gitignore').readAsStringSync(), text);
-    });
-    test('a file holding the index and build lines gains trash/, bundles/, reports/, and approved/ at its end', () async {
-      final r = await writeTree({
-        '.specstone/config.yaml': '',
-        '.specstone/.gitignore': 'index.sqlite*\nbuild/\n',
-      });
-      ensureSpecstoneGitignore(Directory('${r.path}/.specstone'));
-      expect(
-        file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
-      );
     });
     for (final (tag, staleMeta) in [
       ('a layout-version rebuild', 'layout = ${indexLayoutVersion - 1}'),
@@ -228,21 +225,6 @@ void main() {
         },
       );
     }
-    test('a rebuild for a changed stamp checks the six lines', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      file(r, '.specstone/.gitignore').writeAsStringSync('index.sqlite*\n');
-      store.write(
-        () => store.reset(
-          const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
-        ),
-      );
-      expect(
-        file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\napproved/\n',
-      );
-    });
     List<String> storedPaths(IndexStore store) =>
         [for (final doc in store.loadDocs()) doc.docPath]..sort();
     test('a write inside an open write commits with the outer one', () async {
@@ -485,18 +467,6 @@ void main() {
       final store = IndexStore.open(r);
       addTearDown(store.close);
       expect(store.warnings, [damagedIndexWarning]);
-      expect(store.hashes(), isEmpty);
-    });
-    test('a write that throws rolls back every change', () async {
-      final store = IndexStore.open(await root());
-      addTearDown(store.close);
-      expect(
-        () => store.write(() {
-          store.putDoc(parsed('README.md', '# R\n'));
-          throw StateError('killed');
-        }),
-        throwsStateError,
-      );
       expect(store.hashes(), isEmpty);
     });
     test('writes after a failed write, and after a clean one, each store '
@@ -1050,19 +1020,6 @@ void main() {
         expect(store.search('"log"').single.docPath, 'README.md');
       },
     );
-    test('a doc put twice leaves exactly one set of search rows', () async {
-      final store = IndexStore.open(await root());
-      addTearDown(store.close);
-      final doc = parsed('a.md', '# Alpha\n\n## Notes\nzebra crossing\n');
-      store.write(() {
-        store
-          ..putDoc(doc)
-          ..putDoc(doc);
-      });
-      store.fillSearchRows();
-      expect(store.search('"zebra"'), hasLength(1));
-      expect(store.search('"alpha"'), hasLength(1));
-    });
     test('deleteDoc removes the search rows of that doc only', () async {
       final store = IndexStore.open(await root());
       addTearDown(store.close);
@@ -1113,6 +1070,7 @@ void main() {
         store.write(() {
           store
             ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra crossing\n'))
+            ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nzebra herd\n'))
             ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nzebra herd\n'))
             ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nllama trail\n'));
         });
@@ -1290,103 +1248,6 @@ void main() {
         {'a.md': true, 'b.md': false, 'c.md': null},
       );
     });
-    test('Index each doc: '
-        'an index of layout 8 has no stamp, so it is rebuilt', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw.execute('UPDATE meta SET layout = 8');
-      expect(store.readStamp(), isNull);
-    });
-    test('an index of layout 9 has no stamp, so it is rebuilt', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw.execute('UPDATE meta SET layout = 9');
-      expect(store.readStamp(), isNull);
-    });
-    test('an index of layout 10 has no stamp', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw.execute('UPDATE meta SET layout = 10');
-      expect(store.readStamp(), isNull);
-    });
-    test('an index of layout 11 has no stamp, so it '
-        'is rebuilt with the TBR markers', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw.execute('UPDATE meta SET layout = 11');
-      expect(store.readStamp(), isNull);
-    });
-    test('an index of layout 12 has no stamp, so it '
-        'is rebuilt with the item facts', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      expect(store.readStamp(), stamp);
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw.execute('UPDATE meta SET layout = 12');
-      expect(store.readStamp(), isNull);
-    });
-    test('an index of layout 13, with no target '
-        'column, has no stamp, so it is rebuilt with it', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw
-        ..execute('ALTER TABLE docs DROP COLUMN target')
-        ..execute('UPDATE meta SET layout = 13');
-      expect(store.readStamp(), isNull);
-    });
-    test('an index of layout 14, its counts made of '
-        'every line, has no stamp, so it is rebuilt', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw.execute('UPDATE meta SET layout = 14');
-      expect(store.readStamp(), isNull);
-    });
-    test('an index of layout 15, its approval hashes counting record '
-        'statuses, has no stamp, so it is rebuilt', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw.execute('UPDATE meta SET layout = 15');
-      expect(store.readStamp(), isNull);
-    });
     test('a doc with a target '
         'round-trips through the docs table', () async {
       final r = await root();
@@ -1420,58 +1281,6 @@ void main() {
         {'specs/jaspr/f01_login/ARCHITECTURE.md': 'jaspr', 'README.md': null},
       );
     });
-    test('an index of layout 15 has no stamp, so '
-        'it is rebuilt', () async {
-      final r = await root();
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-      store.write(() => store.reset(stamp));
-      final raw = sqlite3.open(file(r, indexFilePath).path);
-      addTearDown(raw.close);
-      raw.execute('UPDATE meta SET layout = 15');
-      expect(store.readStamp(), isNull);
-    });
-  });
-
-  test('an index of layout 16 has no stamp, so '
-      'it is rebuilt', () async {
-    final r = await root();
-    final store = IndexStore.open(r);
-    addTearDown(store.close);
-    const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-    store.write(() => store.reset(stamp));
-    final raw = sqlite3.open(file(r, indexFilePath).path);
-    addTearDown(raw.close);
-    raw.execute('UPDATE meta SET layout = 16');
-    expect(store.readStamp(), isNull);
-  });
-
-  test('an index of layout 20, its cite candidates read by the earlier '
-      'item-ID rule, has no stamp, so it is rebuilt', () async {
-    final r = await root();
-    final store = IndexStore.open(r);
-    addTearDown(store.close);
-    const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-    store.write(() => store.reset(stamp));
-    final raw = sqlite3.open(file(r, indexFilePath).path);
-    addTearDown(raw.close);
-    raw.execute('UPDATE meta SET layout = 20');
-    expect(store.readStamp(), isNull);
-  });
-
-  test('rebuilds an index of the previous layout, whose matrix rows hold one '
-      'literal and an edge case', () async {
-    final r = await root();
-    final store = IndexStore.open(r);
-    addTearDown(store.close);
-    const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
-    store.write(() => store.reset(stamp));
-    expect(store.readStamp(), stamp);
-    final raw = sqlite3.open(file(r, indexFilePath).path);
-    addTearDown(raw.close);
-    raw.execute('UPDATE meta SET layout = 32');
-    expect(store.readStamp(), isNull);
   });
 
   test('is at layout 38, and rebuilds an index stamped 37, whose fenced '
@@ -1485,8 +1294,10 @@ void main() {
     expect(store.readStamp(), stamp);
     final raw = sqlite3.open(file(r, indexFilePath).path);
     addTearDown(raw.close);
-    raw.execute('UPDATE meta SET layout = 37');
-    expect(store.readStamp(), isNull);
+    for (final layout in [8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 32, 37]) {
+      raw.execute('UPDATE meta SET layout = $layout');
+      expect(store.readStamp(), isNull, reason: 'layout $layout');
+    }
   });
 
   group('IndexStore code files', () {

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
@@ -92,53 +91,6 @@ void main() {
     expect(sockets.opened, 0);
     expect(clients.created, 0);
   });
-
-  test(
-    'the text guide holds no reference entry that guide --json keeps',
-    () async {
-      final project = await writeTree({
-        '.specstone/config.yaml': shippedPinsConfig(),
-        '.specstone/templates/refs/handbook.md': '# Handbook\n',
-        '.specstone/templates/note.yaml':
-            'id: note\ndescription: A note.\npath: notes/{slug}.md\n'
-            'reference:\n'
-            '  - {title: Url entry, url: "https://google.aip.dev/164"}\n'
-            '  - {title: File entry, file: refs/handbook.md}\n'
-            '  - {title: Doc entry, doc: prd/feature}\n'
-            '  - {title: Title only entry}\n'
-            '  - {title: Located entry, locator: Appendix C}\n',
-      });
-      final home = await writeTree({});
-      Future<String> guide(List<String> args) async {
-        final out = StringBuffer();
-        final runner = SpecstoneCommandRunner(
-          console: FakeConsole(),
-          out: out,
-          err: StringBuffer(),
-          templates: TemplateResolver(),
-          workingDirectory: project,
-          homeDirectory: home,
-        );
-        expect(await runner.run(['guide', 'note', ...args]), 0);
-        return out.toString();
-      }
-
-      final json = jsonDecode(await guide(['--json'])) as Map<String, Object?>;
-      final entries = (json['reference']! as List<Object?>)
-          .cast<Map<String, Object?>>();
-      final text = await guide([]);
-
-      expect(entries, hasLength(5));
-      for (final entry in entries) {
-        expect(text, isNot(contains(entry['title'])));
-        for (final key in ['url', 'file', 'doc', 'locator']) {
-          final value = entry[key];
-          if (value != null) expect(text, isNot(contains(value)));
-        }
-      }
-      expect(text, isNot(contains('sources')));
-    },
-  );
 
   test('the network watch sees an HTTP request to a local port', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

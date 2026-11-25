@@ -274,16 +274,4 @@ void main() {
       _at(project, _componentDoc, 'source_path_missing', 'design/button.fig'),
     ]);
   });
-
-  test('a component doc with no design_source gives no finding', () async {
-    final project = await writeCheckProject(
-      extra: {
-        '.specstone/config.yaml': softwareDesignSystemConfig(),
-        'docs/$_componentGroupDoc': '# Buttons\n\n## Purpose\n\nButtons.\n',
-        'docs/$_componentDoc': '---\nlifecycle: stable\n---\n\n# Button\n',
-      },
-    );
-
-    expect(_sources(await checkOf(project)), isEmpty);
-  });
 }

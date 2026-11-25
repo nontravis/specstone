@@ -134,18 +134,6 @@ void main() {
       ]);
     });
 
-    test("each docs element's base is the whole-doc base get prints", () async {
-      final root = await _project();
-
-      final answer = _remove(root, ['ENG-42']);
-
-      final docs = answer.json['docs']! as List;
-      expect(docs, hasLength(2));
-      for (final doc in docs.cast<Map<String, Object?>>()) {
-        expect(doc['base'], _baseOf(root, doc['path']! as String));
-      }
-    });
-
     test('a task no doc holds prints its no refs line after the doc lines, and the held task is removed', () async {
       final root = await _project();
 
@@ -238,6 +226,7 @@ void main() {
         Future<Directory> twins() async {
           final root = await writeTwinProject();
           for (final (docPath, other) in [
+            (_loginApiDoc, 'ENG-50'),
             (flutterArchitecture, 'ENG-50'),
             (jasprArchitecture, 'ENG-51'),
           ]) {
@@ -252,37 +241,15 @@ void main() {
         final answer = _remove(root, ['ENG-42'], codeTarget: 'jaspr');
         expect(readDoc(root, jasprArchitecture), isNot(contains('ENG-42')));
         expect(readDoc(root, flutterArchitecture), contains('ENG-42'));
-        expect(answer.json['docs'], [containsPair('path', jasprArchitecture)]);
-
-        final all = _remove(await twins(), ['ENG-42']);
-        expect(all.json['docs'], hasLength(2));
-      },
-    );
-
-    test(
-      'a shared doc loses its entry when --target limits the scope',
-      () async {
-        final root = await writeTwinProject();
-        for (final docPath in [
-          _loginApiDoc,
-          flutterArchitecture,
-          jasprArchitecture,
-        ]) {
-          docFile(root, docPath).writeAsStringSync(
-            _withTasks(readDoc(root, docPath), ['ENG-42', 'ENG-50']),
-          );
-        }
-
-        final answer = _remove(root, ['ENG-42'], codeTarget: 'jaspr');
-
         expect(readDoc(root, _loginApiDoc), isNot(contains('ENG-42')));
         expect(readDoc(root, _loginApiDoc), contains('ENG-50'));
-        expect(readDoc(root, jasprArchitecture), isNot(contains('ENG-42')));
-        expect(readDoc(root, flutterArchitecture), contains('ENG-42'));
         expect(answer.json['docs'], [
           containsPair('path', _loginApiDoc),
           containsPair('path', jasprArchitecture),
         ]);
+
+        final all = _remove(await twins(), ['ENG-42']);
+        expect(all.json['docs'], hasLength(3));
       },
     );
 

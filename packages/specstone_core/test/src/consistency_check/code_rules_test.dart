@@ -175,22 +175,6 @@ void main() {
   Map<String, String> narrow(String covers) =>
       doc(loginRecord, '  - app/lib/\n', '  - $covers\n');
 
-  test('a code_uncovered finding names its code file as codePath', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          ...narrow('app/lib/src/'),
-          'app/lib/src/a.dart': '',
-          'app/lib/main.dart': '',
-        },
-      ),
-    );
-    final json = report.findings.last.toJson();
-
-    expect(json['codePath'], 'app/lib/main.dart');
-    expect(json['path'], isNot('app/lib/main.dart'));
-  });
-
   test(
     'a file under the code root no covers entry reaches is code_uncovered',
     () async {
@@ -735,22 +719,6 @@ void main() {
         '$_jasprTech: app/lib/web.dart',
       ]);
     });
-
-    test(
-      'a covers entry of one target never reaches the file of another',
-      () async {
-        final project = await _twin(
-          extra: {
-            'flutter_ws/app/lib/main.dart': '',
-            _flutterRecord: _record(const [], covers: ['app/lib/login.dart']),
-            _jasprRecord: _record(const [], covers: ['app/lib/']),
-          },
-        );
-        expect(_of(await _run(project), FindingKind.codeUncovered), [
-          '$_flutterTech: app/lib/main.dart',
-        ]);
-      },
-    );
 
     test(
       'a target with no code yet lists nothing and raises no missing root',

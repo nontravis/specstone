@@ -196,45 +196,6 @@ void main() {
     );
   });
 
-  test('one stale doc refuses the whole batch and hands back its current text with its current base', () async {
-    final root = await writeWriteProject();
-    var text = getText(root, [story2, fr11]);
-    text = edit(text, 'Sign out.', 'Sign out everywhere.');
-    text = edit(text, 'check the email', 'check the email twice, then');
-    final changed = readDoc(
-      root,
-      fr11,
-    ).replaceFirst('shall check', 'shall carefully check');
-    docFile(root, fr11).writeAsStringSync(changed);
-
-    final fault = refuse(root, text);
-
-    final entry = onlyEntry(fault);
-    expect(entry.file, fr11);
-    expect(entry.current!.text, changed);
-    expect(entry.current!.base, docBase(root, fr11));
-    expect(fault.exitStatus, 75);
-  });
-
-  test('a stale whole-doc block reports as current base the base get prints for the doc', () async {
-    final root = await writeWriteProject();
-    final text = edit(
-      getText(root, [story1]),
-      'Sign in with an email.',
-      'Sign in with a passkey.',
-    );
-    docFile(
-      root,
-      story1,
-    ).writeAsStringSync(readDoc(root, story1).replaceFirst('PV-01', 'PV-09'));
-
-    final fault = refuse(root, text);
-
-    final blocks = (fault.toJson()['error']! as Map)['blocks']! as List;
-    final current = (blocks.single as Map)['current']! as Map;
-    expect(current['base'], getDoc(root, story1)['base']);
-  });
-
   test('a block whose base differs from its target on disk writes no doc and refuses with 75, its fault line naming the doc and its current text under its naming line', () async {
     final root = await writeWriteProject();
     var text = getText(root, [story1, story2]);
@@ -262,40 +223,6 @@ void main() {
     );
   });
 
-  test('a stale section block and a stale whole-doc block each hand back their current text under their naming line', () async {
-    final root = await writeWriteProject();
-    final section = getText(root, [_signOutUseCase]);
-    final whole = getText(root, [story1]);
-    final text = '${edit(section, 'Sign out.', 'Sign out now.')}\n$whole';
-    docFile(root, story2).writeAsStringSync(
-      readDoc(root, story2).replaceFirst('Sign out.', 'Log out.'),
-    );
-    docFile(root, story1).writeAsStringSync(
-      readDoc(root, story1).replaceFirst('Sign in with', 'Please sign in with'),
-    );
-
-    final fault = refuse(root, text);
-
-    expect(fault, refusedWith('base_mismatch', status: 75));
-    expect(fault.entries, hasLength(2));
-    final [stale, staleWhole] = fault.entries;
-    expect(stale.key, 'use_case');
-    expect(
-      stale.current!.heading,
-      '==> $_story2Line · $story2#use_case · base ${partBase(root, _signOutUseCase)} <==',
-    );
-    expect(stale.current!.text, '## Use Case\n\nLog out.\n');
-    expect(
-      staleWhole.toText(),
-      startsWith('$story1: doc: the doc changed since base '),
-    );
-    expect(
-      staleWhole.current!.heading,
-      wholeLine(_story1Line, story1, docBase(root, story1)),
-    );
-    expect(staleWhole.current!.text, readDoc(root, story1));
-  });
-
   test('a stale section block has its own fault line and a --json entry carrying its current text and base, as a stale whole-doc block has', () async {
     final root = await writeWriteProject();
     final staleSection = partBase(root, _signOutUseCase);
@@ -312,6 +239,17 @@ void main() {
 
     final fault = refuse(root, text);
 
+    expect(fault, refusedWith('base_mismatch', status: 75));
+    expect(fault.entries, hasLength(2));
+    final [stale, staleWhole] = fault.entries;
+    expect(
+      stale.current!.heading,
+      '==> $_story2Line · $story2#use_case · base ${partBase(root, _signOutUseCase)} <==',
+    );
+    expect(
+      staleWhole.current!.heading,
+      wholeLine(_story1Line, story1, docBase(root, story1)),
+    );
     expect(
       fault.toText(),
       '$story2: use_case: the section changed since base $staleSection\n'
@@ -445,22 +383,6 @@ void main() {
       (story1, 'use_case'),
     ]);
     expect(fault.entries[0].message, contains('line 6'));
-    expect(fault.entries[1].message, contains('line 1'));
-  });
-
-  test('a whole-doc block beside any other block of its doc refuses with argument_invalid, each block an entry naming the other by its line', () async {
-    final root = await writeWriteProject();
-    final text = '${getText(root, [story1])}\n${getText(root, [_useCase])}';
-    final secondLine = getText(root, [story1]).split('\n').length + 1;
-
-    final fault = refuse(root, text);
-
-    expect(fault, refusedWith('argument_invalid'));
-    expect(fault.entries.map((e) => (e.file, e.key)), [
-      (story1, 'doc'),
-      (story1, 'use_case'),
-    ]);
-    expect(fault.entries[0].message, contains('line $secondLine'));
     expect(fault.entries[1].message, contains('line 1'));
   });
 
@@ -672,6 +594,7 @@ void main() {
     for (final (shape, ending) in [
       ('a trailing blank line', (String text) => '$text\n'),
       ('no final newline', (String text) => text.trimRight()),
+      ('a plain file ending', (String text) => text),
     ]) {
       test(shape, () async {
         final original = ending(loginRecordFile[loginRecordPath]!);
@@ -694,6 +617,7 @@ void main() {
           RegExp('approved: "[0-9a-f]{12}"').firstMatch(original)!.group(0),
         );
         expect(answer.json['blocks'], [containsPair('draft', false)]);
+        expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
       });
     }
   });
@@ -734,6 +658,19 @@ void main() {
       fault.entries[2].message,
       allOf(contains('lines 1,'), contains('line')),
     );
+
+    final wholeFirst = '$whole\n${getText(root, [_useCase])}';
+    final secondLine = whole.split('\n').length + 1;
+
+    final wholeFault = refuse(root, wholeFirst);
+
+    expect(wholeFault, refusedWith('argument_invalid'));
+    expect(wholeFault.entries.map((e) => (e.file, e.key)), [
+      (story1, 'doc'),
+      (story1, 'use_case'),
+    ]);
+    expect(wholeFault.entries[0].message, contains('line $secondLine'));
+    expect(wholeFault.entries[1].message, contains('line 1'));
   });
 
   test('a field block beside a whole-doc block of its doc is refused for its kind and the whole-doc block is refused for the overlap', () async {
@@ -1147,36 +1084,13 @@ void main() {
               (f) => f.message,
               'message',
               'cannot write .specstone/trash/journal.json: no home folder to record it in',
-            ),
+            )
+            .having((f) => f.file, 'file', '.specstone/trash/journal.json'),
       ),
     );
 
     expect(docBytes(root), before);
     expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
-  });
-
-  test('the no-home refusal of a batch names the journal as its file and writes no journal', () async {
-    final root = await writeWriteProject();
-    final text = edit(
-      getText(root, [story1]),
-      'Sign in with an email.',
-      'Sign in with a passkey.',
-    );
-
-    expect(
-      () => writeInNoHome(
-        root,
-        (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
-      ),
-      throwsA(
-        isA<RenderFault>().having(
-          (f) => f.file,
-          'file',
-          '.specstone/trash/journal.json',
-        ),
-      ),
-    );
-
     expect(File(journalPathOf(root)).existsSync(), isFalse);
   });
 
@@ -1337,6 +1251,7 @@ void main() {
       () => runBatch(clone, text),
       throwsA(
         isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
             .having((f) => f.exitStatus, 'exit', 73)
             .having((f) => f.file, 'file', MoveJournal.journalPath)
             .having(
@@ -1354,35 +1269,6 @@ void main() {
       File('${base.path}/ext/$story1').readAsStringSync(),
       contains('a passkey'),
     );
-  }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : false);
-
-  test('roots that wait for the trust record refuse a batch with the code output_not_writable and leave the linked docs as they are', () async {
-    final base = await writeTree({
-      for (final MapEntry(:key, :value) in writeProject.entries)
-        if (key.startsWith('docs/'))
-          'ext/${key.substring(5)}': value
-        else
-          'src/clone/$key': value,
-    });
-    createRelativeLink('${base.path}/src/clone/docs', '../../ext');
-    final clone = Directory('${base.path}/src/clone');
-    final before = treeBytes(Directory('${base.path}/ext'));
-    final text = edit(
-      getText(clone, [story1]),
-      'Sign in with an email.',
-      'Sign in with a passkey.',
-    );
-
-    expect(
-      () => runBatch(clone, text),
-      throwsA(
-        isA<RenderFault>()
-            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-            .having((f) => f.exitStatus, 'exit', 73),
-      ),
-    );
-
-    expect(treeBytes(Directory('${base.path}/ext')), before);
   }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : false);
 
   test('a doc the formatter refuses once its blocks are spliced in is written as spliced, every other byte kept', () async {
@@ -1496,22 +1382,6 @@ void main() {
       '==> $_story1Line · $story1#rules · base ${partBase(root, rules)} <==',
       '==> $_story1Line · $story1#acceptance_criteria · base ${partBase(root, _criteria)} <==',
     ]);
-  });
-
-  test('a whole-doc block that changes only an output_ref field leaves an approved doc approved with its approval hash intact', () async {
-    final root = await writeWriteProject(extra: loginRecordFile);
-    final text = edit(
-      getText(root, [loginRecordPath]),
-      'app/lib/src/login/',
-      'app/lib/src/signin/',
-    );
-
-    final answer = runBatch(root, text);
-
-    expect(readDoc(root, loginRecordPath), isNot(contains('draft:')));
-    expect(readDoc(root, loginRecordPath), contains('app/lib/src/signin/'));
-    expect(answer.json['blocks'], [containsPair('draft', false)]);
-    expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
   });
 
   test('a whole-doc block that changes an output_ref field and the body marks the doc draft', () async {

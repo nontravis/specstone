@@ -618,13 +618,15 @@ sections:
         layer: layer,
       );
       expect(met.single.kind, FindingKind.itemFieldMissing);
-      final unmet = await found(
-        '- **R1** Refuse it.\n'
-        '  - **Consistency:** immediate\n'
-        '  - **Policy:** retry',
-        layer: layer,
-      );
-      expect(unmet.single.kind, FindingKind.itemFieldUnneeded);
+      for (final policy in ['retry', 'later']) {
+        final unmet = await found(
+          '- **R1** Refuse it.\n'
+          '  - **Consistency:** immediate\n'
+          '  - **Policy:** $policy',
+          layer: layer,
+        );
+        expect(unmet.single.kind, FindingKind.itemFieldUnneeded);
+      }
     });
 
     test('an item with neither Consistency nor the conditional field is '
@@ -634,31 +636,6 @@ sections:
         (FindingKind.itemFieldMissing, 'Consistency'),
       ]);
     });
-
-    test(
-      'an unmet item holding a field text outside values is unneeded',
-      () async {
-        const layer = '''
-sections:
-  - id: rationale
-    lint:
-      item_fields:
-        - field: Consistency
-        - field: Policy
-          values: [retry]
-          when: {field: Consistency, value: eventual}
-''';
-        final result = await found(
-          '- **R1** Refuse it.\n'
-          '  - **Consistency:** immediate\n'
-          '  - **Policy:** later',
-          layer: layer,
-        );
-        expect(result.map((f) => (f.kind, f.toJson()['field'])), [
-          (FindingKind.itemFieldUnneeded, 'Policy'),
-        ]);
-      },
-    );
 
     test('a Consistency in another letter case meets no condition', () async {
       final result = await found(

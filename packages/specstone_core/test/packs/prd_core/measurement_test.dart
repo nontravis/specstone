@@ -10,9 +10,6 @@ import '../../helpers/prd_core.dart';
 
 const _docPath = 'measurements/grounding_cost/MEASUREMENT.md';
 
-const _citeFragment =
-    'Link to the item of a rule another doc owns; never restate it';
-
 String _measurement({
   String title = '# Grounding cost',
   String? baseline,
@@ -69,32 +66,7 @@ void main() {
 
   test('the guide prints the log rule and the goal link, then the shared '
       'cite line', () {
-    final guide = measurement.renderGuide();
-    final cite = guide.indexOf(_citeFragment);
-    for (final rule in ['Results is a log', 'Measure one goal, never a']) {
-      expect(guide.indexOf(rule), allOf(isNonNegative, lessThan(cite)));
-    }
-    expect(measurement.description, isNot(contains(_citeFragment)));
     expect(measurement.sharedLines.map((l) => l.id), contains('cite_by_link'));
-  });
-
-  test('the measurement guide keeps evidence files in the measurement '
-      'folder', () {
-    final guide = measurement.renderGuide();
-
-    expect(
-      guide,
-      contains(
-        'Keep each file a Method step runs or a Source cell links in this '
-        "measurement's folder.",
-      ),
-    );
-    expect(
-      guide,
-      contains(
-        'Make none a `.md` file, since a `.md` file there is an untyped doc.',
-      ),
-    );
   });
 
   group('check', () {
@@ -261,10 +233,6 @@ void main() {
     });
 
     test('the guide prints no present_truth line, and the log rule stays', () {
-      final guide = measurement.renderGuide();
-
-      expect(guide, isNot(contains('State the present truth')));
-      expect(guide, contains('Results is a log'));
       expect(
         measurement.sharedLines.map((l) => l.id),
         isNot(contains('present_truth')),

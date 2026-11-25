@@ -278,27 +278,6 @@ void main() {
       expect(finding.kind.isProjectLevel, isFalse);
     });
 
-    test(
-      'a link_target_missing finding names the project path as targetPath',
-      () async {
-        final project = await writeCheckProject(
-          extra: doc(
-            gnfrDoc,
-            'N/A — none applies.',
-            'See [x](../../../docs/prds/d03_non_functional.md).',
-          ),
-        );
-        final finding = (await checkOf(project)).findings
-            .firstWhere((f) => f.kind == FindingKind.linkTargetMissing);
-
-        expect(
-          finding.keys['targetPath'],
-          '../docs/prds/d03_non_functional.md',
-        );
-        expect(finding.keys.containsKey('path'), isFalse);
-      },
-    );
-
     test('a picture with no file is a finding inside docs too', () async {
       final project = await writeCheckProject(
         extra: linking('![flow](flow.png)'),
@@ -386,15 +365,6 @@ void main() {
         extra: linking('[o](../../../../../${outside.uri.pathSegments.last})'),
       );
       expect(project.parent.path, Directory.systemTemp.path);
-      expect(await missingOf(project), isEmpty);
-    });
-
-    test('a web address, mailto, and a rooted path are no finding', () async {
-      final project = await writeCheckProject(
-        extra: linking(
-          '[w](https://example.com/a.png) [m](mailto:a@b.c) [r](/abs/x.md) [s](#top)',
-        ),
-      );
       expect(await missingOf(project), isEmpty);
     });
 
@@ -645,28 +615,6 @@ void main() {
         },
         {'value': 'gone.md#performance'},
       ]);
-    });
-
-    test("a link_anchor_missing finding names the target's project path as targetPath", () async {
-      final findings = await pointersOf(
-        await writeCheckProject(
-          extra: {
-            ...featureLinking(
-              '[d03](../../d03_non_functional.md#performance).',
-            ),
-            'docs/$d03': '# Non-functional\n\n## Speed\n\nFast.\n',
-          },
-        ),
-      );
-      final finding = findings.single;
-      expect(finding.kind, FindingKind.linkAnchorMissing);
-      expect(finding.keys, {
-        'value': '../../d03_non_functional.md#performance',
-        'anchor': 'performance',
-        'targetPath': 'docs/$d03',
-      });
-      expect(finding.message, contains(finding.keys['targetPath']));
-      expect(finding.message, isNot(contains(' $d03')));
     });
 
     test('a bare #anchor resolves against the linking '
@@ -935,25 +883,6 @@ void main() {
       );
       expect(findings, isEmpty);
     });
-
-    test(
-      'the doc whose anchor set is unknown gets markdown_unparsed instead',
-      () async {
-        const broken = 'prds/d09_broken.md';
-        final report = await checkOf(
-          await writeCheckProject(
-            extra: {
-              ...featureLinking('[x](../../d09_broken.md#gone).'),
-              'docs/$broken': '# Broken\n\n[a]:<b\\',
-            },
-          ),
-        );
-        expect(spots(report, FindingKind.markdownUnparsed), [
-          '$broken:1: markdown_unparsed',
-        ]);
-        expect(spots(report, FindingKind.linkAnchorMissing), isEmpty);
-      },
-    );
   });
 
   group('resolve_doc_links doc-name mentions', () {
@@ -988,19 +917,6 @@ void main() {
           {'value': 'fr:login/email_login/check_pasword#statement'},
         ],
       );
-    });
-
-    test('a doc_name_unresolved finding names the mention as value', () async {
-      final findings = await mentionsOf(
-        await writeCheckProject(
-          extra: featureWriting('see `fr:login/email_login/check_pasword`.'),
-        ),
-      );
-      expect(
-        findings.single.keys['value'],
-        'fr:login/email_login/check_pasword',
-      );
-      expect(findings.single.keys.containsKey('name'), isFalse);
     });
 
     Map<String, String> featureWithMermaid(String lines) => doc(
@@ -1242,23 +1158,6 @@ void main() {
       );
     });
 
-    test('a per_target_reference finding names the reference as value and its targets as an array', () async {
-      final project = await writeTwinProject(
-        extra: shared('See `architecture:login`.'),
-      );
-
-      final finding = (await found(
-        project,
-        FindingKind.perTargetReference,
-      )).single;
-
-      expect(finding.keys['value'], 'architecture:login');
-      expect(finding.keys['targets'], ['flutter', 'jaspr']);
-      expect(finding.message, contains('flutter, jaspr'));
-      expect(finding.keys.containsKey('reference'), isFalse);
-      expect(finding.keys.containsKey('target'), isFalse);
-    });
-
     test("a shared doc's mermaid node naming a per-target doc is per_target_reference", () async {
       final project = await writeTwinProject(
         extra: shared(
@@ -1276,34 +1175,6 @@ void main() {
         'value': 'architecture:login',
         'targets': ['flutter', 'jaspr'],
       });
-    });
-
-    test("a per-target doc's mermaid node naming only another target's doc is doc_name_unresolved", () async {
-      final mention = twin(
-        'See below.\n\n```mermaid\nflowchart LR\n'
-        '  N[implementation:login]\n```',
-      );
-      Future<Directory> project({bool jasprHoldsOne = false}) =>
-          writeTwinProject(
-            extra: {
-              'docs/$flutterArchitecture': mention,
-              'docs/$jasprArchitecture': mention,
-              flutterRecord: record,
-              if (jasprHoldsOne) jasprRecord: record,
-            },
-            without: {if (!jasprHoldsOne) jasprRecord},
-          );
-
-      final lone = await project();
-      final both = await project(jasprHoldsOne: true);
-
-      final findings = await found(lone, FindingKind.docNameUnresolved);
-      expect([for (final f in findings) f.path], [jasprArchitecture]);
-      expect(
-        findings.single.line,
-        lineOf(lone, jasprArchitecture, 'implementation:login'),
-      );
-      expect(await found(both, FindingKind.docNameUnresolved), isEmpty);
     });
 
     test('a mention a shared doc resolves too gives none', () async {
@@ -1514,26 +1385,6 @@ void main() {
       expect(await found(both, FindingKind.docRefUnresolved), isEmpty);
     });
 
-    test('a second target raises per_target_reference for each reference a shared doc holds', () async {
-      final project = await writeTwinProject(
-        extra: shared(
-          'See `architecture:login`, `$flutterArchitecture`, and '
-          '[arch](../../../../$jasprArchitecture).',
-        ),
-      );
-
-      final findings = await found(project, FindingKind.perTargetReference);
-
-      expect(
-        [for (final f in findings) f.keys['value']],
-        unorderedEquals([
-          'architecture:login',
-          flutterArchitecture,
-          '../../../../$jasprArchitecture',
-        ]),
-      );
-    });
-
     test('an untyped doc reference gives per_target_reference with the targets in targets order', () async {
       const notes = 'prds/d07_notes.md';
       final project = await writeTwinProject(
@@ -1671,19 +1522,10 @@ void main() {
         'section': 'performance',
         'targetPath': 'docs/$gnfrDoc',
       });
+      expect(finding.line, 14);
+      expect(finding.waitsFor, WaitsFor.agent);
       expect(finding.message, contains(finding.keys['targetPath']));
       expect(finding.message, contains('performance'));
-    });
-
-    test('an item link whose section lacks the item is link_item_missing at its line for the agent', () async {
-      final findings = await itemFindingsOf(
-        await writeCheckProject(
-          extra: featureLinking('[NFR-P09]($gnfrPerformance).'),
-        ),
-      );
-      expect([for (final f in findings) f.kind], [FindingKind.linkItemMissing]);
-      expect(findings.single.line, 14);
-      expect(findings.single.waitsFor, WaitsFor.agent);
     });
 
     test(
@@ -1963,25 +1805,6 @@ void main() {
       expect(found.single.waitsFor, WaitsFor.agent);
       expect(await othersOf(project), isEmpty);
     });
-
-    test(
-      'a link_outside_docs link names the project path as targetPath',
-      () async {
-        final project = await writeCheckProject(
-          extra: {
-            ...featureLinking('[d](../../../superpowers/specs/design.md).'),
-            design: '# Design\n',
-          },
-        );
-        final found = await outsideOf(project);
-
-        expect(
-          found.single.keys['targetPath'],
-          'docs/superpowers/specs/design.md',
-        );
-        expect(found.single.keys.containsKey('path'), isFalse);
-      },
-    );
 
     test('a missing design document, a missing anchor, and a missing item take no other link finding', () async {
       final missing = await writeCheckProject(

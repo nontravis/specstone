@@ -79,72 +79,82 @@ shared_fields:
 
     group('for_doc_types', () {
       test('an empty for_doc_types on a line is unknown_value', () {
-        expect(
-          () => _parse('shared_lines:\n  - id: a\n    for_doc_types: []\n'),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_lines[0].for_doc_types',
-              message: 'for_doc_types holds no doc type',
-            ),
+        for (final (reason, text, key) in [
+          (
+            'line',
+            'shared_lines:\n  - id: a\n    for_doc_types: []\n',
+            'shared_lines[0].for_doc_types',
           ),
-        );
-      });
-
-      test('an empty for_doc_types on a field is unknown_value', () {
-        expect(
-          () => _parse(
+          (
+            'field',
             'shared_fields:\n'
-            '  - id: a\n'
-            '    type: string\n'
-            '  - id: b\n'
-            '    type: string\n'
-            '    for_doc_types: []\n',
+                '  - id: a\n'
+                '    type: string\n'
+                '  - id: b\n'
+                '    type: string\n'
+                '    for_doc_types: []\n',
+            'shared_fields[1].for_doc_types',
           ),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_fields[1].for_doc_types',
-              message: 'for_doc_types holds no doc type',
+          (
+            'pattern',
+            'shared_required_patterns:\n'
+                '  - {id: a, pattern: x, message: m}\n'
+                '  - {id: b, pattern: x, message: m, for_doc_types: []}\n',
+            'shared_required_patterns[1].for_doc_types',
+          ),
+        ]) {
+          expect(
+            () => _parse(text),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: key,
+                message: 'for_doc_types holds no doc type',
+              ),
             ),
-          ),
-        );
+            reason: reason,
+          );
+        }
       });
     });
 
     group('repeated id', () {
       test('a repeated shared_lines id is refused at the second id', () {
-        expect(
-          () => _parse(
+        for (final (reason, text, key) in [
+          (
+            'line',
             'shared_lines:\n  - id: a\n    text: x\n  - id: a\n    text: y\n',
+            'shared_lines[1].id',
           ),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_lines[1].id',
-              message: 'shared entry id repeated: a',
-            ),
-          ),
-        );
-      });
-
-      test('a repeated shared_fields id is refused at the second id', () {
-        expect(
-          () => _parse(
+          (
+            'field',
             'shared_fields:\n'
-            '  - id: a\n'
-            '    type: string\n'
-            '  - id: a\n'
-            '    type: string\n',
+                '  - id: a\n'
+                '    type: string\n'
+                '  - id: a\n'
+                '    type: string\n',
+            'shared_fields[1].id',
           ),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_fields[1].id',
-              message: 'shared entry id repeated: a',
+          (
+            'pattern',
+            'shared_banned_patterns:\n'
+                '  - {id: a, pattern: x, message: m}\n'
+                '  - {id: a, disabled: true}\n',
+            'shared_banned_patterns[1].id',
+          ),
+        ]) {
+          expect(
+            () => _parse(text),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: key,
+                message: 'shared entry id repeated: a',
+              ),
             ),
-          ),
-        );
+            reason: reason,
+          );
+        }
       });
 
       test('a line and a field may share one id', () {
@@ -155,6 +165,16 @@ shared_fields:
 
         expect(shared.lines.single.id, 'a');
         expect(shared.fields.single.id, 'a');
+
+        final patterns = _parse(
+          'shared_banned_patterns:\n  - {id: a, pattern: x, message: m}\n'
+          'shared_required_patterns:\n  - {id: a, pattern: y, message: n}\n',
+        );
+
+        expect(patterns.patterns.map((p) => (p.id, p.kind)), [
+          ('a', SharedPatternKind.banned),
+          ('a', SharedPatternKind.required),
+        ]);
       });
     });
 
@@ -214,42 +234,23 @@ shared_fields:
 
     group('line text', () {
       test('an empty line text is unknown_value', () {
-        expect(
-          () => _parse('shared_lines:\n  - id: a\n    text: ""\n'),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_lines[0].text',
-              message: 'a shared line holds one line of text',
+        for (final (reason, text) in [
+          ('empty', '""'),
+          ('two lines', r'"one\ntwo"'),
+          ('lone CR', r'"one\r"'),
+        ]) {
+          expect(
+            () => _parse('shared_lines:\n  - id: a\n    text: $text\n'),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'shared_lines[0].text',
+                message: 'a shared line holds one line of text',
+              ),
             ),
-          ),
-        );
-      });
-
-      test('a two-line line text is unknown_value', () {
-        expect(
-          () => _parse('shared_lines:\n  - id: a\n    text: "one\\ntwo"\n'),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_lines[0].text',
-              message: 'a shared line holds one line of text',
-            ),
-          ),
-        );
-      });
-
-      test('a line text ending in a lone CR is unknown_value', () {
-        expect(
-          () => _parse('shared_lines:\n  - id: a\n    text: "one\\r"\n'),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_lines[0].text',
-              message: 'a shared line holds one line of text',
-            ),
-          ),
-        );
+            reason: reason,
+          );
+        }
       });
 
       test('a one-line text in a CRLF file is accepted', () {
@@ -267,9 +268,6 @@ shared_fields:
           () => _parse('shared_lines:\n  - id: a\n    colour: red\n'),
           throwsA(_fault(FaultCode.unknownKey, key: 'shared_lines[0].colour')),
         );
-      });
-
-      test('an unknown key on a field is unknown_key at that key', () {
         expect(
           () => _parse(
             'shared_fields:\n  - id: a\n    type: string\n    colour: red\n',
@@ -281,29 +279,19 @@ shared_fields:
 
     group('fields the format refuses', () {
       test('a built-in field id is unknown_value at its id', () {
-        expect(
-          () => _parse('shared_fields:\n  - id: status\n    type: string\n'),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_fields[0].id',
-              message: 'a shared field takes no built-in field id: status',
+        for (final id in ['status', 'retrim']) {
+          expect(
+            () => _parse('shared_fields:\n  - id: $id\n    type: string\n'),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'shared_fields[0].id',
+                message: 'a shared field takes no built-in field id: $id',
+              ),
             ),
-          ),
-        );
-      });
-
-      test('a shared field with the id retrim is refused at its id', () {
-        expect(
-          () => _parse('shared_fields:\n  - id: retrim\n    type: string\n'),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_fields[0].id',
-              message: 'a shared field takes no built-in field id: retrim',
-            ),
-          ),
-        );
+            reason: id,
+          );
+        }
       });
 
       test('the field id patterns is unknown_value at its id', () {
@@ -381,15 +369,13 @@ shared_banned_patterns:
         expect(withoutSections.scope, isNull);
         expect(withoutSections.except, isNull);
         expect(withoutSections.index, 1);
-      });
 
-      test('a shared required pattern reads its in scope', () {
-        final shared = _parse(
+        final required = _parse(
           'shared_required_patterns:\n'
           '  - {id: a, pattern: y, message: n, in: all, for_doc_types: [fr]}\n',
         );
 
-        expect(shared.patterns.single.scope, PatternScope.all);
+        expect(required.patterns.single.scope, PatternScope.all);
       });
 
       test('a required pattern with no sections parses', () {
@@ -434,64 +420,19 @@ shared_banned_patterns:
           expect(pattern.message, isNull);
           expect(pattern.forDocTypes, isNull);
           expect(pattern.sections, isNull);
+
+          final messageOnly = _parse(
+            'shared_required_patterns:\n  - id: has_owner\n    message: New.\n',
+          ).patterns.single;
+          expect(messageOnly.message, 'New.');
+          expect(messageOnly.pattern, isNull);
+
+          final nullExcept = _parse(
+            'shared_banned_patterns:\n  - id: a\n    except: ~\n',
+          ).patterns.single;
+          expect(nullExcept.except, isNull);
         },
       );
-
-      test('a pattern entry that writes only message keeps the message', () {
-        final shared = _parse(
-          'shared_required_patterns:\n  - id: has_owner\n    message: New.\n',
-        );
-
-        final pattern = shared.patterns.single;
-        expect(pattern.message, 'New.');
-        expect(pattern.pattern, isNull);
-      });
-
-      test('an empty for_doc_types on a pattern is unknown_value', () {
-        expect(
-          () => _parse(
-            'shared_required_patterns:\n'
-            '  - {id: a, pattern: x, message: m}\n'
-            '  - {id: b, pattern: x, message: m, for_doc_types: []}\n',
-          ),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_required_patterns[1].for_doc_types',
-              message: 'for_doc_types holds no doc type',
-            ),
-          ),
-        );
-      });
-
-      test('a repeated pattern id in one list is refused at the second id', () {
-        expect(
-          () => _parse(
-            'shared_banned_patterns:\n'
-            '  - {id: a, pattern: x, message: m}\n'
-            '  - {id: a, disabled: true}\n',
-          ),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_banned_patterns[1].id',
-              message: 'shared entry id repeated: a',
-            ),
-          ),
-        );
-      });
-
-      test('a banned and a required pattern may share one id', () {
-        final shared = _parse(
-          'shared_banned_patterns:\n  - {id: a, pattern: x, message: m}\n'
-          'shared_required_patterns:\n  - {id: a, pattern: y, message: n}\n',
-        );
-
-        expect(shared.patterns.map((p) => (p.id, p.kind)), [
-          ('a', SharedPatternKind.banned),
-          ('a', SharedPatternKind.required),
-        ]);
-      });
 
       test('an unknown key on a pattern is unknown_key at that key', () {
         for (final (list, key) in [
@@ -523,29 +464,20 @@ shared_banned_patterns:
       });
 
       test('a pattern that does not compile is unknown_value at pattern', () {
-        expect(
-          () =>
-              _parse('shared_banned_patterns:\n  - id: a\n    pattern: "("\n'),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_banned_patterns[0].pattern',
+        for (final (key, value) in [('pattern', '"("'), ('except', '["("]')]) {
+          expect(
+            () => _parse(
+              'shared_banned_patterns:\n  - id: a\n    $key: $value\n',
             ),
-          ),
-        );
-      });
-
-      test('an except that does not compile is unknown_value at except', () {
-        expect(
-          () =>
-              _parse('shared_banned_patterns:\n  - id: a\n    except: ["("]\n'),
-          throwsA(
-            _fault(
-              FaultCode.unknownValue,
-              key: 'shared_banned_patterns[0].except',
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'shared_banned_patterns[0].$key',
+              ),
             ),
-          ),
-        );
+            reason: key,
+          );
+        }
       });
 
       test('an in value outside text, code, and all is unknown_value', () {
@@ -559,14 +491,6 @@ shared_banned_patterns:
             ),
           ),
         );
-      });
-
-      test('a null except reads as unwritten', () {
-        final shared = _parse(
-          'shared_banned_patterns:\n  - id: a\n    except: ~\n',
-        );
-
-        expect(shared.patterns.single.except, isNull);
       });
 
       test('a pattern with no id is missing_key at its id', () {

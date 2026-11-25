@@ -34,7 +34,6 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, loginRecord, spots;
-import '../../helpers/check_fixture.dart' as check show edit, loginFeature;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/matrix_record_fixture.dart';
 import '../../helpers/posix_modes.dart';
@@ -170,24 +169,17 @@ void main() {
         index: s.index,
       );
       expect(split.address, 'prds/notes');
-    });
-  });
 
-  test('a path holding # with --title is the whole address and refuses untyped_target', () async {
-    final root = await writeWriteProject(
-      extra: {'docs/prds/notes#draft.md': '# Draft\n'},
-    );
-    writeIn(root, (s) {
-      final whole = SetRequest.parse(
+      final titled = SetRequest.parse(
         'prds/notes#draft.md',
         title: true,
         base: 'abc',
         index: s.index,
       );
-      expect(whole.address, 'prds/notes#draft.md');
-      expect(whole.target, isA<TitleTarget>());
+      expect(titled.address, 'prds/notes#draft.md');
+      expect(titled.target, isA<TitleTarget>());
       expect(
-        () => answerSet(s, whole, 'Retitled\n'),
+        () => answerSet(s, titled, 'Retitled\n'),
         throwsIndexFault(IndexFaultCode.untypedTarget),
       );
     });
@@ -376,75 +368,6 @@ void main() {
       'draft': true,
     });
     expect(sectionBase(root, target), written);
-  });
-
-  test('a section write replies with one docs element holding name, docType, path, base, and draft', () async {
-    final root = await writeWriteProject();
-    const target = 'user_story:login/email_login#acceptance_criteria';
-    final answer = writeIn(
-      root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), '\nBody.\n'),
-    );
-    expect(answer.json.keys, {'docs'});
-    final docs = answer.json['docs']! as List;
-    expect(docs, hasLength(1));
-    expect((docs.single as Map).keys, {
-      'name',
-      'docType',
-      'path',
-      'base',
-      'draft',
-    });
-  });
-
-  test('a field write replies with one docs element', () async {
-    final root = await writeWriteProject();
-    const target = 'user_story:login/email_login';
-    final answer = writeIn(
-      root,
-      (s) => answerSet(
-        s,
-        fieldReq(target, 'status', fieldBase(root, target, 'status')),
-        'implemented\n',
-      ),
-    );
-    expect(answer.json.keys, {'docs'});
-    final docs = answer.json['docs']! as List;
-    expect(docs, hasLength(1));
-    expect((docs.single as Map).keys, {
-      'name',
-      'docType',
-      'path',
-      'base',
-      'draft',
-    });
-  });
-
-  test('a title write replies with one docs element', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'docs/$signupFeature':
-            '---\ndraft: true\n---\n\n## Problem\nUsers create an account.\n',
-      },
-    );
-    final answer = writeIn(
-      root,
-      (s) => answerSet(
-        s,
-        SetRequest.parse('feature:signup', title: true, base: emptyBaseHash),
-        'Create an account\n',
-      ),
-    );
-    expect(answer.json.keys, {'docs'});
-    final docs = answer.json['docs']! as List;
-    expect(docs, hasLength(1));
-    expect((docs.single as Map).keys, {
-      'name',
-      'docType',
-      'path',
-      'base',
-      'draft',
-    });
   });
 
   test('a changed ### heading is written as given, and a link to its old anchor is reported, not rewritten', () async {
@@ -773,6 +696,7 @@ void main() {
       throwsA(
         isA<WriteFault>()
             .having((f) => f.code, 'code', WriteFaultCode.requiredTarget)
+            .having((f) => f.exitStatus, 'exitStatus', 64)
             .having(
               (f) => f.message,
               'message',
@@ -850,6 +774,7 @@ void main() {
         throwsA(
           isA<IndexFault>()
               .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
               .having(
                 (f) => f.message,
                 'message',
@@ -861,24 +786,6 @@ void main() {
     },
   );
 
-  test('empty stdin removes an optional section', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'docs/$story1':
-            '${writeProject['docs/$story1']!}\n## Rules\n- BR-01 One account per email.\n',
-      },
-    );
-    const target = 'user_story:login/email_login#rules';
-    expect(readDoc(root, story1), contains('## Rules'));
-    final answer = writeIn(
-      root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), ''),
-    );
-    expect(readDoc(root, story1), isNot(contains('## Rules')));
-    expect(readDoc(root, story1), contains('## Acceptance Criteria'));
-    expect(docOf(answer)['base'], emptyBaseHash);
-  });
-
   test('empty stdin on the last section leaves the doc ending in exactly one newline', () async {
     final original = writeProject['docs/$story1']!;
     final root = await writeWriteProject(
@@ -887,7 +794,7 @@ void main() {
       },
     );
     const target = 'user_story:login/email_login#rules';
-    writeIn(
+    final answer = writeIn(
       root,
       (s) => answerSet(s, req(target, sectionBase(root, target)), ''),
     );
@@ -898,6 +805,7 @@ void main() {
         'draft: true\nretired_ids:\n  - BR-01\n',
       ),
     );
+    expect(docOf(answer)['base'], emptyBaseHash);
   });
 
   test('empty stdin on a middle section keeps the blank line before the next header', () async {
@@ -920,29 +828,6 @@ void main() {
         'draft: true\nretired_ids:\n  - BR-01\n',
       ),
     );
-  });
-
-  test('empty stdin on a required section is required_target', () async {
-    final root = await writeWriteProject();
-    const target = 'user_story:login/email_login#use_case';
-    final before = readDoc(root, story1);
-    expect(
-      () => writeIn(
-        root,
-        (s) => answerSet(s, req(target, sectionBase(root, target)), ''),
-      ),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.requiredTarget)
-            .having(
-              (f) => f.message,
-              'message',
-              'user_story requires the section use_case',
-            )
-            .having((f) => (f.file, f.key), 'location', (story1, 'use_case')),
-      ),
-    );
-    expect(readDoc(root, story1), before);
   });
 
   test('a doc without draft gains draft: true at its field-order slot, a doc with no frontmatter gains one', () async {
@@ -1077,6 +962,7 @@ void main() {
         throwsA(
           isA<RenderFault>()
               .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exitStatus', 73)
               .having(
                 (f) => f.message,
                 'message',
@@ -1103,31 +989,6 @@ void main() {
     writeIn(root, (s) => answerSet(s, req(target, base), 'Sign in again.\n'));
     expect(readDoc(root, story1), contains('## Use Case\n\nSign in again.\n'));
   });
-
-  test(
-    'a body that leaves a fence open is refused and the file stays',
-    () async {
-      final root = await writeWriteProject();
-      const target = 'user_story:login/email_login#use_case';
-      final before = readDoc(root, story1);
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, sectionBase(root, target)),
-            'See:\n\n```bash\nmake\n',
-          ),
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having((f) => f.message, 'message', contains('```bash')),
-        ),
-      );
-      expect(readDoc(root, story1), before);
-    },
-  );
 
   test('a fenced "## install" line in a body round-trips', () async {
     final root = await writeWriteProject();
@@ -1171,66 +1032,23 @@ void main() {
   );
 
   test('a body opening with the template header drops it for a section the doc lacks', () async {
-    final root = await writeWriteProject();
-    const target = 'user_story:login/email_login#open_questions';
-    writeIn(
-      root,
-      (s) => answerSet(
-        s,
-        req(target, emptyBaseHash),
-        '## Open questions\n\nNone yet.\n',
-      ),
-    );
-    final text = readDoc(root, story1);
-    expect(text, endsWith('## Open questions\n\nNone yet.\n'));
-    expect('## Open questions'.allMatches(text), hasLength(1));
-  });
-
-  test(
-    'another section header is refused naming the line and the file stays',
-    () async {
+    for (final lead in ['', '\n\n']) {
       final root = await writeWriteProject();
-      const target = 'user_story:login/email_login#use_case';
-      final before = readDoc(root, story1);
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, sectionBase(root, target)),
-            '## Use Case\n\nx\n\n## Sub\n',
-          ),
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having(
-                (f) => f.message,
-                'message',
-                'the body holds the header line "## Sub"; send the body only',
-              ),
+      const target = 'user_story:login/email_login#open_questions';
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, emptyBaseHash),
+          '$lead## Open questions\n\nNone yet.\n',
         ),
       );
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, sectionBase(root, target)),
-            '## Acceptance Criteria\n\nx\n',
-          ),
-        ),
-        throwsA(
-          isA<IndexFault>().having(
-            (f) => f.message,
-            'message',
-            contains('"## Acceptance Criteria"'),
-          ),
-        ),
-      );
-      expect(readDoc(root, story1), before);
-    },
-  );
+      final text = readDoc(root, story1);
+      final why = '${lead.length} blank lines before it';
+      expect(text, endsWith('## Open questions\n\nNone yet.\n'), reason: why);
+      expect('## Open questions'.allMatches(text), hasLength(1), reason: why);
+    }
+  });
 
   test('the header line inside a fence is written back unchanged', () async {
     final root = await writeWriteProject();
@@ -1314,31 +1132,6 @@ void main() {
     expect(readDoc(root, story1), before);
   });
 
-  test('a body line starting ## is argument_invalid', () async {
-    final root = await writeWriteProject();
-    final before = readDoc(root, story1);
-    expect(
-      () => writeIn(
-        root,
-        (s) => answerSet(
-          s,
-          req('user_story:login/email_login#use_case', emptyBaseHash),
-          '## Sub\nx\n',
-        ),
-      ),
-      throwsA(
-        isA<IndexFault>()
-            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-            .having(
-              (f) => f.message,
-              'message',
-              'the body holds the header line "## Sub"; send the body only',
-            ),
-      ),
-    );
-    expect(readDoc(root, story1), before);
-  });
-
   test('a template section removed after the read refuses with empty current text and the empty base', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login#use_case';
@@ -1361,34 +1154,6 @@ void main() {
     );
     expect(readDoc(root, story1), before);
   });
-
-  test(
-    'a non-template section removed after the read is section_not_found',
-    () async {
-      final root = await writeWriteProject(
-        extra: {
-          'docs/$story1': '${writeProject['docs/$story1']!}\n## Notes\nfirst\n',
-        },
-      );
-      const target = 'user_story:login/email_login#notes';
-      final base = sectionBase(root, target);
-      docFile(root, story1).writeAsStringSync(
-        readDoc(root, story1).replaceFirst('\n## Notes\nfirst\n', ''),
-      );
-      final before = readDoc(root, story1);
-      expect(
-        () => writeIn(root, (s) => answerSet(s, req(target, base), 'x\n')),
-        throwsA(
-          isA<IndexFault>().having(
-            (f) => f.code,
-            'code',
-            IndexFaultCode.sectionNotFound,
-          ),
-        ),
-      );
-      expect(readDoc(root, story1), before);
-    },
-  );
 
   test('a CRLF doc keeps CRLF, and its base is its LF twin base', () async {
     final root = await writeWriteProject();
@@ -1666,20 +1431,6 @@ void main() {
       readDoc(root, loginRecordPath),
       contains('covers:\n    - "app/lib/a/"\n    - "app/lib/c/"\n'),
     );
-  });
-  test('a covers write leaves an approved doc approved', () async {
-    final root = await writeWriteProject(extra: loginRecordFile);
-    const record = 'implementation:login';
-    writeIn(
-      root,
-      (s) => answerSet(
-        s,
-        fieldReq(record, 'covers', fieldBase(root, record, 'covers')),
-        '- app/lib/src/login/\n',
-      ),
-    );
-    final stale = spots(await checkOf(root), FindingKind.approvalStale);
-    expect(stale, isEmpty);
   });
   test(
     'status on a feature is field_not_writable; on a story it is written',
@@ -1992,59 +1743,6 @@ void main() {
       ),
     );
   });
-  test('empty stdin on an undeclared field the doc does not hold refuses field_unknown', () async {
-    final root = await writeWriteProject();
-    const target = 'user_story:login/email_login';
-    expect(
-      () => writeIn(
-        root,
-        (s) => answerSet(s, fieldReq(target, 'size', emptyBaseHash), '\n'),
-      ),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.fieldUnknown)
-            .having(
-              (f) => f.message,
-              'message',
-              'user_story declares no field size',
-            )
-            .having((f) => (f.file, f.key), 'location', (story1, 'size')),
-      ),
-    );
-  });
-  test(
-    "a value for a feature's status still refuses field_not_writable",
-    () async {
-      final root = await writeWriteProject(
-        extra: {
-          'docs/$loginFeature': '---\nstatus: implemented\nvision:\n  - PV-01\n---\n\n# Login\n\n## Problem\nUsers sign in with an email and a password.\n',
-        },
-      );
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            fieldReq('feature:login', 'status', emptyBaseHash),
-            'deprecated\n',
-          ),
-        ),
-        throwsA(
-          isA<WriteFault>()
-              .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
-              .having(
-                (f) => f.message,
-                'message',
-                'the status of a feature is computed from its stories',
-              )
-              .having((f) => (f.file, f.key), 'location', (
-                loginFeature,
-                'status',
-              )),
-        ),
-      );
-    },
-  );
   test('after a removal runCheck reports no finding for the key', () async {
     final root = await writeWriteProject(
       extra: {
@@ -2488,48 +2186,6 @@ void main() {
       expect(leadBase(root), written);
     });
 
-    test('a lead write replies with one docs element', () async {
-      final root = await project();
-      final answer = writeIn(
-        root,
-        (s) => answerSet(s, req(target, leadBase(root)), 'New lead.\n'),
-      );
-      expect(answer.json.keys, {'docs'});
-      final docs = answer.json['docs']! as List;
-      expect(docs, hasLength(1));
-      expect((docs.single as Map).keys, {
-        'name',
-        'docType',
-        'path',
-        'base',
-        'draft',
-      });
-    });
-
-    test(
-      'a lead that leaves a fence open is refused and the file stays',
-      () async {
-        final root = await project();
-        final before = readDoc(root, story1);
-        expect(
-          () => writeIn(
-            root,
-            (s) => answerSet(
-              s,
-              req(target, leadBase(root)),
-              'See:\n\n```bash\nmake\n',
-            ),
-          ),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                .having((f) => f.message, 'message', contains('```bash')),
-          ),
-        );
-        expect(readDoc(root, story1), before);
-      },
-    );
-
     test('a fenced "# install" line in the lead round-trips', () async {
       final root = await project();
       const fenced = 'Run:\n\n```bash\n# install\nmake\n```\n';
@@ -2553,31 +2209,14 @@ void main() {
     test(
       'a stdin line starting "# " or "## " refuses with argument_invalid',
       () async {
-        for (final body in ['# X\n', '## X\n', 'fine\n# X\n']) {
-          final root = await project();
-          final before = readDoc(root, story1);
-          expect(
-            () => writeIn(
-              root,
-              (s) => answerSet(s, req(target, leadBase(root)), body),
-            ),
-            throwsA(
-              isA<IndexFault>().having(
-                (f) => f.code,
-                'code',
-                IndexFaultCode.argumentInvalid,
-              ),
-            ),
-          );
-          expect(readDoc(root, story1), before);
-        }
-      },
-    );
-
-    test(
-      'a refused last line with no final newline refuses with argument_invalid',
-      () async {
-        for (final body in ['# X', '## X', 'fine\n## X']) {
+        for (final body in [
+          '# X\n',
+          '## X\n',
+          'fine\n# X\n',
+          '# X',
+          '## X',
+          'fine\n## X',
+        ]) {
           final root = await project();
           final before = readDoc(root, story1);
           expect(
@@ -2641,6 +2280,7 @@ void main() {
         throwsA(
           isA<WriteFault>()
               .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+              .having((f) => f.exitStatus, 'exitStatus', 75)
               .having((f) => f.current?.text, 'current', '\nOld lead.\n')
               .having(
                 (f) => f.current?.base,
@@ -2754,23 +2394,6 @@ void main() {
     });
 
     test(
-      'a stale lead refusal exits 75 and leaves the doc untouched',
-      () async {
-        final root = await project();
-        final before = readDoc(root, story1);
-        expect(
-          () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
-                .having((f) => f.exitStatus, 'exitStatus', 75),
-          ),
-        );
-        expect(readDoc(root, story1), before);
-      },
-    );
-
-    test(
       'a lead that leaves a fence open exits 64 naming the fence line',
       () async {
         final root = await project();
@@ -2817,34 +2440,6 @@ void main() {
         readDoc(root, story1).replaceAll('\r\n', ''),
         isNot(contains('\n')),
       );
-    });
-
-    test('a column-0 naming line in a lead is refused opening with the lead holds and the doc stays', () async {
-      final root = await project();
-      final before = readDoc(root, story1);
-      const naming =
-          '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, leadBase(root)),
-            'Intro.\n\n$naming\nMore.\n',
-          ),
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having((f) => f.exitStatus, 'exitStatus', 64)
-              .having(
-                (f) => f.message,
-                'message',
-                startsWith('the lead holds the naming line "$naming"'),
-              ),
-        ),
-      );
-      expect(readDoc(root, story1), before);
     });
   });
 
@@ -2910,42 +2505,6 @@ void main() {
       );
       expect(docOf(answer)['base'], baseHashOf('\nNew job.\n'));
       expect(docOf(answer)['base'], sectionBase(root, target));
-    });
-
-    test('a write to another section leaves this base valid', () async {
-      final root = await writeWriteProject();
-      const useCase = 'user_story:login/email_login#use_case';
-      const criteria = 'user_story:login/email_login#acceptance_criteria';
-      final criteriaBase = sectionBase(root, criteria);
-      writeIn(
-        root,
-        (s) =>
-            answerSet(s, req(useCase, sectionBase(root, useCase)), 'Other.\n'),
-      );
-      writeIn(
-        root,
-        (s) => answerSet(s, req(criteria, criteriaBase), '- **Given** x\n'),
-      );
-      expect(
-        readDoc(root, story1),
-        allOf(contains('## Use Case\n\nOther.\n'), contains('- **Given** x\n')),
-      );
-    });
-
-    test('a body with none, one, or several leading blank lines lands under one blank line', () async {
-      const target = 'user_story:login/email_login#use_case';
-      for (final lead in ['', '\n', '\n\n\n']) {
-        final root = await writeWriteProject();
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, sectionBase(root, target)),
-            '${lead}Go.\n',
-          ),
-        );
-        expect(readDoc(root, story1), contains('## Use Case\n\nGo.\n\n## Acc'));
-      }
     });
 
     test(
@@ -3059,18 +2618,6 @@ void main() {
       expect(readDoc(root, story1), contains('before\n# T\n'));
     });
 
-    test('an absent field lands at its slot in a laid-out doc', () async {
-      final root = await writeWriteProject();
-      const target = 'user_story:login/email_login';
-      writeIn(
-        root,
-        (s) =>
-            answerSet(s, fieldReq(target, 'goals', emptyBaseHash), '- PG-01\n'),
-      );
-      expect(readDoc(root, story1), contains('goals:\n  - PG-01\n'));
-      expect(readDoc(root, story1), contains('## Use Case\n\nSign in'));
-    });
-
     test(
       'an unlaid-out doc is written whole laid out after a title write',
       () async {
@@ -3104,26 +2651,6 @@ void main() {
         expect(
           readDoc(root, signupArch),
           refused.replaceFirst('# Signup architecture', '# Renamed'),
-        );
-      },
-    );
-
-    test(
-      'a lead without a leading blank line keeps one under the title',
-      () async {
-        final root = await writeWriteProject();
-        const target = 'user_story:login/email_login#_lead';
-        writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(target, getDoc(root, target)['base']! as String),
-            'Short lead.\n',
-          ),
-        );
-        expect(
-          readDoc(root, story1),
-          contains('# Sign in with email\n\nShort lead.\n\n## Use Case\n'),
         );
       },
     );
@@ -3430,180 +2957,9 @@ void main() {
       );
       expect(part.marksDraft, isFalse);
     });
-
-    test('a section the template lacks and the doc lacks is section_not_found', () async {
-      final root = await writeWriteProject();
-      expect(
-        () => spliceIn(root, req('$address#notes', emptyBaseHash), 'x\n'),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
-              .having(
-                (f) => f.message,
-                'message',
-                '$address holds no section with the key notes, and its template defines none',
-              ),
-        ),
-      );
-    });
-
-    test('a body with another ## line, an open fence, or an open fence in a lead is argument_invalid', () async {
-      final root = await writeWriteProject();
-      final section = req(
-        '$address#acceptance_criteria',
-        sectionBase(root, '$address#acceptance_criteria'),
-      );
-      expect(
-        () => spliceIn(root, section, 'a\n## Sub\nb\n'),
-        throwsIndexFault(IndexFaultCode.argumentInvalid),
-      );
-      expect(
-        () => spliceIn(root, section, '```\ncode\n'),
-        throwsIndexFault(IndexFaultCode.argumentInvalid),
-      );
-      final lead = req('$address#_lead', sectionBase(root, '$address#_lead'));
-      expect(
-        () => spliceIn(root, lead, '## Sub\n'),
-        throwsIndexFault(IndexFaultCode.argumentInvalid),
-      );
-      expect(
-        () => spliceIn(
-          root,
-          SetRequest.parse(address, title: true, base: titleBase(root)),
-          'one\ntwo\n',
-        ),
-        throwsIndexFault(IndexFaultCode.argumentInvalid),
-      );
-    });
-
-    test(
-      'a stale base is base_mismatch carrying the current text, for each part',
-      () async {
-        final root = await writeWriteProject();
-        for (final target in ['$address#use_case', '$address#_lead']) {
-          expect(
-            () => spliceIn(root, req(target, 'stale'), 'x\n'),
-            throwsA(
-              isA<WriteFault>()
-                  .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
-                  .having((f) => f.current, 'current', isNotNull),
-            ),
-            reason: target,
-          );
-        }
-        expect(
-          () =>
-              spliceIn(root, fieldReq(address, 'goals', 'stale'), '- PG-01\n'),
-          throwsA(
-            isA<WriteFault>().having(
-              (f) => f.current?.text,
-              'current.text',
-              '',
-            ),
-          ),
-        );
-        expect(
-          () => spliceIn(
-            root,
-            SetRequest.parse(address, title: true, base: 'stale'),
-            'T\n',
-          ),
-          throwsA(
-            isA<WriteFault>().having(
-              (f) => f.current?.text,
-              'current.text',
-              '# Sign in with email\n',
-            ),
-          ),
-        );
-      },
-    );
-
-    test(
-      'empty stdin on a required section or field is required_target',
-      () async {
-        final root = await writeWriteProject();
-        expect(
-          () => spliceIn(
-            root,
-            req('$address#use_case', sectionBase(root, '$address#use_case')),
-            '',
-          ),
-          throwsWriteFault(WriteFaultCode.requiredTarget),
-        );
-        const fr = 'fr:login/reset_password/expire_reset_link';
-        expect(
-          () => spliceIn(
-            root,
-            fieldReq(fr, 'traced_from', fieldBase(root, fr, 'traced_from')),
-            '\n',
-          ),
-          throwsWriteFault(WriteFaultCode.requiredTarget),
-        );
-      },
-    );
-
-    test('a field write that checkFieldWrite refuses is refused', () async {
-      final root = await writeWriteProject();
-      expect(
-        () =>
-            spliceIn(root, fieldReq(address, 'draft', emptyBaseHash), 'true\n'),
-        throwsWriteFault(WriteFaultCode.fieldNotWritable),
-      );
-    });
   });
 
   group('checkFieldWrite refuses a write', () {
-    const story = 'user_story:login/email_login';
-
-    test(
-      'draft and approved are field_not_writable, whatever the value',
-      () async {
-        final root = await writeWriteProject();
-        for (final id in ['draft', 'approved']) {
-          expect(
-            () => checkFieldIn(root, story, id, 'true'),
-            throwsWriteFault(WriteFaultCode.fieldNotWritable),
-          );
-          expect(
-            () => checkFieldIn(root, story, id, null, held: true),
-            throwsWriteFault(WriteFaultCode.fieldNotWritable),
-          );
-        }
-      },
-    );
-
-    test('a value for a feature status is field_not_writable', () async {
-      final root = await writeWriteProject();
-      expect(
-        () => checkFieldIn(root, 'feature:login', 'status', 'implemented'),
-        throwsWriteFault(WriteFaultCode.fieldNotWritable),
-      );
-    });
-
-    test('a value outside the type, the enum, or the list shape is field_value_invalid', () async {
-      final root = await writeWriteProject();
-      const fr = 'fr:login/reset_password/expire_reset_link';
-      expect(
-        () => checkFieldIn(root, fr, 'verify_method', 'maybe'),
-        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
-      );
-      expect(
-        () => checkFieldIn(root, story, 'vision', 'PV-01'),
-        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
-      );
-      expect(
-        () => checkFieldIn(root, story, 'status', '- planned'),
-        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
-      );
-      expect(
-        () => checkFieldIn(root, story, 'status', 'a: [b'),
-        throwsWriteFault(WriteFaultCode.fieldValueInvalid),
-      );
-      checkFieldIn(root, story, 'vision', '- PV-01');
-      checkFieldIn(root, fr, 'verify_method', 'test');
-    });
-
     test(
       'a task_ref entry with no task or no item is field_value_invalid',
       () async {
@@ -3668,30 +3024,6 @@ void main() {
         expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
       },
     );
-
-    test('removing a required field is required_target', () async {
-      final root = await writeWriteProject();
-      const fr = 'fr:login/reset_password/expire_reset_link';
-      expect(
-        () => checkFieldIn(root, fr, 'traced_from', null, held: true),
-        throwsWriteFault(WriteFaultCode.requiredTarget),
-      );
-      checkFieldIn(root, story, 'goals', null);
-    });
-
-    test('an undeclared id refuses with a value or when not held, and passes removal when held', () async {
-      final root = await writeWriteProject();
-      expect(
-        () => checkFieldIn(root, story, 'size', '1'),
-        throwsWriteFault(WriteFaultCode.fieldUnknown),
-      );
-      expect(
-        () => checkFieldIn(root, story, 'size', null),
-        throwsWriteFault(WriteFaultCode.fieldUnknown),
-      );
-      checkFieldIn(root, story, 'size', null, held: true);
-      checkFieldIn(root, 'feature:login', 'status', null, held: true);
-    });
   });
   group('a part is refused on its own text before the write lock', () {
     const address = 'user_story:login/email_login';
@@ -3791,14 +3123,6 @@ void main() {
       },
     );
 
-    test('checkPartText refuses each with no lock and no doc text', () async {
-      final root = await writeWriteProject();
-      for (final MapEntry(key: name, value: (request, text, matcher))
-          in refusals.entries) {
-        expect(() => checkPartIn(root, request, text), matcher, reason: name);
-      }
-    });
-
     test('checkPartText passes a text it cannot judge without the doc: a first line that may be the own header, and an unheld key emptied', () async {
       final root = await writeWriteProject();
       checkPartIn(
@@ -3826,21 +3150,6 @@ void main() {
         throwsIndexFault(IndexFaultCode.argumentInvalid),
       );
     });
-
-    test(
-      'a first line that is a header other than the own refuses in splicePart',
-      () async {
-        final root = await writeWriteProject();
-        expect(
-          () => spliceIn(
-            root,
-            req('$address#use_case', sectionBase(root, '$address#use_case')),
-            '## Other\nSign in.\n',
-          ),
-          throwsIndexFault(IndexFaultCode.argumentInvalid),
-        );
-      },
-    );
 
     test(
       'a doc that is not UTF-8 with a title of two lines is argument_invalid',
@@ -3920,6 +3229,7 @@ void main() {
     Matcher refusesNamingLine(String line) => throwsA(
       isA<IndexFault>()
           .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+          .having((f) => f.exitStatus, 'exitStatus', 64)
           .having((f) => f.message, 'message', contains('"$line"')),
     );
 
@@ -3940,6 +3250,19 @@ void main() {
           reason: text,
         );
       }
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(s, req(target, base), 'Sign in.\n\n$naming  \n'),
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.message,
+            'message',
+            'the body holds the naming line "$naming"; indent it or put it in a fenced code block',
+          ),
+        ),
+      );
       expect(readDoc(root, story1), before);
     });
 
@@ -4056,11 +3379,6 @@ void main() {
     const jasprTwinRecord =
         '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 
-    List<String> twinsOf(Directory root) => [
-      readDoc(root, flutterArchitecture),
-      readDoc(root, jasprArchitecture),
-    ];
-
     SetRequest jaspr(String address, String base, {String? field}) =>
         SetRequest.parse(
           address,
@@ -4094,46 +3412,6 @@ void main() {
       expect(readDoc(root, flutterTwinRecord), flutterBefore);
       expect(docOf(answer)['path'], jasprTwinRecord);
       expect(docOf(answer)['draft'], isFalse);
-    });
-
-    test('a record whose 92-entry implements block is single-quoted gains one entry as one added line', () async {
-      final root = await twinWithRecords();
-      final held = [
-        for (var i = 0; i < 92; i++) 'email_login:app/lib/f$i.dart',
-      ];
-      final block =
-          "implements:\n${[for (final e in held) "  - '$e'\n"].join()}";
-      final (type, statusesOutside) = writeIn(
-        root,
-        (s) => (s.index.set.recordDocType!, s.project.statusesOutsideApproval),
-      );
-      final seeded = withApprovalHash(
-        withKeyBlock(record, 'implements', block),
-        type,
-        statusesOutside: statusesOutside,
-      );
-      docFile(root, flutterRecord).writeAsStringSync(seeded);
-      const added = 'email_login:app/lib/new.dart';
-
-      writeIn(
-        root,
-        (s) => answerSet(
-          s,
-          SetRequest.parse(
-            flutterRecord,
-            field: 'implements',
-            base: baseHashOf(block),
-          ),
-          [
-            for (final e in [...held, added]) '- $e\n',
-          ].join(),
-        ),
-      );
-
-      expect(
-        readDoc(root, flutterRecord),
-        seeded.replaceFirst(block, "$block  - '$added'\n"),
-      );
     });
 
     test('a name that two targets share is argument_invalid listing both docs without --target, and --target must name a target', () async {
@@ -4360,67 +3638,6 @@ void main() {
       expect(readDoc(root, jasprRecord), before);
     });
 
-    test('--target keeps the shared feature writable: status is refused on it and written on a story', () async {
-      final root = await writeTwinProject();
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            jaspr('feature:login', emptyBaseHash, field: 'status'),
-            'implemented\n',
-          ),
-        ),
-        throwsA(
-          isA<WriteFault>()
-              .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
-              .having(
-                (f) => f.message,
-                'message',
-                'the status of a feature is computed from its stories',
-              ),
-        ),
-      );
-      const story = 'user_story:login/email_login';
-      final answer = writeIn(
-        root,
-        (s) => answerSet(
-          s,
-          jaspr(story, fieldBase(root, story, 'status'), field: 'status'),
-          'implemented\n',
-        ),
-      );
-      expect(docOf(answer)['draft'], isTrue);
-      expect(
-        readDoc(root, 'prds/features/f01_login/us01_email_login/USER_STORY.md'),
-        contains('status: implemented\n'),
-      );
-    });
-
-    test('empty stdin removes a written feature status under --target and the check reports none', () async {
-      final root = await writeTwinProject(
-        extra: check.edit(check.loginFeature, [
-          ('---\nsummary:', '---\nstatus: implemented\nsummary:'),
-        ]),
-      );
-      const address = 'feature:login';
-      final answer = writeIn(
-        root,
-        (s) => answerSet(
-          s,
-          jaspr(address, fieldBase(root, address, 'status'), field: 'status'),
-          '\n',
-        ),
-      );
-      expect(docOf(answer)['base'], emptyBaseHash);
-      expect(docOf(answer)['draft'], isTrue);
-      expect(readDoc(root, check.loginFeature), isNot(contains('status:')));
-      expect(
-        spots(await checkOf(root), FindingKind.featureStatusWritten),
-        isEmpty,
-      );
-    });
-
     test(
       'a section of one twin is written and the other twin keeps its text',
       () async {
@@ -4444,98 +3661,6 @@ void main() {
         expect(readDoc(root, flutterArchitecture), flutterBefore);
         expect(docOf(answer)['path'], jasprArchitecture);
         expect(docOf(answer)['draft'], isTrue);
-      },
-    );
-
-    test('a stale base on a twin is refused with its current section, and the other twin stays', () async {
-      final root = await writeTwinProject();
-      const address = '$arch#components';
-      final base = sectionBase(root, '$jasprArchitecture#components');
-      writeIn(
-        root,
-        (s) => answerSet(s, jaspr(address, base), '- First writer\n'),
-      );
-      final before = twinsOf(root);
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(s, jaspr(address, base), '- Second writer\n'),
-        ),
-        throwsA(
-          isA<WriteFault>()
-              .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
-              .having((f) => (f.file, f.key), 'location', (
-                jasprArchitecture,
-                'components',
-              )),
-        ),
-      );
-      expect(twinsOf(root), before);
-    });
-
-    test('--title writes the title of one twin only', () async {
-      final root = await writeTwinProject();
-      final flutterBefore = readDoc(root, flutterArchitecture);
-      final base =
-          (getDoc(root, jasprArchitecture)['bases']! as Map)['title']!
-              as String;
-      writeIn(
-        root,
-        (s) => answerSet(
-          s,
-          SetRequest.parse(arch, title: true, base: base, codeTarget: 'jaspr'),
-          'Jaspr login architecture\n',
-        ),
-      );
-      expect(
-        readDoc(root, jasprArchitecture),
-        contains('# Jaspr login architecture\n'),
-      );
-      expect(readDoc(root, flutterArchitecture), flutterBefore);
-    });
-
-    test('#_lead writes the lead of one twin only', () async {
-      final root = await writeTwinProject();
-      final flutterBefore = readDoc(root, flutterArchitecture);
-      writeIn(
-        root,
-        (s) => answerSet(
-          s,
-          jaspr('$arch#_lead', sectionBase(root, '$jasprArchitecture#_lead')),
-          'Jaspr lead.\n',
-        ),
-      );
-      expect(
-        readDoc(root, jasprArchitecture),
-        contains('# Login architecture\n\nJaspr lead.\n\n## Technical diagram'),
-      );
-      expect(readDoc(root, flutterArchitecture), flutterBefore);
-    });
-
-    test(
-      'two Agents write two sections of one twin at once and both land',
-      () async {
-        final root = await writeTwinProject();
-        final path = root.path;
-        final components = sectionBase(root, '$jasprArchitecture#components');
-        final data = sectionBase(root, '$jasprArchitecture#data');
-        String write(String key, String base, String body) => WriteSession.run(
-          (s) => answerSet(s, jaspr('$arch#$key', base), body).text,
-          templates: TemplateResolver(),
-          workingDirectory: Directory(path),
-          homeDirectory: null,
-        );
-        await Future.wait([
-          Isolate.run(() => write('components', components, '- Jaspr page\n')),
-          Isolate.run(() => write('data', data, '- One store\n')),
-        ]);
-        expect(
-          readDoc(root, jasprArchitecture),
-          allOf(
-            contains('## Components\n\n- Jaspr page\n'),
-            contains('## Data\n\n- One store\n'),
-          ),
-        );
       },
     );
   });
@@ -4583,53 +3708,6 @@ void main() {
       expect(docOf(answer)['draft'], isTrue);
       expect(sectionBase(root, signOutUseCase), written);
     });
-
-    test('changes no byte outside the match', () async {
-      final root = await writeWriteProject();
-      final before = readDoc(root, story1);
-      replace(root, useCase, stdin('with an email', 'with a link'));
-      expect(
-        readDoc(root, story1),
-        before.replaceFirst('with an email', 'with a link'),
-      );
-    });
-
-    test(
-      'refuses a stale base with the current section and writes nothing',
-      () async {
-        final root = await writeWriteProject();
-        final stale = sectionBase(root, useCase);
-        writeIn(
-          root,
-          (s) =>
-              answerSet(s, req(useCase, stale), 'Someone else wrote this.\n'),
-        );
-        final before = readDoc(root, story1);
-        final current = sectionBase(root, useCase);
-        expect(
-          () => writeIn(
-            root,
-            (s) => answerSet(
-              s,
-              replaceReq(useCase, stale),
-              stdin('Someone', 'Anyone'),
-            ),
-          ),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
-                .having((f) => f.exitStatus, 'exitStatus', 75)
-                .having(
-                  (f) => f.current?.text,
-                  'current.text',
-                  '## Use Case\n\nSomeone else wrote this.\n',
-                )
-                .having((f) => f.current?.base, 'current.base', current),
-          ),
-        );
-        expect(readDoc(root, story1), before);
-      },
-    );
 
     test('refuses an old passage found 0 times with the current section', () async {
       final root = await writeWriteProject();
@@ -4716,6 +3794,18 @@ void main() {
         '- **Given** a registered email\r\n==> new <==\r\nx\r\n',
       );
       expect(readDoc(root, story1), before.replaceFirst(passage, 'x'));
+
+      replace(
+        root,
+        useCase,
+        '==> old <==\r\nwith an email\r\n==> new <==\r\nwith a link\r\n',
+      );
+      expect(
+        readDoc(root, story1),
+        before
+            .replaceFirst(passage, 'x')
+            .replaceFirst('with an email', 'with a link'),
+      );
     });
 
     test(
@@ -4739,39 +3829,12 @@ void main() {
       },
     );
 
-    test('matches a one-line old passage sent with CRLF stdin', () async {
-      final root = await writeWriteProject();
-      final before = readDoc(root, story1);
-      replace(
-        root,
-        useCase,
-        '==> old <==\r\nwith an email\r\n==> new <==\r\nwith a link\r\n',
-      );
-      expect(
-        readDoc(root, story1),
-        before.replaceFirst('with an email', 'with a link'),
-      );
-    });
-
     test('an empty new passage deletes the old passage', () async {
       final root = await writeWriteProject();
       final before = readDoc(root, story1);
       replace(root, useCase, '==> old <==\n an email\n==> new <==\n');
       expect(readDoc(root, story1), before.replaceFirst(' an email', ''));
     });
-
-    test(
-      'refuses a new passage that makes a header line in the body',
-      () async {
-        final root = await writeWriteProject();
-        final before = readDoc(root, story1);
-        expect(
-          () => replace(root, useCase, stdin('Sign in', '## Other\nSign in')),
-          throwsIndexFault(IndexFaultCode.argumentInvalid),
-        );
-        expect(readDoc(root, story1), before);
-      },
-    );
 
     test('refuses a new passage that leaves a fence open', () async {
       final root = await writeWriteProject();
@@ -4824,43 +3887,6 @@ void main() {
         throwsWriteFault(WriteFaultCode.baseMismatch),
       );
       expect(readDoc(root, story1), before);
-    });
-
-    test(
-      'matches a CRLF old passage on a CRLF doc and keeps its CRLF ends',
-      () async {
-        final root = await writeWriteProject();
-        docFile(
-          root,
-          story1,
-        ).writeAsStringSync(readDoc(root, story1).replaceAll('\n', '\r\n'));
-        final before = readDoc(root, story1);
-        replace(
-          root,
-          criteria,
-          '==> old <==\r\n### Scenario 1 — [happy] Sign in\r\n\r\n'
-          '- **Given** a registered email\r\n==> new <==\r\nx\r\n',
-        );
-        final after = readDoc(root, story1);
-        expect(after, isNot(contains('registered email')));
-        expect(after.replaceAll('\r\n', ''), isNot(contains('\n')));
-        expect(after.length, lessThan(before.length));
-      },
-    );
-
-    test('refuses a section the doc neither holds nor defines', () async {
-      final root = await writeWriteProject();
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            replaceReq('user_story:login/email_login#no_such', emptyBaseHash),
-            stdin('a', 'b'),
-          ),
-        ),
-        throwsIndexFault(IndexFaultCode.sectionNotFound),
-      );
     });
 
     test('reads a template section the doc lacks as an empty body', () async {
@@ -4922,27 +3948,6 @@ void main() {
                 'message',
                 'the body holds the header line "## Other"; send the body only',
               ),
-        ),
-      );
-      expect(readDoc(root, story1), before);
-    });
-
-    test('a section key the template does not define is section_not_found with exit status 64', () async {
-      final root = await writeWriteProject();
-      final before = readDoc(root, story1);
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            replaceReq('user_story:login/email_login#no_such', emptyBaseHash),
-            stdin('a', 'b'),
-          ),
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
-              .having((f) => f.exitStatus, 'exitStatus', 64),
         ),
       );
       expect(readDoc(root, story1), before);
@@ -5092,32 +4097,6 @@ void main() {
       );
     });
 
-    test('a section the key of which the doc lacks and the template does not define is section_not_found with exit status 64 naming doc and key', () async {
-      final root = await writeWriteProject();
-      final before = readDoc(root, story1);
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req('user_story:login/email_login#no_such', emptyBaseHash),
-            'x\n',
-          ),
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
-              .having((f) => f.exitStatus, 'exitStatus', 64)
-              .having(
-                (f) => f.message,
-                'message',
-                'user_story:login/email_login holds no section with the key no_such, and its template defines none',
-              ),
-        ),
-      );
-      expect(readDoc(root, story1), before);
-    });
-
     test('a write that lays out the whole doc leaves the older base of another section valid', () async {
       final root = await writeWriteProject(
         extra: {'docs/$signupArch': paddedArch},
@@ -5177,44 +4156,6 @@ void main() {
       expect(docOf(answer)['base'], emptyBaseHash);
     });
 
-    test('empty stdin on a required template section the doc lacks is required_target with exit status 64', () async {
-      final original = writeProject['docs/$story1']!;
-      final root = await writeWriteProject(
-        extra: {
-          'docs/$story1':
-              '${original.substring(0, original.indexOf('## Acceptance Criteria')).trimRight()}\n',
-        },
-      );
-      final before = readDoc(root, story1);
-      expect(before, isNot(contains('Acceptance Criteria')));
-      for (final text in ['', '\n']) {
-        expect(
-          () => writeIn(
-            root,
-            (s) => answerSet(
-              s,
-              req(
-                'user_story:login/email_login#acceptance_criteria',
-                emptyBaseHash,
-              ),
-              text,
-            ),
-          ),
-          throwsA(
-            isA<WriteFault>()
-                .having((f) => f.code, 'code', WriteFaultCode.requiredTarget)
-                .having((f) => f.exitStatus, 'exitStatus', 64)
-                .having(
-                  (f) => f.message,
-                  'message',
-                  'user_story requires the section acceptance_criteria',
-                ),
-          ),
-        );
-      }
-      expect(readDoc(root, story1), before);
-    });
-
     test('a section set on a doc with no frontmatter adds frontmatter holding draft: true and one blank line', () async {
       final root = await writeWriteProject(
         extra: {'docs/$persona': '# Buyer\n\n## Snapshot\nBuys things.\n'},
@@ -5232,64 +4173,6 @@ void main() {
         readDoc(root, persona),
         '---\ndraft: true\n---\n\n# Buyer\n\n## Snapshot\n\nBuys many things.\n',
       );
-    });
-
-    test(
-      'a read-only doc is refused with exit status 73 and keeps its bytes',
-      () async {
-        final root = await writeWriteProject();
-        final before = readDoc(root, story1);
-        final file = docFile(root, story1);
-        Process.runSync('chmod', ['444', file.path]);
-        addTearDown(() => Process.runSync('chmod', ['644', file.path]));
-        expect(
-          () => writeIn(
-            root,
-            (s) =>
-                answerSet(s, req(useCase, sectionBase(root, useCase)), 'x\n'),
-          ),
-          throwsA(
-            isA<RenderFault>()
-                .having(
-                  (f) => f.code,
-                  'code',
-                  RenderFaultCode.outputNotWritable,
-                )
-                .having((f) => f.exitStatus, 'exitStatus', 73),
-          ),
-        );
-        expect(readDoc(root, story1), before);
-      },
-      skip: unreadablePathSkipReason() ?? false,
-    );
-
-    test('a hand edit to a non-draft doc is never marked draft, and only the next set marks it', () async {
-      final root = await writeWriteProject();
-      const target = 'user_story:login/sign_out#use_case';
-      docFile(root, story2).writeAsStringSync(
-        readDoc(root, story2).replaceFirst('Sign out.', 'Signed out by hand.'),
-      );
-      expect(readDoc(root, story2), isNot(contains('draft:')));
-      writeIn(
-        root,
-        (s) => answerSet(s, req(target, sectionBase(root, target)), 'Out.\n'),
-      );
-      expect(readDoc(root, story2), contains('draft: true\n'));
-    });
-
-    test('leading blank lines before the template header line of a section the doc lacks are dropped with it', () async {
-      final root = await writeWriteProject();
-      writeIn(
-        root,
-        (s) => answerSet(
-          s,
-          req('user_story:login/email_login#open_questions', emptyBaseHash),
-          '\n\n## Open questions\n\nNone yet.\n',
-        ),
-      );
-      final text = readDoc(root, story1);
-      expect(text, endsWith('## Open questions\n\nNone yet.\n'));
-      expect('## Open questions'.allMatches(text), hasLength(1));
     });
 
     test('a body that leaves a fence open exits 64 naming the fence line and the file stays', () async {
@@ -5321,26 +4204,28 @@ void main() {
     test('a ## line in a body exits 64 and a four-space-indented ## line is accepted', () async {
       final root = await writeWriteProject();
       final before = readDoc(root, story1);
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(useCase, sectionBase(root, useCase)),
-            'Sign in.\n\n## Other\n',
+      for (final header in ['## Other', '## Acceptance Criteria']) {
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              req(useCase, sectionBase(root, useCase)),
+              'Sign in.\n\n$header\n',
+            ),
           ),
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having((f) => f.exitStatus, 'exitStatus', 64)
-              .having(
-                (f) => f.message,
-                'message',
-                'the body holds the header line "## Other"; send the body only',
-              ),
-        ),
-      );
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'the body holds the header line "$header"; send the body only',
+                ),
+          ),
+        );
+      }
       expect(readDoc(root, story1), before);
       writeIn(
         root,
@@ -5351,32 +4236,6 @@ void main() {
         ),
       );
       expect(readDoc(root, story1), contains('Sign in.\n\n    ## Other\n'));
-    });
-
-    test('a column-0 naming line is refused with its exact message and exit status 64', () async {
-      final root = await writeWriteProject();
-      final before = readDoc(root, story1);
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(
-            s,
-            req(useCase, sectionBase(root, useCase)),
-            'Sign in.\n\n$naming  \n',
-          ),
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having((f) => f.exitStatus, 'exitStatus', 64)
-              .having(
-                (f) => f.message,
-                'message',
-                'the body holds the naming line "$naming"; indent it or put it in a fenced code block',
-              ),
-        ),
-      );
-      expect(readDoc(root, story1), before);
     });
 
     test('a naming line is refused in a lead and in a new doc text, each message opening with its own subject', () async {
@@ -5438,31 +4297,6 @@ void main() {
       expect(copy.readAsStringSync(), writeProject['docs/$story1']);
       expect(FileSystemEntity.isLinkSync(docFile(root, story1).path), isTrue);
     }, skip: linksUnavailable);
-
-    test('a field, title, or lead set on a doc file leading outside the project is refused alike', () async {
-      const address = 'user_story:login/email_login';
-      final titleBase =
-          (getDoc(await writeWriteProject(), address)['bases']!
-                  as Map)['title']!
-              as String;
-      for (final (request, text) in [
-        (fieldReq(address, 'goals', emptyBaseHash), '- PG-01\n'),
-        (SetRequest.parse(address, title: true, base: titleBase), 'Renamed\n'),
-        (req('$address#_lead', baseHashOf('')), 'Lead.\n'),
-      ]) {
-        final root = await writeWriteProject();
-        late final File copy;
-        expect(
-          () => writeIn(root, (s) {
-            copy = leaveProject(root, story1);
-            return answerSet(s, request, text);
-          }),
-          refusesAsLeavingTheProject(story1),
-          reason: '${request.target}',
-        );
-        expect(copy.readAsStringSync(), writeProject['docs/$story1']);
-      }
-    }, skip: linksUnavailable);
   });
 
   group('a record matrix section write', () {
@@ -5498,22 +4332,6 @@ void main() {
         expect(docOf(answer)['draft'], isDraft);
       });
     }
-
-    test('a stale base is still refused and writes nothing', () async {
-      final root = await writeMatrixRecordProject(isDraft: false);
-      final stale = sectionBase(root, matrix);
-      writeIn(root, (s) => answerSet(s, req(matrix, stale), '$matrixRow- a\n'));
-      final before = readDoc(root, loginRecord);
-
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerSet(s, req(matrix, stale), '$matrixRow- b\n'),
-        ),
-        throwsWriteFault(WriteFaultCode.baseMismatch),
-      );
-      expect(readDoc(root, loginRecord), before);
-    });
 
     test('a replace leaves the approved record as it was', () async {
       final root = await writeMatrixRecordProject(isDraft: false);

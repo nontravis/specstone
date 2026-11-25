@@ -106,20 +106,19 @@ void main() {
         (loginNf, null, 'login/email_login/sign_in_time'),
       ],
     );
-  });
 
-  test('one rule in three docs gives one group of three items', () async {
-    final project = await writeCheckProject(
-      extra: {
-        ..._edge('When the Agent runs it, $_clause for the Agent.'),
-        ..._statement('The system shall hold that $_clause, always.'),
-        ..._invariant('Every run: $_clause, in short.'),
-      },
+    final three = _groupsOf(
+      await writeCheckProject(
+        extra: {
+          ..._edge('When the Agent runs it, $_clause for the Agent.'),
+          ..._statement('The system shall hold that $_clause, always.'),
+          ..._invariant('Every run: $_clause, in short.'),
+        },
+      ),
     );
-    final groups = _groupsOf(project);
-    expect(groups, hasLength(1));
+    expect(three, hasLength(1));
     expect(
-      [for (final i in groups.single.items) i.docPath],
+      [for (final i in three.single.items) i.docPath],
       [loginFr, loginNf, _domain],
     );
   });
@@ -146,6 +145,7 @@ void main() {
       },
     );
     expect(_groupsOf(project), isEmpty);
+    expect(_groupsOf(await writeCheckProject()), isEmpty);
   });
 
   test('two items of one doc that share a run give no group', () async {
@@ -381,6 +381,19 @@ void main() {
     );
     final runs = [for (final g in _groupsOf(project)) g.run]..sort();
     expect(runs, ['k0 k1 k2 k3 k4 k5 k6 k7 k8', 'k1 k2 k3 k4 k5 k6 k7 k8 k9']);
+
+    final shorter = await writeCheckProject(
+      extra: {
+        ..._edge('Alpha opens p1 p2 p3 p4 p5 p6 p7 p8 p9 closes.'),
+        ..._statement(
+          'Beta begins p1 p2 p3 p4 p5 p6 p7 p8 qq p2 p3 p4 p5 p6 p7 p8 p9 ends.',
+        ),
+      },
+    );
+    expect([for (final g in _groupsOf(shorter)) g.run]..sort(), [
+      'p1 p2 p3 p4 p5 p6 p7 p8',
+      'p2 p3 p4 p5 p6 p7 p8 p9',
+    ]);
   });
 
   test('a run that 14 docs hold gives one group of 14 items beside the longer run 13 of them hold', () async {
@@ -404,22 +417,6 @@ void main() {
     });
   });
 
-  test(
-    'windows another doc holds apart are not merged into one run for it',
-    () async {
-      final project = await writeCheckProject(
-        extra: {
-          ..._edge('Alpha opens p1 p2 p3 p4 p5 p6 p7 p8 p9 closes.'),
-          ..._statement(
-            'Beta begins p1 p2 p3 p4 p5 p6 p7 p8 qq p2 p3 p4 p5 p6 p7 p8 p9 ends.',
-          ),
-        },
-      );
-      final runs = [for (final g in _groupsOf(project)) g.run]..sort();
-      expect(runs, ['p1 p2 p3 p4 p5 p6 p7 p8', 'p2 p3 p4 p5 p6 p7 p8 p9']);
-    },
-  );
-
   test('a target keeps only the groups that hold an item of its docs, each listing every item', () async {
     const other =
         'two docs agree on the second clause that the first target never reads aloud';
@@ -438,10 +435,6 @@ void main() {
     expect(kept, hasLength(1));
     expect(kept.single.run, _run);
     expect([for (final i in kept.single.items) i.docPath], [loginFr, loginNf]);
-  });
-
-  test('docs that share no run give no group', () async {
-    expect(_groupsOf(await writeCheckProject()), isEmpty);
   });
 
   test(

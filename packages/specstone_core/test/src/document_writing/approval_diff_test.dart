@@ -40,13 +40,6 @@ void main() {
       expect(LineDiff(_old, _new).isEmpty, isFalse);
       expect(LineDiff('', _new).isEmpty, isFalse);
     });
-
-    test('refuses a negative context', () {
-      expect(
-        () => LineDiff(_old, _new).hunks(context: -1),
-        throwsArgumentError,
-      );
-    });
   });
 
   group('approvalDiff', () {
@@ -71,15 +64,12 @@ void main() {
       );
     });
 
-    test('context 0 gives zero-context hunks', () {
+    test('context 0 names the lines that differ and carries no context', () {
       expect(
         approvalDiff(_old, _new, context: 0),
         '@@ -2 +2 @@\n-verify_method: test\n+verify_method: demonstration\n'
         '@@ -11 +11 @@\n-R.\n+R2.\n',
       );
-    });
-
-    test('context 0 names the lines that differ and carries no context', () {
       expect(
         approvalDiff('a\nb\nc\n', 'a\nB\nc\n', context: 0),
         '@@ -2 +2 @@\n-b\n+B\n',
@@ -104,14 +94,11 @@ void main() {
       expect(approvalDiff('', 'a\n', context: 0), '@@ -0,0 +1 @@\n+a\n');
     });
 
-    test('context n gives n lines', () {
+    test('context n merges hunks whose shown lines touch', () {
       expect(
         approvalDiff(_old, _new, context: 1),
         startsWith('@@ -1,3 +1,3 @@\n ---\n'),
       );
-    });
-
-    test('context n merges hunks whose shown lines touch', () {
       const before = 'a\nb\nc\nd\ne\nf\n';
       const after = 'A\nb\nc\nd\ne\nF\n';
       expect(
@@ -177,9 +164,6 @@ void main() {
     test('equal texts give no hunk', () {
       expect(approvalDiff(_old, _old), '');
       expect(approvalDiff('', ''), '');
-    });
-
-    test('CRLF and LF texts with the same lines are equal', () {
       expect(approvalDiff('a\r\nb\r\n', 'a\nb\n'), '');
     });
   });

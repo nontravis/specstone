@@ -150,17 +150,6 @@ void main() {
         expect(paths(refresh(project).store), isNot(contains(record)));
       },
     );
-    test('an edit to a record reindexes that record only', () async {
-      const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
-      final project = await writeLoginProject(
-        extra: {...recordsRootTemplates, record: '# Login implementation\n'},
-      );
-      refresh(project);
-      File('${project.path}/$record').writeAsStringSync('# Login v2\n');
-      final again = refresh(project);
-      expect(again.result.reindexed, 1);
-      expect(docAt(again.store, record).title, 'Login v2');
-    });
     test(
       'an unchanged file is never reindexed; one edit reindexes one file',
       () async {
@@ -168,17 +157,12 @@ void main() {
         refresh(project);
         expect(refresh(project).result.reindexed, 0);
         File('${project.path}/$featureKey').writeAsStringSync('# Login v2\n');
-        final again = refresh(project).result;
-        expect(again.fullBuild, isFalse);
-        expect(again.reindexed, 1);
+        final again = refresh(project);
+        expect(again.result.fullBuild, isFalse);
+        expect(again.result.reindexed, 1);
+        expect(docAt(again.store, featureDoc).title, 'Login v2');
       },
     );
-    test('the answer reflects every edit made before the call', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      File('${project.path}/$featureKey').writeAsStringSync('# Login v2\n');
-      expect(docAt(refresh(project).store, featureDoc).title, 'Login v2');
-    });
     test(
       'a warm refresh with no change hashes no file and writes nothing',
       () async {
@@ -414,185 +398,53 @@ void main() {
       expect(result.fullBuild, isTrue);
       expect(paths(store), hasLength(24));
     });
-    test('an index at layout 1, with no line facts, is rebuilt to layout 2 with them', () async {
-      final project = await writeLoginProject();
+    test('old layout row triggers full rebuild', () async {
+      final project = await writeLoginProject(
+        extra: {'docs/note.md': '# N\n\nTBR — pick a value.\n'},
+      );
       refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('ALTER TABLE docs DROP COLUMN line_facts')
-        ..execute('ALTER TABLE sections DROP COLUMN line_count')
-        ..execute('ALTER TABLE sections DROP COLUMN char_count')
-        ..execute('UPDATE meta SET layout = 1')
-        ..close();
-      final (:result, :store) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      expect(paths(store), hasLength(24));
-      final facts = store
-          .loadContent('prds/features/f01_login/FEATURE.md')
-          .lineFacts;
-      expect(facts.lineCount, greaterThan(0));
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
-    });
-    test('an index at layout 2 is rebuilt to the current layout', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('UPDATE meta SET layout = 2')
-        ..close();
-      final (:result, store: _) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
-    });
-    test('an index at layout 3 is rebuilt to the current layout', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('UPDATE meta SET layout = 3')
-        ..close();
-      final (:result, store: _) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
-    });
-    test('an index at layout 4, with no banned-pattern '
-        'matches, is rebuilt to the current layout with them', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('ALTER TABLE docs DROP COLUMN banned_matches')
-        ..execute('UPDATE meta SET layout = 4')
-        ..close();
-      final (:result, store: _) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
-      expect(after.select('SELECT banned_matches FROM docs'), hasLength(24));
-    });
-    test('an index at layout 5, its banned-pattern '
-        'matches from the old backtick pairing, is rebuilt to the current layout with '
-        'them recomputed', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute("UPDATE docs SET banned_matches = 'stale'")
-        ..execute('UPDATE meta SET layout = 5')
-        ..close();
-      final (:result, store: _) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
-      expect(
-        after.select(
-          "SELECT doc_path FROM docs WHERE banned_matches = 'stale'",
-        ),
-        isEmpty,
-      );
-    });
-    test('an index at layout 6, its undeclared keys hyphenated, is rebuilt to the current layout', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('UPDATE meta SET layout = 6')
-        ..close();
-      final (:result, store: _) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
-    });
-    test(
-      'an index at '
-      'layout 11 is rebuilt to the current layout with the TBR markers filled',
-      () async {
-        final project = await writeLoginProject(
-          extra: {'docs/note.md': '# N\n\nTBR \u2014 pick a value.\n'},
-        );
-        refresh(project);
+      for (final layout in [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        11,
+        12,
+        15,
+        16,
+        17,
+        indexLayoutVersion - 1,
+      ]) {
         sqlite3.open('${project.path}/$indexFilePath')
-          ..execute('UPDATE meta SET layout = 11')
+          ..execute('UPDATE meta SET layout = $layout')
           ..close();
         final (:result, :store) = refresh(project);
-        expect(result.fullBuild, isTrue);
+        expect(result.fullBuild, isTrue, reason: 'layout $layout');
+        final items = store
+            .loadContent('prds/features/f01_login/FEATURE.md')
+            .itemFacts
+            .sectionItems
+            .expand((items) => items);
+        expect(items, isNotEmpty, reason: 'layout $layout');
+        expect(
+          items.any((item) => item.readability.cells.isNotEmpty),
+          isTrue,
+          reason: 'layout $layout',
+        );
         expect(store.loadContent('note.md').lineFacts.tbrMarkers, [
           const TbrMarkerPlace(line: 3, rest: 'pick a value.'),
-        ]);
+        ], reason: 'layout $layout');
         final after = sqlite3.open('${project.path}/$indexFilePath');
-        addTearDown(after.close);
         expect(
           after.select('SELECT layout FROM meta').single['layout'],
           indexLayoutVersion,
+          reason: 'layout $layout',
         );
-      },
-    );
-    test('an index at layout 12, with no item facts, '
-        'is rebuilt in full to the current layout with them', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('ALTER TABLE docs DROP COLUMN item_facts')
-        ..execute('UPDATE meta SET layout = 12')
-        ..close();
-      final (:result, :store) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      expect(
-        store
-            .loadContent('prds/features/f01_login/FEATURE.md')
-            .itemFacts
-            .sectionItems,
-        isNotEmpty,
-      );
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
-    });
-    test('old layout row triggers full rebuild', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('UPDATE meta SET layout = ${indexLayoutVersion - 1}')
-        ..close();
-      final (:result, :store) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      final items = store
-          .loadContent('prds/features/f01_login/FEATURE.md')
-          .itemFacts
-          .sectionItems
-          .expand((items) => items);
-      expect(items, isNotEmpty);
-      expect(items.any((item) => item.readability.cells.isNotEmpty), isTrue);
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
+        after.close();
+      }
     });
     test('index at the previous layout rebuilds with visible counts', () async {
       final project = await writeLoginProject(
@@ -627,63 +479,6 @@ void main() {
           .sectionItems
           .expand((items) => items);
       expect([for (final item in items) item.visibleChars], [15]);
-    });
-    test('an index at layout 15, its approval hashes counting record statuses, is rebuilt to the current layout', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('UPDATE meta SET layout = 15')
-        ..close();
-      final (:result, store: _) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
-    });
-    for (final old in [16, 17]) {
-      test(
-        "an index at layout $old, which lacks the other build's rows, is rebuilt to the current layout",
-        () async {
-          final project = await writeLoginProject();
-          refresh(project);
-          sqlite3.open('${project.path}/$indexFilePath')
-            ..execute('UPDATE meta SET layout = $old')
-            ..close();
-          final (:result, store: _) = refresh(project);
-          expect(result.fullBuild, isTrue);
-          final after = sqlite3.open('${project.path}/$indexFilePath');
-          addTearDown(after.close);
-          expect(
-            after.select('SELECT layout FROM meta').single['layout'],
-            indexLayoutVersion,
-          );
-        },
-      );
-    }
-    test('an index at layout 7, its line facts with no file links, is rebuilt to the current layout', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('UPDATE meta SET layout = 7')
-        ..close();
-      final (:result, :store) = refresh(project);
-      expect(result.fullBuild, isTrue);
-      expect(
-        store
-            .loadContent('prds/features/f01_login/FEATURE.md')
-            .lineFacts
-            .fileLinks,
-        isEmpty,
-      );
-      final after = sqlite3.open('${project.path}/$indexFilePath');
-      addTearDown(after.close);
-      expect(
-        after.select('SELECT layout FROM meta').single['layout'],
-        indexLayoutVersion,
-      );
     });
     test('a doc stored under layout 15, with '
         'no cite candidates and no item_words rows, holds both after the '
@@ -756,14 +551,6 @@ void main() {
         contains(markdownUnparsedWarning(frPath)),
       );
       expect(store.loadContent(frPath).lineFacts.citeCandidates, isEmpty);
-    });
-    test('an index at the current layout is not rebuilt', () async {
-      final project = await writeLoginProject();
-      refresh(project);
-      backdate(project);
-      refresh(project);
-      final (:result, store: _) = refresh(project);
-      expect(result.fullBuild, isFalse);
     });
     test('a call that waited for the lock finds the stamp current and does not rebuild', () async {
       final project = await writeLoginProject();
@@ -862,6 +649,9 @@ void main() {
       Directory('${project.path}/flutter_lib').createSync();
       String configWith(String targets) =>
           '${shippedPinsConfig()}targets:\n$targets';
+      File('${project.path}/.specstone/config.yaml')
+          .writeAsStringSync('${shippedPinsConfig()}code_root: flutter_lib\n');
+      refresh(project);
       File('${project.path}/.specstone/config.yaml').writeAsStringSync(
         configWith('  flutter:\n    code_root: flutter_lib\n'),
       );
@@ -920,6 +710,14 @@ void main() {
         isFalse,
         reason: 'a code_root change alone rebuilds nothing (INV-2)',
       );
+      File('${project.path}/.specstone/config.yaml').writeAsStringSync(
+        configWith('  flutter2:\n    code_root: flutter_lib2\n'),
+      );
+      expect(
+        refresh(project).result.fullBuild,
+        isTrue,
+        reason: 'a target removed',
+      );
     });
     test('an edit hidden by a matching stat is not seen until the file changes again', () async {
       final project = await writeLoginProject();
@@ -959,39 +757,6 @@ void main() {
       final seen = refresh(project);
       expect(seen.result.reindexed, 1);
       expect(docAt(seen.store, featureDoc).title, 'Logon v2');
-    });
-    test('a target removed from two, and targets put in place of code_root:, each rebuild the whole index', () async {
-      final project = await writeLoginProject();
-      for (final folder in ['flutter_lib', 'jaspr_lib']) {
-        Directory('${project.path}/$folder').createSync();
-      }
-      void configure(String body) =>
-          File('${project.path}/.specstone/config.yaml')
-              .writeAsStringSync('${shippedPinsConfig()}$body');
-      configure('code_root: flutter_lib\n');
-      expect(refresh(project).result.fullBuild, isTrue);
-      expect(refresh(project).result.fullBuild, isFalse);
-
-      configure('targets:\n  flutter:\n    code_root: flutter_lib\n');
-      expect(
-        refresh(project).result.fullBuild,
-        isTrue,
-        reason: 'targets: in place of code_root:',
-      );
-
-      configure(
-        'targets:\n  flutter:\n    code_root: flutter_lib\n'
-        '  jaspr:\n    code_root: jaspr_lib\n',
-      );
-      expect(refresh(project).result.fullBuild, isTrue, reason: 'two targets');
-      expect(refresh(project).result.fullBuild, isFalse);
-
-      configure('targets:\n  flutter:\n    code_root: flutter_lib\n');
-      expect(
-        refresh(project).result.fullBuild,
-        isTrue,
-        reason: 'a target removed',
-      );
     });
     test(
       'an edit under .specstone/templates/ rebuilds the whole index',
@@ -1187,17 +952,6 @@ void main() {
         final again = refresh(root);
         expect(again.store.loadCitedBy(), scanned(root, again.store));
         expect(again.store.loadCitedBy().keys, isNot(contains(item('INV-14'))));
-      });
-
-      test('a warm refresh with no change writes no row', () async {
-        final root = await project();
-        backdate(root);
-        refresh(root);
-        final written = watchWrites(root);
-        final again = refresh(root);
-        expect(again.result.reindexed, 0);
-        expect(written(), isFalse);
-        expect(again.store.loadCitedBy().keys, contains(item('INV-14')));
       });
     });
     test('a second feature named login leaves the story with no parent and a stored warning', () async {

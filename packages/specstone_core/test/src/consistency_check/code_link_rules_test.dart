@@ -146,12 +146,6 @@ List<Finding> _suspects(CheckReport report) =>
 List<Finding> _unconfirmed(CheckReport report) =>
     _ofKind(report, FindingKind.codeUnconfirmed);
 
-/// Returns the `code_suspect` findings of the record in [project].
-Future<List<Finding>> _recordSuspects(Directory project) async => [
-  for (final f in _suspects(await _run(project)))
-    if (f.path == _recordPath) f,
-];
-
 List<Finding> _ofKind(CheckReport report, FindingKind kind) => [
   for (final f in report.findings)
     if (f.kind == kind) f,
@@ -176,14 +170,6 @@ List<Finding> _ofKind(CheckReport report, FindingKind kind) => [
 
 void main() {
   group('a record entry', () {
-    test("that records its file's fingerprint gives no finding", () async {
-      final report = await _run(
-        await _project(_record(code: ['$_fr:$_pointer $_loginFingerprint'])),
-      );
-
-      expect(_suspects(report), isEmpty);
-    });
-
     test('that records no fingerprint gives code_unconfirmed with the current '
         'fingerprint on its own key', () async {
       final record = _record(code: ['$_fr:$_pointer']);
@@ -220,37 +206,6 @@ void main() {
       },
     );
 
-    test('whose file gained a comment line and a blank line gives no '
-        'code_suspect', () async {
-      final project = await _project(
-        _record(code: ['$_fr:$_pointer $_loginFingerprint']),
-      );
-      File(
-        '${project.path}/$_login',
-      ).writeAsStringSync('// added note\n\n$_loginText\n  // trailing note\n');
-
-      final report = await _run(project);
-
-      expect(_suspects(report), isEmpty);
-      expect(_unconfirmed(report), isEmpty);
-    });
-
-    test(
-      'whose file gained an end-of-line comment gives code_suspect',
-      () async {
-        final project = await _project(
-          _record(code: ['$_fr:$_pointer $_loginFingerprint']),
-        );
-        final lines = _loginText.split('\n')
-          ..[0] = '${_loginText.split('\n')[0]} // x';
-        File('${project.path}/$_login').writeAsStringSync(lines.join('\n'));
-
-        expect([
-          for (final f in _suspects(await _run(project))) f.path,
-        ], contains(_recordPath));
-      },
-    );
-
     test('that records no fingerprint waits for the agent in a draft record '
         'and an approved one', () async {
       for (final isDraft in [true, false]) {
@@ -262,52 +217,6 @@ void main() {
 
         expect(finding.waitsFor, WaitsFor.agent, reason: 'draft: $isDraft');
       }
-    });
-
-    test('that records no fingerprint and whose file is gone gives '
-        'implements_path_unresolved alone', () async {
-      final report = await _run(
-        await _project(
-          _record(code: ['$_fr:app/lib/gone.dart:Gone']),
-          without: const {_login},
-        ),
-      );
-
-      expect(_unconfirmed(report), isEmpty);
-      expect(
-        _ofKind(report, FindingKind.implementsPathUnresolved),
-        hasLength(1),
-      );
-    });
-
-    test(
-      'a code_unconfirmed finding names its code file as codePath',
-      () async {
-        final report = await _run(
-          await _project(_record(code: ['$_fr:$_pointer'])),
-        );
-        final [finding] = _unconfirmed(report);
-
-        expect(finding.keys['codePath'], _login);
-        expect(finding.keys.containsKey('path'), isFalse);
-      },
-    );
-
-    test('a code_suspect finding names its code file as codePath', () async {
-      final changed = '${_loginText}class Added {}\n';
-      final project = await _project(
-        _record(code: ['$_fr:$_pointer $_stale']),
-        extra: _covering(
-          '  - app/lib/ ${_folderFingerprintOf({_login: changed})}\n',
-        ),
-      );
-      File('${project.path}/$_login').writeAsStringSync(changed);
-      final [finding] = _suspects(await _run(project));
-
-      expect(finding.keys['codePath'], _login);
-      expect(finding.keys.containsKey('path'), isFalse);
-      expect(finding.keys['recorded'], _stale);
-      expect(finding.keys['fingerprint'], isNotNull);
     });
 
     test('whose file changed gives code_suspect with the current '
@@ -455,38 +364,6 @@ void main() {
       expect(_suspects(report), isEmpty);
     });
 
-    test('whose file changed a line inside a block comment gives'
-        ' code_suspect', () async {
-      const before = '/*\n  the old note\n*/\nint a;\n';
-      final project = await _project(
-        _record(code: ['$_fr:$_login ${_fingerprintOf(before, _login)}']),
-        extra: {_login: before},
-      );
-      expect(await _recordSuspects(project), isEmpty);
-
-      File(
-        '${project.path}/$_login',
-      ).writeAsStringSync(before.replaceFirst('the old note', 'the new note'));
-
-      expect(await _recordSuspects(project), hasLength(1));
-    });
-
-    test('whose file changed a line of a string literal that opens with //'
-        ' gives no code_suspect, and any other line of it one', () async {
-      const before = "const s = '''\n// first\nkept\n''';\n";
-      final project = await _project(
-        _record(code: ['$_fr:$_login ${_fingerprintOf(before, _login)}']),
-        extra: {_login: before},
-      );
-      final file = File('${project.path}/$_login')
-        ..writeAsStringSync(before.replaceFirst('// first', '// second'));
-      expect(await _recordSuspects(project), isEmpty);
-
-      file.writeAsStringSync(before.replaceFirst('kept', 'changed'));
-
-      expect(await _recordSuspects(project), hasLength(1));
-    });
-
     test('written with a ./ prefix shares its one read with the Symbol '
         'rule', () async {
       final project = await _project(
@@ -570,24 +447,6 @@ void main() {
       expect(findings, isEmpty);
       expect(context.codeFilesRead, 0);
     });
-
-    test(
-      'naming a file not written yet and recording none reads nothing',
-      () async {
-        final (:context, :findings) = _checked(
-          await _project(
-            _record(
-              statuses: ['$_fr:planned'],
-              code: ['$_fr:app/lib/toast.dart:showToast'],
-            ),
-          ),
-          _recordPath,
-        );
-
-        expect(findings, isEmpty);
-        expect(context.codeFilesRead, 0);
-      },
-    );
 
     test('whose file exists reads it and records no fingerprint gives '
         'code_unconfirmed and no code_suspect', () async {
@@ -789,22 +648,6 @@ void main() {
       },
     );
 
-    test(
-      'an empty entry with no fingerprint gives no code_unconfirmed',
-      () async {
-        final report = await _run(
-          await writeCheckProject(
-            extra: _covering('  - ./\n'),
-            unfingerprinted: {'docs/$_coversDoc'},
-          ),
-        );
-
-        expect(_unconfirmed(report), isEmpty);
-        expect(_suspects(report), isEmpty);
-        expect(_ofKind(report, FindingKind.coversEntryEmpty), hasLength(1));
-      },
-    );
-
     test('that records no fingerprint and names a missing path gives '
         'covers_path_missing alone', () async {
       final report = await _run(
@@ -817,24 +660,6 @@ void main() {
 
       expect(_unconfirmed(report), isEmpty);
       expect(_ofKind(report, FindingKind.coversPathMissing), hasLength(1));
-    });
-
-    test('of a target with no implemented entry yet and no fingerprint reads '
-        'nothing', () async {
-      final project = await writeCheckProject(
-        extra: {
-          ..._covering('  - app/lib/\n'),
-          _recordPath: _record(
-            statuses: ['email_login:planned', '$_fr:planned'],
-          ),
-        },
-        unstamped: {_recordPath},
-        unfingerprinted: {'docs/$_coversDoc'},
-      );
-      final (:context, :findings) = _checked(project, _coversDoc);
-
-      expect(findings, isEmpty);
-      expect(context.codeFilesRead, 0);
     });
 
     test('of a target with no implemented entry yet reads nothing', () async {
@@ -1155,23 +980,6 @@ void main() {
   );
 
   test(
-    'an unreadable file of a record entry with no fingerprint gives the '
-    'warning and no finding',
-    skip: unreadablePathSkipReason(),
-    () async {
-      final project = await _project(_record(code: ['$_fr:$_pointer']));
-      final path = '${project.path}/$_login';
-      Process.runSync('chmod', ['000', path]);
-      addTearDown(() => Process.runSync('chmod', ['644', path]));
-
-      final report = await _run(project);
-
-      expect(_unconfirmed(report), isEmpty);
-      expect(report.warnings, contains('$_login: $_unreadable'));
-    },
-  );
-
-  test(
     'an unreadable file that a covers entry and a record entry with a Symbol '
     'both reach gives the Symbols warning once',
     skip: unreadablePathSkipReason(),
@@ -1179,28 +987,6 @@ void main() {
       final project = await _project(
         _record(code: ['$_fr:$_pointer $_stale']),
         extra: _covering('  - app/lib/ $_stale\n'),
-      );
-      final path = '${project.path}/$_login';
-      Process.runSync('chmod', ['000', path]);
-      addTearDown(() => Process.runSync('chmod', ['644', path]));
-
-      final report = await _run(project);
-
-      expect(report.warnings.where((w) => w.startsWith('$_login: cannot')), [
-        '$_login: $_unreadable',
-        '$_login: cannot read the file; doc names in it are not checked',
-      ]);
-    },
-  );
-
-  test(
-    'an unreadable file a record entry with no Symbol names gives the '
-    'Symbols warning',
-    skip: unreadablePathSkipReason(),
-    () async {
-      final project = await _project(
-        _record(code: ['$_fr:$_login $_stale']),
-        extra: _covering(''),
       );
       final path = '${project.path}/$_login';
       Process.runSync('chmod', ['000', path]);

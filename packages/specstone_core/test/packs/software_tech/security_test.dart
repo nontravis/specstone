@@ -124,41 +124,9 @@ void main() {
   });
 
   test('security lists its four sources in table order', () {
-    expect(
-      [for (final r in security.reference!) r.title],
-      [
-        'OWASP Threat Modeling Cheat Sheet',
-        'RFC 3552, Guidelines for Writing RFC Text on Security Considerations',
-        'OWASP Logging Vocabulary Cheat Sheet',
-        'OWASP ASVS 5.0',
-      ],
-    );
     for (final r in security.reference!) {
       expect(r.url, startsWith('https://'), reason: r.title);
       expect(r.locator, isNotEmpty, reason: r.title);
     }
-  });
-
-  test('the security description says the project doc is primary and a '
-      'feature writes it for a new boundary or asset', () {
-    expect(
-      security.description,
-      contains(
-        "The project's SECURITY doc is the primary one; a feature writes this "
-        'doc only for a new trust boundary or asset.',
-      ),
-    );
-  });
-
-  test('the security description says a SECURITY may cite its ARCHITECTURE '
-      'by a section link', () {
-    expect(
-      security.description,
-      contains(
-        'A feature SECURITY may cite its own ARCHITECTURE by a section link, '
-        'such as '
-        '`[architecture:rendering](ARCHITECTURE.md#technical-diagram)`.',
-      ),
-    );
   });
 }

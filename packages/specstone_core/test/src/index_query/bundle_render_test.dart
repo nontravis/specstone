@@ -485,22 +485,6 @@ void main() {
     );
     expect(a.text, isNot(contains('## Rationale')));
   });
-  test('a query on a spec doc prints it whole and its feature cut', () {
-    final a = ctx('architecture:login', BundleMode.query);
-    expect(
-      a.text,
-      contains('# Login architecture\n\n## Components {#components}\n'),
-    );
-    expect(a.text, isNot(contains('## Tier-2 decisions')));
-    expect(
-      a.text,
-      isNot(
-        contains(
-          '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n# Login',
-        ),
-      ),
-    );
-  });
   test('a query on a spec doc prints it whole and its feature with its query sections alone', () async {
     final i = await indexWith({
       featureKey:
@@ -788,17 +772,16 @@ void main() {
     });
 
     test('a comment holding a lone backtick still drops', () async {
-      final text = await featureWith('a <!-- it`s --> b `c`');
+      const cases = [
+        ('a <!-- it`s --> b `c`', '## Problem {#problem}\na  b `c`', 'it`s'),
+        ('<!-- a ` --> b ` c', '## Problem {#problem}\n b ` c', '-->'),
+      ];
+      for (final (problem, kept, dropped) in cases) {
+        final text = await featureWith(problem);
 
-      expect(text, contains('## Problem {#problem}\na  b `c`'));
-      expect(text, isNot(contains('it`s')));
-    });
-
-    test('a comment holding a backtick pair still drops', () async {
-      final text = await featureWith('<!-- a ` --> b ` c');
-
-      expect(text, isNot(contains('-->')));
-      expect(text, contains('## Problem {#problem}\n b ` c'));
+        expect(text, contains(kept), reason: problem);
+        expect(text, isNot(contains(dropped)), reason: problem);
+      }
     });
 
     test('a comment holding a complete code span drops whole up to its first closing marker', () async {
@@ -812,16 +795,20 @@ void main() {
     });
 
     test('a comment holding a fenced block still drops', () async {
-      final text = await featureWith('Before\n<!-- x\n```\ny\n```\n-->\nAfter');
+      const cases = [
+        ('Before\n<!-- x\n```\ny\n```\n-->\nAfter', '```'),
+        ('Before\n<!-- one\ntwo\nthree -->\nAfter', 'two'),
+      ];
+      for (final (problem, dropped) in cases) {
+        final text = await featureWith(problem);
 
-      expect(text, contains('## Problem {#problem}\nBefore\n\nAfter'));
-      expect(text, isNot(contains('```')));
-    });
-
-    test('a comment block over several lines drops whole', () async {
-      final text = await featureWith('Before\n<!-- one\ntwo\nthree -->\nAfter');
-      expect(text, contains('## Problem {#problem}\nBefore\n\nAfter'));
-      expect(text, isNot(contains('two')));
+        expect(
+          text,
+          contains('## Problem {#problem}\nBefore\n\nAfter'),
+          reason: problem,
+        );
+        expect(text, isNot(contains(dropped)), reason: problem);
+      }
     });
 
     test(
@@ -1282,17 +1269,6 @@ void main() {
       );
       expect(a.json['tokens'], tokenSizeOf(shown(a)));
     });
-    test("a picked part's item prints its cited-by lines right after it in a design bundle", () async {
-      final a = design(await citedIndex());
-      expect(
-        a.text,
-        contains(
-          '2. E02 — A locked account → refused.\n'
-          '  · cited by guide (charter) — #purpose\n',
-        ),
-      );
-      expect('cited by guide'.allMatches(a.text), hasLength(1));
-    });
     test('an appended item prints no cited-by line', () async {
       final a = design(await citedIndex());
       expect(
@@ -1444,12 +1420,6 @@ void main() {
       expect(a.text, isNot(contains('cited by $frName')));
       expect(a.text, isNot(contains('· cited by guide')));
     });
-    test('the lines count toward the budget', () async {
-      final i = await citedIndex();
-      final tokens = design(i).json['tokens']! as int;
-      expect(design(i, budget: tokens).exitStatus, 0);
-      expect(design(i, budget: tokens - 1).exitStatus, 1);
-    });
     test('a bundle whose size without its cited-by lines fits the budget goes over it once the lines count', () async {
       final i = await citedIndex();
       final a = design(i);
@@ -1497,9 +1467,6 @@ void main() {
       final a = ctx('login/email_login', BundleMode.implement, budget: tokens);
       expect(a.exitStatus, 0);
       expect(a.text, contains('## Statement'));
-    });
-    test('query bundles meet the same budget rule', () async {
-      expect(ctx('login', BundleMode.query, budget: 1).exitStatus, 1);
     });
     test('with --no-project the budget counts only what prints', () async {
       final narrow =
@@ -2139,32 +2106,33 @@ void main() {
       expect(cut.containsKey('citedBy'), isFalse);
     });
     test('a goal bundle prints a measurement whose Results is prose whole in its summary', () async {
-      final i = await indexWith({
-        'docs/prds/GOAL.md':
-            '# Project goals\n\n## Short-term goals\n\n### PG-01 — Fewer resets\n'
-            '- **Serves:** PV-01\n- **Statement:** Resets fall.\n'
-            '- **Metric:** halve resets per week; measured in [fewer_resets](../measurements/fewer_resets/MEASUREMENT.md)\n'
-            '- **By:** 1.0 release\n',
-        measurement:
-            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Method\n1. Count.\n\n'
-            '## Results\nRun one met the goal; run two halved resets.\n\n## Open causes\nN/A\n',
-      });
-      final text = ctxIn(i, 'goal', BundleMode.implement).text;
+      for (final results in [
+        'Run one met the goal; run two halved resets.',
+        'Run one met the goal.',
+      ]) {
+        final i = await indexWith({
+          'docs/prds/GOAL.md':
+              '# Project goals\n\n## Short-term goals\n\n### PG-01 — Fewer resets\n'
+              '- **Serves:** PV-01\n- **Statement:** Resets fall.\n'
+              '- **Metric:** halve resets per week; measured in [fewer_resets](../measurements/fewer_resets/MEASUREMENT.md)\n'
+              '- **By:** 1.0 release\n',
+          measurement:
+              '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Method\n1. Count.\n\n'
+              '## Results\n$results\n\n## Open causes\nN/A\n',
+        });
+        final text = ctxIn(i, 'goal', BundleMode.implement).text;
 
-      expect(
-        text,
-        contains(
-          '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md · summary · cited <==\n'
-          '# Fewer resets\n\n## Scope {#scope}\n- Resets per week.\n\n## Results {#results}\n'
-          'Run one met the goal; run two halved resets.\n',
-        ),
-      );
-      expect(text, isNot(contains('## Method')));
-    });
-    test('a summary_rows section written as prose prints whole', () async {
-      final text = await printed('Run one met the goal.');
-
-      expect(text, contains('## Results {#results}\nRun one met the goal.\n'));
+        expect(
+          text,
+          contains(
+            '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md · summary · cited <==\n'
+            '# Fewer resets\n\n## Scope {#scope}\n- Resets per week.\n\n## Results {#results}\n'
+            '$results\n',
+          ),
+          reason: results,
+        );
+        expect(text, isNot(contains('## Method')), reason: results);
+      }
     });
     test(
       'a summary_rows table with no body row prints its lead and header rows',
@@ -2310,24 +2278,6 @@ void main() {
       expect(part['summary'], isTrue);
       expect(part['section'], 'results');
       expect(part['text'], cut);
-    });
-    test('a normal reply gives the cut object cited: true and section, with no item, and lists it before the next-step line', () async {
-      final a = await projectBundle();
-      final part = (a.json['docs']! as List)
-          .cast<Map<String, Object?>>()
-          .firstWhere((d) => d['name'] == 'fewer_resets');
-
-      expect(part['cited'], isTrue);
-      expect(part['section'], 'results');
-      expect(part.containsKey('item'), isFalse);
-      expect(a.exitStatus, 0);
-      expect(
-        a.text,
-        contains(
-          '- fewer_resets (measurement) · summary · cited results\n'
-          'Read a summary doc whole with: specstone context <name> --for implement\n',
-        ),
-      );
     });
     test('lists marked in the over-budget reply, with its size and its keys', () async {
       final a = await projectBundle(budget: 1);
@@ -2960,6 +2910,7 @@ void main() {
         expect(a.text, contains(item));
         expect(a.text.indexOf(row), lessThan(a.text.indexOf(item)));
         expect(a.text, isNot(contains('dropItem')));
+        expect(a.refs!.text, contains('dropItem'));
         expect(
           listOf(a.text),
           containsAllInOrder([
@@ -3076,6 +3027,12 @@ void main() {
             '[INV-3]($toDomain#invariants), see '
             '[the entities]($toDomain#entities).',
           ),
+          'docs/$shopArchitecture': lines([
+            '# Shop architecture',
+            '',
+            '## Interaction',
+            'A paragraph that cites [the fr]($toFr).',
+          ]),
           'docs/$shopDomain': domainOf([
             '## Entities',
             '- Order',
@@ -3108,6 +3065,12 @@ void main() {
           orderedEquals(
             [for (final block in printed) a.text.indexOf(block)]..sort(),
           ),
+        );
+        expect(
+          a.text.indexOf(
+            '==> shop (architecture) · $shopArchitecture#interaction',
+          ),
+          inInclusiveRange(0, a.text.indexOf(section)),
         );
         expect(a.text, isNot(contains('INV-4')));
         expect(
@@ -3311,24 +3274,13 @@ void main() {
               .nonNulls,
           ['RULE-1'],
         );
-      });
-
-      test("an ancestor DOMAIN's link outside its pieces appends nothing in a split design bundle", () async {
-        final a = await splitNested({
-          'docs/$cartAddFr': fr('Holds [INV-1]($toDomain#invariants).'),
-          'docs/$shopDomain': domainOf([
-            '## Invariants',
-            '- **INV-1** An order holds a line, by [RULE-1](../topics/ordering.md#rules).',
-            '- **INV-2** An order ships, by [RULE-2](../topics/ordering.md#rules).',
-          ]),
-          'docs/specs/topics/ordering.md': '# Ordering\n\n## Rules\n- **RULE-1** Orders ship in order.\n- **RULE-2** Orders pay first.\n',
-        });
-
-        expect(a.refs!.text, contains('· item RULE-1 · cited <=='));
         expect(
-          [for (final d in a.json['docs']! as List) (d as Map)['item']]
-              .nonNulls,
-          ['RULE-1'],
+          listOf(a.refs!.text),
+          contains('- ordering (charter) · cited rules [RULE-1]'),
+        );
+        expect(
+          listOf(a.text),
+          contains('- shop (rulebook) · cited invariants [INV-1]'),
         );
       });
 
@@ -3388,26 +3340,6 @@ void main() {
               e.kind == BundleEntryKind.cites)
             '${e.doc.name}|${e.kind.name}|${e.sectionKey}|${e.itemId}',
       ];
-
-      test('a story target sends cart spec doc and shop spec docs whole to the refs text, none to the read-first text', () async {
-        final a = await splitNested({});
-
-        for (final name in [
-          'shop/cart (rulebook)',
-          'shop (api)',
-          'shop (architecture)',
-          'shop (rulebook)',
-        ]) {
-          expect(listOf(a.refs!.text), contains('- $name'), reason: name);
-          expect(listOf(a.text), isNot(contains('- $name')), reason: name);
-        }
-        expect(
-          a.refs!.text,
-          contains('- **INV-1** An order holds at least one line.'),
-        );
-        expect(a.text, isNot(contains('INV-1')));
-        expect(a.text, contains('==> shop/cart/add_item (user_story) · '));
-      });
 
       test('a sub-feature target keeps its own spec doc whole in the read-first text and sends the parent spec docs whole to the refs text', () async {
         final a = await splitNested({}, name: 'shop/cart');
@@ -3503,32 +3435,6 @@ void main() {
             '- **INV-2** An order has an owner.',
           ),
         );
-      });
-
-      test('a row of the API table that links the FR prints in the read-first text under the table header and separator rows', () async {
-        final a = await splitNested({
-          'docs/$shopApi': lines([
-            '# Shop API',
-            '',
-            '## Operations',
-            '| Operation | Story | Notes |',
-            '|---|---|---|',
-            '| `addItem` | [check stock]($toFr) | adds |',
-            '| `dropItem` | other | drops |',
-          ]),
-        });
-
-        expect(
-          a.text,
-          contains(
-            '==> shop (api) · $shopApi#operations · cites <==\n'
-            '| Operation | Story | Notes |\n'
-            '|---|---|---|\n'
-            '| `addItem` | [check stock]($toFr) | adds |\n',
-          ),
-        );
-        expect(a.text, isNot(contains('dropItem')));
-        expect(a.refs!.text, contains('dropItem'));
       });
 
       test('an invariant that the FR links and that links the FR prints once, as an outbound piece', () async {
@@ -3688,38 +3594,6 @@ void main() {
         expect(a.text, isNot(contains('INV-3')));
       });
 
-      test('an ancestor block piece names its section key, then block and its anchor', () async {
-        final a = await splitNested({
-          'docs/$cartAddFr': fr('See [the flow]($toArch#cart-service).'),
-          'docs/$shopArchitecture': lines([
-            '# Shop architecture',
-            '',
-            '## Component details',
-            '### Cart service',
-            'It stores.',
-            '',
-            '## Concerns',
-            '### Audit',
-            'See [the fr]($toFr).',
-          ]),
-        });
-
-        expect(
-          a.text,
-          contains(
-            '==> shop (architecture) · $shopArchitecture#component_details · block cart-service · cited <==\n'
-            '### Cart service\nIt stores.\n',
-          ),
-        );
-        expect(
-          a.text,
-          contains(
-            '==> shop (architecture) · $shopArchitecture#concerns · block audit · cites <==\n'
-            '### Audit\nSee [the fr]($toFr).\n',
-          ),
-        );
-      });
-
       test('an invariant that links the FR, which links nothing of it, prints with its nested items as an inbound piece', () async {
         final a = await splitNested({
           'docs/$shopDomain': domainOf([
@@ -3789,187 +3663,6 @@ void main() {
         );
         expect(block.text, isNot(contains('item INV-1')));
         expect('An order holds a line.'.allMatches(block.text), hasLength(1));
-      });
-
-      test('a design bundle lists each ancestor spec piece in the read-first list and the doc whole in the refs list', () async {
-        final a = await splitNested({
-          'docs/$cartAddFr': fr('Holds [INV-1]($toDomain#invariants).'),
-          'docs/$shopDomain': domainOf([
-            '## Invariants',
-            '- **INV-1** An order holds a line.',
-            '- **INV-2** An order has an owner.',
-          ]),
-        });
-
-        expect(
-          listOf(a.text),
-          contains('- shop (rulebook) · cited invariants [INV-1]'),
-        );
-        expect(listOf(a.text), isNot(contains('- shop (rulebook)')));
-        expect(listOf(a.refs!.text), contains('- shop (rulebook)'));
-        expect(
-          listOf(a.refs!.text),
-          isNot(contains('- shop (rulebook) · cited invariants [INV-1]')),
-        );
-      });
-
-      test('a split design bundle prints a piece of the DOMAIN and a row of the API at their docs places, each with its list line, and keeps both docs whole in the refs text', () async {
-        final a = await splitNested({
-          'docs/$cartAddFr': fr('Holds [INV-1]($toDomain#invariants).'),
-          'docs/$shopDomain': domainOf([
-            '## Invariants',
-            '- **INV-1** An order holds a line.',
-            '- **INV-2** An order has an owner.',
-          ]),
-          'docs/$shopApi': lines([
-            '# Shop API',
-            '',
-            '## Operations',
-            '| Operation | Story |',
-            '|---|---|',
-            '| `addItem` | [check stock]($toFr) |',
-            '| `dropItem` | other |',
-          ]),
-        });
-
-        const apiPiece =
-            '==> shop (api) · $shopApi#operations · cites <==\n'
-            '| Operation | Story |\n|---|---|\n| `addItem` | [check stock]($toFr) |\n';
-        const domainPiece =
-            '==> shop (rulebook) · $shopDomain#invariants · item INV-1 · cited <==\n'
-            '- **INV-1** An order holds a line.\n';
-        expect(a.text, contains(apiPiece));
-        expect(a.text, contains(domainPiece));
-        expect(a.text.indexOf(apiPiece), lessThan(a.text.indexOf(domainPiece)));
-        expect(
-          listOf(a.text),
-          contains('- shop (rulebook) · cited invariants [INV-1]'),
-        );
-        expect(listOf(a.text), contains('- shop (api) · cites operations'));
-        for (final (name, path) in [
-          ('shop (api)', shopApi),
-          ('shop (rulebook)', shopDomain),
-        ]) {
-          expect(
-            '==> $name · $path <==\n'.allMatches(a.refs!.text),
-            hasLength(1),
-            reason: name,
-          );
-          expect(listOf(a.refs!.text), contains('- $name'), reason: name);
-        }
-        expect(a.refs!.text, contains('dropItem'));
-        expect(a.text, isNot(contains('dropItem')));
-      });
-
-      test('a paragraph of the overview and a block of the components that link the FR print as two pieces in file order', () async {
-        final a = await splitNested({
-          'docs/$shopArchitecture': lines([
-            '# Shop architecture',
-            '',
-            '## Overview',
-            'A paragraph that cites [the fr]($toFr)',
-            'and wraps.',
-            '',
-            'Other paragraph.',
-            '',
-            '## Components',
-            '### Cart service',
-            'The service asks [the fr]($toFr).',
-            'It then stores.',
-          ]),
-        });
-
-        const paragraph =
-            '==> shop (architecture) · $shopArchitecture#overview · cites <==\n'
-            'A paragraph that cites [the fr]($toFr)\nand wraps.\n';
-        const block =
-            '==> shop (architecture) · $shopArchitecture#components · block cart-service · cites <==\n'
-            '### Cart service\nThe service asks [the fr]($toFr).\nIt then stores.\n';
-        expect(a.text, contains(paragraph));
-        expect(a.text, contains(block));
-        expect(a.text.indexOf(paragraph), lessThan(a.text.indexOf(block)));
-        expect(a.text, isNot(contains('Other paragraph.')));
-        expect(
-          listOf(a.text),
-          containsAllInOrder([
-            '- shop (architecture) · cites overview',
-            '- shop (architecture) · cites components',
-          ]),
-        );
-      });
-
-      test('an invariant that links the FR prints under a cites naming line and lists as cites with its ID', () async {
-        final a = await splitNested({
-          'docs/$shopDomain': domainOf([
-            '## Invariants',
-            '- **INV-1** First.',
-            '- **INV-2** Second, backs [the fr]($toFr).',
-          ]),
-        });
-
-        expect(
-          a.text,
-          contains(
-            '==> shop (rulebook) · $shopDomain#invariants · item INV-2 · cites <==\n'
-            '- **INV-2** Second, backs [the fr]($toFr).\n',
-          ),
-        );
-        expect(
-          listOf(a.text),
-          contains('- shop (rulebook) · cites invariants [INV-2]'),
-        );
-        expect(
-          listOf(a.text),
-          isNot(contains('- shop (rulebook) · cited invariants [INV-2]')),
-        );
-      });
-
-      test('a range and a section the FR links print at the DOMAIN place, after the pieces of the docs before it', () async {
-        final a = await splitNested({
-          'docs/$cartAddFr': fr(
-            'Holds [INV-1]($toDomain#invariants) to '
-            '[INV-2]($toDomain#invariants), see '
-            '[the entities]($toDomain#entities).',
-          ),
-          'docs/$shopArchitecture': lines([
-            '# Shop architecture',
-            '',
-            '## Interaction',
-            'A paragraph that cites [the fr]($toFr).',
-          ]),
-          'docs/$shopDomain': domainOf([
-            '## Entities',
-            '- Order',
-            '',
-            '## Invariants',
-            '- **INV-1** First.',
-            '- **INV-2** Second.',
-            '- **INV-3** Third.',
-          ]),
-        });
-
-        final arch = a.text.indexOf(
-          '==> shop (architecture) · $shopArchitecture#interaction',
-        );
-        final entities = a.text.indexOf(
-          '==> shop (rulebook) · $shopDomain#entities · cited <==\n## Entities\n- Order\n',
-        );
-        final inv1 = a.text.indexOf(
-          '==> shop (rulebook) · $shopDomain#invariants · item INV-1 · cited <==\n- **INV-1** First.\n',
-        );
-        final inv2 = a.text.indexOf(
-          '==> shop (rulebook) · $shopDomain#invariants · item INV-2 · cited <==\n- **INV-2** Second.\n',
-        );
-        expect(arch, greaterThanOrEqualTo(0));
-        expect([
-          arch,
-          entities,
-          inv1,
-          inv2,
-        ], orderedEquals([arch, entities, inv1, inv2]..sort()));
-        expect(entities, greaterThan(arch));
-        expect(a.text, isNot(contains('INV-3')));
-        expect(listOf(a.text), contains('- shop (rulebook) · cited entities'));
       });
 
       group('cited-by lines of an ancestor spec doc', () {
@@ -4068,59 +3761,6 @@ void main() {
                 if (e.kind == BundleEntryKind.citedBy) e.doc.name,
             ],
             ['shop'],
-          );
-        });
-
-        test('a nested FR keeps its own link to an invariant out of the cited-by lines, and the refs cited-by part holds the other story line alone', () async {
-          final a = await splitNested({
-            'docs/$cartAddFr': fr('Holds [INV-1]($toStory).'),
-            'docs/$payCard': payStory,
-            'docs/$shopDomain': domain,
-          });
-
-          const piece =
-              '==> shop (rulebook) · $shopDomain#invariants · item INV-1 · cited <==\n'
-              '- **INV-1** An order holds a line.\n';
-          expect(a.text, contains(piece));
-          expect(a.text, isNot(contains('· cited by')));
-          const citedBy =
-              '==> shop (rulebook) · $shopDomain#invariants · item INV-1 · cited by <==\n';
-          expect(citedBy.allMatches(a.refs!.text), hasLength(1));
-          expect('  · cited by '.allMatches(a.refs!.text), hasLength(1));
-          expect(
-            a.refs!.text,
-            contains('  · cited by shop/pay/card (user_story) — #use_case\n'),
-          );
-          expect(a.refs!.text, isNot(contains('check_stock')));
-        });
-
-        test('an invariant that links a topic rule stays a piece in the read-first text while the rule is appended in the refs text', () async {
-          final a = await splitNested({
-            'docs/$cartAddFr': fr('Holds [INV-1]($toStory).'),
-            'docs/$shopDomain': domainOf([
-              '## Invariants',
-              '- **INV-1** An order holds a line, by [RULE-1](../topics/ordering.md#rules).',
-            ]),
-            'docs/specs/topics/ordering.md':
-                '# Ordering\n\n## Rules\n- **RULE-1** Orders ship in order.\n',
-          });
-
-          const piece =
-              '==> shop (rulebook) · $shopDomain#invariants · item INV-1 · cited <==\n';
-          const rule =
-              '==> ordering (charter) · specs/topics/ordering.md#rules · item RULE-1 · cited <==\n'
-              '- **RULE-1** Orders ship in order.\n';
-          expect(piece.allMatches(a.text), hasLength(1));
-          expect(a.refs!.text, isNot(contains(piece)));
-          expect(a.refs!.text, contains(rule));
-          expect(a.text, isNot(contains(rule)));
-          expect(
-            listOf(a.refs!.text),
-            contains('- ordering (charter) · cited rules [RULE-1]'),
-          );
-          expect(
-            listOf(a.text),
-            contains('- shop (rulebook) · cited invariants [INV-1]'),
           );
         });
 

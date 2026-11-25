@@ -31,6 +31,7 @@ void main() {
         'x\u2028> after separator\u2029> and another\r> after CR',
         '\ufeff> bom\n\u3000> ideographic\n',
         '>\n> \n>\t\n  \n',
+        'a  b\n\n c\t\td\r\n',
         '',
       ]) {
         expect(
@@ -352,14 +353,10 @@ void main() {
       ]);
     });
 
-    test('a mark and a space inside an inline code span cut no sentence', () {
-      const text = 'Run `a. b` now.\n';
-      expect(sentencesOf(text), ['Run `a. b` now.']);
-    });
-
     test('a code span holding ?, ., and ! ends no sentence', () {
       const text = 'Try `x? y. z!` then stop. Rest.\n';
       expect(sentencesOf(text), ['Try `x? y. z!` then stop.', 'Rest.']);
+      expect(sentencesOf('Run `a. b` now.\n'), ['Run `a. b` now.']);
     });
 
     test('a cut right after a closed code span still cuts', () {
@@ -384,13 +381,6 @@ void main() {
       expect(sentencesOf(''), isEmpty);
       expect(sentencesOf('---\ndraft: true\n---\n'), isEmpty);
       expect(sentencesOf('# T\n\n## S\n\n```\ncode\n```\n'), isEmpty);
-    });
-  });
-
-  group('collapseWhitespace', () {
-    test('each run of whitespace becomes one space', () {
-      expect(collapseWhitespace('a  b\n\n c\t\td\r\n'), 'a b c d ');
-      expect(collapseWhitespace(''), '');
     });
   });
 }

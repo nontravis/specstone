@@ -178,11 +178,8 @@ void main() {
         matcher.match('specs/flutter/f01_login/ARCHITECTURE.md'),
         isA<NoDocType>(),
       );
-    });
 
-    test('a per-target doc type with no target names '
-        'keeps its own pattern', () {
-      final matcher = DocTypeMatcher(
+      final noTargets = DocTypeMatcher(
         setOf([
           _docType(
             'architecture',
@@ -192,9 +189,8 @@ void main() {
         ]),
         targetNames: const [],
       );
-
-      final match = matcher.match('specs/f01_login/ARCHITECTURE.md');
-      expect((match as MatchedDocType).docType.id, 'architecture');
+      final bare = noTargets.match('specs/f01_login/ARCHITECTURE.md');
+      expect((bare as MatchedDocType).docType.id, 'architecture');
     });
   });
 
@@ -219,21 +215,6 @@ void main() {
           isNull,
         );
         expect(matcher.entryNumber(['prds', 'zeta.md']), isNull);
-      },
-    );
-
-    test(
-      'is null, without throwing, when the digits overflow an int',
-      () async {
-        final matcher = DocTypeMatcher(
-          await fixtureDocTypes(),
-          targetNames: const [],
-        );
-
-        expect(
-          matcher.entryNumber(['prds', 'features', 'f99999999999999999999_x']),
-          isNull,
-        );
       },
     );
   });

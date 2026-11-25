@@ -256,6 +256,24 @@ void main() {
           '$body\n${generatedOpenMarker('scenario_copy')}\n$inner'
           '$generatedEndMarker\n';
       expect(hash(withBlock('first\n')), hash(withBlock('second\n')));
+      final inserted = fillGeneratedBlocks(
+        body,
+        _docType,
+        GeneratorRegistry<int>({
+          'scenario_copy': (_, _, _, _) => [
+            const GeneratedBlock(
+              kind: 'scenario_copy',
+              sectionId: 'statement',
+              place: SectionTop(),
+              text: 'Copied text.\n',
+            ),
+          ],
+        }),
+        0,
+        docPath: 'prds/x.md',
+      );
+      expect(inserted, isNot(body), reason: 'a format run inserts a block');
+      expect(hash(inserted), hash(body), reason: 'the inserted block is kept');
     });
 
     test('one changed sentence differs', () {
@@ -278,27 +296,6 @@ void main() {
         ),
         baseHashOf('# A\n'),
       );
-    });
-
-    test('a block a format run inserts keeps it', () {
-      final inserted = fillGeneratedBlocks(
-        body,
-        _docType,
-        GeneratorRegistry<int>({
-          'scenario_copy': (_, _, _, _) => [
-            const GeneratedBlock(
-              kind: 'scenario_copy',
-              sectionId: 'statement',
-              place: SectionTop(),
-              text: 'Copied text.\n',
-            ),
-          ],
-        }),
-        0,
-        docPath: 'prds/x.md',
-      );
-      expect(inserted, isNot(body));
-      expect(hash(inserted), hash(body));
     });
   });
 
@@ -345,14 +342,6 @@ void main() {
         expect(approvalHashOf(written, _docType, statusesOutside: true), stamp);
       });
     }
-
-    test('a doc carrying its own hash hashes to that hash', () {
-      final written = withApprovalHash(draft, _docType, statusesOutside: true);
-      expect(
-        approvalHashOf(written, _docType, statusesOutside: true),
-        approvalHashOf(draft, _docType, statusesOutside: true),
-      );
-    });
   });
 
   group('countsAsApprovedCopy', () {
@@ -579,22 +568,19 @@ void main() {
       ),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
-  }, skip: skipGit);
 
-  test('the approved copy names its commit and path', () async {
-    const path = 'docs/$signupFeature';
-    final repo = await _repo({path: _approvedText});
-    commitAll(repo, 'approved');
-    final approvingCommit = (git(repo, ['rev-parse', 'HEAD']).stdout as String)
-        .trim();
-    File('${repo.path}/$path').writeAsStringSync(_draftText);
-    commitAll(repo, 'edited as draft');
-
+    final approvingCommit =
+        (git(repo, ['rev-parse', 'HEAD~1']).stdout as String).trim();
     expect(
-      ApprovalHistory().lastApproved(repo, path, docType: _docType),
+      ApprovalHistory().lastApproved(
+        repo,
+        'docs/$signupFeature',
+        docType: _docType,
+      ),
       isA<ApprovedCopy>()
           .having((c) => c.commit, 'commit', approvingCommit)
-          .having((c) => c.path, 'path', path),
+          .having((c) => c.path, 'path', 'docs/$signupFeature'),
+      reason: 'the approved copy names its commit and path',
     );
   }, skip: skipGit);
 
@@ -613,7 +599,9 @@ void main() {
 
     expect(
       ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
-      isA<ApprovedCopy>().having((c) => c.path, 'path', oldPath),
+      isA<ApprovedCopy>()
+          .having((c) => c.path, 'path', oldPath)
+          .having((c) => c.text, 'text', _longApproved),
     );
   }, skip: skipGit);
 
@@ -726,25 +714,6 @@ void main() {
       isA<UnknownHistory>(),
     );
   });
-
-  test('--follow reaches the approved copy under its old path', () async {
-    const oldPath = 'docs/$story3';
-    const newPath =
-        'docs/prds/features/f01_login/us03_recover_account/USER_STORY.md';
-    final repo = await _repo({oldPath: _longApproved});
-    commitAll(repo, 'approved');
-    Directory(File('${repo.path}/$newPath').parent.path)
-        .createSync(recursive: true);
-    expect(git(repo, ['mv', oldPath, newPath]).exitCode, 0);
-    File('${repo.path}/$newPath')
-        .writeAsStringSync('---\ndraft: true\n---\n$_longBody');
-    commitAll(repo, 'moved and drafted');
-
-    expect(
-      ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
-      isA<ApprovedCopy>().having((c) => c.text, 'text', _longApproved),
-    );
-  }, skip: skipGit);
 
   test('a SHA-256 repository reaches the '
       'approved copy under its old path', () async {
@@ -894,29 +863,27 @@ void main() {
         ),
         isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
       );
+
+      final digits = RegExp(r'"(\d{12})"');
+      final text = _approvedBody.replaceFirst(
+        '# Signup',
+        '---\napproved: 123456789012\n---\n# Signup',
+      );
+      expect(digits.hasMatch(text), isFalse);
+      final unquotedRepo = await _repo({'docs/$signupFeature': text});
+      commitAll(unquotedRepo, 'unquoted');
+      expect(
+        ApprovalHistory().lastApproved(
+          unquotedRepo,
+          'docs/$signupFeature',
+          docType: _docType,
+        ),
+        isA<NoApprovedCopy>(),
+        reason: 'an unquoted digits hash is no hash',
+      );
     },
     skip: skipGit,
   );
-
-  test('an unquoted digits hash is no hash', () async {
-    final digits = RegExp(r'"(\d{12})"');
-    final text = _approvedBody.replaceFirst(
-      '# Signup',
-      '---\napproved: 123456789012\n---\n# Signup',
-    );
-    expect(digits.hasMatch(text), isFalse);
-    final repo = await _repo({'docs/$signupFeature': text});
-    commitAll(repo, 'unquoted');
-
-    expect(
-      ApprovalHistory().lastApproved(
-        repo,
-        'docs/$signupFeature',
-        docType: _docType,
-      ),
-      isA<NoApprovedCopy>(),
-    );
-  }, skip: skipGit);
 
   group('an uncommitted move', () {
     const oldPath = 'docs/$story3';

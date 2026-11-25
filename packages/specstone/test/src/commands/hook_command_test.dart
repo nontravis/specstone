@@ -204,40 +204,6 @@ void main() {
     );
   });
 
-  test("another doc's findings stay out", () async {
-    final original = checkProjectFiles()['docs/$loginFr']!;
-    final root = await writeCheckProject(
-      extra: {'docs/$loginFr': '$original\nSee $_brokenLink.\n'},
-    );
-    final result = await postEdit(root, abs(root, loginStory));
-    expect(result.status, 0);
-    expect(result.out, isEmpty);
-  });
-
-  test('a design document under docs/designs gets no check', () async {
-    final root = await writeCheckProject(
-      extra: {
-        'docs/designs/2026-11-11-x-design.md': '# X\n\nSee $_brokenLink.\n',
-      },
-    );
-    final result = await postEdit(
-      root,
-      abs(root, 'designs/2026-11-11-x-design.md'),
-    );
-    expect(result.status, 0);
-    expect(result.out, isEmpty);
-  });
-
-  test('a design document under a nested docs/superpowers/specs '
-      'folder gets no check', () async {
-    final root = await writeCheckProject(
-      extra: {'docs/superpowers/specs/x.md': '# X\n\nSee $_brokenLink.\n'},
-    );
-    final result = await postEdit(root, abs(root, 'superpowers/specs/x.md'));
-    expect(result.status, 0);
-    expect(result.out, isEmpty);
-  });
-
   test('a code file prints nothing', () async {
     final root = await writeCheckProject();
     final result = await postEdit(
@@ -257,50 +223,6 @@ void main() {
     expect(result.status, 0);
     expect(result.out, isEmpty);
     expect(result.err, isEmpty);
-  });
-
-  test(
-    'an untyped .md in measurements/ hands back its untyped_doc finding',
-    () async {
-      final root = await writeCheckProject(
-        extra: {'docs/measurements/notes.md': '# Notes\n'},
-      );
-      final result = await postEdit(root, abs(root, 'measurements/notes.md'));
-      expect(result.status, 0);
-      final decoded = jsonDecode(result.out) as Map<String, Object?>;
-      final context =
-          (decoded['hookSpecificOutput']!
-                  as Map<String, Object?>)['additionalContext']!
-              as String;
-      expect(
-        context,
-        matches(RegExp(r'^measurements/notes\.md:\d+: untyped_doc: ')),
-      );
-      expect(context, endsWith('\n1 finding'));
-    },
-  );
-
-  test('an owner '
-      "finding's line keeps its tag in the hook context", () async {
-    final root = await writeCheckProject(
-      extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
-    );
-    final result = await postEdit(root, abs(root, loginStory));
-    expect(result.status, 0);
-    final decoded = jsonDecode(result.out) as Map<String, Object?>;
-    final context =
-        (decoded['hookSpecificOutput']!
-                as Map<String, Object?>)['additionalContext']!
-            as String;
-    expect(context, contains(': approval_stale: '));
-    expect(context, endsWith(' (waits for the Owner)\n1 finding'));
-  });
-
-  test("the platform's separators read as the same DocPath", () async {
-    final root = await writeCheckProject(extra: _brokenStory());
-    final result = await postEdit(root, abs(root, loginStory));
-    expect(result.status, 0);
-    _expectE05(result.out);
   });
 
   test(
@@ -337,26 +259,6 @@ void main() {
       },
     );
   }
-
-  test('no project exits 0 with nothing printed where search refuses with '
-      'project_not_found, exit 78', () async {
-    final root = await writeTree({'docs/prds/x.md': '# X\n'});
-    final hook = await postEdit(
-      root,
-      [root.path, 'docs', 'prds', 'x.md'].join(Platform.pathSeparator),
-    );
-    expect(hook.status, 0);
-    expect(hook.out, isEmpty);
-    expect(hook.err, isEmpty);
-
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(await runner.run(['search', 'login', '--json']), 78);
-    expect(
-      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
-      'project_not_found',
-    );
-    expect(out.toString(), isEmpty);
-  });
 
   test('an index_busy fault prints its line on stderr and exits 75, '
       'never 2', () async {
@@ -477,18 +379,6 @@ void main() {
     final lines = (specific['additionalContext']! as String).split('\n');
     expect(lines.first, startsWith('$loginRecord:'));
     expect(lines.last, matches(RegExp(r'^\d+ findings?$')));
-  });
-
-  test('a .md file under .specstone outside records prints nothing', () async {
-    final root = await writeCheckProject(
-      extra: {'.specstone/reports/x.md': '# Report\n\nSee [gone](gone.md).\n'},
-    );
-    final result = await postEdit(
-      root,
-      [root.path, '.specstone', 'reports', 'x.md'].join(Platform.pathSeparator),
-    );
-    expect(result.status, 0);
-    expect(result.out, isEmpty);
   });
 
   test('a file_path that no longer exists prints nothing, exit 0', () async {

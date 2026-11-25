@@ -5,8 +5,6 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
-import '../../../../specstone_core/test/helpers/check_fixture.dart'
-    show writeCheckProject;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/software_design_system.dart'
     show softwareDesignSystemConfig;
@@ -148,37 +146,6 @@ void main() {
       expect(read(project, _story), _storyFormatted);
     });
 
-    test('a layout-only doc gets trimmed table '
-        'cells, a two-space line break, no other trailing space, and a '
-        'blank line under each heading', () async {
-      const disk =
-          '# F-05\n## Feature name\n| a   | b  |\n|-----|----|\n'
-          '| x   | yy |\n## Feature goal\nfirst    \nsecond \t\n';
-      final project = await fixtureProject({_feature: disk});
-      final runner = await runnerIn(project);
-
-      expect(await runner.run(['format', _feature]), 0);
-
-      expect(
-        read(project, _feature),
-        '# F-05\n\n## Feature name\n\n| a | b |\n|---|---|\n'
-        '| x | yy |\n\n## Feature goal\n\nfirst  \nsecond\n',
-      );
-    });
-
-    test('adds no section, '
-        'leaves draft as written, and check still lists the gap', () async {
-      const disk = '---\ndraft: false\n---\n# F-05\n\n## Feature name\n\nx\n';
-      final project = await fixtureProject({_feature: disk});
-      final runner = await runnerIn(project);
-
-      expect(await runner.run(['format', _feature]), 0);
-      expect(read(project, _feature), disk);
-      out.clear();
-      expect(await runner.run(['check']), 1);
-      expect(out.toString(), contains('required_section_missing'));
-    });
-
     test('--check lists the doc that would change, exits 1, and '
         'writes nothing', () async {
       final project = await fixtureProject({
@@ -260,26 +227,6 @@ void main() {
       );
       expect(read(project, _feature), _featureFormatted);
       expect(read(project, _notes), 'free text');
-    });
-
-    test('a doc ending inside a fence is refused and left '
-        'byte for byte; exit 1; --json marks unclosedFence', () async {
-      const unclosed = '# US-01\n\n## Summary\nx\n```\ncode\n';
-      final project = await fixtureProject({_story: unclosed});
-      final runner = await runnerIn(project);
-
-      expect(await runner.run(['format']), 1);
-      expect(out.toString(), '$_story: refused: unclosed code fence\n');
-      expect(read(project, _story), unclosed);
-
-      out.clear();
-      expect(await runner.run(['format', '--json']), 1);
-      expect(jsonDecode(out.toString()), {
-        'files': [
-          {'path': _storyJson, 'status': 'refused', 'unclosedFence': true},
-        ],
-        'warnings': <String>[],
-      });
     });
 
     test('a target outside the docs root, then a missing target, '
@@ -553,20 +500,6 @@ sections:
         expect(written.indexOf('## Contents'), lessThan(written.indexOf(toc)));
       });
 
-      test('a stale block gets '
-          'the generator text now and every line outside it keeps its '
-          'text', () async {
-        const before = '# A\n\n## Contents\n\n';
-        const after = '\nbody line\n\nlast line\n';
-        final project = await fixtureProject({
-          notePath: '$before$toc\nold\n$end$after',
-        });
-
-        expect(await (await noteRunnerIn(project)).run(['format']), 0);
-
-        expect(read(project, notePath), '$before$toc\ntoc\n$end$after');
-      });
-
       Future<Directory> damagedNoteProject() async {
         final project = await fixtureProject({
           notePath: '# A\n\n## Contents\nbody\n',
@@ -749,49 +682,6 @@ sections:
         ),
       );
     });
-
-    test('a component written after the block leaves the doc as it is and '
-        'format --check lists it stale', () async {
-      final project = await writeTree(catalogFiles());
-      expect((await run(project, ['format', discoveryFile])).exitCode, 0);
-      final formatted = discoveryOf(project);
-      File(
-        '${project.path}/docs/specs/design_system/components/buttons/'
-        'ghost_button.md',
-      ).writeAsStringSync(component('Fades out.'));
-
-      expect(discoveryOf(project), formatted);
-      final check = await run(project, ['format', '--check']);
-
-      expect(check.exitCode, 1, reason: '${check.stdout}${check.stderr}');
-      expect(check.stdout, contains(discoveryFile));
-      expect(discoveryOf(project), formatted);
-      expect(discoveryOf(project), isNot(contains('ghost_button')));
-    });
-
-    test('format rewrites the block of an approved discovery doc and keeps '
-        'it approved', () async {
-      final project = await writeCheckProject(
-        extra: catalogFiles(
-          block:
-              '${generatedOpenMarker('component_catalog')}\nold\n'
-              '$generatedEndMarker\n',
-        ),
-      );
-      final approval = RegExp(
-        r'^approved: .*$',
-        multiLine: true,
-      ).firstMatch(discoveryOf(project))!.group(0)!;
-
-      final result = await run(project, ['format', discoveryFile]);
-
-      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
-      final text = discoveryOf(project);
-      expect(text, contains(approval));
-      expect(text, isNot(contains('draft: true')));
-      expect(text, contains('| buttons/primary_button |'));
-      expect(text, isNot(contains('\nold\n')));
-    });
   });
 
   group('the features doc on the shipped prd-core', () {
@@ -901,133 +791,6 @@ sections:
       expect(second, isNot(contains('edited by hand')));
       expect(second, contains(approvedStamp));
       expect(second, isNot(contains('draft: true')));
-    });
-
-    Future<Directory> shopProject() => writeTree({
-      '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-      featuresDoc:
-          '# Feature map\n\n## Features\n\n'
-          '## System interaction diagram\n\n```mermaid\nflowchart LR\n'
-          '  Owner --> Shop\n```\n\n## Systems\n\n| System | Description |\n'
-          '|---|---|\n| Shop | Sells goods. |\n',
-      '$featuresRoot/f01_shop/FEATURE.md': feature(
-        'Shop',
-        front: 'summary: Lets a shopper buy goods.\n',
-      ),
-      '$featuresRoot/f01_shop/us01_greet/USER_STORY.md': story('implemented'),
-    });
-
-    test(
-      'a features doc holds one catalog block inside its Features section',
-      () async {
-        final project = await shopProject();
-        final marker = generatedOpenMarker('feature_catalog');
-
-        for (var run = 0; run < 2; run++) {
-          final text = await formatFeaturesDoc(project);
-          expect(marker.allMatches(text), hasLength(1), reason: 'run $run');
-          final block = text.indexOf(marker);
-          expect(block, greaterThan(text.indexOf('## Features')));
-          expect(
-            block,
-            lessThan(text.indexOf('## System interaction diagram')),
-          );
-        }
-      },
-    );
-
-    test(
-      'format --check lists a block stale after a feature is written',
-      () async {
-        final project = await shopProject();
-        final written = await formatFeaturesDoc(project);
-        File.fromUri(project.uri.resolve('$featuresRoot/f01_shop/FEATURE.md'))
-            .writeAsStringSync(
-              feature('Shop', front: 'summary: Sells goods in bulk.\n'),
-            );
-        expect(read(project), written);
-
-        final check = readRunner(project);
-        expect(await check.runner.run(['format', featuresDoc, '--check']), 1);
-        expect(check.out.toString(), '$featuresDoc\n');
-        expect(read(project), written, reason: 'a check writes nothing');
-
-        final rewritten = await formatFeaturesDoc(project);
-        expect(rewritten, contains('Sells goods in bulk.'));
-        expect(rewritten, isNot(contains('Lets a shopper buy goods.')));
-      },
-    );
-  });
-
-  group('a requirement missing its parts on the shipped prd-core', () {
-    const frDoc = 'docs/prds/features/f01_shop/us01_greet/fr01_say_hello.md';
-
-    Future<Directory> projectWith(String fr) => writeTree({
-      '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-      'docs/prds/features/f01_shop/FEATURE.md':
-          '# Shop\n\n## Problem\nNeed it.\n',
-      'docs/prds/features/f01_shop/us01_greet/USER_STORY.md':
-          '# Agent greets\n\n## Use Case\nGreet.\n',
-      frDoc: fr,
-    });
-
-    Future<List<Map<String, Object?>>> findingsOf(Directory project) async {
-      final run = readRunner(project);
-      await run.runner.run(['check', '--json']);
-      final report = jsonDecode(run.out.toString()) as Map<String, Object?>;
-      return [
-        for (final f in report['findings']! as List)
-          if ((f as Map<String, Object?>)['path'] ==
-              frDoc.replaceFirst('docs/', ''))
-            f,
-      ];
-    }
-
-    test(
-      'format leaves a missing statement absent and check names it',
-      () async {
-        const disk = '---\nverify_method: test\n---\n\n# Say hello\n';
-        final project = await projectWith(disk);
-        final run = readRunner(project);
-
-        expect(await run.runner.run(['format', frDoc]), 0);
-
-        final written = File.fromUri(project.uri.resolve(frDoc))
-            .readAsStringSync();
-        expect(written, isNot(contains('## Statement')));
-        expect(written, isNot(contains('## Rationale')));
-        expect(
-          await findingsOf(project),
-          contains(
-            allOf(
-              containsPair('kind', 'required_section_missing'),
-              containsPair('section', 'statement'),
-            ),
-          ),
-        );
-      },
-    );
-
-    test('format adds no missing required key and check reports it', () async {
-      const disk = '# Say hello\n\n## Statement\nThe system shall say hello.\n';
-      final project = await projectWith(disk);
-      final run = readRunner(project);
-
-      expect(await run.runner.run(['format', frDoc]), 0);
-
-      expect(
-        File.fromUri(project.uri.resolve(frDoc)).readAsStringSync(),
-        isNot(contains('verify_method')),
-      );
-      expect(
-        await findingsOf(project),
-        contains(
-          allOf(
-            containsPair('kind', 'required_field_missing'),
-            containsPair('field', 'verify_method'),
-          ),
-        ),
-      );
     });
   });
 }

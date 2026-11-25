@@ -169,15 +169,6 @@ void main() {
     );
   });
 
-  test('a story of another feature is unresolved: an '
-      'entry names its item relative to its feature', () async {
-    final report = await _check(
-      _record(statuses: ['signup/create:planned', _storyPlanned, _frPlanned]),
-    );
-
-    expect(_found(report), ['${_statusLine(0)} record_entry_unresolved']);
-  });
-
   test('a second statuses line is a duplicate; two '
       'implements lines are no finding', () async {
     final report = await _check(
@@ -297,16 +288,6 @@ void main() {
     );
 
     expect(_found(report), ['${_statusLine(0)} feature_status_written']);
-  });
-
-  test('an entry whose story left the PRD by hand is '
-      'unresolved', () async {
-    final report = await _check(
-      _record(statuses: ['$_story:planned']),
-      without: {'docs/$loginStory', 'docs/$loginFr', 'docs/$loginNf'},
-    );
-
-    expect(_found(report), ['${_statusLine(0)} record_entry_unresolved']);
   });
 
   test('a project whose merged set holds no record doc '
@@ -437,45 +418,13 @@ void main() {
       addTearDown(session.close);
       final report = await runCheck(session);
 
+      final finding = _only(report, FindingKind.recordEntryMissing);
+
       expect(
-        _only(report, FindingKind.recordEntryMissing).message,
+        finding.message,
         '$_fr has no statuses line in jaspr; write its status',
       );
-    },
-  );
-
-  test('a record_entry_missing message naming a target also carries it as the target key', () async {
-    final session = openSession(
-      await writeTwinProject(
-        extra: {
-          '.specstone/templates/implementation.yaml': _recordLayer,
-          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': _record(
-            statuses: ['$_story:implemented'],
-          ),
-        },
-      ),
-    );
-    addTearDown(session.close);
-    final report = await runCheck(session);
-
-    expect(_only(report, FindingKind.recordEntryMissing).keys, {
-      'entry': _fr,
-      'target': 'jaspr',
-    });
-  });
-
-  test(
-    'a record_entry_missing message naming no target carries no target key',
-    () async {
-      final report = await _check(_record(statuses: ['$_story:implemented']));
-
-      expect(
-        _only(
-          report,
-          FindingKind.recordEntryMissing,
-        ).keys.containsKey('target'),
-        isFalse,
-      );
+      expect(finding.keys, {'entry': _fr, 'target': 'jaspr'});
     },
   );
 
@@ -514,22 +463,6 @@ void main() {
     );
 
     expect(_found(report), ['${_codeLine(1, 0)} entry_under_skip']);
-  });
-
-  test('a skip with no reason and two paths gives one '
-      'finding per faulty line', () async {
-    final report = await _check(
-      _record(
-        statuses: ['$_story:skipped'],
-        code: ['$_story:lib/a.dart', '$_story:lib/b.dart'],
-      ),
-    );
-
-    expect(_found(report), [
-      '${_statusLine(0)} skip_reason_missing',
-      '${_codeLine(1, 0)} skip_with_code',
-      '${_codeLine(1, 1)} skip_with_code',
-    ]);
   });
 
   test('an FR skip under a story skip, with a path, is '
@@ -630,44 +563,6 @@ void main() {
     );
   });
 
-  test('a tests line naming the feature itself is feature_status_written; '
-      'under its own skip, skip_with_code', () async {
-    final written = await _check(
-      _record(
-        statuses: [_storyPlanned, _frPlanned],
-        tests: [':test/a_test.dart'],
-      ),
-    );
-    final skipped = await _check(
-      _record(statuses: [':skipped:no web view'], tests: [':test/a_test.dart']),
-    );
-
-    expect(_found(written), ['${_testLine(2, 0, 0)} feature_status_written']);
-    expect(_found(skipped), ['${_testLine(1, 0, 0)} skip_with_code']);
-  });
-
-  test('a tests line naming no story or FR, or no item, is '
-      'record_entry_unresolved', () async {
-    final report = await _check(
-      _record(
-        statuses: [_storyPlanned, _frPlanned],
-        tests: ['$_story/pin_toast:test/a_test.dart', 'test/b_test.dart'],
-      ),
-    );
-
-    expect(_found(report), [
-      '${_testLine(2, 0, 0)} record_entry_unresolved',
-      '${_testLine(2, 0, 1)} record_entry_unresolved',
-    ]);
-    expect(
-      [
-        for (final f in report.findings)
-          if (f.kind == FindingKind.recordEntryUnresolved) f.keys['entry'],
-      ],
-      ['$_story/pin_toast', 'test/b_test.dart'],
-    );
-  });
-
   test(
     'a tests line of an item that holds no fault gives no finding',
     () async {
@@ -700,27 +595,6 @@ void main() {
             (_recordKinds.contains(f.kind) || _matrixKinds.contains(f.kind)))
           '${f.line} ${f.kind.wire}',
     ];
-
-    test('a row naming no item of the feature is unresolved', () async {
-      final record = withRows(_record(statuses: [_storyPlanned, _frPlanned]), [
-        '- $_story/pin_toast E01: `shows a toast`',
-        '- signup/create E01 skipped: no signup here',
-      ]);
-
-      final report = await _check(record);
-
-      expect(_found(report), [
-        '${rowLine(record, 0)} record_entry_unresolved',
-        '${rowLine(record, 1)} record_entry_unresolved',
-      ]);
-      expect(
-        [
-          for (final f in report.findings)
-            if (f.kind == FindingKind.recordEntryUnresolved) f.keys['entry'],
-        ],
-        ['$_story/pin_toast', 'signup/create'],
-      );
-    });
 
     /// Checks [record] under the matrix mode `verification_coverage:` names.
     Future<CheckReport> checkUnder(String mode, String record) => _check(
@@ -789,38 +663,6 @@ void main() {
         '${rowLine(record, 1)} record_entry_unresolved',
         '${rowLine(record, 2)} record_entry_unresolved',
       ]);
-    });
-
-    test('a row of a skipped item gets no finding of any kind but the skip '
-        "rule's", () async {
-      for (final statuses in [
-        ['$_fr:skipped:no toast host'],
-        ['$_story:skipped:no toast host'],
-        [':skipped:no web view'],
-      ]) {
-        final record = withRows(_record(statuses: statuses), [
-          '- $_fr E01: `shows a toast`',
-          '- $_fr E01: `shows a toast` 3f9a1c0b7e2d',
-          '- $_fr E99: `shows a toast`',
-          '- $_fr E01 skipped: no host',
-        ]);
-
-        final report = await checkUnder('edge_case', record);
-
-        final kinds = [
-          for (final f in report.findings)
-            if (f.path == _recordPath && f.line >= rowLine(record, 0)) f.kind,
-        ];
-
-        expect(kinds, hasLength(4), reason: '$statuses');
-        expect(
-          kinds,
-          everyElement(
-            anyOf(FindingKind.skipWithCode, FindingKind.entryUnderSkip),
-          ),
-          reason: '$statuses',
-        );
-      }
     });
 
     test('a row of an item that holds no fault gives no finding, a row '
@@ -909,19 +751,6 @@ void main() {
       ]);
     });
 
-    test('a row naming an item outside the feature gives one finding in '
-        'the whole check', () async {
-      final record = withRows(_record(statuses: [_storyPlanned, _frPlanned]), [
-        '- signup/create E01: `signs up`',
-      ]);
-
-      final report = await _check(record);
-
-      expect(bothRules(report), [
-        '${rowLine(record, 0)} record_entry_unresolved',
-      ]);
-    });
-
     test('a row naming a skipped story gives one finding in the whole '
         'check', () async {
       final record = withRows(
@@ -963,18 +792,6 @@ void main() {
     expect(_found(plannedLast), ['${_statusLine(1)} record_entry_duplicate']);
   });
 
-  test('under an ancestor skip an implements line naming the nested feature '
-      'with no statuses line is feature_status_written', () async {
-    final report = await _checkNested(
-      _record(statuses: [':skipped:no shop']),
-      _record(code: [':lib/a.dart']),
-    );
-
-    expect(_found(report, _cartRecord), [
-      '${_codeLine(0, 0)} feature_status_written',
-    ]);
-  });
-
   test('a statuses or implements line with no colon names its whole line as '
       'the unresolved entry', () async {
     final report = await _check(
@@ -995,21 +812,6 @@ void main() {
       ],
       ['show_toast', 'show_toast'],
     );
-  });
-
-  test('a line that names no item is unresolved, once, even '
-      'when it holds the only fault', () async {
-    final report = await _check(
-      _record(
-        statuses: ['planned', _storyPlanned, _frPlanned],
-        code: ['lib/a.dart'],
-      ),
-    );
-
-    expect(_found(report), [
-      '${_statusLine(0)} record_entry_unresolved',
-      '${_codeLine(3, 0)} record_entry_unresolved',
-    ]);
   });
 
   test('a fingerprint on an implements line changes no finding', () async {

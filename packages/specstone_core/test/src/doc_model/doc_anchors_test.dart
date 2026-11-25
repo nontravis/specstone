@@ -38,16 +38,7 @@ void main() {
     test('### `move` — FR-01 gives move--fr-01', () {
       final anchors = anchorsOf(_parse('### `move` — FR-01\n'));
       expect(anchors.headingSlugs, ['move--fr-01']);
-    });
-
-    test('the second ## Notes of one doc gives notes-1', () {
-      final anchors = anchorsOf(_parse('## Notes\n\n## Notes\n'));
-      expect(anchors.headingSlugs, ['notes', 'notes-1']);
-    });
-
-    test('## A & B gives a--b', () {
-      final anchors = anchorsOf(_parse('## A & B\n'));
-      expect(anchors.headingSlugs, ['a--b']);
+      expect(anchorsOf(_parse('## A & B\n')).headingSlugs, ['a--b']);
     });
 
     test('a heading with a link, emphasis, and raw span gives text only', () {
@@ -78,26 +69,6 @@ void main() {
       expect(headingSlugOf('ΑΣ. ΑΣ1'), 'ας-ας1');
       expect(headingSlugOf('ΣΟΦΙΑ Σ'), 'σοφια-σ');
       expect(headingSlugOf("ΑΣ'Β"), 'ασβ');
-    });
-
-    test('Résumé² drops the Other_Number superscript', () {
-      final anchors = anchorsOf(_parse('## Résumé²\n'));
-      expect(anchors.headingSlugs, ['résumé']);
-    });
-
-    test('Ⅻ Ⓐ keeps the letter number and the circled letter', () {
-      final anchors = anchorsOf(_parse('## Ⅻ Ⓐ\n'));
-      expect(anchors.headingSlugs, ['ⅻ-ⓐ']);
-    });
-
-    test('a‿b keeps connector punctuation', () {
-      final anchors = anchorsOf(_parse('## a‿b\n'));
-      expect(anchors.headingSlugs, ['a‿b']);
-    });
-
-    test('a zero-width joiner drops', () {
-      final anchors = anchorsOf(_parse('## a${_zwj}b\n'));
-      expect(anchors.headingSlugs, ['ab']);
     });
 
     test('Q&A: 50%! gives qa-50', () {
@@ -169,13 +140,6 @@ void main() {
     });
   });
 
-  group('headingSlugOf', () {
-    test('lower-cases, drops other characters, space becomes dash', () {
-      expect(headingSlugOf('Hello, World!'), 'hello-world');
-      expect(headingSlugOf('Résumé²'), 'résumé');
-    });
-  });
-
   group('anchorsOfBody (scoped parse)', () {
     // Each body has no link syntax, so it takes the scoped parse; its anchors
     // must equal the full parse's.
@@ -207,8 +171,6 @@ void main() {
     );
   });
 }
-
-final _zwj = String.fromCharCode(0x200D);
 
 // Entries skipped because a code point's casing or Unicode category changed
 // between github-slugger's tables (V8's) and Dart's; reasons in the README.

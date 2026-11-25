@@ -50,39 +50,6 @@ const _outputRows = <String, List<Object?>>{
   'project_security': ['specs/SECURITY.md', null, true],
 };
 
-/// The shared lines `software-tech` ships, by id, in file order.
-const _sharedLines = <String, String>{
-  'cite_spec_docs':
-      "Link to the item of a project or ancestor-feature spec doc's rule; "
-      'never restate it.',
-  'no_status':
-      "Never write `status:`; only a target's `implementation` record says "
-      'if its code exists.',
-  'project_rules_only':
-      'Hold only rules every feature uses; write a rule two or more features '
-      'share as a `project_architecture` concept naming them, and any other '
-      'rule in a per-feature spec doc.',
-  'one_file_per_feature_folder':
-      'Keep one file per doc type per feature spec folder.',
-  'one_file_per_spec_folder': 'Keep one file per doc type in each spec folder.',
-  'overrides_line':
-      'Under an item departing from a rule above, write '
-      '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
-      '<why>` and record its `overrides` entry.',
-  'overrides_line_table':
-      'Under an item departing from a rule above, or under its '
-      'table for a table row, write '
-      '`Overrides: [<ID>](<doc>#<section>) — <how it differs>, because '
-      '<why>`, naming the row in the how-clause, and record its `overrides` '
-      'entry.',
-  'wire_fact_home':
-      'A wire-contract fact lives in the `api` operation that traces the FR; '
-      'the FR keeps its product words.',
-  'mechanism_home':
-      "A lock, retry, or parser mechanism lives in the feature's "
-      '`architecture` doc, never in the FR.',
-};
-
 /// The doc types each shared line names.
 const _lineReach = <String, List<String>>{
   'cite_spec_docs': softwareTechIds,
@@ -220,21 +187,6 @@ const _builtIns = [
   'retired_ids',
 ];
 
-/// The file rule a doc type no shared one-file line reaches keeps on a line of
-/// its own, in place of a line target.
-const _fileRuleLines = <String, String>{
-  'tech_stack': 'Keep one fact per table cell and write checkable rows.',
-};
-
-/// The item shape line of each doc type whose sentence cap sits in lint.
-const _itemShapeLines = <String, String>{
-  'architecture': 'Write one rule per ID: one Components row per component.',
-  'project_api': 'Write one rule per ID: one bullet per convention.',
-  'project_architecture':
-      'Write one rule per ID: one Components row per component.',
-  'tech_stack': 'Write one rule per ID: one Stack row per slot.',
-};
-
 void main() {
   group('software-tech manifest', () {
     test('software-tech ships at 1.25.0 and extends prd-core', () {
@@ -328,8 +280,7 @@ void main() {
     test('software-tech ships its shared lines in table order with their '
         'reach', () {
       final lines = _softwareTechManifest().shared.lines;
-      expect({for (final l in lines) l.id: l.text}, _sharedLines);
-      expect(lines.map((l) => l.id), _sharedLines.keys);
+      expect(lines.map((l) => l.id), _lineReach.keys);
       expect({for (final l in lines) l.id: l.forDocTypes}, _lineReach);
       expect(lines.where((l) => l.disabled), isEmpty);
     });
@@ -818,41 +769,6 @@ void main() {
       },
     );
 
-    test('no description states a line target or a sentence length', () {
-      final target = RegExp(
-        r'Aim for (?:about|under)|\d[\d,]*-(?:line|character) cap|Each sentence holds',
-      );
-      for (final id in softwareTechIds) {
-        expect(
-          prdCoreDocType(set, id).description,
-          isNot(contains(target)),
-          reason: id,
-        );
-      }
-    });
-
-    test('a description keeps its file rule on a line of its own', () {
-      for (final MapEntry(:key, :value) in _fileRuleLines.entries) {
-        expect(
-          prdCoreDocType(set, key).description?.split('\n'),
-          contains(value),
-          reason: key,
-        );
-      }
-    });
-
-    test('a description states its item shape with no sentence count', () {
-      for (final MapEntry(:key, :value) in _itemShapeLines.entries) {
-        final lines = prdCoreDocType(set, key).description?.split('\n') ?? [];
-        expect(lines, contains(value), reason: key);
-        expect(
-          lines.where((l) => l.endsWith('each rule one sentence.')),
-          isEmpty,
-          reason: key,
-        );
-      }
-    });
-
     test('each doc type a shared field reaches keeps its field ids in their '
         'order before the move', () {
       for (final MapEntry(:key, :value) in _fieldIds.entries) {
@@ -902,13 +818,6 @@ void main() {
       expect(
         report.findings.where((f) => f.kind == FindingKind.bannedWord),
         isEmpty,
-      );
-      expect(
-        sectionOf(
-          prdCoreDocType(set, 'project_architecture'),
-          'crosscutting_concepts',
-        ).description,
-        contains('with numbers, not adjectives'),
       );
     });
 

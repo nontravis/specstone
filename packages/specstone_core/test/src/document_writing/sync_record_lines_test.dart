@@ -362,19 +362,22 @@ void main() {
   test(
     'a planned line on a matrix row stamps it and the FR stays planned',
     () async {
-      final root = await _project(
-        status: 'planned',
-        rows: ['- $_fr: `refuses a wrong one`'],
-      );
+      for (final verb in ['planned', 'match']) {
+        final root = await _project(
+          status: 'planned',
+          rows: ['- $_fr: `refuses a wrong one`'],
+        );
 
-      _sync(root, ['planned $_record $_fr $_contractFingerprint']);
+        _sync(root, ['$verb $_record $_fr $_contractFingerprint']);
 
-      final record = readDoc(root, loginRecord);
-      expect(
-        record,
-        contains('\n- $_fr: `refuses a wrong one` $_contractFingerprint\n'),
-      );
-      expect(record, contains("'$_fr:planned'"));
+        final record = readDoc(root, loginRecord);
+        expect(
+          record,
+          contains('\n- $_fr: `refuses a wrong one` $_contractFingerprint\n'),
+          reason: verb,
+        );
+        expect(record, contains("'$_fr:planned'"), reason: verb);
+      }
     },
   );
 
@@ -428,22 +431,6 @@ void main() {
       '1 output_not_writable: cannot write $loginRecord: its tests block is not valid YAML',
     ]);
     expect(readDoc(root, loginRecord), broken);
-  });
-
-  test('a match on a matrix row of a planned FR stamps the row and the FR stays planned', () async {
-    final root = await _project(
-      status: 'planned',
-      rows: ['- $_fr: `refuses a wrong one`'],
-    );
-
-    _sync(root, ['match $_record $_fr $_contractFingerprint']);
-
-    final record = readDoc(root, loginRecord);
-    expect(
-      record,
-      contains('\n- $_fr: `refuses a wrong one` $_contractFingerprint\n'),
-    );
-    expect(record, contains("'$_fr:planned'"));
   });
 
   test('a row line that adds and removes one literal throws argument_invalid naming the literal', () {

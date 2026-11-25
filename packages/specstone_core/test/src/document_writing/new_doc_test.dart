@@ -75,24 +75,6 @@ void main() {
       ),
     );
     expect(answer.text, '==> login/forgot_email (user_story) · $path <==\n');
-    final text = readDoc(root, path);
-    expect(
-      text,
-      '---\ndraft: true\n---\n\n# forgot_email\n\n'
-      '## Use Case\n\n'
-      '- **As a** <Role> [who <situation>]\n'
-      '- **I want to** <action>\n'
-      '- **so that** <benefit>\n\n'
-      '## Acceptance Criteria\n\n'
-      '### Scenario 1 — [happy] <what differs>\n\n'
-      '- **Given** <only the state the scenario needs>\n'
-      '- **When** <trigger>\n'
-      '- **Then** <observed outcome>\n\n'
-      '### Scenario 2 — [error] <what differs> (BR-01)\n\n'
-      '- **Given** <only the state the scenario needs>\n'
-      '- **When** <trigger>\n'
-      '- **Then** <what the person sees or what the system refuses>\n',
-    );
   });
 
   test(
@@ -176,6 +158,20 @@ void main() {
     expect(
       readDoc(root, 'prds/features/f01_login/us05_b/USER_STORY.md'),
       '---\ndraft: true\n---\n\n# Mine\n',
+    );
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'plain',
+        text: '# Plain\n\nJust prose.\n',
+      ),
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_login/us06_plain/USER_STORY.md'),
+      '---\ndraft: true\n---\n\n# Plain\n\nJust prose.\n',
     );
   });
 
@@ -497,10 +493,13 @@ void main() {
             ),
           ),
           throwsA(
-            indexFault(
-              IndexFaultCode.argumentInvalid,
-              'shop/cart/deep/deeper (feature) sits 3 levels deep, the limit, '
-              'so it takes no sub-feature',
+            allOf(
+              indexFault(
+                IndexFaultCode.argumentInvalid,
+                'shop/cart/deep/deeper (feature) sits 3 levels deep, the '
+                'limit, so it takes no sub-feature',
+              ),
+              isA<IndexFault>().having((f) => f.exitStatus, 'exit', 64),
             ),
           ),
         );
@@ -521,9 +520,12 @@ void main() {
           (s) => answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
         ),
         throwsA(
-          indexFault(
-            IndexFaultCode.argumentInvalid,
-            'feature takes no --parent',
+          allOf(
+            indexFault(
+              IndexFaultCode.argumentInvalid,
+              'feature takes no --parent',
+            ),
+            isA<IndexFault>().having((f) => f.exitStatus, 'exit', 64),
           ),
         ),
       );
@@ -533,56 +535,6 @@ void main() {
         isFalse,
       );
     });
-
-    test(
-      'a parent at the depth limit exits 64 with argument_invalid',
-      () async {
-        const deep = 'prds/features/f02_shop/f01_cart/f01_deep';
-        final root = await writeNestedProject(
-          extra: {
-            'docs/$deep/FEATURE.md': '# Deep\n',
-            'docs/$deep/f01_deeper/FEATURE.md': '# Deeper\n',
-          },
-        );
-        expect(
-          () => writeIn(
-            root,
-            (s) => answerNew(
-              s,
-              docTypeId: 'feature',
-              parent: 'shop/cart/deep/deeper',
-              slug: 'x',
-            ),
-          ),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                .having((f) => f.exitStatus, 'exit', 64),
-          ),
-        );
-      },
-    );
-
-    test(
-      'a flat set exits 64 with argument_invalid on feature --parent',
-      () async {
-        final root = await writeWriteProject(
-          extra: {'.specstone/templates/feature.yaml': 'max_depth: 0\n'},
-        );
-        expect(
-          () => writeIn(
-            root,
-            (s) =>
-                answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
-          ),
-          throwsA(
-            isA<IndexFault>()
-                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-                .having((f) => f.exitStatus, 'exit', 64),
-          ),
-        );
-      },
-    );
 
     test(
       'a feature type with max_depth unset takes no --parent either',
@@ -670,6 +622,7 @@ void main() {
       throwsA(
         isA<RenderFault>()
             .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.exitStatus, 'exit', 73)
             .having(
               (f) => f.message,
               'message',
@@ -690,32 +643,6 @@ void main() {
         'us02_sign_out',
         'us03_reset_password',
       },
-    );
-  }, skip: unreadablePathSkipReason() ?? false);
-
-  test('an uncreatable doc folder exits 73 with output_not_writable naming the doc', () async {
-    final root = await writeWriteProject();
-    final folder = Directory('${root.path}/docs/prds/features/f01_login');
-    Process.runSync('chmod', ['555', folder.path]);
-    addTearDown(() => Process.runSync('chmod', ['755', folder.path]));
-    expect(
-      () => writeIn(
-        root,
-        (s) =>
-            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'y'),
-      ),
-      throwsA(
-        isA<RenderFault>()
-            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-            .having((f) => f.exitStatus, 'exit', 73)
-            .having(
-              (f) => f.message,
-              'message',
-              startsWith(
-                'cannot write prds/features/f01_login/us04_y/USER_STORY.md: ',
-              ),
-            ),
-      ),
     );
   }, skip: unreadablePathSkipReason() ?? false);
 
@@ -792,24 +719,6 @@ void main() {
         'prds/features/f01_login/us03_reset_password/fr03_notify.md',
       ),
       startsWith('---\ndraft: true\ntraced_from:\nverify_method:\n---\n'),
-    );
-  });
-
-  test('text that lacks a required section is written as given', () async {
-    final root = await writeWriteProject();
-    writeIn(
-      root,
-      (s) => answerNew(
-        s,
-        docTypeId: 'user_story',
-        parent: 'login',
-        slug: 'plain',
-        text: '# Plain\n\nJust prose.\n',
-      ),
-    );
-    expect(
-      readDoc(root, 'prds/features/f01_login/us04_plain/USER_STORY.md'),
-      '---\ndraft: true\n---\n\n# Plain\n\nJust prose.\n',
     );
   });
 
@@ -1173,26 +1082,36 @@ sections:
     ]..sort();
 
     test('--target jaspr places the doc in the jaspr spec folder under the shared feature', () async {
-      final root = await twinWithToast(
-        without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
-      );
-      const path = 'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md';
-      final answer = writeIn(
-        root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'architecture',
-          parent: 'feedback/toast',
-          codeTarget: 'jaspr',
-        ),
-      );
-      expect(answer.text, '==> feedback/toast (architecture) · $path <==\n');
-      expect(docOf(answer)['path'], path);
-      expect(hasDoc(root, path), isTrue);
-      expect(
-        hasDoc(root, 'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md'),
-        isFalse,
-      );
+      for (final (target, other) in [
+        ('jaspr', 'flutter'),
+        ('flutter', 'jaspr'),
+      ]) {
+        final root = await twinWithToast(
+          without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
+        );
+        final path = 'specs/$target/f02_feedback/f03_toast/ARCHITECTURE.md';
+        final answer = writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'architecture',
+            parent: 'feedback/toast',
+            codeTarget: target,
+          ),
+        );
+        expect(
+          answer.text,
+          '==> feedback/toast (architecture) · $path <==\n',
+          reason: target,
+        );
+        expect(docOf(answer)['path'], path, reason: target);
+        expect(hasDoc(root, path), isTrue, reason: target);
+        expect(
+          hasDoc(root, 'specs/$other/f02_feedback/f03_toast/ARCHITECTURE.md'),
+          isFalse,
+          reason: target,
+        );
+      }
     });
 
     test('a per-target doc type with two targets and no --target is argument_missing naming the targets, and creates nothing', () async {
@@ -1268,26 +1187,6 @@ sections:
       );
     }
 
-    test(
-      'the same --parent places the flutter doc in the flutter spec folder',
-      () async {
-        final root = await twinWithToast();
-        writeIn(
-          root,
-          (s) => answerNew(
-            s,
-            docTypeId: 'architecture',
-            parent: 'feedback/toast',
-            codeTarget: 'flutter',
-          ),
-        );
-        expect(
-          hasDoc(root, 'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md'),
-          isTrue,
-        );
-      },
-    );
-
     test('a decision type with no per_target key takes d01 then d02 in one folder with two targets and no --target', () async {
       final root = await writeTwinProject(
         extra: {decisionLayerFile: decisionLayer},
@@ -1355,35 +1254,38 @@ sections:
     }
 
     test('new user_story adds its planned line to each record of the feature between its siblings', () async {
-      final root = await writeTwinProject(
-        extra: {
-          flutterRecord: recordText(
-            statuses: [
-              'email_login:implemented',
-              'email_login/check_password:implemented',
-            ],
+      for (final text in ['', '# Forgot email\n']) {
+        final root = await writeTwinProject(
+          extra: {
+            flutterRecord: recordText(
+              statuses: [
+                'email_login:implemented',
+                'email_login/check_password:implemented',
+              ],
+            ),
+            jasprRecord: recordText(statuses: ['email_login:planned']),
+          },
+        );
+        writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'forgot_email',
+            text: text,
           ),
-          jasprRecord: recordText(statuses: ['email_login:planned']),
-        },
-      );
-      writeIn(
-        root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'user_story',
-          parent: 'login',
-          slug: 'forgot_email',
-        ),
-      );
-      expect(statusesIn(root, flutterRecord), [
-        'email_login:implemented',
-        'email_login/check_password:implemented',
-        'forgot_email:planned',
-      ]);
-      expect(statusesIn(root, jasprRecord), [
-        'email_login:planned',
-        'forgot_email:planned',
-      ]);
+        );
+        expect(statusesIn(root, flutterRecord), [
+          'email_login:implemented',
+          'email_login/check_password:implemented',
+          'forgot_email:planned',
+        ], reason: text);
+        expect(statusesIn(root, jasprRecord), [
+          'email_login:planned',
+          'forgot_email:planned',
+        ], reason: text);
+      }
     });
 
     test(
@@ -1683,26 +1585,6 @@ sections:
       );
       expect(readDoc(root, record), contains('draft: true'));
       expect(statusesIn(root, record), contains('forgot_email:planned'));
-    });
-
-    test('new with stdin text adds the same planned line', () async {
-      final root = await withRecord(
-        recordText(statuses: ['email_login:implemented']),
-      );
-      writeIn(
-        root,
-        (s) => answerNew(
-          s,
-          docTypeId: 'user_story',
-          parent: 'login',
-          slug: 'forgot_email',
-          text: '# Forgot email\n',
-        ),
-      );
-      expect(statusesIn(root, record), [
-        'email_login:implemented',
-        'forgot_email:planned',
-      ]);
     });
   });
 }

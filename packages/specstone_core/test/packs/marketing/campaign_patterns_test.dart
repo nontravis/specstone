@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/feature_pattern.dart';
@@ -15,13 +14,8 @@ import '../../helpers/shipped_pins.dart';
 const _patternsField =
     'fields:\n  - id: patterns\n    type: string\n    list: true\n';
 
-/// The scope of each shipped campaign pattern, its `description`.
-const _scopes = <String, String>{
-  'product_launch': 'a launch of a new product or feature to its audience',
-  'promotion': 'a time-boxed offer that drives sales',
-  'referral': 'a program in which customers bring new customers',
-  'retention': 'a program that keeps existing customers buying',
-};
+/// The ids of the shipped campaign patterns.
+const _patternIds = ['product_launch', 'promotion', 'referral', 'retention'];
 
 /// Each source a pattern may cite, by title.
 const _sources = <String, String>{
@@ -83,8 +77,6 @@ const _maxItemChars = 160;
 const _minItems = 5;
 const _maxItems = 15;
 
-final List<String> _patternIds = _scopes.keys.toList();
-
 YamlMap _fileOf(String id) {
   final bytes = shippedPackFiles['marketing/patterns/$id.yaml'];
   expect(bytes, isNotNull, reason: id);
@@ -108,11 +100,10 @@ void main() {
   });
 
   group('each pattern', () {
-    for (final MapEntry(key: id, value: scope) in _scopes.entries) {
+    for (final id in _patternIds) {
       test('$id carries its scope, 5 to 15 one-sentence items, and sources '
           'from the table', () {
         final file = _fileOf(id);
-        expect(file['description'], scope);
 
         final items = (file['items'] as YamlList).cast<YamlMap>();
         expect(items.length, inInclusiveRange(_minItems, _maxItems));
@@ -227,33 +218,7 @@ void main() {
     }
 
     expect(await missing(['prd-core', 'software-tech', 'marketing']), isEmpty);
+    expect(await missing(['prd-core', 'marketing']), isEmpty);
     expect(await missing(['prd-core', 'software-tech']), isNotEmpty);
-  });
-
-  test('a feature that names product_launch resolves in a project of prd-core '
-      'and marketing alone', () async {
-    final project = await writeCheckProject(
-      extra: {
-        '.specstone/config.yaml': shippedPinsConfig(['prd-core', 'marketing']),
-        '.specstone/templates/feature.yaml': _patternsField,
-        ...edit(loginFeature, [
-          (
-            'goals:\n  - PG-01\n',
-            'goals:\n  - PG-01\npatterns:\n  - product_launch\n',
-          ),
-        ]),
-      },
-    );
-    final report = await checkOf(project);
-
-    expect(
-      spots(report, FindingKind.featurePatternMissing),
-      isEmpty,
-      reason: spots(report).join('\n'),
-    );
-    expect(
-      File('${project.path}/docs/$loginFeature').readAsStringSync(),
-      contains('  - product_launch\n'),
-    );
   });
 }

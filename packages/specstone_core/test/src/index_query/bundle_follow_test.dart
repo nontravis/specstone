@@ -383,15 +383,6 @@ void main() {
       expect(parts.map(_id), ['specs/f02_signup/DOMAIN.md#invariants INV-14']);
     },
   );
-  test('two picked links to two parts append both, in source order', () async {
-    final parts = await followed(
-      'See [doc model]($_specs/topics/doc_model.md#purpose) and [ranges]($_specs/topics/ranges.md#purpose).',
-    );
-    expect(parts.map(_id), [
-      'specs/topics/doc_model.md#purpose',
-      'specs/topics/ranges.md#purpose',
-    ]);
-  });
   test('a section a picked link and an appended part both cite appends no part twice and none the summary prints', () async {
     final parts = await followed(
       'See [guide]($_specs/topics/guide.md#purpose), [reset]($_resetStory), [reset]($_resetStory#use-case), and [criteria]($_resetStory#acceptance-criteria).',
@@ -571,54 +562,6 @@ void main() {
     },
   );
 
-  test(
-    "a link into another code target's doc is appended with no --target given",
-    () async {
-      const show =
-          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md';
-      final session = openSession(
-        await writeTree({
-          '.specstone/templates/architecture.yaml':
-              'id: architecture\nper_target: true\n',
-          '.specstone/templates/tech_stack.yaml':
-              'id: tech_stack\nper_target: true\n',
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}targets:\n'
-              '  flutter:\n    code_root: flutter_lib\n'
-              '  jaspr:\n    code_root: jaspr_lib\n',
-          'flutter_lib/.keep': '',
-          'jaspr_lib/.keep': '',
-          'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
-          'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '# Toast\n',
-          'docs/prds/features/f02_feedback/f04_alert/FEATURE.md': '# Alert\n',
-          show:
-              '# Agent sees a toast\n\n## Use Case\nSee the '
-              '[flutter toast](../../../../../specs/flutter/f02_feedback/f04_alert/ARCHITECTURE.md#components).\n',
-          'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md':
-              '# Toast architecture\n',
-          'docs/specs/flutter/f02_feedback/f04_alert/ARCHITECTURE.md': '# Alert architecture\n\n## Components\n| Component | Responsibility |\n|---|---|\n| Toast | Shows it |\n',
-          'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
-              '# Toast architecture\n',
-          'docs/specs/flutter/TECH_STACK.md': '# Flutter stack\n',
-          'docs/specs/jaspr/TECH_STACK.md': '# Jaspr stack\n',
-        }),
-      );
-      addTearDown(session.close);
-      final parts = followLinks(
-        session.index,
-        pickBundle(
-          session.index,
-          ['feedback/toast/show'],
-          BundleMode.design,
-          noProject: false,
-        ),
-      );
-      expect(parts.map(_id), [
-        'specs/flutter/f02_feedback/f04_alert/ARCHITECTURE.md#components',
-      ]);
-    },
-  );
-
   test('an appended matrix section keeps the rows in scope', () async {
     const matrixLink =
         '../../../../../.specstone/records/jaspr/f01_login/IMPLEMENTATION.md#verification-matrix';
@@ -758,18 +701,6 @@ void main() {
 
       expect(_measurementParts(parts), isEmpty);
     });
-    test(
-      'a type with no summary_for prints the doc in summary in a story bundle',
-      () async {
-        final parts = await followedFrom('login/email_login', {
-          _story:
-              '# Agent signs in with email\n\n## Use Case\nSee '
-              '[ranges]($_specs/topics/ranges.md).\n',
-        });
-
-        expect(parts.map(_id), ['specs/topics/ranges.md summary']);
-      },
-    );
     test('one naming line however many links', () async {
       final parts = await followedFrom('login/email_login', {
         ...linkedFromProject,
@@ -818,33 +749,27 @@ void main() {
     test(
       'a goal Metric link prints the naming line in a story bundle',
       () async {
-        final parts = await followedFrom('login/email_login', goalLayers);
+        for (final target in [
+          'login/email_login',
+          'login/email_login/validate_credentials',
+        ]) {
+          final parts = await followedFrom(target, goalLayers);
 
-        expect(_measurementParts(parts), ['$_measurementDoc name']);
-        expect(
-          parts
-              .singleWhere(
-                (p) => p.nameOnly && p.doc.docPath == _measurementDoc,
-              )
-              .text,
-          isEmpty,
-        );
+          expect(_measurementParts(parts), [
+            '$_measurementDoc name',
+          ], reason: target);
+          expect(
+            parts
+                .singleWhere(
+                  (p) => p.nameOnly && p.doc.docPath == _measurementDoc,
+                )
+                .text,
+            isEmpty,
+            reason: target,
+          );
+        }
       },
     );
-    test('a goal Metric link prints the naming line in an FR bundle', () async {
-      final parts = await followedFrom(
-        'login/email_login/validate_credentials',
-        goalLayers,
-      );
-
-      expect(_measurementParts(parts), ['$_measurementDoc name']);
-      expect(
-        parts
-            .singleWhere((p) => p.nameOnly && p.doc.docPath == _measurementDoc)
-            .text,
-        isEmpty,
-      );
-    });
     test('context goal prints the measurement in summary', () async {
       final parts = await followedFrom('goal', goalLayers);
 
@@ -913,19 +838,8 @@ void main() {
     });
     test('a second link into the section appends nothing again', () async {
       final parts = await fromProject(
-        '[results]($results), [again]($results), and [RUN-2]($results)',
-        measurement: plain.replaceFirst(
-          '## Results\n',
-          '## Results\n- **RUN-2** Second run.\n\n',
-        ),
-        extra: itemLayer,
-      );
-
-      expect(parts.map(_id), ['$_measurementDoc#results summary']);
-    });
-    test('an item range link appends the cut once', () async {
-      final parts = await fromProject(
-        '[RUN-1]($results) to [RUN-3]($results)',
+        '[results]($results), [again]($results), [RUN-2]($results), '
+        'and [RUN-1]($results) to [RUN-3]($results)',
         measurement: plain.replaceFirst(
           '## Results\n',
           '## Results\n- **RUN-1** First run.\n- **RUN-2** Second run.\n- **RUN-3** Third run.\n\n',

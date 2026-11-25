@@ -141,32 +141,15 @@ void main() {
       );
     });
 
-    test('a template fault propagates '
-        'with exit 78', () async {
-      final root = await fixtureProject({
-        '.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n',
-      });
-
-      expect(
-        () => _open(root),
-        throwsA(
-          isA<TemplateFault>().having(
-            (fault) => fault.exitStatus,
-            'exitStatus',
-            78,
-          ),
-        ),
-      );
-    });
-
-    test('a pack no Specstone carries and a config that is not YAML each fail '
-        'the open with their own fault code and exit 78', () async {
+    // ignore: lines_longer_than_80_chars -- the test name stays one literal
+    test('a pack no Specstone carries and a config that is not YAML each fail the open with their own fault code and exit 78', () async {
       for (final (config, code) in [
         (
           'packs:\n  prd-core: 1.1.0\n  no-such-pack: 1.0.0\n',
           FaultCode.packNotFound,
         ),
         ('packs: [prd-core\n', FaultCode.yamlSyntax),
+        ('packs:\n  prd-core: 9.9.9\n', FaultCode.packPinNewer),
       ]) {
         final root = await fixtureProject({'.specstone/config.yaml': config});
 
@@ -424,58 +407,42 @@ void main() {
       );
     });
 
-    test('a target above the '
-        'docs root is outside', () async {
-      final root = await fixtureProject({'README.md': '', 'docs/a.md': ''});
-      final project = _open(root);
-
-      Object? thrown;
-      try {
-        project.resolveTarget(
-          '../README.md',
-          workingDirectory: _dir(root, 'docs'),
-          defaultsToDocsRoot: false,
-        );
-      } on RenderFault catch (fault) {
-        thrown = fault;
-      }
-
-      expect(
-        thrown,
-        _renderFault(
-          RenderFaultCode.targetOutsideDocsRoot,
-          'the target ../README.md lies outside the docs root docs/',
-        ),
-      );
-      expect((thrown! as RenderFault).toJson(), {
-        'error': {
-          'code': 'target_outside_docs_root',
-          'message': 'the target ../README.md lies outside the docs root docs/',
-        },
-      });
-    });
-
-    test('a path that leaves docs/ and returns, or climbs '
-        'from the project root, is outside', () async {
+    test('a target above the docs root is outside', () async {
       final root = await fixtureProject({
         'README.md': '',
+        'docs/a.md': '',
         'docs/prds/a.md': '',
+        'docs-extra/b.md': '',
       });
       final project = _open(root);
+      final cases = [
+        (target: '../README.md', from: 'docs'),
+        (target: 'docs/../README.md', from: ''),
+        (target: 'docs-extra', from: ''),
+      ];
 
-      expect(
-        () => project.resolveTarget(
-          'docs/../README.md',
-          workingDirectory: root,
-          defaultsToDocsRoot: false,
-        ),
-        throwsA(
-          _renderFault(
-            RenderFaultCode.targetOutsideDocsRoot,
-            'the target docs/../README.md lies outside the docs root docs/',
-          ),
-        ),
-      );
+      for (final (:target, :from) in cases) {
+        Object? thrown;
+        try {
+          project.resolveTarget(
+            target,
+            workingDirectory: from.isEmpty ? root : _dir(root, from),
+            defaultsToDocsRoot: false,
+          );
+        } on RenderFault catch (fault) {
+          thrown = fault;
+        }
+
+        final message = 'the target $target lies outside the docs root docs/';
+        expect(
+          thrown,
+          _renderFault(RenderFaultCode.targetOutsideDocsRoot, message),
+          reason: target,
+        );
+        expect((thrown! as RenderFault).toJson(), {
+          'error': {'code': 'target_outside_docs_root', 'message': message},
+        }, reason: target);
+      }
     });
 
     test('a relative target resolves from the working '
@@ -521,28 +488,6 @@ void main() {
 
       expect(target.isDocsRoot, isTrue);
       expect(target.docPath, '');
-    });
-
-    test('a sibling folder named like docs is outside', () async {
-      final root = await fixtureProject({
-        'docs/a.md': '',
-        'docs-extra/b.md': '',
-      });
-      final project = _open(root);
-
-      expect(
-        () => project.resolveTarget(
-          'docs-extra',
-          workingDirectory: root,
-          defaultsToDocsRoot: false,
-        ),
-        throwsA(
-          _renderFault(
-            RenderFaultCode.targetOutsideDocsRoot,
-            'the target docs-extra lies outside the docs root docs/',
-          ),
-        ),
-      );
     });
 
     test('a link inside docs/ that points outside is outside', () async {

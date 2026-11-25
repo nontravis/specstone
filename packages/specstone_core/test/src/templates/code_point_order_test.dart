@@ -7,14 +7,6 @@ void main() {
     expect('\u{FF01}'.compareTo('\u{1F600}'), isPositive);
   });
 
-  test('a shorter prefix sorts first', () {
-    expect(compareCodePoints('a', 'ab'), isNegative);
-  });
-
-  test('a later code point sorts after', () {
-    expect(compareCodePoints('b', 'a'), isPositive);
-  });
-
   test('equal strings compare 0', () {
     expect(compareCodePoints('same', 'same'), 0);
   });

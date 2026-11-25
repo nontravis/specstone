@@ -322,19 +322,6 @@ void main() {
       expect(_snapshot(outside), before);
     }, skip: _linksUnavailable);
 
-    test('a linked index sibling (-wal) refuses the open too', () {
-      final victim = File('${outside.path}/victim.txt');
-      Link('${root.path}/.specstone/index.sqlite-wal').createSync(victim.path);
-      final before = _snapshot(outside);
-
-      expect(
-        () => IndexStore.open(root),
-        _refuses('.specstone/index.sqlite-wal', _leaves),
-      );
-
-      expect(_snapshot(outside), before);
-    }, skip: _linksUnavailable);
-
     test('a linked .specstone/.gitignore refuses the first index open and '
         'creates no index', () {
       final victim = File('${outside.path}/victim.txt');
@@ -760,8 +747,8 @@ void main() {
       skip: _linksUnavailable,
     );
 
-    for (final side in ['-shm', '-journal']) {
-      test('a linked index$side file refuses the index open', () async {
+    test(r'a linked index$side file refuses the index open', () async {
+      for (final side in ['-shm', '-journal', '-wal']) {
         final root = await writeWriteProject();
         final outside = await writeTree({'victim.txt': 'mine\n'});
         Link('${root.path}/.specstone/index.sqlite$side')
@@ -771,11 +758,12 @@ void main() {
         expect(
           () => IndexStore.open(root),
           _refuses('.specstone/index.sqlite$side', _leaves),
+          reason: side,
         );
 
-        expect(_snapshot(outside), before);
-      }, skip: _linksUnavailable);
-    }
+        expect(_snapshot(outside), before, reason: side);
+      }
+    }, skip: _linksUnavailable);
 
     test('an index link to a file below .git refuses the index open', () async {
       final root = await writeWriteProject();

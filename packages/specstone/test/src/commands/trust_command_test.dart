@@ -113,20 +113,42 @@ void main() {
       expect(help.out, contains('trust'));
     });
 
-    test('without a terminal prints the roots, refuses owner_terminal_required '
-        'with exit 77, and records nothing', () async {
+    // The name stays one literal so `specstone check` finds it by exact text.
+    // ignore: lines_longer_than_80_chars
+    test('without a terminal prints the roots, refuses owner_terminal_required with exit 77, and records nothing', () async {
       final (:clone, :ext) = await _clone();
 
-      final run = await _run(clone, ['trust']);
+      for (final (stdin, stdout) in [
+        (false, false),
+        (true, false),
+        (false, true),
+      ]) {
+        final run = await _runWith(
+          clone,
+          ['trust'],
+          console: FakeConsole(
+            stdinIsTerminal: stdin,
+            stdoutIsTerminal: stdout,
+            answers: ['y'],
+          ),
+          home: testHome(),
+        );
 
-      expect(run.status, 77, reason: run.err);
-      expect(
-        run.out,
-        'project root: ${clone.resolveSymbolicLinksSync()}\n'
-        'docs root: ${ext.resolveSymbolicLinksSync()}\n',
-      );
-      expect(run.err, 'trust runs only at an interactive terminal\n');
-      expect(_records.existsSync(), isFalse);
+        final reason = 'stdin $stdin, stdout $stdout';
+        expect(run.status, 77, reason: reason);
+        expect(
+          run.out,
+          'project root: ${clone.resolveSymbolicLinksSync()}\n'
+          'docs root: ${ext.resolveSymbolicLinksSync()}\n',
+          reason: reason,
+        );
+        expect(
+          run.err,
+          'trust runs only at an interactive terminal\n',
+          reason: reason,
+        );
+        expect(_records.existsSync(), isFalse, reason: reason);
+      }
     }, skip: _linksUnavailable);
 
     test('takes no --yes, so an agent cannot trust for the Owner', () async {
@@ -157,15 +179,6 @@ void main() {
       });
     }, skip: _linksUnavailable);
 
-    test('at a terminal an answer other than y records nothing', () async {
-      final (:clone, ext: _) = await _clone();
-
-      final run = await _run(clone, ['trust'], terminal: true, answers: ['n']);
-
-      expect(run.status, 0, reason: run.err);
-      expect(_records.existsSync(), isFalse);
-    }, skip: _linksUnavailable);
-
     test('a layout the Owner already trusted says so and exits 0, even with '
         'no terminal', () async {
       final (:clone, :ext) = await _clone();
@@ -182,29 +195,6 @@ void main() {
       );
       expect(run.err, isEmpty);
     }, skip: _linksUnavailable);
-
-    test('a project whose docs folder lies inside it needs no record, even '
-        'with no terminal', () async {
-      final root = await writeWriteProject();
-
-      final run = await _run(root, ['trust']);
-
-      expect(run.status, 0, reason: run.err);
-      expect(run.out, startsWith('no record needed: '));
-      expect(_records.existsSync(), isFalse);
-    });
-
-    test(
-      'outside a project asks nothing, since init there needs no record',
-      () async {
-        final root = await writeTree({'keep.txt': ''});
-
-        final run = await _run(root, ['trust']);
-
-        expect(run.status, 0, reason: run.err);
-        expect(run.out, startsWith('no record needed: '));
-      },
-    );
 
     test('before a config exists records the roots init would write into, so '
         'init then runs', () async {
@@ -278,52 +268,9 @@ void main() {
         isTrue,
       );
     }, skip: _linksUnavailable);
-
-    test('read commands work without the record', () async {
-      final (:clone, ext: _) = await _clone();
-
-      final check = await _run(clone, ['list', 'persona']);
-
-      expect(check.status, 0, reason: check.err);
-    }, skip: _linksUnavailable);
   });
 
   group('trust edge cases', () {
-    test('stdin alone or stdout alone not a terminal refuses with exit 77'
-        ' after the roots, and records nothing', () async {
-      final (:clone, :ext) = await _clone();
-
-      for (final (stdin, stdout) in [(true, false), (false, true)]) {
-        final run = await _runWith(
-          clone,
-          ['trust'],
-          console: FakeConsole(
-            stdinIsTerminal: stdin,
-            stdoutIsTerminal: stdout,
-            answers: ['y'],
-          ),
-          home: testHome(),
-        );
-
-        final reason = 'stdin $stdin, stdout $stdout';
-        expect(run.status, 77, reason: reason);
-        expect(
-          run.out,
-          _roots(
-            clone.resolveSymbolicLinksSync(),
-            ext.resolveSymbolicLinksSync(),
-          ),
-          reason: reason,
-        );
-        expect(
-          run.err,
-          'trust runs only at an interactive terminal\n',
-          reason: reason,
-        );
-        expect(_records.existsSync(), isFalse, reason: reason);
-      }
-    }, skip: _linksUnavailable);
-
     test('another option or an argument is a usage error with exit 64 and'
         ' no record, even at a terminal', () async {
       final (:clone, ext: _) = await _clone();
@@ -340,30 +287,34 @@ void main() {
       }
     }, skip: _linksUnavailable);
 
-    test('an empty line and the end of input write no record and exit'
-        ' 0', () async {
-      final (:clone, :ext) = await _clone();
-      final roots = _roots(
-        clone.resolveSymbolicLinksSync(),
-        ext.resolveSymbolicLinksSync(),
-      );
-
-      for (final answers in [
-        <String?>[''],
-        <String?>[],
-      ]) {
-        final run = await _run(
-          clone,
-          ['trust'],
-          terminal: true,
-          answers: answers,
+    test(
+      'an empty line and the end of input write no record and exit 0',
+      () async {
+        final (:clone, :ext) = await _clone();
+        final roots = _roots(
+          clone.resolveSymbolicLinksSync(),
+          ext.resolveSymbolicLinksSync(),
         );
 
-        expect(run.status, 0, reason: '$answers ${run.err}');
-        expect(run.out, '$roots$_prompt', reason: '$answers');
-        expect(_records.existsSync(), isFalse, reason: '$answers');
-      }
-    }, skip: _linksUnavailable);
+        for (final answers in [
+          <String?>[''],
+          <String?>[],
+          <String?>['n'],
+        ]) {
+          final run = await _run(
+            clone,
+            ['trust'],
+            terminal: true,
+            answers: answers,
+          );
+
+          expect(run.status, 0, reason: '$answers ${run.err}');
+          expect(run.out, '$roots$_prompt', reason: '$answers');
+          expect(_records.existsSync(), isFalse, reason: '$answers');
+        }
+      },
+      skip: _linksUnavailable,
+    );
 
     test('no record needed prints its whole message, with a terminal or'
         ' without one, and asks nothing', () async {

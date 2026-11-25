@@ -80,9 +80,6 @@ void main() {
         throwsInvalid(),
       );
       expect(() => parseReplaceStdin(''), throwsInvalid());
-    });
-
-    test('refuses stdin with no new marker', () {
       expect(() => parseReplaceStdin('==> old <==\nb\n'), throwsInvalid());
     });
 
@@ -150,9 +147,7 @@ void main() {
       expect(fault.code, WriteFaultCode.replaceUnmatched);
       expect(fault.exitStatus, 75);
       expect(fault.file, 'a.md');
-    });
 
-    test('never trims, folds case, or folds whitespace', () {
       for (final old in [
         'one fish.',
         'One fish. ',

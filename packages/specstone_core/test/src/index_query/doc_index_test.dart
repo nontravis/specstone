@@ -560,13 +560,6 @@ void main() {
       return session.index;
     }
 
-    test('a merged set with no record doc type computes each status from the '
-        'written status, with no target', () async {
-      final plain = await targeted(noRecordType: true);
-      expect(plain.set.recordDocType, isNull);
-      expect(plain.statusOf(plain.at(shopPath)!), 'implemented');
-      expect(plain.statusOf(plain.at(storyPath)!), 'implemented');
-    });
     test("a target's record skips the feature and each of its stories there, "
         'while the other target computes from its own records', () async {
       final skipped = await targeted(
@@ -776,6 +769,7 @@ void main() {
       expect(statusOf(half, shopPath), 'planned');
       expect(statusOf(half, cartPath), 'planned');
       final done = await written('implemented', 'implemented');
+      expect(done.set.recordDocType, isNull);
       expect(statusOf(done, shopPath), 'implemented');
       expect(statusOf(done, cartPath), 'implemented');
     });
@@ -855,6 +849,7 @@ void main() {
         throwsA(
           isA<IndexFault>()
               .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exit', 64)
               .having(
                 (f) => f.message,
                 'message',
@@ -908,6 +903,7 @@ void main() {
         throwsA(
           isA<IndexFault>()
               .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exit', 64)
               .having(
                 (f) => f.message,
                 'message',
@@ -952,21 +948,6 @@ void main() {
       expect(full.length, greaterThan(1));
       expect(paths(tree.resolve('scrolling')), full);
       expect(paths(tree.resolve('layout_primitives/scrolling')), full);
-    });
-    test('an ambiguous suffix is refused with exit status 64', () async {
-      final tree = await indexWith(suffixFiles());
-      expect(
-        () => tree.resolve('toast'),
-        throwsA(isA<IndexFault>().having((f) => f.exitStatus, 'exit', 64)),
-      );
-    });
-    test('a bare suffix that a feature and a story both end is refused with '
-        'exit status 64', () async {
-      final tree = await indexWith(suffixFiles());
-      expect(
-        () => tree.resolve('scrolling'),
-        throwsA(isA<IndexFault>().having((f) => f.exitStatus, 'exit', 64)),
-      );
     });
     test('a suffix keeps only the docs of the code target', () async {
       final root = await writeTree({

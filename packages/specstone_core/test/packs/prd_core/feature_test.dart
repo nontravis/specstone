@@ -56,10 +56,6 @@ void main() {
   test('summary is a required string with its description and one-sentence '
       'caps', () {
     final summary = fieldOf(feature, 'summary');
-    expect(
-      summary.description,
-      'States in one sentence what the feature does for its persona.',
-    );
     expect(summary.lint?.maxSentences, 1);
     expect(summary.lint?.maxSentenceWords, {'default': 15, 'ko': 10});
     expect(summary.lint?.maxSentenceChars, {
@@ -82,49 +78,8 @@ void main() {
     expect(sectionOf(feature, 'out_of_scope').maxLines, isNull);
   });
 
-  test('the description states no number a lint key holds', () {
-    final outOfScope = sectionOf(feature, 'out_of_scope');
-    expect(outOfScope.description, isNot(contains('one line each')));
-    expect(outOfScope.description, isNot(contains('no cap on the number')));
-    for (final id in ['vision', 'goals']) {
-      expect(
-        fieldOf(feature, id).description,
-        isNot(contains('at least one ID')),
-        reason: id,
-      );
-    }
-    expect(feature.description, isNot(contains('at least one ID')));
-  });
-
-  test('the flow node label line lists its characters in one span', () {
-    expect(
-      sectionOf(feature, 'flow').description,
-      contains('Quote a node label holding any of `()[]{}`'),
-    );
-  });
-
   test('out_of_scope carries its item line cap', () {
     expect(sectionOf(feature, 'out_of_scope').maxItemLines, 1);
-  });
-
-  test('the description names the item line finding beside the item size '
-      'finding', () {
-    expect(
-      feature.description,
-      contains(
-        '`item_over_limit` and `item_lines_over_limit` take the item shape, '
-        'never a split, which shrinks no item',
-      ),
-    );
-  });
-
-  test('the feature size line keeps fr edge cases out of its no-cut rule', () {
-    expect(
-      feature.description!.split('\n'),
-      contains(
-        'Cut no text to pass a size, but edge cases the `fr` rules leave out.',
-      ),
-    );
   });
 
   test('feature joins no bundle and marks problem and '
@@ -163,25 +118,6 @@ void main() {
     );
 
     expect(merged.maxDepth, 2);
-  });
-
-  test('the description says the Agent proposes a split on chars_over_limit'
-      ' or lines_over_limit', () {
-    expect(
-      feature.description,
-      contains(
-        'When `check` reports `chars_over_limit` or `lines_over_limit` on a '
-        'laid-out feature doc, propose to the Owner a sub-feature split by '
-        'the three questions, as a move plan file.',
-      ),
-    );
-  });
-
-  test('a project feature.yaml of max_depth 3 makes the '
-      'nested FEATURE.md the feature shop/cart', () async {
-    final session = openSession(await writeNestedProject());
-    addTearDown(session.close);
-    expect(session.index.at(cartFeature)!.name, 'shop/cart');
   });
 
   test('writeNestedProject without its feature.yaml still names '

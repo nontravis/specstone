@@ -65,16 +65,6 @@ void main() {
         );
       },
     );
-    test('a template fault exits 78 and no index is written', () async {
-      final project = await writeLoginProject(
-        extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
-      );
-      expect(
-        () => openSession(project),
-        throwsA(isA<TemplateFault>().having((f) => f.exitStatus, 'exit', 78)),
-      );
-      expect(inProject(project, indexFilePath).existsSync(), isFalse);
-    });
     test('a template fault and a config fault each carry their own fault code, exit 78, and read no index', () async {
       for (final (config, code) in [
         ('packs:\n  prd-core: 9.9.9\n', FaultCode.packPinNewer),
@@ -285,73 +275,41 @@ void main() {
       );
       expect(fills, 3);
     });
-    test('a search session whose peer keeps changing the stamp ends as '
-        'index_busy', () async {
-      final root = await writeLoginProject();
-      final project = DocsProject.open(
-        templates: TemplateResolver(),
-        workingDirectory: root,
-        homeDirectory: null,
-      );
-      final peer = IndexStore.open(project.projectRoot);
-      addTearDown(peer.close);
-      var refreshes = 0;
-      expect(
-        () => ReadSession.readFrom(
-          project,
-          IndexStore.open(project.projectRoot),
-          workingDirectory: root,
-          fillSearchRows: true,
-          afterRefresh: () {
-            refreshes++;
-            peer.write(
-              () => peer.reset(
-                IndexStamp(binaryVersion: 'peer', docTypes: '$refreshes'),
-              ),
-            );
-          },
-        ),
-        throwsA(
-          isA<IndexFault>().having(
-            (f) => f.code,
-            'code',
-            IndexFaultCode.indexBusy,
-          ),
-        ),
-      );
-      expect(refreshes, 3);
-    });
     test('a peer that keeps changing the stamp ends the read as index_busy after 3 refreshes', () async {
-      final root = await writeLoginProject();
-      final project = DocsProject.open(
-        templates: TemplateResolver(),
-        workingDirectory: root,
-        homeDirectory: null,
-      );
-      final peer = IndexStore.open(project.projectRoot);
-      addTearDown(peer.close);
-      var refreshes = 0;
-      expect(
-        () => ReadSession.readFrom(
-          project,
-          IndexStore.open(project.projectRoot),
+      for (final fillSearchRows in [false, true]) {
+        final root = await writeLoginProject();
+        final project = DocsProject.open(
+          templates: TemplateResolver(),
           workingDirectory: root,
-          afterRefresh: () {
-            refreshes++;
-            peer.write(
-              () => peer.reset(
-                IndexStamp(binaryVersion: 'peer', docTypes: '$refreshes'),
-              ),
-            );
-          },
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
-              .having((f) => f.exitStatus, 'exit', 75),
-        ),
-      );
-      expect(refreshes, 3);
+          homeDirectory: null,
+        );
+        final peer = IndexStore.open(project.projectRoot);
+        addTearDown(peer.close);
+        var refreshes = 0;
+        expect(
+          () => ReadSession.readFrom(
+            project,
+            IndexStore.open(project.projectRoot),
+            workingDirectory: root,
+            fillSearchRows: fillSearchRows,
+            afterRefresh: () {
+              refreshes++;
+              peer.write(
+                () => peer.reset(
+                  IndexStamp(binaryVersion: 'peer', docTypes: '$refreshes'),
+                ),
+              );
+            },
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
+                .having((f) => f.exitStatus, 'exit', 75),
+          ),
+          reason: 'fillSearchRows: $fillSearchRows',
+        );
+        expect(refreshes, 3, reason: 'fillSearchRows: $fillSearchRows');
+      }
     });
     test('a retried refresh reports its listing warning once', () async {
       final root = await writeLoginProject();

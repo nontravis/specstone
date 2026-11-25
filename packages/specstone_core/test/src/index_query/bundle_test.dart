@@ -226,16 +226,6 @@ void main() {
       'specs/TECH_STACK.md',
     });
   });
-  test('no --for is argument_missing with exit status 64', () {
-    expect(
-      () => BundleMode.parse(null),
-      throwsA(
-        isA<IndexFault>()
-            .having((x) => x.code, 'code', IndexFaultCode.argumentMissing)
-            .having((x) => x.exitStatus, 'exit status', 64),
-      ),
-    );
-  });
   test(
     'a goal target with --no-project keeps the goal doc, joining nothing',
     () async {
@@ -272,15 +262,19 @@ void main() {
       );
     }
   });
-  test('summary on a story, a spec doc, or project is argument_conflict', () {
-    for (final (target, named) in [
-      ('login/email_login', 'login/email_login (user_story)'),
-      ('architecture:login', 'login (architecture)'),
-      ('project', 'project (project)'),
+  test('summary on a story, a spec doc, or project is argument_conflict', () async {
+    final nested = await nestedIndexWith();
+    for (final (idx, target, named) in [
+      (index, 'login/email_login', 'login/email_login (user_story)'),
+      (index, 'architecture:login', 'login (architecture)'),
+      (index, 'project', 'project (project)'),
+      (nested, 'shop/cart/add_item', 'shop/cart/add_item (user_story)'),
+      (nested, 'architecture:shop', 'shop (architecture)'),
+      (nested, 'project', 'project (project)'),
     ]) {
       expect(
         () => pickBundle(
-          index,
+          idx,
           [target],
           BundleMode.design,
           noProject: false,
@@ -410,21 +404,18 @@ void main() {
       ),
     );
   });
-  test('a target no doc carries is doc_not_found', () async {
-    expect(
-      () => pickBundle(index, ['nobody'], BundleMode.query, noProject: false),
-      throwsA(isA<IndexFault>()),
-    );
-  });
   test('--for is required and takes the five modes only', () {
     expect(
       () => BundleMode.parse(null),
       throwsA(
-        isA<IndexFault>().having(
-          (x) => x.message,
-          'message',
-          'context needs --for, such as specstone context login --for implement',
-        ),
+        isA<IndexFault>()
+            .having((x) => x.code, 'code', IndexFaultCode.argumentMissing)
+            .having((x) => x.exitStatus, 'exit status', 64)
+            .having(
+              (x) => x.message,
+              'message',
+              'context needs --for, such as specstone context login --for implement',
+            ),
       ),
     );
     expect(
@@ -471,16 +462,18 @@ void main() {
   test(
     'a query on a shared name with no chain doc records each doc as a target',
     () {
-      final b = pickBundle(
-        index,
-        ['buyer'],
-        BundleMode.query,
-        noProject: false,
-      );
-      expect(b.targetPaths, {
-        'prds/personas/buyer/PERSONA.md',
-        'prds/personas/buyer/ANTI_PERSONA.md',
-      });
+      for (final noProject in [false, true]) {
+        final b = pickBundle(
+          index,
+          ['buyer'],
+          BundleMode.query,
+          noProject: noProject,
+        );
+        expect(b.targetPaths, {
+          'prds/personas/buyer/PERSONA.md',
+          'prds/personas/buyer/ANTI_PERSONA.md',
+        }, reason: 'noProject $noProject');
+      }
     },
   );
   test('no mode but query records a target', () {
@@ -846,53 +839,6 @@ void main() {
       expect(b.summaryPaths, isNot(contains(payCard)));
     },
   );
-  test('summary still refuses a story', () async {
-    final nested = await nestedIndexWith();
-    expect(
-      () => pickBundle(
-        nested,
-        ['shop/cart/add_item'],
-        BundleMode.design,
-        noProject: false,
-        summary: true,
-      ),
-      throwsA(
-        isA<IndexFault>()
-            .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
-            .having(
-              (f) => f.message,
-              'message',
-              '--summary takes a doc with children, such as a feature; shop/cart/add_item (user_story) is not one',
-            ),
-      ),
-    );
-  });
-  test('summary still refuses a doc with no children', () async {
-    final nested = await nestedIndexWith();
-    for (final (target, named) in [
-      ('architecture:shop', 'shop (architecture)'),
-      ('project', 'project (project)'),
-    ]) {
-      expect(
-        () => pickBundle(
-          nested,
-          [target],
-          BundleMode.design,
-          noProject: false,
-          summary: true,
-        ),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
-              .having(
-                (f) => f.message,
-                'message',
-                '--summary takes a doc with children, such as a feature; $named is not one',
-              ),
-        ),
-      );
-    }
-  });
   test('design on shop keeps its whole subtree', () async {
     final b = pickBundle(
       await nestedIndexWith(),
@@ -1344,27 +1290,6 @@ void main() {
       addTearDown(session.close);
       return session.index;
     }
-
-    test('one target needs no --target in implement', () async {
-      final session = openSession(
-        await writeTree({
-          ...projectFiles,
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: flutter_lib\n',
-          'docs/$flutterArch': '',
-          'docs/$jasprArch': '',
-          'docs/specs/$archToast': '# Toast architecture\n',
-        }),
-      );
-      addTearDown(session.close);
-      final b = pickBundle(
-        session.index,
-        ['feedback/toast/show'],
-        BundleMode.implement,
-        noProject: false,
-      );
-      expect(b.docPaths, contains('specs/$archToast'));
-    });
 
     test('implement with two targets and no --target is argument_missing', () async {
       final index = await toastIndex();
@@ -2021,14 +1946,6 @@ void main() {
       expect(b.targetSubtreePaths, {
         '$s/ARCHITECTURE.md',
         ...story.targetSubtreePaths,
-      });
-    });
-
-    test('a shared bare name with --for query stays one target argument', () {
-      final b = pickBundle(index, ['buyer'], BundleMode.query, noProject: true);
-      expect(b.targetPaths, {
-        'prds/personas/buyer/ANTI_PERSONA.md',
-        'prds/personas/buyer/PERSONA.md',
       });
     });
   });

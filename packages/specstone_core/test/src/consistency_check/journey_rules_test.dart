@@ -75,26 +75,13 @@ void main() {
   });
 
   test('a step naming no story is journey_step_unresolved', () async {
-    final found = await _check(['### 1. Sign in', 'step: nope/none S1']);
-    expect(_of(found, FindingKind.journeyStepUnresolved).map((f) => f.line), [
-      _firstStepLine + 2,
-    ]);
-  });
-
-  test('a lettered scenario number is '
-      'journey_step_unresolved, never Scenario 1', () async {
-    final found = await _check(['### 1. Sign in', 'step: $_story S1a']);
-    final unresolved = _of(found, FindingKind.journeyStepUnresolved);
-    expect(unresolved, hasLength(1));
-    expect(unresolved.single.toJson(), containsPair('step', '$_story S1a'));
-  });
-
-  test('a readable story part that names no story is '
-      'journey_step_unresolved', () async {
-    final found = await _check(['### 1. Sign in', 'step: Login/email S1']);
-    final unresolved = _of(found, FindingKind.journeyStepUnresolved);
-    expect(unresolved, hasLength(1));
-    expect(unresolved.single.toJson(), containsPair('step', 'Login/email S1'));
+    // A readable story part that names no story reaches the same branch.
+    for (final step in ['nope/none S1', 'Login/email S1']) {
+      final found = await _check(['### 1. Sign in', 'step: $step']);
+      expect(_of(found, FindingKind.journeyStepUnresolved).map((f) => f.line), [
+        _firstStepLine + 2,
+      ], reason: step);
+    }
   });
 
   test('a step heading with no step: line is '
@@ -121,18 +108,31 @@ void main() {
     expect(after.single.message, 'after: 7 names no step written above it');
     expect(after.single.toJson(), containsPair('after', '7'));
     expect(found, hasLength(1));
-  });
 
-  test('an after: naming a step written below is '
-      'journey_after_unresolved', () async {
-    final found = await _check([
-      '### 1. One',
-      'step: $_story S1',
-      'after: 2',
-      '### 2. Two',
-      'step: $_story S1',
-    ]);
-    expect(_of(found, FindingKind.journeyAfterUnresolved), hasLength(1));
+    final below = {
+      'a step written below': [
+        '### 1. One',
+        'step: $_story S1',
+        'after: 2',
+        '### 2. Two',
+        'step: $_story S1',
+      ],
+      'step 3x with after: 4 below it': [
+        '### 3x. Branch',
+        'step: $_story S1',
+        'after: 4',
+        '### 4. Four',
+        'step: $_story S1',
+      ],
+    };
+    for (final MapEntry(:key, :value) in below.entries) {
+      final belowFound = await _check(value);
+      expect(
+        _of(belowFound, FindingKind.journeyAfterUnresolved),
+        hasLength(1),
+        reason: key,
+      );
+    }
   });
 
   test(
@@ -152,19 +152,6 @@ void main() {
     },
   );
 
-  test('step 3x with after: 4 below it is journey_after_unresolved', () async {
-    final found = await _check([
-      '### 3x. Branch',
-      'step: $_story S1',
-      'after: 4',
-      '### 4. Four',
-      'step: $_story S1',
-    ]);
-    expect(found.map((f) => f.kind), [FindingKind.journeyAfterUnresolved]);
-    expect(found.single.line, _firstStepLine + _entryLines + 3);
-    expect(found.single.toJson(), containsPair('after', '4'));
-  });
-
   test('an after: 3 below two step 3s gives the duplicate '
       'finding only', () async {
     final found = await _check([
@@ -181,11 +168,14 @@ void main() {
 
   test('a step: that does not read as '
       '<story identity> S<N> is journey_step_unresolved', () async {
-    final found = await _check(['### 1. Sign in', 'step: login']);
-    expect(found, hasLength(1));
-    expect(found.single.kind, FindingKind.journeyStepUnresolved);
-    expect(found.single.line, _firstStepLine + 2);
-    expect(found.single.toJson(), containsPair('step', 'login'));
+    // A lettered scenario number leaves `step.target` null as `login` does.
+    for (final step in ['login', '$_story S1a']) {
+      final found = await _check(['### 1. Sign in', 'step: $step']);
+      expect(found, hasLength(1), reason: step);
+      expect(found.single.kind, FindingKind.journeyStepUnresolved);
+      expect(found.single.line, _firstStepLine + 2);
+      expect(found.single.toJson(), containsPair('step', step));
+    }
   });
 
   test('an approved journey is checked as a draft one is', () async {
@@ -220,22 +210,18 @@ void main() {
 
     test('a journey with no persona key has '
         'no persona finding', () async {
-      expect(await _check(steps), isEmpty);
-    });
-
-    test('three personas, none unresolved', () async {
-      const names = ['buyer', 'seller', 'admin'];
-      final found = await _check(
-        steps,
-        fields: ['persona: [${names.join(', ')}]'],
-        extra: {
-          for (final name in names)
-            'docs/prds/personas/$name/PERSONA.md':
-                '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n'
-                '# $name\n',
-        },
-      );
-      expect(_of(found, FindingKind.docRefUnresolved), isEmpty);
+      final cases = {
+        'one step': steps,
+        '40 steps': [
+          for (var n = 1; n <= 40; n++) ...[
+            '### $n. Step $n',
+            'step: $_story S1',
+          ],
+        ],
+      };
+      for (final MapEntry(:key, :value) in cases.entries) {
+        expect(await _check(value), isEmpty, reason: key);
+      }
     });
 
     test('a journey of three resolved personas raises no finding', () async {
@@ -250,16 +236,6 @@ void main() {
                 '# $name\n',
         },
       );
-      expect(found, isEmpty);
-    });
-
-    test('40 steps raise no count finding', () async {
-      final found = await _check([
-        for (var n = 1; n <= 40; n++) ...[
-          '### $n. Step $n',
-          'step: $_story S1',
-        ],
-      ]);
       expect(found, isEmpty);
     });
 

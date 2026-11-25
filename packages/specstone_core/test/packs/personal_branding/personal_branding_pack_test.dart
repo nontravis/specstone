@@ -22,10 +22,6 @@ import '../../helpers/temp_tree.dart';
 import '../../helpers/yaml_key_line.dart';
 
 const _voiceDoc = 'specs/marketing/VOICE.md';
-const _personStatement =
-    "The docs hold the stable facts; the person's own skills write the "
-    'content outside the docs.';
-const _learningStatement = 'A learning edits the doc it corrects.';
 const _allSixPacks = [
   'prd-core',
   'software-tech',
@@ -104,7 +100,6 @@ void main() {
       for (final id in personalBrandingIds) {
         final type = prdCoreDocType(set, id);
         expect(type.title, sentenceCase(id), reason: id);
-        expect(type.description, isNot(contains('Title it')), reason: id);
       }
     });
 
@@ -120,11 +115,8 @@ void main() {
         'naming the four doc types, and no shared field', () {
       final shared = _manifest().shared;
       expect(
-        [for (final l in shared.lines) (l.id, l.text, l.disabled)],
-        [
-          ('person_stable_facts', _personStatement, false),
-          ('person_learning_edits_doc', _learningStatement, false),
-        ],
+        [for (final l in shared.lines) (l.id, l.disabled)],
+        [('person_stable_facts', false), ('person_learning_edits_doc', false)],
       );
       for (final line in shared.lines) {
         expect(line.forDocTypes, personalBrandingIds, reason: line.id);

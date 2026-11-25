@@ -445,10 +445,8 @@ void main() {
       'This doc backs [the fr]($_toFr)',
       'and its order rules.',
     ]);
-  });
 
-  test('a head piece names its doc with no fragment', () async {
-    final pieces = await _piecesOf(
+    final bullet = await _piecesOf(
       _files(
         domain: _lines([
           '# Shop domain',
@@ -461,10 +459,10 @@ void main() {
         ]),
       ),
     );
-    expect(pieces.map(_show), [
+    expect(bullet.map(_show), [
       '$shopDomain# id=null heading=null inbound 3-3',
     ]);
-    expect(pieces.single.sectionKey, isEmpty);
+    expect(bullet.single.sectionKey, isEmpty);
   });
 
   test('sibling spec docs of a spec doc target give ancestor pieces and cited-by lines', () async {

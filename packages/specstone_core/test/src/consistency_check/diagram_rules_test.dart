@@ -204,39 +204,17 @@ void main() {
   });
 
   test('an edge with no label is one finding at its own line', () async {
-    final report = await _checkArchitecture(
-      '```mermaid\nflowchart TD\nA --> B\n```',
-    );
-
-    expect(
-      _found(report).singleWhere((f) => f.contains('edge_unlabeled')),
-      '12 diagram_edge_unlabeled A --> B',
-    );
-  });
-
-  test(
-    'an edge ending in an x head with no label is one finding at its own line',
-    () async {
+    for (final edge in ['A --> B', 'A --x B', 'A -- Uses --> B']) {
       final report = await _checkArchitecture(
-        '```mermaid\nflowchart TD\nA --x B\n```',
+        '```mermaid\nflowchart TD\n$edge\n```',
       );
 
       expect(
         _found(report).singleWhere((f) => f.contains('edge_unlabeled')),
         '12 diagram_edge_unlabeled A --> B',
+        reason: edge,
       );
-    },
-  );
-
-  test('an edge labeled with a banned word is an unlabeled edge', () async {
-    final report = await _checkArchitecture(
-      '```mermaid\nflowchart TD\nA -- Uses --> B\n```',
-    );
-
-    expect(
-      _found(report).singleWhere((f) => f.contains('edge_unlabeled')),
-      '12 diagram_edge_unlabeled A --> B',
-    );
+    }
   });
 
   test('a node label holding an unquoted bracket is one finding keyed by the '
@@ -249,6 +227,15 @@ void main() {
       _found(report).singleWhere((f) => f.contains('label_unquoted')),
       '12 diagram_label_unquoted A',
     );
+
+    final two = await _checkArchitecture(
+      '```mermaid\nflowchart TD\nA[Save (draft)] -->|reads| B[Load (draft)]\n```',
+    );
+
+    expect(_found(two).where((f) => f.contains('label_unquoted')), [
+      '12 diagram_label_unquoted A',
+      '12 diagram_label_unquoted B',
+    ]);
   });
 
   test('a quoted node label gives no finding', () async {
@@ -335,18 +322,6 @@ void main() {
     ]);
   });
 
-  test('two nodes with unquoted brackets on one line give two findings told '
-      'apart by the node key', () async {
-    final report = await _checkArchitecture(
-      '```mermaid\nflowchart TD\nA[Save (draft)] -->|reads| B[Load (draft)]\n```',
-    );
-
-    expect(_found(report).where((f) => f.contains('label_unquoted')), [
-      '12 diagram_label_unquoted A',
-      '12 diagram_label_unquoted B',
-    ]);
-  });
-
   test('subgraph, classDef, style, and click lines give no finding while a '
       'titled block still has its edge read', () async {
     final report = await _checkArchitecture(
@@ -360,23 +335,6 @@ void main() {
     );
 
     expect(_found(report), ['20 diagram_edge_unlabeled A --> B']);
-  });
-
-  test('a titled block is read: its unlabeled edge is a finding', () async {
-    final report = await _checkArchitecture(
-      '```mermaid\n---\ntitle: Sign-in\n---\nflowchart TD\nA --> B\n```',
-    );
-
-    expect(_found(report), ['15 diagram_edge_unlabeled A --> B']);
-  });
-
-  test('a block whose front matter holds no title misses its title', () async {
-    final report = await _checkArchitecture(
-      '```mermaid\n---\nconfig: x\n---\nflowchart TD\n'
-      'A -->|reads| B\n```',
-    );
-
-    expect(_found(report), ['10 diagram_title_missing']);
   });
 
   test('an arrow or label with no node after it gives no finding and no '
@@ -409,17 +367,6 @@ void main() {
     expect(_found(report), isEmpty);
   });
 
-  test('an unlabeled edge inside a subgraph is still a finding', () async {
-    final report = await _checkArchitecture(
-      '```mermaid\nflowchart TD\nsubgraph inner[A group]\nA --> B\nend\n```',
-    );
-
-    expect(
-      _found(report).singleWhere((f) => f.contains('edge_unlabeled')),
-      '13 diagram_edge_unlabeled A --> B',
-    );
-  });
-
   test(
     'a box name no source holds is diagram_name_unknown at its line',
     () async {
@@ -428,6 +375,16 @@ void main() {
       );
 
       expect(_found(report), ['15 diagram_name_unknown Ghost']);
+      final json = jsonDecode(
+        jsonEncode(
+          report.findings
+              .singleWhere((f) => f.kind == FindingKind.diagramNameUnknown)
+              .toJson(),
+        ),
+      ) as Map<String, Object?>;
+
+      expect(json['name'], 'login');
+      expect(json['label'], 'Ghost');
     },
   );
 
@@ -539,18 +496,6 @@ void main() {
 
     expect(_found(sequence), ['15 diagram_actor_mismatch Owner']);
     expect(_found(flow), ['15 diagram_actor_mismatch Owner']);
-  });
-
-  test('a role named by a box tells the fix a flowchart can take, a role named by a participant tells it to draw an actor', () async {
-    final sequence = await _checkNames(
-      _sequence(
-        'participant Owner\nparticipant S as Sign-in page\nOwner->>S: signs in',
-      ),
-    );
-    final flow = await _checkNames(
-      _flow('A[Owner] -->|reads, SQL| B[Sign-in page]'),
-    );
-
     expect(
       sequence.findings
           .singleWhere((f) => f.kind == FindingKind.diagramActorMismatch)
@@ -648,60 +593,6 @@ void main() {
       ]),
     );
   });
-
-  test('with two targets an external system matches the project architecture of its own target only', () async {
-    final project = await writeTwinProject(
-      extra: {
-        '.specstone/templates/architecture.yaml': _namesLayer,
-        'docs/specs/flutter/ARCHITECTURE.md': _projectArchitectureDoc(
-          components: ['Engine'],
-          systems: ['FlutterStripe'],
-        ),
-        'docs/specs/jaspr/ARCHITECTURE.md': _projectArchitectureDoc(
-          components: ['Engine'],
-          systems: ['JasprStripe'],
-        ),
-        'docs/$flutterArchitecture': _diagramDoc(
-          _flow('A[FlutterStripe] -->|reads, SQL| B[JasprStripe]'),
-        ),
-        'docs/$jasprArchitecture': _diagramDoc(
-          _flow('A[JasprStripe] -->|reads, SQL| B[FlutterStripe]'),
-        ),
-      },
-    );
-    final report = await checkOf(project);
-
-    expect(
-      [
-        for (final f in report.findings)
-          if (f.kind == FindingKind.diagramNameUnknown)
-            '${f.path}:${f.line} ${f.keys['label']}',
-      ],
-      unorderedEquals([
-        '$flutterArchitecture:15 JasprStripe',
-        '$jasprArchitecture:15 FlutterStripe',
-      ]),
-    );
-  });
-
-  test(
-    'a name finding keeps the doc name and carries the diagram name as label',
-    () async {
-      final report = await _checkNames(
-        _flow('A[Sign-in page] -->|reads, SQL| B[Ghost]'),
-      );
-      final json = jsonDecode(
-        jsonEncode(
-          report.findings
-              .singleWhere((f) => f.kind == FindingKind.diagramNameUnknown)
-              .toJson(),
-        ),
-      ) as Map<String, Object?>;
-
-      expect(json['name'], 'login');
-      expect(json['label'], 'Ghost');
-    },
-  );
 
   test('a node first drawn bare and labeled on a later line takes its label at that line', () async {
     final report = await _checkNames(

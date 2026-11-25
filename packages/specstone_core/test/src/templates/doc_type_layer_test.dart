@@ -85,58 +85,38 @@ void main() {
       });
     }
 
-    test('a slug file name '
-        'loads', () {
-      expect(_parse('max_depth: 1\n').docTypeId, 'feature');
-    });
-
     test('per_target reads a boolean', () {
-      expect(_parse('per_target: true\n').perTarget, isTrue);
-      expect(_parse('per_target: false\n').perTarget, isFalse);
-      expect(_parse('path: a/{slug}.md\n').perTarget, isNull);
+      final readers = <String, bool? Function(DocTypeLayer)>{
+        'per_target': (layer) => layer.perTarget,
+        'fixed_numbers': (layer) => layer.fixedNumbers,
+        'bundle_refs': (layer) => layer.bundleRefs,
+      };
+      for (final MapEntry(:key, value: read) in readers.entries) {
+        expect(read(_parse('$key: true\n')), isTrue, reason: key);
+        expect(read(_parse('$key: false\n')), isFalse, reason: key);
+        expect(read(_parse('path: a/{slug}.md\n')), isNull, reason: key);
+      }
     });
 
     test('a per_target that is not a boolean is unknown_value', () {
-      expect(
-        () => _parse('per_target: yes please\n'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'per_target')),
-      );
-    });
-
-    test('fixed_numbers reads a boolean', () {
-      expect(_parse('fixed_numbers: true\n').fixedNumbers, isTrue);
-      expect(_parse('fixed_numbers: false\n').fixedNumbers, isFalse);
-      expect(_parse('path: a/{slug}.md\n').fixedNumbers, isNull);
-    });
-
-    test('a fixed_numbers that is not a boolean is unknown_value', () {
-      expect(
-        () => _parse('fixed_numbers: yes please\n'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'fixed_numbers')),
-      );
-    });
-
-    test('bundle_refs reads a boolean', () {
-      expect(_parse('bundle_refs: true\n').bundleRefs, isTrue);
-      expect(_parse('bundle_refs: false\n').bundleRefs, isFalse);
-      expect(_parse('path: a/{slug}.md\n').bundleRefs, isNull);
-    });
-
-    test('a bundle_refs that is not a boolean is unknown_value', () {
-      expect(
-        () => _parse('bundle_refs: refs\n'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'bundle_refs')),
-      );
+      for (final key in ['per_target', 'fixed_numbers', 'bundle_refs']) {
+        expect(
+          () => _parse('$key: yes please\n'),
+          throwsA(_fault(FaultCode.unknownValue, key: key)),
+          reason: key,
+        );
+      }
     });
 
     test('record_status is an accepted field type', () {
-      final layer = _parse('fields: [{id: status_of, type: record_status}]');
-      expect(layer.fields.single.type, FieldType.recordStatus);
-    });
-
-    test('task_ref is an accepted field type', () {
-      final layer = _parse('fields: [{id: tasks, type: task_ref}]');
-      expect(layer.fields.single.type, FieldType.taskRef);
+      for (final (id, wire, type) in [
+        ('status_of', 'record_status', FieldType.recordStatus),
+        ('tasks', 'task_ref', FieldType.taskRef),
+        ('source', 'source_ref', FieldType.sourceRef),
+      ]) {
+        final layer = _parse('fields: [{id: $id, type: $wire}]');
+        expect(layer.fields.single.type, type, reason: wire);
+      }
     });
 
     test('an unknown field type is unknown_value counting ten types', () {
@@ -150,11 +130,6 @@ void main() {
           ),
         ),
       );
-    });
-
-    test('source_ref is an accepted field type', () {
-      final layer = _parse('fields: [{id: source, type: source_ref}]');
-      expect(layer.fields.single.type, FieldType.sourceRef);
     });
 
     test('root: project and root: code load on an output_ref field', () {
@@ -199,13 +174,6 @@ void main() {
         () => _parse('fields: [{id: a, type: doc_ref, bundle_with: yes}]'),
         throwsA(_fault(FaultCode.unknownValue, key: 'fields[0].bundle_with')),
       );
-    });
-
-    test('item_exact is an accepted pointer kind', () {
-      final layer = _parse(
-        'fields: [{id: implements, type: output_ref, pointer: item_exact}]',
-      );
-      expect(layer.fields.single.pointer, 'item_exact');
     });
 
     test('an id unlike the file name is doc_type_id_mismatch', () {
@@ -315,13 +283,6 @@ void main() {
       );
     });
 
-    test('a field type outside the seven is unknown_value', () {
-      expect(
-        () => _parse('fields: [{id: size, type: float}]'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'fields.size.type')),
-      );
-    });
-
     test('an enum field with no enum list is missing_key', () {
       expect(
         () => _parse('fields: [{id: kind, type: enum}]'),
@@ -344,6 +305,12 @@ void main() {
               _parse('fields: [{id: covers, type: output_ref, pointer: glob}]'),
           throwsA(_fault(FaultCode.unknownValue, key: 'fields.covers.pointer')),
         );
+        expect(
+          () => _parse(
+            'fields: [{id: covers, type: output_ref, pointer: item_tests}]',
+          ),
+          throwsA(_fault(FaultCode.unknownValue, key: 'fields.covers.pointer')),
+        );
       },
     );
 
@@ -357,9 +324,14 @@ void main() {
     test('an output_ref field reads its pointer kind', () {
       final layer = _parse(
         'fields: [{id: covers, type: output_ref, list: true, pointer: prefix}, '
-        '{id: implements, type: output_ref, pointer: exact}]',
+        '{id: implements, type: output_ref, pointer: exact}, '
+        '{id: items, type: output_ref, pointer: item_exact}]',
       );
-      expect(layer.fields.map((f) => f.pointer), ['prefix', 'exact']);
+      expect(layer.fields.map((f) => f.pointer), [
+        'prefix',
+        'exact',
+        'item_exact',
+      ]);
     });
 
     test(
@@ -379,19 +351,15 @@ void main() {
               .pointer,
           'glob',
         );
+        expect(
+          _parse('fields: [{id: size, type: string, pointer: 3}]')
+              .fields
+              .single
+              .pointer,
+          3,
+        );
       },
     );
-
-    test('a pointer that is not a string on a field of another type '
-        'is accepted', () {
-      expect(
-        _parse('fields: [{id: size, type: string, pointer: 3}]')
-            .fields
-            .single
-            .pointer,
-        3,
-      );
-    });
 
     test('an override entry may write pointer with no type; '
         'its kind is checked at merge', () {
@@ -716,11 +684,14 @@ lint:
       );
     });
 
-    test('a section summary that is '
-        'not a boolean is unknown_value', () {
+    test('a section summary that is not a boolean is unknown_value', () {
       expect(
         () => _parse('sections: [{id: goal, summary: yes please}]\n'),
         throwsA(_fault(FaultCode.unknownValue, key: 'sections.goal.summary')),
+      );
+      expect(
+        () => _parse('sections: [{id: goal, query: yes please}]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'sections.goal.query')),
       );
     });
 
@@ -730,6 +701,12 @@ lint:
       ).sections;
       expect(sections.first.skeleton, isTrue);
       expect(sections.last.skeleton, isNull);
+
+      final matrix = _parse(
+        'sections: [{id: matrix, output_ref: true}, {id: goal}]\n',
+      ).sections;
+      expect(matrix.first.outputRef, isTrue);
+      expect(matrix.last.outputRef, isNull);
     });
 
     test('a section skeleton that is not a boolean is unknown_value', () {
@@ -737,27 +714,9 @@ lint:
         () => _parse('sections: [{id: why}, {id: goal, skeleton: header}]\n'),
         throwsA(_fault(FaultCode.unknownValue, key: 'sections[1].skeleton')),
       );
-    });
-
-    test('a section output_ref is read as written', () {
-      final sections = _parse(
-        'sections: [{id: matrix, output_ref: true}, {id: goal}]\n',
-      ).sections;
-      expect(sections.first.outputRef, isTrue);
-      expect(sections.last.outputRef, isNull);
-    });
-
-    test('an output_ref section key that is not a boolean is refused', () {
       expect(
         () => _parse('sections: [{id: why}, {id: matrix, output_ref: rows}]\n'),
         throwsA(_fault(FaultCode.unknownValue, key: 'sections[1].output_ref')),
-      );
-    });
-
-    test('a section query that is not a boolean is unknown_value', () {
-      expect(
-        () => _parse('sections: [{id: goal, query: yes please}]\n'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'sections.goal.query')),
       );
     });
 
@@ -835,15 +794,6 @@ lint:
         PointerKind.itemTest,
       );
       expect(PointerKind.itemTest.wire, 'item_test');
-    });
-
-    test('an output_ref pointer of item_tests is unknown_value', () {
-      expect(
-        () => _parse(
-          'fields: [{id: tests, type: output_ref, pointer: item_tests}]',
-        ),
-        throwsA(_fault(FaultCode.unknownValue, key: 'fields.tests.pointer')),
-      );
     });
   });
 
@@ -945,19 +895,6 @@ lint:
       expect(entry.when!.field, 'Consistency');
       expect(entry.when!.value, 'eventual');
       expect(entry.values, isNull);
-    });
-
-    test('an item_fields entry reads when and values together', () {
-      final entry =
-          (lintOf(
-                    '{item_fields: [{field: P, values: [a], '
-                    'when: {field: K, value: v}}]}',
-                  ).itemFields!
-                  as PlainList<ItemFieldLint>)
-              .items
-              .single;
-      expect(entry.values, ['a']);
-      expect((entry.when!.field, entry.when!.value), ('K', 'v'));
     });
 
     test('a when key other than field and value is unknown_key', () {
@@ -1265,13 +1202,6 @@ lint:
         '{max_code_blocks: {per_subsection: true}}',
         FaultCode.missingKey,
         'max_code_blocks.count',
-      );
-    });
-
-    test('max_item_lines in a doc-level lint is an unknown key', () {
-      expect(
-        () => _parse('lint: {max_item_lines: 4}'),
-        throwsA(_fault(FaultCode.unknownKey, key: 'lint.max_item_lines')),
       );
     });
 
@@ -1597,7 +1527,7 @@ lint:
     });
 
     test('a section guide-rule key in the doc-level lint is unknown_key', () {
-      for (final key in ['catalog', 'min_lines', 'diagram']) {
+      for (final key in ['catalog', 'min_lines', 'diagram', 'max_item_lines']) {
         expect(
           () => _parse('lint: {$key: {}}'),
           throwsA(_fault(FaultCode.unknownKey, key: 'lint.$key')),
@@ -1690,220 +1620,6 @@ lint:
       expect(
         () => _parse('fields: [{id: size, colour: red}]'),
         throwsA(refusal(FaultCode.unknownKey, 'fields.size.colour')),
-      );
-    });
-
-    test('a field entry with no id exits 78 at the entry index', () {
-      expect(
-        () => _parse('fields: [{type: string}]'),
-        throwsA(refusal(FaultCode.missingKey, 'fields[0].id')),
-      );
-    });
-
-    test('a section entry with no id exits 78 at the entry index', () {
-      expect(
-        () => _parse('sections: [{header: Goal}]'),
-        throwsA(refusal(FaultCode.missingKey, 'sections[0].id')),
-      );
-    });
-
-    test('a field type outside the ten field types exits 78', () {
-      expect(
-        () => _parse('fields: [{id: size, type: float}]'),
-        throwsA(refusal(FaultCode.unknownValue, 'fields.size.type')),
-      );
-    });
-
-    test('an enum field with no enum list exits 78', () {
-      expect(
-        () => _parse('fields: [{id: kind, type: enum}]'),
-        throwsA(refusal(FaultCode.missingKey, 'fields.kind.enum')),
-      );
-    });
-
-    test('an id unlike the file name exits 78 at the id key', () {
-      expect(
-        () => _parse('id: epic\n'),
-        throwsA(refusal(FaultCode.docTypeIdMismatch, 'id')),
-      );
-    });
-
-    test('a section id starting with an underscore exits 78', () {
-      expect(
-        () => _parse('sections: [{id: _lead}]'),
-        throwsA(refusal(FaultCode.unknownValue, 'sections[0].id')),
-      );
-    });
-
-    test('a max_depth of -1 or three exits 78 at the max_depth key', () {
-      for (final value in ['-1', 'three']) {
-        expect(
-          () => _parse('max_depth: $value\n'),
-          throwsA(refusal(FaultCode.unknownValue, 'max_depth')),
-          reason: value,
-        );
-      }
-    });
-
-    test('a file name that is no slug exits 78 at the id key', () {
-      for (final name in ['Grid', 'api-v2']) {
-        final file = '.specstone/templates/$name.yaml';
-        expect(
-          () => DocTypeLayer.parse(
-            'description: x\n',
-            file: file,
-            docTypeId: name,
-            kind: LayerKind.project,
-            files: const _FakeFiles({}),
-          ),
-          throwsA(
-            isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.unknownValue)
-                .having((f) => f.file, 'file', file)
-                .having((f) => f.key, 'key', 'id')
-                .having((f) => f.exitStatus, 'exit status', 78),
-          ),
-          reason: name,
-        );
-      }
-    });
-
-    test('a section skeleton that is no boolean exits 78', () {
-      expect(
-        () => _parse('sections: [{id: goal, skeleton: header}]'),
-        throwsA(refusal(FaultCode.unknownValue, 'sections[0].skeleton')),
-      );
-    });
-
-    test('a doc type or field writing export is unknown_key', () {
-      expect(
-        () => _parse('export: false\n'),
-        throwsA(refusal(FaultCode.unknownKey, 'export')),
-      );
-      expect(
-        () => _parse('fields: [{id: note, type: string, export: false}]'),
-        throwsA(refusal(FaultCode.unknownKey, 'fields.note.export')),
-      );
-    });
-
-    test('an empty when_field values list exits 78 naming the empty '
-        'values', () {
-      expect(
-        () => _parse(
-          'sections: [{id: goal, header: G, '
-          'when_field: {field: kind, values: []}}]',
-        ),
-        throwsA(
-          refusal(
-            FaultCode.unknownValue,
-            'sections.goal.when_field.values',
-          ).having(
-            (f) => f.message,
-            'message',
-            'when_field values holds no value',
-          ),
-        ),
-      );
-    });
-
-    test('a doc-level lint key outside the list exits 78 naming the '
-        'key', () {
-      expect(
-        () => _parse('lint: {max_words: 3}'),
-        throwsA(refusal(FaultCode.unknownKey, 'lint.max_words')),
-      );
-    });
-
-    test('a section lint key outside the list exits 78 naming the '
-        'key', () {
-      expect(
-        () => _parse('sections: [{id: goal, header: G, lint: {max_words: 3}}]'),
-        throwsA(refusal(FaultCode.unknownKey, 'sections.goal.lint.max_words')),
-      );
-    });
-
-    test('a section line_prefix that is no string exits 78 at its '
-        'key', () {
-      expect(
-        () =>
-            _parse('sections: [{id: goal, header: G, lint: {line_prefix: 3}}]'),
-        throwsA(
-          refusal(FaultCode.unknownValue, 'sections.goal.lint.line_prefix'),
-        ),
-      );
-    });
-
-    test('a section lint that writes max_item_chars exits 78 as no '
-        'section takes it', () {
-      expect(
-        () => _parse(
-          'sections: [{id: goal, header: G, lint: {max_item_chars: 900}}]',
-        ),
-        throwsA(
-          refusal(FaultCode.unknownKey, 'sections.goal.lint.max_item_chars'),
-        ),
-      );
-    });
-
-    test('a doc-level lint that writes max_item_lines exits 78 as a '
-        'section key', () {
-      expect(
-        () => _parse('lint: {max_item_lines: 3}'),
-        throwsA(refusal(FaultCode.unknownKey, 'lint.max_item_lines')),
-      );
-    });
-
-    test('a section lint that writes a sentence or trace note key exits '
-        '78', () {
-      for (final key in [
-        'max_sentence_words',
-        'max_sentence_chars',
-        'trace_note_last',
-      ]) {
-        expect(
-          () => _parse('sections: [{id: goal, header: G, lint: {$key: 3}}]'),
-          throwsA(refusal(FaultCode.unknownKey, 'sections.goal.lint.$key')),
-          reason: key,
-        );
-      }
-    });
-
-    test('an output_ref field with no pointer exits 78 at the pointer key', () {
-      expect(
-        () => _parse('fields: [{id: covers, type: output_ref}]'),
-        throwsA(refusal(FaultCode.missingKey, 'fields.covers.pointer')),
-      );
-    });
-
-    test('an output_ref pointer outside the four kinds exits 78 at the '
-        'pointer key', () {
-      expect(
-        () => _parse('fields: [{id: covers, type: output_ref, pointer: glob}]'),
-        throwsA(refusal(FaultCode.unknownValue, 'fields.covers.pointer')),
-      );
-    });
-
-    test('a per_target that is no boolean exits 78 at the per_target key', () {
-      expect(
-        () => _parse('per_target: yes please\n'),
-        throwsA(refusal(FaultCode.unknownValue, 'per_target')),
-      );
-    });
-
-    test('a section output_ref that is no boolean exits 78 at its section '
-        'key', () {
-      expect(
-        () => _parse('sections: [{id: why}, {id: matrix, output_ref: rows}]\n'),
-        throwsA(refusal(FaultCode.unknownValue, 'sections[1].output_ref')),
-      );
-    });
-
-    test('root: repo on an output_ref field exits 78 at the root key', () {
-      expect(
-        () => _parse(
-          'fields: [{id: a, type: output_ref, pointer: exact, root: repo}]',
-        ),
-        throwsA(refusal(FaultCode.unknownValue, 'fields.a.root')),
       );
     });
 

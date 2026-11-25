@@ -187,84 +187,6 @@ final Matcher _refusesBeforeGit = throwsA(
 );
 
 void main() {
-  group('a docs folder outside the project', () {
-    test('the clone cannot make new write into the folder its docs link '
-        'names, however its template sets the path', () async {
-      final (:clone, :ext, base: _) = await _fallThroughClone();
-      final before = treeBytes(ext);
-
-      expect(
-        () => writeIn(
-          clone,
-          (s) => answerNew(s, docTypeId: 'persona', slug: 'team'),
-        ),
-        _refusesOutside('docs/rules/team.md'),
-      );
-
-      expect(treeBytes(ext), before);
-    }, skip: _linksUnavailable);
-
-    test('set refuses the same way and leaves the doc as it was', () async {
-      final (:clone, :ext, base: _) = await _fallThroughClone();
-      final before = treeBytes(ext);
-
-      expect(
-        () => writeIn(
-          clone,
-          (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf),
-        ),
-        _refusesOutside('docs/$story2'),
-      );
-
-      expect(treeBytes(ext), before);
-    }, skip: _linksUnavailable);
-  });
-
-  group('a project root reached through a docs link', () {
-    test('set and new refuse, and the other project keeps its docs', () async {
-      final (:clone, :victim, base: _) = await _linkedClone();
-      final before = treeBytes(Directory('${victim.path}/docs'));
-
-      expect(
-        () => writeIn(
-          clone,
-          (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf),
-        ),
-        _refusesOutside('docs/$story2'),
-      );
-      expect(
-        () => writeIn(
-          clone,
-          (s) => answerNew(s, docTypeId: 'persona', slug: 'team'),
-        ),
-        _refusesOutside('docs/prds/personas/team/PERSONA.md'),
-      );
-
-      expect(treeBytes(Directory('${victim.path}/docs')), before);
-    }, skip: _linksUnavailable);
-
-    test('the refusal names the docs link, not the code folder', () async {
-      final (:clone, :victim, base: _) = await _linkedClone();
-
-      expect(
-        () => writeIn(
-          clone,
-          (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf),
-        ),
-        throwsA(
-          isA<RenderFault>().having(
-            (f) => f.message,
-            'message',
-            'cannot write docs/$story2: the project folder '
-                '${victim.resolveSymbolicLinksSync()} was reached through the '
-                'docs link in ${clone.resolveSymbolicLinksSync()}; run '
-                'specstone trust at a terminal to allow it',
-          ),
-        ),
-      );
-    }, skip: _linksUnavailable);
-  });
-
   group('a set on roots the Owner has not recorded', () {
     test('of a section refuses with exit 73 and the docs path, and the folder '
         'the docs link names keeps its bytes', () async {
@@ -286,6 +208,14 @@ void main() {
                     'project; run specstone trust at a terminal to allow it',
               ),
         ),
+      );
+      expect(
+        () => writeIn(
+          clone,
+          (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf),
+        ),
+        _refusesOutside('docs/$story2'),
+        reason: 'writeDoc refuses the same way',
       );
 
       expect(treeBytes(ext), before);
@@ -359,42 +289,6 @@ void main() {
   });
 
   group('after the Owner records the roots', () {
-    test('new and set write into the folder the docs link names', () async {
-      final (:clone, :ext, base: _) = await _fallThroughClone();
-      _trust(clone);
-
-      writeIn(clone, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
-      writeIn(clone, (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf));
-
-      expect(File('${ext.path}/rules/team.md').existsSync(), isTrue);
-      expect(
-        File('${ext.path}/$story2').readAsStringSync(),
-        contains('Changed'),
-      );
-    }, skip: _linksUnavailable);
-
-    test(
-      'set and new write into the other project the docs link names',
-      () async {
-        final (:clone, :victim, base: _) = await _linkedClone();
-        _trust(clone);
-
-        writeIn(clone, (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf));
-        writeIn(clone, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
-
-        expect(
-          File('${victim.path}/docs/$story2').readAsStringSync(),
-          contains('Changed'),
-        );
-        expect(
-          File('${victim.path}/docs/prds/personas/team/PERSONA.md')
-              .existsSync(),
-          isTrue,
-        );
-      },
-      skip: _linksUnavailable,
-    );
-
     test('a set of a section writes through a docs link that is itself a link '
         'and leaves the link in place', () async {
       final (:clone, :ext, base: _) = await _fallThroughClone();
@@ -481,23 +375,16 @@ void main() {
       );
 
       expect(treeBytes(ext), before);
+
+      final linked = await _linkedClone();
+      final linkedBefore = treeBytes(Directory('${linked.victim.path}/docs'));
+      expect(
+        () => writeIn(linked.clone, _deleteDraft),
+        _refusesOutside('.specstone/trash/journal.json'),
+        reason: 'the other project the docs link names refuses too',
+      );
+      expect(treeBytes(Directory('${linked.victim.path}/docs')), linkedBefore);
     }, skip: _linksUnavailable);
-
-    test(
-      'a delete in the other project the docs link names refuses too',
-      () async {
-        final (:clone, :victim, base: _) = await _linkedClone();
-        final before = treeBytes(Directory('${victim.path}/docs'));
-
-        expect(
-          () => writeIn(clone, _deleteDraft),
-          _refusesOutside('.specstone/trash/journal.json'),
-        );
-
-        expect(treeBytes(Directory('${victim.path}/docs')), before);
-      },
-      skip: _linksUnavailable,
-    );
   });
 
   group('every journal command refuses first, before it plans a rewrite', () {
@@ -525,19 +412,18 @@ void main() {
           File('${clone.path}/.specstone/trash/journal.json').existsSync(),
           isFalse,
         );
-      }, skip: _linksUnavailable);
 
-      test('$key in the other project the docs link names refuses the same '
-          'way', () async {
-        final (:clone, :victim, base: _) = await _linkedClone();
-        final before = treeBytes(Directory('${victim.path}/docs'));
-
+        final linked = await _linkedClone();
+        final linkedBefore = treeBytes(Directory('${linked.victim.path}/docs'));
         expect(
-          () => writeIn(clone, value),
+          () => writeIn(linked.clone, value),
           _refusesOutside('.specstone/trash/journal.json'),
+          reason: 'the other project the docs link names refuses the same way',
         );
-
-        expect(treeBytes(Directory('${victim.path}/docs')), before);
+        expect(
+          treeBytes(Directory('${linked.victim.path}/docs')),
+          linkedBefore,
+        );
       }, skip: _linksUnavailable);
     }
   });

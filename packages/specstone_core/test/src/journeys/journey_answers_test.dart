@@ -189,6 +189,7 @@ void main() {
           '${_stepLine('3x', 3)}\n${_lines(3)}\n',
         ),
       );
+      expect('path '.allMatches(text), hasLength(2));
       expect(answer.warnings, isEmpty);
     });
 
@@ -205,28 +206,6 @@ void main() {
 
       expect(answer.text, contains(_lines(1)));
       expect(answer.text, isNot(contains('OLD COPY LINE')));
-    });
-
-    test('a relative link prints from the journey '
-        "folder, as the journey's block holds it", () async {
-      final answer = await _paths(
-        [_step('1', 1)],
-        extra: {
-          'docs/$loginStory': _storyText().replaceFirst(
-            'sees the home page',
-            'sees the home page and '
-                '[sign out](../us02_sign_out/USER_STORY.md#acceptance-criteria)',
-          ),
-        },
-      );
-
-      const signOut =
-          '../../features/f01_login/us02_sign_out/USER_STORY.md'
-          '#acceptance-criteria';
-      expect(
-        answer.text,
-        contains('sees the home page and [sign out]($signOut)\n'),
-      );
     });
 
     test('a step naming a missing scenario prints its line '
@@ -270,16 +249,6 @@ void main() {
           ),
         ),
       );
-    });
-
-    test('one step is one path', () async {
-      final answer = await _paths([_step('1', 1)]);
-
-      expect(
-        answer.text,
-        contains('journey:$_slug path 1\n${_stepLine('1', 1)}\n'),
-      );
-      expect('path '.allMatches(answer.text), hasLength(1));
     });
 
     test('a step on no path prints under no path, with a '
@@ -421,7 +390,7 @@ void main() {
       'prints its FRs and - none, whatever the docs hold in implements',
       () async {
         final answer = await _code(
-          [_step('1', 1)],
+          [_step('1', 1), _step('2', 2)],
           extra: {
             '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
           },
@@ -429,7 +398,11 @@ void main() {
 
         expect(
           answer.text,
-          endsWith('${_stepLine('1', 1)}\n  $_story (user_story)\n  - none\n'),
+          endsWith(
+            '${_stepLine('1', 1)}\n  $_story (user_story)\n  - none\n'
+            '${_stepLine('2', 2)}\n  $_story (user_story)\n  - none\n'
+            '  $frName (fr)\n  - none\n',
+          ),
         );
         expect(answer.warnings, isEmpty);
       },
@@ -479,25 +452,6 @@ void main() {
       },
     );
 
-    test('an FR listed under a step prints - none when the merged set holds '
-        'no record doc type', () async {
-      final answer = await _code(
-        [_step('2', 2)],
-        extra: {
-          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-        },
-      );
-
-      expect(
-        answer.text,
-        endsWith(
-          '${_stepLine('2', 2)}\n  $_story (user_story)\n  - none\n'
-          '  $frName (fr)\n  - none\n',
-        ),
-      );
-      expect(answer.warnings, isEmpty);
-    });
-
     test('an FR of a sibling story tracing the step prints its record '
         'code paths', () async {
       const sibling = 'docs/prds/features/f01_login/us02_reset_password';
@@ -540,23 +494,6 @@ void main() {
       expect(answer.warnings, isEmpty);
     });
 
-    test('a story and an FR entry holding a code fingerprint '
-        'print the pointer alone', () async {
-      final answer = await _code(
-        [_step('2', 2)],
-        extra: _oneTarget(['$storyCode 5d1e0c4b7a92', '$frCode 0a1b2c3d4e5f']),
-      );
-
-      expect(
-        answer.text,
-        endsWith(
-          '${_stepLine('2', 2)}\n$storyEntry'
-          '  $frName (fr)\n'
-          '  - implements: app/lib/login.dart:checkPassword\n',
-        ),
-      );
-    });
-
     test('get feature:login --code is '
         'argument_invalid', () async {
       await expectLater(
@@ -591,40 +528,6 @@ void main() {
 
     test('--json holds journeys with steps, story, and frs', () async {
       final answer = await _code([_step('2', 2)], extra: single);
-
-      expect(answer.json, {
-        'journeys': [
-          {
-            'name': _slug,
-            'path': 'prds/journeys/$_slug/JOURNEY.md',
-            'steps': [
-              {
-                'number': '2',
-                'heading': 'Heading 2',
-                'step': '$_story S2',
-                'story': {
-                  'name': _story,
-                  'implements': ['app/lib/login.dart:SignInPage'],
-                },
-                'frs': [
-                  {
-                    'name': frName,
-                    'implements': ['app/lib/login.dart:checkPassword'],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      });
-    });
-
-    test('--json holds the pointer alone for entries holding a code '
-        'fingerprint', () async {
-      final answer = await _code(
-        [_step('2', 2)],
-        extra: _oneTarget(['$storyCode 5d1e0c4b7a92', '$frCode 0a1b2c3d4e5f']),
-      );
 
       expect(answer.json, {
         'journeys': [
@@ -751,31 +654,6 @@ void main() {
           );
         },
       );
-
-      test('entries holding a code fingerprint print each target line '
-          'with the pointer alone', () async {
-        final answer = await _code(
-          [_step('2', 2)],
-          extra: _twoTargets(
-            flutter: ['$storyCode 5d1e0c4b7a92', '$frCode 0a1b2c3d4e5f'],
-            jaspr: [
-              'email_login:jaspr_lib/web_login.dart:WebLogin 9f8e7d6c5b4a',
-            ],
-          ),
-        );
-
-        expect(
-          answer.text,
-          endsWith(
-            '${_stepLine('2', 2)}\n'
-            '  $_story (user_story)\n'
-            '  - flutter: app/lib/login.dart:SignInPage\n'
-            '  - jaspr: jaspr_lib/web_login.dart:WebLogin\n'
-            '  $frName (fr)\n'
-            '  - flutter: app/lib/login.dart:checkPassword\n',
-          ),
-        );
-      });
 
       test('--target jaspr keeps the one target, printed '
           'with no target name', () async {

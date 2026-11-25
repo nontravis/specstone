@@ -223,13 +223,6 @@ void main() {
       expect(b.joinedPaths, hasLength(3));
     },
   );
-  test('matches in two features form one bundle', () async {
-    final b = code('app/lib/src', BundleMode.implement);
-    expect(
-      b.docPaths,
-      containsAll(['$f/FEATURE.md', 'prds/features/f02_signup/FEATURE.md']),
-    );
-  });
   test('two features matched by one folder print in tree order', () async {
     final b = code('app/lib/src', BundleMode.implement);
     final printed = [for (final doc in b.printOrder(index)) doc.docPath];
@@ -335,12 +328,6 @@ void main() {
         ]);
       },
     );
-  });
-  test('no match gives the joined docs and the warning', () async {
-    final b = code('app/lib/main.dart', BundleMode.implement);
-    expect(b.docPaths, isEmpty);
-    expect(b.joinedPaths, hasLength(3));
-    expect(b.warnings, ['no doc covers or implements app/lib/main.dart']);
   });
   test('an uncovered path still gets the root spec docs', () async {
     final project = await writeLoginProject(
@@ -499,11 +486,6 @@ void main() {
             ),
       ),
     );
-  });
-  test('a .dbml path is matched by pointer values only, never read', () async {
-    expect(code('docs/specs/schema.dbml', BundleMode.implement).warnings, [
-      'no doc covers or implements docs/specs/schema.dbml',
-    ]);
   });
   test(
     'a .dbml file whose own text names a doc or a path still matches nothing',

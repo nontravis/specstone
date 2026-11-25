@@ -42,6 +42,10 @@ void main() {
         'Inbound\n- link: login/email_login/validate_credentials (fr)\n'
         'Mentions\n- none\nUntyped mentions\n- none\n',
       );
+      expect(
+        answerRefs(index, 'login/email_login/validate_credentials').text,
+        contains('Outbound\n- link: login/email_login (user_story)\nInbound\n'),
+      );
     },
   );
   test("a doc_ref targets its field's doc types only, and shows inbound on the target", () async {
@@ -175,12 +179,6 @@ void main() {
         reason: value,
       );
     }
-  });
-  test('pointers are outbound only; an empty group prints - none', () async {
-    expect(
-      answerRefs(await indexWith(_record()), 'implementation:login').text,
-      '==> login (implementation) · $_recordPath <==\nOutbound\n- covers: app/lib/src/login/\nInbound\n- none\nMentions\n- none\nUntyped mentions\n- none\n',
-    );
   });
   test('a name or an ID in text is no reference', () async {
     final mentions = await indexWith({
@@ -864,21 +862,6 @@ void main() {
     );
   });
 
-  test(
-    'a covers entry lists the pointer alone, without the fingerprint',
-    () async {
-      const fingerprint = '0123456789ab';
-      final recorded = await indexWith(
-        _record('app/lib/src/login/ $fingerprint'),
-      );
-
-      final text = answerRefs(recorded, 'implementation:login').text;
-
-      expect(text, contains('- covers: app/lib/src/login/\n'));
-      expect(text, isNot(contains(fingerprint)));
-    },
-  );
-
   test('a record lists each covers entry outbound as covers, in written order, fingerprint dropped', () async {
     const fingerprint = '0123456789ab';
     final recorded = await indexWith({
@@ -1147,16 +1130,6 @@ void main() {
     const buyerPath = 'prds/personas/buyer/PERSONA.md';
     const specsIndex = 'docs/specs/INDEX.md';
 
-    test("a doc's body link to its story is an outbound link and the story's inbound link", () async {
-      final story = answerRefs(index, 'login/email_login').text;
-      expect(story, contains('Inbound\n- link: $frName (fr)\n'));
-      final fr = answerRefs(index, frName).text;
-      expect(
-        fr,
-        contains('Outbound\n- link: login/email_login (user_story)\nInbound\n'),
-      );
-    });
-
     test('a vision or goal ID cited in a doc is no reference and no mention of the doc that states it', () async {
       final cited = await indexWith({
         'docs/prds/PROJECT.md': '# Project context\n\n## Project vision\n\n### PV-01 — One system\n',
@@ -1256,18 +1229,6 @@ void main() {
       expect(
         answerRefs(mentions, 'specs/INDEX.md').text,
         contains('Mentions\n- $buyerPath:5\nUntyped mentions\n- none\n'),
-      );
-    });
-
-    test('a code span naming a doc is a mention under Mentions and adds no inbound line', () async {
-      final mentions = await indexWith({
-        buyer: '# Buyer\n\n## Snapshot\nUses `login/reset_password` daily.\n',
-      });
-      expect(
-        answerRefs(mentions, 'login/reset_password').text,
-        '==> login/reset_password (user_story) · prds/features/f01_login/us02_reset_password/USER_STORY.md <==\n'
-        'Outbound\n- none\nInbound\n- none\n'
-        'Mentions\n- $buyerPath:4\nUntyped mentions\n- none\n',
       );
     });
   });

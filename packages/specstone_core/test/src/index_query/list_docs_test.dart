@@ -50,12 +50,6 @@ void main() {
       expect(lines.first, contains(' · '));
     });
 
-    test('structure prints no summary', () async {
-      final withSummary = await withSummaries('Grounds a task in one call.');
-      final doc = withSummary.at('prds/features/f01_login/FEATURE.md')!;
-      expect(docLine(withSummary, doc), isNot(contains('Grounds a task')));
-    });
-
     test('json adds a summary key to the doc that holds one alone', () async {
       final answer = answerList(
         await withSummaries('Grounds a task in one call.'),
@@ -230,12 +224,6 @@ void main() {
       ['login'],
     );
   });
-  test('--under a name no doc carries is doc_not_found', () async {
-    expect(
-      () => answerList(index, 'fr', const ListFilters(under: 'logn')),
-      throwsA(isA<IndexFault>()),
-    );
-  });
   test('no match is an empty list and success', () async {
     final answer = answerList(
       index,
@@ -253,16 +241,6 @@ void main() {
     expect(answer.json['docs'], isEmpty);
     expect(answer.exitStatus, 0);
   });
-  test('doc_type_unknown for featur carries exit status 64', () async {
-    expect(
-      () => answerList(index, 'featur', const ListFilters()),
-      throwsA(
-        isA<TemplateFault>()
-            .having((f) => f.code, 'code', FaultCode.docTypeUnknown)
-            .having((f) => f.exitStatus, 'exit status', 64),
-      ),
-    );
-  });
   test('--under logn is doc_not_found, exit 64, naming logn', () async {
     expect(
       () => answerList(index, 'fr', const ListFilters(under: 'logn')),
@@ -278,11 +256,14 @@ void main() {
     expect(
       () => answerList(index, 'featur', const ListFilters()),
       throwsA(
-        isA<TemplateFault>().having(
-          (f) => f.message,
-          'message',
-          'Could not find a doc type named "featur".',
-        ),
+        isA<TemplateFault>()
+            .having((f) => f.code, 'code', FaultCode.docTypeUnknown)
+            .having((f) => f.exitStatus, 'exit status', 64)
+            .having(
+              (f) => f.message,
+              'message',
+              'Could not find a doc type named "featur".',
+            ),
       ),
     );
   });
@@ -404,6 +385,7 @@ void main() {
           throwsA(
             isA<IndexFault>()
                 .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having((f) => f.exitStatus, 'exit status', 64)
                 .having(
                   (f) => f.message,
                   'message',
@@ -414,19 +396,6 @@ void main() {
         );
       }
     });
-
-    test(
-      'two targets and no --target refuse --status with exit status 64',
-      () async {
-        final index = await twoTargets();
-        expect(
-          () => answerList(index, 'fr', const ListFilters(status: 'planned')),
-          throwsA(
-            isA<IndexFault>().having((f) => f.exitStatus, 'exit status', 64),
-          ),
-        );
-      },
-    );
 
     test('list user_story --status skipped --target jaspr keeps the stories '
         'jaspr skips', () async {

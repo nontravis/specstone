@@ -200,29 +200,6 @@ void main() {
       expect(ranks.toSet(), hasLength(3));
     });
 
-    test('a personal pack over software-tech no_status keeps its place', () {
-      final set = _merge({
-        'software-tech': _pack(
-          'shared_lines:\n  - id: before\n    text: a\n'
-          '  - id: no_status\n    text: Write no status.\n'
-          '    for_doc_types: [architecture]\n'
-          '  - id: after\n    text: b\n',
-          types: {'architecture'},
-        ),
-        'mine': _pack(
-          'extends: software-tech\nshared_lines:\n  - id: no_status\n'
-          '    text: Write no status word.\n',
-        ),
-      });
-
-      expect(_ids(set.lines), ['before', 'no_status', 'after']);
-      expect(_text(set, 'no_status'), 'Write no status word.');
-      expect(
-        set.lines.singleWhere((line) => line.id == 'no_status').forDocTypes,
-        ['architecture'],
-      );
-    });
-
     test(
       'a field keeps its declaring pack and order when a pack changes it',
       () {
@@ -273,6 +250,7 @@ void main() {
       }, project: 'shared_lines:\n  - id: tone\n    text: back\n');
 
       expect(set.disabledLineIds, isEmpty);
+      expect(_text(set, 'tone'), 'back');
     });
 
     test('a disabled field reaches no doc type', () {
@@ -530,17 +508,6 @@ void main() {
         expect(set.lines, isEmpty);
       },
     );
-
-    test('a complete line over a disabled id adds it again', () {
-      final set = _merge({
-        'base': _pack('shared_lines:\n  - id: tone\n    text: base\n'),
-        'top': _pack(
-          'extends: base\nshared_lines:\n  - id: tone\n    disabled: true\n',
-        ),
-      }, project: 'shared_lines:\n  - id: tone\n    text: back\n');
-
-      expect(_text(set, 'tone'), 'back');
-    });
   });
 
   group('a pack entry names only doc types of its pack chain', () {

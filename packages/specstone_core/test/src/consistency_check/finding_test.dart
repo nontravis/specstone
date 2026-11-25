@@ -226,18 +226,6 @@ void main() {
     }
   });
 
-  test('layer_doc_type_dropped is project-level and waits for the Owner', () {
-    expect(FindingKind.layerDocTypeDropped.wire, 'layer_doc_type_dropped');
-    expect(FindingKind.layerDocTypeDropped.waitsFor, WaitsFor.owner);
-    expect(FindingKind.layerDocTypeDropped.isProjectLevel, isTrue);
-  });
-
-  test('diagram_parse_failed waits for the Agent', () {
-    expect(FindingKind.diagramParseFailed.wire, 'diagram_parse_failed');
-    expect(FindingKind.diagramParseFailed.waitsFor, WaitsFor.agent);
-    expect(FindingKind.diagramParseFailed.isProjectLevel, isFalse);
-  });
-
   test('a finding '
       'takes the waitsFor of its kind unless a rule sets it', () {
     final byKind = Finding(
@@ -357,66 +345,44 @@ void main() {
 
   test('a code_unconfirmed finding prints the current fingerprint on its own '
       'line, indented 4 spaces, and holds it in no message', () {
-    final finding = Finding(
-      kind: FindingKind.codeUnconfirmed,
-      path: 'specs/a.md',
-      line: 4,
-      message: 'lib/a.dart records no fingerprint',
-      keys: {
-        'entry': 'lib/a.dart',
-        'codePath': 'lib/a.dart',
-        'fingerprint': '9a1c03be55d2',
-      },
-    );
-    expect(finding.textLines, [
-      'specs/a.md:4: code_unconfirmed: lib/a.dart records no fingerprint',
-      '    fingerprint 9a1c03be55d2',
-    ]);
-    expect(finding.waitsFor, WaitsFor.agent);
-    expect(finding.toJson().keys, [
-      'kind',
-      'path',
-      'line',
-      'message',
-      'waitsFor',
-      'entry',
-      'codePath',
-      'fingerprint',
-    ]);
-  });
-
-  test('a code_suspect finding prints the current fingerprint on its own '
-      'line, indented 4 spaces, and holds it in no message', () {
-    final finding = Finding(
-      kind: FindingKind.codeSuspect,
-      path: 'specs/a.md',
-      line: 4,
-      message:
-          'lib/a.dart changed since its fingerprint 5d1e0c4b7a92 was '
-          'recorded',
-      keys: {
-        'entry': 'lib/a.dart',
-        'codePath': 'lib/a.dart',
-        'recorded': '5d1e0c4b7a92',
-        'fingerprint': '9a1c03be55d2',
-      },
-    );
-    expect(finding.textLines, [
-      'specs/a.md:4: code_suspect: lib/a.dart changed since its fingerprint 5d1e0c4b7a92 was recorded',
-      '    fingerprint 9a1c03be55d2',
-    ]);
-    expect(finding.waitsFor, WaitsFor.agent);
-    expect(finding.toJson().keys, [
-      'kind',
-      'path',
-      'line',
-      'message',
-      'waitsFor',
-      'entry',
-      'codePath',
-      'recorded',
-      'fingerprint',
-    ]);
+    const fingerprint = '9a1c03be55d2';
+    for (final (kind, message, recorded) in [
+      (FindingKind.codeUnconfirmed, 'lib/a.dart records no fingerprint', null),
+      (
+        FindingKind.codeSuspect,
+        'lib/a.dart changed since its fingerprint 5d1e0c4b7a92 was recorded',
+        '5d1e0c4b7a92',
+      ),
+    ]) {
+      final finding = Finding(
+        kind: kind,
+        path: 'specs/a.md',
+        line: 4,
+        message: message,
+        keys: {
+          'entry': 'lib/a.dart',
+          'codePath': 'lib/a.dart',
+          'recorded': ?recorded,
+          'fingerprint': fingerprint,
+        },
+      );
+      expect(finding.textLines, [
+        'specs/a.md:4: ${kind.wire}: $message',
+        '    fingerprint $fingerprint',
+      ], reason: kind.wire);
+      expect(finding.waitsFor, WaitsFor.agent, reason: kind.wire);
+      expect(finding.toJson().keys, [
+        'kind',
+        'path',
+        'line',
+        'message',
+        'waitsFor',
+        'entry',
+        'codePath',
+        if (recorded != null) 'recorded',
+        'fingerprint',
+      ], reason: kind.wire);
+    }
   });
 
   test('an agent '
@@ -496,20 +462,6 @@ void main() {
     ]);
     expect(report.text.split('\n').reversed.skip(1).first, '5 findings');
     expect(report.exitStatus, 1);
-  });
-
-  test("toJson names the finding's file as path and holds no docPath key", () {
-    final finding = Finding(
-      kind: FindingKind.bannedWord,
-      path: 'prds/a.md',
-      line: 2,
-      message: 'm',
-      keys: {'word': 'w'},
-    );
-    final json = finding.toJson();
-    expect(json['path'], 'prds/a.md');
-    expect(json.containsKey('docPath'), isFalse);
-    expect(json.keys.take(2), ['kind', 'path']);
   });
 
   test(

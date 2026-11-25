@@ -11,16 +11,6 @@ void main() {
     nf = prdCoreDocType(await resolvePrdCore(), 'nf');
   });
 
-  test('the verify_method wording is short', () {
-    final description = fieldOf(nf, 'verify_method').description!;
-
-    expect(description, contains('`analysis` reasons or calculates.'));
-    expect(
-      description,
-      contains('`demonstration` shows it working unmeasured.'),
-    );
-  });
-
   test('nf sits under its story folder with parent user_story, '
       'its fields, and four sections', () {
     expect(

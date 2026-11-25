@@ -69,13 +69,10 @@ void main() {
       () => writeIn(root, (s) => s.target('nobody_here')),
       throwsA(_faultCode(IndexFaultCode.docNotFound)),
     );
-  });
-
-  test('a name no doc carries is doc_not_found', () async {
-    final root = await writeWriteProject();
     expect(
       () => writeIn(root, (s) => s.target('user_story:login/nobody')),
       throwsA(_faultCode(IndexFaultCode.docNotFound)),
+      reason: 'a typed name no doc carries',
     );
   });
 
@@ -93,17 +90,6 @@ void main() {
       expect(writeIn(root, (s) => s.target(address).docPath), story1);
     }
   });
-
-  test(
-    'an untyped doc named by docs/ and its DocPath is untyped_target',
-    () async {
-      final root = await writeWriteProject();
-      expect(
-        () => writeIn(root, (s) => s.target('docs/prds/d01_context.md')),
-        throwsA(_faultCode(IndexFaultCode.untypedTarget)),
-      );
-    },
-  );
 
   test('a path names one of the two docs a typed name carries', () async {
     final root = await writeWriteProject(
@@ -263,22 +249,6 @@ void main() {
     );
   });
 
-  test('a lock held past the busy timeout is index_busy, exit 75', () async {
-    final root = await writeWriteProject();
-    writeIn(root, (_) {}); // creates the index
-    final other = sqlite3.open('${root.path}/.specstone/index.sqlite')
-      ..execute('BEGIN IMMEDIATE');
-    addTearDown(other.close);
-    expect(
-      () => writeIn(
-        root,
-        (s) => s.locked(() {}),
-        busyTimeout: const Duration(milliseconds: 200),
-      ),
-      throwsA(isA<IndexFault>().having((f) => f.exitStatus, 'exitStatus', 75)),
-    );
-  });
-
   test('a set held off by a lock held past the 10 s busy timeout is '
       'index_busy, exit 75, and writes no file', () async {
     expect(indexBusyTimeout, const Duration(seconds: 10));
@@ -346,44 +316,25 @@ void main() {
         File('${root.path}/${MoveJournal.journalPath}').existsSync(),
         isFalse,
       );
-    });
 
-    test('a rename journal is finished by the next write', () async {
-      final root = await writeWriteProject();
-      writeJournal(root, [
-        const MoveStep(
-          '$loginFolder/us02_sign_out',
-          '$loginFolder/us02_log_out',
-        ),
-      ]);
-      expect(
-        writeIn(root, (s) => s.target('user_story:login/log_out').docPath),
-        'prds/features/f01_login/us02_log_out/USER_STORY.md',
-      );
-      expect(
-        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
-        isFalse,
-      );
-    });
-
-    test('a move journal is finished by the next write', () async {
-      final root = await writeWriteProject();
-      writeJournal(root, [
+      final moveRoot = await writeWriteProject();
+      writeJournal(moveRoot, [
         const MoveStep(
           '$loginFolder/us03_reset_password',
           'docs/prds/features/f02_signup/us01_reset_password',
         ),
       ]);
-      writeIn(root, (_) {});
+      writeIn(moveRoot, (_) {});
       expect(
         hasDoc(
-          root,
+          moveRoot,
           'prds/features/f02_signup/us01_reset_password/USER_STORY.md',
         ),
         isTrue,
+        reason: 'a move journal is finished too',
       );
       expect(
-        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        File('${moveRoot.path}/${MoveJournal.journalPath}').existsSync(),
         isFalse,
       );
     });

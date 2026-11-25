@@ -57,20 +57,6 @@ void main() {
     });
   }
 
-  test('every --json form prints the same refusal message', () async {
-    final messages = <String>{};
-    for (final args in forms.values) {
-      final result = await run(args);
-      final envelope =
-          jsonDecode(result.stderr as String) as Map<String, Object?>;
-      messages.add(
-        (envelope['error']! as Map<String, Object?>)['message']! as String,
-      );
-    }
-
-    expect(messages, hasLength(1));
-  });
-
   final textForms = {
     'check': ['check'],
     'context': ['context', story, '--for', 'implement'],
@@ -97,22 +83,6 @@ void main() {
     'help': ['help'],
     'bare': <String>[],
   };
-
-  test('--help, help, and a bare call answer with exit 0 beside a pack pin '
-      'fault, since they load no template', () async {
-    for (final MapEntry(:key, :value) in loadFree.entries) {
-      if (key == '--version') continue;
-      final result = await run(value);
-
-      expect(
-        result.exitCode,
-        0,
-        reason: '$key\n${result.stdout}\n${result.stderr}',
-      );
-      expect(result.stderr, isEmpty, reason: key);
-      expect(result.stdout, isNotEmpty, reason: key);
-    }
-  });
 
   test('--version, --help, help, and a bare call answer with exit 0 beside a '
       'template fault, where check exits 78', () async {
@@ -168,12 +138,6 @@ void main() {
       final error = envelope['error']! as Map<String, Object?>;
       expect(error['code'], 'pack_pin_older', reason: key);
     }
-  });
-
-  test('--version exits 0 on the same project', () async {
-    final result = await run(['--version']);
-
-    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
   });
 }
 

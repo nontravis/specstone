@@ -1,6 +1,3 @@
-// The test names are plan text kept as written.
-// ignore_for_file: lines_longer_than_80_chars
-
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show baseHashOf;
@@ -42,20 +39,6 @@ void main() {
     expect(store.find('../outside.md', baseHashOf('# One\n')), isNull);
   });
 
-  test('prune keeps the copies of a draft still awaiting approval and drops the rest', () async {
-    final root = await writeTree({'.specstone/config.yaml': ''});
-    final store = AuditedCopyStore(root)
-      ..save(_docPath, '# One\n')
-      ..save(_docPath, '# One again\n')
-      ..save(_otherPath, '# Two\n')
-      ..prune((docPath) => docPath == _docPath);
-
-    expect(_copyOf(root, _docPath, '# One\n').existsSync(), isTrue);
-    expect(_copyOf(root, _docPath, '# One again\n').existsSync(), isTrue);
-    expect(_copyOf(root, _otherPath, '# Two\n').existsSync(), isFalse);
-    expect(store.find(_otherPath, baseHashOf('# Two\n')), isNull);
-  });
-
   test('prune drops the copies of a doc gone from disk', () async {
     final root = await writeTree({
       '.specstone/config.yaml': '',
@@ -63,10 +46,12 @@ void main() {
     });
     AuditedCopyStore(root)
       ..save(_docPath, '# One\n')
+      ..save(_docPath, '# One again\n')
       ..save(_otherPath, '# Two\n')
       ..prune((docPath) => File('${root.path}/docs/$docPath').existsSync());
 
     expect(_copyOf(root, _docPath, '# One\n').existsSync(), isTrue);
+    expect(_copyOf(root, _docPath, '# One again\n').existsSync(), isTrue);
     expect(_copyOf(root, _otherPath, '# Two\n').existsSync(), isFalse);
     expect(
       Directory('${root.path}/.specstone/audited/prds/features/f02')

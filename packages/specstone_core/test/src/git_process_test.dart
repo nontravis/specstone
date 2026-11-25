@@ -111,11 +111,17 @@ void main() {
 
   group('localEnvVarsFrom', () {
     test('reads one name per line, with no CR and no empty name', () {
-      final names = localEnvVarsFrom(
-        ProcessResult(0, 0, 'GIT_DIR\r\nGIT_WORK_TREE\n\n', ''),
-      );
+      for (final printed in [
+        'GIT_DIR\r\nGIT_WORK_TREE\n\n',
+        'GIT_DIR\rGIT_WORK_TREE',
+      ]) {
+        final names = localEnvVarsFrom(ProcessResult(0, 0, printed, ''));
 
-      expect(names, ['GIT_DIR', 'GIT_WORK_TREE']);
+        expect(names, [
+          'GIT_DIR',
+          'GIT_WORK_TREE',
+        ], reason: jsonEncode(printed));
+      }
     });
 
     test('a non-zero exit throws ProcessException', () {
@@ -123,14 +129,6 @@ void main() {
         () => localEnvVarsFrom(ProcessResult(0, 128, '', 'fatal: x')),
         throwsA(isA<ProcessException>()),
       );
-    });
-
-    test('a lone CR separates two names', () {
-      final names = localEnvVarsFrom(
-        ProcessResult(0, 0, 'GIT_DIR\rGIT_WORK_TREE', ''),
-      );
-
-      expect(names, ['GIT_DIR', 'GIT_WORK_TREE']);
     });
 
     test('an exit 0 that lists no name throws ProcessException', () {

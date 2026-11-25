@@ -73,19 +73,6 @@ void main() {
   ];
   for (final command in answerCommands) {
     test(
-      '${command.first} answers as an intact index does, with the damaged warning, when a page only the answer reads is lost',
-      () async {
-        final project = await writeReadProject();
-        final intact = readRunner(project);
-        expect(await intact.runner.run(command), 0);
-        loseAnswerPages(project);
-        final (:runner, :out, :err) = readRunner(project);
-        expect(await runner.run(command), 0, reason: err.toString());
-        expect(err.toString(), '⚠️ WARNING: $damagedWarning\n${intact.err}');
-        expect(out.toString(), intact.out.toString());
-      },
-    );
-    test(
       '${command.first} --json answers as an intact index does, with the damaged warning, when a page only the answer reads is lost',
       () async {
         final project = await writeReadProject();

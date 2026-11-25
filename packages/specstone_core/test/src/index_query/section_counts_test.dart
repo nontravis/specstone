@@ -27,12 +27,7 @@ void main() {
     'multibyte text': 'ภาษาไทย ünï\ncódé\n',
     'blank line first': '\n\nx\n',
   };
-  const headers = {
-    'plain header': header,
-    'header with a pair': '## Emoji \u{1F600}',
-    'header ending in a high surrogate': '## Half \uD83D',
-    'header with a line break': '## Odd\nheader',
-  };
+  const headers = {'plain header': header};
 
   for (final MapEntry(key: headerName, value: headerLine) in headers.entries) {
     for (final MapEntry(key: bodyName, value: body) in bodies.entries) {

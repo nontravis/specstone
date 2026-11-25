@@ -63,24 +63,30 @@ void main() {
     });
 
     test('a manifest without version is missing_key', () {
-      expect(
-        () => _parse('name: x\n'),
-        throwsA(_fault(FaultCode.missingKey, key: 'version')),
-      );
-    });
-
-    test('a manifest without name is missing_key', () {
-      expect(
-        () => _parse('version: 1.0.0\n'),
-        throwsA(_fault(FaultCode.missingKey, key: 'name')),
-      );
+      for (final (text, key) in [
+        ('name: x\n', 'version'),
+        ('version: 1.0.0\n', 'name'),
+      ]) {
+        expect(
+          () => _parse(text),
+          throwsA(_fault(FaultCode.missingKey, key: key)),
+          reason: key,
+        );
+      }
     });
 
     test('a list version is invalid', () {
-      expect(
-        () => _parse('name: x\nversion: [1.0.0]\n'),
-        throwsA(_fault(FaultCode.packVersionInvalid, key: 'version')),
-      );
+      for (final (reason, version) in [
+        ('list', '[1.0.0]'),
+        ('leading zero', '01.2.0'),
+        ('unquoted double', '1.2'),
+      ]) {
+        expect(
+          () => _parse('name: x\nversion: $version\n'),
+          throwsA(_fault(FaultCode.packVersionInvalid, key: 'version')),
+          reason: reason,
+        );
+      }
     });
 
     test('shared_lines and shared_fields parse into shared in file order', () {
@@ -132,20 +138,6 @@ shared_required_patterns:
         'no_todo',
         'has_owner',
       ]);
-    });
-
-    test('a leading zero in version is invalid', () {
-      expect(
-        () => _parse('name: x\nversion: 01.2.0\n'),
-        throwsA(_fault(FaultCode.packVersionInvalid, key: 'version')),
-      );
-    });
-
-    test('an unquoted double version is invalid', () {
-      expect(
-        () => _parse('name: x\nversion: 1.2\n'),
-        throwsA(_fault(FaultCode.packVersionInvalid, key: 'version')),
-      );
     });
 
     test('a YAML syntax error carries its line', () {

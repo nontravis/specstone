@@ -413,26 +413,20 @@ void main() {
   );
 
   group('oneLineMessage', () {
-    test('a jison error reads on one line', () {
-      expect(
-        oneLineMessage(
-          "Parse error on line 2:\n...equenceDiagramA->>B\n----------------------^\nExpecting 'TXT', got 'NEWLINE'",
-        ),
-        "Parse error on line 2: ...equenceDiagramA->>B ----------------------^ Expecting 'TXT', got 'NEWLINE'",
-      );
-    });
-
-    test('a Langium error loses its trailing space', () {
-      expect(
-        oneLineMessage(
-          'Parsing failed: Lexer error on line 2, column 9: unexpected character: ->x<- at offset: 12, skipped 1 characters. ',
-        ),
-        'Parsing failed: Lexer error on line 2, column 9: unexpected character: ->x<- at offset: 12, skipped 1 characters.',
-      );
-    });
-
     test('runs of spaces, tabs, and CRLF breaks become one space', () {
-      expect(oneLineMessage('  a \t b\r\n\r\nc  '), 'a b c');
+      for (final (raw, line) in [
+        (
+          "Parse error on line 2:\n...equenceDiagramA->>B\n----------------------^\nExpecting 'TXT', got 'NEWLINE'",
+          "Parse error on line 2: ...equenceDiagramA->>B ----------------------^ Expecting 'TXT', got 'NEWLINE'",
+        ),
+        (
+          'Parsing failed: Lexer error on line 2, column 9: unexpected character: ->x<- at offset: 12, skipped 1 characters. ',
+          'Parsing failed: Lexer error on line 2, column 9: unexpected character: ->x<- at offset: 12, skipped 1 characters.',
+        ),
+        ('  a \t b\r\n\r\nc  ', 'a b c'),
+      ]) {
+        expect(oneLineMessage(raw), line);
+      }
     });
   });
 }

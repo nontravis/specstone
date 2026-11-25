@@ -106,17 +106,6 @@ void main() {
     expect(finding.message, 'bare ID E07 is no item of docs/$loginFr');
   });
 
-  test('an item_mention_missing finding names its owner doc under '
-      'targetPath', () async {
-    final project = await _featureWith(
-      '$_featureLine [rulebook:login]($_domainFromFeature) INV-9.',
-    );
-    final finding = (await _judgedIn(project)).single;
-    expect(finding.keys['targetPath'], 'docs/$_domain');
-    expect(finding.keys, isNot(contains('target')));
-    expect(finding.message, 'bare ID INV-9 is no item of docs/$_domain');
-  });
-
   test('a bare ID after a doc link names that doc as target when it lacks '
       'the ID', () async {
     final project = await _featureWith(
@@ -131,6 +120,11 @@ void main() {
       'item': 'INV-9',
       'targetPath': 'docs/$_domain',
     });
+    expect(findings.single.keys, isNot(contains('target')));
+    expect(
+      findings.single.message,
+      'bare ID INV-9 is no item of docs/$_domain',
+    );
   });
 
   test('only the missing ID of a run gives a finding', () async {

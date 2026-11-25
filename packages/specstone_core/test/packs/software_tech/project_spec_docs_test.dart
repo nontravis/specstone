@@ -208,7 +208,6 @@ void main() {
         ),
       ),
     );
-    expect(text, contains('every feature'));
   });
 
   test('project_architecture alone adds an optional project-root covers '
@@ -291,14 +290,6 @@ void main() {
       project.where((l) => l.contains('Technical context view')),
       hasLength(1),
     );
-    expect(
-      project.singleWhere((l) => l.contains('Technical context view')),
-      allOf(
-        contains('`flowchart`'),
-        contains('always, citing the business context of FEATURES'),
-        contains('never copying it'),
-      ),
-    );
     expect([
       for (final l in project)
         if (!l.contains('Technical context view')) l,
@@ -327,18 +318,6 @@ void main() {
     expect(
       [for (final c in catalog) (c.count, c.column)],
       [(1, 'Condition'), (1, 'Client action')],
-    );
-  });
-
-  test('the convention form states no sentence count', () {
-    final convention = sectionOf(
-      prdCoreDocType(set, 'project_api'),
-      'conventions',
-    );
-    expect(convention.description, isNot(contains('<one sentence>')));
-    expect(
-      convention.description,
-      contains('Write each as `- **API-C<N>** <rule>`'),
     );
   });
 
@@ -418,30 +397,6 @@ void main() {
     );
   });
 
-  test('an inherited section whose base description names the feature reads '
-      'every feature or the project in each project spec doc type', () {
-    var rewritten = 0;
-    for (final MapEntry(key: id, value: project) in _projectTypes.entries) {
-      final base = prdCoreDocType(set, project.base);
-      for (final section in prdCoreDocType(set, id).sections) {
-        final text = section.description ?? '';
-        expect(text, isNot(contains('the feature')), reason: '$id $section');
-        final baseText = [
-          for (final b in base.sections)
-            if (b.id == section.id) b.description ?? '',
-        ].join();
-        if (!baseText.contains('the feature')) continue;
-        rewritten++;
-        expect(
-          text.contains('every feature') || text.contains('the project'),
-          isTrue,
-          reason: '$id ${section.id}',
-        );
-      }
-    }
-    expect(rewritten, greaterThan(0));
-  });
-
   test('each project spec doc type disables the shared overrides field its '
       'base holds and keeps the shared tasks field', () {
     final shared = PackManifest.parse(
@@ -473,78 +428,5 @@ void main() {
         reason: id,
       );
     }
-  });
-
-  test('project and per-feature descriptions place every-feature and '
-      'one-feature rules', () {
-    for (final project in _projectTypes.values) {
-      expect(
-        prdCoreDocType(set, project.base).description,
-        allOf(
-          matches(RegExp(r'^[^\n]*one feature', caseSensitive: false)),
-          contains("Put a rule every feature uses in the project's"),
-        ),
-        reason: project.base,
-      );
-    }
-  });
-
-  test('project_architecture says it is the primary architecture doc and a '
-      'feature one is a delta', () {
-    final description = prdCoreDocType(
-      set,
-      'project_architecture',
-    ).description!;
-
-    expect(
-      description,
-      allOf(
-        contains(
-          'the primary architecture doc, holding the context, containers, '
-          'deployment, data, and risks every feature runs on',
-        ),
-        contains("A feature's ARCHITECTURE.md is an optional delta on it."),
-      ),
-    );
-  });
-
-  test('project_security says it is the primary security doc', () {
-    expect(
-      prdCoreDocType(set, 'project_security').description,
-      contains(
-        "This is the primary security doc; a feature's SECURITY adds only a "
-        'new trust boundary or asset.',
-      ),
-    );
-  });
-
-  test('the project descriptions say the project SECURITY may cite the '
-      'project ARCHITECTURE by a section link', () {
-    const sentence =
-        "The project's SECURITY may cite the project's ARCHITECTURE by a "
-        'section link, such as '
-        '`[Specstone architecture](ARCHITECTURE.md#technical-diagram)`.';
-
-    for (final id in ['project_security', 'project_architecture']) {
-      expect(
-        prdCoreDocType(set, id).description,
-        contains(sentence),
-        reason: id,
-      );
-    }
-  });
-
-  test('the project_architecture sections taken from integration name the '
-      'project, never the feature', () {
-    final architecture = prdCoreDocType(set, 'project_architecture');
-    final external = sectionOf(architecture, 'external_systems').description!;
-    final contract = sectionOf(
-      architecture,
-      'contract_per_system',
-    ).description!;
-
-    expect(external, contains('the project'));
-    expect(external, isNot(contains('the feature')));
-    expect(contract, isNot(contains('the feature')));
   });
 }

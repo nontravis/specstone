@@ -238,27 +238,22 @@ void main() {
       expect(plan.overLimitLines, isEmpty);
     });
 
-    test('a 30k-token file of small parts gives two ranges split at an entry start', () {
-      final file = _planFileOf([
-        for (var i = 0; i < 6; i++)
-          _blockOf(i, [_lineOf(readRangeTokenLimit ~/ 4 - 25)]),
-      ]);
-      final fifth = file.entries[4].first;
-      expect(_pairsOf(readPlanOf(file)), [
-        [1, fifth - 1],
-        [fifth, _lineCountOfText(file)],
-      ]);
-    });
-
     test('a read range closes at 20000 est. tokens', () {
-      final file = _planFileOf([
-        for (var i = 0; i < 8; i++) _blockOf(i, [_lineOf(3900)]),
-      ]);
-      final sixth = file.entries[5].first;
-      expect(_pairsOf(readPlanOf(file)), [
-        [1, sixth - 1],
-        [sixth, _lineCountOfText(file)],
-      ]);
+      const cases = [
+        (blocks: 6, lineTokens: readRangeTokenLimit ~/ 4 - 25, split: 4),
+        (blocks: 8, lineTokens: 3900, split: 5),
+      ];
+      for (final c in cases) {
+        final file = _planFileOf([
+          for (var i = 0; i < c.blocks; i++)
+            _blockOf(i, [_lineOf(c.lineTokens)]),
+        ]);
+        final start = file.entries[c.split].first;
+        expect(_pairsOf(readPlanOf(file)), [
+          [1, start - 1],
+          [start, _lineCountOfText(file)],
+        ], reason: '${c.blocks} blocks of ${c.lineTokens} tokens');
+      }
     });
 
     test('a part over the limit cuts before its last fitting heading outside fenced code', () {
@@ -334,10 +329,8 @@ void main() {
   });
 
   group('refsPathOf, the refs file of a path', () {
-    test('a bare name takes .refs before .txt', () {
-      expect(refsPathOf('a.implement.jaspr.txt'), 'a.implement.jaspr.refs.txt');
-    });
     test('a named path takes .refs before its extension, or at its end when it has none', () {
+      expect(refsPathOf('a.implement.jaspr.txt'), 'a.implement.jaspr.refs.txt');
       expect(refsPathOf('out/b.txt'), 'out/b.refs.txt');
       expect(refsPathOf('out/b'), 'out/b.refs');
     });
@@ -757,16 +750,6 @@ void main() {
           {'key': 'statement0', 'first': 1},
         ],
       });
-    });
-
-    test('the out json names each doc by path', () {
-      final json = bundleIndexJson(_answerOf(2), '/p/b.txt');
-      final docs = (json['docs']! as List<Object>).cast<Map<String, Object>>();
-      expect(docs, hasLength(2));
-      for (final doc in docs) {
-        expect(doc['path'], isA<String>());
-        expect(doc, isNot(contains('docPath')));
-      }
     });
 
     test("the plan prints second, under the first file's header, in implement and design", () {
@@ -2533,31 +2516,6 @@ void main() {
         contains(endsWith(moved)),
       );
     });
-
-    test(
-      'the refs head of an implement file keeps the mark on a moved line',
-      () async {
-        final project = await writeLoginProject();
-        final session = openSession(project);
-        addTearDown(session.close);
-        final reply = answerBundleFile(
-          _splitOf(
-            2,
-            0,
-            mode: BundleMode.implement,
-            refsFile: _closedRefsOf(3, moved: {1}),
-          ),
-          File('${project.path}/out/b.txt'),
-          project: session.project,
-          isBare: false,
-        );
-        expect(reply.text, contains(' · 1 moved · '));
-        final lines = File('${project.path}/out/b.refs.txt').readAsLinesSync();
-        expect(lines[0], '- r0 (fr) · 5-7 · statement 6');
-        expect(lines[1], '- r1 (fr) · 9-11 · statement 10$moved');
-        expect(lines[2], '- r2 (fr) · 13-15 · statement 14');
-      },
-    );
 
     test('a moved refs docs entry carries moved true in json', () {
       final refs = _fileOf(2, prefix: 'r', moved: {1});

@@ -179,18 +179,12 @@ $_twoResultLines
   });
 
   test('a child that exits before reading stdin throws nothing', () async {
-    final outcome = await MermaidNodeRun(start: fake('  exit(1);'))
-        .parse(_blocks);
+    for (final body in ['  exit(1);', '']) {
+      final outcome = await MermaidNodeRun(start: fake(body)).parse(_blocks);
 
-    expect(outcome.answered, isEmpty);
-    expect(outcome.skipReason, isNotNull);
-  });
-
-  test('a child that exits 0 before reading stdin throws nothing', () async {
-    final outcome = await MermaidNodeRun(start: fake('')).parse(_blocks);
-
-    expect(outcome.answered, isEmpty);
-    expect(outcome.skipReason, isNotNull);
+      expect(outcome.answered, isEmpty, reason: 'body: "$body"');
+      expect(outcome.skipReason, isNotNull, reason: 'body: "$body"');
+    }
   });
 
   test('blocks sharing a hash go in once and both resolve', () async {

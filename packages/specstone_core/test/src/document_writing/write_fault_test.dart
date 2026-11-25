@@ -40,18 +40,18 @@ void main() {
       WriteFaultCode.docReferenced,
       'docs outside user_story:login/reset_password link into it',
       file: story3,
-      relatedFiles: [fr12],
+      relatedFiles: [fr12, fr32],
     );
     expect(
       fault.toText(),
-      '$story3: docs outside user_story:login/reset_password link into it; also $fr12',
+      '$story3: docs outside user_story:login/reset_password link into it; also $fr12, $fr32',
     );
     expect(fault.toJson(), {
       'error': {
         'code': 'doc_referenced',
         'message': 'docs outside user_story:login/reset_password link into it',
         'file': story3,
-        'relatedFiles': [fr12],
+        'relatedFiles': [fr12, fr32],
       },
     });
     final owner = WriteFault(WriteFaultCode.ownerTerminalRequired, 'm');
@@ -88,20 +88,5 @@ void main() {
         ('plan_mismatch', 75),
       ],
     );
-  });
-
-  test('migrate_pending exits 75', () {
-    expect(WriteFaultCode.migratePending.wire, 'migrate_pending');
-    expect(WriteFaultCode.migratePending.exitStatus, 75);
-  });
-
-  test('a text form with several relatedFiles joins them with commas', () {
-    final fault = WriteFault(
-      WriteFaultCode.docReferenced,
-      'linked',
-      file: story3,
-      relatedFiles: [fr12, fr32],
-    );
-    expect(fault.toText(), '$story3: linked; also $fr12, $fr32');
   });
 }

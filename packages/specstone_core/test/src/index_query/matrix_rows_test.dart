@@ -37,19 +37,17 @@ void main() {
       expect(row.label, 'show_toast');
       expect(row.written, 'show_toast: `queues a toast`, `drops a toast`');
       expect(row.line, 7);
-    });
 
-    test('reads a per-FR test row with a fingerprint', () {
-      final row = parseMatrixLine(
+      final stamped = parseMatrixLine(
         '- show_toast: `queues a toast`, `drops a toast` 3f9a1c0b7e2d',
         7,
       ) as TestRow;
 
-      expect(row.form, RowForm.perFr);
-      expect(row.literals, ['queues a toast', 'drops a toast']);
-      expect(row.fingerprint, '3f9a1c0b7e2d');
-      expect(row.label, 'show_toast');
-      expect(row.written, 'show_toast: `queues a toast`, `drops a toast`');
+      expect(stamped.form, RowForm.perFr);
+      expect(stamped.literals, ['queues a toast', 'drops a toast']);
+      expect(stamped.fingerprint, '3f9a1c0b7e2d');
+      expect(stamped.label, 'show_toast');
+      expect(stamped.written, 'show_toast: `queues a toast`, `drops a toast`');
     });
 
     test('reads a per-FR skip row and its fingerprint', () {
@@ -118,17 +116,6 @@ void main() {
 
       expect(row.literals, ['a `x`', 'drops']);
       expect(row.written, 'show_toast: `` a `x` ``, `drops`');
-    });
-
-    test('goes through the index JSON', () {
-      for (final text in [
-        '- show_toast: `queues`, `drops` 3f9a1c0b7e2d',
-        '- show_toast skipped: needs a clock 3f9a1c0b7e2d',
-      ]) {
-        final row = parseMatrixLine(text, 7);
-
-        expect(MatrixLine.fromJson(row.toJson()), row);
-      }
     });
 
     test('tells two rows of other literals apart', () {
@@ -213,6 +200,15 @@ void main() {
 
       expect(read, row);
       expect((read as MatrixRow).written, 'show_toast E01: `` a `x` ``');
+
+      for (final text in [
+        '- show_toast: `queues`, `drops` 3f9a1c0b7e2d',
+        '- show_toast skipped: needs a clock 3f9a1c0b7e2d',
+      ]) {
+        final perFr = parseMatrixLine(text, 7);
+
+        expect(MatrixLine.fromJson(perFr.toJson()), perFr, reason: text);
+      }
     });
 
     test('tells two rows of one literal apart by the form written', () {

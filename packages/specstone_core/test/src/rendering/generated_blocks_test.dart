@@ -75,28 +75,24 @@ void main() {
       );
     });
 
-    test('a stale block is rewritten and every byte outside '
-        'it is kept', () async {
-      final type = await _noteType();
-      const before = '---\nstatus: x\n---\n\n# T\n\n## Contents\n';
-      final disk = '$before$_toc\nB\n$_end\nintro\n\n## Steps\nbody';
+    test(
+      'a stale block is rewritten and every byte outside it is kept',
+      () async {
+        final type = await _noteType();
+        const before = '---\nstatus: x\n---\n\n# T\n\n## Contents\n';
+        final disk = '$before$_toc\nB\n$_end\nintro\n\n## Steps\nbody';
 
-      expect(
-        _write(disk, type, [_block('A')]),
-        '$before$_toc\nA\n$_end\nintro\n\n## Steps\nbody',
-      );
-    });
-
-    test('a hand edit inside a block is replaced by the '
-        "generator's text", () async {
-      final type = await _noteType();
-      final disk = '## Contents\n$_toc\nA\nhand edit\n$_end\n';
-
-      expect(
-        _write(disk, type, [_block('A')]),
-        '## Contents\n$_toc\nA\n$_end\n',
-      );
-    });
+        expect(
+          _write(disk, type, [_block('A')]),
+          '$before$_toc\nA\n$_end\nintro\n\n## Steps\nbody',
+        );
+        final handEdited = '## Contents\n$_toc\nA\nhand edit\n$_end\n';
+        expect(
+          _write(handEdited, type, [_block('A')]),
+          '## Contents\n$_toc\nA\n$_end\n',
+        );
+      },
+    );
 
     test('a BelowBodyLine block lands under its line, and a '
         'second write finds it there', () async {
@@ -204,26 +200,6 @@ void main() {
       expect([for (final b in blocks) b.kind], ['note_toc', 'note_end']);
       expect(registry.kinds, {'note_end', 'note_toc'});
       expect(registry['absent'], isNull);
-    });
-
-    test('a generator that returns no block for a place '
-        'leaves that place', () async {
-      final type = await _noteType();
-      final registry = GeneratorRegistry<int>({
-        'note_toc': (doc, docPath, docType, resolver) => const [],
-      });
-      final disk = '## Contents\n$_toc\nold\n$_end\n';
-
-      final blocks = runGenerators(
-        Doc.parse(disk),
-        type,
-        registry,
-        0,
-        docPath: 'notes/a.md',
-      );
-
-      expect(blocks, isEmpty);
-      expect(_write(disk, type, blocks), disk);
     });
 
     test('generatedBlockLines marks the marker and inner '

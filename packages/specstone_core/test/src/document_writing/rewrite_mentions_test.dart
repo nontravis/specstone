@@ -87,9 +87,6 @@ void main() {
       )?.lfText,
       'a `../us03_sign_out/s03_domain.md:12`, b ../us03_sign_out/FEATURE.md. c ../us03_sign_out/a.md#use_case\n',
     );
-  });
-
-  test('a line and column suffix stays as written', () {
     expect(
       rewrite('at ../us02_sign_out/a.dart:12:5;\n')?.lfText,
       'at ../us03_sign_out/a.dart:12:5;\n',
@@ -110,6 +107,10 @@ void main() {
     expect(
       seen,
       contains('docs/prds/features/f01_login/us02_sign_out/gone.md'),
+    );
+    expect(
+      rewrite('See /us02_sign_out/USER_STORY.md\n', exists: (path) => false),
+      isNull,
     );
   });
 
@@ -233,16 +234,6 @@ void main() {
       isNull,
     );
   });
-
-  test(
-    'a rooted path and a path above the docs root stay when they name no file',
-    () {
-      expect(
-        rewrite('See /us02_sign_out/USER_STORY.md\n', exists: (path) => false),
-        isNull,
-      );
-    },
-  );
 
   test('the count is the number of edits', () {
     final result = rewrite(

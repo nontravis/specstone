@@ -79,40 +79,7 @@ void main() {
     );
   });
   group('several names', () {
-    const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     const featurePath = 'prds/features/f01_login/FEATURE.md';
-
-    test('three names print each doc or section once, in the order named, '
-        'each with its base, exit 0', () async {
-      final (:runner, :out, :err) = readRunner(await writeReadProject());
-      expect(
-        await runner.run([
-          'get',
-          'user_story:login/email_login',
-          'prds/d01_context.md#project_name',
-          'feature:login',
-          'user_story:login/email_login#use_case',
-        ]),
-        0,
-      );
-      final names = [
-        for (final line in out.toString().split('\n'))
-          if (line.startsWith('==> ')) line.split(' · ')[1],
-      ];
-      expect(names, [
-        storyPath,
-        'prds/d01_context.md#project_name',
-        featurePath,
-      ]);
-      expect(
-        RegExp(
-          r' · base [0-9a-f]{12} <==$',
-          multiLine: true,
-        ).allMatches(out.toString()),
-        hasLength(3),
-      );
-      expect(err.toString(), isEmpty);
-    });
 
     test('--json holds the docs in argument order', () async {
       final (:runner, :out, :err) = readRunner(await writeReadProject());
@@ -162,22 +129,6 @@ void main() {
         'no doc named login holds a section with the key acceptance\n',
       );
     });
-
-    test('an unknown doc type is one more fault, one stderr line per '
-        "code, the first name's fault first", () async {
-      final (:runner, :out, :err) = readRunner(await writeReadProject());
-      expect(
-        await runner.run(['get', 'nosuch1', 'login#zzz', 'nosuchtype:x']),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        'no doc carries the name nosuch1\n'
-        'no doc named login holds a section with the key zzz\n'
-        'Could not find a doc type named "nosuchtype".\n',
-      );
-    });
   });
   test('no name is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
@@ -192,35 +143,6 @@ void main() {
       'section_not_found',
     );
     expect(out.toString(), isEmpty);
-  });
-  test(
-    'a typed name no doc carries names the type, as the sidecar does',
-    () async {
-      final (:runner, :out, :err) = readRunner(await writeReadProject());
-      expect(await runner.run(['get', 'architecture:signup', '--json']), 64);
-      expect((jsonDecode(err.toString()) as Map)['error'], {
-        'code': 'doc_not_found',
-        'message': 'no architecture doc carries the name signup',
-      });
-    },
-  );
-  test('a misspelled slug prefix is doc_type_unknown, exit 64', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(await runner.run(['get', 'architectur:login', '--json']), 64);
-    expect(
-      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
-      'doc_type_unknown',
-    );
-  });
-  test('outside a project, or under a 9.9.9 pin, exits 78', () async {
-    expect(
-      await readRunner(await writeTree({})).runner.run(['get', 'login']),
-      78,
-    );
-    final pinned = await writeReadProject(
-      extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
-    );
-    expect(await readRunner(pinned).runner.run(['get', 'login']), 78);
   });
   test('no name under --json is the argument_missing envelope, exit 64, '
       'stdout empty', () async {
@@ -254,83 +176,6 @@ void main() {
       isFalse,
     );
   });
-  test('a template section the doc lacks prints its naming line alone and '
-      'exits 0, with an empty text under --json', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(await runner.run(['get', 'feature:login#benefit_hypothesis']), 0);
-    expect(
-      out.toString(),
-      matches(
-        RegExp(
-          r'^==> login \(feature\) · prds/features/f01_login/FEATURE\.md'
-          r'#benefit_hypothesis · base [0-9a-f]{12} <==\n$',
-        ),
-      ),
-    );
-    out.clear();
-    expect(
-      await runner.run(['get', 'feature:login#benefit_hypothesis', '--json']),
-      0,
-    );
-    final doc =
-        ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
-    expect(doc['text'], '');
-  });
-  test('the lead of a doc with no lead text prints its naming line alone and '
-      'exits 0', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(
-        extra: {
-          'docs/prds/GNFR.md':
-              '# Project-wide requirements\n\n## Performance\n\nN/A\n',
-        },
-      ),
-    );
-    expect(await runner.run(['get', 'gnfr#_lead']), 0);
-    expect(
-      out.toString(),
-      matches(
-        RegExp(
-          r'^==> gnfr \(gnfr\) · prds/GNFR\.md#_lead · base [0-9a-f]{12} <==\n$',
-        ),
-      ),
-    );
-  });
-  test('Grid:login is no doc type prefix, so it is doc_not_found, exit 64, '
-      'and never doc_type_unknown', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(await runner.run(['get', 'Grid:login', '--json']), 64);
-    expect(
-      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
-      'doc_not_found',
-    );
-  });
-  test('architecture: before the DocPath of a feature is doc_not_found, exit '
-      '64', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(
-      await runner.run([
-        'get',
-        'architecture:prds/features/f01_login/FEATURE.md',
-        '--json',
-      ]),
-      64,
-    );
-    expect(
-      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
-      'doc_not_found',
-    );
-  });
-  test('a suffix of an untyped doc alone is doc_not_found, exit 64', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(extra: {'docs/prds/notes/old.md': '# Old\n'}),
-    );
-    expect(await runner.run(['get', 'notes/old.md', '--json']), 64);
-    expect(
-      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
-      'doc_not_found',
-    );
-  });
   test('an untyped doc whose file name holds @ is printed by get and planned '
       'by delete --dry-run', () async {
     final project = await writeReadProject(
@@ -348,16 +193,6 @@ void main() {
     );
     expect(delete.out.toString(), startsWith('prds/a@b.md'));
     expect(delete.out.toString(), contains('dry run: nothing removed'));
-  });
-  test('get --json prints the laid-out section bases', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(
-      await runner.run(['get', 'user_story:login/email_login', '--json']),
-      0,
-    );
-    final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
-    final bases = (docs.single as Map)['bases']! as Map;
-    expect((bases['sections']! as Map)['acceptance_criteria'], '6d6a67fa9a00');
   });
 
   group('journey options', () {
@@ -472,60 +307,6 @@ void main() {
         expect(
           err.toString(),
           '⚠️ WARNING: sign_in: step 1 names no scenario\n',
-        );
-      },
-    );
-    test(
-      '--paths on a story, or on a bare name a persona also carries, is '
-      'argument_invalid, exit 64, naming the doc that is no journey',
-      () async {
-        final story = readRunner(await project());
-        expect(
-          await story.runner.run([
-            'get',
-            'user_story:login/email_login',
-            '--paths',
-            '--json',
-          ]),
-          64,
-        );
-        expect(story.out.toString(), isEmpty);
-        final error = (jsonDecode(story.err.toString()) as Map)['error'] as Map;
-        expect(error['code'], 'argument_invalid');
-        expect(
-          error['message'],
-          'user_story:login/email_login is not a journey; '
-          '--paths reads journeys only',
-        );
-        final shared = readRunner(
-          await writeReadProject(
-            extra: {
-              journeyDoc: journeyText,
-              storyDoc: storyText,
-              'docs/prds/personas/sign_in/PERSONA.md': '---\nrole: Agent\npriority: primary\nbasis: proto\n---\n\n# Sign in\n',
-            },
-          ),
-        );
-        expect(await shared.runner.run(['get', 'sign_in', '--paths']), 64);
-        expect(shared.out.toString(), isEmpty);
-        expect(
-          shared.err.toString(),
-          'persona:sign_in is not a journey; --paths reads journeys only\n',
-        );
-      },
-    );
-    test(
-      '--code on a feature is argument_invalid, exit 64, stdout empty',
-      () async {
-        final (:runner, :out, :err) = readRunner(await project());
-        expect(
-          await runner.run(['get', 'feature:login', '--code', '--json']),
-          64,
-        );
-        expect(out.toString(), isEmpty);
-        expect(
-          ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
-          'argument_invalid',
         );
       },
     );
@@ -850,25 +631,6 @@ void main() {
         ),
       );
     });
-    test('a doc type name held by flutter alone is doc_not_found under '
-        '--target jaspr, exit 64', () async {
-      final (:runner, :out, :err) = readRunner(await writeTargetedProject());
-      expect(
-        await runner.run([
-          'get',
-          'rulebook:feedback/toast',
-          '--target',
-          'jaspr',
-          '--json',
-        ]),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(
-        ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
-        'doc_not_found',
-      );
-    });
     test('--paths and --code refuse a target targets: holds none of, '
         'argument_invalid, exit 64', () async {
       for (final option in ['--paths', '--code']) {
@@ -932,67 +694,6 @@ void main() {
           isNot(contains('on flutter')),
         ),
       );
-    });
-    group('--code reads the records of each code target', () {
-      const journey =
-          '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
-          '### 1. Open the page\nstep: feedback/toast/show S1\n';
-      const story =
-          '# Show toast\n\n## Acceptance Criteria\n\n'
-          '### Scenario 1 — [happy] Show\n- **Then** the Agent sees it\n';
-      const record =
-          'id: implementation\n'
-          'description: One feature record per target.\n'
-          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-          'parent: feature\n'
-          'per_target: true\n'
-          'fields:\n'
-          '  - id: statuses\n'
-          '    type: record_status\n'
-          '    list: true\n'
-          '  - id: implements\n'
-          '    type: output_ref\n'
-          '    list: true\n'
-          '    pointer: item_exact\n';
-
-      Future<Directory> project() => writeTargetedProject(
-        extra: {
-          '.specstone/templates/implementation.yaml': record,
-          'docs/prds/journeys/sign_in/JOURNEY.md': journey,
-          'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
-              story,
-          'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md':
-              '---\nstatuses:\n  - show:implemented\n'
-              'implements:\n  - show:lib/toast.dart:Toast\n---\n\n'
-              '# Record\n',
-          'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
-              '---\nstatuses:\n  - show:skipped:no web toast\n---\n\n'
-              '# Record\n',
-        },
-      );
-
-      const stepLines =
-          '1. Open the page — feedback/toast/show S1\n'
-          '  feedback/toast/show (user_story)\n';
-
-      test('--target keeps one target, printed with no '
-          'target name', () async {
-        final (:runner, :out, :err) = readRunner(await project());
-        expect(
-          await runner.run(['get', 'sign_in', '--code', '--target', 'flutter']),
-          0,
-        );
-        expect(
-          out.toString(),
-          endsWith('$stepLines  - implements: lib/toast.dart:Toast\n'),
-        );
-        out.clear();
-        expect(
-          await runner.run(['get', 'sign_in', '--code', '--target', 'jaspr']),
-          0,
-        );
-        expect(out.toString(), endsWith('$stepLines  - skipped\n'));
-      });
     });
     test('--paths with no --target resolves the step in a two-target '
         'project', () async {

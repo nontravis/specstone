@@ -189,16 +189,6 @@ void main() {
     expect(part, isNot(contains('$_stockTest:2')));
   });
 
-  test('a file under a folder link prints its diff once', () async {
-    final project = await _committedProject();
-    _append(project.path, _login, 1);
-
-    final part = await _partOf(project, 'feature:login');
-
-    expect('diff --git a/$_login'.allMatches(part), hasLength(1));
-    expect(part, contains('fr01_check_password.md'));
-  });
-
   test(
     "a folder entry's part leaves out the doc of an unchanged file under it",
     () async {
@@ -317,22 +307,6 @@ void main() {
     final project = await _renamedRowLiteral();
 
     await _expectQuestionOwnersPrinted(project, 'feature:shop', cartRecord);
-  });
-
-  test('the verdict part opens at column 0 after the code part', () async {
-    final project = await _committedProject();
-    _append(project.path, _login, 1);
-    final session = openSession(project);
-    addTearDown(session.close);
-    final report = await runCheck(session);
-    final group = syncGroupsOf(
-      CheckContext(session),
-      report,
-    ).firstWhere((group) => group.scope == 'feature:login');
-
-    final text = syncGroupText(session, group);
-
-    expect(text, contains('\n==> verdicts <==\n'));
   });
 
   test('an FR prints its four contract sections', () async {

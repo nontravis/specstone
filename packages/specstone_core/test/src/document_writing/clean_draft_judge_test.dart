@@ -44,9 +44,12 @@ String _lf(String text) => text;
 String _crlf(String text) =>
     text.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
 
-/// Registers [body] as two tests, one with LF and one with CRLF report text.
-void _reportTest(String name, void Function() body) {
-  for (final (label, ending) in [('LF', _lf), ('CRLF', _crlf)]) {
+/// Registers [body] with LF report text, and again with CRLF when [crlf].
+///
+/// Report text is stripped of its byte order mark and `\r` before any parse,
+/// so only a test of that strip needs the CRLF run.
+void _reportTest(String name, void Function() body, {bool crlf = false}) {
+  for (final (label, ending) in [('LF', _lf), if (crlf) ('CRLF', _crlf)]) {
     test('$name ($label)', () {
       _lineEnding = ending;
       addTearDown(() => _lineEnding = _lf);
@@ -231,7 +234,7 @@ void main() {
 
       final clean = '﻿${_audited(_name, _hash)}\r\nFindings: none\r\n';
       expect(_reasonForAudit(clean), isNull);
-    });
+    }, crlf: true);
 
     _reportTest('continues an item on an indented raw line', () {
       final named = [
@@ -403,6 +406,25 @@ void main() {
         '  Findings:   $_name ',
       ].join('\n');
       expect(_reasonForAudit(trimmed), _namedIn('Findings', 'audit1.md'));
+
+      final roundItems = [
+        _audited(_name, _hash),
+        'Outside the round:',
+        '- $_name#edge_cases: x',
+      ].join('\n');
+      expect(
+        _reasonForAudit(roundItems),
+        _namedIn('Outside the round', 'audit1.md'),
+      );
+
+      final roundFirst = [
+        _audited(_name, _hash),
+        'Outside the round: $_name x',
+      ].join('\n');
+      expect(
+        _reasonForAudit(roundFirst),
+        _namedIn('Outside the round', 'audit1.md'),
+      );
     });
 
     _reportTest('reads a none item as naming nothing', () {
@@ -416,17 +438,12 @@ void main() {
       expect(_reasonForAudit(text), isNull);
     });
 
-    _reportTest('reads a NOT ADDRESSED item under Verdicts as a finding', () {
-      final text = [
-        _audited(_name, _hash),
-        'Verdicts:',
-        '- NOT ADDRESSED: $_name#statement: x',
-      ].join('\n');
-      expect(_reasonForAudit(text), _namedIn('Verdicts', 'audit1.md'));
-    });
-
     _reportTest('reads a bare or unknown item under Verdicts as a finding', () {
-      for (final item in ['- $_name#statement: x', '- MAYBE: $_name x']) {
+      for (final item in [
+        '- NOT ADDRESSED: $_name#statement: x',
+        '- $_name#statement: x',
+        '- MAYBE: $_name x',
+      ]) {
         final text = [_audited(_name, _hash), 'Verdicts:', item].join('\n');
         expect(
           _reasonForAudit(text),
@@ -550,27 +567,6 @@ void main() {
         );
       },
     );
-
-    _reportTest('opens Outside the round as a finding section', () {
-      final items = [
-        _audited(_name, _hash),
-        'Outside the round:',
-        '- $_name#edge_cases: x',
-      ].join('\n');
-      expect(
-        _reasonForAudit(items),
-        _namedIn('Outside the round', 'audit1.md'),
-      );
-
-      final first = [
-        _audited(_name, _hash),
-        'Outside the round: $_name x',
-      ].join('\n');
-      expect(
-        _reasonForAudit(first),
-        _namedIn('Outside the round', 'audit1.md'),
-      );
-    });
 
     _reportTest('a label line inside Verdicts closes it', () {
       final unDashed = [
@@ -1212,6 +1208,7 @@ void main() {
             _openDecisions([('D5', 'author1.md')]),
           );
         },
+        crlf: true,
       );
 
       _reportTest('leaves a decision open when its key ends the line', () {

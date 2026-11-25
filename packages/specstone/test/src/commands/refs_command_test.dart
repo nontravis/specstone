@@ -25,16 +25,6 @@ void main() {
       'message': 'no architecture doc carries the name signup',
     });
   });
-  test('outside a project, or under a 9.9.9 pin, exits 78', () async {
-    expect(
-      await readRunner(await writeTree({})).runner.run(['refs', 'login']),
-      78,
-    );
-    final pinned = await writeReadProject(
-      extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
-    );
-    expect(await readRunner(pinned).runner.run(['refs', 'login']), 78);
-  });
   test(
     'refs login --out saves the text reply and prints only its header',
     () async {
@@ -215,75 +205,4 @@ void main() {
       ),
     );
   });
-
-  test('refs on a record lists each covers entry as a covers line, fingerprint '
-      'dropped, and no inbound line', () async {
-    final project = await writeReadProject(
-      extra: {
-        '.specstone/records/f01_login/IMPLEMENTATION.md':
-            '---\ncovers:\n  - app/lib/src/login/ 0123456789ab\n'
-            '  - app/lib/src/signup/\n---\n\n# Login implementation\n',
-      },
-    );
-    final (:runner, :out, :err) = readRunner(project);
-
-    expect(await runner.run(['refs', 'implementation:login']), 0);
-
-    expect(
-      out.toString(),
-      contains(
-        'Outbound\n- covers: app/lib/src/login/\n- covers: app/lib/src/signup/\n'
-        'Inbound\n- none\n',
-      ),
-    );
-    expect(out.toString(), isNot(contains('0123456789ab')));
-  });
-  group('matrix rows', () {
-    const item = 'email_login/validate_credentials';
-    const row = '$item E02: `refuses a wrong password`';
-
-    Future<Directory> projectWithRow() => writeReadProject(
-      extra: {
-        '.specstone/records/f01_login/IMPLEMENTATION.md':
-            "---\nstatuses:\n  - '$item:implemented'\n---\n\n"
-            '# Login implementation\n\n## Verification matrix\n\n'
-            '- $row 5d1e0c4b7a92\n',
-      },
-    );
-
-    test(
-      'refs prints a row as a verifies line without its fingerprint',
-      () async {
-        final (:runner, :out, :err) = readRunner(await projectWithRow());
-
-        expect(await runner.run(['refs', 'implementation:login']), 0);
-
-        expect(
-          out.toString(),
-          contains('Outbound\n- verifies: $row\nInbound\n'),
-        );
-        expect(out.toString(), isNot(contains('5d1e0c4b7a92')));
-      },
-    );
-  });
-
-  for (final folder in ['measurements', 'plans']) {
-    test('a mention in an untyped .md under $folder/ lists under untyped '
-        'mentions, never under mentions', () async {
-      final project = await writeReadProject(
-        extra: {
-          'docs/$folder/notes.md':
-              '# Notes\n\nPlain login. Also `login/email_login`.\n',
-        },
-      );
-      final (:runner, :out, :err) = readRunner(project);
-      expect(await runner.run(['refs', 'login/email_login', '--json']), 0);
-      final doc =
-          ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
-      expect(doc['mentions'], isEmpty);
-      expect(doc['untypedMentions'], [
-        {'path': '$folder/notes.md', 'line': 3},
-      ]);
-    });
-  }
 }

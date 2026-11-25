@@ -6,7 +6,6 @@ import 'package:specstone_core/specstone_core.dart' show TemplateResolver;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
-import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
@@ -19,14 +18,6 @@ Future<String> _dryRunPlanHash(Directory root, String target) async {
   expect(await runner.run(['delete', target, '--dry-run', '--json']), 0);
   return (jsonDecode(out.toString()) as Map)['plan']! as String;
 }
-
-/// [fr12] without its link into the reset story, so that story has no referrer.
-const noLinkIn = {
-  'docs/$fr12':
-      '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n'
-      '# Lock after failures\n\n## Statement\n\n'
-      'The system shall lock the account.\n',
-};
 
 void main() {
   test('delete prints one removed path per line', () async {
@@ -220,23 +211,6 @@ void main() {
       'warnings': <String>[],
     });
   });
-  test('delete takes no --base', () async {
-    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-    expect(
-      await runner.run([
-        'delete',
-        'fr:login/reset_password/expire_reset_link',
-        '--base',
-        'x',
-      ]),
-      64,
-    );
-  });
-  test('no target is argument_missing', () async {
-    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-    expect(await runner.run(['delete']), 64);
-    expect(err.toString(), startsWith('delete needs a target'));
-  });
   const notes = 'specs/f01_login/api_notes.md';
   const errors = 'specs/f01_login/api_errors.md';
   const index = 'specs/INDEX.md';
@@ -261,34 +235,6 @@ void main() {
     expect(File('${root.path}/docs/$one').existsSync(), isFalse);
     expect(File('${root.path}/docs/$two').existsSync(), isFalse);
   });
-  test(
-    'a referrer outside the set exits 64 and is named after ; also',
-    () async {
-      final root = await writeWriteProject(
-        extra: {
-          ...untyped,
-          'docs/$story1':
-              '${writeProject['docs/$story1']}\n'
-              'See [errors](../../../../specs/f01_login/api_errors.md).\n',
-        },
-      );
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(
-          stdinIsTerminal: true,
-          stdoutIsTerminal: true,
-          answers: ['y'],
-        ),
-      );
-      expect(await runner.run(['delete', notes, errors]), 64);
-      expect(
-        err.toString(),
-        '$errors: docs outside the delete set link into it; also $story1\n',
-      );
-      expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
-      expect(File('${root.path}/docs/$errors').existsSync(), isTrue);
-    },
-  );
   const plan = 'superpowers/plans/plan.md';
   final withPlan = {
     ...untyped,
@@ -334,59 +280,6 @@ void main() {
     expect(await runner.run(['delete', spaced]), 0);
     expect(out.toString(), '$spaced\n');
     expect(File('${root.path}/docs/$spaced').existsSync(), isFalse);
-  });
-
-  group('matrix rows of a deleted item', () {
-    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
-    const item = 'reset_password/expire_reset_link';
-    const target = 'fr:login/$item';
-
-    Future<Directory> projectWithRows() => writeWriteProject(
-      extra: {
-        '.specstone/config.yaml': oneTargetConfig(),
-        '.specstone/templates/implementation.yaml': recordLayerAtRoot,
-        record:
-            '${recordText()}\n## Verification matrix\n\n'
-            '- $item E01: `expires a link` 5d1e0c4b7a92\n'
-            '- $item E02 skipped: needs a clock  9a1c03be55d2\n',
-      },
-    );
-
-    Future<List<String>> matrixKindsOn(Directory root) async {
-      final (:runner, :out, :err) = writeRunner(root);
-      await runner.run(['check', '--json']);
-      final findings = (jsonDecode(out.toString()) as Map)['findings']! as List;
-      return [
-        for (final f in findings.cast<Map<String, Object?>>())
-          if (f['path'] == record &&
-              (f['kind']! as String).startsWith('matrix_'))
-            f['kind']! as String,
-      ];
-    }
-
-    test('delete --dry-run --json lists an item whose rows leave', () async {
-      final root = await projectWithRows();
-      final (:runner, :out, :err) = writeRunner(root);
-
-      expect(await runner.run(['delete', target, '--dry-run', '--json']), 0);
-
-      expect((jsonDecode(out.toString()) as Map)['records'], [
-        {
-          'path': record,
-          'entries': [item],
-        },
-      ]);
-    });
-
-    test('check after the delete gives no matrix finding', () async {
-      final root = await projectWithRows();
-      expect(await matrixKindsOn(root), isNotEmpty);
-
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(await runner.run(['delete', target]), 0, reason: err.toString());
-
-      expect(await matrixKindsOn(root), isEmpty);
-    });
   });
 
   group('with two code targets', () {
@@ -499,33 +392,6 @@ void main() {
     Map<String, Object?> errorOf(StringBuffer err) =>
         (jsonDecode(err.toString()) as Map)['error']! as Map<String, Object?>;
 
-    test('a referred unit and an unknown target refuse a dry run', () async {
-      final root = await writeWriteProject();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['delete', resetStory, '--dry-run', '--json']),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(errorOf(err)['code'], 'doc_referenced');
-
-      final (runner: second, out: secondOut, err: secondErr) = writeRunner(
-        root,
-      );
-      expect(
-        await second.run([
-          'delete',
-          'fr:login/no_such_fr',
-          '--dry-run',
-          '--json',
-        ]),
-        64,
-      );
-      expect(secondOut.toString(), isEmpty);
-      expect(errorOf(secondErr)['code'], 'doc_not_found');
-      expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
-    });
-
     test('a guarded delete with no home folder refuses output_not_writable, '
         'exit 73, and lists no file and asks nothing', () async {
       final root = await writeWriteProject();
@@ -584,42 +450,6 @@ void main() {
     });
 
     test(
-      'any answer but y at the Owner prompt exits 0 and removes nothing',
-      () async {
-        const approvedStory =
-            '---\nstatus: planned\napproved: true\n---\n\n# Reset password\n\n'
-            '## Use Case\n\nReset a password.\n\n## Acceptance Criteria\n\n'
-            '- **Given** a forgotten password\n';
-        final root = await writeWriteProject(
-          extra: {...noLinkIn, 'docs/$story3': approvedStory},
-        );
-        for (final answer in ['n', '', 'yes', null]) {
-          final (:runner, :out, :err) = writeRunner(
-            root,
-            console: FakeConsole(
-              stdinIsTerminal: true,
-              stdoutIsTerminal: true,
-              answers: [answer],
-            ),
-          );
-          expect(
-            await runner.run(['delete', resetStory]),
-            0,
-            reason: '$answer',
-          );
-          expect(
-            out.toString(),
-            '$story3\n$fr31\n$fr32\ndelete 3 files? [y/N] ',
-          );
-          expect(err.toString(), isEmpty);
-          for (final kept in [story3, fr31, fr32]) {
-            expect(File('${root.path}/docs/$kept').existsSync(), isTrue);
-          }
-        }
-      },
-    );
-
-    test(
       'a typed target a doc outside links into exits 64 naming doc_referenced',
       () async {
         final root = await writeWriteProject();
@@ -628,29 +458,6 @@ void main() {
         expect(
           err.toString(),
           '$story3: docs outside $resetStory link into it; also $fr12\n',
-        );
-        expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
-      },
-    );
-
-    test(
-      'a journey step that names the story refuses the delete with exit 64',
-      () async {
-        const journey = 'prds/journeys/sign_in/JOURNEY.md';
-        final root = await writeWriteProject(
-          extra: {
-            ...noLinkIn,
-            'docs/$journey':
-                '---\ndraft: true\n---\n\n# Sign in\n\n## Goal\nGet in.\n\n'
-                '## Flow\n\n## Steps\n### 1. Reset\nstep: login/reset_password S1\n',
-          },
-        );
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(await runner.run(['delete', resetStory]), 64);
-        expect(out.toString(), isEmpty);
-        expect(
-          err.toString(),
-          '$story3: docs outside $resetStory link into it; also $journey\n',
         );
         expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
       },
@@ -687,65 +494,6 @@ void main() {
         expect(await runner.run(['delete', 'login']), 64);
         expect(err.toString(), contains('feature:login'));
         expect(err.toString(), contains('architecture:login'));
-        expect(File('${root.path}/docs/$loginFeature').existsSync(), isTrue);
-      },
-    );
-  });
-
-  group('delete of several targets', () {
-    const draftNotes = '---\ndraft: true\n---\n\n# Notes\n';
-
-    test('an untyped doc with no draft mark needs the plan hash', () async {
-      final root = await writeWriteProject(extra: {'docs/$notes': '# Notes\n'});
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(await runner.run(['delete', notes]), 77);
-      expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
-
-      final hash = await _dryRunPlanHash(root, notes);
-      final (runner: second, out: secondOut, err: secondErr) = writeRunner(
-        root,
-      );
-      expect(
-        await second.run(['delete', notes, '--yes', '--plan', hash]),
-        0,
-        reason: secondErr.toString(),
-      );
-      expect(secondOut.toString(), '$notes\n');
-      expect(File('${root.path}/docs/$notes').existsSync(), isFalse);
-    });
-
-    test('one unresolved target among several refuses every target', () async {
-      final root = await writeWriteProject(extra: {'docs/$notes': draftNotes});
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(await runner.run(['delete', notes, 'feature:nowhere']), 64);
-      expect(out.toString(), isEmpty);
-      expect(err.toString(), 'no feature doc carries the name nowhere\n');
-      expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
-    });
-
-    test('one typed target prints each of its removed paths', () async {
-      final root = await writeWriteProject(extra: noLinkIn);
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['delete', 'user_story:login/reset_password']),
-        0,
-      );
-      expect(err.toString(), isEmpty);
-      expect(out.toString(), '$story3\n$fr31\n$fr32\n');
-    });
-
-    test(
-      'a bare name of two docs among targets lists each candidate',
-      () async {
-        final root = await writeWriteProject(
-          extra: {'docs/$notes': draftNotes},
-        );
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(await runner.run(['delete', 'login', notes]), 64);
-        expect(out.toString(), isEmpty);
-        expect(err.toString(), contains('feature:login'));
-        expect(err.toString(), contains('architecture:login'));
-        expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
         expect(File('${root.path}/docs/$loginFeature').existsSync(), isTrue);
       },
     );

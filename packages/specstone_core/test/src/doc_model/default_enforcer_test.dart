@@ -115,9 +115,6 @@ void main() {
 
     test('a differently cased name is no match', () {
       expect(namesDefaultEnforcer('checkrun', 'CheckRun'), isFalse);
-    });
-
-    test('another name is no match', () {
       expect(namesDefaultEnforcer('Finding', 'CheckRun'), isFalse);
     });
   });

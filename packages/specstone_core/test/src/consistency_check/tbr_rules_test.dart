@@ -111,11 +111,8 @@ void main() {
     expect(finding.keys, {'form': 'section'});
     expect(finding.message, 'the TBR section is open');
     expect(finding.waitsFor, WaitsFor.owner);
-  });
 
-  test('an nf holding a tbr section gives one section '
-      'finding', () async {
-    final (:project, :found) = await _run(
+    final nf = await _run(
       edit(loginNf, [
         (
           '## Verification\n\nTest: a timed sign-in.\n',
@@ -124,22 +121,10 @@ void main() {
         ),
       ]),
     );
-
-    expect(found, hasLength(1));
-    expect(found.single.path, loginNf);
-    expect(found.single.line, lineOfFirst(project, loginNf, '## TBR'));
-    expect(found.single.keys, {'form': 'section'});
-  });
-
-  test('the same fr gives one finding with its tbr section '
-      'and none once the section is removed', () async {
-    const section = '## TBR\n\n- **Value:** 2 s\n';
-    final open = await _run(_frWithSection(section));
-    final closed = await _run(_frWithSection(''));
-
-    expect(open.found, hasLength(1));
-    expect(open.found.single.keys, {'form': 'section'});
-    expect(closed.found, isEmpty);
+    expect(nf.found, hasLength(1));
+    expect(nf.found.single.path, loginNf);
+    expect(nf.found.single.line, lineOfFirst(nf.project, loginNf, '## TBR'));
+    expect(nf.found.single.keys, {'form': 'section'});
   });
 
   test('a gnfr bullet reading none gives no finding', () async {
@@ -196,9 +181,11 @@ void main() {
   test('a long text after a marker shows its first '
       '$tbrValueLimit characters and an ellipsis', () async {
     final text = 'x' * (tbrValueLimit * 2);
-    final (:found, project: _) = await _run(
+    final (:project, :found) = await _run(
       _frWith('Cite $_marker$text TBR $_dash second.'),
     );
+    final line = lineOfFirst(project, loginFr, _marker);
+    expect(found.map((f) => f.line), [line, line]);
 
     expect(
       [for (final f in found) f.message],
@@ -207,74 +194,25 @@ void main() {
         '${_stillOpen}second.',
       ]),
     );
+
+    final boundary = 'y' * (tbrValueLimit + 1);
+    final cut = await _run(_frWith('Cite $_marker$boundary'));
+    expect(cut.found.single.message, '$_stillOpen${'y' * tbrValueLimit}\u2026');
+    expect(cut.found.single.keys['value'], boundary);
   });
-
-  test(
-    'two markers on one line give two findings at that line with the '
-    'values 2 s and 5 MB, and a longer value is cut to 80 code points',
-    () async {
-      final (:project, :found) = await _run(
-        _frWith(
-          'Cite ${_marker}2 s $_marker'
-          '5 MB',
-        ),
-      );
-
-      final line = lineOfFirst(project, loginFr, _marker);
-      expect(found.map((f) => f.line), [line, line]);
-      expect([
-        for (final f in found) f.message,
-      ], unorderedEquals(['${_stillOpen}2 s', '${_stillOpen}5 MB']));
-      expect(tbrValueLimit, 80);
-      final long = 'y' * 81;
-      final cut = await _run(_frWith('Cite $_marker$long'));
-      expect(cut.found.single.message, '$_stillOpen${'y' * 80}\u2026');
-    },
-  );
 
   test('a marker with nothing after it names no value after '
       'the sentence', () async {
-    final (:found, project: _) = await _run(
-      _frWith('Cite ${_marker.trimRight()} '),
-    );
+    for (final text in [
+      'Cite ${_marker.trimRight()} ',
+      'Cite ${_marker.trimRight()}',
+    ]) {
+      final (:found, project: _) = await _run(_frWith(text));
 
-    expect(found, hasLength(1));
-    expect(found.single.keys, {'form': 'marker'});
-    expect(found.single.message, _openNoValue);
-  });
-
-  test('a marker at the end of its line, as a write stores it, '
-      'is open with no value', () async {
-    final (:found, project: _) = await _run(
-      _frWith('Cite ${_marker.trimRight()}'),
-    );
-
-    expect(found, hasLength(1));
-    expect(found.single.keys, {'form': 'marker'});
-    expect(found.single.message, _openNoValue);
-  });
-
-  test('a tbr_open finding that names a value holds it as value', () async {
-    final long = 'z' * (tbrValueLimit * 2);
-    final marker = await _run(_frWith('Cite ${_marker}legacy states none'));
-    final bullet = await _run(
-      doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:** 2 s until measured\n'),
-    );
-    final cut = await _run(_frWith('Cite $_marker$long'));
-    final section = await _run(_frWithSection('## TBR\n\n- **Value:** 2 s\n'));
-    final bare = await _run(_frWith('Cite ${_marker.trimRight()}'));
-
-    expect(marker.found.single.keys, {
-      'form': 'marker',
-      'value': 'legacy states none',
-    });
-    expect(bullet.found.single.keys, {
-      'form': 'bullet',
-      'value': '2 s until measured',
-    });
-    expect(cut.found.single.keys['value'], long);
-    expect(section.found.single.keys, {'form': 'section'});
-    expect(bare.found.single.keys, {'form': 'marker'});
+      expect(found, hasLength(1), reason: text);
+      expect(found.single.keys, {'form': 'marker'}, reason: text);
+      expect(found.single.message, _openNoValue, reason: text);
+    }
   });
 
   test('a bullet label inside fenced code of a gnfr gives no '

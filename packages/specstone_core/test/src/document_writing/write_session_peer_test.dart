@@ -87,38 +87,19 @@ void main() {
       expect(writes, 1);
     });
 
-    test('runs the command again on the fresh index', () async {
+    test('runs the body twice and its write once', () async {
       final root = await writeWriteProject();
       var runs = 0;
+      var writes = 0;
       final text = WriteSession.run(
         (session) {
           runs++;
           final doc = session.index.docs.firstWhere((d) => d.isTyped);
           if (runs == 1) _peerDrops(session, doc);
-          return session.locked(() => session.index.contentOf(doc).text);
-        },
-        templates: TemplateResolver(),
-        workingDirectory: root,
-        homeDirectory: null,
-      );
-      expect(runs, 2);
-      expect(text, isNotEmpty);
-    });
-
-    test('runs the body twice and its write once', () async {
-      final root = await writeWriteProject();
-      var runs = 0;
-      var writes = 0;
-      WriteSession.run(
-        (session) {
-          runs++;
-          if (runs == 1) {
-            _peerDrops(
-              session,
-              session.index.docs.firstWhere((d) => d.isTyped),
-            );
-          }
-          session.locked(() => writes++);
+          return session.locked(() {
+            writes++;
+            return session.index.contentOf(doc).text;
+          });
         },
         templates: TemplateResolver(),
         workingDirectory: root,
@@ -126,6 +107,7 @@ void main() {
       );
       expect(runs, 2);
       expect(writes, 1);
+      expect(text, isNotEmpty);
     });
 
     test('ends as index_busy after three stale runs, with nothing '

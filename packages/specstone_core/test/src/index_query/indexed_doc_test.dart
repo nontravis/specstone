@@ -94,18 +94,10 @@ void main() {
       ('prds/FEATURES.md', 'features'),
       ('prds/GNFR.md', 'gnfr'),
       ('specs/TECH_STACK.md', 'tech_stack'),
-    ]) {
-      expect(parse(path, '# T\n').doc.name, name);
-    }
-  });
-
-  test('the goal and glossary docs are named by their doc type id', () {
-    for (final (path, id) in [
       ('prds/GOAL.md', 'goal'),
       ('prds/GLOSSARY.md', 'glossary'),
     ]) {
-      final doc = parse(path, '# T\n').doc;
-      expect((doc.docTypeId, doc.name), (id, id));
+      expect(parse(path, '# T\n').doc.name, name);
     }
   });
 
@@ -204,20 +196,20 @@ void main() {
           'and `[not](a.md)`.\n',
     ).content.links;
     expect(links, ['prds/features/f01_login/us01_email_login/USER_STORY.md']);
+
+    final inlineAlone = parse(
+      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+      'See [story](USER_STORY.md)',
+    ).content.links;
+    expect(inlineAlone, [
+      'prds/features/f01_login/us01_email_login/USER_STORY.md',
+    ]);
   });
 
   test('a reference-style link lists its target', () {
     final links = parse(
       'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
       '# V\n\nSee the [story][s].\n\n[s]: USER_STORY.md\n',
-    ).content.links;
-    expect(links, ['prds/features/f01_login/us01_email_login/USER_STORY.md']);
-  });
-
-  test('an inline link alone lists its target', () {
-    final links = parse(
-      'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
-      'See [story](USER_STORY.md)',
     ).content.links;
     expect(links, ['prds/features/f01_login/us01_email_login/USER_STORY.md']);
   });
@@ -277,22 +269,6 @@ void main() {
       'prds/features/f01_login/FEATURE.md: frontmatter is not valid YAML; its values are not indexed',
     ]);
   });
-
-  test(
-    'a doc the parser fails on is indexed with no links and the warning',
-    () {
-      final parsed = parseIndexedDoc(
-        docPath: 'prds/x.md',
-        bytes: utf8.encode('# X\n\n## A\nSee [y](y.md).\n\n[a]:<b\\'),
-        match: const NoDocType(),
-        statusesOutside: true,
-      );
-
-      expect(parsed.content.links, isEmpty);
-      expect(parsed.doc.warnings, [markdownUnparsedWarning('prds/x.md')]);
-      expect(parsed.content.sections.map((s) => s.key), ['a']);
-    },
-  );
 
   test('a typed doc the parser fails on keeps its title, frontmatter values, '
       'and sections', () {
@@ -416,39 +392,54 @@ void main() {
     expect(nameOf(domainPath), 'shop/cart');
   });
 
-  test('both target twins index with their own target '
-      'and one target-free name', () {
-    final targeted = DocTypeMatcher(
-      MergedSet(
-        docTypes: [
-          nestedType(
-            'architecture',
-            'specs/f{nn}_{slug}/f{nn}_{slug}/ARCHITECTURE.md',
-          ).copyWith(isPerTarget: true),
-        ],
-      ),
-      targetNames: const ['flutter', 'jaspr'],
-    );
+  test(
+    'both target twins index with their own target and one target-free name',
+    () {
+      for (final (pattern, twins) in [
+        (
+          'specs/f{nn}_{slug}/f{nn}_{slug}/ARCHITECTURE.md',
+          [
+            (
+              'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
+              'jaspr',
+              'feedback/toast',
+            ),
+            (
+              'specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md',
+              'flutter',
+              'feedback/toast',
+            ),
+          ],
+        ),
+        (
+          'specs/f{nn}_{slug}/ARCHITECTURE.md',
+          [
+            ('specs/flutter/f01_login/ARCHITECTURE.md', 'flutter', 'login'),
+            ('specs/jaspr/f01_login/ARCHITECTURE.md', 'jaspr', 'login'),
+          ],
+        ),
+      ]) {
+        final targeted = DocTypeMatcher(
+          MergedSet(
+            docTypes: [
+              nestedType('architecture', pattern).copyWith(isPerTarget: true),
+            ],
+          ),
+          targetNames: const ['flutter', 'jaspr'],
+        );
 
-    (String?, String) indexed(String path) {
-      final doc = parseIndexedDoc(
-        docPath: path,
-        bytes: utf8.encode('# T\n'),
-        match: targeted.match(path),
-        statusesOutside: true,
-      ).doc;
-      return (doc.target, doc.name);
-    }
-
-    expect(indexed('specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md'), (
-      'jaspr',
-      'feedback/toast',
-    ));
-    expect(indexed('specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md'), (
-      'flutter',
-      'feedback/toast',
-    ));
-  });
+        for (final (path, target, name) in twins) {
+          final doc = parseIndexedDoc(
+            docPath: path,
+            bytes: utf8.encode('# T\n'),
+            match: targeted.match(path),
+            statusesOutside: true,
+          ).doc;
+          expect((doc.target, doc.name), (target, name), reason: path);
+        }
+      }
+    },
+  );
 
   test('with two targets a '
       'target-free spec path and an unknown target folder index untyped', () {
@@ -517,31 +508,6 @@ void main() {
       (true, null),
       reason: 'every PRD doc is shared',
     );
-  });
-
-  test('both target twins take the same '
-      'target-free name', () {
-    final targeted = DocTypeMatcher(
-      MergedSet(
-        docTypes: [
-          nestedType(
-            'architecture',
-            'specs/f{nn}_{slug}/ARCHITECTURE.md',
-          ).copyWith(isPerTarget: true),
-        ],
-      ),
-      targetNames: const ['flutter', 'jaspr'],
-    );
-
-    String nameOf(String path) => parseIndexedDoc(
-      docPath: path,
-      bytes: utf8.encode('# T\n'),
-      match: targeted.match(path),
-      statusesOutside: true,
-    ).doc.name;
-
-    expect(nameOf('specs/flutter/f01_login/ARCHITECTURE.md'), 'login');
-    expect(nameOf('specs/jaspr/f01_login/ARCHITECTURE.md'), 'login');
   });
 
   test('a per-target doc of a pattern with no folder drops '
@@ -834,18 +800,6 @@ void main() {
         '# Validate credentials\n\nLead.\n\n## Edge cases\n'
         '1. E01 — A wrong password → refused\n\n'
         '## Statement\nThe system shall check it.\n';
-
-    test('parseIndexedDoc gives '
-        'the item facts of the laid-out text', () {
-      final facts = parse(frPath, drifted).content.itemFacts;
-
-      expect(facts.lead, const SectionCounts(lines: 1, chars: 5));
-      expect(plainItems(facts.leadItems), [(id: null, line: 3, chars: 5)]);
-      expect(plainSections(facts), [
-        [(id: 'E01', line: 11, chars: 35)],
-        [(id: null, line: 7, chars: 26)],
-      ]);
-    });
 
     test('docStructureOf gives '
         'item facts that count its own text with no layout', () {

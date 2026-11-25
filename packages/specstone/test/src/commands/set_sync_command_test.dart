@@ -152,36 +152,6 @@ void main() {
     expect(lines[1], startsWith('$file:4: argument_invalid: '));
   });
 
-  test('a malformed sync file with --json prints a lines array of entries with code, message, file, and line', () async {
-    final file = syncFile('frobnicate login x\nremove-task ENG-42\n');
-    final (:runner, :out, :err) = writeRunner(scratch);
-
-    expect(await runner.run(['set', '--sync', file, '--json']), 64);
-
-    expect(out.toString(), isEmpty);
-    final error = _error(err);
-    final entries = (error['lines']! as List<Object?>)
-        .cast<Map<String, Object?>>();
-    expect(entries.map((e) => e['line']), [1, 2]);
-    expect(entries.map((e) => e['file']), [file, file]);
-    expect(entries.map((e) => e['code']), [
-      'argument_invalid',
-      'argument_invalid',
-    ]);
-    expect(error['code'], 'argument_invalid');
-    expect(error['line'], 1);
-    expect(error['file'], file);
-    expect(error['message'], entries.first['message']);
-  });
-
-  test('set --help lists the --sync form', () async {
-    final (:runner, :out, :err) = writeRunner(scratch);
-
-    expect(await runner.run(['set', '--help']), 0);
-
-    expect(out.toString(), contains('specstone set --sync <file>'));
-  });
-
   test('a stdin pipe nobody closes never holds a --sync run', () async {
     final binary = await buildSpecstone();
     final file = syncFile('frobnicate login x\n');
@@ -255,27 +225,40 @@ void main() {
       }
     });
 
-    test('a refused file with --json prints the lines envelope on stderr and nothing on stdout', () async {
-      final root = await project();
-      final file = syncFile('$unjudged\nmatch $record $covered $stale\n');
-      final (:runner, :out, :err) = writeRunner(root);
+    test('a malformed sync file with --json prints a lines array of entries with code, message, file, and line', () async {
+      final cases = [
+        (
+          () async => scratch,
+          'frobnicate login x\nremove-task ENG-42\n',
+          ['1 argument_invalid', '2 argument_invalid'],
+        ),
+        (
+          project,
+          '$unjudged\nmatch $record $covered $stale\n',
+          ['1 verdict_unjudged', '2 stamp_stale'],
+        ),
+      ];
+      for (final (root, text, expected) in cases) {
+        final file = syncFile(text);
+        final (:runner, :out, :err) = writeRunner(await root());
 
-      expect(await runner.run(['set', '--sync', file, '--json']), 64);
+        expect(await runner.run(['set', '--sync', file, '--json']), 64);
 
-      expect(out.toString(), isEmpty);
-      final error = _error(err);
-      expect(error['code'], 'verdict_unjudged');
-      expect(error['line'], 1);
-      expect(error['file'], file);
-      expect(
-        [
-          for (final entry
-              in (error['lines']! as List<Object?>)
-                  .cast<Map<String, Object?>>())
-            '${entry['line']} ${entry['code']} ${entry['file']}',
-        ],
-        ['1 verdict_unjudged $file', '2 stamp_stale $file'],
-      );
+        expect(out.toString(), isEmpty, reason: text);
+        final error = _error(err);
+        final entries = (error['lines']! as List<Object?>)
+            .cast<Map<String, Object?>>();
+        expect(
+          [for (final e in entries) '${e['line']} ${e['code']}'],
+          expected,
+          reason: text,
+        );
+        expect(entries.map((e) => e['file']), [file, file], reason: text);
+        expect(error['code'], entries.first['code'], reason: text);
+        expect(error['line'], 1, reason: text);
+        expect(error['file'], file, reason: text);
+        expect(error['message'], entries.first['message'], reason: text);
+      }
     });
 
     test('a written file prints each doc naming line, then its Mismatches part, exit 0', () async {

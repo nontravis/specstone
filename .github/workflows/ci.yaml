@@ -13,6 +13,7 @@ permissions:
 
 env:
   CORE_SHARDS: 3
+  CLI_SHARDS: 2
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
@@ -44,9 +45,10 @@ jobs:
   test:
     strategy:
       fail-fast: false
-      # The core suite runs as three shards: on the slowest hosted CPU one run
-      # of it takes about 30 minutes, past the 20 minute cap. When a shard nears
-      # 10 minutes, raise CORE_SHARDS and add a core leg.
+      # The core suite runs as CORE_SHARDS shards and the cli suite as
+      # CLI_SHARDS: on the slowest hosted CPU one run of the core suite takes
+      # about 30 minutes, past the 20 minute cap. When a shard nears 10
+      # minutes, raise its count and add a leg.
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         leg:
@@ -54,6 +56,7 @@ jobs:
           - { suite: core, shard: 1 }
           - { suite: core, shard: 2 }
           - { suite: cli, shard: 0 }
+          - { suite: cli, shard: 1 }
     name: test (${{ matrix.os }}, ${{ matrix.leg.suite }}, ${{ matrix.leg.shard }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -81,30 +84,49 @@ jobs:
       - name: Test specstone with coverage
         if: matrix.leg.suite == 'cli' && matrix.os == 'ubuntu-latest'
         working-directory: packages/specstone
-        run: dart test --coverage-path=coverage/lcov.info --exclude-tags timing
+        run: >-
+          dart test --coverage-path=coverage/lcov.info --exclude-tags timing
+          --shard-by-suite --total-shards=${{ env.CLI_SHARDS }} --shard-index=${{ matrix.leg.shard }}
       - name: Test specstone (macOS)
         if: matrix.leg.suite == 'cli' && matrix.os == 'macos-latest'
         working-directory: packages/specstone
-        run: dart test --exclude-tags timing
+        run: >-
+          dart test --exclude-tags timing
+          --shard-by-suite --total-shards=${{ env.CLI_SHARDS }} --shard-index=${{ matrix.leg.shard }}
       # The PowerShell script tests run in test-scripts-windows.
       - name: Test specstone (Windows)
         if: matrix.leg.suite == 'cli' && matrix.os == 'windows-latest'
         working-directory: packages/specstone
-        run: dart test --exclude-tags timing,ps1
-      - name: Timing gate (NFR-P01, NFR-P02)
-        if: matrix.leg.suite == 'cli'
-        working-directory: packages/specstone
-        run: dart test --tags timing test/nfr_timing_test.dart
+        run: >-
+          dart test --exclude-tags timing,ps1
+          --shard-by-suite --total-shards=${{ env.CLI_SHARDS }} --shard-index=${{ matrix.leg.shard }}
       - uses: actions/upload-artifact@v7
         if: matrix.leg.suite == 'cli' && matrix.os == 'ubuntu-latest'
         with:
-          name: coverage-${{ matrix.os }}-${{ matrix.leg.suite }}
+          name: coverage-${{ matrix.os }}-${{ matrix.leg.suite }}-${{ matrix.leg.shard }}
           path: packages/specstone/coverage/lcov.info
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && matrix.leg.suite == 'core' && matrix.os == 'ubuntu-latest' }}
         with:
           name: core-coverage-shard-${{ matrix.leg.shard }}
           path: packages/specstone_core/coverage/coverage.json
+
+  timing:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - name: Timing gate (NFR-P01, NFR-P02)
+        working-directory: packages/specstone
+        run: dart test --tags timing test/nfr_timing_test.dart
 
   # Merges the core shards' hit maps and holds the core coverage gate.
   core-coverage:

@@ -256,6 +256,8 @@ void main() {
       // Unparsed, so markdown's failure on the body is never met.
       expect(movingOf(unparsable).linksRead, isTrue);
       expect(readOf(unparsable).linksRead, isFalse);
+      expect(readOf('[x](a.md)\n').linksRead, isTrue);
+      expect(readOf('No links.\n').linksRead, isTrue);
     });
     List<(String, String)> placedOf(String body) => [
       for (final HrefDestination(:start, :end, :href) in readOf(
@@ -294,12 +296,6 @@ void main() {
         ],
         [body.indexOf('c.png'), body.lastIndexOf('b.md')],
       );
-    });
-
-    test('the links read unless markdown fails on the body', () {
-      expect(readOf('[x](a.md)\n').linksRead, isTrue);
-      expect(readOf('No links.\n').linksRead, isTrue);
-      expect(readOf('[x](a.md)\n\n[a]:<b\\').linksRead, isFalse);
     });
   });
 
@@ -447,14 +443,10 @@ void main() {
 
       expect(places.docLinks.map((p) => p.target), ['z.md']);
       expect(places.fileLinks.map((p) => p.target), ['b.png', 'b.png']);
-    });
 
-    test('a link is placed by its own href, whatever the links '
-        'before it matched', () {
-      final places = placesOf('[a](b\\.md)\n\n[u](z.md)\n\n[c](b.md)\n');
-
-      expect(places.map((p) => p.target), ['b.md', 'z.md', 'b.md']);
-      expect(places[1].line, 3);
+      final docs = placesOf('[a](b\\.md)\n\n[u](z.md)\n\n[c](b.md)\n');
+      expect(docs.map((p) => p.target), ['b.md', 'z.md', 'b.md']);
+      expect(docs[1].line, 3);
     });
 
     test('a use of a reference definition in a blockquote does '

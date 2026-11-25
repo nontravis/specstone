@@ -89,24 +89,22 @@ void main() {
         '[NFR-P03](../../prds/GNFR.md#performance)',
         '[NFR-Sec01](../../prds/GNFR.md#security)',
       ]);
-    });
 
-    test('two item IDs give one item link each, which the caller joins with the cite words', () async {
-      final index = await indexWith({
+      final sameSection = await indexWith({
         'docs/$_domain':
             '# Login domain\n\n## Entities\n- Account\n\n## Invariants\n\n'
             '- **INV-6** An account holds one email.\n'
             '- **INV-7** An email names one account.\n',
       });
-      final link = _resolve(
-        index,
+      final pair = _resolve(
+        sameSection,
         _signupArchitecture,
         _cite('rulebook:login', itemIds: ['INV-6', 'INV-7']),
       ) as CiteLink;
-      expect(
-        citeLinkMarkdown(_signupArchitecture, link).join(' and '),
-        '[INV-6](../f01_login/DOMAIN.md#invariants) and [INV-7](../f01_login/DOMAIN.md#invariants)',
-      );
+      expect(citeLinkMarkdown(_signupArchitecture, pair), [
+        '[INV-6](../f01_login/DOMAIN.md#invariants)',
+        '[INV-7](../f01_login/DOMAIN.md#invariants)',
+      ]);
     });
 
     test(

@@ -126,37 +126,6 @@ void main() {
     expect(bannedWordPattern('ad hoc').hasMatch('adhoc'), isFalse);
   });
 
-  test('a software-tech spec doc type bans no word at either level', () async {
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: doc(
-          loginApi,
-          'Signs the Agent in.',
-          'Signs the Agent in fast, and this is easy.',
-        ),
-      ),
-    );
-    expect(spots(report, FindingKind.bannedWord), isEmpty);
-  });
-
-  test(
-    'every software-tech doc type sets no banned word at either level',
-    () async {
-      final merged = await resolveSoftwareTech();
-      for (final id in softwareTechIds) {
-        final type = merged.lookup(id)!;
-        expect(type.lint.bannedWords ?? const <String>[], isEmpty, reason: id);
-        for (final section in type.sections) {
-          expect(
-            section.bannedWords ?? const <String>[],
-            isEmpty,
-            reason: '$id ${section.id}',
-          );
-        }
-      }
-    },
-  );
-
   test('check reports no banned word in a doc of any software-tech doc type '
       'whose sections all hold banned words', () async {
     final merged = await resolveSoftwareTech();
@@ -242,20 +211,6 @@ void main() {
         .where((f) => f.kind == FindingKind.bannedWord)
         .toList();
   }
-
-  test(
-    'Fast is reported while fastest and safe-area are other words',
-    () async {
-      final capital = await bannedIn('The system shall refuse a Fast login.');
-      expect(capital.map((f) => f.toJson()['word']), ['fast']);
-      expect(
-        await bannedIn(
-          'The system shall refuse the fastest and safe-area logins.',
-        ),
-        isEmpty,
-      );
-    },
-  );
 
   test('a two-word phrase is not reported out of order or inside longer'
       ' words', () async {

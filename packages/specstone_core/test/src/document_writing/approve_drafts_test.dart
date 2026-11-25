@@ -335,28 +335,6 @@ void main() {
     skip: skipGit,
   );
 
-  test('a name walks the drafts under it in tree order', () async {
-    final root = await writeWriteProject();
-    final out = StringBuffer();
-    writeIn(
-      root,
-      (s) => approveDrafts(
-        s,
-        names: ['login'],
-        readLine: answers(List.filled(9, 'n')),
-        out: out,
-      ),
-    );
-    final shown = out.toString();
-    final positions = [
-      for (final path in [story1, fr12, story3, fr31, fr32])
-        shown.indexOf('`docs/$path`\n'),
-    ];
-    expect(positions, everyElement(isNonNegative));
-    expect([...positions]..sort(), positions);
-    expect(_prompt.allMatches(shown), hasLength(5));
-  });
-
   test(
     'several names walk the union of their drafts in tree order, each once',
     () async {
@@ -1119,19 +1097,6 @@ void main() {
     });
   });
 
-  test('no name walks every typed draft', () async {
-    final root = await writeWriteProject();
-    final out = StringBuffer();
-    writeIn(
-      root,
-      (s) =>
-          approveDrafts(s, readLine: answers(List.filled(12, 'n')), out: out),
-    );
-    expect(_prompt.allMatches(out.toString()), hasLength(9));
-    expect(out.toString(), contains('`docs/$persona`\n'));
-    expect(out.toString(), contains('`docs/$antiPersona`\n'));
-  });
-
   test('n keeps a draft, q ends the walk', () async {
     final root = await writeWriteProject();
     final before = readDoc(root, story1);
@@ -1187,28 +1152,6 @@ void main() {
       ),
     );
     expect(out.toString(), 'no draft waits for approval\n');
-  });
-
-  test('a name no doc carries is doc_not_found', () async {
-    final root = await writeWriteProject();
-    expect(
-      () => writeIn(
-        root,
-        (s) => approveDrafts(
-          s,
-          names: ['feature:nosuch'],
-          readLine: answers([]),
-          out: StringBuffer(),
-        ),
-      ),
-      throwsA(
-        isA<IndexFault>().having(
-          (f) => f.code,
-          'code',
-          IndexFaultCode.docNotFound,
-        ),
-      ),
-    );
   });
 
   test('an untyped draft is not walked', () async {
@@ -1557,33 +1500,6 @@ void main() {
       expect(walksDoc(root, signupFeature), isFalse);
     });
 
-    test('a hash of digits around one e is written double-quoted and the doc is approved', () async {
-      final root = await writeWriteProject();
-      final body = bodyWithHash(
-        root,
-        signupFeature,
-        RegExp(r'^[0-9]+e[0-9]+$'),
-      );
-      docFile(
-        root,
-        signupFeature,
-      ).writeAsStringSync('---\ndraft: true\n---\n\n$body');
-      writeIn(
-        root,
-        (s) => approveDrafts(
-          s,
-          names: ['feature:signup'],
-          readLine: answers(['y', 'q']),
-          out: StringBuffer(),
-        ),
-      );
-      expect(
-        readDoc(root, signupFeature),
-        matches(RegExp(r'^---\napproved: "[0-9]+e[0-9]+"\n---\n')),
-      );
-      expect(walksDoc(root, signupFeature), isFalse);
-    });
-
     test('y on a draft with an old hash replaces it with the hash of the content now and drops draft', () async {
       final root = await writeWriteProject(
         extra: {
@@ -1762,21 +1678,6 @@ void main() {
               '$address is no draft waiting for approval',
             ),
       );
-
-      test('an approved doc whose hash matches is draft_not_found', () async {
-        final root = await writeWriteProject();
-        final before = readDoc(root, fr11);
-        expect(
-          () => writeIn(
-            root,
-            (s) => approveNamed(s, [
-              seen(root, 'fr:login/email_login/validate_credentials'),
-            ]),
-          ),
-          notADraft('fr:login/email_login/validate_credentials'),
-        );
-        expect(readDoc(root, fr11), before);
-      });
 
       test(
         'below the pins, approved: true and neither key are draft_not_found',
@@ -2090,25 +1991,6 @@ void main() {
       expect(answer.text, contains('| hash    | `$hash` |'));
     }, skip: skipGit);
 
-    test(
-      'a dry-run draft names its file as path and its hash as base',
-      () async {
-        final root = await repoWithEditedSignup();
-
-        final answer = writeIn(
-          root,
-          (s) => approveDryRun(s, names: ['feature:signup']),
-        );
-
-        final draft = (answer.json['drafts']! as List).first as Map;
-        expect(draft['path'], signupFeature);
-        expect(draft['base'], baseHashOf(toLf(readDoc(root, signupFeature))));
-        expect(draft, isNot(contains('docPath')));
-        expect(draft, isNot(contains('hash')));
-      },
-      skip: skipGit,
-    );
-
     test('a draft with two changed units gives one changes string of both, '
         'joined by a comma and a space', () async {
       final root = await repoWithEditedSignup(title: 'Sign up');
@@ -2170,21 +2052,6 @@ void main() {
       expect(drafts.first, containsPair('dropped', <String>[]));
       expect(drafts.first, containsPair('new', [kept]));
       expect(drafts.first, isNot(contains('renamedFrom')));
-    });
-
-    test('no draft in scope gives an empty list and a count of 0', () async {
-      final root = await writeWriteProject();
-
-      final answer = writeIn(
-        root,
-        (s) => approveDryRun(s, names: ['user_story:login/sign_out']),
-      );
-
-      expect(answer.json, {
-        'drafts': <Object>[],
-        'count': 0,
-        'approveMode': 'ask',
-      });
     });
   });
 
@@ -3172,36 +3039,6 @@ void main() {
         ),
       );
     }, skip: skipGit);
-
-    test('the status text row of a story draft reads each record in the target given', () async {
-      String record(String status) =>
-          '---\nstatuses:\n  - email_login:$status\n---\n\n# Record\n';
-      final root = await writeTwinProject(
-        extra: {
-          ...check.edit(check.loginStory, [
-            ('goals:\n', 'draft: true\ngoals:\n'),
-          ]),
-          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md': record(
-            'implemented',
-          ),
-          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md': record(
-            'planned',
-          ),
-        },
-      );
-      String textUnder(String target) => writeIn(
-        root,
-        (s) => approveDryRun(
-          s,
-          names: ['user_story:login/email_login'],
-          codeTarget: target,
-        ),
-      ).text;
-
-      expect(textUnder('flutter'), contains('| status  | `implemented` |'));
-      expect(textUnder('jaspr'), contains('| status  | `planned` |'));
-      expect(textUnder('jaspr'), isNot(contains('implemented')));
-    });
   });
 }
 

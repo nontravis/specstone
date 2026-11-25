@@ -51,20 +51,18 @@ void main() {
         'message': 'cannot read none.txt',
         'file': 'none.txt',
       });
-    });
 
-    test('a folder refuses as a missing path does', () {
       Directory('${dir.path}/sub').createSync();
-      final fault = _refusal(() => readBatchFile('sub', workingDirectory: dir));
-      expect(fault.toText(), 'sub: cannot read sub');
-    });
+      final folder = _refusal(
+        () => readBatchFile('sub', workingDirectory: dir),
+      );
+      expect(folder.toText(), 'sub: cannot read sub');
 
-    test('a file of bytes that are no text is unreadable', () {
       File('${dir.path}/b.txt').writeAsBytesSync([0xff, 0xfe, 0x41]);
-      final fault = _refusal(
+      final bytes = _refusal(
         () => readBatchFile('b.txt', workingDirectory: dir),
       );
-      expect(fault.toText(), 'b.txt: cannot read b.txt');
+      expect(bytes.toText(), 'b.txt: cannot read b.txt');
     });
 
     test('a file the process may not read is unreadable', () {
@@ -271,52 +269,109 @@ void main() {
         '$_batch:3: the naming line holds no base of 12 lowercase hex '
         'characters',
       );
-    });
 
-    test('a bundle line with a summary part is refused', () {
-      final parsed = parseBatchFile(
-        _batch,
-        '==> login (feature) · $_storyPath · summary <==\nbody\n',
-      );
-      expect(parsed.blocks, isEmpty);
-      expect(parsed.lineFaults.map((entry) => entry.line), [1]);
-    });
-
-    test('a reply line ending in unchanged is refused', () {
-      final parsed = parseBatchFile(
-        _batch,
-        '${_head(_storyPath)}\nbody\n'
-        '==> login (feature) · $_storyPath · base $_hash · unchanged <==\n',
-      );
-      expect(parsed.blocks.map((block) => block.line), [1]);
-      expect(parsed.blocks.single.text, 'body\n');
-      expect(parsed.lineFaults.map((entry) => entry.line), [3]);
-    });
-
-    test('a malformed hash is refused, the path in a base tail unharmed', () {
-      final text =
-          '${_head(_storyPath, 'ABC123ABC123')}\n'
-          '${_head(_storyPath, 'abc123abc12')}\n'
-          '${_head(_storyPath, 'abc123abc123  ')}\n'
-          '${_head(_storyPath, _hash)}\n';
-      final parsed = parseBatchFile(_batch, text);
-      expect(parsed.lineFaults.map((entry) => entry.line), [1, 2, 3]);
-      expect(parsed.blocks.map((block) => block.line), [4]);
-    });
-
-    test('a guide line is refused as a line, never taken as block text', () {
-      final parsed = parseBatchFile(
-        _batch,
-        '${_head(_storyPath)}\nbody\n==> feature <==\nmore\n',
-      );
-      expect(parsed.lineFaults.map((entry) => entry.line), [3]);
-      expect(parsed.blocks.single.text, 'body\n');
-    });
-
-    test('a file of one bad naming line holds a line fault and no block', () {
-      final parsed = parseBatchFile(_batch, '==> feature <==\n');
-      expect(parsed.blocks, isEmpty);
-      expect(parsed.lineFaults.map((entry) => entry.line), [1]);
+      const message =
+          'the naming line holds no base of 12 lowercase hex characters';
+      final cases = [
+        (
+          reason: 'a bundle line with a summary part',
+          text: '==> login (feature) · $_storyPath · summary <==\nbody\n',
+          blockLines: <int>[],
+          blockText: null,
+          faultLines: [1],
+          missingBase: false,
+        ),
+        (
+          reason: 'a reply line ending in unchanged',
+          text:
+              '${_head(_storyPath)}\nbody\n'
+              '==> login (feature) · $_storyPath · base $_hash '
+              '· unchanged <==\n',
+          blockLines: [1],
+          blockText: 'body\n',
+          faultLines: [3],
+          missingBase: false,
+        ),
+        (
+          reason: 'a malformed hash, the path in a base tail unharmed',
+          text:
+              '${_head(_storyPath, 'ABC123ABC123')}\n'
+              '${_head(_storyPath, 'abc123abc12')}\n'
+              '${_head(_storyPath, 'abc123abc123  ')}\n'
+              '${_head(_storyPath, _hash)}\n',
+          blockLines: [4],
+          blockText: null,
+          faultLines: [1, 2, 3],
+          missingBase: false,
+        ),
+        (
+          reason: 'a guide line, never taken as block text',
+          text: '${_head(_storyPath)}\nbody\n==> feature <==\nmore\n',
+          blockLines: null,
+          blockText: 'body\n',
+          faultLines: [3],
+          missingBase: false,
+        ),
+        (
+          reason: 'a file of one bad naming line',
+          text: '==> feature <==\n',
+          blockLines: <int>[],
+          blockText: null,
+          faultLines: [1],
+          missingBase: false,
+        ),
+        (
+          reason: 'a summary part and a guide line',
+          text:
+              '${_head(_storyPath)}\nbody\n'
+              '==> login (feature) · $_storyPath · summary <==\n'
+              '==> feature <==\n',
+          blockLines: null,
+          blockText: null,
+          faultLines: [3, 4],
+          missingBase: true,
+        ),
+        (
+          reason: 'a malformed hash and a reply unchanged line',
+          text:
+              '${_head(_storyPath)}\nbody\n'
+              '${_head(_storyPath, 'ABC123ABC123')}\n'
+              '==> login (feature) · $_storyPath · base $_hash '
+              '· unchanged <==\n',
+          blockLines: null,
+          blockText: null,
+          faultLines: [3, 4],
+          missingBase: true,
+        ),
+      ];
+      for (final c in cases) {
+        final parsed = parseBatchFile(_batch, c.text);
+        expect(
+          parsed.lineFaults.map((entry) => entry.line),
+          c.faultLines,
+          reason: c.reason,
+        );
+        if (c.blockLines != null) {
+          expect(
+            parsed.blocks.map((block) => block.line),
+            c.blockLines,
+            reason: c.reason,
+          );
+        }
+        if (c.blockText != null) {
+          expect(parsed.blocks.single.text, c.blockText, reason: c.reason);
+        }
+        if (c.missingBase) {
+          expect(parsed.lineFaults.map((entry) => entry.message), [
+            message,
+            message,
+          ], reason: c.reason);
+          expect(BatchFault(parsed.lineFaults).toText().split('\n'), [
+            '$_batch:3: $message',
+            '$_batch:4: $message',
+          ], reason: c.reason);
+        }
+      }
     });
 
     test('a line shaped like a naming line that reads as none is refused', () {
@@ -337,64 +392,16 @@ void main() {
           '$_batch:3: the line is shaped like a naming line but reads as none',
           reason: reason,
         );
+        final entry = parsed.lineFaults.single;
+        expect(entry.code, 'argument_invalid', reason: reason);
+        expect(entry.line, 3, reason: reason);
+        final fault = BatchFault(parsed.lineFaults);
+        expect(fault.exitStatus, 64, reason: reason);
+        final error = fault.toJson()['error']! as Map<String, Object?>;
+        expect(error['code'], 'argument_invalid', reason: reason);
+        expect(error['line'], 3, reason: reason);
+        expect(error, isNot(contains('key')), reason: reason);
       }
-    });
-
-    test('a shaped line that reads as none is argument_invalid, exit 64', () {
-      final parsed = parseBatchFile(
-        _batch,
-        '${_head(_storyPath)}\nbody\n'
-        '==> b (t) · specs/b.md · base abcdef123456<==\n',
-      );
-      final entry = parsed.lineFaults.single;
-      expect(entry.code, 'argument_invalid');
-      expect(entry.line, 3);
-      final fault = BatchFault(parsed.lineFaults);
-      expect(fault.exitStatus, 64);
-      final error = fault.toJson()['error']! as Map<String, Object?>;
-      expect(error['code'], 'argument_invalid');
-      expect(error['line'], 3);
-      expect(error, isNot(contains('key')));
-    });
-
-    test('a bundle line with a summary part and a guide line give the '
-        'missing-base message', () {
-      const message =
-          'the naming line holds no base of 12 lowercase hex characters';
-      final parsed = parseBatchFile(
-        _batch,
-        '${_head(_storyPath)}\nbody\n'
-        '==> login (feature) · $_storyPath · summary <==\n'
-        '==> feature <==\n',
-      );
-      expect(parsed.lineFaults.map((entry) => entry.message), [
-        message,
-        message,
-      ]);
-      expect(BatchFault(parsed.lineFaults).toText().split('\n'), [
-        '$_batch:3: $message',
-        '$_batch:4: $message',
-      ]);
-    });
-
-    test('a malformed hash and a reply unchanged line give the '
-        'missing-base message', () {
-      const message =
-          'the naming line holds no base of 12 lowercase hex characters';
-      final parsed = parseBatchFile(
-        _batch,
-        '${_head(_storyPath)}\nbody\n'
-        '${_head(_storyPath, 'ABC123ABC123')}\n'
-        '==> login (feature) · $_storyPath · base $_hash · unchanged <==\n',
-      );
-      expect(parsed.lineFaults.map((entry) => entry.message), [
-        message,
-        message,
-      ]);
-      expect(BatchFault(parsed.lineFaults).toText().split('\n'), [
-        '$_batch:3: $message',
-        '$_batch:4: $message',
-      ]);
     });
 
     test('text before the first naming line is one fault, shaped or not', () {
@@ -436,14 +443,12 @@ void main() {
         '${_head(_storyPath)}\n  ==>b<==\n```\n==>b<==\n```\n',
       );
       expect(parsed.lineFaults, isEmpty);
-    });
 
-    test('a refused line inside fenced code is text, not a fault', () {
-      final parsed = parseBatchFile(
+      final refused = parseBatchFile(
         _batch,
         '${_head(_storyPath)}\n```\n==> feature <==\n```\n',
       );
-      expect(parsed.lineFaults, isEmpty);
+      expect(refused.lineFaults, isEmpty);
     });
   });
 }

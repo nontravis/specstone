@@ -40,21 +40,18 @@ void main() {
         'Limits: ≤ 300 lines; ≤ 12,000 characters; '
         '≤ 400 characters per item; $builtInSentenceLimitClauses',
       );
+      expect(
+        docLimitsLine(
+          const MergedLint(maxLines: 10, maxChars: 500, maxItemChars: 50),
+        ),
+        'Limits: ≤ 10 lines; ≤ 500 characters; ≤ 50 characters per item; '
+        '$builtInSentenceLimitClauses',
+      );
     });
 
     test('a doc type that sets no limit still prints the three built-in '
         'clauses', () {
       expect(docLimitsLine(const MergedLint()), 'Limits: $builtInLimitClauses');
-    });
-
-    test('a doc line holds all five clauses in key order', () {
-      const lint = MergedLint(maxLines: 10, maxChars: 500, maxItemChars: 50);
-
-      expect(
-        docLimitsLine(lint),
-        'Limits: ≤ 10 lines; ≤ 500 characters; ≤ 50 characters per item; '
-        '$builtInSentenceLimitClauses',
-      );
     });
 
     test('a sentence map lists every entry but default in merged order', () {
@@ -226,26 +223,23 @@ void main() {
         '≤ 60 characters per sentence in a no-space script '
         '(th 60, ja 36, zh 27).',
       );
+      expect(
+        fieldLimitsLine(
+          const FieldCaps(
+            maxSentences: 2,
+            maxSentenceWords: {'default': 20},
+            maxSentenceChars: {'default': 80},
+          ),
+        ),
+        '  Limits: ≤ 2 sentences; ≤ 20 words per sentence; '
+        '≤ 80 characters per sentence in a no-space script.',
+      );
     });
 
     test('a field that caps sentences alone prints that clause alone', () {
       expect(
         fieldLimitsLine(const FieldCaps(maxSentences: 3)),
         '  Limits: ≤ 3 sentences.',
-      );
-    });
-
-    test('a field line holds its three clauses in no-space wording', () {
-      const caps = FieldCaps(
-        maxSentences: 2,
-        maxSentenceWords: {'default': 20},
-        maxSentenceChars: {'default': 80},
-      );
-
-      expect(
-        fieldLimitsLine(caps),
-        '  Limits: ≤ 2 sentences; ≤ 20 words per sentence; '
-        '≤ 80 characters per sentence in a no-space script.',
       );
     });
 

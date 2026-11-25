@@ -110,28 +110,19 @@ void main() {
     expect(html, isNot(contains('<a href="../../us01_a')));
   });
 
-  test('http and https links stay, in any '
-      'letter case', () async {
+  test('http and https links stay, in any letter case', () async {
     final html = await _build({
       _storyA: _story(
         'Story one',
-        '[one](https://example.com/spec) [two](HTTP://example.com)',
+        '[one](https://example.com/spec) [two](HTTP://example.com) '
+            '[three](http://h:abc/x.md)',
       ),
     }, target: 'docs/$_storyA');
 
     expect(html, contains('<a href="https://example.com/spec">one</a>'));
     expect(html, contains('<a href="HTTP://example.com">two</a>'));
+    expect(html, contains('<a href="http://h:abc/x.md">three</a>'));
     expect(html, isNot(contains('<span class="outside-link"')));
-  });
-
-  test('a bare #fragment names the doc itself', () async {
-    final html = await _build({
-      _storyA: _story('Story one'),
-      _storyB: _story('Story two', 'See [scenario](#scenario-1).'),
-    }, target: 'docs/$_featureDir');
-
-    final anchor = _anchorOf(html, 'Story two');
-    expect(html, contains('<a href="#$anchor">scenario</a>'));
   });
 
   test('a scheme other than http or https and a pop past the '
@@ -255,15 +246,19 @@ void main() {
       expect(html, contains('<a href="#doc-1-n2">2</a>'));
     });
 
-    test('footnote links reach their mates and a written '
-        '#fn-1 names no anchor', () {
-      final html = body('$footnote\n[a](#fn-1)');
+    test(
+      'footnote links reach their mates and a written #fn-1 names no anchor',
+      () {
+        final html = body('$footnote\n[a](#fn-1)');
 
-      expect(html, contains('<a href="#doc-1-fn-1" id="doc-1-fnref-1">'));
-      expect(html, contains('<li id="doc-1-fn-1">'));
-      expect(html, contains('<a href="#doc-1-fnref-1"'));
-      expect(html, contains('<a href="#doc-1">a</a>'));
-    });
+        expect(html, contains('<a href="#doc-1-fn-1" id="doc-1-fnref-1">'));
+        expect(html, contains('<li id="doc-1-fn-1">'));
+        expect(html, contains('<a href="#doc-1-fnref-1"'));
+        expect(html, contains('<a href="#doc-1">a</a>'));
+        expect(html, isNot(contains('id="fn-1"')));
+        expect(html, isNot(contains('id="fnref-1"')));
+      },
+    );
 
     test('a fragment naming no anchor goes to the doc', () {
       final html = body('[a](#nope)');
@@ -352,13 +347,6 @@ void main() {
       expect(ids, [for (final slug in slugs) 'doc-1-$slug']);
     });
 
-    test('a malformed http target stays a web link', () {
-      final html = body('[x](http://h:abc/x.md)');
-
-      expect(html, contains('<a href="http://h:abc/x.md">'));
-      expect(html, isNot(contains('outside-link')));
-    });
-
     test('a title line inside a raw html block makes no '
         'heading, so the body keeps every heading and its slug', () {
       final html = body('<div>\n# T\n</div>\n\n# Later\n\n[x](#later)');
@@ -374,36 +362,6 @@ void main() {
       expect(html, startsWith('<h2 id="doc-1-pre">Pre</h2>'));
       expect(html, contains('<h2 id="doc-1-post">Post</h2>'));
       expect(html, contains('<a href="#doc-1-post">x</a>'));
-    });
-
-    test('an empty fragment reaches the doc top', () {
-      final html = body('[top](#) [x](../d.md#)');
-
-      expect(html, contains('<a href="#doc-1">top</a>'));
-      expect(html, contains('<a href="#doc-2">x</a>'));
-    });
-
-    test('every id is prefixed with the doc anchor, and the '
-        'footnote links follow', () {
-      final html = body(footnote);
-
-      expect(html, contains('<a href="#doc-1-fn-1" id="doc-1-fnref-1">'));
-      expect(html, contains('<li id="doc-1-fn-1">'));
-      expect(
-        html,
-        contains('<a href="#doc-1-fnref-1" class="footnote-backref">'),
-      );
-      expect(html, isNot(contains('id="fn-1"')));
-      expect(html, isNot(contains('id="fnref-1"')));
-    });
-
-    test('a raw html id is prefixed and a bare fragment naming '
-        'it points at the prefixed id', () {
-      final html = body('<div id="box">x</div>\n\n$rawTop');
-
-      expect(html, contains('<div id="doc-1-box">'));
-      expect(html, contains('<a id="doc-1-top"></a>'));
-      expect(html, contains('<a href="#doc-1-top">up</a>'));
     });
 
     test('a bare fragment that names no id stays on the doc '
@@ -476,13 +434,17 @@ void main() {
       );
     });
 
-    test('single-quoted, unquoted, and '
-        'upper-case ids are prefixed and their fragments follow', () {
+    // ignore: lines_longer_than_80_chars -- the test name stays one literal
+    test('single-quoted, unquoted, and upper-case ids are prefixed and their fragments follow', () {
       final html = body(
-        "<div id='a'>x</div>\n<div id=b>y</div>\n<div ID=\"c\">z</div>\n\n"
+        "<div id='a'>x</div>\n<div id=b>y</div>\n<div ID=\"c\">z</div>\n"
+        '<div id="box">w</div>\n\n$rawTop\n'
         '[1](#a) [2](#b) [3](#c)\n',
       );
 
+      expect(html, contains('<div id="doc-1-box">'));
+      expect(html, contains('<a id="doc-1-top"></a>'));
+      expect(html, contains('<a href="#doc-1-top">up</a>'));
       expect(html, contains("<div id='doc-1-a'>"));
       expect(html, contains('<div id=doc-1-b>'));
       expect(html, contains('<div ID="doc-1-c">'));

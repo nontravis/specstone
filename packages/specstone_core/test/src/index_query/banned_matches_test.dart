@@ -167,30 +167,24 @@ void main() {
       ]);
     });
 
-    test('round-trips its field through the match JSON', () {
-      final matches = matchesOf('---\nsummary: A fast tool.\n---\n\n# T\n');
-
-      expect(
-        bannedMatchesFromJson(
-          jsonDecode(jsonEncode(bannedMatchesToJson(matches))) as List<Object?>,
-        ),
-        matches,
-      );
+    test('the matches round-trip through their JSON', () {
+      for (final matches in [
+        _parsed(_text, MatchedDocType(_type)).bannedMatches,
+        matchesOf('---\nsummary: A fast tool.\n---\n\n# T\n'),
+      ]) {
+        expect(
+          bannedMatchesFromJson(
+            jsonDecode(jsonEncode(bannedMatchesToJson(matches)))
+                as List<Object?>,
+          ),
+          matches,
+        );
+      }
     });
   });
 
   test('an untyped doc keeps no banned match', () {
     expect(_parsed(_text, const NoDocType()).bannedMatches, isEmpty);
-  });
-
-  test('the matches round-trip through their JSON', () {
-    final matches = _parsed(_text, MatchedDocType(_type)).bannedMatches;
-    expect(
-      bannedMatchesFromJson(
-        jsonDecode(jsonEncode(bannedMatchesToJson(matches))) as List<Object?>,
-      ),
-      matches,
-    );
   });
 
   test('a code span closes on a backtick run of its own '

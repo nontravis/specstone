@@ -131,12 +131,6 @@ void main() {
       expect(parsed.content.lineFacts.links, isEmpty);
     });
 
-    test('a '
-        'marker in a frontmatter value is not stored', () {
-      const doc = '---\nnote: TBR \u2014 in the frontmatter\n---\n# T\n';
-      expect(_factsOf(doc).tbrMarkers, isEmpty);
-    });
-
     test('a CRLF '
         'doc stores the markers of its LF text', () {
       const lf = '---\na: 1\n---\n# T\n\nTBR \u2014 gap\n';
@@ -217,13 +211,6 @@ void main() {
       }
       expect(counts[0].lines, 4);
       expect(counts[1], const SectionCounts(lines: 1, chars: 7));
-    });
-
-    test('a section count is the non-blank lines of its body, its header line '
-        'left out', () {
-      final counts = _contentOf(text).lineFacts.sectionCounts;
-      expect(counts[0].lines, 4);
-      expect(counts[1].lines, 1);
       final blanks = _factsOf('---\na: 1\n---\n# T\n\n## S\n\n\nx\n\n\n');
       expect(blanks.sectionCounts.single.lines, 1);
     });
@@ -246,23 +233,6 @@ void main() {
       expect(empty.lineCount, 0);
       expect(empty.charCount, 0);
     });
-
-    test('a final line without a line break counts as a line', () {
-      expect(_factsOf('# T\n\n## S\nx').lineCount, 3);
-      expect(_factsOf('# T\n\n## S\nx\n\n').lineCount, 3);
-    });
-
-    test(
-      'the doc count is the non-blank lines of the body after the frontmatter',
-      () {
-        expect(_factsOf(text).lineCount, 8);
-        expect(
-          _factsOf('---\nstatus: planned\n\n---\n\n# T\n\n\n## S\nx\n\n\n')
-              .lineCount,
-          3,
-        );
-      },
-    );
 
     test(
       'invalid frontmatter still counts its body from the closing delimiter',
@@ -312,6 +282,8 @@ void main() {
       'frontmatter, then a blank line': '---\n---\n\n',
       'frontmatter, body, no final break': '---\na: 1\n---\nbody',
       'frontmatter, body, blank line': '---\na: 1\n---\n\nbody\n\n',
+      'frontmatter, blank line inside, blanks around the body':
+          '---\nstatus: planned\n\n---\n\n# T\n\n\n## S\nx\n\n\n',
       'surrogate pairs': '# \u{1F600}\u{1F600}\n\n## \u{1F600}\nx \uD83D\n',
       'tilde fence': '# T\n~~~\n## no\n~~~\n## yes\n',
       'CRLF with a fence':
@@ -614,23 +586,17 @@ void main() {
       expect(_factsOf('# T\n\n> ## Quoted\n').headingLines, isNull);
     });
 
-    test(
-      'a quoted heading that cancels a '
-      '## line inside an HTML block keeps no line, since the slugs differ',
-      () {
-        final facts = _factsOf('# T\n> ## Note\n\n<!--\n## guide\n-->\n');
+    // ignore: lines_longer_than_80_chars, the test name is one literal
+    test('a quoted heading that cancels a ## line inside an HTML block keeps no line, since the slugs differ', () {
+      for (final (reason, text) in [
+        ('plain heading', '# T\n> ## Note\n\n<!--\n## guide\n-->\n'),
+        ('inline markup', '# T\n> ## Note\n\n<!--\n## `guide`\n-->\n'),
+      ]) {
+        final facts = _factsOf(text);
 
-        expect(facts.anchors!.headingSlugs, ['t', 'note']);
-        expect(facts.headingLines, isNull);
-      },
-    );
-
-    test('a heading with inline markup is '
-        'paired by the slug the parser gives it', () {
-      final facts = _factsOf('# T\n> ## Note\n\n<!--\n## `guide`\n-->\n');
-
-      expect(facts.anchors!.headingSlugs, ['t', 'note']);
-      expect(facts.headingLines, isNull);
+        expect(facts.anchors!.headingSlugs, ['t', 'note'], reason: reason);
+        expect(facts.headingLines, isNull, reason: reason);
+      }
     });
 
     test('a repeated heading and one with '

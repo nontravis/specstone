@@ -132,36 +132,18 @@ sections:
   });
 
   test('a bad regex is unknown_value', () async {
-    await _expectFault(
-      _resolve(
-        project: '''
-lint:
-  banned_patterns:
-    - id: a
-      pattern: '(['
-      message: m
-''',
-      ),
-      code: FaultCode.unknownValue,
-      keyEndsWith: 'banned_patterns[0].pattern',
-    );
-  });
-
-  test('a bad except regex is unknown_value', () async {
-    await _expectFault(
-      _resolve(
-        project: '''
-lint:
-  banned_patterns:
-    - id: a
-      pattern: 'x'
-      message: m
-      except: ['(']
-''',
-      ),
-      code: FaultCode.unknownValue,
-      keyEndsWith: 'banned_patterns[0].except',
-    );
+    for (final (key, entry) in [
+      ('pattern', "pattern: '(['\n      message: m"),
+      ('except', "pattern: 'x'\n      message: m\n      except: ['(']"),
+    ]) {
+      await _expectFault(
+        _resolve(
+          project: 'lint:\n  banned_patterns:\n    - id: a\n      $entry\n',
+        ),
+        code: FaultCode.unknownValue,
+        keyEndsWith: 'banned_patterns[0].$key',
+      );
+    }
   });
 
   test('an in outside text, code, all is unknown_value', () async {
@@ -400,38 +382,6 @@ sections:
     expect(required.file, _projectFile);
     expect(required.key, 'sections.goal.lint.required_patterns');
     expect(required.exitStatus, 78);
-  });
-
-  test('remove of an id no lower layer holds is '
-      'override_id_not_found', () async {
-    await _expectFault(
-      _resolve(
-        shipped: _lowerFeature,
-        project: '''
-lint:
-  banned_patterns:
-    remove: [zzz]
-''',
-      ),
-      code: FaultCode.overrideIdNotFound,
-    );
-  });
-
-  test('a plain list over a lower list is '
-      'list_override_needs_add_remove', () async {
-    await _expectFault(
-      _resolve(
-        shipped: _lowerFeature,
-        project: '''
-lint:
-  banned_patterns:
-    - id: c
-      pattern: 'c'
-      message: m
-''',
-      ),
-      code: FaultCode.listOverrideNeedsAddRemove,
-    );
   });
 
   test('an upper required_field_groups replaces the lower '

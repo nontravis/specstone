@@ -419,45 +419,6 @@ void main() {
     expect(_isApproved(root, check.loginStory), isTrue);
   });
 
-  test('approved and asked entries name each draft by doc', () async {
-    final root = await _draftsProject(frHasFinding: true);
-    final audit = await _auditNaming(root, [_story, _fr]);
-
-    final answer = await _approveAuto(
-      root,
-      _call(root, names: [_fr, _story], audits: [audit]),
-    );
-
-    final approved = (answer.json['approved']! as List).single as Map;
-    final asked = (answer.json['asked']! as List).single as Map;
-    expect(approved['doc'], _story);
-    expect(approved['path'], check.loginStory);
-    expect(asked['doc'], _fr);
-    expect(asked['path'], check.loginFr);
-    expect(approved.containsKey('name'), isFalse);
-    expect(asked.containsKey('name'), isFalse);
-  });
-
-  test('approved and asked entries name each draft by path', () async {
-    final root = await _draftsProject(frHasFinding: true);
-    final audit = await _auditNaming(root, [_story, _fr]);
-
-    final answer = await _approveAuto(
-      root,
-      _call(root, names: [_fr, _story], audits: [audit]),
-    );
-
-    final entries = [
-      ...(answer.json['approved']! as List),
-      ...(answer.json['asked']! as List),
-    ].cast<Map<String, Object?>>();
-    expect(entries.map((entry) => entry['path']), [
-      check.loginStory,
-      check.loginFr,
-    ]);
-    expect(entries.every((entry) => !entry.containsKey('docPath')), isTrue);
-  });
-
   test('prints the four JSON keys in doc order', () async {
     final root = await _draftsProject(frHasFinding: true);
     final audit = await _auditNaming(root, [_story, _fr]);

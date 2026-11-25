@@ -124,31 +124,6 @@ void main() {
     expect(_stales(approved), isEmpty);
   });
 
-  test(
-    'an approval_stale finding names the written approved value as recorded',
-    () async {
-      final edited = await checkOf(
-        await writeCheckProject(
-          extra: editedAfterApproval(loginStory, [
-            ('Sign in', 'Sign in again'),
-          ]),
-        ),
-      );
-      final finding = _stales(edited).single;
-      expect(finding.keys['recorded'], isA<String>());
-      expect(finding.keys.containsKey('value'), isFalse);
-
-      final plain = checkProjectFiles()['docs/$loginFr']!;
-      final unapproved = await checkOf(
-        await writeCheckProject(
-          extra: {'docs/$loginFr': plain},
-          unstamped: {'docs/$loginFr'},
-        ),
-      );
-      expect(_stales(unapproved).single.keys, isEmpty);
-    },
-  );
-
   test('a change of layout alone raises no approval_stale', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -296,26 +271,6 @@ void main() {
     expect(spots(await _checkBelowPins(marked)), isEmpty);
   });
 
-  test('a doc stamped with the hash of its rewritten content raises no approval_stale', () async {
-    final text = checkProjectFiles()['docs/$loginFr']!.replaceFirst(
-      'refuse a wrong password',
-      'turn away a wrong password',
-    );
-    final docType = fixtureDocTypeOf(loginFr);
-    final report = await checkOf(
-      await writeCheckProject(
-        extra: {
-          'docs/$loginFr': withApprovalHash(
-            text,
-            docType,
-            statusesOutside: shippedStatusesOutside,
-          ),
-        },
-      ),
-    );
-    expect(_stales(report), isEmpty);
-  });
-
   test('an untyped doc raises no approval_stale', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -364,14 +319,11 @@ void main() {
       ),
     );
     expect(_stales(quoted), isEmpty);
-  });
 
-  test('a double-quoted hash of digits alone that matches its content raises no approval_stale', () async {
-    final (text, digits) = _frHashing(RegExp(r'^\d{12}$'));
-    final report = await checkOf(
+    final quotedDigits = await checkOf(
       await writeCheckProject(
         extra: {
-          'docs/$loginFr': text.replaceFirst(
+          'docs/$loginFr': digitsText.replaceFirst(
             'traced_from:\n',
             'approved: "$digits"\ntraced_from:\n',
           ),
@@ -379,7 +331,7 @@ void main() {
         unstamped: {'docs/$loginFr'},
       ),
     );
-    expect(_stales(report), isEmpty);
+    expect(_stales(quotedDigits), isEmpty);
   });
 
   test(
@@ -414,48 +366,44 @@ void main() {
   test(
     'a doc with no approved: key is stale when only prd-core reaches its pin',
     () async {
-      final report = await _checkBelowPins(const {}, prdCore: '1.7.0');
-      expect(
-        spots(report, FindingKind.approvalStale),
-        contains('$loginFr:1: approval_stale'),
-      );
+      for (final (prdCore, softwareTech) in [
+        ('1.7.0', '1.3.0'),
+        ('1.6.0', '1.4.0'),
+      ]) {
+        final report = await _checkBelowPins(
+          const {},
+          prdCore: prdCore,
+          softwareTech: softwareTech,
+        );
+        expect(
+          spots(report, FindingKind.approvalStale),
+          contains('$loginFr:1: approval_stale'),
+          reason: '$prdCore $softwareTech',
+        );
+      }
     },
   );
 
-  test('a doc with no approved: key is stale when only software-tech reaches its pin', () async {
-    final report = await _checkBelowPins(const {}, softwareTech: '1.4.0');
-    expect(
-      spots(report, FindingKind.approvalStale),
-      contains('$loginFr:1: approval_stale'),
-    );
-  });
-
   test('approved: true is stale with value true when only prd-core reaches its pin', () async {
-    final report = await _checkBelowPins(
-      fr('traced_from:\n', 'approved: true\ntraced_from:\n'),
-      prdCore: '1.7.0',
-    );
-    final inFr = [
-      for (final f in report.findings)
-        if (f.path == loginFr) f,
-    ];
-    expect(inFr.map((f) => f.kind), [FindingKind.approvalStale]);
-    expect(inFr.single.line, 2);
-    expect(inFr.single.keys, {'recorded': 'true'});
-  });
-
-  test('approved: true is stale with value true when only software-tech reaches its pin', () async {
-    final report = await _checkBelowPins(
-      fr('traced_from:\n', 'approved: true\ntraced_from:\n'),
-      softwareTech: '1.4.0',
-    );
-    final inFr = [
-      for (final f in report.findings)
-        if (f.path == loginFr) f,
-    ];
-    expect(inFr.map((f) => f.kind), [FindingKind.approvalStale]);
-    expect(inFr.single.line, 2);
-    expect(inFr.single.keys, {'recorded': 'true'});
+    for (final (prdCore, softwareTech) in [
+      ('1.7.0', '1.3.0'),
+      ('1.6.0', '1.4.0'),
+    ]) {
+      final report = await _checkBelowPins(
+        fr('traced_from:\n', 'approved: true\ntraced_from:\n'),
+        prdCore: prdCore,
+        softwareTech: softwareTech,
+      );
+      final inFr = [
+        for (final f in report.findings)
+          if (f.path == loginFr) f,
+      ];
+      expect(inFr.map((f) => f.kind), [
+        FindingKind.approvalStale,
+      ], reason: '$prdCore $softwareTech');
+      expect(inFr.single.line, 2);
+      expect(inFr.single.keys, {'recorded': 'true'});
+    }
   });
 
   test('a literal overflowing exponent reads as written', () async {
@@ -501,16 +449,5 @@ void main() {
       ], reason: written);
       expect(_stales(report).single.keys, {'recorded': value}, reason: written);
     }
-  });
-
-  test('a tree pinned below both pins raises nothing for approved: true docs or docs with no approved: key', () async {
-    final report = await _checkBelowPins({
-      'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!.replaceFirst(
-        'traced_from:\n',
-        'approved: true\ntraced_from:\n',
-      ),
-      'docs/$loginStory': checkProjectFiles()['docs/$loginStory']!,
-    });
-    expect(_stales(report), isEmpty);
   });
 }

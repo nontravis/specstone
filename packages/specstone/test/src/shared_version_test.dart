@@ -9,27 +9,16 @@ import '../helpers/package_root.dart';
 void main() {
   group('shared version', () {
     test('the specstone pubspec carries the core version', () {
-      final pubspec = File.fromUri(packageRoot().uri.resolve('pubspec.yaml'))
-          .readAsStringSync();
-      final match = RegExp(
-        r'^version:\s*(\S+)\s*$',
-        multiLine: true,
-      ).firstMatch(pubspec);
+      for (final path in ['pubspec.yaml', '../specstone_core/pubspec.yaml']) {
+        final pubspec = File.fromUri(packageRoot().uri.resolve(path))
+            .readAsStringSync();
+        final match = RegExp(
+          r'^version:\s*(\S+)\s*$',
+          multiLine: true,
+        ).firstMatch(pubspec);
 
-      expect(match?.group(1), specstoneVersion);
-    });
-
-    test('the specstone_core pubspec carries the core '
-        'version', () {
-      final pubspec = File.fromUri(
-        packageRoot().uri.resolve('../specstone_core/pubspec.yaml'),
-      ).readAsStringSync();
-      final match = RegExp(
-        r'^version:\s*(\S+)\s*$',
-        multiLine: true,
-      ).firstMatch(pubspec);
-
-      expect(match?.group(1), specstoneVersion);
+        expect(match?.group(1), specstoneVersion, reason: path);
+      }
     });
 
     test('the specstone pubspec constrains specstone_core '

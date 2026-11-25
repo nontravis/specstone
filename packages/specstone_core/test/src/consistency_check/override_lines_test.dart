@@ -111,39 +111,6 @@ void main() {
     expect(line.itemText, contains('A cart expires after 7 days.'));
   });
 
-  test('an override_line_malformed finding names its offending text under '
-      'value', () async {
-    for (final (line, value) in [
-      ('- Overrides: INV-3 — $_because', 'INV-3'),
-      ('- Overrides:', ''),
-    ]) {
-      final read = await _read(_withLoginDomain([line]), _loginDomain);
-      final finding = read.findings.single;
-      expect(finding.kind, FindingKind.overrideLineMalformed);
-      expect(finding.keys['value'], value);
-      expect(finding.keys, isNot(contains('target')));
-    }
-  });
-
-  test('an override_not_in_chain finding names the link as value and the '
-      "doc's project path as targetPath", () async {
-    final files = {
-      ..._withLoginDomain([
-        '- Overrides: [INV-1](../f02_pay/DOMAIN.md#invariants) — $_because',
-      ]),
-      'docs/prds/features/f02_pay/FEATURE.md': '# Pay\n',
-      'docs/$_payDomain': _domain(['- **INV-1** A payment settles once.']),
-    };
-    final finding = (await _read(files, _loginDomain)).findings.single;
-    expect(finding.kind, FindingKind.overrideNotInChain);
-    expect(finding.keys['value'], '../f02_pay/DOMAIN.md#invariants');
-    final targetPath = finding.keys['targetPath']! as String;
-    expect(targetPath, startsWith('docs/'));
-    expect(finding.message, contains(targetPath));
-    expect(finding.keys, isNot(contains('target')));
-    expect(finding.keys, isNot(contains('doc')));
-  });
-
   test("an override_not_in_chain finding names a record target by the record's "
       'own project path', () async {
     final files = _withLoginDomain([
@@ -170,23 +137,17 @@ void main() {
   });
 
   test('a line with no link is malformed with its text as value', () async {
-    final read = await _read(
-      _withLoginDomain(['- Overrides: INV-3 — $_because']),
-      _loginDomain,
-    );
-    final finding = read.findings.single;
-    expect(finding.kind, FindingKind.overrideLineMalformed);
-    expect(finding.line, _firstItemLine);
-    expect(finding.waitsFor, WaitsFor.agent);
-    expect(finding.keys, {'value': 'INV-3'});
-  });
-
-  test('an empty marker is malformed with an empty value', () async {
-    final read = await _read(_withLoginDomain(['- Overrides:']), _loginDomain);
-    final finding = read.findings.single;
-    expect(finding.kind, FindingKind.overrideLineMalformed);
-    expect(finding.waitsFor, WaitsFor.agent);
-    expect(finding.keys, {'value': ''});
+    for (final (line, value) in [
+      ('- Overrides: INV-3 — $_because', 'INV-3'),
+      ('- Overrides:', ''),
+    ]) {
+      final read = await _read(_withLoginDomain([line]), _loginDomain);
+      final finding = read.findings.single;
+      expect(finding.kind, FindingKind.overrideLineMalformed, reason: line);
+      expect(finding.line, _firstItemLine, reason: line);
+      expect(finding.waitsFor, WaitsFor.agent, reason: line);
+      expect(finding.keys, {'value': value}, reason: line);
+    }
   });
 
   test('a line with no link or an empty marker tracks no link and gets no '
@@ -221,6 +182,7 @@ void main() {
       'value': '../f02_pay/DOMAIN.md#invariants',
       'targetPath': 'docs/$_payDomain',
     });
+    expect(finding.message, contains('docs/$_payDomain'));
     expect(read.lines.single.address, isNull);
   });
 
@@ -364,6 +326,7 @@ void main() {
       'docs/$_rootDomain': _domain([
         _rootRule,
         '- Overrides: INV-3 — $_because',
+        '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
       ]),
       'docs/$techStack':
           '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n- Overrides: INV-3 — $_because\n',
@@ -376,18 +339,6 @@ void main() {
       expect(read.lines, isEmpty, reason: path);
     }
     expect(await _runFindings(files), isEmpty);
-  });
-
-  test('two lines linking one item share one address', () async {
-    final read = await _read(
-      _withLoginDomain([
-        '- Overrides: [INV-3]($_toRoot) — $_because',
-        '- Overrides: [INV-3]($_toRoot) — a second reason, because stock',
-      ]),
-      _loginDomain,
-    );
-    expect(read.findings, isEmpty);
-    expect(read.lines.map((l) => l.address), [_rootAddress, _rootAddress]);
   });
 
   test('two spellings of one linked path share one tracked link', () async {
@@ -494,18 +445,6 @@ void main() {
     expect(read.findings, isEmpty);
   });
 
-  test('a doc type without the overrides field is not read', () async {
-    final files = {
-      'docs/$_rootDomain': _domain([
-        _rootRule,
-        '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
-      ]),
-    };
-    final read = await _read(files, _rootDomain);
-    expect(read.lines, isEmpty);
-    expect(read.findings, isEmpty);
-  });
-
   test(
     'a line whose link names no indexed doc gives no override finding',
     () async {
@@ -533,19 +472,14 @@ void main() {
       'project_security:project_security#SEC-1',
     );
     expect(read.lines.single.upstream, _projectSecurity);
-  });
 
-  test(
-    'a malformed Overrides line in a security doc is override_line_malformed',
-    () async {
-      final read = await _read(
-        _securityFiles('- Overrides: SEC-1 — a shorter token'),
-        _loginSecurity,
-      );
-      expect(
-        [for (final f in read.findings) f.kind],
-        [FindingKind.overrideLineMalformed],
-      );
-    },
-  );
+    final malformed = await _read(
+      _securityFiles('- Overrides: SEC-1 — a shorter token'),
+      _loginSecurity,
+    );
+    expect(
+      [for (final f in malformed.findings) f.kind],
+      [FindingKind.overrideLineMalformed],
+    );
+  });
 }

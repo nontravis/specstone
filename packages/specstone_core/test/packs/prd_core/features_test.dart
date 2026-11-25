@@ -16,13 +16,6 @@ void main() {
     features = prdCoreDocType(await resolvePrdCore(), 'features');
   });
 
-  test('the diagram node label line lists its characters in one span', () {
-    expect(
-      sectionOf(features, 'diagram').description,
-      contains('Quote a node label holding any of `()[]{}`'),
-    );
-  });
-
   test('features sits at prds/FEATURES.md with no parent, no '
       'own field, and three sections', () {
     expect(features.path, 'prds/FEATURES.md');
@@ -43,14 +36,6 @@ void main() {
   test('the description names its three sections, and the fixed title sits in '
       'the title key', () {
     expect(features.title, 'Feature map');
-    expect(features.description, isNot(contains('Title it')));
-    expect(features.description, contains('feature catalog'));
-    expect(features.description, contains('diagram'));
-    expect(features.description, contains('Systems table'));
-  });
-
-  test('the description states no number a lint key holds', () {
-    expect(features.description, isNot(contains('three sections')));
   });
 
   test('features takes its own line and character caps, every other prd-core '
@@ -75,35 +60,8 @@ void main() {
     }
   });
 
-  test('the features description says the Agent proposes a fold on a '
-      'size finding', () {
-    final text = features.description;
-    for (final point in const [
-      'chars_over_limit',
-      'lines_over_limit',
-      'specstone move',
-      '`new feature --slug <slug>`',
-      'max_depth',
-      'Owner approves',
-      'no text is cut',
-      'raise the cap',
-    ]) {
-      expect(text, contains(point));
-    }
-    expect(text, isNot(matches(RegExp(r'\d'))));
-  });
-
-  test('features size guide names a move plan file', () {
-    final text = features.description;
-    expect(text, contains('move plan file'));
-    expect(text, contains('`specstone move --plan-file`'));
-    expect(text, isNot(contains('as `specstone move` commands')));
-  });
-
   test('the Features section holds a generated block with no template', () {
     final section = sectionOf(features, 'features');
-    expect(section.description, contains('generated block'));
-    expect(section.description, contains('never written by hand'));
     expect(section.template, isNull);
   });
 

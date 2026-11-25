@@ -76,14 +76,65 @@ void main() {
     });
 
     test('a layout-only change shows the no-change line and the none row', () {
-      final view = _render(
-        _draft(
-          text: fr('\n$padded'),
-          lookup: _copy(fr('\n$compact')),
-          mergedType: frType,
-        ),
+      const ordered = MergedDocType(
+        id: 'fr',
+        fields: [
+          MergedField(id: 'first', type: FieldType.string),
+          MergedField(id: 'second', type: FieldType.string),
+        ],
+        sections: [
+          MergedSection(id: 'statement', header: 'Statement'),
+          MergedSection(id: 'rationale', header: 'Rationale'),
+        ],
+        lint: MergedLint(),
+        files: [],
       );
-      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
+      final cases = [
+        (
+          reason: 'table padding',
+          text: fr('\n$padded'),
+          copy: fr('\n$compact'),
+          type: frType,
+        ),
+        (
+          reason: 'spaces and tabs at line ends',
+          text: fr('\nOne \nTwo\t\nThree   \n'),
+          copy: fr('\nOne\nTwo\nThree\n'),
+          type: frType,
+        ),
+        (
+          reason: 'blank lines under a heading',
+          text: fr('One.\n'),
+          copy: fr('\n\nOne.\n'),
+          type: frType,
+        ),
+        (
+          reason: 'a header in another letter case',
+          text: fr('\nOne.\n').replaceFirst('## Statement', '## STATEMENT'),
+          copy: fr('\nOne.\n'),
+          type: frType,
+        ),
+        (
+          reason: 'the order of keys and of sections',
+          text:
+              '---\nsecond: b\nfirst: a\n---\n\n# T\n\n'
+              '## Rationale\nR.\n\n## Statement\nS.\n',
+          copy:
+              '---\nfirst: a\nsecond: b\n---\n\n# T\n\n'
+              '## Statement\nS.\n\n## Rationale\nR.\n',
+          type: ordered,
+        ),
+      ];
+      for (final c in cases) {
+        final view = _render(
+          _draft(text: c.text, lookup: _copy(c.copy), mergedType: c.type),
+        );
+        expect(
+          view,
+          endsWith('| changes | none |\n$_noChangeEnd'),
+          reason: c.reason,
+        );
+      }
     });
 
     test('a hard break added or removed shows as a change', () {
@@ -105,65 +156,6 @@ void main() {
         expect(view, contains('| changes | `## Statement` |'));
         expect(view, contains('```diff\n'));
       }
-    });
-
-    test('spaces and tabs at line ends are a layout change', () {
-      final view = _render(
-        _draft(
-          text: fr('\nOne \nTwo\t\nThree   \n'),
-          lookup: _copy(fr('\nOne\nTwo\nThree\n')),
-          mergedType: frType,
-        ),
-      );
-      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
-    });
-
-    test('blank lines under a heading are a layout change', () {
-      final view = _render(
-        _draft(
-          text: fr('One.\n'),
-          lookup: _copy(fr('\n\nOne.\n')),
-          mergedType: frType,
-        ),
-      );
-      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
-    });
-
-    test('a header written in another letter case is a layout change', () {
-      final view = _render(
-        _draft(
-          text: fr('\nOne.\n').replaceFirst('## Statement', '## STATEMENT'),
-          lookup: _copy(fr('\nOne.\n')),
-          mergedType: frType,
-        ),
-      );
-      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
-    });
-
-    test('the order of keys and of sections is a layout change', () {
-      const ordered = MergedDocType(
-        id: 'fr',
-        fields: [
-          MergedField(id: 'first', type: FieldType.string),
-          MergedField(id: 'second', type: FieldType.string),
-        ],
-        sections: [
-          MergedSection(id: 'statement', header: 'Statement'),
-          MergedSection(id: 'rationale', header: 'Rationale'),
-        ],
-        lint: MergedLint(),
-        files: [],
-      );
-      const template =
-          '---\nfirst: a\nsecond: b\n---\n\n# T\n\n'
-          '## Statement\nS.\n\n## Rationale\nR.\n';
-      const shuffled =
-          '---\nsecond: b\nfirst: a\n---\n\n# T\n\n'
-          '## Rationale\nR.\n\n## Statement\nS.\n';
-      final view = _render(
-        _draft(text: shuffled, lookup: _copy(template), mergedType: ordered),
-      );
-      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
     });
 
     test('a copy the formatter refuses compares as written', () {
@@ -499,14 +491,11 @@ void main() {
 
       expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
       expect(view, isNot(contains('```')));
-    });
 
-    test('a CRLF approved copy diffs as LF', () {
-      final view = _render(
+      final crlf = _render(
         _draft(text: _neuDraft, lookup: _copy(_neu.replaceAll('\n', '\r\n'))),
       );
-
-      expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
+      expect(crlf, endsWith('| changes | none |\n$_noChangeEnd'));
     });
 
     test("the fence outlasts the doc's own fence", () {
@@ -712,6 +701,11 @@ void main() {
       expect(onlyNew, contains('| dropped | 0 sentences dropped |\n'));
       expect(onlyNew, endsWith('\n```\n\nNew sentences:\n- Fresh.\n'));
       expect(onlyNew, isNot(contains('Dropped sentences:')));
+
+      final none = _render(_draft());
+      expect(none, contains('| dropped | 0 sentences dropped |\n'));
+      expect(none, contains('| new     | 0 sentences new |\n'));
+      expect(none, isNot(contains('sentences:')));
     });
 
     test('a list follows the no-change line when the layout alone differs', () {
@@ -733,14 +727,6 @@ void main() {
           'no change since the approved copy\n\nDropped sentences:\n- Gone.\n',
         ),
       );
-    });
-
-    test('a count of 0 prints the rows and no list', () {
-      final view = _render(_draft());
-
-      expect(view, contains('| dropped | 0 sentences dropped |\n'));
-      expect(view, contains('| new     | 0 sentences new |\n'));
-      expect(view, isNot(contains('sentences:')));
     });
 
     test('colour touches no sentence line', () {

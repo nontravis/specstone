@@ -79,6 +79,7 @@ void main() {
       );
       expect(found, hasLength(1));
       expect(found.single.toJson(), containsPair('section', 'vision'));
+      expect(found.single.toJson(), containsPair('prefix', 'PV-'));
       expect(found.single.message, 'the item opens with no PV- ID');
     },
   );
@@ -218,19 +219,6 @@ void main() {
       expect(lettered, hasLength(1));
       expect(unreadable, hasLength(1));
     });
-  });
-
-  test('an item missing its ID under a ### heading names the prefix', () async {
-    final found = await _itemIdFindings(
-      doc(
-        projectDoc,
-        '### PV-01 — One sign-in',
-        '### PV-01 — One sign-in\n\n### Another sign-in',
-      ),
-    );
-    expect(found, hasLength(1));
-    expect(found.single.toJson(), containsPair('prefix', 'PV-'));
-    expect(found.single.toJson(), containsPair('section', 'vision'));
   });
 
   // A heading starts an item exactly when `opensHeadingItem` reads it so.

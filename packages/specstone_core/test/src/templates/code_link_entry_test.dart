@@ -25,42 +25,17 @@ void main() {
       expect(entry.fingerprint, isNull);
     });
 
-    test('reads the fingerprint after a prefix entry', () {
-      const entry = CodeLinkEntry('lib/src/toast/ 9a1c03be55d2');
-
-      expect(entry.pointer, 'lib/src/toast/');
-      expect(entry.fingerprint, '9a1c03be55d2');
-    });
-
-    test('reads a prefix entry with no fingerprint as its pointer', () {
-      const entry = CodeLinkEntry('lib/src/toast/');
-
-      expect(entry.pointer, 'lib/src/toast/');
-      expect(entry.fingerprint, isNull);
-    });
-
     test('keeps the whole text as the pointer for an upper-case token', () {
-      const text = 'lib/src/toast/ 5D1E0C4B7A92';
-      const entry = CodeLinkEntry(text);
+      for (final (text, reason) in [
+        ('lib/src/toast/ 5D1E0C4B7A92', 'upper-case token'),
+        ('lib/src/toast/ 5d1e0c4b7a9', 'short token'),
+        ('lib/src/toast/ 5d1e0c4b7a921', 'long token'),
+      ]) {
+        final entry = CodeLinkEntry(text);
 
-      expect(entry.pointer, text);
-      expect(entry.fingerprint, isNull);
-    });
-
-    test('keeps the whole text as the pointer for a short token', () {
-      const text = 'lib/src/toast/ 5d1e0c4b7a9';
-      const entry = CodeLinkEntry(text);
-
-      expect(entry.pointer, text);
-      expect(entry.fingerprint, isNull);
-    });
-
-    test('keeps the whole text as the pointer for a long token', () {
-      const text = 'lib/src/toast/ 5d1e0c4b7a921';
-      const entry = CodeLinkEntry(text);
-
-      expect(entry.pointer, text);
-      expect(entry.fingerprint, isNull);
+        expect(entry.pointer, text, reason: reason);
+        expect(entry.fingerprint, isNull, reason: reason);
+      }
     });
 
     test('keeps a 12-hex segment with no space before it in the pointer', () {
@@ -76,13 +51,6 @@ void main() {
 
       expect(entry.pointer, 'lib/$_fingerprint/');
       expect(entry.fingerprint, '9a1c03be55d2');
-    });
-
-    test('keeps a text that is only a fingerprint-shaped token', () {
-      const entry = CodeLinkEntry(_fingerprint);
-
-      expect(entry.pointer, _fingerprint);
-      expect(entry.fingerprint, isNull);
     });
   });
 
@@ -112,17 +80,13 @@ void main() {
     });
 
     test('is false for an output_ref field with exact', () {
-      expect(
-        isCodeLinkField(_field(FieldType.outputRef, PointerKind.exact)),
-        isFalse,
-      );
-    });
-
-    test('is false for an output_ref field with item_test', () {
-      expect(
-        isCodeLinkField(_field(FieldType.outputRef, PointerKind.itemTest)),
-        isFalse,
-      );
+      for (final pointer in [PointerKind.exact, PointerKind.itemTest]) {
+        expect(
+          isCodeLinkField(_field(FieldType.outputRef, pointer)),
+          isFalse,
+          reason: pointer.name,
+        );
+      }
     });
 
     test('is false for a field of another type', () {

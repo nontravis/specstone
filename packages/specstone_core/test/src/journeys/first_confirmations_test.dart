@@ -194,47 +194,24 @@ void main() {
     expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 0);
   });
 
-  test('format right after new journey changes nothing', () async {
-    final root = await _project();
-    final text = _new(root);
-
-    final report = _format(root);
-
-    expect(
-      report.files.where((f) => f.path.endsWith('JOURNEY.md')).single.status,
-      FileStatus.unchanged,
-    );
-    expect(_file(root).readAsStringSync(), text);
-  });
-
   test('an entry stdin holds for a step is kept as written '
       'and not added twice', () async {
-    final root = await _project();
-    const held = '  - $_story#S1 aaaaaaaaaaaa\n';
+    for (final held in [
+      '  - $_story#S1 aaaaaaaaaaaa\n',
+      '  - $_story#S1 aaaaaaaaaaaa\n  - $_story#S2 bbbbbbbbbbbb\n',
+    ]) {
+      final root = await _project();
 
-    final text = _new(
-      root,
-      text: '---\nconfirmed:\n$held---\n\n${_body([_step(1, 1), _step(2, 2)])}',
-    );
+      final text = _new(
+        root,
+        text:
+            '---\nconfirmed:\n$held---\n\n${_body([_step(1, 1), _step(2, 2)])}',
+      );
 
-    expect(text, contains(held));
-    expect(_count(text, '$_story#S1 '), 1);
-    expect(text, contains(_entry(2)));
-  });
-
-  test('an indented list of two held entries gets no second entry for '
-      'its second step', () async {
-    final root = await _project();
-    const held = '  - $_story#S1 aaaaaaaaaaaa\n  - $_story#S2 bbbbbbbbbbbb\n';
-
-    final text = _new(
-      root,
-      text: '---\nconfirmed:\n$held---\n\n${_body([_step(1, 1), _step(2, 2)])}',
-    );
-
-    expect(text, contains(held));
-    expect(_count(text, '$_story#S1 '), 1);
-    expect(_count(text, '$_story#S2 '), 1);
+      expect(text, contains(held), reason: held);
+      expect(_count(text, '$_story#S1 '), 1, reason: held);
+      expect(_count(text, '$_story#S2 '), 1, reason: held);
+    }
   });
 
   test(
@@ -296,25 +273,6 @@ void main() {
     expect(_file(root).readAsStringSync(), text);
   });
 
-  test('an existing confirmed list gains its new entries at its '
-      'end', () async {
-    final root = await _project();
-    const other = '  - other/story#S1 bbbbbbbbbbbb\n';
-
-    final text = _new(
-      root,
-      text:
-          '---\nconfirmed:\n$other---\n\n${_body([_step(1, 1), _step(2, 2)])}',
-    );
-
-    expect(
-      text,
-      startsWith(
-        '---\ndraft: true\nconfirmed:\n$other${_entry(1)}${_entry(2)}---\n',
-      ),
-    );
-  });
-
   test('two steps naming one scenario get one confirmed entry', () async {
     final root = await _project();
 
@@ -340,46 +298,21 @@ void main() {
   });
 
   test('a malformed confirmed list in stdin is written as given', () async {
-    final root = await _project();
-    const held = 'confirmed:\n  - "login/email_login#S1\n';
-    final stdin = '---\n$held---\n\n${_body([_step(1, 1)])}';
-
-    final text = _new(root, text: stdin);
-
-    expect(text, startsWith('---\ndraft: true\n$held---\n'));
-    expect(_count(text, '$_story#S1 '), 0);
-  });
-
-  test('a dash-led scalar confirmed is written as given', () async {
-    final root = await _project();
-    const held = 'confirmed: -foo\n';
-    final stdin = '---\n$held---\n\n${_body([_step(1, 1)])}';
-
-    final text = _new(root, text: stdin);
-
-    expect(text, startsWith('---\ndraft: true\n$held---\n'));
-    expect(_count(text, '$_story#S1 '), 0);
-  });
-
-  test(
-    'a flow-list confirmed is written as given and each step stays unconfirmed',
-    () async {
+    for (final held in [
+      'confirmed:\n  - "login/email_login#S1\n',
+      'confirmed: -foo\n',
+      'confirmed: [other#S9 abc123]\n',
+    ]) {
       final root = await _project();
-      const held = 'confirmed: [other#S9 abc123]\n';
       final stdin = '---\n$held---\n\n${_body([_step(1, 1), _step(2, 2)])}';
 
       final text = _new(root, text: stdin);
 
-      expect(text, startsWith('---\ndraft: true\n$held---\n'));
-      expect(_count(text, '$_story#S1 '), 0);
-      expect(_count(text, '$_story#S2 '), 0);
-      final waiting = await _check(root);
-      expect(
-        waiting.where((f) => f.kind == FindingKind.unconfirmed),
-        hasLength(2),
-      );
-    },
-  );
+      expect(text, startsWith('---\ndraft: true\n$held---\n'), reason: held);
+      expect(_count(text, '$_story#S1 '), 0, reason: held);
+      expect(_count(text, '$_story#S2 '), 0, reason: held);
+    }
+  });
 
   test(
     'a malformed confirmed list leaves each step unconfirmed in check',

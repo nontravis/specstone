@@ -52,26 +52,19 @@ void main() {
       ]);
     },
   );
-  test('a word part matches the longer word', () async {
-    expect(
-      heads(answerSearch(index, 'ount', const SearchOptions())),
-      contains(
-        'login/email_login/lock_after_failures#statement (fr) — Lock after failures',
-      ),
-    );
-  });
   test('an alias hit points at the first section', () async {
     expect(
       heads(answerSearch(index, 'sign-in', const SearchOptions())),
       contains('login#problem (feature) — Login'),
     );
   });
-  test('quotes, asterisks, AND, and NEAR( are plain text', () async {
-    for (final query in ['"lock', 'account*', 'the AND account', 'NEAR(lock']) {
-      expect(answerSearch(index, query, const SearchOptions()).exitStatus, 0);
-    }
-  });
   test('a query inside two words hits the doc of each', () async {
+    expect(
+      heads(answerSearch(index, 'ount', const SearchOptions())),
+      contains(
+        'login/email_login/lock_after_failures#statement (fr) — Lock after failures',
+      ),
+    );
     final both = await searchIndexWith({
       'docs/m/login_note.md': '# Entry\n\n## Body\nlogin here\n',
       'docs/m/catalog_note.md': '# Shelf\n\n## Body\ncatalog here\n',

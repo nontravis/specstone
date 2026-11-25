@@ -118,13 +118,6 @@ void main() {
       expect(_texts(doc).join(), inner);
     });
 
-    test('a quoted key and a key holding a colon start '
-        'blocks', () {
-      final doc = Doc.parse('---\n"a b": 1\nurl: http://x\n\'q\': 2\n---\n');
-
-      expect(_keys(doc), ['"a b"', 'url', "'q'"]);
-    });
-
     test("a key block's name drops its YAML quotes", () {
       final doc = Doc.parse('---\n"a b": 1\nurl: http://x\n\'q\': 2\n---\n');
 

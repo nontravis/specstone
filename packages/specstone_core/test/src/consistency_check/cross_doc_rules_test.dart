@@ -190,21 +190,9 @@ void main() {
         found.single.toJson(),
         containsPair('codePath', 'lib/src/rendering/'),
       );
+      expect(found.single.toJson()['path'], isNot('lib/src/rendering/'));
     },
   );
-
-  test('a scope_path_uncovered finding names its path as codePath', () async {
-    final found = await _found({
-      'docs/$_topicDoc': _topicDocText(
-        covers: '  - lib/src/doc_model/\n',
-        scope: 'The topic governs `lib/src/rendering/`.',
-      ),
-    });
-    final json = found.single.toJson();
-
-    expect(json['codePath'], 'lib/src/rendering/');
-    expect(json['path'], isNot('lib/src/rendering/'));
-  });
 
   test('an empty covers entry reaches no topic scope path', () async {
     for (final form in ["''", '.', './', '/', 'lib/..', './ 5d1e0c4b7a92']) {
@@ -230,19 +218,6 @@ void main() {
     expect(found, isEmpty);
   });
 
-  test(
-    'a covers entry ending in a code fingerprint still reaches its prefix',
-    () async {
-      final found = await _found({
-        'docs/$_topicDoc': _topicDocText(
-          covers: '  - lib/src/ 5d1e0c4b7a92\n',
-          scope: 'The topic governs `lib/src/rendering/`.',
-        ),
-      });
-      expect(found, isEmpty);
-    },
-  );
-
   test('a covers entry ending in a fingerprint reaches its own scope path and '
       'leaves an unreached one scope_path_uncovered', () async {
     final found = await _found({
@@ -260,6 +235,14 @@ void main() {
       found.single.toJson(),
       containsPair('codePath', 'lib/src/rendering/'),
     );
+
+    final reached = await _found({
+      'docs/$_topicDoc': _topicDocText(
+        covers: '  - lib/src/ 5d1e0c4b7a92\n',
+        scope: 'The topic governs `lib/src/rendering/`.',
+      ),
+    });
+    expect(reached, isEmpty);
   });
 
   test('an upper-case token stays part of the covers prefix', () async {

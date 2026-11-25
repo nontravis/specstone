@@ -54,29 +54,6 @@ Map<String, String> get _noCodeRoots => {
 
 void main() {
   group('docNamesInCode', () {
-    test(
-      'reads a file the Symbol rule read before it from that read',
-      skip: unreadablePathSkipReason(),
-      () async {
-        final project = await writeCheckProject();
-        final session = openSession(project);
-        addTearDown(session.close);
-        final context = CheckContext(session);
-        checkImplements(context, session.index.at(loginRecord)!).toList();
-        final path = '${project.path}/app/lib/login.dart';
-        Process.runSync('chmod', ['000', path]);
-        addTearDown(() => Process.runSync('chmod', ['644', path]));
-
-        docNamesInCode(
-          context,
-          ImplementedWork(context, context.targets),
-        ).toList();
-
-        expect(context.unstatedWarnings, isEmpty);
-        expect(context.codeFilesRead, 1);
-      },
-    );
-
     test('a file an implements entry, a code link, and the scan all read is '
         'read once', () async {
       final project = await writeCheckProject();

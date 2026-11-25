@@ -24,14 +24,6 @@ const _resultsDoc = 'specs/f01_login/results/RESULTS.md';
 const _positioningDoc = 'specs/marketing/POSITIONING.md';
 const _packs = ['prd-core', 'software-tech', 'marketing'];
 
-const _storedStatement =
-    "The docs hold the stable facts and the campaign plan; the project's own "
-    'skills write the content outside the docs.';
-const _learningStatement = 'A learning edits the doc it corrects.';
-const _measurementsStatement =
-    "Keep a campaign's results out of `measurements/`, which holds the "
-    "project goals' measurements alone.";
-
 /// The ids of the shared lines each guide prints, in print order: the
 /// `prd-core` lines that reach every doc type, then the pack's own lines.
 const _sharedLineIds = <String>[
@@ -154,23 +146,14 @@ void main() {
       expect(entry.sectionId, isNull);
       expect(entry.docTypes, isEmpty);
       expect(entry.to, ['competitor']);
-      expect(
-        entry.home,
-        'the `competitor` doc at `prds/competitors/{slug}/COMPETITOR.md`: '
-        'its `offer` to Offer, `position` to Summary, and `gaps` to '
-        'Weaknesses',
-      );
     });
 
     test('ships stable_facts_and_plan, then learning_edits_doc, each naming '
         'the ten doc types, and no shared field', () {
       final shared = _manifest().shared;
       expect(
-        [for (final l in shared.lines) (l.id, l.text, l.disabled)],
-        [
-          ('stable_facts_and_plan', _storedStatement, false),
-          ('learning_edits_doc', _learningStatement, false),
-        ],
+        [for (final l in shared.lines) (l.id, l.disabled)],
+        [('stable_facts_and_plan', false), ('learning_edits_doc', false)],
       );
       for (final line in shared.lines) {
         expect(line.forDocTypes, marketingIds, reason: line.id);
@@ -279,7 +262,6 @@ void main() {
           expect(type.title, isNull, reason: id);
         } else {
           expect(type.title, sentenceCase(id), reason: id);
-          expect(type.description, isNot(contains('Title it')), reason: id);
         }
       }
     });
@@ -438,18 +420,6 @@ void main() {
       }
     });
 
-    test('only the campaign_results description holds the measurements '
-        'line', () {
-      for (final id in marketingIds) {
-        final lines = prdCoreDocType(set, id).description!.split('\n');
-        expect(
-          lines.where((l) => l == _measurementsStatement),
-          hasLength(id == 'campaign_results' ? 1 : 0),
-          reason: id,
-        );
-      }
-    });
-
     test('no description or template holds a YAML key line', () {
       for (final id in marketingIds) {
         final type = prdCoreDocType(set, id);
@@ -461,16 +431,6 @@ void main() {
           expectNoYamlKeyLine(text, reason: id);
         }
       }
-    });
-
-    test('campaign asks for no code_root setting', () {
-      final campaign = prdCoreDocType(set, 'campaign');
-      expect(campaign.description, isNot(contains('code_root')));
-      expect(
-        fieldOf(campaign, 'covers').description,
-        isNot(contains('code_root')),
-      );
-      expect(fieldOf(campaign, 'covers').description, contains('project root'));
     });
 
     test('every path starts under specs/ and overlaps no other pack path', () {

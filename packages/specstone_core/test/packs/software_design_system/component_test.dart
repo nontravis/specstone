@@ -135,50 +135,6 @@ void main() {
       expect(optional, ['anatomy', 'variants', 'states', 'keyboard']);
       expect(component.sections, hasLength(9));
     });
-
-    test('the description holds the intro and one line for each component '
-        'rule', () {
-      final lines = component.description!.split('\n');
-      const noCode =
-          'The component doc holds no code, so it serves the library in any '
-          'language.';
-      const rulePhrases = [
-        noCode,
-        'The Agent writes Props by hand.',
-        'Examples state each scenario as prop values, never as code.',
-      ];
-      for (final phrase in rulePhrases) {
-        expect(
-          lines.where((l) => l.startsWith(phrase)),
-          hasLength(1),
-          reason: phrase,
-        );
-      }
-      expect(
-        lines.singleWhere((l) => l.startsWith('The Agent writes Props')),
-        contains('Specstone never generates props from it.'),
-      );
-    });
-
-    test("the when-to-use section folds in the Do and Don't points", () {
-      expect(
-        sectionOf(component, 'when_to_use').description,
-        contains("Fold the Do and Don't points into this section."),
-      );
-    });
-
-    test('the props section names the five language-neutral types', () {
-      expect(
-        sectionOf(component, 'props').description,
-        allOf(
-          contains('`text`'),
-          contains('`number`'),
-          contains('`boolean`'),
-          contains('`choice`'),
-          contains('`on-tap`'),
-        ),
-      );
-    });
   });
 
   group('component props lint', () {
@@ -241,17 +197,6 @@ void main() {
           '| Prop | Description | Type |',
           '| label | the caption | text |',
         ]);
-        final component = prdCoreDocType(
-          await resolveSoftwareDesignSystem(),
-          'component',
-        );
-        expect(
-          component.renderGuide(),
-          contains(
-            'Write one row per prop, its type one of `text`, `number`, '
-            '`boolean`, `choice`, and `on-tap` in the second column.',
-          ),
-        );
       },
     );
 

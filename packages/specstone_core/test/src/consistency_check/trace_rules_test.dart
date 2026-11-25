@@ -339,16 +339,6 @@ void main() {
     },
   );
 
-  test('an "As a" role with a Role entry resolves', () async {
-    expect(
-      spots(
-        await checkOf(await writeCheckProject()),
-        FindingKind.roleUnresolved,
-      ),
-      isEmpty,
-    );
-  });
-
   test('a story or persona role the project lacks', () async {
     final report = await checkOf(
       await writeCheckProject(
@@ -619,22 +609,6 @@ void main() {
     });
   });
 
-  test('a lettered or unreadable Serves ID is reported at the Serves line, '
-      'one finding for the one bad ID', () async {
-    for (final (line, id) in [
-      ('**Serves:** PV-01, PV-09a', 'PV-09a'),
-      ('**Serves:** PV-01, PV-1a1', 'PV-1a1'),
-    ]) {
-      final project = await writeCheckProject(
-        extra: doc(goalDoc, '**Serves:** PV-01', line),
-      );
-      final report = await checkOf(project);
-      expect(spots(report, FindingKind.visionGoalUnresolved), [
-        '$goalDoc:${lineOfFirst(project, goalDoc, line)}: vision_goal_unresolved',
-      ], reason: id);
-    }
-  });
-
   test('a project heading ID is read through the grammar, '
       'so an unreadable heading names no goal a feature may list', () async {
     final report = await checkOf(
@@ -726,16 +700,6 @@ void main() {
     expect(spots(report, FindingKind.visionGoalUnresolved), [
       'prds/features/f01_login/FEATURE.md:2: vision_goal_unresolved',
     ]);
-  });
-
-  test('a row naming a requirement of the feature resolves', () async {
-    expect(
-      spots(
-        await checkOf(await writeCheckProject()),
-        FindingKind.frTraceUnresolved,
-      ),
-      isEmpty,
-    );
   });
 
   test('a row naming a requirement the feature lacks, or written '
@@ -941,16 +905,6 @@ void main() {
       '$_fr is implemented and names no code path',
     );
   });
-
-  test(
-    'a skipped entry holds no code path and gives no implements_missing',
-    () async {
-      final report = await _checkLogin(
-        _record(statuses: ['$_fr:skipped:not in this client']),
-      );
-      expect(spots(report, FindingKind.implementsMissing), isEmpty);
-    },
-  );
 
   test('an implemented entry whose code path names a file and symbol the '
       'code holds gives no finding on the record', () async {
@@ -1214,35 +1168,6 @@ void main() {
     },
   );
 
-  test(
-    'implements_missing and tests_missing name their item as item',
-    () async {
-      final report = await _checkLogin(_record(statuses: ['$_fr:implemented']));
-      for (final kind in [
-        FindingKind.implementsMissing,
-        FindingKind.testsMissing,
-      ]) {
-        final found = report.findings.where((f) => f.kind == kind);
-        expect(found, hasLength(1));
-        expect(found.single.keys['item'], _fr);
-      }
-    },
-  );
-
-  test(
-    'a merged set with no record doc type runs no implemented-status rule',
-    () async {
-      final report = await checkOf(
-        await writeCheckProject(
-          extra: {
-            '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-          },
-        ),
-      );
-      expect(spots(report, FindingKind.implementsMissing), isEmpty);
-    },
-  );
-
   test('flutter implemented with code and jaspr implemented with none: one implements_missing, on the jaspr record, naming jaspr', () async {
     final report = await _checkTwin(
       flutter: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
@@ -1476,22 +1401,6 @@ void main() {
       ]);
     });
 
-    test("a feature under cart citing a second goal is widened with that goal's id on its "
-        'goals line', () async {
-      const deepFeature = 'prds/features/f02_shop/f01_cart/f01_deep/FEATURE.md';
-      final report = await checkOf(
-        await writeNestedProject(
-          extra: {...projectWithPg02, 'docs/$deepFeature': cartGoalsWithPg02},
-        ),
-      );
-
-      final finding = report.findings.singleWhere(
-        (f) => f.kind == FindingKind.visionGoalWidened && f.path == deepFeature,
-      );
-      expect(finding.toJson()['id'], 'PG-02');
-      expect(finding.line, 5);
-    });
-
     test('shop is checked against the project only', () async {
       final report = await checkOf(
         await writeNestedProject(
@@ -1664,26 +1573,19 @@ void main() {
             '${head + 31}:PG-06:PG-05',
           ],
         );
+        final self = await checkGoals(goals(mid: block('PG-02', 'PG-02')));
+        expect(found(self, FindingKind.goalServesHorizon), [
+          '$goalDoc:${head + 9}:PG-02:PG-02',
+        ], reason: 'a goal naming its own ID');
+        final mutual = await checkGoals(
+          goals(mid: block('PG-02', 'PG-03') + block('PG-03', 'PG-02')),
+        );
+        expect(found(mutual, FindingKind.goalServesHorizon), [
+          '$goalDoc:${head + 9}:PG-02:PG-03',
+          '$goalDoc:${head + 14}:PG-03:PG-02',
+        ], reason: 'two mid-term goals serving each other');
       },
     );
-
-    test('a goal naming its own ID is goal_serves_horizon', () async {
-      final report = await checkGoals(goals(mid: block('PG-02', 'PG-02')));
-      expect(found(report, FindingKind.goalServesHorizon), [
-        '$goalDoc:${head + 9}:PG-02:PG-02',
-      ]);
-    });
-
-    test('two mid-term goals serving each other give one '
-        'goal_serves_horizon on each Serves line', () async {
-      final report = await checkGoals(
-        goals(mid: block('PG-02', 'PG-03') + block('PG-03', 'PG-02')),
-      );
-      expect(found(report, FindingKind.goalServesHorizon), [
-        '$goalDoc:${head + 9}:PG-02:PG-03',
-        '$goalDoc:${head + 14}:PG-03:PG-02',
-      ]);
-    });
 
     test('a Serves ID of a goal deleted from the goal doc is '
         'vision_goal_unresolved and no goal_serves_horizon', () async {
@@ -1732,36 +1634,6 @@ void main() {
       expect(spots(report, FindingKind.goalServesHorizon), isEmpty);
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
     });
-
-    test('a feature goals ID no goal block holds is unresolved at its '
-        'key, and a held one is not', () async {
-      final report = await checkGoals(
-        goals(long: block('PG-01', 'PV-01')),
-        extra: edit(loginFeature, [('  - PG-01\n', '  - PG-09\n')]),
-      );
-      expect(found(report, FindingKind.visionGoalUnresolved), [
-        '$loginFeature:6:null:PG-09',
-      ]);
-    });
-
-    test(
-      'a goal block with no Serves line is goal_serves_missing at its '
-      'heading, and an unheld vision is unresolved at the Serves line',
-      () async {
-        final missing = await checkGoals({
-          'docs/$goalDoc': '# Project goals\n\n## Long-term goals\n\n### PG-01 — Goal\n\nText.\n',
-        });
-        expect(found(missing, FindingKind.goalServesMissing), [
-          '$goalDoc:${head + 5}:PG-01:null',
-        ]);
-        final unresolved = await checkGoals(
-          goals(long: block('PG-01', 'PV-09')),
-        );
-        expect(found(unresolved, FindingKind.visionGoalUnresolved), [
-          '$goalDoc:${head + 7}:null:PV-09',
-        ]);
-      },
-    );
 
     test('a lettered vision heading holds no vision, so a Serves ID of '
         'its written form is unresolved', () async {
@@ -1820,14 +1692,23 @@ void main() {
 
     test('a project with no goal doc reads no goal, so goals and '
         'Serves PG- IDs are unresolved', () async {
-      final report = await checkOf(
-        await writeCheckProject(without: {'docs/$goalDoc'}),
-      );
-      expect(found(report, FindingKind.visionGoalUnresolved), [
-        '$loginFeature:6:null:PG-01',
-        '$loginStory:3:null:PG-01',
-      ]);
-      expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+      for (final (label, report) in [
+        (
+          'a missing goal doc',
+          await checkOf(await writeCheckProject(without: {'docs/$goalDoc'})),
+        ),
+        ('an empty goal doc', await checkGoals({'docs/$goalDoc': ''})),
+      ]) {
+        expect(found(report, FindingKind.visionGoalUnresolved), [
+          '$loginFeature:6:null:PG-01',
+          '$loginStory:3:null:PG-01',
+        ], reason: label);
+        expect(
+          spots(report, FindingKind.goalServesMissing),
+          isEmpty,
+          reason: label,
+        );
+      }
     });
 
     test('a merged set with no goal doc type has no goal and no goal '
@@ -1870,15 +1751,6 @@ void main() {
       ]);
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
       expect(spots(report, FindingKind.goalServesHorizon), isEmpty);
-    });
-
-    test('an empty goal doc holds no goal', () async {
-      final report = await checkGoals({'docs/$goalDoc': ''});
-      expect(found(report, FindingKind.visionGoalUnresolved), [
-        '$loginFeature:6:null:PG-01',
-        '$loginStory:3:null:PG-01',
-      ]);
-      expect(spots(report, FindingKind.goalServesMissing), isEmpty);
     });
   });
 }

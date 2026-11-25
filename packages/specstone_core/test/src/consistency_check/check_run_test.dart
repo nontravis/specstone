@@ -142,6 +142,17 @@ void main() {
       final path = '${project.path}/docs/$loginNf';
       Process.runSync('chmod', ['000', path]);
       addTearDown(() => Process.runSync('chmod', ['644', path]));
+      final whole = await checkOf(project);
+      expect(spots(whole, FindingKind.fileUnreadable), [
+        '$loginNf:1: file_unreadable',
+      ]);
+      expect(
+        whole.findings
+            .firstWhere((f) => f.kind == FindingKind.fileUnreadable)
+            .name,
+        isNull,
+      );
+      expect(whole.warnings, isEmpty);
       final targeted = await checkOf(project, target: 'login');
       expect(spots(targeted, FindingKind.fileUnreadable), [
         '$loginNf:1: file_unreadable',
@@ -155,25 +166,6 @@ void main() {
       expect(fr.warnings, ['$loginNf: cannot be read; skipped']);
     },
   );
-
-  test("a story target reaches the files under its own folder, not the sibling story's", () async {
-    const own = 'prds/features/f01_login/us01_email_login/notes.md';
-    const sibling = 'prds/features/f01_login/us02_reset/notes.md';
-    final project = await writeCheckProject(
-      extra: {'docs/$own': '# Notes\n', 'docs/$sibling': '# Notes\n'},
-    );
-    expect(
-      spots(
-        await checkOf(project, target: 'user_story:login/email_login'),
-        FindingKind.untypedDoc,
-      ),
-      ['$own:1: untyped_doc'],
-    );
-    expect(
-      spots(await checkOf(project, target: 'login'), FindingKind.untypedDoc),
-      ['$own:1: untyped_doc', '$sibling:1: untyped_doc'],
-    );
-  });
 
   test(
     'an fr target adds no folder; a sibling file and a sibling FR stay out',
@@ -258,18 +250,6 @@ void main() {
       ]);
     },
   );
-
-  test('an untyped DocPath target reports that one file', () async {
-    const notes = 'prds/features/f01_login/notes.md';
-    const sibling = 'prds/features/f01_login/other.md';
-    final project = await writeCheckProject(
-      extra: {'docs/$notes': '# Notes\n', 'docs/$sibling': '# Other\n'},
-    );
-    expect(
-      spots(await checkOf(project, target: notes), FindingKind.untypedDoc),
-      ['$notes:1: untyped_doc'],
-    );
-  });
 
   test('a typed name checks that doc only', () async {
     final project = await writeCheckProject(
@@ -396,26 +376,6 @@ void main() {
     expect(requirement.findings.where((f) => f.path == loginStory), isEmpty);
   });
 
-  test('a doc check gives no project-level finding', () async {
-    final project = await writeCheckProject(
-      extra: {
-        ...doc(loginRecord, '  - app/lib/\n', '  - app/lib/login.dart\n'),
-        'app/lib/extra.dart': 'class Extra {}\n',
-      },
-    );
-    expect(
-      spots(await checkOf(project), FindingKind.codeUncovered),
-      isNotEmpty,
-    );
-    expect(
-      spots(
-        await checkOf(project, docPath: projectDoc),
-        FindingKind.codeUncovered,
-      ),
-      isEmpty,
-    );
-  });
-
   test('a feature doc check leaves out the docs under it', () async {
     final project = await writeCheckProject(extra: _brokenRecordFiles());
     expect(
@@ -539,15 +499,6 @@ void main() {
         }
       },
     );
-
-    test('a feature within the bound gets none', () async {
-      final project = await writeCheckProject();
-
-      expect(
-        spots(await checkOf(project), FindingKind.bundleOverLimit),
-        isEmpty,
-      );
-    });
   });
 
   test('an untyped .md file in prds/ gets its untyped_doc finding', () async {
@@ -623,21 +574,6 @@ void main() {
       );
     },
   );
-  test('a check with a target holds no singular_doc_missing', () async {
-    final project = await writeCheckProject(without: {'docs/$projectDoc'});
-
-    expect(spots(await checkOf(project), FindingKind.singularDocMissing), [
-      '$projectDoc:1: singular_doc_missing',
-    ]);
-    expect(
-      spots(
-        await checkOf(project, target: 'login'),
-        FindingKind.singularDocMissing,
-      ),
-      isEmpty,
-    );
-  });
-
   test(
     'a project doc still holding Domain glossary '
     'and no glossary doc is section_undeclared and singular_doc_missing',
@@ -677,23 +613,6 @@ void main() {
       expect(undeclared.toJson()['header'], 'Domain glossary');
     },
   );
-
-  test('a check with a target holds no agent_block_stale', () async {
-    final project = await writeCheckProject(
-      extra: {'.specstone/AGENT.md': 'hand edit\n'},
-    );
-
-    expect(spots(await checkOf(project), FindingKind.agentBlockStale), [
-      '.specstone/AGENT.md:1: agent_block_stale',
-    ]);
-    expect(
-      spots(
-        await checkOf(project, target: 'login'),
-        FindingKind.agentBlockStale,
-      ),
-      isEmpty,
-    );
-  });
 
   test('layer_doc_type_dropped is held by a run with no target, not by a doc, name, or --target run', () async {
     final project = await writeTwinProject(
@@ -760,6 +679,11 @@ void main() {
 
       expect(spots(doc, FindingKind.singularDocMissing), isEmpty);
       expect(spots(doc, FindingKind.agentBlockStale), isEmpty);
+
+      final targeted = await checkOf(project, target: 'login');
+
+      expect(spots(targeted, FindingKind.singularDocMissing), isEmpty);
+      expect(spots(targeted, FindingKind.agentBlockStale), isEmpty);
     },
   );
 

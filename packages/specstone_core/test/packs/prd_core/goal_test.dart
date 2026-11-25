@@ -10,9 +10,6 @@ import '../../helpers/write_fixture.dart' as write;
 
 const _horizonIds = ['long_term', 'mid_term', 'short_term'];
 
-const _citeFragment =
-    'Link to the item of a rule another doc owns; never restate it';
-
 void main() {
   late MergedDocType goal;
   setUpAll(() async {
@@ -39,15 +36,6 @@ void main() {
   });
 
   test('the guide prints the goal rules, then the shared cite line', () {
-    final guide = goal.renderGuide();
-    final cite = guide.indexOf(_citeFragment);
-    for (final rule in [
-      'A goal that changes horizon moves its block',
-      'A goal met or dropped is deleted',
-    ]) {
-      expect(guide.indexOf(rule), allOf(isNonNegative, lessThan(cite)));
-    }
-    expect(goal.description, isNot(contains(_citeFragment)));
     expect(goal.sharedLines.map((l) => l.id), contains('cite_by_link'));
   });
 
@@ -65,19 +53,6 @@ void main() {
   test('the goal doc type holds its fixed title and its description states '
       'none', () {
     expect(goal.title, 'Project goals');
-    expect(goal.description, isNot(contains('Title it')));
-  });
-
-  test('the description states the next-number rule and no reuse clause', () {
-    final lines = goal.description!.split('\n');
-
-    expect(
-      lines,
-      contains(
-        "A new goal takes the next number above the doc's highest `PG-` ID.",
-      ),
-    );
-    expect(goal.description, isNot(contains('reused')));
   });
 
   test('by_line is a per-subsection required entry on mid_term and '

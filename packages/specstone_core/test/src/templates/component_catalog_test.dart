@@ -125,19 +125,17 @@ void main() {
     });
 
     test('a component with no Purpose section reads a dash', () async {
-      final index = await _open(
-        _component('buttons', 'primary_button', purpose: null),
-      );
+      for (final purpose in [null, '']) {
+        final index = await _open(
+          _component('buttons', 'primary_button', purpose: purpose),
+        );
 
-      expect(_cells(_rows(_text(index)).single)[2], _dash);
-    });
-
-    test('a component with an empty Purpose section reads a dash', () async {
-      final index = await _open(
-        _component('buttons', 'primary_button', purpose: ''),
-      );
-
-      expect(_cells(_rows(_text(index)).single)[2], _dash);
+        expect(
+          _cells(_rows(_text(index)).single)[2],
+          _dash,
+          reason: '$purpose',
+        );
+      }
     });
 
     test('an already escaped pipe stays one escape', () async {

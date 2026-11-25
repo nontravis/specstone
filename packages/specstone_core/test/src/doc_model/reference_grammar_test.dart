@@ -124,6 +124,8 @@ void main() {
       expect(id.digits, '7');
       expect(id.written, 'RULE-7');
       expect((id as ItemId).number, BigInt.from(7));
+      expect(readItemId('RULE-12', 'RULE-')!.digits, '12');
+      expect(readItemId('RULE-7_x', 'RULE-')!.digits, '7');
     });
 
     test('reads past one optional **', () {
@@ -138,18 +140,6 @@ void main() {
       expect(id.digits, '7');
       expect(id.written, 'RULE-7a');
       expect((id as LetteredId).letters, 'a');
-    });
-
-    test('a digit after the digits stays in the digits', () {
-      final id = readItemId('RULE-12', 'RULE-');
-      expect(id, isA<ItemId>());
-      expect(id!.digits, '12');
-    });
-
-    test('an underscore after the digits ends them', () {
-      final id = readItemId('RULE-7_x', 'RULE-');
-      expect(id, isA<ItemId>());
-      expect(id!.digits, '7');
     });
 
     test('no digit after the prefix reads as null', () {
@@ -386,11 +376,11 @@ void main() {
         readItemId('PV-100a', 'PV-')!,
       ];
       expect(nextFreeIds(ids), {2: 'BR-10', 3: 'PV-100'});
-    });
-
-    test('FR-09 with one lettered FR-03a gives FR-10', () {
-      final ids = [readItemId('FR-09', 'FR-')!, readItemId('FR-03a', 'FR-')!];
-      expect(nextFreeIds(ids), {1: 'FR-10'});
+      final lettered = [
+        readItemId('FR-09', 'FR-')!,
+        readItemId('FR-03a', 'FR-')!,
+      ];
+      expect(nextFreeIds(lettered), {1: 'FR-10'});
     });
   });
 
@@ -538,14 +528,10 @@ void main() {
       final label = readLinkLabel('login/email_login');
       expect(label, isA<FrRefLabel>());
       expect((label! as FrRefLabel).name, 'login/email_login');
-    });
-
-    test('reads a deeper FR ref and other NFR ids', () {
       expect(
         (readLinkLabel('cart/add_item/check_stock')! as FrRefLabel).name,
         'cart/add_item/check_stock',
       );
-      expect((readLinkLabel('NFR-P01')! as NfrLabel).id, 'NFR-P01');
     });
 
     test('an astral-plane letter in an NFR id reads as an NfrLabel', () {

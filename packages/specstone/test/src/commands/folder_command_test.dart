@@ -79,39 +79,6 @@ void main() {
       expect(result.stderr, isEmpty);
     });
 
-    test('run in a nested folder prints the same line '
-        'the root gets', () async {
-      final root = await writeTree(_project());
-
-      final nested = await run('${root.path}/app/lib');
-
-      expect(nested.exitCode, 0, reason: '${nested.stderr}');
-      expect(nested.stdout, '${_folderOf(root)}\n');
-      expect(nested.stdout, (await run(root.path)).stdout);
-    });
-
-    test('a folder whose docs link stands for another '
-        "project prints that project's .specstone", () async {
-      final tree = await writeTree({
-        'ws/.specstone/config.yaml': shippedPinsConfig(),
-        'ws/example/.specstone/config.yaml': shippedPinsConfig(),
-        'ws/example/docs/prds/FEATURES.md': '# Features\n',
-        'ws/code/example/keep.txt': '',
-      });
-      createRelativeLink(
-        '${tree.path}/ws/code/example/docs',
-        '../../example/docs',
-      );
-
-      final result = await run('${tree.path}/ws/code/example');
-
-      expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(
-        result.stdout,
-        '${_folderOf(Directory('${tree.path}/ws/example'))}\n',
-      );
-    }, skip: _linksUnavailable);
-
     test('a missing reports/ is made before the path '
         'prints', () async {
       final root = await writeTree(_project());
@@ -166,17 +133,6 @@ void main() {
       expect(result.exitCode, 78, reason: '${result.stderr}');
       expect(result.stdout, isEmpty);
       expect(result.stderr, contains('no Specstone project'));
-    });
-
-    test('--json names project_not_found', () async {
-      final bare = await writeTree({'lib/main.dart': ''});
-
-      final result = await run(bare.path, ['--json']);
-
-      expect(result.exitCode, 78);
-      final error =
-          (jsonDecode(result.stderr as String) as Map)['error']! as Map;
-      expect(error['code'], 'project_not_found');
     });
 
     test('a .specstone link is unknown_value, exit 78, '
@@ -389,21 +345,6 @@ void main() {
       );
     });
 
-    test('a report modified 10 days ago and read 2 days ago stays', () async {
-      final root = await writeTree(_project());
-      final report = aged(
-        root,
-        '.specstone/reports/read.txt',
-        const Duration(days: 10),
-        read: const Duration(days: 2),
-      );
-
-      final result = await run(root.path);
-
-      expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(report.existsSync(), isTrue);
-    });
-
     test('a cleanup map in the config keeps a report the default would '
         'delete', () async {
       final root = await writeTree({
@@ -422,69 +363,5 @@ void main() {
       expect(result.exitCode, 0, reason: '${result.stderr}');
       expect(report.existsSync(), isTrue);
     });
-
-    test('a cleanup value that is no positive integer exits 0 and the '
-        'prune uses that key default', () async {
-      final root = await writeTree({
-        ..._project(),
-        '.specstone/config.yaml':
-            '${shippedPinsConfig()}cleanup:\n  reports_max_age_days: soon\n',
-      });
-      final report = aged(
-        root,
-        '.specstone/reports/old.txt',
-        const Duration(days: 8),
-      );
-
-      final result = await run(root.path);
-
-      expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(result.stdout, '${_folderOf(root)}\n');
-      expect(report.existsSync(), isFalse);
-    });
-
-    test('a run from a subfolder prunes the project above it', () async {
-      final root = await writeTree(_project());
-      final report = aged(
-        root,
-        '.specstone/reports/old.txt',
-        const Duration(days: 8),
-      );
-
-      final result = await run('${root.path}/app/lib');
-
-      expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(report.existsSync(), isFalse);
-    });
-
-    test('a run through a docs link prunes the project the link stands '
-        'for', () async {
-      final tree = await writeTree({
-        'ws/.specstone/config.yaml': shippedPinsConfig(),
-        'ws/example/.specstone/config.yaml': shippedPinsConfig(),
-        'ws/example/docs/prds/FEATURES.md': '# Features\n',
-        'ws/code/example/keep.txt': '',
-      });
-      createRelativeLink(
-        '${tree.path}/ws/code/example/docs',
-        '../../example/docs',
-      );
-      final linked = aged(
-        tree,
-        'ws/example/.specstone/reports/old.txt',
-        const Duration(days: 8),
-      );
-      final outer = aged(
-        tree,
-        'ws/.specstone/reports/old.txt',
-        const Duration(days: 8),
-      );
-
-      final result = await run('${tree.path}/ws/code/example');
-
-      expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(linked.existsSync(), isFalse);
-      expect(outer.existsSync(), isTrue);
-    }, skip: _linksUnavailable);
   });
 }

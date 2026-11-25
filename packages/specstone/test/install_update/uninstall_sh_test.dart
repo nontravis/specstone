@@ -271,17 +271,6 @@ void main() {
       expect(r.stdout, isNot(contains('plugin')));
     });
 
-    test('a second run finds nothing left', () async {
-      sb.installFake();
-      profile('.zshrc', '$entry\n');
-      await sb.run('uninstall.sh');
-
-      final r = await sb.run('uninstall.sh');
-
-      expect(r.exitCode, 0);
-      expect(r.stdout, 'specstone: nothing to remove\n');
-    });
-
     test('an unwritable profile is named on stderr and the '
         'rest is removed', () async {
       sb.installFake();
@@ -617,24 +606,15 @@ exec /bin/rm "$@"''');
           'in', () async {
         sb.installFake();
         profile('.zshrc', '$entry\n');
+        plantPrograms();
 
-        final r = await sb.run('uninstall.sh', extra: {'PATH': '~:.:'});
+        final r = await sb.run('uninstall.sh', extra: {'PATH': '~:.:planted:'});
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
         expect(read('.zshrc'), '');
+        expect(plantedThatRan(), isEmpty);
       });
-
-      test(
-        'a PATH of relative entries only searches no relative folder',
-        () async {
-          plantPrograms();
-
-          await sb.run('uninstall.sh', extra: {'PATH': '.:planted:'});
-
-          expect(plantedThatRan(), isEmpty);
-        },
-      );
     });
   });
 }

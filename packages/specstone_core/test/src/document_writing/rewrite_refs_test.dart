@@ -524,7 +524,7 @@ void main() {
     );
   });
 
-  test('a move keeps a link whose escape is not UTF-8', () {
+  test('a move keeps the text of a link whose escape is not UTF-8, whichever side moves', () {
     expect(
       rewriteDocLinks(
         '# T\n\n[x](%DB.md) [s](../us02/USER_STORY.md)\n',
@@ -532,10 +532,8 @@ void main() {
         moves: [const PathMove(from: 'prds/f/us02/', to: 'prds/f/us03/')],
       ),
       '# T\n\n[x](%DB.md) [s](../us03/USER_STORY.md)\n',
+      reason: 'a sibling link moves; the lossy link keeps its bytes',
     );
-  });
-
-  test('a move keeps the text of a link whose escape is not UTF-8, whichever side moves', () {
     expect(
       rewriteDocLinks(
         '# T\n\n[x](../other/%DB.md)\n',
@@ -590,6 +588,15 @@ void main() {
       ),
       isNull,
     );
+    expect(
+      rewriteDocLinks(
+        '[a](./flow.png?raw=1) [b](../us01_email_login/a%20b.png#x) [c](../../../../../lib/a.dart)\n',
+        docPath: story1,
+        moves: reorderMoves,
+      ),
+      isNull,
+      reason: 'an unmoved doc links an unmoved file',
+    );
   });
 
   test('a link to a non-doc file of a moved folder follows the move, its image form too', () {
@@ -611,17 +618,6 @@ void main() {
         moves: reorderMoves,
       ),
       '[a](../us03_sign_out/) [b](../us03_sign_out) [c](../us03_sign_out/#top)\n',
-    );
-  });
-
-  test('a link to an unmoved file from an unmoved doc keeps every byte', () {
-    expect(
-      rewriteDocLinks(
-        '[a](./flow.png?raw=1) [b](../us01_email_login/a%20b.png#x) [c](../../../../../lib/a.dart)\n',
-        docPath: story1,
-        moves: reorderMoves,
-      ),
-      isNull,
     );
   });
 
@@ -906,9 +902,6 @@ void main() {
       'See [reset](../us01_reset_password/USER_STORY.md) and '
       '[again](../us01_reset_password/USER_STORY.md).\n',
     );
-  });
-
-  test('an href with an entity spelling follows the move', () {
     expect(
       rewriteDocLinks(
         'See [reset](../us03&#95;reset&#95;password/USER_STORY.md).\n',
@@ -916,6 +909,7 @@ void main() {
         moves: reorderMoves,
       ),
       'See [reset](../us01_reset_password/USER_STORY.md).\n',
+      reason: 'an entity spelling follows too',
     );
   });
 

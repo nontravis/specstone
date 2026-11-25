@@ -42,6 +42,11 @@ void main() {
       final written = listBlockOf('tests', ['b'], onDisk: _block(text));
 
       expect(written, 'tests:\n\n  # second\n  - b   # two\n  # tail\n');
+
+      final removed = listBlockOf('tests', [
+        'a',
+      ], onDisk: _block('tests:\n  - a\n  # why b\n  - b\n'));
+      expect(removed, 'tests:\n  - a\n');
     });
 
     test('an entry equal by YAML value keeps its lines, quoted or not', () {
@@ -81,14 +86,6 @@ void main() {
 
       expect(written, 'tests:\n  - x\n  - b\n');
     });
-
-    test('go with a removed entry', () {
-      const text = 'tests:\n  - a\n  # why b\n  - b\n';
-
-      final written = listBlockOf('tests', ['a'], onDisk: _block(text));
-
-      expect(written, 'tests:\n  - a\n');
-    });
   });
 
   group('new and changed entries', () {
@@ -103,16 +100,14 @@ void main() {
         ], onDisk: _block(text));
 
         expect(written, "tests:\n    - 'a:x'\n    - 'b:z'\n");
+
+        final doubled = listBlockOf('tests', [
+          'a',
+          'c',
+        ], onDisk: _block('tests:\n  - "a"\n  - "b"\n'));
+        expect(doubled, 'tests:\n  - "a"\n  - "c"\n');
       },
     );
-
-    test('a double-quoted first kept entry gives double quotes', () {
-      const text = 'tests:\n  - "a"\n  - "b"\n';
-
-      final written = listBlockOf('tests', ['a', 'c'], onDisk: _block(text));
-
-      expect(written, 'tests:\n  - "a"\n  - "c"\n');
-    });
 
     test('no entry kept: the first entry on disk gives the style', () {
       const text = "tests:\n  - 'a'\n  - b\n";
@@ -120,22 +115,6 @@ void main() {
       final written = listBlockOf('tests', ['x', 'y'], onDisk: _block(text));
 
       expect(written, "tests:\n  - 'x'\n  - 'y'\n");
-    });
-
-    test('a new entry that plain text cannot hold is single-quoted', () {
-      const text = 'tests:\n  - a\n';
-
-      final written = listBlockOf('tests', [
-        'a',
-        'S1: x',
-        'true',
-        "it's # not",
-      ], onDisk: _block(text));
-
-      expect(
-        written,
-        "tests:\n  - a\n  - 'S1: x'\n  - 'true'\n  - 'it''s # not'\n",
-      );
     });
 
     test('a non-string entry is written as its YAML value', () {
@@ -156,11 +135,19 @@ void main() {
     });
 
     test('writes an entry YAML would read as another value single-quoted', () {
-      final written = listBlockOf('tests', ['S1: x', 'true', '12', '- a', '']);
+      final written = listBlockOf('tests', [
+        'S1: x',
+        'true',
+        '12',
+        '- a',
+        '',
+        "it's # not",
+      ]);
 
       expect(
         written,
-        "tests:\n  - 'S1: x'\n  - 'true'\n  - '12'\n  - '- a'\n  - ''\n",
+        "tests:\n  - 'S1: x'\n  - 'true'\n  - '12'\n  - '- a'\n  - ''\n"
+        "  - 'it''s # not'\n",
       );
     });
 

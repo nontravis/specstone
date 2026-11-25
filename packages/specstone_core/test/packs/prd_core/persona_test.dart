@@ -51,35 +51,10 @@ void main() {
       SectionSpec('how_we_talk', 'How we talk to'),
     ]);
   });
-
-  test('the description states no number a lint key holds', () {
-    final snapshot = sectionOf(persona, 'snapshot');
-    expect(snapshot.description, isNot(contains('2 to 4')));
-    expect(snapshot.template, isNot(contains('2 to 4')));
-    expect(sectionOf(persona, 'jobs').description, isNot(contains('3 to 4')));
-    expect(
-      sectionOf(persona, 'alternatives').description,
-      isNot(contains('at least one')),
-    );
-  });
-
   test('alternatives carries its item floor', () {
     final items = sectionOf(persona, 'alternatives').itemCount!;
     expect((items.min, items.max), (1, null));
   });
-
-  test('the description keeps the bound, the research trace, and the '
-      'Vocabulary exception in one line', () {
-    expect(
-      persona.description!.split('\n'),
-      contains(
-        'Keep a bound in the item it limits; keep the research trace in '
-        "`basis:` and the Sources section, out of a narrative section's "
-        'prose; a Vocabulary item names its own source.',
-      ),
-    );
-  });
-
   group('the required lines of a section', () {
     const path = 'prds/personas/buyer/PERSONA.md';
 

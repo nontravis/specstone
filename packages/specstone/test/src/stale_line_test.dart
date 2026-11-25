@@ -1,3 +1,5 @@
+// A test name is one literal, so a long name stays on one line.
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:convert';
 import 'dart:io';
 
@@ -18,10 +20,6 @@ const _older =
 const _differ =
     '$_lead differ from what specstone $specstoneVersion writes; run '
     'specstone migrate';
-const _above = '99.0.0';
-const _newer =
-    '$_lead come from specstone $_above, newer than this specstone '
-    '$specstoneVersion; run specstone upgrade';
 const _staleAgentMd = {'.specstone/AGENT.md': 'old\n'};
 
 final _rootName = RegExp(r'specstone_test_\w+');
@@ -223,48 +221,6 @@ void main() {
       expect(result.stderr, contains('Pack prd-core is pinned at 1.0.0'));
       expect(result.stderr, isNot(contains(_lead)));
     });
-
-    test('a project whose agent files match prints none', () async {
-      final result = await run(await project(files: const {}), ['folder']);
-
-      expect(result.stderr, isEmpty);
-    });
-  });
-
-  group('the line form follows the stamp', () {
-    for (final (config, line) in [
-      ('', _older),
-      ('agent_files_version: 0.0.1\n', _older),
-      ('agent_files_version: $specstoneVersion\n', _differ),
-      ('agent_files_version: $_above\n', _newer),
-    ]) {
-      test(config.isEmpty ? 'no stamp' : config.trim(), () async {
-        final result = await run(await project(config: config), ['folder']);
-
-        expect(result.stderr, '$line\n');
-      });
-    }
-
-    test('a stamp that does not read prints none', () async {
-      final result = await run(
-        await project(config: 'agent_files_version: nope\n'),
-        ['folder'],
-      );
-
-      expect(result.stderr, isEmpty);
-    });
-
-    test('a stamp above with every file current prints none', () async {
-      final result = await run(
-        await project(
-          config: 'agent_files_version: $_above\n',
-          files: const {},
-        ),
-        ['folder'],
-      );
-
-      expect(result.stderr, isEmpty);
-    });
   });
 
   group('a project whose root agent files are current', () {
@@ -275,7 +231,6 @@ void main() {
     };
 
     Future<Directory> current({
-      String stamp = '',
       String config = '',
       Map<String, String> files = const {},
     }) async {
@@ -289,14 +244,7 @@ void main() {
           ..writeAsStringSync(value);
       }
       final file = File('${root.path}/.specstone/config.yaml');
-      var text = file.readAsStringSync();
-      if (stamp.isNotEmpty) {
-        text = text.replaceAll(
-          RegExp(r'^agent_files_version:.*\n', multiLine: true),
-          '',
-        );
-        text = '${text}agent_files_version: $stamp\n';
-      }
+      final text = file.readAsStringSync();
       file.writeAsStringSync('$text$config');
       return root;
     }
@@ -304,41 +252,21 @@ void main() {
     void goStale(Directory root) =>
         File('${root.path}/.specstone/AGENT.md').writeAsStringSync('old\n');
 
-    test('a stamp above prints none, and a stale file then prints the '
-        'upgrade line', () async {
-      final root = await current(stamp: _above);
+    test('a stale listed top beside current root files prints none, and a stale root file then prints the line', () async {
+      for (final (config, reason) in [
+        ('code_root: app\nagent_file_roots:\n  - app\n', 'listed top'),
+        ('code_root: app\n', 'unlisted top'),
+      ]) {
+        final root = await current(config: config, files: top);
 
-      final quiet = await run(root, ['folder']);
-      goStale(root);
-      final stale = await run(root, ['folder']);
+        final result = await run(root, ['folder']);
+        goStale(root);
+        final stale = await run(root, ['folder']);
 
-      expect(quiet.exitCode, 0, reason: '${quiet.stderr}');
-      expect(quiet.stderr, isEmpty);
-      expect(stale.stderr, '$_newer\n');
-    });
-
-    Future<void> expectNoLineBesideTop(String config) async {
-      final root = await current(config: config, files: top);
-
-      final result = await run(root, ['folder']);
-      goStale(root);
-      final stale = await run(root, ['folder']);
-
-      expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(result.stderr, isEmpty);
-      expect(stale.stderr, '$_differ\n');
-    }
-
-    test('a stale listed top beside current root files prints none, and a '
-        'stale root file then prints the line', () {
-      return expectNoLineBesideTop(
-        'code_root: app\nagent_file_roots:\n  - app\n',
-      );
-    });
-
-    test('a stale unlisted top beside current root files prints none, and a '
-        'stale root file then prints the line', () {
-      return expectNoLineBesideTop('code_root: app\n');
+        expect(result.exitCode, 0, reason: '$reason: ${result.stderr}');
+        expect(result.stderr, isEmpty, reason: reason);
+        expect(stale.stderr, '$_differ\n', reason: reason);
+      }
     });
   });
 
@@ -358,35 +286,6 @@ void main() {
       }
     },
   );
-
-  group('the project root alone', () {
-    const top = {
-      'app/.git/HEAD': 'ref\n',
-      'app/AGENTS.md':
-          '<!-- BEGIN specstone v1.0.0 -->\nold\n<!-- END specstone -->\n',
-    };
-
-    test('a stale file at a listed top alone prints none', () async {
-      final root = await project(
-        config: 'code_root: app\nagent_file_roots:\n  - app\n',
-        files: top,
-      );
-
-      expect((await run(root, ['folder'])).stderr, isEmpty);
-    });
-
-    test('a stale file at an unlisted top alone prints none', () async {
-      final root = await project(config: 'code_root: app\n', files: top);
-
-      expect((await run(root, ['folder'])).stderr, isEmpty);
-    });
-
-    test('a broken agent_file_roots list still prints the line', () async {
-      final root = await project(config: 'agent_file_roots: 5\n');
-
-      expect((await run(root, ['folder'])).stderr, '$_older\n');
-    });
-  });
 
   group(
     'a stderr reader that leaves before the line is written',

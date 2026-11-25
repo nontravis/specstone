@@ -385,44 +385,23 @@ void main() {
           'mentions $_payDomain:${_lineOf(payBefore, '[r]:')} [r]: ../DOMAIN.md#invariants\n',
         ),
       );
-    });
 
-    test('a link inside a moved item that resolves the same from the target doc keeps every byte', () async {
-      final root = await _project(
-        shop: [_inv(1), _inv(4)],
-        pay: [_inv(5, 'holds, with [INV-4](./../DOMAIN.md#invariants).')],
-      );
-      writeIn(
-        root,
-        (session) => answerMove(session, [
-          'rulebook:shop/pay#INV-5',
-        ], under: 'rulebook:shop/cart'),
-      );
-      expect(
-        _body(root, cartDomain),
-        _domain([
-          _inv(1),
-          _inv(5, 'holds, with [INV-4](./../DOMAIN.md#invariants).'),
-        ]),
-      );
-    });
-
-    test('a definition shared by an item link and another link stays and is listed', () async {
-      final root = await _project(
+      final sharedRoot = await _project(
         pay: [
           _inv(1, 'follows [INV-3][r] and see [the rules][r].'),
           '',
           '[r]: ../DOMAIN.md#invariants',
         ],
       );
-      final payBefore = readDoc(root, _payDomain);
-      final answer = _move(root, ['rulebook:shop#INV-3']);
-      expect(readDoc(root, _payDomain), payBefore);
+      final sharedBefore = readDoc(sharedRoot, _payDomain);
+      final sharedAnswer = _move(sharedRoot, ['rulebook:shop#INV-3']);
+      expect(readDoc(sharedRoot, _payDomain), sharedBefore);
       expect(
-        answer.text,
+        sharedAnswer.text,
         contains(
-          'mentions $_payDomain:${_lineOf(payBefore, '[r]:')} [r]: ../DOMAIN.md#invariants\n',
+          'mentions $_payDomain:${_lineOf(sharedBefore, '[r]:')} [r]: ../DOMAIN.md#invariants\n',
         ),
+        reason: 'a definition shared by an item link and another link',
       );
     });
 

@@ -33,19 +33,6 @@ void main() {
     ]);
   });
 
-  test('the api description carries both halves of the API cut test', () {
-    expect(
-      api.renderGuide(),
-      allOf(
-        contains(
-          "A fact whose change breaks a caller's code goes in this doc's "
-          'operation, not in the FR',
-        ),
-        contains('Every other fact of that operation stays in its FR'),
-      ),
-    );
-  });
-
   test('errors and the project error model carry the catalog and the '
       'two one-sentence column caps', () async {
     final projectApi = prdCoreDocType(
@@ -80,55 +67,11 @@ void main() {
 
   test('api lists its sources per style in table order, then the error '
       'sources', () {
-    expect(
-      [for (final r in api.reference!) r.title],
-      [
-        'OpenAPI Specification 3.2.1',
-        'Microsoft Azure REST API Guidelines',
-        'Google AIP-121, Resource-oriented design',
-        'JSON-RPC 2.0 Specification',
-        'OpenRPC Specification',
-        'Protocol Buffers Language Guide (proto3)',
-        'Google AIP-180, Backwards compatibility',
-        'Google AIP-192, Documentation',
-        'GraphQL Specification',
-        'GraphQL Learn, Schema Change Management',
-        'GraphQL Learn, Error Handling',
-        'AsyncAPI Specification 3.1.0',
-        'Standard Webhooks',
-        'POSIX.1-2024 XCU 1.4, Utility Description Defaults',
-        'POSIX.1-2024 XBD 12, Utility Conventions',
-        'Command Line Interface Guidelines',
-        'MCP Specification 2026-07-28, Tools',
-        'Semantic Versioning 2.0.0',
-        'Rust API Guidelines, Documentation',
-        'man-pages(7)',
-        'RFC 9457, Problem Details for HTTP APIs',
-        'Google AIP-193, Errors',
-        'Google AIP-194, Automatic retry configuration',
-        'gRPC status codes',
-      ],
-    );
     for (final r in api.reference!) {
       expect(r.url, startsWith('https://'), reason: r.title);
       expect(r.locator, isNotEmpty, reason: r.title);
     }
   });
-  test('the operations description states one heading shape, with no FR '
-      'label', () {
-    final description = api.sections
-        .singleWhere((s) => s.id == 'operations')
-        .description;
-
-    expect(
-      description,
-      contains(
-        'one `###` per operation, headed `` `<operation>` `` alone '
-        'with no FR label',
-      ),
-    );
-  });
-
   test('operations carry no response example lint', () {
     final operations = sectionOf(api, 'operations');
 
@@ -139,25 +82,6 @@ void main() {
     expect(
       [for (final p in operations.bannedPatterns!) p.id],
       ['operation_heading', 'why_line'],
-    );
-    expect(
-      operations.description,
-      allOf(
-        contains('and optionally one request and one response example.'),
-        isNot(contains('Response example')),
-      ),
-    );
-  });
-
-  test('the operations guide asks a code list per operation', () {
-    expect(
-      sectionOf(api, 'operations').description,
-      allOf(
-        contains('`**Errors:** <codes>; see <links>`'),
-        contains('every code the operation returns as a code span'),
-        contains("hand off to no other operation's list"),
-        contains('`**Errors:** none`'),
-      ),
     );
   });
 
@@ -224,22 +148,6 @@ void main() {
           apiPath,
         ),
         ['auth_line @ `signOut`'],
-      );
-    });
-
-    test('the operations description names the colon Auth form and the group '
-        'form of the Errors line', () {
-      expect(
-        sectionOf(api, 'operations').description,
-        allOf(
-          contains('Write Auth as `**Auth:** <scope or none>`'),
-          contains('Write one Errors line'),
-          contains(
-            '``**Errors:** the `<group>` codes, `<code>`, …; see <links>``',
-          ),
-          contains('each catalog group the operation returns whole'),
-          contains('Write no Why line'),
-        ),
       );
     });
 

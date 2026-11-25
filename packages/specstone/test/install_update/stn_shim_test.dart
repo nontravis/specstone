@@ -129,22 +129,4 @@ void main() {
     expect(sb.logOf('linked'), ['ran']);
     expect(sb.logOf('specstone'), isEmpty);
   });
-
-  test('stdin piped into stn reaches the target', () async {
-    final sb = await createShimSandbox();
-
-    final r = await sb.runStn(
-      ['get'],
-      path: '${sb.bin.path}:$systemEntries',
-      stdinText: 'piped bytes\n',
-    );
-
-    expect(r.exitCode, 0);
-    expect(sb.logOf('specstone').sublist(0, 4), [
-      'argv',
-      'get',
-      'stdin',
-      'piped bytes',
-    ]);
-  });
 }

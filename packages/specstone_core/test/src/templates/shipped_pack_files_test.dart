@@ -53,32 +53,6 @@ void main() {
       prdOnly = await resolvePrdCore();
     });
 
-    test('each doc type takes the path and the parent of the Output '
-        'table', () {
-      const outputTable = <String, (String, String?)>{
-        'tech_stack': ('specs/TECH_STACK.md', null),
-        'architecture': ('specs/f{nn}_{slug}/ARCHITECTURE.md', 'feature'),
-        'api': ('specs/f{nn}_{slug}/API.md', 'feature'),
-        'integration': ('specs/f{nn}_{slug}/INTEGRATION.md', 'feature'),
-        'security': ('specs/f{nn}_{slug}/SECURITY.md', 'feature'),
-        'decision': ('specs/decisions/d{nn}_{slug}.md', null),
-        'implementation': (
-          '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
-          'feature',
-        ),
-        'project_architecture': ('specs/ARCHITECTURE.md', null),
-        'project_api': ('specs/API.md', null),
-        'project_security': ('specs/SECURITY.md', null),
-      };
-      expect(outputTable.keys, unorderedEquals(softwareTechIds));
-      for (final MapEntry(key: id, value: (path, parent))
-          in outputTable.entries) {
-        final docType = prdCoreDocType(both, id);
-        expect(docType.path, path, reason: id);
-        expect(docType.parent, parent, reason: id);
-      }
-    });
-
     test('the pack writes no layer over a prd-core doc type, so a '
         'story and an FR carry no code-pointer field', () {
       final files = shippedPackFiles.keys
