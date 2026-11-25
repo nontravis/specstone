@@ -29,12 +29,33 @@ jobs:
         working-directory: packages/specstone
         run: dart test test/src/shared_version_test.dart
 
+  ci-passed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      passed: ${{ steps.find.outputs.passed }}
+    steps:
+      - name: Find a passed ci run of the tagged commit
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if count=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yaml/runs?head_sha=$GITHUB_SHA&status=success&event=push&per_page=1" --jq .total_count) && [ "$count" -gt 0 ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
-    needs: version
+    needs: [version, ci-passed]
+    if: needs.ci-passed.outputs.passed != 'true'
     uses: ./.github/workflows/ci.yaml
 
   build:
-    needs: test
+    needs: [version, ci-passed, test]
+    if: ${{ !cancelled() && needs.version.result == 'success' && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.ci-passed.result == 'success' && needs.ci-passed.outputs.passed == 'true')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -190,7 +211,8 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: build
+    needs: [version, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

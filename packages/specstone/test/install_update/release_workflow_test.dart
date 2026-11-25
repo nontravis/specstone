@@ -140,6 +140,19 @@ void main() {
     expect(matrix.containsKey('exclude'), isFalse);
   });
 
+  test('ci runs on a push to main, develop, and release branches', () {
+    final on = ci['on'] as YamlMap;
+    expect((on['push'] as YamlMap)['branches'], [
+      'main',
+      'develop',
+      'release/**',
+    ]);
+    expect(
+      on.keys,
+      containsAll(['pull_request', 'workflow_dispatch', 'workflow_call']),
+    );
+  });
+
   test(
     'the release builds macos-x64 on macos-15-intel and ci never uses it',
     () {
@@ -185,8 +198,10 @@ void main() {
   test('the release runs version, test, build, and smoke in order', () {
     expect(((release['on'] as YamlMap)['push'] as YamlMap)['tags'], ['v*']);
     expect(_job(release, 'version')['needs'], isNull);
-    expect(_job(release, 'test')['needs'], 'version');
-    expect(_job(release, 'build')['needs'], 'test');
+    expect(_job(release, 'ci-passed')['needs'], isNull);
+    expect(_job(release, 'test')['needs'], ['version', 'ci-passed']);
+    expect(_job(release, 'build')['needs'], ['version', 'ci-passed', 'test']);
+    expect(_job(release, 'publish')['needs'], ['version', 'build']);
     expect(
       _run(_job(release, 'version'), 'Check the tag against version.dart'),
       contains('GITHUB_REF_NAME'),
@@ -213,12 +228,141 @@ void main() {
     'the top-level permissions stay contents read and no job inherits write',
     () {
       expect(release['permissions'], {'contents': 'read'});
+      expect(_job(release, 'publish')['permissions'], {'contents': 'write'});
+      expect(_job(release, 'ci-passed')['permissions'], {'actions': 'read'});
       for (final name in _jobs(release).keys) {
-        final permissions = _job(release, '$name')['permissions'];
-        if (name != 'publish') expect(permissions, isNull, reason: '$name');
+        if (name == 'publish' || name == 'ci-passed') continue;
+        expect(_job(release, '$name')['permissions'], isNull, reason: '$name');
       }
     },
   );
+
+  test('the test jobs run unless ci passed on the tagged commit', () {
+    final test = _job(release, 'test');
+    expect(
+      '${test['if']}',
+      contains("needs.ci-passed.outputs.passed != 'true'"),
+    );
+    expect(test['uses'], './.github/workflows/ci.yaml');
+  });
+
+  test('build takes a skipped test only with a passed ci run', () {
+    final build = _job(release, 'build');
+    final condition = '${build['if']}';
+    expect(condition, contains('!cancelled()'));
+    expect(condition, contains("needs.version.result == 'success'"));
+    expect(condition, contains("needs.test.result == 'success'"));
+    expect(
+      condition,
+      matches(
+        RegExp(
+          r"needs\.test\.result == 'skipped' && "
+          r"needs\.ci-passed\.result == 'success' && "
+          r"needs\.ci-passed\.outputs\.passed == 'true'",
+        ),
+      ),
+    );
+    expect(build['needs'], containsAll(['version', 'ci-passed', 'test']));
+  });
+
+  test('the test and build conditions are exactly these', () {
+    expect(
+      _job(release, 'test')['if'],
+      "needs.ci-passed.outputs.passed != 'true'",
+    );
+    expect(
+      _job(release, 'build')['if'],
+      r"${{ !cancelled() && needs.version.result == 'success' && "
+      "(needs.test.result == 'success' || (needs.test.result == 'skipped' && "
+      "needs.ci-passed.result == 'success' && "
+      "needs.ci-passed.outputs.passed == 'true')) }}",
+    );
+  });
+
+  test('publish needs a built archive set', () {
+    expect(
+      '${_job(release, 'publish')['if']}',
+      contains("needs.build.result == 'success'"),
+    );
+  });
+
+  group('the ci-passed step script', () {
+    late Directory work;
+    late File output;
+
+    setUp(() {
+      work = Directory.systemTemp.createTempSync('ci_passed_step_');
+      output = File('${work.path}/github_output')..createSync();
+    });
+
+    tearDown(() => work.deleteSync(recursive: true));
+
+    ProcessResult runStep(String ghBody) {
+      _writeStub(work, 'gh', ghBody);
+      final step = _steps(_job(release, 'ci-passed')).firstWhere(
+        (s) => s['name'] == 'Find a passed ci run of the tagged commit',
+      );
+      return Process.runSync(
+        'bash',
+        ['-e', '-c', '${step['run']}'],
+        workingDirectory: work.path,
+        environment: {
+          'PATH': '${work.path}/stubs:${Platform.environment['PATH']}',
+          'GITHUB_OUTPUT': output.path,
+          'GITHUB_REPOSITORY': 'nontravis/specstone',
+          'GITHUB_SHA': 'abc123',
+          'STUB_LOG': '${work.path}/gh.log',
+        },
+      );
+    }
+
+    String ghStub(String count) =>
+        'printf "%s\\n" "\$*" >> "\$STUB_LOG"\necho $count';
+
+    test('a passed ci run of the commit writes passed=true', () {
+      final r = runStep(ghStub('1'));
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(output.readAsStringSync().trim(), 'passed=true');
+    });
+
+    test('no passed ci run of the commit writes passed=false', () {
+      final r = runStep(ghStub('0'));
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(output.readAsStringSync().trim(), 'passed=false');
+    });
+
+    test('a failing gh call writes passed=false and exits 0', () {
+      final r = runStep('exit 1');
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(output.readAsStringSync().trim(), 'passed=false');
+    });
+
+    test('the query asks for a successful run of the tagged commit', () {
+      runStep(ghStub('1'));
+
+      final log = File('${work.path}/gh.log').readAsStringSync();
+      expect(log, contains('head_sha=abc123'));
+      expect(log, contains('status=success'));
+    });
+
+    test('the query reads the ci.yaml runs and prints only the count', () {
+      runStep(ghStub('1'));
+
+      final log = File('${work.path}/gh.log').readAsStringSync();
+      expect(log, contains('actions/workflows/ci.yaml/runs?'));
+      expect(log, contains('--jq .total_count'));
+    });
+
+    test('the ci-passed query counts push runs only', () {
+      runStep(ghStub('1'));
+
+      final log = File('${work.path}/gh.log').readAsStringSync();
+      expect(log, contains('event=push'));
+    });
+  }, testOn: '!windows');
 
   test('each smoke test installs from the local archive in a temp home', () {
     final build = _job(release, 'build');
@@ -332,8 +476,12 @@ void main() {
   }, testOn: '!windows');
 
   test('the pre-release version runs through every job unchanged', () {
-    for (final name in ['version', 'test', 'build']) {
-      expect(_job(release, name).containsKey('if'), isFalse, reason: name);
+    for (final name in _jobs(release).keys) {
+      expect(
+        '${_job(release, '$name')['if'] ?? ''}',
+        isNot(contains('prerelease')),
+        reason: '$name',
+      );
     }
     final steps = _steps(_job(release, 'build'));
     final runs = steps.map((s) => '${s['run'] ?? ''}').join('\n');

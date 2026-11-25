@@ -50,14 +50,27 @@ final class ReleaseRepo {
   /// `GH_STUB_RUN` (`success` | `failure`), `GH_STUB_RUN_STATE` (a run
   /// status such as `in_progress` or `completed`, added with the `GH_STUB_RUN`
   /// conclusion to the release.yaml run in the `gh api` runs answer),
-  /// `GH_STUB_RUN_LATE` (any value: the first runs answer holds no run; the
-  /// stub always answers `run list --workflow release.yaml` with a 404, as gh
-  /// does before the default branch holds the file),
-  /// `GH_STUB_VIEW`
+  /// `GH_STUB_RUN_LATE` (any value: the first runs answer after the ci watch
+  /// lacks the release.yaml run; the stub always answers
+  /// `run list --workflow release.yaml` with a 404, as gh does before the
+  /// default branch holds the file), `GH_STUB_BRANCH_CI` (`success` |
+  /// `failure` | `cancelled`: how the ci run of the release branch head ends,
+  /// as `run watch 223456789` and `run view 223456789` answer), and
+  /// `GH_STUB_BRANCH_CI_LATE` (any value: the first runs answer lacks that
+  /// ci run), `GH_STUB_BRANCH_CI_VIEW` (`broken`: `run watch 223456789` and
+  /// `run view 223456789` exit 1 with a gh error), `GH_STUB_VIEW`
   /// (`failure` | `later_success` | `cancelled` | `garbage` | `broken`: what
   /// `run view` answers after a failed watch), `GH_STUB_RELEASE`
-  /// (`absent` | `present` | `broken`), and `GH_STUB_ON_WATCH` (a shell line
-  /// run before `run watch` answers).
+  /// (`absent` | `present` | `broken`), `GH_STUB_ON_CI_WATCH` (a shell line
+  /// run before `run watch 223456789` answers), and `GH_STUB_ON_WATCH` (a
+  /// shell line run before `run watch 123456789` answers). A hook that exits
+  /// non-zero fails its gh call with exit 3 and a stderr line naming the hook.
+  /// `GH_STUB_RUN_STATE_AFTER_CI` (a run status) replaces `GH_STUB_RUN_STATE`
+  /// once the ci watch has run, `GH_STUB_PATH_REF` (any value) gives each run
+  /// path a `@refs/heads/release/0.2.0` suffix, and `GH_STUB_CI_OLDER` (any
+  /// value) lists a second, older ci run (id 223456788) after the newest.
+  ///
+  /// Every runs answer also lists a decoy run of `other.yaml`.
   Future<ProcessResult> release(
     List<String> args, {
     Map<String, String> gh = const {},
@@ -269,6 +282,14 @@ log_in() {
   echo '  gh auth login' >&2
   exit 4
 }
+# Runs a test hook; a hook that fails fails the gh call, naming the hook.
+run_hook() {
+  [ -z "\$2" ] && return 0
+  if ! sh -c "\$2"; then
+    echo "gh stub: hook \$1 failed: \$2" >&2
+    exit 3
+  fi
+}
 case "\$1 \$2" in
   "auth status")
     [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
@@ -280,17 +301,37 @@ case "\$1 \$2" in
       echo 'gh: network down' >&2
       exit 1
     fi
-    if [ -n "\$GH_STUB_RUN_LATE" ] && [ ! -e "\$root/run_listed" ]; then
-      touch "\$root/run_listed"
-      echo '{"total_count": 0, "workflow_runs": []}'
-      exit 0
+    decoy='{"id": 1, "html_url": "https://github.com/nontravis/specstone/actions/runs/1", "path": ".github/workflows/other.yaml", "status": "completed", "conclusion": "failure"}'
+    runs="\$decoy"
+    # A run's path carries @<ref> when its workflow ran on a ref.
+    path_ref=''
+    [ -n "\$GH_STUB_PATH_REF" ] && path_ref='@refs/heads/release/0.2.0'
+    # The ci run of the branch head, left out of the first answer when late.
+    if [ -n "\$GH_STUB_BRANCH_CI_LATE" ] && [ ! -e "\$root/ci_listed" ]; then
+      touch "\$root/ci_listed"
+    else
+      runs="\$runs"', {"id": 223456789, "html_url": "https://github.com/nontravis/specstone/actions/runs/223456789", "path": ".github/workflows/ci.yaml'"\$path_ref"'"}'
+      # A second, older ci run of the same commit comes after the newest.
+      if [ -n "\$GH_STUB_CI_OLDER" ]; then
+        runs="\$runs"', {"id": 223456788, "html_url": "https://github.com/nontravis/specstone/actions/runs/223456788", "path": ".github/workflows/ci.yaml'"\$path_ref"'"}'
+      fi
     fi
-    decoy='{"id": 1, "html_url": "https://github.com/nontravis/specstone/actions/runs/1", "path": ".github/workflows/ci.yaml", "status": "completed", "conclusion": "failure"}'
+    run_state="\$GH_STUB_RUN_STATE"
+    if [ -n "\$GH_STUB_RUN_STATE_AFTER_CI" ] && [ -e "\$root/ci_watched" ]; then
+      run_state="\$GH_STUB_RUN_STATE_AFTER_CI"
+    fi
     state=''
-    if [ -n "\$GH_STUB_RUN_STATE" ]; then
-      state=', "status": "'"\$GH_STUB_RUN_STATE"'", "conclusion": "'"\${GH_STUB_RUN:-success}"'"'
+    if [ -n "\$run_state" ]; then
+      state=', "status": "'"\$run_state"'", "conclusion": "'"\${GH_STUB_RUN:-success}"'"'
     fi
-    echo '{"total_count": 2, "workflow_runs": ['"\$decoy"', {"id": 123456789, "html_url": "https://github.com/nontravis/specstone/actions/runs/123456789", "path": ".github/workflows/release.yaml"'"\$state"'}]}'
+    # The release.yaml run, left out of the first answer after the ci watch
+    # when late.
+    if [ -n "\$GH_STUB_RUN_LATE" ] && [ -e "\$root/ci_watched" ] && [ ! -e "\$root/run_listed" ]; then
+      touch "\$root/run_listed"
+    else
+      runs="\$runs"', {"id": 123456789, "html_url": "https://github.com/nontravis/specstone/actions/runs/123456789", "path": ".github/workflows/release.yaml'"\$path_ref"'"'"\$state"'}'
+    fi
+    echo '{"total_count": 3, "workflow_runs": ['"\$runs"']}'
     ;;
   "run list")
     [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
@@ -317,15 +358,39 @@ case "\$1 \$2" in
     esac
     ;;
   "run watch")
-    [ -n "\$GH_STUB_ON_WATCH" ] && sh -c "\$GH_STUB_ON_WATCH"
-    if [ "\${GH_STUB_RUN:-success}" = success ]; then
-      touch "\$root/released"
+    if [ "\$3" = 223456789 ]; then
+      run_hook GH_STUB_ON_CI_WATCH "\$GH_STUB_ON_CI_WATCH"
+      touch "\$root/ci_watched"
+      if [ "\${GH_STUB_BRANCH_CI_VIEW:-ok}" = broken ]; then
+        echo 'gh: network down' >&2
+        exit 1
+      fi
+      if [ "\${GH_STUB_BRANCH_CI:-success}" != success ]; then
+        echo 'ci failed' >&2
+        exit 1
+      fi
     else
-      echo 'release.yaml failed' >&2
-      exit 1
+      run_hook GH_STUB_ON_WATCH "\$GH_STUB_ON_WATCH"
+      if [ "\${GH_STUB_RUN:-success}" = success ]; then
+        touch "\$root/released"
+      else
+        echo 'release.yaml failed' >&2
+        exit 1
+      fi
     fi
     ;;
   "run view")
+    if [ "\$3" = 223456789 ]; then
+      if [ "\${GH_STUB_BRANCH_CI_VIEW:-ok}" = broken ]; then
+        echo 'gh: network down' >&2
+        exit 1
+      fi
+      case "\${GH_STUB_BRANCH_CI:-success}" in
+        success) echo '{"status":"completed","conclusion":"success"}' ;;
+        *) echo '{"status":"completed","conclusion":"'"\$GH_STUB_BRANCH_CI"'"}' ;;
+      esac
+      exit 0
+    fi
     case "\${GH_STUB_VIEW:-failure}" in
       broken)
         echo 'gh: network down' >&2

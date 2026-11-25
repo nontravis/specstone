@@ -52,6 +52,16 @@ const Duration _runPollInterval = Duration(seconds: 5);
 const int _runPollTries = 60;
 const Duration _viewPollInterval = Duration(seconds: 15);
 const int _viewPollTries = 360;
+const String _ciWorkflowPath = '.github/workflows/ci.yaml';
+const String _releaseWorkflowPath = '.github/workflows/release.yaml';
+
+/// A workflow run `gh` listed: its [id] and its page [url].
+final class _WorkflowRun {
+  new(this.id, this.url);
+
+  final int id;
+  final String url;
+}
 
 /// A failed check: printed as `release: <message>` on stderr, exit 1.
 final class _Refusal implements Exception {
@@ -90,6 +100,7 @@ Future<void> _release(List<String> args) async {
   await _checkCiPassed(head);
   await _checkVersionAboveCurrent(root, version);
   await _checkTagAbsent(version);
+  await _checkReleaseBranchAbsent(version);
   await _checkRefNames(version);
   _checkSpotsParse(root);
 
@@ -100,14 +111,18 @@ Future<void> _release(List<String> args) async {
     ).forEach(stdout.writeln);
     return;
   }
-  final tagSha = await _bumpAndTag(root, version);
-  await _pushTag(version);
-  await _endingWithRunAgain(version, () => _publishAndLand(version, tagSha));
+  final sha = await _bumpAndCommit(root, version);
+  await _pushReleaseBranch(version);
+  await _endingWithRunAgain(version, () => waitForCi(version, sha));
+  if (exitCode != 0) return;
+  await _tagAndPush(version, sha);
+  await _endingWithRunAgain(version, () => _publishAndLand(version, sha));
 }
 
-/// Sets the exit code from [steps], which run once the tag is pushed.
+/// Sets the exit code from [steps], which run after the branch push.
 ///
-/// Every refusal from there on says how to run again.
+/// Every refusal from there on, in the ci wait or after the tag push, says how
+/// to run again.
 Future<void> _endingWithRunAgain(
   String version,
   Future<int> Function() steps,
@@ -124,8 +139,9 @@ Future<void> _endingWithRunAgain(
 
 /// Runs the release again from [branch], the `release/<version>` branch.
 ///
-/// A published Release only lands; otherwise the tag moves to the branch head
-/// and the run is awaited, then the release lands.
+/// A published Release only lands; otherwise the branch is pushed and its `ci`
+/// run awaited, then the tag moves to the branch head, its run is awaited, and
+/// the release lands.
 Future<void> _runAgainFrom(
   String root,
   String version,
@@ -199,24 +215,34 @@ Future<String?> _publishedReleaseUrl(String version) async {
 
 /// Moves the tag to the head of the release branch and awaits its run.
 ///
-/// A run of the pushed tag still queued or in progress is awaited instead,
-/// and the tag stays: moving it would cancel the run that is publishing.
+/// The tag moves only once the `ci` run of the branch head has succeeded, and
+/// only to that head. A run of the pushed tag still queued or in progress,
+/// found before or after the `ci` wait, is awaited instead, and the tag stays:
+/// moving it would cancel the run that is publishing.
 Future<int> _moveTagAndPublish(String version) async {
   final awaited = await _awaitedTagSha(version);
-  if (awaited != null) {
-    if (awaited != await _git(['rev-parse', 'HEAD'])) {
-      stdout.writeln(
-        'v$version at $awaited is still being released; commits made on '
-        'release/$version since then ship with the next version.',
-      );
-    }
-    return _publishAndLand(version, awaited);
-  }
+  if (awaited != null) return _awaitTagRun(version, awaited);
 
   await _pushRunAgainRef(['origin', 'release/$version']);
-  await _git(['tag', '-f', 'v$version']);
+  final head = await _git(['rev-parse', 'HEAD']);
+  if (await waitForCi(version, head) != 0) return 1;
+  // The ci wait can last minutes; a run of the tag may have started in it.
+  final started = await _awaitedTagSha(version);
+  if (started != null) return _awaitTagRun(version, started);
+  await _git(['tag', '-f', 'v$version', head]);
   await _pushRunAgainRef(['--force', 'origin', 'v$version']);
-  return _publishAndLand(version, await _git(['rev-parse', 'HEAD']));
+  return _publishAndLand(version, head);
+}
+
+/// Awaits the release run of the tag at [tagSha] and lands, leaving the tag.
+Future<int> _awaitTagRun(String version, String tagSha) async {
+  if (tagSha != await _git(['rev-parse', 'HEAD'])) {
+    stdout.writeln(
+      'v$version at $tagSha is still being released; commits made on '
+      'release/$version since then ship with the next version.',
+    );
+  }
+  return _publishAndLand(version, tagSha);
 }
 
 /// Returns the commit of `origin`'s tag when its release run has not ended.
@@ -227,7 +253,11 @@ Future<String?> _awaitedTagSha(String version) async {
   final remote = await _git(['ls-remote', 'origin', 'refs/tags/v$version']);
   if (remote.isEmpty) return null;
   final tagSha = remote.split(RegExp(r'\s')).first;
-  final runs = await _releaseRuns(version, tagSha);
+  final runs = await _workflowRuns(
+    tagSha,
+    _releaseWorkflowPath,
+    'release.yaml run of v$version',
+  );
   switch (runs) {
     case [{'status': final String status}, ...] when status != 'completed':
       return tagSha;
@@ -376,6 +406,21 @@ Future<void> _checkTagAbsent(String version) async {
   }
 }
 
+/// Refuses when `origin` holds `release/<version>` from an earlier first run.
+///
+/// Runs after [_checkTagAbsent], so a tag refusal wins.
+Future<void> _checkReleaseBranchAbsent(String version) async {
+  final branch = 'release/$version';
+  final held = await _git(['ls-remote', 'origin', 'refs/heads/$branch']);
+  if (held.isNotEmpty) {
+    final tag = 'v$version';
+    throw _Refusal(
+      'origin holds $branch and no tag $tag; switch to $branch, then '
+      'run dart run tool/release.dart $version from it',
+    );
+  }
+}
+
 /// Refuses when git refuses the release branch or tag name of [version].
 ///
 /// `git check-ref-format` is the one source of the ref-name rule, so the
@@ -399,17 +444,22 @@ List<String> _planSteps(String v, {required bool isPreRelease}) => [
   'create release/$v from develop',
   'set $v in the four version spots',
   're-read the four spots; run dart pub get --enforce-lockfile',
-  'commit "chore: release $v"; tag v$v on it',
-  'push tag v$v',
+  'commit "chore: release $v"',
+  'push release/$v',
+  _ciWaitStep(v),
+  'tag v$v on the head of release/$v; push tag v$v',
   _waitStep(v),
   ..._landingSteps(v, isPreRelease: isPreRelease),
 ];
 
 List<String> _moveTagSteps(String v) => [
   'push release/$v',
+  _ciWaitStep(v),
   'move tag v$v to the head of release/$v; push it',
   _waitStep(v),
 ];
+
+String _ciWaitStep(String v) => 'wait for the ci run of release/$v';
 
 String _waitStep(String v) => 'wait for the release.yaml run of v$v';
 
@@ -535,11 +585,11 @@ String _spotsNotHolding(String root, String version) =>
         .map((e) => '${e.key} holds ${e.value}')
         .join('; ');
 
-/// Bumps the four spots on `release/<version>`, commits, and tags.
+/// Bumps the four spots on `release/<version>` and commits.
 ///
-/// Returns the tagged commit. A failed `dart pub get` undoes the bump and
+/// Returns the commit sha. A failed `dart pub get` undoes the bump and
 /// refuses before the commit.
-Future<String> _bumpAndTag(String root, String version) async {
+Future<String> _bumpAndCommit(String root, String version) async {
   await _git(['switch', '-c', 'release/$version']);
   _writeSpots(root, version);
 
@@ -567,7 +617,6 @@ Future<String> _bumpAndTag(String root, String version) async {
 
   await _git(['add', ..._spots.map((spot) => spot.path).toSet()]);
   await _git(['commit', '-q', '-m', 'chore: release $version']);
-  await _git(['tag', 'v$version']);
   return _git(['rev-parse', 'HEAD']);
 }
 
@@ -589,7 +638,21 @@ Future<void> _undoBump(String version, String message) async {
   throw _Refusal('$message; nothing was pushed');
 }
 
-Future<void> _pushTag(String version) async {
+/// Pushes `release/<version>` alone, with no tag.
+Future<void> _pushReleaseBranch(String version) async {
+  try {
+    await _git(['push', 'origin', 'release/$version']);
+  } on _Refusal catch (failure) {
+    throw _Refusal(
+      '${failure.message}; main and develop are untouched, and '
+      'release/$version stays. ${_runAgain(version)}',
+    );
+  }
+}
+
+/// Tags [sha] as `v<version>` and pushes the tag alone.
+Future<void> _tagAndPush(String version, String sha) async {
+  await _git(['tag', 'v$version', sha]);
   try {
     await _git(['push', 'origin', 'v$version']);
   } on _Refusal catch (failure) {
@@ -600,14 +663,52 @@ Future<void> _pushTag(String version) async {
   }
 }
 
+/// Waits for the `ci` run of the release branch head [sha] to end.
+///
+/// Returns 0 when the run succeeded. Any other end prints the run's link on
+/// stderr and returns 1, before a tag is made. A gh error or the time limit
+/// is no run end: it refuses, and the caller's [_endingWithRunAgain] adds the
+/// run-again line.
+Future<int> waitForCi(String version, String sha) async {
+  final what = 'ci run of release/$version';
+  final run = await _findRun(sha, _ciWorkflowPath, what);
+  stdout.writeln('Waiting for the $what: ${run.url}');
+  final end = await _awaitRun(run, what);
+  if (end == 'success') return 0;
+  stderr.writeln(
+    'release: the $what ended as $end: ${run.url}; no tag was made, and main '
+    'and develop are untouched. Fix on release/$version, then run '
+    'dart run tool/release.dart $version from that branch',
+  );
+  return 1;
+}
+
 /// Waits for the `release.yaml` run of the tag at [tagSha] to end.
 ///
 /// Returns 0 when the run succeeded. On a failed run it prints the failure
 /// on stderr and returns 1. When `gh run watch` fails, the run is polled with
 /// `gh run view` for up to 90 minutes; a gh error or that limit refuses.
 Future<int> waitForRun(String version, String tagSha) async {
-  final run = await _findRun(version, tagSha);
-  stdout.writeln('Waiting for the release.yaml run of v$version: ${run.url}');
+  final what = 'release.yaml run of v$version';
+  final run = await _findRun(tagSha, _releaseWorkflowPath, what);
+  stdout.writeln('Waiting for the $what: ${run.url}');
+  final end = await _awaitRun(run, what);
+  if (end == 'success') return 0;
+  if (end == 'failure') {
+    stderr.writeln(
+      'release: the $what failed: ${run.url}; '
+      'main and develop are untouched. Fix on release/$version, then run '
+      'dart run tool/release.dart $version from that branch',
+    );
+    return 1;
+  }
+  throw _Refusal(
+    'the $what ended as $end (${run.url}); main and develop are untouched',
+  );
+}
+
+/// Returns how [run] ended: `success`, or the conclusion `gh run view` read.
+Future<String> _awaitRun(_WorkflowRun run, String what) async {
   // Streams to the terminal, so the Owner sees the steps of a 20-40 minute run.
   final watch = await Process.start('gh', [
     'run',
@@ -615,14 +716,14 @@ Future<int> waitForRun(String version, String tagSha) async {
     '${run.id}',
     '--exit-status',
   ], mode: ProcessStartMode.inheritStdio);
-  if (await watch.exitCode == 0) return 0;
+  if (await watch.exitCode == 0) return 'success';
   // A token without the watch scope fails `gh run watch` on every release,
   // so the run is polled with `gh run view` instead.
-  return _pollRun(version, run);
+  return _pollRun(run, what);
 }
 
-/// Polls the run with `gh run view` until it completes, then acts on it.
-Future<int> _pollRun(String version, ({int id, String url}) run) async {
+/// Polls the run with `gh run view` until it completes; returns its conclusion.
+Future<String> _pollRun(_WorkflowRun run, String what) async {
   for (var attempt = 1; attempt <= _viewPollTries; attempt++) {
     final view = await _gh([
       'run',
@@ -630,84 +731,74 @@ Future<int> _pollRun(String version, ({int id, String url}) run) async {
       '${run.id}',
       '--json',
       'status,conclusion',
-    ], 'reading the release.yaml run of v$version');
+    ], 'reading the $what');
     final Object? state;
     try {
       state = jsonDecode(view);
     } on FormatException {
-      throw _Refusal(
-        'gh printed no JSON for the release.yaml run of v$version',
-      );
+      throw _Refusal('gh printed no JSON for the $what');
     }
     if (state case {'status': 'completed', 'conclusion': final Object? end}) {
-      if (end == 'success') return 0;
-      if (end == 'failure') {
-        stderr.writeln(
-          'release: the release.yaml run of v$version failed: ${run.url}; '
-          'main and develop are untouched. Fix on release/$version, then run '
-          'dart run tool/release.dart $version from that branch',
-        );
-        return 1;
-      }
-      throw _Refusal(
-        'the release.yaml run of v$version ended as $end (${run.url}); '
-        'main and develop are untouched',
-      );
+      return '$end';
     }
     if (attempt < _viewPollTries) await Future<void>.delayed(_viewPollInterval);
   }
   throw _Refusal(
-    'the release.yaml run of v$version (${run.url}) did not end within '
+    'the $what (${run.url}) did not end within '
     '${(_viewPollInterval * _viewPollTries).inMinutes} minutes; '
     'main and develop are untouched',
   );
 }
 
-/// Returns the `release.yaml` push runs of the commit [sha], newest first.
+/// Returns the push runs of the commit [sha] whose workflow is [workflowPath],
+/// newest first.
 ///
 /// Lists the commit's push runs and keeps those of the workflow path, rather
 /// than naming the file to `gh run list --workflow`, which resolves it on the
-/// default branch and answers 404 until `main` holds `release.yaml`.
-Future<List<Object?>> _releaseRuns(String version, String sha) async {
+/// default branch and answers 404 until `main` holds the file.
+Future<List<Object?>> _workflowRuns(
+  String sha,
+  String workflowPath,
+  String what,
+) async {
   final output = await _gh([
     'api',
     'repos/{owner}/{repo}/actions/runs?head_sha=$sha&event=push',
-  ], 'finding the release.yaml run of v$version');
+  ], 'finding the $what');
   final Object? body;
   try {
     body = jsonDecode(output);
   } on FormatException {
-    throw _Refusal('gh printed no JSON for the release.yaml run of v$version');
+    throw _Refusal('gh printed no JSON for the $what');
   }
   if (body case {'workflow_runs': final List<Object?> runs}) {
+    // A run's `path` carries a `@<ref>` suffix when its workflow ran on a ref.
     return [
       for (final run in runs)
-        if (run case {'path': final String path} when _isReleaseWorkflow(path))
+        if (run case {'path': final String path}
+            when path.split('@').first == workflowPath)
           run,
     ];
   }
-  throw _Refusal(
-    'gh printed no workflow runs for the release.yaml run of v$version',
-  );
+  throw _Refusal('gh printed no workflow runs for the $what');
 }
 
-/// Whether [path] names `release.yaml`, with or without a `@<ref>` suffix.
-bool _isReleaseWorkflow(String path) =>
-    path.split('@').first == '.github/workflows/release.yaml';
-
-/// Polls until `gh` lists the `release.yaml` run of the tag commit.
-Future<({int id, String url})> _findRun(String version, String tagSha) async {
+/// Polls until `gh` lists the run of [workflowPath] on the commit [sha].
+Future<_WorkflowRun> _findRun(
+  String sha,
+  String workflowPath,
+  String what,
+) async {
   for (var attempt = 1; attempt <= _runPollTries; attempt++) {
-    final runs = await _releaseRuns(version, tagSha);
+    final runs = await _workflowRuns(sha, workflowPath, what);
     if (runs case [{'id': final int id, 'html_url': final String url}, ...]) {
-      return (id: id, url: url);
+      return _WorkflowRun(id, url);
     }
     if (attempt < _runPollTries) await Future<void>.delayed(_runPollInterval);
   }
   throw _Refusal(
-    'no release.yaml run of v$version appeared in '
-    '${_runPollInterval.inSeconds * _runPollTries} s; main and develop are '
-    'untouched',
+    'no $what appeared in ${_runPollInterval.inSeconds * _runPollTries} s; '
+    'main and develop are untouched',
   );
 }
 
@@ -740,6 +831,7 @@ Future<int> land(String version, String releaseUrl) async {
   final branch = 'release/$version';
   final isPreRelease = _isPreRelease(version);
   await _checkLocalTagIsOrigins(tag);
+  final tagged = await _git(['rev-parse', tag]);
   await _git(['fetch', 'origin']);
 
   final blocked = await _landingBlock(tag, isPreRelease: isPreRelease);
@@ -776,7 +868,9 @@ Future<int> land(String version, String releaseUrl) async {
   try {
     await _git(['branch', '-d', branch]);
     if ((await _git(['ls-remote', '--heads', 'origin', branch])).isNotEmpty) {
-      await _git(['push', 'origin', '--delete', branch]);
+      // The lease refuses a branch that moved since the tagged commit.
+      final lease = '--force-with-lease=refs/heads/$branch:$tagged';
+      await _git(['push', 'origin', lease, '--delete', branch]);
     }
   } on _Refusal catch (failure) {
     // The release is out; a branch left behind is the owner's to delete.

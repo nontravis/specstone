@@ -61,8 +61,10 @@ void main() {
         'create release/0.2.0 from develop',
         'set 0.2.0 in the four version spots',
         're-read the four spots; run dart pub get --enforce-lockfile',
-        'commit "chore: release 0.2.0"; tag v0.2.0 on it',
-        'push tag v0.2.0',
+        'commit "chore: release 0.2.0"',
+        'push release/0.2.0',
+        'wait for the ci run of release/0.2.0',
+        'tag v0.2.0 on the head of release/0.2.0; push tag v0.2.0',
         'wait for the release.yaml run of v0.2.0',
         fetchLine,
         fastForwardLine,
@@ -83,8 +85,10 @@ void main() {
         'create release/0.2.0-beta.1 from develop',
         'set 0.2.0-beta.1 in the four version spots',
         're-read the four spots; run dart pub get --enforce-lockfile',
-        'commit "chore: release 0.2.0-beta.1"; tag v0.2.0-beta.1 on it',
-        'push tag v0.2.0-beta.1',
+        'commit "chore: release 0.2.0-beta.1"',
+        'push release/0.2.0-beta.1',
+        'wait for the ci run of release/0.2.0-beta.1',
+        'tag v0.2.0-beta.1 on the head of release/0.2.0-beta.1; push tag v0.2.0-beta.1',
         'wait for the release.yaml run of v0.2.0-beta.1',
         ...preLandingLines,
       ].map((l) => '$l\n').join(),
@@ -320,6 +324,56 @@ void main() {
     await expectRefusal(r, ['v0.2.0', 'origin']);
   });
 
+  test('an untagged release/0.2.0 on origin refuses naming the branch and '
+      'the run command', () async {
+    await repo.git([
+      'push',
+      '-q',
+      'origin',
+      'develop:refs/heads/release/0.2.0',
+    ]);
+    before = await repo.state();
+
+    final r = await repo.release(['0.2.0']);
+
+    await expectRefusal(r, [
+      'release/0.2.0',
+      'dart run tool/release.dart 0.2.0',
+    ]);
+    expect(await repo.git(['branch', '--list', 'release/0.2.0']), isEmpty);
+  });
+
+  test('origin team/release/0.2.0 is not release/0.2.0 and does not '
+      'refuse', () async {
+    await repo.git([
+      'push',
+      '-q',
+      'origin',
+      'develop:refs/heads/team/release/0.2.0',
+    ]);
+
+    final r = await repo.release(['0.2.0']);
+
+    expect(r.stderr, isNot(contains('origin holds release/0.2.0')));
+  });
+
+  test('tag v0.2.0 on origin wins over an origin release/0.2.0', () async {
+    await repo.git([
+      'push',
+      '-q',
+      'origin',
+      'develop:refs/heads/release/0.2.0',
+    ]);
+    await repo.git(['tag', 'v0.2.0']);
+    await repo.git(['push', '-q', 'origin', 'v0.2.0']);
+    await repo.git(['tag', '-d', 'v0.2.0']);
+    before = await repo.state();
+
+    final r = await repo.release(['0.2.0']);
+
+    await expectRefusal(r, ['tag v0.2.0 already exists on origin']);
+  });
+
   test('a local tag v0.2.0 refuses', () async {
     await repo.git(['tag', 'v0.2.0']);
     before = await repo.state();
@@ -433,6 +487,22 @@ void main() {
       "-p develop 'develop^{tree}') "
       "&& git -C '${repo.work.path}' update-ref refs/heads/develop \$c";
 
+  const runsQueryPrefix = 'api repos/{owner}/{repo}/actions/runs';
+
+  // The gh calls of a first run after its develop ci check: the ci wait, the
+  // release.yaml wait, then the Release read.
+  List<String> releaseCalls(String sha, String tag) {
+    const ciRun = 'run watch 223456789 --exit-status';
+    final runs = '$runsQueryPrefix?head_sha=$sha&event=push';
+    return [
+      runs,
+      ciRun,
+      runs,
+      'run watch 123456789 --exit-status',
+      'release view $tag --json url --jq .url',
+    ];
+  }
+
   const resolveLine =
       'Resolve it, then run dart run tool/release.dart 0.2.0 again from '
       'release/0.2.0';
@@ -443,7 +513,15 @@ void main() {
 
   test('the tag ships first; main '
       'and develop move after the Release', () async {
-    final r = await repo.release(['0.2.0']);
+    final watchedRefs = '${repo.root.path}/watched_refs.txt';
+    final r = await repo.release(
+      ['0.2.0'],
+      gh: {
+        'GH_STUB_ON_CI_WATCH':
+            "{ git -C '${repo.work.path}' ls-remote origin; echo ---; } "
+            ">> '$watchedRefs'",
+      },
+    );
 
     expect(r.exitCode, 0, reason: '${r.stderr}');
     expect(
@@ -454,6 +532,14 @@ void main() {
     );
     final refs = await repo.originRefs();
     final tagged = refs['refs/tags/v0.2.0']!;
+    // The landing deletes the branch, so its head is read in the first watch
+    // record; a record ends at its `---` line.
+    final firstRecord = File(watchedRefs).readAsStringSync().split('---\n');
+    final atWatch = {
+      for (final line in firstRecord.first.trimRight().split('\n'))
+        line.split('\t').last: line.split('\t').first,
+    };
+    expect(atWatch['refs/heads/release/0.2.0'], tagged);
     expect(
       await repo.git(['log', '-1', '--format=%s', tagged]),
       'chore: release 0.2.0',
@@ -477,14 +563,44 @@ void main() {
     ]);
     expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
     expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
-    final runList =
-        'api repos/{owner}/{repo}/actions/runs?head_sha=$tagged&event=push';
-    expect(repo.ghCalls().skip(1), [
-      runList,
-      'run watch 123456789 --exit-status',
-      'release view v0.2.0 --json url --jq .url',
-    ]);
+    expect(repo.ghCalls().skip(1), releaseCalls(tagged, 'v0.2.0'));
     expect(await repo.git(['branch', '--show-current']), 'develop');
+  });
+
+  test('the tag waits for a passed ci run of the branch head', () async {
+    final watched = '${repo.root.path}/watched_tags.txt';
+    final record =
+        "echo watch >> '$watched' && "
+        "git -C '${repo.work.path}' ls-remote --tags origin >> '$watched'";
+    final r = await repo.release(
+      ['0.2.0'],
+      gh: {'GH_STUB_ON_CI_WATCH': record, 'GH_STUB_ON_WATCH': record},
+    );
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    final tagged = (await repo.originRefs())['refs/tags/v0.2.0']!;
+    expect(repo.ghCalls().skip(1), releaseCalls(tagged, 'v0.2.0'));
+    // The first record is taken at the ci watch, the second at the release one.
+    final records = File(watched).readAsStringSync().split('watch\n');
+    expect(records.skip(1), hasLength(2));
+    expect(records[1], isNot(contains('v0.2.0')));
+    expect(records[2], contains('refs/tags/v0.2.0'));
+  });
+
+  test('a ci run listed late is still awaited before the tag', () async {
+    final r = await repo.release(
+      ['0.2.0'],
+      gh: {'GH_STUB_BRANCH_CI_LATE': '1'},
+    );
+
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    final calls = repo.ghCalls();
+    final ciWatch = calls.indexOf('run watch 223456789 --exit-status');
+    expect(ciWatch, isNonNegative);
+    expect(
+      calls.take(ciWatch).where((c) => c.startsWith(runsQueryPrefix)),
+      hasLength(2),
+    );
   });
 
   test('a pre-release tags a commit that changes the four '
@@ -575,18 +691,101 @@ dependencies:
     expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
   });
 
-  test('a rejected tag push keeps the branch and tag for a '
-      'run again', () async {
+  test('a rejected branch push keeps the local branch and pushes no '
+      'tag', () async {
+    await rejectPushes('refs/heads/release/*');
+    final refs = await repo.originRefs();
+
+    final r = await repo.release(['0.2.0']);
+
+    expect(r.exitCode, 1);
+    expect(r.stderr, contains('git push origin release/0.2.0'));
+    expect(
+      r.stderr,
+      contains('main and develop are untouched, and release/0.2.0 stays. '),
+    );
+    expect(
+      r.stderr,
+      contains('run dart run tool/release.dart 0.2.0 again from release/0.2.0'),
+    );
+    expect(await repo.git(['branch', '--list', 'release/0.2.0']), isNotEmpty);
+    expect(await repo.git(['tag', '--list', 'v0.2.0']), isEmpty);
+    expect(await repo.originRefs(), refs);
+  });
+
+  test('a rejected tag push after the ci run passed keeps the branch and tag '
+      'for a run again', () async {
     await rejectPushes('refs/tags/*');
     final refs = await repo.originRefs();
 
     final r = await repo.release(['0.2.0']);
 
     expect(r.exitCode, 1);
+    expect(repo.ghCalls(), contains('run watch 223456789 --exit-status'));
     expect(r.stderr, contains('git push origin v0.2.0'));
+    expect(
+      stderrLines(r).last,
+      endsWith('run dart run tool/release.dart 0.2.0 again from release/0.2.0'),
+    );
     expect(await repo.git(['branch', '--list', 'release/0.2.0']), isNotEmpty);
     expect(await repo.git(['tag', '--list', 'v0.2.0']), 'v0.2.0');
-    expect(await repo.originRefs(), refs);
+    final after = await repo.originRefs();
+    expect(after.keys.toSet().difference(refs.keys.toSet()), {
+      'refs/heads/release/0.2.0',
+    });
+    expect(after['refs/heads/release/0.2.0'], await sha('release/0.2.0'));
+    expect(after['refs/heads/main'], refs['refs/heads/main']);
+    expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+  });
+
+  for (final end in ['failure', 'cancelled']) {
+    test(
+      'a branch ci run $end pushes no tag and keeps release/0.2.0',
+      () async {
+        final refs = await repo.originRefs();
+
+        final r = await repo.release(['0.2.0'], gh: {'GH_STUB_BRANCH_CI': end});
+
+        expect(r.exitCode, 1);
+        expect(
+          r.stderr,
+          endsWith(
+            'release: the ci run of release/0.2.0 ended as $end: '
+            'https://github.com/nontravis/specstone/actions/runs/223456789; '
+            'no tag was made, and main and develop are untouched. '
+            'Fix on release/0.2.0, then run dart run tool/release.dart 0.2.0 '
+            'from that branch\n',
+          ),
+        );
+        final after = await repo.originRefs();
+        expect(after.keys.toSet().difference(refs.keys.toSet()), {
+          'refs/heads/release/0.2.0',
+        });
+        expect(after['refs/heads/main'], refs['refs/heads/main']);
+        expect(after['refs/heads/develop'], refs['refs/heads/develop']);
+        expect(await repo.git(['tag', '--list', 'v0.2.0']), isEmpty);
+        expect(await repo.git(['branch', '--show-current']), 'release/0.2.0');
+        expect(
+          repo.ghCalls().where((c) => c.startsWith('release view')),
+          isEmpty,
+        );
+      },
+    );
+  }
+
+  test('a branch ci view that fails pushes no tag and ends in the run again '
+      'line', () async {
+    final r = await repo.release(
+      ['0.2.0'],
+      gh: {'GH_STUB_BRANCH_CI_VIEW': 'broken'},
+    );
+
+    expect(r.exitCode, 1);
+    expect(stderrLines(r).last, resolveLine);
+    expect('again from release/0.2.0'.allMatches('${r.stderr}'), hasLength(1));
+    expect(await repo.git(['tag', '--list', 'v0.2.0']), isEmpty);
+    expect(await repo.originRefs(), isNot(contains('refs/tags/v0.2.0')));
+    expect(await repo.git(['branch', '--show-current']), 'release/0.2.0');
   });
 
   test('a failed release run leaves main and '
@@ -612,7 +811,15 @@ dependencies:
     expect(after['refs/heads/develop'], refs['refs/heads/develop']);
     expect(after, contains('refs/tags/v0.2.0'));
     expect(await repo.git(['branch', '--show-current']), 'release/0.2.0');
-    expect(repo.ghCalls().where((c) => c.startsWith('release view')), isEmpty);
+    final calls = repo.ghCalls();
+    expect(
+      calls.indexOf('run watch 223456789 --exit-status'),
+      allOf(
+        isNonNegative,
+        lessThan(calls.indexOf('run watch 123456789 --exit-status')),
+      ),
+    );
+    expect(calls.where((c) => c.startsWith('release view')), isEmpty);
   });
 
   test('a develop moved during the wait is '
@@ -678,11 +885,7 @@ dependencies:
       contains('Nothing was pushed; the Release v0.2.0 stays published.\n'),
     );
     final tagged = (await repo.originRefs())['refs/tags/v0.2.0']!;
-    expect(repo.ghCalls().skip(1), [
-      'api repos/{owner}/{repo}/actions/runs?head_sha=$tagged&event=push',
-      'run watch 123456789 --exit-status',
-      'release view v0.2.0 --json url --jq .url',
-    ]);
+    expect(repo.ghCalls().skip(1), releaseCalls(tagged, 'v0.2.0'));
   });
 
   test('local develop ahead of origin/develop moves no ref '
@@ -727,11 +930,7 @@ dependencies:
         contains('Nothing was pushed; the Release v0.2.0 stays published.\n'),
       );
       final tagged = (await repo.originRefs())['refs/tags/v0.2.0']!;
-      expect(repo.ghCalls().skip(1), [
-        'api repos/{owner}/{repo}/actions/runs?head_sha=$tagged&event=push',
-        'run watch 123456789 --exit-status',
-        'release view v0.2.0 --json url --jq .url',
-      ]);
+      expect(repo.ghCalls().skip(1), releaseCalls(tagged, 'v0.2.0'));
     },
   );
 
@@ -790,11 +989,7 @@ dependencies:
     await expectAncestor(repo, tagged, refs['refs/heads/develop']!);
     expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
     expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
-    expect(repo.ghCalls().skip(1), [
-      'api repos/{owner}/{repo}/actions/runs?head_sha=$tagged&event=push',
-      'run watch 123456789 --exit-status',
-      'release view v0.2.0-beta.1 --json url --jq .url',
-    ]);
+    expect(repo.ghCalls().skip(1), releaseCalls(tagged, 'v0.2.0-beta.1'));
     expect(await repo.git(['branch', '--show-current']), 'develop');
     expect(await hasCheckedOutMain(repo), isFalse);
   });
@@ -927,8 +1122,10 @@ dependencies:
         'create release/0.2.0 from develop',
         'set 0.2.0 in the four version spots',
         're-read the four spots; run dart pub get --enforce-lockfile',
-        'commit "chore: release 0.2.0"; tag v0.2.0 on it',
-        'push tag v0.2.0',
+        'commit "chore: release 0.2.0"',
+        'push release/0.2.0',
+        'wait for the ci run of release/0.2.0',
+        'tag v0.2.0 on the head of release/0.2.0; push tag v0.2.0',
         'wait for the release.yaml run of v0.2.0',
         fetchLine,
         fastForwardLine,
@@ -1126,12 +1323,12 @@ dependencies:
       final r = await repo.release(['0.2.0'], gh: {'GH_STUB_RUN_LATE': '1'});
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
-      expect(
-        repo.ghCalls().where(
-          (c) => c.startsWith('api repos/{owner}/{repo}/actions/runs'),
-        ),
-        hasLength(2),
+      // The release.yaml find follows the ci wait; it polls its own late run.
+      final afterCi = repo.ghCalls().skipWhile(
+        (c) => c != 'run watch 223456789 --exit-status',
       );
+      expect(afterCi, isNotEmpty);
+      expect(afterCi.where((c) => c.startsWith(runsQueryPrefix)), hasLength(2));
     });
 
     test('the wait names the run it watches', () async {
@@ -1142,6 +1339,21 @@ dependencies:
         contains(
           'Waiting for the release.yaml run of v0.2.0: '
           'https://github.com/nontravis/specstone/actions/runs/123456789\n',
+        ),
+      );
+    });
+
+    test('the ci wait names the run it watches', () async {
+      final r = await repo.release(['0.2.0']);
+
+      const ciLine =
+          'Waiting for the ci run of release/0.2.0: '
+          'https://github.com/nontravis/specstone/actions/runs/223456789\n';
+      expect(r.stdout, contains(ciLine));
+      expect(
+        (r.stdout as String).indexOf(ciLine),
+        lessThan(
+          (r.stdout as String).indexOf('Waiting for the release.yaml run'),
         ),
       );
     });
@@ -1237,6 +1449,52 @@ dependencies:
       final refs = await repo.originRefs();
       expect(refs['refs/heads/main'], refs['refs/tags/v0.2.0']);
     });
+
+    test('a release branch that moved on origin during the wait is kept '
+        'and named', () async {
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {
+          'GH_STUB_ON_WATCH': repo.pushFromOtherCloneCommand('release/0.2.0'),
+        },
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(r.stderr, contains('release: could not delete release/0.2.0:'));
+      final refs = await repo.originRefs();
+      expect(refs['refs/heads/release/0.2.0'], isNotNull);
+      expect(refs['refs/heads/release/0.2.0'], isNot(refs['refs/tags/v0.2.0']));
+    });
+
+    test('a failing stub hook fails its gh call and names the hook', () async {
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_ON_WATCH': 'exit 7'},
+      );
+
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains('gh stub: hook GH_STUB_ON_WATCH failed'));
+    });
+
+    test('a run path with a @ref suffix still names its workflow', () async {
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_PATH_REF': '1'});
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(repo.ghCalls(), contains('run watch 223456789 --exit-status'));
+      expect(repo.ghCalls(), contains('run watch 123456789 --exit-status'));
+    });
+
+    test('the newest of several ci runs of one commit is the one '
+        'watched', () async {
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_CI_OLDER': '1'});
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(repo.ghCalls(), contains('run watch 223456789 --exit-status'));
+      expect(
+        repo.ghCalls().where((c) => c.startsWith('run watch 223456788')),
+        isEmpty,
+      );
+    });
   });
 
   group('run again from the release branch', () {
@@ -1251,25 +1509,166 @@ dependencies:
       tagBefore = (await repo.originRefs())['refs/tags/v0.2.0']!;
     });
 
-    test('the tag moves to the fix and the '
+    test('the tag moves to the fix after the branch ci run passes and the '
         'release lands', () async {
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
       final fix = await sha('HEAD');
+      final firstCalls = repo.ghCalls().length;
+      final seen = File('${repo.root.path}/tag_at_ci_watch');
 
-      final r = await repo.release(['0.2.0']);
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {
+          'GH_STUB_ON_CI_WATCH':
+              'git -C "${repo.origin.path}" rev-parse refs/tags/v0.2.0 '
+              '> "${seen.path}"; '
+              'git -C "${repo.origin.path}" rev-parse refs/heads/release/0.2.0 '
+              '>> "${seen.path}"',
+        },
+      );
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(seen.readAsLinesSync(), [tagBefore, fix]);
       final refs = await repo.originRefs();
       expect(refs['refs/tags/v0.2.0'], fix);
       expect(refs['refs/heads/main'], fix);
       expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+      const runs = 'api repos/{owner}/{repo}/actions/runs?head_sha';
       expect(
-        repo.ghCalls(),
+        repo.ghCalls().skip(firstCalls),
         containsAllInOrder([
           'auth status',
           'release view v0.2.0 --json url --jq .url',
-          'api repos/{owner}/{repo}/actions/runs?head_sha=$fix&event=push',
+          '$runs=$fix&event=push',
+          'run watch 223456789 --exit-status',
+          '$runs=$fix&event=push',
+          'run watch 123456789 --exit-status',
         ]),
+      );
+    });
+
+    test('the tag moves to the head whose ci run was awaited, not to a commit '
+        'made during the wait', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final fix = await sha('HEAD');
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {
+          'GH_STUB_ON_CI_WATCH':
+              "git -C '${repo.work.path}' commit -q --allow-empty -m late",
+        },
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(await sha('HEAD'), isNot(fix), reason: 'the hook committed');
+      expect((await repo.originRefs())['refs/tags/v0.2.0'], fix);
+    });
+
+    test('a run of the tag that starts during the ci wait is awaited and '
+        'the tag stays', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      // The first run's ci watch left its marker; the stub reads it.
+      File('${repo.root.path}/ci_watched').deleteSync();
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_RUN_STATE_AFTER_CI': 'in_progress'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final refs = await repo.originRefs();
+      expect(refs['refs/tags/v0.2.0'], tagBefore);
+      expect(refs['refs/heads/main'], tagBefore);
+      expect(
+        r.stdout,
+        contains('v0.2.0 at $tagBefore is still being released'),
+      );
+    });
+
+    test('a run again whose branch ci view fails names the run again line '
+        'once', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_BRANCH_CI_VIEW': 'broken'},
+      );
+
+      expect(r.exitCode, 1);
+      expect(stderrLines(r).last, resolveLine);
+      expect(
+        'again from release/0.2.0'.allMatches('${r.stderr}'),
+        hasLength(1),
+      );
+      expect((await repo.originRefs())['refs/tags/v0.2.0'], tagBefore);
+    });
+
+    test('a run again whose branch ci run fails leaves the tag where it '
+        'was', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final fix = await sha('HEAD');
+      final before = await repo.originRefs();
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_BRANCH_CI': 'failure'},
+      );
+
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        endsWith(
+          'release: the ci run of release/0.2.0 ended as failure: '
+          'https://github.com/nontravis/specstone/actions/runs/223456789; '
+          'no tag was made, and main and develop are untouched. '
+          'Fix on release/0.2.0, then run dart run tool/release.dart 0.2.0 '
+          'from that branch\n',
+        ),
+      );
+      final refs = await repo.originRefs();
+      expect(refs['refs/tags/v0.2.0'], tagBefore);
+      expect(refs['refs/heads/main'], before['refs/heads/main']);
+      expect(refs['refs/heads/develop'], before['refs/heads/develop']);
+      expect(refs['refs/heads/release/0.2.0'], fix);
+      expect(
+        repo.ghCalls().where((c) => c.startsWith('run watch 123456789')),
+        hasLength(1),
+        reason: 'only the first run watched the release.yaml run',
+      );
+    });
+
+    test('a run again on a head whose ci run already passed moves the tag '
+        'once', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final fix = await sha('HEAD');
+      final pushes = File('${repo.root.path}/pushes.log');
+      final hook = File('${repo.origin.path}/hooks/pre-receive');
+      await hook.writeAsString(
+        '#!/bin/sh\n'
+        'while read old new ref; do\n'
+        '  echo "\$ref \$new" >> "${pushes.path}"\n'
+        'done\n',
+      );
+      await Process.run('chmod', ['+x', hook.path]);
+      final firstCalls = repo.ghCalls().length;
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_BRANCH_CI': 'success'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final tagPushes = pushes.readAsLinesSync().where(
+        (l) => l.startsWith('refs/tags/v0.2.0 '),
+      );
+      expect(tagPushes, ['refs/tags/v0.2.0 $fix']);
+      expect(
+        repo
+            .ghCalls()
+            .skip(firstCalls)
+            .where((c) => c.startsWith('run watch 223456789')),
+        hasLength(1),
       );
     });
 
@@ -1630,6 +2029,7 @@ dependencies:
         r.stdout,
         [
           'push release/0.2.0',
+          'wait for the ci run of release/0.2.0',
           'move tag v0.2.0 to the head of release/0.2.0; push it',
           'wait for the release.yaml run of v0.2.0',
           fetchLine,
@@ -1659,6 +2059,44 @@ dependencies:
         ].map((l) => '$l\n').join(),
       );
       expect(await repo.state(), mid);
+    });
+  });
+
+  group('run again after a failed branch ci run', () {
+    setUp(() async {
+      final first = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_BRANCH_CI': 'failure'},
+      );
+      expect(first.exitCode, 1);
+      expect(await repo.originRefs(), isNot(contains('refs/tags/v0.2.0')));
+    });
+
+    test('a run again after a failed branch ci run lands the fix', () async {
+      await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
+      final fix = await sha('HEAD');
+
+      final r = await repo.release(
+        ['0.2.0'],
+        gh: {'GH_STUB_BRANCH_CI': 'success'},
+      );
+
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        (r.stdout as String).trimRight().split('\n').last,
+        'Released v0.2.0: '
+        'https://github.com/nontravis/specstone/releases/tag/v0.2.0; '
+        'main and develop pushed',
+      );
+      final refs = await repo.originRefs();
+      expect(refs['refs/tags/v0.2.0'], fix);
+      expect(refs['refs/heads/main'], fix);
+      expect(
+        await repo.git(['merge-base', '--is-ancestor', fix, 'origin/develop']),
+        isEmpty,
+      );
+      expect(refs.keys.where((k) => k.contains('release/')), isEmpty);
+      expect(await repo.git(['branch', '--list', 'release/0.2.0']), isEmpty);
     });
   });
 
@@ -1837,6 +2275,7 @@ dependencies:
         r.stdout,
         [
           'push release/0.2.0-beta.1',
+          'wait for the ci run of release/0.2.0-beta.1',
           'move tag v0.2.0-beta.1 to the head of release/0.2.0-beta.1; push it',
           'wait for the release.yaml run of v0.2.0-beta.1',
           ...preLandingLines,
