@@ -1,0 +1,41 @@
+id: role_permission
+description: Roles, grants, and checks per operation.
+items:
+  - id: deny_by_default
+    text: Access is denied unless a rule grants it, including for new features and resources.
+  - id: check_every_request
+    text: Permission is checked on the server on every request, never only in the client.
+  - id: operation_level
+    text: Each operation is limited to roles or users explicitly granted it.
+  - id: record_level
+    text: Access to each record is checked for that record, so access to one does not grant access to others of its kind.
+  - id: field_level
+    text: Reading and writing each sensitive field is limited to callers granted that field.
+  - id: least_privilege
+    text: Each role gets only the permissions its job needs.
+  - id: roles_hold_permissions
+    text: Users get permissions through the roles assigned to them, and each role holds a set of permitted operations.
+  - id: exclusive_roles
+    text: Roles that must never be held together are declared mutually exclusive.
+  - id: role_hierarchy
+    text: A role hierarchy, where one exists, states which roles inherit another role's permissions.
+  - id: immediate_change
+    text: A grant or revoke takes effect at once, even for sessions already open.
+  - id: tenant_isolation
+    text: In a multi-tenant system, no operation can affect a tenant the caller has no rights in.
+  - id: permission_matrix
+    text: A matrix of user types, resources, and operations states who may do what, and tests check it.
+  - id: privilege_creep_review
+    text: Granted permissions are reviewed over time so they never grow past the design.
+  - id: safe_refusal
+    text: A failed check ends the request with a plain refusal that reveals no internal detail.
+  - id: refusals_logged
+    text: Every failed access check is logged.
+reference:
+  - title: OWASP ASVS 5.0
+    url: https://github.com/OWASP/ASVS/tree/v5.0.0
+    locator: V8 Authorization
+  - title: OWASP Authorization Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
+  - title: NIST RBAC
+    url: https://csrc.nist.gov/projects/role-based-access-control

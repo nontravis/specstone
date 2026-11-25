@@ -1,0 +1,109 @@
+id: architecture
+description: |-
+  One feature's architecture: its components, who calls whom, and where each runs.
+  Title it `# <Feature name> architecture`, such as `# Rendering architecture`, with no number.
+  Write this doc only when the feature adds or changes a container or a store, or when a flow crosses three or more components.
+  The target's record holds each story's and FR's status and code paths, and each feature's `covers`.
+  Write no code samples or skill and agent steps; code holds the implementation.
+  Write no design rationale here; a decision's why goes in its `decision` doc, linked from here.
+  A feature's SECURITY may cite this doc by a section link, such as `[architecture:rendering](ARCHITECTURE.md#technical-diagram)`.
+  Write one rule per ID: one Components row per component.
+  Put a rule every feature uses in the project's ARCHITECTURE doc.
+path: specs/f{nn}_{slug}/ARCHITECTURE.md
+parent: feature
+per_target: true
+sections:
+  - id: technical_diagram
+    header: Technical diagram
+    required: true
+    description: |-
+      Write Mermaid blocks alone, no prose: one or more component diagrams, then each other view only when its line says, in the order below; any view may repeat.
+      Open each diagram with a `title:` that starts with its view name, such as `title: Deployment — production`.
+      Type every box as `Name (technology)`, such as `A["Formatter (Dart)"]`, and label every arrow with its intent and protocol; write no bare `Uses`. Quote a label holding a bracket, parenthesis, or brace, and write `"` inside it as `#quot;`.
+      Keep each diagram to 12 boxes or 12 messages, and split past that; write no `classDef` or `style`, and no `stateDiagram-v2`, `erDiagram`, `classDiagram`, gantt, or pie.
+      Name each box and participant a Component or System name or a `feature:` mention, and each `actor` a role; put a flow's explanation in the FR it serves when users see it, else in a `decision` doc.
+      Component view, a `flowchart` of exactly the Components rows; always.
+      Deployment view, a `flowchart` with one `subgraph` per runtime node, the components inside it, and each link between nodes labelled with its protocol, no Why; when components run on more than one runtime node or environment.
+      Data flow view, a `flowchart`; when data passes three or more stages that change its shape.
+      Dependency view, a `flowchart`; when a rule fixes which component may depend on which.
+      Sequence view, one `sequenceDiagram` per scenario, its scenario name in its `title:`; when a flow crosses three or more components, runs async, or fails on a path unlike its happy path.
+    lint:
+      diagram:
+        title: true
+        edge_labels: true
+        banned_labels: [Uses]
+        names: true
+  - id: components
+    header: Components
+    required: true
+    description: |-
+      Write one table with the columns Component, Responsibility, Tech, Owns.
+      Write one row per component; every box of the Component view is a row.
+      Write a role in Responsibility, never a behavior an FR states.
+      Write no line but a table line.
+      Write no file, folder, or command list that code or another doc holds.
+    lint:
+      max_sentences:
+        - count: 1
+          column: Responsibility
+      banned_patterns:
+        - id: table_only
+          pattern: '^(?!\||## |\s*(?:- )?Overrides:)\s*\S'
+          message: 'line is not a table line; guide line: Write no line but a table line'
+          in: all
+  - id: data
+    header: Data
+    description: |-
+      Write a table with the columns Store, Holds, Shape, Owner, Consistency, one row per store.
+      State the rough shape in words; copy no schema.
+  - id: deployment
+    header: Deployment
+    description: |-
+      Write it only when the feature runs somewhere the tech stack doc does not say.
+      Write a table of where each component runs, one row per component, such as process, container, edge, or browser.
+      Add a one-clause Why on each row, saying why it runs there, no design decision's rationale.
+      Write no link between runtime nodes; the Deployment view draws them.
+      Split the table per environment only when environments differ.
+  - id: rollout
+    header: Rollout
+    description: |-
+      Write a table of Stage, Scope, Gate, Rollback.
+      Write each Gate as a signal and threshold, each Rollback as a trigger and action.
+      Add expand, migrate, and contract steps for a breaking change.
+  - id: observability
+    header: Observability
+    description: |-
+      Write a table of Signal, SLI, SLO target, Alert on.
+      Write the SLI as how the signal is measured, Alert on as a symptom, never a cause.
+      Add the log channels as `<name> - <events>`.
+    lint:
+      banned_patterns:
+        - id: log_channel_form
+          pattern: '^(?!- \S.* - \S|- Overrides:)- '
+          message: 'log channel bullet is not <name> - <events>; guide line: Add the log channels as `<name> - <events>`'
+          in: all
+  - id: risks
+    header: Risks
+    description: |-
+      Write a table with the columns Risk, Mitigation, one row per design risk, ordered by priority.
+  - id: open_questions
+    header: Open questions
+    description: |-
+      List the unresolved decisions.
+lint:
+  title_no_number: true
+  max_chars: 50000
+  max_lines: 300
+reference:
+  - title: The C4 model, Notation
+    url: https://c4model.com/diagrams/notation
+    locator: Diagrams; Elements; Relationships
+  - title: arc42 section 5, Building Block View
+    url: https://docs.arc42.org/section-5/
+    locator: Whitebox template; black box template
+  - title: Google SRE Book, ch. 27 Reliable Product Launches at Scale
+    url: https://sre.google/sre-book/reliable-product-launches/
+    locator: Rollout Planning; Gradual and Staged Rollouts
+  - title: Google SRE Book, ch. 6 Monitoring Distributed Systems
+    url: https://sre.google/sre-book/monitoring-distributed-systems/
+    locator: Symptoms Versus Causes; The Four Golden Signals

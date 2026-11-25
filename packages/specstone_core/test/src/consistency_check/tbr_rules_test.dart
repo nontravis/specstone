@@ -1,0 +1,404 @@
+// The marker is built from parts so this file holds no stray marker text.
+
+import 'dart:io';
+
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/tbr_rules.dart'
+    show tbrValueLimit;
+import 'package:test/test.dart';
+
+import '../../helpers/check_fixture.dart';
+
+const _dash = '—';
+const _marker = 'TBR $_dash ';
+const _openNoValue = 'the value is still to be resolved';
+const _stillOpen = '$_openNoValue: ';
+const _rationale = 'A wrong password must not sign in.';
+const _nfRationale = 'Users wait.';
+const _gnfrBlock = '- **Rationale:** Users wait.\n';
+
+Future<({Directory project, List<Finding> found})> _run(
+  Map<String, String> extra,
+) async {
+  final project = await writeCheckProject(extra: extra);
+  return (
+    project: project,
+    found: [
+      for (final finding in (await checkOf(project)).findings)
+        if (finding.kind == FindingKind.tbrOpen) finding,
+    ],
+  );
+}
+
+Map<String, String> _frWith(String replacement) =>
+    doc(loginFr, _rationale, replacement);
+
+Map<String, String> _frWithSection(String section) => edit(loginFr, [
+  (
+    '## Verification\n\nTest: a wrong password is refused.\n',
+    '## Verification\n\nTest: a wrong password is refused.\n\n$section',
+  ),
+]);
+
+void main() {
+  test('a project with no TBR gives no finding', () async {
+    expect((await _run(const {})).found, isEmpty);
+  });
+
+  test('a marker after a bold label gives one marker finding '
+      'at its line', () async {
+    const text = '${_marker}legacy states none';
+    final (:project, :found) = await _run(_frWith('- **Consistency:** $text'));
+
+    expect(found, hasLength(1));
+    final finding = found.single;
+    expect(finding.path, loginFr);
+    expect(finding.line, lineOfFirst(project, loginFr, _marker));
+    expect(finding.keys, {'form': 'marker', 'value': 'legacy states none'});
+    expect(finding.message, '${_stillOpen}legacy states none');
+    expect(finding.waitsFor, WaitsFor.owner);
+    expect(finding.toJson(), containsPair('waitsFor', 'owner'));
+  });
+
+  test('after the value is written, no finding', () async {
+    final (:found, project: _) = await _run(
+      _frWith('- **Consistency:** immediate'),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a marker in a table cell and one in a paragraph each '
+      'give one finding at their line', () async {
+    final (:project, :found) = await _run(
+      _frWith(
+        'Plain paragraph ${_marker}1 s.\n\n'
+        '| Field | Value |\n|---|---|\n| time | ${_marker}2 s |',
+      ),
+    );
+
+    expect(
+      [for (final f in found) f.line],
+      [
+        lineOfFirst(project, loginFr, 'Plain paragraph'),
+        lineOfFirst(project, loginFr, '| time |'),
+      ],
+    );
+    expect([for (final f in found) f.keys['form']], ['marker', 'marker']);
+    expect(found.first.message, '${_stillOpen}1 s.');
+    expect(found.last.message, '${_stillOpen}2 s |');
+  });
+
+  test('a marker inside a code span or fenced code gives no '
+      'finding', () async {
+    final (:found, project: _) = await _run(
+      _frWith(
+        'The form `${_marker}x` is named here.\n\n'
+        '```\n${_marker}y\n```',
+      ),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('an fr holding a tbr section gives one section finding '
+      'at its header line, whatever the section holds', () async {
+    final (:project, :found) = await _run(
+      _frWithSection('## TBR\n\n- **Value:** 2 s\n- **Why:** unmeasured\n'),
+    );
+
+    expect(found, hasLength(1));
+    final finding = found.single;
+    expect(finding.line, lineOfFirst(project, loginFr, '## TBR'));
+    expect(finding.keys, {'form': 'section'});
+    expect(finding.message, 'the TBR section is open');
+    expect(finding.waitsFor, WaitsFor.owner);
+  });
+
+  test('an nf holding a tbr section gives one section '
+      'finding', () async {
+    final (:project, :found) = await _run(
+      edit(loginNf, [
+        (
+          '## Verification\n\nTest: a timed sign-in.\n',
+          '## Verification\n\nTest: a timed sign-in.\n\n## TBR\n\n'
+              '- **Value:** 1 s\n',
+        ),
+      ]),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.path, loginNf);
+    expect(found.single.line, lineOfFirst(project, loginNf, '## TBR'));
+    expect(found.single.keys, {'form': 'section'});
+  });
+
+  test('the same fr gives one finding with its tbr section '
+      'and none once the section is removed', () async {
+    const section = '## TBR\n\n- **Value:** 2 s\n';
+    final open = await _run(_frWithSection(section));
+    final closed = await _run(_frWithSection(''));
+
+    expect(open.found, hasLength(1));
+    expect(open.found.single.keys, {'form': 'section'});
+    expect(closed.found, isEmpty);
+  });
+
+  test('a gnfr bullet reading none gives no finding', () async {
+    final (:found, project: _) = await _run(
+      doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:** none\n'),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a gnfr bullet with a value gives one bullet finding '
+      'at its line', () async {
+    const value = '2 s until the benchmark runs';
+    final (:project, :found) = await _run(
+      doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:** $value\n'),
+    );
+
+    expect(found, hasLength(1));
+    final finding = found.single;
+    expect(finding.path, gnfrDoc);
+    expect(finding.line, lineOfFirst(project, gnfrDoc, '**TBR:**'));
+    expect(finding.keys, {'form': 'bullet', 'value': value});
+    expect(finding.message, '$_stillOpen$value');
+    expect(finding.waitsFor, WaitsFor.owner);
+  });
+
+  test('none is read exactly after trim, so None, none. and '
+      'none $_dash reason each give a bullet finding', () async {
+    for (final value in ['None', 'none.', 'none $_dash reason']) {
+      final (:project, :found) = await _run(
+        doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:**   $value  \n'),
+      );
+
+      expect(found, hasLength(1), reason: value);
+      expect(found.single.keys, {
+        'form': 'bullet',
+        'value': value,
+      }, reason: value);
+      expect(found.single.message, '$_stillOpen$value', reason: value);
+      expect(found.single.line, lineOfFirst(project, gnfrDoc, '**TBR:**'));
+    }
+  });
+
+  test('a bullet with no value names no value after the '
+      'sentence', () async {
+    final (:found, project: _) = await _run(
+      doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:**\n'),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'bullet'});
+    expect(found.single.message, _openNoValue);
+  });
+
+  test('a long text after a marker shows its first '
+      '$tbrValueLimit characters and an ellipsis', () async {
+    final text = 'x' * (tbrValueLimit * 2);
+    final (:found, project: _) = await _run(
+      _frWith('Cite $_marker$text TBR $_dash second.'),
+    );
+
+    expect(
+      [for (final f in found) f.message],
+      unorderedEquals([
+        '$_stillOpen${text.substring(0, tbrValueLimit)}\u2026',
+        '${_stillOpen}second.',
+      ]),
+    );
+  });
+
+  test(
+    'two markers on one line give two findings at that line with the '
+    'values 2 s and 5 MB, and a longer value is cut to 80 code points',
+    () async {
+      final (:project, :found) = await _run(
+        _frWith(
+          'Cite ${_marker}2 s $_marker'
+          '5 MB',
+        ),
+      );
+
+      final line = lineOfFirst(project, loginFr, _marker);
+      expect(found.map((f) => f.line), [line, line]);
+      expect([
+        for (final f in found) f.message,
+      ], unorderedEquals(['${_stillOpen}2 s', '${_stillOpen}5 MB']));
+      expect(tbrValueLimit, 80);
+      final long = 'y' * 81;
+      final cut = await _run(_frWith('Cite $_marker$long'));
+      expect(cut.found.single.message, '$_stillOpen${'y' * 80}\u2026');
+    },
+  );
+
+  test('a marker with nothing after it names no value after '
+      'the sentence', () async {
+    final (:found, project: _) = await _run(
+      _frWith('Cite ${_marker.trimRight()} '),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'marker'});
+    expect(found.single.message, _openNoValue);
+  });
+
+  test('a marker at the end of its line, as a write stores it, '
+      'is open with no value', () async {
+    final (:found, project: _) = await _run(
+      _frWith('Cite ${_marker.trimRight()}'),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'marker'});
+    expect(found.single.message, _openNoValue);
+  });
+
+  test('a tbr_open finding that names a value holds it as value', () async {
+    final long = 'z' * (tbrValueLimit * 2);
+    final marker = await _run(_frWith('Cite ${_marker}legacy states none'));
+    final bullet = await _run(
+      doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:** 2 s until measured\n'),
+    );
+    final cut = await _run(_frWith('Cite $_marker$long'));
+    final section = await _run(_frWithSection('## TBR\n\n- **Value:** 2 s\n'));
+    final bare = await _run(_frWith('Cite ${_marker.trimRight()}'));
+
+    expect(marker.found.single.keys, {
+      'form': 'marker',
+      'value': 'legacy states none',
+    });
+    expect(bullet.found.single.keys, {
+      'form': 'bullet',
+      'value': '2 s until measured',
+    });
+    expect(cut.found.single.keys['value'], long);
+    expect(section.found.single.keys, {'form': 'section'});
+    expect(bare.found.single.keys, {'form': 'marker'});
+  });
+
+  test('a bullet label inside fenced code of a gnfr gives no '
+      'finding', () async {
+    final (:found, project: _) = await _run(
+      doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock```\n- **TBR:** 3 s\n```\n'),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a marker inside a tbr section gives the section '
+      'finding only', () async {
+    final (:found, project: _) = await _run(
+      _frWithSection('## TBR\n\n- **Value:** ${_marker}2 s\n'),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'section'});
+  });
+
+  test('a marker on a gnfr bullet gives the bullet finding '
+      'only', () async {
+    final (:found, project: _) = await _run(
+      doc(gnfrDoc, _gnfrBlock, '$_gnfrBlock- **TBR:** ${_marker}2 s\n'),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'bullet', 'value': '${_marker}2 s'});
+    expect(found.single.message, '$_stillOpen${_marker}2 s');
+  });
+
+  test('a marker beside a tbr section, in another section, '
+      'still gives its own finding', () async {
+    final (:project, :found) = await _run(
+      edit(loginFr, [
+        (_rationale, 'Cite ${_marker}3 s here.'),
+        (
+          '## Verification\n\nTest: a wrong password is refused.\n',
+          '## Verification\n\nTest: a wrong password is refused.\n\n'
+              '## TBR\n\n- **Value:** 2 s\n',
+        ),
+      ]),
+    );
+
+    expect([for (final f in found) f.keys['form']], ['marker', 'section']);
+    expect(found.first.line, lineOfFirst(project, loginFr, 'Cite'));
+  });
+
+  test('a hyphen or a missing dash is no marker', () async {
+    final (:found, project: _) = await _run(
+      _frWith('Value TBR - 2 s and TBR 3 s are no marker.'),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('a marker in a frontmatter value gives no tbr_open, the '
+      'typed field its own finding', () async {
+    final project = await writeCheckProject(
+      extra: fr('verify_method: test', 'verify_method: ${_marker}later'),
+    );
+    final report = await checkOf(project);
+
+    expect(spots(report, FindingKind.tbrOpen), isEmpty);
+    expect(spots(report, FindingKind.fieldValueMismatch), [
+      '$loginFr:5: field_value_mismatch',
+    ]);
+  });
+
+  test('a planned fr that keeps its code paths in a tbr section '
+      'gives a section finding', () async {
+    final (:found, project: _) = await _run({
+      ..._frWithSection('## TBR\n\n- **Value:** app/lib/login.dart\n'),
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
+          "---\nstatuses:\n  - 'email_login/check_password:planned'\n"
+          '---\n\n# Record\n',
+    });
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {'form': 'section'});
+  });
+
+  test('future code paths in a planned FR record entry give no '
+      'tbr_open', () async {
+    final (:found, project: _) = await _run({
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
+          "---\nstatuses:\n  - 'email_login/check_password:planned'\n"
+          "implements:\n  - 'email_login/check_password:app/lib/later.dart:later'\n"
+          '---\n\n# Record\n',
+    });
+
+    expect(found, isEmpty);
+  });
+
+  test('a path an older doc keeps in TBR prose still gives tbr_open', () async {
+    final (:found, project: _) = await _run(
+      _frWith('$_marker app/lib/later.dart'),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.keys, {
+      'form': 'marker',
+      'value': 'app/lib/later.dart',
+    });
+  });
+
+  test('an untyped doc gives no tbr_open', () async {
+    const untyped = 'prds/features/f01_login/notes.md';
+    final project = await writeCheckProject(
+      extra: {'docs/$untyped': '# Notes\n\nValue ${_marker}later.\n'},
+    );
+    final report = await checkOf(project);
+
+    expect(spots(report, FindingKind.tbrOpen), isEmpty);
+    expect(spots(report, FindingKind.untypedDoc), ['$untyped:1: untyped_doc']);
+  });
+
+  test('a marker in a doc type with no tbr section is still read '
+      'as a marker', () async {
+    final (:project, :found) = await _run(
+      doc(loginNf, _nfRationale, 'Wait ${_marker}1 s.'),
+    );
+
+    expect(found, hasLength(1));
+    expect(found.single.line, lineOfFirst(project, loginNf, _marker));
+    expect(found.single.keys, {'form': 'marker', 'value': '1 s.'});
+  });
+}

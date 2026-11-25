@@ -1,0 +1,715 @@
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/shared_entry.dart';
+import 'package:specstone_core/src/templates/shared_merge.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
+
+/// The built-in fields that take no `enum` or `list` from a layer: only
+/// `approve` and the stamps write `approved`, a pack migration alone marks
+/// `retrim`, and only the CLI adds to `retired_ids`.
+const Set<String> _shapeLockedIds = {'approved', 'retrim', retiredIdsField};
+
+/// Returns [base] with [write] applied, or [base] when [write] is null.
+///
+/// A [PlainList] is accepted only where [base] is null. A [ListChange] starts
+/// from an empty list when [base] is null and must remove only names [base]
+/// holds, else it throws the [notFound] fault. Faults name [file] and [key].
+List<T>? mergeList<T>(
+  List<T>? base,
+  ListWrite<T>? write, {
+  required String file,
+  required String key,
+  required String Function(T) nameOf,
+  required FaultCode notFound,
+}) {
+  switch (write) {
+    case null:
+      return base;
+    case PlainList(:final items):
+      if (base == null) return List.unmodifiable(items);
+      throw TemplateFault(
+        FaultCode.listOverrideNeedsAddRemove,
+        'a lower layer already defines $key; write add and remove to '
+        'change it',
+        file: file,
+        key: key,
+      );
+    case ListChange(:final add, :final remove):
+      final lower = base ?? <T>[];
+      final names = lower.map(nameOf).toSet();
+      for (final name in remove) {
+        if (names.contains(name)) continue;
+        throw TemplateFault(
+          notFound,
+          'cannot remove $name from $key; no lower layer holds it',
+          file: file,
+          key: key,
+        );
+      }
+      return List.unmodifiable([
+        for (final item in lower)
+          if (!remove.contains(nameOf(item))) item,
+        ...add,
+      ]);
+  }
+}
+
+/// Folds sparse doc-type layers onto a base, matching entries by id.
+final class DocTypeMerger {
+  const new();
+
+  /// Returns the empty doc type [id] holding only the built-in fields.
+  MergedDocType builtInBase(String id) => MergedDocType(
+    id: id,
+    fields: builtInFields,
+    sections: const [],
+    lint: const MergedLint(),
+    files: const [],
+  );
+
+  /// Returns [base] with [layer] applied on top, entries in file order.
+  ///
+  /// A `disabled: true` entry whose id a lower layer already disabled leaves
+  /// [base] as it is.
+  ///
+  /// Throws `override_id_not_found` for an entry that cannot add or override,
+  /// `after_id_not_found` for a section whose `after:` names an id the base
+  /// built so far lacks, `locked_field_disabled` for a layer that breaks a
+  /// built-in field or clears a parent the base has,
+  /// `list_override_needs_add_remove` for a plain word, reference, bundle, or
+  /// generators list over one a lower layer defines (an empty one included),
+  /// `lint_word_not_found` for a removed word the base lacks,
+  /// `override_id_not_found` for a removed pattern id the base lacks,
+  /// `reference_title_not_found` for a removed title the base lacks,
+  /// `bundle_mode_not_found` for a removed mode the base lacks, and
+  /// `unknown_value` for a removed generator kind the base lacks.
+  ///
+  /// - [heldFieldIds]: field entries of [layer] left out, for the caller to
+  ///   apply later through [applyFields].
+  MergedDocType apply(
+    MergedDocType base,
+    DocTypeLayer layer, {
+    Set<String> heldFieldIds = const {},
+  }) {
+    final parent = _mergeParent(base, layer);
+    final disabledFields = {...base.disabledFieldIds};
+    final disabledSections = {...base.disabledSectionIds};
+    return base.copyWith(
+      description: layer.description,
+      parent: parent,
+      extendsId: layer.extendsId,
+      path: layer.path,
+      title: layer.title,
+      maxDepth: layer.maxDepth,
+      isPerTarget: layer.perTarget,
+      fixedNumbers: layer.fixedNumbers,
+      bundle: mergeList<String>(
+        base.bundle,
+        layer.bundle,
+        file: layer.file,
+        key: 'bundle',
+        nameOf: (mode) => mode,
+        notFound: FaultCode.bundleModeNotFound,
+      ),
+      generators: mergeList<String>(
+        base.generators,
+        layer.generators,
+        file: layer.file,
+        key: 'generators',
+        nameOf: (kind) => kind,
+        notFound: FaultCode.unknownValue,
+      ),
+      bundleRefs: layer.bundleRefs,
+      summaryFor: layer.summaryFor,
+      fields: List.unmodifiable(
+        _mergeFields(
+          base.fields,
+          [
+            for (final entry in layer.fields)
+              if (!heldFieldIds.contains(entry.id)) entry,
+          ],
+          layer.file,
+          disabledFields,
+        ),
+      ),
+      sections: List.unmodifiable(
+        _mergeSections(base.sections, layer, disabledSections),
+      ),
+      lint: _mergeLint(base.lint, layer),
+      reference: _mergeReference(base.reference, layer),
+      files: List.unmodifiable([...base.files, layer.file]),
+      disabledFieldIds: Set.unmodifiable(disabledFields),
+      disabledSectionIds: Set.unmodifiable(disabledSections),
+    );
+  }
+
+  String? _mergeParent(MergedDocType base, DocTypeLayer layer) {
+    if (!layer.writesParent) return base.parent;
+    if (layer.parent == null && base.parent != null) {
+      throw TemplateFault(
+        FaultCode.lockedFieldDisabled,
+        'a layer cannot clear the parent of a doc type',
+        file: layer.file,
+        key: 'parent',
+      );
+    }
+    return layer.parent;
+  }
+
+  MergedLint _mergeLint(MergedLint base, DocTypeLayer layer) {
+    final lint = layer.lint;
+    if (lint == null) return base;
+    return base.copyWith(
+      maxChars: lint.maxChars,
+      maxLines: lint.maxLines,
+      maxItemChars: lint.maxItemChars,
+      bannedWords: mergeList<String>(
+        base.bannedWords,
+        lint.bannedWords,
+        file: layer.file,
+        key: 'lint.banned_words',
+        nameOf: (word) => word,
+        notFound: FaultCode.lintWordNotFound,
+      ),
+      allowedWords: mergeList<String>(
+        base.allowedWords,
+        lint.allowedWords,
+        file: layer.file,
+        key: 'lint.allowed_words',
+        nameOf: (word) => word,
+        notFound: FaultCode.lintWordNotFound,
+      ),
+      bannedPatterns: _mergePatterns(
+        base.bannedPatterns,
+        lint.bannedPatterns,
+        file: layer.file,
+        key: 'lint.banned_patterns',
+      ),
+      requiredFieldGroups: lint.requiredFieldGroups,
+      maxSentenceWords: _mergeCaps(
+        base.sentenceWordCaps,
+        lint.maxSentenceWords,
+      ),
+      maxSentenceChars: _mergeCaps(
+        base.sentenceCharCaps,
+        lint.maxSentenceChars,
+      ),
+      traceNoteLast: lint.traceNoteLast,
+      titleNoNumber: lint.titleNoNumber,
+    );
+  }
+
+  /// Returns [lower] with the entries of [upper] applied, null when [upper] is.
+  SentenceCaps? _mergeCaps(SentenceCaps lower, Map<String, int>? upper) =>
+      upper == null ? null : lower.mergedWith(upper);
+
+  /// Returns [base] with the pattern [write] applied, entries matched by `id`.
+  List<PatternEntry>? _mergePatterns(
+    List<PatternEntry>? base,
+    ListWrite<PatternEntry>? write, {
+    required String file,
+    required String key,
+  }) => _mergeKeyed<PatternEntry>(
+    base,
+    write,
+    file: file,
+    key: key,
+    keyOf: (entry) => entry.id,
+  );
+
+  /// Returns [base] with the entry [write] applied, entries matched by
+  /// [keyOf].
+  ///
+  /// An `add` entry replaces the lower entry with its key; a `remove` key the
+  /// base lacks throws `override_id_not_found`.
+  List<T>? _mergeKeyed<T>(
+    List<T>? base,
+    ListWrite<T>? write, {
+    required String file,
+    required String key,
+    required String Function(T) keyOf,
+  }) {
+    if (write is! ListChange<T>) {
+      return mergeList<T>(
+        base,
+        write,
+        file: file,
+        key: key,
+        nameOf: keyOf,
+        notFound: FaultCode.overrideIdNotFound,
+      );
+    }
+    final kept = mergeList<T>(
+      base,
+      ListChange<T>(<T>[], write.remove),
+      file: file,
+      key: key,
+      nameOf: keyOf,
+      notFound: FaultCode.overrideIdNotFound,
+    )!;
+    final replaced = {for (final entry in write.add) keyOf(entry)};
+    return List.unmodifiable([
+      for (final entry in kept)
+        if (!replaced.contains(keyOf(entry))) entry,
+      ...write.add,
+    ]);
+  }
+
+  List<ReferenceEntry>? _mergeReference(
+    List<ReferenceEntry>? base,
+    DocTypeLayer layer,
+  ) => mergeList<ReferenceEntry>(
+    base,
+    layer.reference,
+    file: layer.file,
+    key: 'reference',
+    nameOf: (entry) => entry.title,
+    notFound: FaultCode.referenceTitleNotFound,
+  );
+
+  /// Returns [base] with [entries] applied as one more layer of fields.
+  ///
+  /// [file] is the file a fault names: the `pack.yaml` that declares the
+  /// entries. The doc type's own layer list and file list stay as they are.
+  MergedDocType applyFields(
+    MergedDocType base,
+    List<FieldEntry> entries, {
+    required String file,
+  }) {
+    final disabledFields = {...base.disabledFieldIds};
+    return base.copyWith(
+      fields: List.unmodifiable(
+        _mergeFields(base.fields, entries, file, disabledFields),
+      ),
+      disabledFieldIds: Set.unmodifiable(disabledFields),
+    );
+  }
+
+  /// Returns [base] with each of [patterns] joined to each list it reaches, as
+  /// an `add:` entry replacing any lower entry of its `id`.
+  ///
+  /// A pattern with no `sections`, always a banned one, joins the doc-level
+  /// `lint.banned_patterns`; one with `sections` joins its kind's list in each
+  /// named section [base] holds. [file] is the `pack.yaml` a fault names.
+  MergedDocType applyPatterns(
+    MergedDocType base,
+    List<MergedSharedPattern> patterns, {
+    required String file,
+  }) => patterns.fold(
+    base,
+    (merged, pattern) => _applyPattern(merged, pattern, file),
+  );
+
+  MergedDocType _applyPattern(
+    MergedDocType base,
+    MergedSharedPattern pattern,
+    String file,
+  ) {
+    final add = ListChange<PatternEntry>([pattern.entry], const []);
+    final sections = pattern.sections;
+    if (sections == null) {
+      return base.copyWith(
+        lint: base.lint.copyWith(
+          bannedPatterns: _mergePatterns(
+            base.lint.bannedPatterns,
+            add,
+            file: file,
+            key: 'lint.banned_patterns',
+          ),
+        ),
+      );
+    }
+    return base.copyWith(
+      sections: List.unmodifiable([
+        for (final section in base.sections)
+          if (sections.contains(section.id))
+            _joinSection(section, pattern.kind, add, file)
+          else
+            section,
+      ]),
+    );
+  }
+
+  /// Returns [section] with [add] applied to its [kind] pattern list.
+  MergedSection _joinSection(
+    MergedSection section,
+    SharedPatternKind kind,
+    ListChange<PatternEntry> add,
+    String file,
+  ) {
+    final prefix = 'sections.${section.id}.lint';
+    return switch (kind) {
+      SharedPatternKind.banned => section.copyWith(
+        bannedPatterns: _mergePatterns(
+          section.bannedPatterns,
+          add,
+          file: file,
+          key: '$prefix.banned_patterns',
+        ),
+      ),
+      SharedPatternKind.required => section.copyWith(
+        requiredPatterns: _mergePatterns(
+          section.requiredPatterns,
+          add,
+          file: file,
+          key: '$prefix.required_patterns',
+        ),
+      ),
+    };
+  }
+
+  /// Returns [base] with the field [entries] of the layer file [file] applied.
+  ///
+  /// [disabledIds] holds the ids a lower layer disabled; it gains each id this
+  /// layer disables and loses each id this layer adds back.
+  List<MergedField> _mergeFields(
+    List<MergedField> base,
+    List<FieldEntry> entries,
+    String file,
+    Set<String> disabledIds,
+  ) {
+    final fields = [...base];
+    for (final entry in entries) {
+      final index = fields.indexWhere((f) => f.id == entry.id);
+      if (index == -1) {
+        if (entry.disabled && disabledIds.contains(entry.id)) continue;
+        final type = entry.type;
+        if (entry.disabled || type == null) {
+          throw _notFound(
+            file,
+            'field',
+            entry.id,
+            disabled: entry.disabled,
+            missing: 'type',
+          );
+        }
+        disabledIds.remove(entry.id);
+        fields.add(
+          MergedField(
+            id: entry.id,
+            type: type,
+            list: entry.list ?? false,
+            required: entry.required ?? false,
+            enumValues: _frozen(entry.enumValues),
+            docTypes: _frozen(entry.docTypes),
+            pointer: _pointerOf(entry, type, file),
+            root: _rootOf(entry, type, file),
+            bundleWith: entry.bundleWith,
+            description: entry.description,
+            lint: entry.lint,
+          ),
+        );
+        continue;
+      }
+      final current = fields[index];
+      if (current.isBuiltIn) _checkLocked(current, entry, file);
+      if (entry.disabled) {
+        fields.removeAt(index);
+        disabledIds.add(entry.id);
+        continue;
+      }
+      fields[index] = current.copyWith(
+        type: entry.type,
+        list: entry.list,
+        required: entry.required,
+        enumValues: _frozen(entry.enumValues),
+        docTypes: _frozen(entry.docTypes),
+        pointer: _pointerOf(entry, entry.type ?? current.type, file),
+        root: _rootOf(entry, entry.type ?? current.type, file),
+        bundleWith: entry.bundleWith,
+        description: entry.description,
+        lint: _mergedCaps(current.lint, entry.lint),
+      );
+    }
+    return fields;
+  }
+
+  /// Returns [lower] with each key [upper] writes replacing the same key.
+  FieldCaps? _mergedCaps(FieldCaps? lower, FieldCaps? upper) =>
+      upper == null ? null : (lower?.mergedWith(upper) ?? upper);
+
+  /// Returns the kind [entry] writes, read only when [type] is `output_ref`.
+  ///
+  /// A pointer on any other type has no effect and is not checked.
+  PointerKind? _pointerOf(FieldEntry entry, FieldType type, String file) {
+    final written = entry.pointer;
+    if (type != FieldType.outputRef || written == null) return null;
+    return PointerKind.read(written, file: file, prefix: 'fields.${entry.id}.');
+  }
+
+  /// Returns the root [entry] writes, read only when [type] is `output_ref`.
+  ///
+  /// A root on any other type has no effect and is not checked.
+  PointerRoot? _rootOf(FieldEntry entry, FieldType type, String file) {
+    final written = entry.root;
+    if (type != FieldType.outputRef || written == null) return null;
+    return PointerRoot.read(written, file: file, prefix: 'fields.${entry.id}.');
+  }
+
+  /// Returns [base] with the section entries of [layer] applied.
+  ///
+  /// [disabledIds] holds the ids a lower layer disabled; it gains each id this
+  /// layer disables and loses each id this layer adds back.
+  List<MergedSection> _mergeSections(
+    List<MergedSection> base,
+    DocTypeLayer layer,
+    Set<String> disabledIds,
+  ) {
+    final sections = [...base];
+    for (final entry in layer.sections) {
+      final index = sections.indexWhere((s) => s.id == entry.id);
+      if (index == -1) {
+        if (entry.disabled && disabledIds.contains(entry.id)) continue;
+        final header = entry.header;
+        if (entry.disabled || header == null) {
+          throw _notFound(
+            layer.file,
+            'section',
+            entry.id,
+            disabled: entry.disabled,
+            missing: 'header',
+          );
+        }
+        final position = _positionAfter(sections, entry, layer);
+        disabledIds.remove(entry.id);
+        sections.insert(
+          position,
+          MergedSection(
+            id: entry.id,
+            header: header,
+            prefixId: entry.prefixId,
+            required: entry.required ?? false,
+            description: entry.description,
+            template: entry.template,
+            maxChars: entry.lint?.maxChars,
+            maxLines: entry.lint?.maxLines,
+            bannedWords: _mergeSectionWords(
+              null,
+              entry.lint?.bannedWords,
+              layer,
+              entry.id,
+              'banned_words',
+            ),
+            allowedWords: _mergeSectionWords(
+              null,
+              entry.lint?.allowedWords,
+              layer,
+              entry.id,
+              'allowed_words',
+            ),
+            linePrefix: entry.lint?.linePrefix,
+            query: entry.query,
+            summary: entry.summary,
+            summaryRows: entry.summaryRows,
+            skeleton: entry.skeleton,
+            bannedPatterns: _mergeSectionPatterns(
+              null,
+              entry.lint?.bannedPatterns,
+              layer,
+              entry.id,
+              'banned_patterns',
+            ),
+            requiredPatterns: _mergeSectionPatterns(
+              null,
+              entry.lint?.requiredPatterns,
+              layer,
+              entry.id,
+              'required_patterns',
+            ),
+            minLines: entry.lint?.minLines,
+            catalog: entry.lint?.catalog,
+            namesCodes: entry.lint?.namesCodes,
+            itemFields: _mergeItemFields(
+              null,
+              entry.lint?.itemFields,
+              layer,
+              entry.id,
+            ),
+            requiredWhen: entry.lint?.requiredWhen,
+            diagram: entry.lint?.diagram,
+            maxSentences: entry.lint?.maxSentences,
+            itemCount: entry.lint?.itemCount,
+            maxSubsections: entry.lint?.maxSubsections,
+            maxItemLines: entry.lint?.maxItemLines,
+            maxCodeBlocks: entry.lint?.maxCodeBlocks,
+            whenField: entry.whenField,
+            isOutputRef: entry.outputRef ?? false,
+          ),
+        );
+        continue;
+      }
+      if (entry.disabled) {
+        sections.removeAt(index);
+        disabledIds.add(entry.id);
+        continue;
+      }
+      final merged = sections[index].copyWith(
+        header: entry.header,
+        prefixId: entry.prefixId,
+        required: entry.required,
+        description: entry.description,
+        template: entry.template,
+        maxChars: entry.lint?.maxChars,
+        maxLines: entry.lint?.maxLines,
+        bannedWords: _mergeSectionWords(
+          sections[index].bannedWords,
+          entry.lint?.bannedWords,
+          layer,
+          entry.id,
+          'banned_words',
+        ),
+        allowedWords: _mergeSectionWords(
+          sections[index].allowedWords,
+          entry.lint?.allowedWords,
+          layer,
+          entry.id,
+          'allowed_words',
+        ),
+        linePrefix: entry.lint?.linePrefix,
+        query: entry.query,
+        summary: entry.summary,
+        summaryRows: entry.summaryRows,
+        skeleton: entry.skeleton,
+        bannedPatterns: _mergeSectionPatterns(
+          sections[index].bannedPatterns,
+          entry.lint?.bannedPatterns,
+          layer,
+          entry.id,
+          'banned_patterns',
+        ),
+        requiredPatterns: _mergeSectionPatterns(
+          sections[index].requiredPatterns,
+          entry.lint?.requiredPatterns,
+          layer,
+          entry.id,
+          'required_patterns',
+        ),
+        minLines: entry.lint?.minLines,
+        catalog: entry.lint?.catalog,
+        namesCodes: entry.lint?.namesCodes,
+        itemFields: _mergeItemFields(
+          sections[index].itemFields,
+          entry.lint?.itemFields,
+          layer,
+          entry.id,
+        ),
+        requiredWhen: entry.lint?.requiredWhen,
+        diagram: entry.lint?.diagram,
+        maxSentences: entry.lint?.maxSentences,
+        itemCount: entry.lint?.itemCount,
+        maxSubsections: entry.lint?.maxSubsections,
+        maxItemLines: entry.lint?.maxItemLines,
+        maxCodeBlocks: entry.lint?.maxCodeBlocks,
+        whenField: entry.whenField,
+        isOutputRef: entry.outputRef,
+      );
+      if (entry.after == null || entry.after == entry.id) {
+        sections[index] = merged;
+        continue;
+      }
+      sections.removeAt(index);
+      sections.insert(_positionAfter(sections, entry, layer), merged);
+    }
+    return sections;
+  }
+
+  List<String>? _mergeSectionWords(
+    List<String>? base,
+    ListWrite<String>? write,
+    DocTypeLayer layer,
+    String sectionId,
+    String name,
+  ) => mergeList<String>(
+    base,
+    write,
+    file: layer.file,
+    key: 'sections.$sectionId.lint.$name',
+    nameOf: (word) => word,
+    notFound: FaultCode.lintWordNotFound,
+  );
+
+  List<PatternEntry>? _mergeSectionPatterns(
+    List<PatternEntry>? base,
+    ListWrite<PatternEntry>? write,
+    DocTypeLayer layer,
+    String sectionId,
+    String name,
+  ) => _mergePatterns(
+    base,
+    write,
+    file: layer.file,
+    key: 'sections.$sectionId.lint.$name',
+  );
+
+  List<ItemFieldLint>? _mergeItemFields(
+    List<ItemFieldLint>? base,
+    ListWrite<ItemFieldLint>? write,
+    DocTypeLayer layer,
+    String sectionId,
+  ) => _mergeKeyed<ItemFieldLint>(
+    base,
+    write,
+    file: layer.file,
+    key: 'sections.$sectionId.lint.item_fields',
+    keyOf: (entry) => entry.field,
+  );
+
+  /// Returns the index right after the section [entry] names, else the end.
+  ///
+  /// Throws `after_id_not_found` when [entry] names an id [sections] lacks.
+  int _positionAfter(
+    List<MergedSection> sections,
+    SectionEntry entry,
+    DocTypeLayer layer,
+  ) {
+    final after = entry.after;
+    if (after == null) return sections.length;
+    final index = sections.indexWhere((s) => s.id == after);
+    if (index != -1) return index + 1;
+    throw TemplateFault(
+      FaultCode.afterIdNotFound,
+      'the section ${entry.id} follows $after, which the lower layers and '
+      'earlier entries do not define',
+      file: layer.file,
+      key: 'sections.${entry.id}.after',
+    );
+  }
+
+  List<String>? _frozen(List<String>? list) =>
+      list == null ? null : List.unmodifiable(list);
+
+  void _checkLocked(MergedField current, FieldEntry entry, String file) {
+    final changesType = entry.type != null && entry.type != current.type;
+    final shapeLocked = _shapeLockedIds.contains(current.id);
+    final changesShape =
+        shapeLocked && (entry.enumValues != null || entry.list != null);
+    if (!entry.disabled && !changesType && !changesShape) return;
+    throw TemplateFault(
+      FaultCode.lockedFieldDisabled,
+      'the built-in field ${entry.id} cannot be disabled or change its type'
+      '${changesShape ? '; ${entry.id} takes no enum or list' : ''}',
+      file: file,
+      key: 'fields.${entry.id}',
+    );
+  }
+
+  /// The `override_id_not_found` fault for a [kind] entry [id] that no lower
+  /// layer defines.
+  ///
+  /// A [disabled] entry has nothing to disable; any other entry lacks the
+  /// [missing] key that would add it.
+  TemplateFault _notFound(
+    String file,
+    String kind,
+    String id, {
+    required bool disabled,
+    required String missing,
+  }) => TemplateFault(
+    FaultCode.overrideIdNotFound,
+    disabled
+        ? 'no $kind "$id" in the merged doc type to disable'
+        : 'no $kind "$id" in the merged doc type and no $missing to add it',
+    file: file,
+    key: '${kind}s.$id',
+  );
+}

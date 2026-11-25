@@ -1,0 +1,18 @@
+id: layout
+description: |-
+  The layout doc: the page layouts and grids.
+title: Layouts
+path: specs/design_system/composition/LAYOUTS.md
+sections:
+  - id: layouts
+    header: Layouts
+    required: true
+    description: |-
+      List each page layout with its name, its regions, and when to use it.
+  - id: grids
+    header: Grids
+    required: true
+    description: |-
+      List each grid with its columns, its gutters, and its margins.
+lint:
+  title_no_number: true

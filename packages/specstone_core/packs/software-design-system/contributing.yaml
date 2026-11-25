@@ -1,0 +1,13 @@
+id: contributing
+description: |-
+  The contributing doc: the definition of done for a component.
+title: Contributing
+path: specs/design_system/CONTRIBUTING.md
+sections:
+  - id: definition_of_done
+    header: Definition of done
+    required: true
+    description: |-
+      Write one checkable item per condition a component meets before it is done.
+lint:
+  title_no_number: true

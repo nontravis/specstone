@@ -1,0 +1,639 @@
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
+    show heldSectionIndexIn;
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show isFingerprint;
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show OverrideLabel, edgeCasesSectionKey, readLinkLabel;
+import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/index_query/held_sections.dart'
+    show heldTemplatesOf, sectionBodyLines;
+import 'package:specstone_core/src/index_query/indexed_doc.dart' show docNameOf;
+import 'package:specstone_core/src/index_query/item_facts.dart'
+    show itemKeyOfHead, sectionItemsAt;
+import 'package:specstone_core/src/index_query/item_links.dart'
+    show citedSectionsOf;
+import 'package:specstone_core/src/index_query/matrix_rows.dart'
+    show matrixLinesIn;
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/override_chain.dart'
+    show carriesOverrides;
+import 'package:specstone_core/src/setup_migration/models/stamp_doc.dart';
+import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
+import 'package:specstone_core/src/setup_migration/renumber_entries.dart'
+    show withBlockValues;
+import 'package:specstone_core/src/setup_migration/renumber_index.dart';
+import 'package:specstone_core/src/setup_migration/tracked_blocks.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
+
+// MARK: - Constants
+
+const _confirmedKey = 'confirmed';
+const _overridesKey = 'overrides';
+
+/// The FR sections a per-FR matrix row records, as `check` reads them.
+const List<String> _contractSectionKeys = [
+  'statement',
+  'input_output',
+  edgeCasesSectionKey,
+];
+
+// MARK: - StampPass
+
+/// The last step of a pack upgrade: it stamps the approval hash on each doc
+/// that counted as approved before the run and re-stamps each
+/// `confirmed` entry that matched before the run, every one in the one-time
+/// run, else each whose block the cite pass or the link rewrites alone
+/// rewrote.
+///
+/// One pass computes every after-hash, over the text each doc has after every
+/// other step, so no earlier step stamps a value a later one changes.
+final class StampPass {
+  new _(
+    this._planned,
+    this._stamped,
+    this._approvals,
+    this._fingerprints,
+    this._skipped,
+  );
+
+  /// Plans the pass over the docs of the run as they were [before] it and as
+  /// they stand [after] its last step, both at the planned DocPath.
+  ///
+  /// A [before] doc carries the type it had before the run, so its hash is the
+  /// one it was approved with even when a step dropped a field of that type.
+  ///
+  /// An entry is paired with the one at its position in the doc before the
+  /// run; a doc whose `confirmed` entries changed in number keeps them.
+  ///
+  /// [pins] are the pack pins before the run: a doc counts as approved when it
+  /// did not await approval under them, its hash then read by their
+  /// [statusesOutsideApproval] rule. The stamped hash follows the rule of
+  /// [pinsAfter], the pins the run leaves, so a record approved while its
+  /// statuses counted takes the hash that leaves them out.
+  /// [restampsFingerprints] holds for the one-time run alone, which
+  /// re-stamps every matched entry. [citedFrom] holds, for each doc the cite
+  /// pass rewrote, its text before that pass; an entry whose block that
+  /// rewrite changed is re-stamped too. [linkedFrom] holds, for each doc the
+  /// run's link rewrites changed, its text after the steps and before those
+  /// rewrites; an entry whose block the steps left as before the run and the
+  /// rewrites changed is re-stamped too, and no other. A typed doc whose
+  /// frontmatter is not valid YAML, before or after, is skipped and named on
+  /// the plan line. A doc of [typedByAdd], by DocPath, is left as written: the
+  /// add made it a draft awaiting approval.
+  factory plan(
+    List<StampDoc> before,
+    List<StampDoc> after, {
+    required Map<String, PackVersion> pins,
+    required Map<String, PackVersion> pinsAfter,
+    required bool restampsFingerprints,
+    Map<String, String> citedFrom = const {},
+    Set<String> typedByAdd = const {},
+    Map<String, String> linkedFrom = const {},
+  }) {
+    final ran = stampsHaveRun(pins);
+    final statusesOutside = statusesOutsideApproval(pins);
+    final statusesOutsideAfter = statusesOutsideApproval(pinsAfter);
+    final skipped = <String>[];
+    final beforeAt = {for (final doc in before) doc.docPath: doc};
+    final world = _World(after);
+    final beforeWorld = _World(before);
+    final linkedWorld = _worldOf(after, linkedFrom);
+    final restamps = _restampRule(
+      after,
+      world,
+      before: beforeWorld,
+      linked: linkedWorld,
+      everyMatched: restampsFingerprints,
+      citedFrom: citedFrom,
+    );
+    final linkOnly = linkedWorld == null
+        ? null
+        : _LinkOnlyRestamp(beforeWorld, linkedWorld, world);
+    final planned = <String, String>{};
+    final stamped = <String, String>{};
+    var approvals = 0;
+    var fingerprints = 0;
+    for (final doc in after) {
+      final type = doc.type;
+      final old = beforeAt[doc.docPath];
+      if (type == null || old == null) continue;
+      if (typedByAdd.contains(doc.docPath)) continue;
+      final beforeHash = comparedApprovalHash(
+        old.lf,
+        old.type,
+        statusesOutside: statusesOutside,
+      );
+      if (beforeHash == null ||
+          comparedApprovalHash(
+                doc.lf,
+                type,
+                statusesOutside: statusesOutsideAfter,
+              ) ==
+              null) {
+        skipped.add(doc.docPath);
+        continue;
+      }
+      planned[doc.docPath] = doc.lf;
+      final confirmed = restamps == null
+          ? RestampedEntries(doc.lf, 0)
+          : _restamped(doc, old, beforeWorld, world, restamps);
+      final entries = linkOnly?.apply(doc, type, confirmed) ?? confirmed;
+      var lf = entries.lfText;
+      // A doc that did not await approval before the run counts as approved;
+      // one `check` flagged then (a stale hash, a bad value) stays.
+      if (!awaitsApproval(
+        ApprovalFields.of(Doc.parse(old.lf)),
+        beforeHash,
+        stampsHaveRun: ran,
+      )) {
+        lf = withApprovalHash(lf, type, statusesOutside: statusesOutsideAfter);
+      }
+      if (lf == doc.lf) continue;
+      stamped[doc.docPath] = lf;
+      fingerprints += entries.count;
+      if (lf != entries.lfText) approvals++;
+    }
+    return StampPass._(planned, stamped, approvals, fingerprints, skipped);
+  }
+
+  final Map<String, String> _planned;
+  final Map<String, String> _stamped;
+  final int _approvals;
+  final int _fingerprints;
+  final List<String> _skipped;
+
+  /// Returns the doc at [docPath] with its approval hash and `confirmed`
+  /// fingerprints stamped.
+  ///
+  /// A doc the pass was not planned over comes back as given. Throws an
+  /// [ArgumentError] when [lf] is not the text the pass was planned over.
+  String apply(String docPath, String lf) {
+    final planned = _planned[docPath];
+    if (planned == null) return lf;
+    if (lf != planned) {
+      throw ArgumentError.value(
+        docPath,
+        'lf',
+        'is not the text the stamp pass was planned over',
+      );
+    }
+    return _stamped[docPath] ?? lf;
+  }
+
+  /// The `stamps:` plan line, or null when nothing is stamped or skipped.
+  String? get planLine =>
+      stampsPlanLine(_approvals, _fingerprints, skipped: _skipped);
+
+  /// The DocPath of each doc left unstamped for invalid frontmatter, in code
+  /// point order.
+  List<String> get paths => [..._skipped]..sort(compareCodePoints);
+}
+
+/// The `stamps:` plan line for [approvals] approval hashes and [fingerprints]
+/// `confirmed` fingerprints, then `; skipped: <n>` for the docs of [skipped],
+/// left unstamped for invalid frontmatter; null when all are empty.
+String? stampsPlanLine(
+  int approvals,
+  int fingerprints, {
+  List<String> skipped = const [],
+}) {
+  if (approvals == 0 && fingerprints == 0 && skipped.isEmpty) return null;
+  final counts =
+      'stamps: $approvals approval hashes, $fingerprints fingerprints';
+  return skipped.isEmpty ? counts : '$counts; skipped: ${skipped.length}';
+}
+
+// MARK: - Confirmed entries
+
+/// A doc's text with its matched entries re-stamped, and how many changed.
+final class RestampedEntries {
+  const new(this.lfText, this.count);
+
+  final String lfText;
+  final int count;
+}
+
+/// Returns [lfText] with each entry of the frontmatter key [key],
+/// `<label> <fingerprint>`, that [matched] its block before a step set to the
+/// fingerprint [after] gives that block once the step ran.
+///
+/// An entry stale before the step, which [matched] rejects, keeps its value,
+/// as does one whose block [after] gives none for.
+RestampedEntries withEntriesRestamped(
+  String lfText,
+  String key, {
+  required bool Function(int index, String label, String fingerprint) matched,
+  required String? Function(String label) after,
+}) {
+  var count = 0;
+  final text = withBlockValues(
+    lfText,
+    key,
+    _EntryWalk((index, label, fingerprint) {
+      if (!matched(index, label, fingerprint)) return null;
+      final now = after(label);
+      if (now == null || now == fingerprint) return null;
+      count++;
+      return now;
+    }).call,
+  );
+  return RestampedEntries(text, count);
+}
+
+/// Whether the matched entry [label] of the doc at [docPath] takes its
+/// block's fingerprint after the run.
+typedef _Restamps = bool Function(String docPath, String label);
+
+/// Returns which matched entries the pass re-stamps: every one when
+/// [everyMatched] holds, else each whose block the cite pass changed, or the
+/// link rewrites alone changed; null when it re-stamps none.
+///
+/// The cite pass changed a block whose fingerprint over the [citedFrom] texts
+/// differs from the one in [world]. The link rewrites alone changed one whose
+/// fingerprint in [linked], the world before those rewrites, equals the one in
+/// [before] and differs from the one in [world].
+_Restamps? _restampRule(
+  List<StampDoc> after,
+  _World world, {
+  required _World before,
+  required _World? linked,
+  required bool everyMatched,
+  required Map<String, String> citedFrom,
+}) {
+  if (everyMatched) return (_, _) => true;
+  final uncited = _worldOf(after, citedFrom);
+  if (uncited == null && linked == null) return null;
+  return (docPath, label) {
+    final now = world.currentFingerprint(docPath, label);
+    if (uncited != null && uncited.currentFingerprint(docPath, label) != now) {
+      return true;
+    }
+    final unlinked = linked?.currentFingerprint(docPath, label);
+    return unlinked != null &&
+        unlinked != now &&
+        unlinked == before.currentFingerprint(docPath, label);
+  };
+}
+
+/// Returns the world of [after] with each doc [texts] names at that text, or
+/// null when [texts] names none.
+_World? _worldOf(List<StampDoc> after, Map<String, String> texts) =>
+    texts.isEmpty
+    ? null
+    : _World([
+        for (final doc in after)
+          StampDoc(
+            docPath: doc.docPath,
+            lf: texts[doc.docPath] ?? doc.lf,
+            type: doc.type,
+            target: doc.target,
+          ),
+      ]);
+
+/// Re-stamps each entry of [doc] whose fingerprint matched its upstream block
+/// in [old], the doc before the run, and that [restamps] picks, with the
+/// block's fingerprint in [after].
+RestampedEntries _restamped(
+  StampDoc doc,
+  StampDoc old,
+  _World before,
+  _World after,
+  _Restamps restamps,
+) {
+  final unchanged = RestampedEntries(doc.lf, 0);
+  if (!_holdsConfirmed(doc.type!)) return unchanged;
+  final matched = <bool>[];
+  withBlockValues(
+    old.lf,
+    _confirmedKey,
+    _EntryWalk((_, label, fingerprint) {
+      matched.add(before.matches(old.docPath, label, fingerprint));
+      return null;
+    }).call,
+  );
+  var seen = 0;
+  withBlockValues(
+    doc.lf,
+    _confirmedKey,
+    _EntryWalk((_, _, _) {
+      seen++;
+      return null;
+    }).call,
+  );
+  if (seen != matched.length || !matched.contains(true)) return unchanged;
+  return withEntriesRestamped(
+    doc.lf,
+    _confirmedKey,
+    matched: (index, label, _) =>
+        matched[index] && restamps(doc.docPath, label),
+    after: (label) => after.currentFingerprint(doc.docPath, label),
+  );
+}
+
+bool _holdsConfirmed(MergedDocType type) =>
+    type.fields.any((field) => field.id == _confirmedKey);
+
+// MARK: - Overrides entries and matrix rows
+
+/// Re-stamps each `overrides` entry and Verification matrix row that matched
+/// its block before the run and whose block only the run's link rewrites
+/// changed, its block read in the world before the run, the world before
+/// those rewrites, and the world after the run.
+final class _LinkOnlyRestamp {
+  const new(this._before, this._linked, this._after);
+
+  final _World _before;
+  final _World _linked;
+  final _World _after;
+
+  /// Returns [entries], the text of [doc], of [type], with its `confirmed`
+  /// entries stamped, with each such entry and row set to its block's
+  /// fingerprint after the run, the count taking them too.
+  RestampedEntries apply(
+    StampDoc doc,
+    MergedDocType type,
+    RestampedEntries entries,
+  ) {
+    var text = entries.lfText;
+    var count = entries.count;
+    if (carriesOverrides(type)) {
+      final overrides = withEntriesRestamped(
+        text,
+        _overridesKey,
+        matched: (_, label, fingerprint) => _isLinkOnly(
+          (world) => world.overrideFingerprint(label, doc.target),
+          fingerprint,
+        ),
+        after: (label) => _after.overrideFingerprint(label, doc.target),
+      );
+      text = overrides.lfText;
+      count += overrides.count;
+    }
+    if (verificationMatrixOf(type) != null) {
+      final rows = _rowsRestamped(
+        text,
+        type,
+        docNameOf(doc.docPath, type, target: doc.target),
+      );
+      text = rows.lfText;
+      count += rows.count;
+    }
+    return RestampedEntries(text, count);
+  }
+
+  /// Whether a block [fingerprintIn] reads, recorded as [recorded], matched
+  /// before the run, kept its fingerprint through the steps, and changed by
+  /// the link rewrites.
+  bool _isLinkOnly(
+    String? Function(_World world) fingerprintIn,
+    String recorded,
+  ) =>
+      fingerprintIn(_before) == recorded &&
+      fingerprintIn(_linked) == recorded &&
+      fingerprintIn(_after) != recorded;
+
+  /// Returns [lfText], a record of [type] named [recordName], with each matrix
+  /// row whose block only the link rewrites changed set to its fingerprint
+  /// after the run.
+  RestampedEntries _rowsRestamped(
+    String lfText,
+    MergedDocType type,
+    String recordName,
+  ) {
+    final lines = lfText.split('\n');
+    var count = 0;
+    for (final row in matrixLinesIn(lfText, type).whereType<MatrixRow>()) {
+      final recorded = row.fingerprint;
+      if (recorded == null) continue;
+      String? fingerprintIn(_World world) =>
+          world.rowFingerprint(recordName, row);
+      final now = fingerprintIn(_after);
+      if (now == null || !_isLinkOnly(fingerprintIn, recorded)) continue;
+      final line = lines[row.line - 1];
+      final at = line.lastIndexOf(recorded);
+      lines[row.line - 1] = line.replaceRange(at, at + recorded.length, now);
+      count++;
+    }
+    return RestampedEntries(count == 0 ? lfText : lines.join('\n'), count);
+  }
+}
+
+/// Walks the values of a `confirmed` key as entries, `<label> <fingerprint>`.
+///
+/// A quoted entry arrives as one value; a bare one as its label and its
+/// fingerprint, which [call] pairs.
+final class _EntryWalk {
+  new(this._onEntry);
+
+  final String? Function(int index, String label, String fingerprint) _onEntry;
+  String? _label;
+  int _index = 0;
+
+  /// Returns the value to write for [value], or null to keep it.
+  String? call(String value) {
+    final space = value.indexOf(' ');
+    if (space >= 0) {
+      _flush();
+      final label = value.substring(0, space);
+      final stamped = _onEntry(_index++, label, value.substring(space + 1));
+      return stamped == null ? null : '$label $stamped';
+    }
+    final label = _label;
+    if (label == null || !isFingerprint(value)) {
+      _flush();
+      _label = value;
+      return null;
+    }
+    _label = null;
+    return _onEntry(_index++, label, value);
+  }
+
+  // A label no fingerprint follows is an entry whose fingerprint is empty.
+  void _flush() {
+    final label = _label;
+    if (label == null) return;
+    _label = null;
+    _onEntry(_index++, label, '');
+  }
+}
+
+// MARK: - World
+
+/// The docs of one moment of the run, and the blocks their `confirmed` and
+/// `overrides` entries and matrix rows track.
+///
+/// It reads an override's item, an FR's contract block, and an edge case as
+/// `check`'s tracked block reader does, from the same section and item
+/// parse; a run's index cannot be opened before the pins move.
+final class _World {
+  new(List<StampDoc> docs)
+    : _docs = [
+        for (final doc in docs)
+          if (doc.type case final type?) RenumberDoc(doc.docPath, doc.lf, type),
+      ],
+      _targets = {for (final doc in docs) doc.docPath: doc.target} {
+    _index = RenumberIndex(_docs);
+  }
+
+  final List<RenumberDoc> _docs;
+
+  /// The code target of each doc, by DocPath; null for a shared doc.
+  final Map<String, String?> _targets;
+  late final RenumberIndex _index;
+  late final Map<String, RenumberDoc> _byPath = {
+    for (final doc in _docs) doc.docPath: doc,
+  };
+  final Map<String, Map<String, String>> _blocks = {};
+
+  /// The docs of each `<doc type>:<Name>`, each named as the index names it,
+  /// through its target's pattern set.
+  late final Map<String, List<RenumberDoc>> _byTypedName = () {
+    final named = <String, List<RenumberDoc>>{};
+    for (final doc in _docs) {
+      final name = docNameOf(
+        doc.docPath,
+        doc.type,
+        target: _targets[doc.docPath],
+      );
+      (named['${doc.type.id}:$name'] ??= []).add(doc);
+    }
+    return named;
+  }();
+
+  /// The one doc named [typedName], `<doc type>:<Name>`: of twins, the one of
+  /// [target]; null when none or two or more remain.
+  RenumberDoc? _named(String typedName, String? target) {
+    final docs = _byTypedName[typedName] ?? const <RenumberDoc>[];
+    if (docs.length == 1) return docs.single;
+    final own = [
+      for (final doc in docs)
+        if (_targets[doc.docPath] == target) doc,
+    ];
+    return own.length == 1 ? own.single : null;
+  }
+
+  final Map<String, Map<String, String>> _edgeCases = {};
+
+  /// The fingerprint of the item the override address [address], written in
+  /// a doc of [target], names; null when it names none.
+  String? overrideFingerprint(String address, String? target) {
+    final label = readLinkLabel(address);
+    if (label is! OverrideLabel) return null;
+    final doc = _named(label.address.docPart, target);
+    final text = doc == null ? null : _itemTextOf(doc, label.itemId);
+    return text == null ? null : fingerprintOf(text);
+  }
+
+  /// The fingerprint of the block [row] of the record named [recordName]
+  /// records: its FR's contract block, or the edge case it names; null when
+  /// the row names no FR or block.
+  String? rowFingerprint(String recordName, MatrixRow row) {
+    final fr = _named('$frTypeId:$recordName/${row.item}', null);
+    if (fr == null) return null;
+    final text = switch (row.edgeCase) {
+      null => _contractTextOf(fr),
+      final edgeCase => _edgeCaseBlocksOf(fr)[edgeCase],
+    };
+    return text == null ? null : fingerprintOf(text);
+  }
+
+  /// The items of the section at [at] of [doc], as `check` reads them: a
+  /// closed generated block holds none.
+  List<SectionItem> _itemsIn(RenumberDoc doc, int at) =>
+      sectionItemsAt(doc.content, at, doc.type);
+
+  /// The own text of the first item of [doc] keyed [itemId], nested items
+  /// aside; null when it holds none.
+  String? _itemTextOf(RenumberDoc doc, String itemId) {
+    final sections = citedSectionsOf(doc.content, doc.type);
+    for (final (at, section) in sections.indexed) {
+      for (final item in _itemsIn(doc, at)) {
+        final key = itemKeyOfHead(
+          item.head,
+          isHeading: item.kind == SectionItemKind.heading,
+          prefixId: section.prefixId,
+          isAcceptanceCriteria: section.isAcceptanceCriteria,
+        );
+        if (key == itemId) return item.text;
+      }
+    }
+    return null;
+  }
+
+  /// The edge cases of [fr], each ID as written mapped to its block, nested
+  /// items included and trailing blank lines left off; the first of a
+  /// repeated ID wins.
+  Map<String, String> _edgeCaseBlocksOf(RenumberDoc fr) =>
+      _edgeCases[fr.docPath] ??= () {
+        final sections = fr.content.sections;
+        final templates = heldTemplatesOf(sections, fr.type);
+        final at = heldSectionIndexIn(templates, edgeCasesSectionKey);
+        final section = at == null ? null : templates[at];
+        if (at == null || section == null) return const <String, String>{};
+        final body = sectionBodyLines(sections, fr.content.lineFacts, at);
+        final tops = [
+          for (final item in _itemsIn(fr, at))
+            if (!item.nested) item,
+        ];
+        final blocks = <String, String>{};
+        for (final (i, item) in tops.indexed) {
+          final key = itemKeyOfHead(
+            item.head,
+            isHeading: item.kind == SectionItemKind.heading,
+            prefixId: section.prefixId,
+            isAcceptanceCriteria: false,
+          );
+          if (key == null || blocks.containsKey(key)) continue;
+          final end = i + 1 < tops.length ? tops[i + 1].line : null;
+          blocks[key] = [
+            for (final line in body)
+              if (line.line >= item.line && (end == null || line.line < end))
+                line.text,
+          ].join('\n').trimRight();
+        }
+        return blocks;
+      }();
+
+  /// Whether the entry [label] [fingerprint] of the doc at [docPath] equals
+  /// the fingerprint of its block, by the current recipe or the 1.1.0 one.
+  bool matches(String docPath, String label, String fingerprint) {
+    final block = _blockOf(docPath, label);
+    if (block == null) return false;
+    return fingerprint == fingerprintOf(block) ||
+        fingerprint == legacyFingerprintOf(block);
+  }
+
+  /// The fingerprint of the block [label] names in the doc at [docPath]; null
+  /// when it names none.
+  String? currentFingerprint(String docPath, String label) {
+    final block = _blockOf(docPath, label);
+    return block == null ? null : fingerprintOf(block);
+  }
+
+  String? _blockOf(String docPath, String label) {
+    final target = _index.confirmedTarget(label, docPath);
+    if (target == null) return null;
+    final (blockPath, key) = target.block;
+    final doc = _byPath[blockPath];
+    if (doc == null) return null;
+    return (_blocks[blockPath] ??= trackedBlocksOf(doc))[key];
+  }
+}
+
+/// Returns the contract block of [fr], as a per-FR matrix row records it: its
+/// held contract sections in doc order, each laid out, one blank line between
+/// them; null when it holds none.
+String? _contractTextOf(RenumberDoc fr) {
+  final sections = fr.content.sections;
+  final templates = heldTemplatesOf(sections, fr.type);
+  final held = [
+    for (final key in _contractSectionKeys) ?heldSectionIndexIn(templates, key),
+  ]..sort();
+  if (held.isEmpty) return null;
+  return [for (final at in held) upstreamText(sections[at].text)].join('\n');
+}

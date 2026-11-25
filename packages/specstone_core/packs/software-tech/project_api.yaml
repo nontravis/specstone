@@ -1,0 +1,61 @@
+id: project_api
+extends: api
+description: |-
+  The project's API conventions: its surfaces, the rules every feature's operations follow, its error model, and where the source of truth declares them.
+  Title it `# <Project name> API`, such as `# Specstone API`, with no number.
+  Copy no request or response schema; the source of truth owns it.
+  Put no stack trace or internals in any error body.
+  Write one rule per ID: one bullet per convention.
+path: specs/API.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: confirmed
+    disabled: true
+  - id: overrides
+    disabled: true
+sections:
+  - id: fr_trace
+    disabled: true
+  - id: operations
+    disabled: true
+  - id: errors
+    disabled: true
+  - id: surfaces
+    header: Surfaces
+    after: source_of_truth
+    required: true
+    description: |-
+      Write a table with the columns Style, Entry point, Version scheme, Auth scheme.
+      Write one row per API surface the project ships, such as `CLI`, `specstone`, SemVer, none.
+  - id: conventions
+    header: Conventions
+    after: surfaces
+    required: true
+    prefix_id: API-C
+    description: |-
+      Write one bullet per API convention every feature's operations follow, such as an ID format, a pagination rule, or the default rate limit and the default limits.
+      Write each as `- **API-C<N>** <rule>`; IDs are append-only, never reused.
+    lint:
+      max_sentences:
+        - count: 1
+  - id: error_model
+    header: Error model
+    after: conventions
+    prefix_id: API-E
+    description: |-
+      Write one item per surface, headed `### API-E<N> — <surface>`; IDs are append-only, never reused.
+      State the surface's error envelope, its shape shown, and its retry rule by error class, as lines.
+      Write the shared codes as a catalog table in the columns Code, Status or exit, Condition, Client action, Retryable, with an optional Group column: a slug naming codes several operations return together, unique in the catalog; no check reads it.
+      Keep codes stable, never reused for a different error. Never retry a non-idempotent call.
+    lint:
+      catalog:
+        column: Code
+      max_sentences:
+        - count: 1
+          column: Condition
+        - count: 1
+          column: Client action
+  - id: compatibility
+    description: |-
+      Write what counts as breaking for every feature's operations, and the deprecation process.

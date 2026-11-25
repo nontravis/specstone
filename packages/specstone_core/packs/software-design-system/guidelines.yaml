@@ -1,0 +1,27 @@
+id: guidelines
+description: |-
+  The design system's guidelines: the reading order of the design-system docs and the library's hard rules.
+  Shared code structure, such as a component base class, stays in the `software-tech` spec docs.
+  GUIDELINES holds each hard rule, such as "no raw colors", and the project's own lint verifies the code against it.
+title: Guidelines
+path: specs/design_system/GUIDELINES.md
+sections:
+  - id: reading_order
+    header: Reading order
+    required: true
+    description: |-
+      List the design-system docs in the order a reader opens them, one markdown link each.
+    lint:
+      banned_patterns:
+        - id: link_item
+          # A list item that does not open with a link; a wrapped, blank, table, or header line is no item.
+          pattern: '^(?:[-*+]|\d+[.)]) (?!\[)'
+          message: 'list item does not open with a markdown link; guide line: List the design-system docs in the order a reader opens them, one markdown link each.'
+          in: all
+  - id: hard_rules
+    header: Hard rules
+    required: true
+    description: |-
+      Write one rule per item the library's code never breaks, such as "no raw colors".
+lint:
+  title_no_number: true

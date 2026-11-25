@@ -1,0 +1,329 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show withoutLegacyTitleLabel;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show textHashOf;
+import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
+    show rewritePathMentions;
+import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
+    show rewriteDocLinksCounted;
+import 'package:specstone_core/src/document_writing/write_session.dart'
+    show cannotRead;
+import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/rendering/doc_reader.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/models/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/label_pass.dart';
+import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
+import 'package:specstone_core/src/setup_migration/models/doc_text.dart';
+import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
+    show LabelConversion;
+import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
+    show LabelTree;
+import 'package:specstone_core/src/setup_migration/models/labeled_rewrite.dart';
+
+final _humanLine = RegExp(r'^- \*\*Human:\*\* (.+)$', multiLine: true);
+
+const _featureNameHeader = 'Feature name';
+const _indexHeaders = {
+  'User stories index',
+  'US ↔ FR rollup',
+  'Sub-features index',
+};
+
+const _fixedTitles = <LegacyKind, String>{
+  LegacyKind.project: 'Project context',
+  LegacyKind.features: 'Feature map',
+  LegacyKind.gnfr: 'Project-wide non-functional requirements',
+};
+
+const Set<LegacyKind> _specKinds = {
+  LegacyKind.architecture,
+  LegacyKind.api,
+  LegacyKind.domain,
+  LegacyKind.integration,
+  LegacyKind.error,
+  LegacyKind.auth,
+  LegacyKind.topic,
+};
+
+const _visionLabels = <String, String>{
+  '**เพื่ออะไร (why):**': '**Why:**',
+  '**แก้ปัญหาอะไร (problem):**': '**Problem:**',
+  '**แก้ให้ใคร (audience):**': '**Audience:**',
+};
+
+const _headerRenames = <LegacyKind, (String, String)>{
+  LegacyKind.architecture: ('Tier-2 decisions', 'Concerns'),
+  LegacyKind.api: ('FR ↔ endpoint trace', 'FR trace'),
+};
+
+/// Reads UTF-8 [bytes] into LF text, the byte order mark dropped from it.
+DocText readDocText(List<int> bytes) {
+  final text = utf8.decode(bytes);
+  return DocText(
+    lf: toLf(text),
+    ending: LineEnding.of(text),
+    bom: startsWithUtf8Bom(bytes),
+    hash: textHashOf(text),
+  );
+}
+
+/// Reads the doc [file] at [docPath] into LF text, or returns null when its
+/// bytes are not UTF-8 text.
+///
+/// A run moves a doc it gets null for untouched and rewrites none of it, as
+/// it does a file that is not `.md`.
+///
+/// Throws [RenderFault] `output_not_writable` naming [docPath] when the file
+/// cannot be read.
+DocText? readDocFile(File file, {required String docPath}) {
+  final List<int> bytes;
+  try {
+    bytes = readPlanInput(file);
+  } on FileSystemException catch (error) {
+    throw cannotRead(docPath, error);
+  }
+  try {
+    return readDocText(bytes);
+  } on FormatException {
+    return null;
+  }
+}
+
+/// Returns [lf] in the line style of [original], the byte order mark first
+/// when [original] had one.
+String writtenText(DocText original, String lf) =>
+    '${original.bom ? '﻿' : ''}${original.ending.apply(lf)}';
+
+/// The result of [rewriteLegacyDoc].
+final class DocRewrite {
+  const new({
+    required this.lf,
+    required this.changes,
+    this.gnfrSections = const [],
+  });
+
+  /// The rewritten LF text.
+  final String lf;
+
+  /// The labels of the changes made, in the order the rewrite applies them.
+  final List<String> changes;
+
+  /// The GNFR headers no GNFR section has, in doc order.
+  final List<String> gnfrSections;
+}
+
+/// Rewrites the title, keys, and sections of one legacy doc of [kind].
+///
+/// A doc line the legacy rewrite rules do not name stays byte-equal; a
+/// frontmatter the key drops leave with no key goes, with the one blank line
+/// after it. [gnfrHeaders] are the section headers of the gnfr doc type.
+DocRewrite rewriteLegacyDoc(
+  String lf,
+  LegacyKind kind, {
+  Set<String> gnfrHeaders = const {},
+}) {
+  final changes = <String>[];
+  var text = lf;
+
+  final folded = kind == LegacyKind.feature ? _foldFeatureName(text) : null;
+  if (folded != null) {
+    text = folded;
+    changes.add('title from Feature name');
+  } else {
+    final titled = _retitled(text, kind);
+    if (titled != null) {
+      text = titled;
+      changes.add('title');
+    }
+  }
+
+  void apply(String label, String Function(String) change) {
+    final changed = change(text);
+    if (changed == text) return;
+    text = changed;
+    changes.add(label);
+  }
+
+  apply('name', (t) => withoutKeyBlocks(t, const ['name']));
+  if (_specKinds.contains(kind)) {
+    apply('feature_id', (t) => withoutKeyBlocks(t, const ['feature_id']));
+  }
+  if (kind == LegacyKind.project) apply('vision labels', _withVisionLabels);
+  if (kind == LegacyKind.feature) {
+    apply('index tables removed', _withoutIndexes);
+  }
+  final rename = _headerRenames[kind];
+  if (rename != null) {
+    apply(rename.$2, (t) => withHeaderRenamed(t, rename.$1, rename.$2));
+  }
+  if (kind == LegacyKind.topic) {
+    apply('covers from applies_to', _withCoversKey);
+  }
+
+  return DocRewrite(
+    lf: text,
+    changes: changes,
+    gnfrSections: kind == LegacyKind.gnfr
+        ? [
+            for (final section in Doc.parse(text).sections)
+              if (!gnfrHeaders.contains(section.headerText)) section.headerText,
+          ]
+        : const [],
+  );
+}
+
+/// Points each relative link of [lf], to a file of any extension or a folder,
+/// at the path [moves] leave its target at.
+///
+/// [docPath] is where the doc sits before the moves; a link that leaves the
+/// docs root follows a doc that changes depth. The label is `1 link` or
+/// `<n> links`, and null when no link changes.
+LabeledRewrite rewriteLinks(
+  String lf, {
+  required String docPath,
+  required List<PathMove> moves,
+}) {
+  final result = rewriteDocLinksCounted(lf, docPath: docPath, moves: moves);
+  if (result == null) return LabeledRewrite(lf: lf, label: null);
+  return LabeledRewrite(
+    lf: result.lfText,
+    label: result.count == 1 ? '1 link' : '${result.count} links',
+  );
+}
+
+/// Points each path mention of [lf] that names a file or folder [exists] at
+/// the path [moves] leave it at.
+///
+/// [docPath] is where the doc sits before the moves, and [exists] reads the
+/// legacy tree as it stands before them, from the docs root. The label is
+/// `1 mention` or `<n> mentions`, and null when no mention changes.
+LabeledRewrite rewriteMentions(
+  String lf, {
+  required String docPath,
+  required List<PathMove> moves,
+  required bool Function(String path) exists,
+}) {
+  final result = rewritePathMentions(
+    lf,
+    docPath: docPath,
+    moves: moves,
+    exists: (projectPath) => exists(_docsRootPathOf(projectPath)),
+  );
+  if (result == null) return LabeledRewrite(lf: lf, label: null);
+  return LabeledRewrite(
+    lf: result.lfText,
+    label: result.count == 1 ? '1 mention' : '${result.count} mentions',
+  );
+}
+
+/// Returns [projectPath], a path from the project root, as a path from the
+/// docs root, leaving it by `../` when it lies outside the docs folder.
+String _docsRootPathOf(String projectPath) =>
+    projectPath.startsWith('$docsFolderName/')
+    ? projectPath.substring(docsFolderName.length + 1)
+    : '../$projectPath';
+
+/// Returns [lf] with the Feature name section folded into the title, or null
+/// when the section holds no `- **Human:** <name>` line.
+String? _foldFeatureName(String lf) {
+  final doc = Doc.parse(lf);
+  final index = doc.sections.indexWhere(
+    (section) => section.headerText == _featureNameHeader,
+  );
+  if (index < 0) return null;
+  final name = _humanLine
+      .firstMatch(doc.sections[index].body)
+      ?.group(1)
+      ?.trim();
+  if (name == null || name.isEmpty) return null;
+  return withTitle(withoutSection(lf, index), name);
+}
+
+/// Returns [lf] with its title retitled for [kind], or null when it stays.
+String? _retitled(String lf, LegacyKind kind) {
+  final title = Doc.parse(lf).title;
+  if (title == null) return null;
+  final fixed = _fixedTitles[kind];
+  final retitled = fixed ?? withoutLegacyTitleLabel(title);
+  return retitled == title ? null : withTitle(lf, retitled);
+}
+
+String _withVisionLabels(String lf) => _visionLabels.entries.fold(
+  lf,
+  (text, label) => text.replaceAll(label.key, label.value),
+);
+
+String _withoutIndexes(String lf) {
+  var text = lf;
+  while (true) {
+    final index = Doc.parse(text).sections
+        .indexWhere((section) => _indexHeaders.contains(section.headerText));
+    if (index < 0) break;
+    text = withoutSection(text, index);
+  }
+  // A legacy doc that ended in a blank line keeps one;
+  // `withoutSection` ends a doc whose last section went in one newline.
+  final keepsBlankTail = lf.endsWith('\n\n') && !text.endsWith('\n\n');
+  return keepsBlankTail && text != lf ? '$text\n' : text;
+}
+
+/// Returns [lf] with the `##` header [from] written as [to], or [lf] when it
+/// has no such section.
+String withHeaderRenamed(String lf, String from, String to) {
+  final doc = Doc.parse(lf);
+  final index = doc.sections.indexWhere((s) => s.headerText == from);
+  if (index < 0) return lf;
+  final lines = doc.afterFrontmatter.split('\n');
+  final lineAt = doc.sectionLineIndexes[index];
+  lines[lineAt] = lines[lineAt].replaceRange(
+    0,
+    doc.sections[index].headerLine.length,
+    '## $to',
+  );
+  final frontmatterLength = lf.length - doc.afterFrontmatter.length;
+  return lf.substring(0, frontmatterLength) + lines.join('\n');
+}
+
+String _withCoversKey(String lf) {
+  final blocks = Doc.parse(lf).frontmatter;
+  final block = blocks?.where((b) => b.name == 'applies_to').firstOrNull;
+  if (block == null) return lf;
+  final covers = block.text.replaceFirst(
+    RegExp('^${RegExp.escape(block.key)}(?=\\s*:)', multiLine: true),
+    'covers',
+  );
+  return withKeyBlock(lf, 'applies_to', covers);
+}
+
+/// Returns [lf], the doc that [legacyPath] held before the move, with each
+/// legacy ID and number label that [tree] maps to one doc converted to that
+/// doc's name, and the ones it keeps as `<line>` and label as written.
+///
+/// A label reads against the place [legacyPath] gives; the lines are those of
+/// [lf].
+LabelConversion convertLegacyLabels(
+  LabelTree tree, {
+  required String legacyPath,
+  required String lf,
+}) => convertLabelsIn(
+  lf,
+  (label, before) {
+    final target = tree.resolve(
+      label,
+      citingDocPath: legacyPath,
+      before: before,
+    );
+    return target == null ? null : tree.nameOf(target);
+  },
+  legacyIds: true,
+  itemPrefixes: tree.itemPrefixes,
+);

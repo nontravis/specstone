@@ -1,0 +1,15 @@
+name: software-design-system
+version: 1.4.0
+extends: software-tech
+shared_lines:
+  - id: serve_library_builders
+    text: These docs serve the team that builds the library, not the library's consumers.
+    for_doc_types: [accessibility, color, component, component_group, content, contributing, discovery, elevation, guidelines, icon, layout, motion, setup, shape, spacing, theme, tokens, typography, ui_pattern]
+shared_banned_patterns:
+  - id: token_value
+    # A hex color, or a number with a unit; a token name or a link to a token row holds neither.
+    pattern: '(?<![\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\w-])|(?<![\w.#])(?:\d+(?:\.\d+)?|\.\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\w%])'
+    message: 'token value in a foundation doc; guide line: it links the tokens doc and writes no token value'
+    in: all
+    for_doc_types: [color, elevation, motion, shape, spacing, typography]
+    sections: [color_roles, type_scale, spacing_scale, elevation_levels, shapes, durations, easings]

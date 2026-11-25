@@ -1,0 +1,158 @@
+# .github/workflows/ci.yaml
+name: ci
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CORE_SHARDS: 3
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - name: Check the generated constants are current
+        working-directory: packages/specstone_core
+        run: |
+          dart run tool/generate_shipped_packs.dart
+          git diff --exit-code -- lib/src/templates/shipped_packs.g.dart
+          dart run tool/generate_mermaid_script.dart
+          git diff --exit-code -- lib/src/rendering/mermaid_script.g.dart
+          dart run tool/generate_agent_text.dart
+          git diff --exit-code -- lib/src/setup_migration/agent_text.g.dart
+          test -z "$(git status --porcelain -- lib/src/templates/ lib/src/rendering/ lib/src/setup_migration/)"
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+
+  test:
+    strategy:
+      fail-fast: false
+      # The core suite runs as three shards: on the slowest hosted CPU one run
+      # of it takes about 30 minutes, past the 20 minute cap. When a shard nears
+      # 10 minutes, raise CORE_SHARDS and add a core leg.
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        leg:
+          - { suite: core, shard: 0 }
+          - { suite: core, shard: 1 }
+          - { suite: core, shard: 2 }
+          - { suite: cli, shard: 0 }
+    name: test (${{ matrix.os }}, ${{ matrix.leg.suite }}, ${{ matrix.leg.shard }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      # The dropped-shared-lines test reads the newest release tag's packs.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - name: Test specstone_core with coverage
+        if: matrix.leg.suite == 'core' && matrix.os == 'ubuntu-latest'
+        working-directory: packages/specstone_core
+        run: >-
+          dart run coverage:test_with_coverage -- --concurrency=4
+          --shard-by-suite --total-shards=${{ env.CORE_SHARDS }} --shard-index=${{ matrix.leg.shard }}
+      - name: Test specstone_core
+        if: matrix.leg.suite == 'core' && matrix.os != 'ubuntu-latest'
+        working-directory: packages/specstone_core
+        run: >-
+          dart test --concurrency=4
+          --shard-by-suite --total-shards=${{ env.CORE_SHARDS }} --shard-index=${{ matrix.leg.shard }}
+      - name: Test specstone with coverage
+        if: matrix.leg.suite == 'cli' && matrix.os == 'ubuntu-latest'
+        working-directory: packages/specstone
+        run: dart test --coverage-path=coverage/lcov.info --exclude-tags timing
+      - name: Test specstone (macOS)
+        if: matrix.leg.suite == 'cli' && matrix.os == 'macos-latest'
+        working-directory: packages/specstone
+        run: dart test --exclude-tags timing
+      # The PowerShell script tests run in test-scripts-windows.
+      - name: Test specstone (Windows)
+        if: matrix.leg.suite == 'cli' && matrix.os == 'windows-latest'
+        working-directory: packages/specstone
+        run: dart test --exclude-tags timing,ps1
+      - name: Timing gate (NFR-P01, NFR-P02)
+        if: matrix.leg.suite == 'cli'
+        working-directory: packages/specstone
+        run: dart test --tags timing test/nfr_timing_test.dart
+      - uses: actions/upload-artifact@v7
+        if: matrix.leg.suite == 'cli' && matrix.os == 'ubuntu-latest'
+        with:
+          name: coverage-${{ matrix.os }}-${{ matrix.leg.suite }}
+          path: packages/specstone/coverage/lcov.info
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && matrix.leg.suite == 'core' && matrix.os == 'ubuntu-latest' }}
+        with:
+          name: core-coverage-shard-${{ matrix.leg.shard }}
+          path: packages/specstone_core/coverage/coverage.json
+
+  # Merges the core shards' hit maps and holds the core coverage gate.
+  core-coverage:
+    needs: test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: core-coverage-shard-*
+          path: packages/specstone_core/coverage/shards
+      - name: Check the merged core coverage
+        working-directory: packages/specstone_core
+        run: |
+          test "$(find coverage/shards -name coverage.json | wc -l)" -eq ${{ env.CORE_SHARDS }}
+          dart run coverage:format_coverage --lcov --check-ignore --package=. \
+            -i coverage/shards -o coverage/lcov.info --fail-under=80
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-ubuntu-latest-core
+          path: packages/specstone_core/coverage/lcov.info
+
+  test-scripts-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - name: Test the PowerShell scripts
+        working-directory: packages/specstone
+        env:
+          SPECSTONE_PS_TIMING: '1'
+        run: >-
+          dart test --tags ps1 -r expanded --timeout 3m
+          --file-reporter json:ps1-results.json
+      # The JSON file names every test with its start and end time, so a
+      # cancelled or timed-out run still shows which test it stood in.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ps1-results
+          path: packages/specstone/ps1-results.json

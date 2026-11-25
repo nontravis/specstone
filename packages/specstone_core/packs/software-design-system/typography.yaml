@@ -1,0 +1,13 @@
+id: typography
+description: |-
+  The typography doc: the type scale and its usage; it links the tokens doc and writes no token value.
+title: Typography
+path: specs/design_system/foundations/TYPOGRAPHY.md
+sections:
+  - id: type_scale
+    header: Type scale
+    required: true
+    description: |-
+      Write one row per type style: its name, its use, and a link to its row in the tokens doc.
+lint:
+  title_no_number: true

@@ -1,0 +1,100 @@
+id: competitor
+description: |-
+  A competitor: one competitor's position, strengths, weaknesses, and the lessons the project takes from them.
+  Title it `# <Competitor name>`, with no number. One doc covers one competitor.
+  Keep raw evidence, such as screenshots, saved pages, or CLI output, in a `references/` folder beside the doc, and list each file in `files:`.
+  Save an evidence file as `.txt`, `.html`, `.pdf`, or an image, never `.md`, since a `.md` file there is an untyped doc.
+  Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
+  Keep a bound in the item it limits.
+path: prds/competitors/{slug}/COMPETITOR.md
+fields:
+  - id: source
+    type: string
+    required: true
+    description: |-
+      Names where the competitor is found: a URL or a publisher.
+  - id: checked
+    type: date
+    required: true
+    description: |-
+      The day the facts were last checked; bump it on each check.
+  - id: version
+    type: string
+    description: |-
+      The competitor version or edition checked.
+  - id: kind
+    type: enum
+    enum: [direct, indirect, substitute]
+    required: true
+    description: |-
+      direct: sells the same thing to the same customers.
+      indirect: solves the same problem another way.
+      substitute: a customer uses it in place of the project, such as a manual workaround.
+  - id: files
+    type: string
+    list: true
+    description: |-
+      Lists the evidence files under `references/`, each a path relative to this doc's folder, such as `references/readme.txt`.
+      Leave it out when the folder holds none.
+  - id: status
+    enum: [current, retired]
+    description: |-
+      current: the competitor is in the market and its facts are kept up to date.
+      retired: the competitor left the market or no longer matters; kept because older docs cite it.
+sections:
+  - id: summary
+    header: Summary
+    required: true
+    description: |-
+      State what the competitor is, who it serves, how it presents itself, and the problem it solves.
+  - id: strengths
+    header: Strengths
+    required: true
+    description: |-
+      List one strength per item, each citing its evidence file or source.
+  - id: weaknesses
+    header: Weaknesses
+    required: true
+    description: |-
+      List one weakness per item, each citing its evidence file or source.
+  - id: compared_with_us
+    header: Compared with us
+    description: |-
+      State where the competitor beats the project and where the project beats it, each linking a vision item or feature.
+  - id: lessons
+    header: Lessons
+    required: true
+    prefix_id: CL-
+    description: |-
+      Write each lesson as a `### CL-<nn> — <title>` heading with three bullets; `CL-<nn>` numbers per doc.
+      A `- **Take:**` line naming `adopt`, `avoid`, or `watch`.
+      A `- **Applies to:**` line linking a vision item, feature, or user story of the project.
+      A `- **From:**` line naming the strength or weakness the lesson rests on.
+    template: |-
+      ### CL-01 — <short title>
+      - **Take:** <adopt, avoid, or watch>
+      - **Applies to:** [<vision item, feature, or user story>](<link>)
+      - **From:** <the strength or weakness the lesson rests on>
+    lint:
+      required_patterns:
+        - id: take_line
+          pattern: '^- \*\*Take:\*\* .*\b(?:adopt|avoid|watch)\b'
+          message: 'no Take line naming adopt, avoid, or watch; guide line: A `- **Take:**` line naming `adopt`, `avoid`, or `watch`'
+          per_subsection: true
+        - id: applies_to_line
+          pattern: '^- \*\*Applies to:\*\*.*\[[^\]]+\]\([^)]+\)'
+          message: 'no Applies to line with a link; guide line: A `- **Applies to:**` line linking a vision item, feature, or user story of the project'
+          per_subsection: true
+        - id: from_line
+          pattern: '^- \*\*From:\*\* \S'
+          message: 'no From line; guide line: A `- **From:**` line naming the strength or weakness the lesson rests on'
+          per_subsection: true
+lint:
+  title_no_number: true
+  max_lines: 400
+  max_chars: 20000
+reference:
+  - title: BMAD-METHOD, competitor-analysis-tmpl
+    url: https://raw.githubusercontent.com/bmad-code-org/BMAD-METHOD/v4.44.3/bmad-core/templates/competitor-analysis-tmpl.yaml
+  - title: Flares, Competitor teardown template
+    url: https://www.flares.tech/templates/competitor-teardown-template

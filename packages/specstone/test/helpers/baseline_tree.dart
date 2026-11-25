@@ -1,0 +1,375 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/specstone_core.dart';
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
+
+import '../../../specstone_core/test/helpers/shipped_pins.dart';
+import 'temp_tree.dart';
+
+/// The brick_dartfrog commit the baseline sizes were measured at (F1-D35).
+const baselineCommit = '66f7c31273';
+
+/// The size deciles of brick_dartfrog's 1,826 `.md` docs, smallest first.
+///
+/// Each bucket holds its file count and its summed bytes.
+const baselineBuckets = <({int files, int bytes})>[
+  (files: 182, bytes: 328870),
+  (files: 183, bytes: 474484),
+  (files: 182, bytes: 566023),
+  (files: 183, bytes: 654216),
+  (files: 183, bytes: 748097),
+  (files: 182, bytes: 871243),
+  (files: 183, bytes: 1037411),
+  (files: 182, bytes: 1272180),
+  (files: 183, bytes: 1978827),
+  (files: 183, bytes: 11124893),
+];
+
+const _featureCount = 52;
+const _storiesPerFeature = 5;
+const _frsPerStory = 4;
+const _topicCount = 2;
+const _stride = 7;
+const _recordType = 'implementation';
+
+const _padWords = [
+  'amber', 'birch', 'cedar', 'delta', 'ember', 'fjord', 'grove', 'haven', //
+  'iris', 'jade', 'kelp', 'lumen', 'maple', 'nova', 'opal', 'quartz',
+];
+
+/// Writes a new-format docs project the size of the baseline and returns its
+/// root.
+///
+/// The project pins the shipped `prd-core` and `software-tech` and holds
+/// [baselineBuckets]' 1,826 docs in a fixed order. Each feature's record, the
+/// 52 `implementation` docs, takes one size of the middle of the ascending size
+/// list, so it fits its entries, and the two dense-cite FRs take the two
+/// largest, so they fit their lines; each other doc takes the rest in
+/// generation order, stepping 7 sizes at a time through the 1,772 left. Each of
+/// the 1,040 FRs has an `implemented` entry in its feature's record that names
+/// one class in its own `src/` file, and each of the two `decision` docs has a
+/// topic folder with one `src/` file, so 1,042 code files sit under the tech
+/// stack's `code:` root and every one is reached by a `covers:` prefix of a
+/// feature's record. Each entry and prefix ends in the fingerprint of the code
+/// it names, from the shipped recipe, so a check finds no code link changed or
+/// unconfirmed. Each feature's architecture doc holds one small Mermaid block
+/// that parses, inside its size. The folder is deleted by `addTearDown`.
+Future<Directory> writeBaselineTree() async {
+  final root = await writeTree({'.specstone/config.yaml': shippedPinsConfig()});
+  final templates = TemplateResolver().resolve(
+    workingDirectory: root,
+    homeDirectory: null,
+  );
+  final specs = _docSpecs();
+  final all = _ascendingSizes();
+  assert(specs.length == all.length, 'one size for each doc');
+  final padding = _padding(all.last);
+  final middle = all.length ~/ 2;
+  final recordEnd = middle + _featureCount;
+  final denseStart = all.length - _denseDocs.length;
+  final recordSizes = all.sublist(middle, recordEnd).iterator;
+  final denseSizes = all.sublist(denseStart).iterator;
+  final sizes = [...all.take(middle), ...all.sublist(recordEnd, denseStart)];
+  var other = 0;
+  for (final spec in specs) {
+    final isRecord = spec.type == _recordType;
+    final isDense = _denseDocs.contains(spec.path);
+    if (isRecord) recordSizes.moveNext();
+    if (isDense) denseSizes.moveNext();
+    final size = isRecord
+        ? recordSizes.current
+        : isDense
+        ? denseSizes.current
+        : sizes[(other++ * _stride) % sizes.length];
+    final file = File.fromUri(
+      root.uri.resolve(
+        spec.path.startsWith('.specstone/') ? spec.path : 'docs/${spec.path}',
+      ),
+    );
+    await file.parent.create(recursive: true);
+    final text = isRecord
+        ? _renderRecord(spec, size, padding)
+        : _render(templates, spec, size, padding);
+    await file.writeAsString(text);
+  }
+  await _writeCode(root);
+  return root;
+}
+
+String _codePath(int f, int s, int r) => 'src/feature_$f/story_$s/req_$r.dart';
+
+String _topicPath(int t) => 'src/topic_$t/topic.dart';
+
+/// Every code file of the tree, by path from the project root.
+final Map<String, String> _codeFiles = {
+  for (var f = 1; f <= _featureCount; f++)
+    for (var s = 1; s <= _storiesPerFeature; s++)
+      for (var r = 1; r <= _frsPerStory; r++)
+        _codePath(f, s, r): 'class Req$r {}\n',
+  for (var t = 1; t <= _topicCount; t++) _topicPath(t): '// topic $t\n',
+};
+
+String _fileFingerprint(String path) =>
+    fileCodeFingerprint(utf8.encode(_codeFiles[path]!), path: path);
+
+/// Returns the fingerprint of every code file under [folder].
+String _folderFingerprint(String folder) {
+  final paths = _codeFiles.keys.where((p) => p.startsWith(folder)).toList()
+    ..sort();
+  return folderCodeFingerprint([
+    for (final path in paths)
+      FileFingerprint(path: path, fingerprint: _fileFingerprint(path)),
+  ]);
+}
+
+/// Returns the `covers:` frontmatter of a record that covers [folders].
+String _coversFrontmatter(List<String> folders) {
+  final lines = [
+    for (final folder in folders) '  - $folder ${_folderFingerprint(folder)}\n',
+  ];
+  return 'covers:\n${lines.join()}';
+}
+
+/// Writes the code files the FRs implement and the topics cover.
+Future<void> _writeCode(Directory root) async {
+  for (final MapEntry(:key, :value) in _codeFiles.entries) {
+    final file = File.fromUri(root.uri.resolve(key));
+    await file.parent.create(recursive: true);
+    await file.writeAsString(value);
+  }
+}
+
+/// One doc to write: its type, path under `docs/`, title, frontmatter, and
+/// the body of each required section, by header, that holds more than
+/// [_baselineText].
+typedef _DocSpec = ({
+  String type,
+  String path,
+  String title,
+  String frontmatter,
+  Map<String, String> texts,
+});
+
+_DocSpec _spec(
+  String type,
+  String path,
+  String title, [
+  String frontmatter = '',
+  Map<String, String> texts = const {},
+]) => (
+  type: type,
+  path: path,
+  title: title,
+  frontmatter: frontmatter,
+  texts: texts,
+);
+
+const _baselineText = 'Baseline text.';
+
+/// The edge case of feature 1's first FR, which feature 2's first FR cites,
+/// so the design bundle of `feature_1/story_1` prints a cited-by line.
+const Map<String, String> _citedFr = {'Edge cases': '- **E01** $_baselineText'};
+
+const Map<String, String> _citingFr = {
+  'Statement':
+      '$_baselineText See '
+      '[E01](../../f01_feature_1/us01_story_1/fr01_req_1.md#edge-cases).',
+};
+
+/// How many items of one section the dense-cite fixture holds and cites.
+const denseCiteCount = 100;
+
+String _frPath(int f, int s, int r) =>
+    'prds/features/f${_two(f)}_feature_$f/us${_two(s)}_story_$s/'
+    'fr${_two(r)}_req_$r.md';
+
+/// The two FRs of the dense-cite fixture, the cited one first.
+final Set<String> _denseDocs = {_frPath(1, 1, 2), _frPath(1, 2, 1)};
+
+String _edgeCaseId(int n) => 'E${n.toString().padLeft(3, '0')}';
+
+/// The edge cases of feature 1's first story's second FR: [denseCiteCount]
+/// items, each cited by `_denseCiting`, so the design bundle of
+/// `feature_1/story_1` picks them and prints a cited-by line for each.
+final Map<String, String> _denseCited = {
+  'Edge cases': [
+    for (var n = 1; n <= denseCiteCount; n++)
+      '- **${_edgeCaseId(n)}** $_baselineText',
+  ].join('\n'),
+};
+
+/// The statement of feature 1's second story's first FR: one line for each item
+/// of `_denseCited`.
+final Map<String, String> _denseCiting = {
+  'Statement': [
+    for (var n = 1; n <= denseCiteCount; n++)
+      '- [${_edgeCaseId(n)}](../us01_story_1/fr02_req_2.md#edge-cases)',
+  ].join('\n'),
+};
+
+/// Returns the small Mermaid block of feature [f]'s architecture doc.
+///
+/// It differs per feature, so the index stores one parse result for each doc.
+String _diagram(int f) =>
+    '```mermaid\n'
+    '---\n'
+    'title: Feature $f flow\n'
+    '---\n'
+    'flowchart LR\n'
+    '  A["Cli $f"] -->|"reads over stdio"| B["Index $f"]\n'
+    '```';
+
+/// Returns the Components table of feature [f]'s architecture doc, one row for
+/// each box [_diagram] draws.
+String _components(int f) =>
+    '| Component | Responsibility | Tech | Owns |\n'
+    '|---|---|---|---|\n'
+    '| Cli $f | Reads the index. | Dart | None |\n'
+    '| Index $f | Stores the docs. | SQLite | None |';
+
+/// Lists every doc of the tree in generation order.
+List<_DocSpec> _docSpecs() => [
+  _spec('project', 'prds/PROJECT.md', 'Baseline project', 'owner: baseline\n'),
+  _spec('features', 'prds/FEATURES.md', 'Baseline features'),
+  _spec('gnfr', 'prds/GNFR.md', 'Baseline requirements'),
+  _spec(
+    'tech_stack',
+    'specs/TECH_STACK.md',
+    'Baseline stack',
+    'code:\n  - src/\n',
+  ),
+  for (var f = 1; f <= _featureCount; f++) ..._featureSpecs(f),
+  for (var t = 1; t <= _topicCount; t++)
+    _spec('decision', 'specs/decisions/d${_two(t)}_topic_$t.md', 'Topic $t'),
+];
+
+List<_DocSpec> _featureSpecs(int f) {
+  final key = 'f${_two(f)}_feature_$f';
+  return [
+    _spec('feature', 'prds/features/$key/FEATURE.md', 'Feature $f'),
+    _spec('architecture', 'specs/$key/ARCHITECTURE.md', 'Architecture $f', '', {
+      'Technical diagram': _diagram(f),
+      'Components': _components(f),
+    }),
+    _spec('security', 'specs/$key/SECURITY.md', 'Security $f'),
+    _spec('api', 'specs/$key/API.md', 'Api $f'),
+    _spec(
+      _recordType,
+      '.specstone/records/$key/IMPLEMENTATION.md',
+      'Feature $f implementation',
+      _recordFrontmatter(f),
+    ),
+    for (var s = 1; s <= _storiesPerFeature; s++) ...[
+      _spec(
+        'user_story',
+        'prds/features/$key/us${_two(s)}_story_$s/USER_STORY.md',
+        'Story $s',
+      ),
+      for (var r = 1; r <= _frsPerStory; r++)
+        _spec(
+          'fr',
+          _frPath(f, s, r),
+          'Requirement $r',
+          'traced_from:\n  - S1\nverify_method: test\n',
+          switch ((f, s, r)) {
+            (1, 1, 1) => _citedFr,
+            (2, 1, 1) => _citingFr,
+            (1, 1, 2) => _denseCited,
+            (1, 2, 1) => _denseCiting,
+            _ => const {},
+          },
+        ),
+      _spec(
+        'nf',
+        'prds/features/$key/us${_two(s)}_story_$s/nf01_nfr_1.md',
+        'Quality requirement 1',
+        'kind: add\nverify_method: test\n',
+      ),
+    ],
+  ];
+}
+
+/// Returns the frontmatter of feature [f]'s record: each FR `implemented`, with
+/// the one class its `src/` file holds and that file's fingerprint, and the
+/// code folders the feature owns, its own and the topic folder of the same
+/// number.
+String _recordFrontmatter(int f) {
+  final items = [
+    for (var s = 1; s <= _storiesPerFeature; s++)
+      for (var r = 1; r <= _frsPerStory; r++) (s, r),
+  ];
+  String lines(String key, String Function(int s, int r) line) =>
+      '$key:\n${[for (final (s, r) in items) "  - '${line(s, r)}'\n"].join()}';
+  String item(int s, int r) => 'story_$s/req_$r';
+  final folders = ['src/feature_$f/', if (f <= _topicCount) 'src/topic_$f/'];
+  return lines('statuses', (s, r) => '${item(s, r)}:implemented') +
+      lines('implements', (s, r) {
+        final path = _codePath(f, s, r);
+        return '${item(s, r)}:$path:Req$r ${_fileFingerprint(path)}';
+      }) +
+      _coversFrontmatter(folders);
+}
+
+/// Expands [baselineBuckets] to one size per file, smallest first.
+///
+/// Each bucket's bytes divide evenly over its files; the remainder adds one
+/// byte to as many files as it leaves over.
+List<int> _ascendingSizes() {
+  final sizes = <int>[];
+  for (final (:files, :bytes) in baselineBuckets) {
+    final each = bytes ~/ files;
+    final extra = bytes % files;
+    for (var i = 0; i < files; i++) {
+      sizes.add(i < extra ? each + 1 : each);
+    }
+  }
+  return sizes..sort();
+}
+
+/// Returns a doc of exactly [size] bytes: frontmatter, a title, the type's
+/// required sections, and padding words closing the last section.
+String _render(MergedSet templates, _DocSpec spec, int size, String padding) {
+  final headers = [
+    for (final section in templates.lookup(spec.type)!.sections)
+      if (section.required) section.header,
+  ];
+  final head = StringBuffer()
+    ..write(spec.frontmatter.isEmpty ? '' : '---\n${spec.frontmatter}---\n\n')
+    ..write('# ${spec.title}\n\n');
+  for (final header in headers.take(headers.length - 1)) {
+    head.write('## $header\n${spec.texts[header] ?? _baselineText}\n\n');
+  }
+  final lastText = spec.texts[headers.last];
+  final lastBody = lastText == null ? '$_baselineText ' : '$lastText\n\n';
+  head.write('## ${headers.last}\n$lastBody');
+  return _fill(spec, '$head', size, padding);
+}
+
+/// Returns a record of exactly [size] bytes: frontmatter, a title, and padding
+/// words.
+String _renderRecord(_DocSpec spec, int size, String padding) {
+  final head = '---\n${spec.frontmatter}---\n\n# ${spec.title}\n\n';
+  return _fill(spec, head, size, padding);
+}
+
+/// Returns [head] closed with padding words so the doc is exactly [size]
+/// bytes.
+String _fill(_DocSpec spec, String head, int size, String padding) {
+  final padLength = size - head.length - 1;
+  if (padLength < 0) {
+    throw StateError('${spec.path} needs ${head.length + 1} bytes, not $size');
+  }
+  var pad = padding.substring(0, padLength);
+  if (pad.endsWith(' ')) pad = '${pad.substring(0, padLength - 1)}a';
+  return '$head$pad\n';
+}
+
+/// Returns padding words at least [length] characters long.
+String _padding(int length) {
+  final unit = '${_padWords.join(' ')} ';
+  return unit * (length ~/ unit.length + 1);
+}
+
+String _two(int n) => n.toString().padLeft(2, '0');

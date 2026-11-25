@@ -1,0 +1,112 @@
+id: anti_persona
+description: |-
+  An anti-persona: a group the product must resist or does not serve, in its own doc beside the personas, never a row in a persona.
+  Title it `# <archetype title>`, role-based, with no number. The folder name is its identity, so it has no id field.
+  Write a misuser only when the likelihood or consequence of misuse justifies the effort.
+  A doc or spec that guards against an anti-persona cites it in `reference:`.
+  Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
+  Keep a bound in the item it limits, and the research trace in `basis:` and the Sources section, never in the prose.
+path: prds/personas/{slug}/ANTI_PERSONA.md
+fields:
+  - id: anti_type
+    type: enum
+    enum: [misuser, non-target]
+    required: true
+    description: |-
+      misuser: a group that would use the product to cause harm, so the product guards against it.
+      non-target: a group the product does not serve, with the reason.
+  - id: status
+    enum: [assumed, validated, retired]
+    description: |-
+      assumed: the team wrote it from belief; treat it as a hypothesis to test.
+      validated: at least one linked research source backs it; list every source under Sources.
+      retired: no longer a group the product designs for; kept because older docs cite it.
+  - id: basis
+    type: enum
+    enum: [proto, qualitative, statistical]
+    required: true
+    description: |-
+      proto: written from the team's belief, with no research yet; pair it with status assumed.
+      qualitative: built from interviews or observation.
+      statistical: built from survey or analytics data.
+  - id: reviewed
+    type: date
+    description: |-
+      The last review date; bump it on each review.
+sections:
+  - id: snapshot
+    header: Snapshot
+    required: true
+    description: |-
+      Give the group a name and a face.
+      Include only a detail that would change a product decision.
+    template: |-
+      <Role, experience level, and one memorable detail.>
+    lint:
+      max_lines: 4
+      min_lines: 2
+  - id: goal
+    header: Goal
+    required: true
+    description: |-
+      For a misuser, state the threat: what the group wants to achieve against the product.
+      For a non-target, state who the product does not serve and why.
+    template: |-
+      <The threat, or why the product does not serve the group.>
+  - id: sources
+    header: Sources
+    required: true
+    description: |-
+      List every research source behind the claims, linking each claim to its source.
+      For an assumed anti-persona, list the assumptions to test.
+    template: |-
+      - <Research link or reference>
+  - id: motivations
+    header: Motivations
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
+    description: |-
+      State why the misuser wants to misuse the product.
+    template: |-
+      - <Why the misuser wants to misuse the product.>
+  - id: actions
+    header: Actions
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
+    description: |-
+      List the steps the misuser takes to reach the goal.
+    template: |-
+      - <A step the misuser takes.>
+  - id: tools
+    header: Tools
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
+    description: |-
+      List the tools, scripts, or access the misuser uses.
+    template: |-
+      - <A tool, script, or access the misuser uses.>
+  - id: needs
+    header: Needs
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
+    description: |-
+      List what the misuser needs from the product to succeed.
+    template: |-
+      - <What the misuser needs from the product.>
+  - id: consequences
+    header: Consequences
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
+    description: |-
+      State the harm if the misuse succeeds, and who bears it.
+    template: |-
+      - <The harm if the misuse succeeds, and who bears it.>
+lint:
+  title_no_number: true
+  max_lines: 400
+  max_chars: 20000
+reference:
+  - title: "NN/g, Antipersonas: What, How, Who, and Why? (2022)"
+    url: https://www.nngroup.com/articles/antipersonas-what-how/
+  - title: HubSpot, Buyer persona research
+    url: https://blog.hubspot.com/marketing/buyer-persona-research

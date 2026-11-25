@@ -1,0 +1,326 @@
+import 'package:specstone_core/src/consistency_check/message_key_guard.dart';
+
+/// Who clears a finding (`print_findings`): the Owner by an act of theirs, or
+/// the Agent by editing.
+///
+/// It is no level: an `owner` finding counts toward the count line and the exit
+/// status as any other.
+enum WaitsFor {
+  owner('owner'),
+  agent('agent');
+
+  new(this.wire);
+
+  /// The name printed in JSON.
+  final String wire;
+}
+
+/// Returns who clears a refused-form matrix row: the Owner when the mode
+/// reads per-FR rows, since only `migrate` folds a per-edge-case row, else the
+/// Agent.
+WaitsFor refusedFormRowWait({required bool modeReadsFr}) =>
+    modeReadsFr ? WaitsFor.owner : WaitsFor.agent;
+
+/// Returns [WaitsFor.owner] for an `item_count` lint's owner flag, else null.
+WaitsFor? itemCountWait({required bool waitsForOwner}) =>
+    waitsForOwner ? WaitsFor.owner : null;
+
+/// The tag the text line of an `owner` finding ends with.
+const _ownerTag = ' (waits for the Owner)';
+
+/// What every line under a finding line starts with.
+const _blockIndent = '    ';
+
+/// A rule violation kind of the consistency check.
+///
+/// [wire] is the
+/// snake_case name printed in text and JSON; none equals a Specstone error
+/// code.
+enum FindingKind {
+  frontmatterInvalid('frontmatter_invalid'),
+  requiredFieldMissing('required_field_missing'),
+  fieldGroupMissing('field_group_missing'),
+  fieldValueMismatch('field_value_mismatch'),
+  fieldUndeclared('field_undeclared'),
+  featureStatusWritten('feature_status_written'),
+  requirementStatusWritten('requirement_status_written'),
+  titleMissing('title_missing'),
+  requiredSectionMissing('required_section_missing'),
+  sectionUndeclared('section_undeclared'),
+  sectionOutsideFieldValue('section_outside_field_value'),
+  linesOverLimit('lines_over_limit'),
+  charsOverLimit('chars_over_limit'),
+  itemOverLimit('item_over_limit'),
+  visionQuoteMissing('vision_quote_missing'),
+  titleNumbered('title_numbered'),
+  titleFixedMismatch('title_fixed_mismatch'),
+  templateTextLeft('template_text_left'),
+  sentencesOverLimit('sentences_over_limit'),
+  itemCountOutOfRange('item_count_out_of_range'),
+  prefixCountMismatch('prefix_count_mismatch'),
+  linesUnderLimit('lines_under_limit'),
+  subsectionsOverLimit('subsections_over_limit'),
+  itemLinesOverLimit('item_lines_over_limit'),
+  codeBlocksOverLimit('code_blocks_over_limit'),
+  wordsOverLimit('words_over_limit'),
+  sentenceCharsOverLimit('sentence_chars_over_limit'),
+  traceNoteNotLast('trace_note_not_last'),
+  itemFieldMissing('item_field_missing'),
+  itemFieldUnneeded('item_field_unneeded'),
+  sectionUnneeded('section_unneeded'),
+  systemUnresolved('system_unresolved'),
+  operationUnmatched('operation_unmatched'),
+  scopeOperationUnresolved('scope_operation_unresolved'),
+  scopePathUncovered('scope_path_uncovered'),
+  bannedWord('banned_word'),
+  untypedDoc('untyped_doc'),
+  docTypeAmbiguous('doc_type_ambiguous'),
+  orderNumberDuplicate('order_number_duplicate'),
+  parentAmbiguous('parent_ambiguous'),
+  parentMissing('parent_missing'),
+  featureMixedChildren('feature_mixed_children'),
+  subFeatureTooSmall('sub_feature_too_small'),
+  nestingOverLimit('nesting_over_limit'),
+  bundleOverLimit('bundle_over_limit'),
+  pathOverLimit('path_over_limit'),
+  fileNotUtf8('file_not_utf8'),
+  fileUnreadable('file_unreadable'),
+  patternBanned('pattern_banned'),
+  patternMissing('pattern_missing'),
+  itemIdMissing('item_id_missing'),
+  itemIdDuplicate('item_id_duplicate'),
+  itemIdLettered('item_id_lettered'),
+  itemIdRetired('item_id_retired'),
+  itemSequenceGap('item_sequence_gap'),
+  implementsPathUnresolved('implements_path_unresolved'),
+  implementsSymbolUnresolved('implements_symbol_unresolved'),
+  docCitedInCode('doc_cited_in_code'),
+  coversPathMissing('covers_path_missing'),
+  coversEntryEmpty('covers_entry_empty'),
+  codeRootMissing('code_root_missing'),
+  codeUncovered('code_uncovered'),
+  docRefUnresolved('doc_ref_unresolved'),
+  docRefDuplicate('doc_ref_duplicate'),
+  docRefSelf('doc_ref_self'),
+  linkUnresolved('link_unresolved'),
+  linkAnchorMissing('link_anchor_missing'),
+  linkItemMissing('link_item_missing'),
+  itemMentionMissing('item_mention_missing'),
+  linkSelf('link_self'),
+  referenceMalformed('reference_malformed'),
+  linkTargetMissing('link_target_missing'),
+  linkOutsideDocs('link_outside_docs'),
+  markdownUnparsed('markdown_unparsed'),
+  docNameUnresolved('doc_name_unresolved'),
+  perTargetReference('per_target_reference'),
+  sharedDocCodePath('shared_doc_code_path'),
+  sourcePathMissing('source_path_missing'),
+  sourcePathOutsideProject('source_path_outside_project'),
+  numberLabel('number_label'),
+  citeUnlinked('cite_unlinked'),
+  referenceDocUnresolved('reference_doc_unresolved'),
+  listedFileMissing('listed_file_missing'),
+  concernsTargetUnresolved('concerns_target_unresolved'),
+  journeyStepUnresolved('journey_step_unresolved'),
+  journeyAfterUnresolved('journey_after_unresolved'),
+  journeyStepDuplicate('journey_step_duplicate'),
+  scenarioTraceUnresolved('scenario_trace_unresolved'),
+  overrideKindMismatch('override_kind_mismatch'),
+  overrideUnresolved('override_unresolved'),
+  roleUnresolved('role_unresolved'),
+  visionGoalWidened('vision_goal_widened'),
+  visionGoalUnresolved('vision_goal_unresolved'),
+  goalServesMissing('goal_serves_missing'),
+  goalServesHorizon('goal_serves_horizon'),
+  goalMeasurementMissing('goal_measurement_missing'),
+  measurementGoalUnresolved('measurement_goal_unresolved'),
+  goalMeasurementDuplicate('goal_measurement_duplicate'),
+  goalMetricMismatch('goal_metric_mismatch'),
+  goalMetricUnlinked('goal_metric_unlinked'),
+  frTraceUnresolved('fr_trace_unresolved'),
+  implementsMissing('implements_missing'),
+  testsUnresolved('tests_unresolved'),
+  testsMissing('tests_missing'),
+  recordEntryUnresolved('record_entry_unresolved'),
+  recordEntryDuplicate('record_entry_duplicate'),
+  skipReasonMissing('skip_reason_missing'),
+  skipWithCode('skip_with_code'),
+  entryUnderSkip('entry_under_skip'),
+  recordEntryMissing('record_entry_missing'),
+  matrixRowMalformed('matrix_row_malformed'),
+  matrixRowUnresolved('matrix_row_unresolved'),
+  matrixTestUnresolved('matrix_test_unresolved'),
+  matrixRowRepeated('matrix_row_repeated'),
+  matrixSkipConflict('matrix_skip_conflict'),
+  matrixRowMissing('matrix_row_missing'),
+  errorCodeDuplicate('error_code_duplicate'),
+  errorCodeUnraised('error_code_unraised'),
+  errorCodeUncataloged('error_code_uncataloged'),
+  diagramTitleMissing('diagram_title_missing'),
+  diagramEdgeUnlabeled('diagram_edge_unlabeled'),
+  diagramLabelUnquoted('diagram_label_unquoted'),
+  diagramNameUnknown('diagram_name_unknown'),
+  diagramActorMismatch('diagram_actor_mismatch'),
+  diagramParseFailed('diagram_parse_failed'),
+  suspect('suspect'),
+  unconfirmed('unconfirmed'),
+  confirmedEntryMalformed('confirmed_entry_malformed'),
+  confirmedEntryStale('confirmed_entry_stale'),
+  confirmedEntryRepeated('confirmed_entry_repeated'),
+  codeSuspect('code_suspect'),
+  codeUnconfirmed('code_unconfirmed'),
+  formatDrift('format_drift'),
+  agentBlockStale('agent_block_stale'),
+  tbrOpen('tbr_open'),
+  approvalStale('approval_stale'),
+  featurePatternMissing('feature_pattern_missing'),
+  featurePatternItemMissing('feature_pattern_item_missing'),
+  overrideLineMalformed('override_line_malformed'),
+  overrideNotInChain('override_not_in_chain'),
+  taskItemMissing('task_item_missing'),
+  taskRefLeftover('task_ref_leftover'),
+  retrimDue('retrim_due'),
+  singularDocMissing('singular_doc_missing'),
+  layerDocTypeDropped('layer_doc_type_dropped');
+
+  new(this.wire);
+
+  /// The snake_case name printed in text and JSON.
+  final String wire;
+
+  /// Who clears a finding of this kind, unless its rule says otherwise.
+  WaitsFor get waitsFor => switch (this) {
+    approvalStale ||
+    bundleOverLimit ||
+    charsOverLimit ||
+    coversEntryEmpty ||
+    itemOverLimit ||
+    layerDocTypeDropped ||
+    linesOverLimit ||
+    tbrOpen => WaitsFor.owner,
+    _ => WaitsFor.agent,
+  };
+
+  /// Whether the kind is reported against the project, not one doc.
+  bool get isProjectLevel =>
+      this == codeUncovered ||
+      this == docCitedInCode ||
+      this == referenceDocUnresolved ||
+      this == agentBlockStale ||
+      this == singularDocMissing ||
+      this == layerDocTypeDropped;
+}
+
+List<String> _unheld(
+  String message,
+  String path,
+  String? name,
+  Map<String, Object> keys,
+) => unheldMessageValues(message: message, path: path, name: name, keys: keys);
+
+/// One rule violation at a line of a file.
+final class Finding {
+  new({
+    required this.kind,
+    required this.path,
+    required this.line,
+    required this.message,
+    this.name,
+    WaitsFor? waitsFor,
+    this.keys = const {},
+  }) : _waitsFor = waitsFor,
+       assert(
+         _unheld(message, path, name, keys).isEmpty,
+         '${kind.wire} message names values no key holds: '
+         '${_unheld(message, path, name, keys)}',
+       );
+
+  /// The violated rule.
+  final FindingKind kind;
+
+  /// A DocPath, or a project template or agent file's path from the project
+  /// root.
+  final String path;
+
+  /// The doc's name; null for an untyped doc and for a template file.
+  final String? name;
+
+  /// The 1-based line in the file.
+  final int line;
+
+  /// The violation in plain text.
+  final String message;
+
+  final WaitsFor? _waitsFor;
+
+  /// Who clears the finding: the rule's choice, else the kind's.
+  WaitsFor get waitsFor => _waitsFor ?? kind.waitsFor;
+
+  /// Whether the Owner's approval of the doc clears the finding: an
+  /// `unconfirmed` finding that waits for the Owner.
+  bool get isClearedByApproval =>
+      kind == FindingKind.unconfirmed && waitsFor == WaitsFor.owner;
+
+  /// Whether an agent clears the finding.
+  bool get isForAgent => waitsFor == WaitsFor.agent;
+
+  /// Extra JSON members after `waitsFor`.
+  final Map<String, Object> keys;
+
+  /// The `path:line: kind: message` text line, with no tag.
+  String get textLine => '$path:$line: ${kind.wire}: $message';
+
+  /// The lines the text output prints: [textLine], ended with the tag when
+  /// [waitsFor] is `owner`.
+  ///
+  /// A `suspect` or `unconfirmed` finding with a `text` key goes on with each
+  /// line of the upstream block and then `fingerprint <hash>`, each indented
+  /// 4 spaces, so a reader cut short of the block's end never reaches the
+  /// fingerprint. A `code_suspect` or `code_unconfirmed` finding goes on with
+  /// that line alone.
+  List<String> get textLines => [
+    if (waitsFor == WaitsFor.owner) '$textLine$_ownerTag' else textLine,
+    ..._upstreamBlockLines,
+    ..._codeFingerprintLines,
+  ];
+
+  // `reference_malformed` and `item_id_*` findings hold an unrelated `text`.
+  Iterable<String> get _upstreamBlockLines sync* {
+    final text = keys['text'];
+    if ((kind != FindingKind.suspect && kind != FindingKind.unconfirmed) ||
+        text is! String) {
+      return;
+    }
+    if (text.isNotEmpty) {
+      for (final line in text.split('\n')) {
+        yield '$_blockIndent$line';
+      }
+    }
+    yield '${_blockIndent}fingerprint ${keys['fingerprint']}';
+  }
+
+  Iterable<String> get _codeFingerprintLines sync* {
+    if (kind == FindingKind.codeSuspect ||
+        kind == FindingKind.codeUnconfirmed) {
+      yield '${_blockIndent}fingerprint ${keys['fingerprint']}';
+    }
+  }
+
+  /// The JSON object: `kind`, `path` (the finding's own file), `name` when
+  /// set, `line`, `message` with no tag, `waitsFor`, then [keys].
+  ///
+  /// [keys] never hold `path`, which would replace the finding's own file;
+  /// a kind naming another file uses `codePath` or `targetPath`.
+  Map<String, Object> toJson() {
+    assert(!keys.containsKey('path'), 'keys of $kind hold the reserved path');
+    return {
+      'kind': kind.wire,
+      'path': path,
+      'name': ?name,
+      'line': line,
+      'message': message,
+      'waitsFor': waitsFor.wire,
+      ...keys,
+    };
+  }
+}

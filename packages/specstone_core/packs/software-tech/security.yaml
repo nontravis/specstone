@@ -1,0 +1,71 @@
+id: security
+description: |-
+  The threat model of one feature: its trust boundaries, the threats to them, the response to each, and the risk left.
+  Title it `# <Feature name> security`, such as `# Rendering security`, with no number.
+  The project's SECURITY doc is the primary one; a feature writes this doc only for a new trust boundary or asset.
+  A feature SECURITY may cite its own ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#technical-diagram)`.
+  Write one rule per ID: one Threats row per threat.
+  Put a rule every feature uses in the project's SECURITY doc.
+path: specs/f{nn}_{slug}/SECURITY.md
+parent: feature
+per_target: true
+sections:
+  - id: system_model
+    header: System model
+    required: true
+    description: |-
+      Write the trust boundaries, data flows, stores, and outside entities.
+      Cite an `architecture` view by link in place of drawing it again.
+  - id: threats
+    header: Threats
+    required: true
+    description: |-
+      Write a table with the columns Element, STRIDE, Threat, Response, Residual risk, Proved by.
+      Write STRIDE as one of the six categories: Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, or Elevation of privilege.
+      Write Response as mitigate, eliminate, transfer, or accept.
+    lint:
+      banned_patterns:
+        - id: stride_value
+          pattern: '^\|[^|]*\|(?! *`?(?:STRIDE|Spoofing|Tampering|Repudiation|Information disclosure|Denial of service|Elevation of privilege|:?-+:?)`? *\|)[^|]*\|'
+          message: 'STRIDE is not one of the six categories; guide line: Write STRIDE as one of the six categories'
+          in: all
+        - id: response_value
+          pattern: '^\|[^|]*\|[^|]*\|[^|]*\|(?! *`?(?:Response|mitigate|eliminate|transfer|accept|:?-+:?)`? *\|)[^|]*\|'
+          message: 'Response is not mitigate, eliminate, transfer, or accept; guide line: Write Response as mitigate, eliminate, transfer, or accept'
+          in: all
+  - id: out_of_scope
+    header: Out of scope
+    description: |-
+      Write one item per threat left out, with why.
+  - id: enforcement
+    header: Enforcement
+    required: true
+    description: |-
+      Write the layer where the checks run.
+    lint:
+      max_lines: 1
+  - id: audit
+    header: Audit
+    required: true
+    description: |-
+      Write a table with the columns Event, Triggered by, Logged fields.
+      Write event names from one vocabulary; each name is a stable identifier.
+      Cover when, where, who, what in the logged fields of each event.
+      Never log tokens or passwords; name any other field banned from the log.
+lint:
+  title_no_number: true
+  max_chars: 50000
+  max_lines: 300
+reference:
+  - title: OWASP Threat Modeling Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html
+    locator: System Modeling; Threat Identification; Response and Mitigations
+  - title: RFC 3552, Guidelines for Writing RFC Text on Security Considerations
+    url: https://www.rfc-editor.org/rfc/rfc3552#section-5
+    locator: 5. Writing Security Considerations Sections
+  - title: OWASP Logging Vocabulary Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Vocabulary_Cheat_Sheet.html
+    locator: Authentication [AUTHN]; Authorization [AUTHZ]
+  - title: OWASP ASVS 5.0
+    url: https://github.com/OWASP/ASVS/tree/master/5.0/en
+    locator: V8.1 Authorization Documentation; V16.3 Security Events

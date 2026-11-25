@@ -1,0 +1,18 @@
+id: motion
+description: |-
+  The motion doc: the durations, the easings, and their usage; it links the tokens doc and writes no token value.
+title: Motion
+path: specs/design_system/foundations/MOTION.md
+sections:
+  - id: durations
+    header: Durations
+    required: true
+    description: |-
+      Write one row per duration: its name, its use, and a link to its row in the tokens doc.
+  - id: easings
+    header: Easings
+    required: true
+    description: |-
+      Write one row per easing: its name, its use, and a link to its row in the tokens doc.
+lint:
+  title_no_number: true

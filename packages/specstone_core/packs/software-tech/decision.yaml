@@ -1,0 +1,60 @@
+id: decision
+description: |-
+  One architecture decision: the problem, the options weighed, the one chosen, and its consequences.
+  Title it `# <decision in a few words>`, such as `# Keep the index in SQLite`, with no number.
+  Write one decision per doc; a decision a newer one replaces stays, its `superseded_by` linking the newer one.
+  Write one rule per ID: one `###` per option.
+path: specs/decisions/d{nn}_{slug}.md
+fixed_numbers: true
+fields:
+  - id: superseded_by
+    type: doc_ref
+    doc_types: [decision]
+    description: |-
+      Links the `decision` doc that replaces this one; leave it out while the decision holds.
+sections:
+  - id: context
+    header: Context
+    required: true
+    description: |-
+      Write the problem the decision answers; cite each PRD item by link, never restating it.
+  - id: drivers
+    header: Drivers
+    description: |-
+      Link the GNFR, nf, or goal items that force the choice.
+  - id: options
+    header: Options
+    required: true
+    description: |-
+      Write one `###` per option considered, each holding its pros and cons.
+  - id: outcome
+    header: Outcome
+    required: true
+    description: |-
+      Write "Chosen: <option>, because <reason>".
+  - id: consequences
+    header: Consequences
+    required: true
+    description: |-
+      Write the good and the bad, a design risk included.
+  - id: confirmation
+    header: Confirmation
+    description: |-
+      Write how code or a test shows the decision holds.
+lint:
+  title_no_number: true
+  max_chars: 50000
+  max_lines: 300
+reference:
+  - title: Michael Nygard, Documenting Architecture Decisions
+    url: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions
+    locator: Context; Decision; Status; Consequences
+  - title: MADR template
+    url: https://adr.github.io/madr/
+    locator: Context and Problem Statement; Considered Options; Decision Outcome; Consequences; Confirmation
+  - title: arc42 section 9, Architecture Decisions
+    url: https://docs.arc42.org/section-9/
+    locator: Content; Motivation; Form
+  - title: ISO/IEC/IEEE 42010 conceptual model
+    url: http://www.iso-architecture.org/42010/cm/
+    locator: Architecture Rationale; Architecture Decision

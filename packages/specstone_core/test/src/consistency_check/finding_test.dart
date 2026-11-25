@@ -1,0 +1,548 @@
+import 'package:specstone_core/src/consistency_check/check_report.dart';
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:test/test.dart';
+
+void main() {
+  test('consistency_check: snake_case kinds, no error code', () {
+    expect(FindingKind.values.map((k) => k.wire), [
+      'frontmatter_invalid',
+      'required_field_missing',
+      'field_group_missing',
+      'field_value_mismatch',
+      'field_undeclared',
+      'feature_status_written',
+      'requirement_status_written',
+      'title_missing',
+      'required_section_missing',
+      'section_undeclared',
+      'section_outside_field_value',
+      'lines_over_limit',
+      'chars_over_limit',
+      'item_over_limit',
+      'vision_quote_missing',
+      'title_numbered',
+      'title_fixed_mismatch',
+      'template_text_left',
+      'sentences_over_limit',
+      'item_count_out_of_range',
+      'prefix_count_mismatch',
+      'lines_under_limit',
+      'subsections_over_limit',
+      'item_lines_over_limit',
+      'code_blocks_over_limit',
+      'words_over_limit',
+      'sentence_chars_over_limit',
+      'trace_note_not_last',
+      'item_field_missing',
+      'item_field_unneeded',
+      'section_unneeded',
+      'system_unresolved',
+      'operation_unmatched',
+      'scope_operation_unresolved',
+      'scope_path_uncovered',
+      'banned_word',
+      'untyped_doc',
+      'doc_type_ambiguous',
+      'order_number_duplicate',
+      'parent_ambiguous',
+      'parent_missing',
+      'feature_mixed_children',
+      'sub_feature_too_small',
+      'nesting_over_limit',
+      'bundle_over_limit',
+      'path_over_limit',
+      'file_not_utf8',
+      'file_unreadable',
+      'pattern_banned',
+      'pattern_missing',
+      'item_id_missing',
+      'item_id_duplicate',
+      'item_id_lettered',
+      'item_id_retired',
+      'item_sequence_gap',
+      'implements_path_unresolved',
+      'implements_symbol_unresolved',
+      'doc_cited_in_code',
+      'covers_path_missing',
+      'covers_entry_empty',
+      'code_root_missing',
+      'code_uncovered',
+      'doc_ref_unresolved',
+      'doc_ref_duplicate',
+      'doc_ref_self',
+      'link_unresolved',
+      'link_anchor_missing',
+      'link_item_missing',
+      'item_mention_missing',
+      'link_self',
+      'reference_malformed',
+      'link_target_missing',
+      'link_outside_docs',
+      'markdown_unparsed',
+      'doc_name_unresolved',
+      'per_target_reference',
+      'shared_doc_code_path',
+      'source_path_missing',
+      'source_path_outside_project',
+      'number_label',
+      'cite_unlinked',
+      'reference_doc_unresolved',
+      'listed_file_missing',
+      'concerns_target_unresolved',
+      'journey_step_unresolved',
+      'journey_after_unresolved',
+      'journey_step_duplicate',
+      'scenario_trace_unresolved',
+      'override_kind_mismatch',
+      'override_unresolved',
+      'role_unresolved',
+      'vision_goal_widened',
+      'vision_goal_unresolved',
+      'goal_serves_missing',
+      'goal_serves_horizon',
+      'goal_measurement_missing',
+      'measurement_goal_unresolved',
+      'goal_measurement_duplicate',
+      'goal_metric_mismatch',
+      'goal_metric_unlinked',
+      'fr_trace_unresolved',
+      'implements_missing',
+      'tests_unresolved',
+      'tests_missing',
+      'record_entry_unresolved',
+      'record_entry_duplicate',
+      'skip_reason_missing',
+      'skip_with_code',
+      'entry_under_skip',
+      'record_entry_missing',
+      'matrix_row_malformed',
+      'matrix_row_unresolved',
+      'matrix_test_unresolved',
+      'matrix_row_repeated',
+      'matrix_skip_conflict',
+      'matrix_row_missing',
+      'error_code_duplicate',
+      'error_code_unraised',
+      'error_code_uncataloged',
+      'diagram_title_missing',
+      'diagram_edge_unlabeled',
+      'diagram_label_unquoted',
+      'diagram_name_unknown',
+      'diagram_actor_mismatch',
+      'diagram_parse_failed',
+      'suspect',
+      'unconfirmed',
+      'confirmed_entry_malformed',
+      'confirmed_entry_stale',
+      'confirmed_entry_repeated',
+      'code_suspect',
+      'code_unconfirmed',
+      'format_drift',
+      'agent_block_stale',
+      'tbr_open',
+      'approval_stale',
+      'feature_pattern_missing',
+      'feature_pattern_item_missing',
+      'override_line_malformed',
+      'override_not_in_chain',
+      'task_item_missing',
+      'task_ref_leftover',
+      'retrim_due',
+      'singular_doc_missing',
+      'layer_doc_type_dropped',
+    ]);
+    // document_writing/s05_errors.md's catalog, whose code F-04 does not import.
+    const writeCodes = {
+      'base_mismatch',
+      'field_unknown',
+      'field_value_invalid',
+      'field_not_writable',
+      'required_target',
+      'doc_exists',
+      'doc_referenced',
+      'position_out_of_range',
+      'doc_type_not_movable',
+      'owner_terminal_required',
+      'output_not_writable',
+    };
+    final codes = {
+      for (final c in FaultCode.values) c.wire,
+      for (final c in IndexFaultCode.values) c.wire,
+      for (final c in RenderFaultCode.values) c.wire,
+      ...writeCodes,
+    };
+    for (final kind in FindingKind.values) {
+      expect(kind.wire, matches(RegExp(r'^[a-z][a-z0-9]*(_[a-z0-9]+)*$')));
+      expect(codes, isNot(contains(kind.wire)));
+    }
+    expect(
+      [
+        for (final k in FindingKind.values)
+          if (k.isProjectLevel) k,
+      ],
+      [
+        FindingKind.docCitedInCode,
+        FindingKind.codeUncovered,
+        FindingKind.referenceDocUnresolved,
+        FindingKind.agentBlockStale,
+        FindingKind.singularDocMissing,
+        FindingKind.layerDocTypeDropped,
+      ],
+    );
+  });
+
+  test('every kind waits for the Owner or the Agent, the Owner only for the '
+      'kinds the Output lists', () {
+    const owner = {
+      FindingKind.approvalStale,
+      FindingKind.bundleOverLimit,
+      FindingKind.charsOverLimit,
+      FindingKind.coversEntryEmpty,
+      FindingKind.itemOverLimit,
+      FindingKind.layerDocTypeDropped,
+      FindingKind.linesOverLimit,
+      FindingKind.tbrOpen,
+    };
+    for (final kind in FindingKind.values) {
+      expect(
+        kind.waitsFor,
+        owner.contains(kind) ? WaitsFor.owner : WaitsFor.agent,
+        reason: kind.wire,
+      );
+    }
+    expect(WaitsFor.values.map((w) => w.wire), ['owner', 'agent']);
+    for (final kind in [
+      FindingKind.goalServesHorizon,
+      FindingKind.goalMeasurementMissing,
+      FindingKind.measurementGoalUnresolved,
+      FindingKind.goalMeasurementDuplicate,
+      FindingKind.goalMetricMismatch,
+      FindingKind.goalMetricUnlinked,
+    ]) {
+      expect(kind.waitsFor, WaitsFor.agent, reason: kind.wire);
+    }
+  });
+
+  test('layer_doc_type_dropped is project-level and waits for the Owner', () {
+    expect(FindingKind.layerDocTypeDropped.wire, 'layer_doc_type_dropped');
+    expect(FindingKind.layerDocTypeDropped.waitsFor, WaitsFor.owner);
+    expect(FindingKind.layerDocTypeDropped.isProjectLevel, isTrue);
+  });
+
+  test('diagram_parse_failed waits for the Agent', () {
+    expect(FindingKind.diagramParseFailed.wire, 'diagram_parse_failed');
+    expect(FindingKind.diagramParseFailed.waitsFor, WaitsFor.agent);
+    expect(FindingKind.diagramParseFailed.isProjectLevel, isFalse);
+  });
+
+  test('a finding '
+      'takes the waitsFor of its kind unless a rule sets it', () {
+    final byKind = Finding(
+      kind: FindingKind.unconfirmed,
+      path: 'a.md',
+      line: 1,
+      message: 'm',
+    );
+    final byRule = Finding(
+      kind: FindingKind.unconfirmed,
+      path: 'a.md',
+      line: 1,
+      message: 'm',
+      waitsFor: WaitsFor.owner,
+    );
+    expect(byKind.waitsFor, WaitsFor.agent);
+    expect(byRule.waitsFor, WaitsFor.owner);
+  });
+
+  test('only an unconfirmed finding that waits for the Owner is cleared by '
+      'approval', () {
+    for (final kind in [FindingKind.unconfirmed, FindingKind.suspect]) {
+      for (final waitsFor in [WaitsFor.owner, WaitsFor.agent]) {
+        final finding = Finding(
+          kind: kind,
+          path: 'a.md',
+          line: 1,
+          message: 'm',
+          waitsFor: waitsFor,
+        );
+        expect(
+          finding.isClearedByApproval,
+          kind == FindingKind.unconfirmed && waitsFor == WaitsFor.owner,
+          reason: '${kind.wire} waits for ${waitsFor.name}',
+        );
+      }
+    }
+  });
+
+  test('an owner finding ends its line with the tag; its JSON holds waitsFor '
+      'after message and no tag in the message', () {
+    final finding = Finding(
+      kind: FindingKind.approvalStale,
+      path: 'prds/a.md',
+      name: 'a',
+      line: 3,
+      message: 'waits',
+    );
+    expect(finding.textLines, [
+      'prds/a.md:3: approval_stale: waits (waits for the Owner)',
+    ]);
+    expect(finding.toJson().keys, [
+      'kind',
+      'path',
+      'name',
+      'line',
+      'message',
+      'waitsFor',
+    ]);
+    expect(finding.toJson()['message'], 'waits');
+    expect(finding.toJson()['waitsFor'], 'owner');
+    expect(
+      CheckReport(findings: [finding]).text,
+      'prds/a.md:3: approval_stale: waits (waits for the Owner)\n1 finding\n',
+    );
+  });
+
+  test('a finding with '
+      'a text key prints the block indented 4 spaces, an empty line as exactly '
+      '4 spaces, then the fingerprint last', () {
+    final finding = Finding(
+      kind: FindingKind.suspect,
+      path: 'prds/a.md',
+      line: 3,
+      message: 'read it',
+      keys: {
+        'text': '### Scenario 2\n\nfingerprint 000000000000 in the block',
+        'fingerprint': '9a1c03be55d2',
+      },
+    );
+    expect(finding.textLines, [
+      'prds/a.md:3: suspect: read it',
+      '    ### Scenario 2',
+      '    ',
+      '    fingerprint 000000000000 in the block',
+      '    fingerprint 9a1c03be55d2',
+    ]);
+  });
+
+  test('a '
+      'reference_malformed finding keeps its own text key off the printed '
+      'lines', () {
+    final finding = Finding(
+      kind: FindingKind.referenceMalformed,
+      path: 'prds/a.md',
+      line: 3,
+      message: 'bad',
+      keys: {'form': 'item_id', 'text': 'FR-01'},
+    );
+    expect(finding.textLines, ['prds/a.md:3: reference_malformed: bad']);
+  });
+
+  test('a finding with '
+      'no text key prints its line alone', () {
+    final finding = Finding(
+      kind: FindingKind.unconfirmed,
+      path: 'prds/a.md',
+      line: 3,
+      message: 'waits',
+      waitsFor: WaitsFor.owner,
+      keys: {'fingerprint': '9a1c03be55d2'},
+    );
+    expect(finding.textLines, [
+      'prds/a.md:3: unconfirmed: waits (waits for the Owner)',
+    ]);
+  });
+
+  test('a code_unconfirmed finding prints the current fingerprint on its own '
+      'line, indented 4 spaces, and holds it in no message', () {
+    final finding = Finding(
+      kind: FindingKind.codeUnconfirmed,
+      path: 'specs/a.md',
+      line: 4,
+      message: 'lib/a.dart records no fingerprint',
+      keys: {
+        'entry': 'lib/a.dart',
+        'codePath': 'lib/a.dart',
+        'fingerprint': '9a1c03be55d2',
+      },
+    );
+    expect(finding.textLines, [
+      'specs/a.md:4: code_unconfirmed: lib/a.dart records no fingerprint',
+      '    fingerprint 9a1c03be55d2',
+    ]);
+    expect(finding.waitsFor, WaitsFor.agent);
+    expect(finding.toJson().keys, [
+      'kind',
+      'path',
+      'line',
+      'message',
+      'waitsFor',
+      'entry',
+      'codePath',
+      'fingerprint',
+    ]);
+  });
+
+  test('a code_suspect finding prints the current fingerprint on its own '
+      'line, indented 4 spaces, and holds it in no message', () {
+    final finding = Finding(
+      kind: FindingKind.codeSuspect,
+      path: 'specs/a.md',
+      line: 4,
+      message:
+          'lib/a.dart changed since its fingerprint 5d1e0c4b7a92 was '
+          'recorded',
+      keys: {
+        'entry': 'lib/a.dart',
+        'codePath': 'lib/a.dart',
+        'recorded': '5d1e0c4b7a92',
+        'fingerprint': '9a1c03be55d2',
+      },
+    );
+    expect(finding.textLines, [
+      'specs/a.md:4: code_suspect: lib/a.dart changed since its fingerprint 5d1e0c4b7a92 was recorded',
+      '    fingerprint 9a1c03be55d2',
+    ]);
+    expect(finding.waitsFor, WaitsFor.agent);
+    expect(finding.toJson().keys, [
+      'kind',
+      'path',
+      'line',
+      'message',
+      'waitsFor',
+      'entry',
+      'codePath',
+      'recorded',
+      'fingerprint',
+    ]);
+  });
+
+  test('an agent '
+      'finding carries no tag, and its JSON waitsFor sits before the '
+      'keys of its kind', () {
+    final finding = Finding(
+      kind: FindingKind.bannedWord,
+      path: 'a.md',
+      line: 2,
+      message: 'm',
+      keys: {'word': 'w'},
+    );
+    expect(finding.textLines, ['a.md:2: banned_word: m']);
+    expect(finding.toJson().keys, [
+      'kind',
+      'path',
+      'line',
+      'message',
+      'waitsFor',
+      'word',
+    ]);
+    expect(finding.toJson()['waitsFor'], 'agent');
+  });
+
+  test('an owner '
+      'finding counts and exits 1 as any other', () {
+    final report = CheckReport(
+      findings: [
+        Finding(
+          kind: FindingKind.approvalStale,
+          path: 'a.md',
+          line: 1,
+          message: 'm',
+        ),
+      ],
+    );
+    expect(report.exitStatus, 1);
+    expect(report.json['count'], 1);
+    expect(report.text.split('\n').reversed.skip(1).first, '1 finding');
+  });
+
+  test('no finding prints 0 findings and exits 0', () {
+    final report = CheckReport(findings: const []);
+    expect(report.text, '0 findings\n');
+    expect(report.json, {
+      'findings': <Object>[],
+      'count': 0,
+      'warnings': <Object>[],
+    });
+    expect(report.exitStatus, 0);
+  });
+
+  test('findings sort by path, line, kind, then message', () {
+    Finding at(String path, int line, FindingKind kind, String message) =>
+        Finding(
+          kind: kind,
+          path: path,
+          name: 'n',
+          line: line,
+          message: message,
+        );
+    final report = CheckReport(
+      findings: [
+        at('b.md', 1, FindingKind.titleMissing, 'm'),
+        at('a.md', 12, FindingKind.bannedWord, 'm'),
+        at('a.md', 4, FindingKind.untypedDoc, 'z'),
+        at('a.md', 4, FindingKind.untypedDoc, 'a'),
+        at('a.md', 4, FindingKind.bannedWord, 'm'),
+      ],
+    );
+    expect(report.findings.map((f) => f.textLine), [
+      'a.md:4: banned_word: m',
+      'a.md:4: untyped_doc: a',
+      'a.md:4: untyped_doc: z',
+      'a.md:12: banned_word: m',
+      'b.md:1: title_missing: m',
+    ]);
+    expect(report.text.split('\n').reversed.skip(1).first, '5 findings');
+    expect(report.exitStatus, 1);
+  });
+
+  test("toJson names the finding's file as path and holds no docPath key", () {
+    final finding = Finding(
+      kind: FindingKind.bannedWord,
+      path: 'prds/a.md',
+      line: 2,
+      message: 'm',
+      keys: {'word': 'w'},
+    );
+    final json = finding.toJson();
+    expect(json['path'], 'prds/a.md');
+    expect(json.containsKey('docPath'), isFalse);
+    expect(json.keys.take(2), ['kind', 'path']);
+  });
+
+  test(
+    'toJson throws an AssertionError for a finding whose keys hold path',
+    () {
+      final finding = Finding(
+        kind: FindingKind.bannedWord,
+        path: 'prds/a.md',
+        line: 2,
+        message: 'm',
+        keys: {'path': 'lib/a.dart'},
+      );
+      expect(finding.toJson, throwsA(isA<AssertionError>()));
+    },
+  );
+
+  test('an untyped doc and a template file carry no name; warnings print '
+      'only when there are some', () {
+    final finding = Finding(
+      kind: FindingKind.untypedDoc,
+      path: 'prds/d01_context.md',
+      line: 1,
+      message: 'm',
+    );
+    expect(finding.toJson(), {
+      'kind': 'untyped_doc',
+      'path': 'prds/d01_context.md',
+      'line': 1,
+      'message': 'm',
+      'waitsFor': 'agent',
+    });
+    final report = CheckReport(findings: [finding], warnings: const ['w']);
+    expect(report.text, 'prds/d01_context.md:1: untyped_doc: m\n1 finding\n');
+    expect(report.json['warnings'], ['w']);
+  });
+}

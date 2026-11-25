@@ -1,0 +1,354 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/doc_mentions.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/models/mention.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/journeys/journey_steps.dart';
+import 'package:specstone_core/src/journeys/step_scenarios.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+
+const _frType = 'fr';
+const _tracedFromKey = 'traced_from';
+const _verifiesKind = 'verifies';
+
+/// The inbound story maps of each index, built on first use: an index is
+/// one read snapshot, so a delete unit's [referrersOf] calls share them.
+final _journeysByStoryOf = Expando<Map<String, List<IndexedDoc>>>();
+final _tracedByStoryOf = Expando<Map<String, List<IndexedDoc>>>();
+
+/// One reference as printed: its text line and its JSON object.
+final class _Ref {
+  const new({required this.text, required this.json});
+
+  /// Returns the reference of [kind] that targets [doc].
+  factory toDoc(String kind, IndexedDoc doc) => _Ref(
+    text: '- $kind: ${nameWithType(doc)}',
+    json: {'kind': kind, 'name': doc.name, 'docType': ?doc.docTypeId},
+  );
+
+  /// Returns the reference of [kind] that points at [pointer] as written.
+  factory toPointer(String kind, String pointer) =>
+      _Ref(text: '- $kind: $pointer', json: {'kind': kind, 'pointer': pointer});
+
+  /// Returns the line [mention] names, as `- <DocPath>:<line>`.
+  factory toMention(Mention mention) => _Ref(
+    text: '- ${mention.doc.docPath}:${mention.line}',
+    json: {'path': mention.doc.docPath, 'line': mention.line},
+  );
+
+  /// The line `- <kind>: <target>`, or `- <DocPath>:<line>` for a mention.
+  final String text;
+
+  /// The JSON object with `name` and `docType`, `pointer`, or `path` and
+  /// `line`.
+  final Map<String, Object> json;
+}
+
+/// Returns the references of each doc [address] names, outbound and inbound,
+/// then the lines that mention its file.
+///
+/// Outbound holds each `doc_ref` field value that resolves, each doc the doc
+/// links to, each story a journey step or an `fr`'s `traced_from` entry names,
+/// its `output_ref` pointers without a fingerprint (a record's code paths and
+/// test paths, `covers`), then a record's matrix rows as written.
+/// Inbound holds the docs whose `doc_ref` value reaches the doc, then those
+/// linking to it, then the journeys with a step naming it, then the `fr` docs
+/// tracing it, each group in tree order of the referring docs. Mentions holds
+/// each line of another typed doc that names the doc's file in text or holds a
+/// doc-name mention of it (see [mentionsOf]); Untyped mentions holds those of
+/// untyped docs, which no write takes as a target.
+///
+/// [codeTarget] keeps a name to that code target's docs and the shared docs.
+/// Throws an [IndexFault] when no doc carries the name or [codeTarget] names
+/// no target the project holds.
+ReadAnswer answerRefs(DocIndex index, String address, {String? codeTarget}) {
+  final inboundByPath = _inboundByPath(index);
+  final journeysByStory = _journeysByStory(index);
+  final tracedByStory = _tracedByStory(index);
+  final answers = [
+    for (final doc in index.resolve(address, codeTarget: codeTarget))
+      _answerFor(index, doc, inboundByPath, journeysByStory, tracedByStory),
+  ];
+  return ReadAnswer(
+    text: [for (final answer in answers) answer.text].join(),
+    json: {
+      'docs': [for (final answer in answers) answer.json],
+    },
+  );
+}
+
+_DocRefs _answerFor(
+  DocIndex index,
+  IndexedDoc doc,
+  Map<String, List<_Ref>> inboundByPath,
+  Map<String, List<IndexedDoc>> journeysByStory,
+  Map<String, List<IndexedDoc>> tracedByStory,
+) {
+  final outbound = _outbound(index, doc);
+  final inbound = [
+    ...?inboundByPath[doc.docPath],
+    for (final from in index.linkingTo(doc)) _Ref.toDoc('link', from),
+    for (final from in journeysByStory[doc.docPath] ?? const <IndexedDoc>[])
+      _Ref.toDoc('step', from),
+    for (final from in tracedByStory[doc.docPath] ?? const <IndexedDoc>[])
+      _Ref.toDoc('traced_from', from),
+  ];
+  final allMentions = mentionsOf(index, doc);
+  final mentions = [
+    for (final mention in allMentions)
+      if (mention.doc.isTyped) _Ref.toMention(mention),
+  ];
+  final untypedMentions = [
+    for (final mention in allMentions)
+      if (!mention.doc.isTyped) _Ref.toMention(mention),
+  ];
+  final text = StringBuffer('${namingLine(doc)}\n')
+    ..writeln('Outbound')
+    ..write(_groupLines(outbound))
+    ..writeln('Inbound')
+    ..write(_groupLines(inbound))
+    ..writeln('Mentions')
+    ..write(_groupLines(mentions))
+    ..writeln('Untyped mentions')
+    ..write(_groupLines(untypedMentions));
+  return _DocRefs(
+    text: text.toString(),
+    json: {
+      'name': doc.name,
+      'docType': ?doc.docTypeId,
+      'path': doc.docPath,
+      'outbound': [for (final ref in outbound) ref.json],
+      'inbound': [for (final ref in inbound) ref.json],
+      'mentions': [for (final ref in mentions) ref.json],
+      'untypedMentions': [for (final ref in untypedMentions) ref.json],
+    },
+  );
+}
+
+/// One doc's references as printed: its text block and its JSON object.
+final class _DocRefs {
+  const new({required this.text, required this.json});
+
+  final String text;
+  final Map<String, Object> json;
+}
+
+/// Returns the outbound references of [doc]: its `doc_ref` fields in field
+/// order, the docs it links to, the stories its steps and `traced_from` entries
+/// name, then its `output_ref` pointers and matrix rows. A value naming [doc]
+/// itself is left out.
+List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
+  final refs = <_Ref>[];
+  for (final field in _docRefFields(index, doc)) {
+    for (final value in doc.valuesOf(field.id).toSet()) {
+      refs.addAll([
+        for (final target in _carrying(index, field, value))
+          if (target.docPath != doc.docPath) _Ref.toDoc(field.id, target),
+      ]);
+    }
+  }
+  refs.addAll([
+    for (final target in index.linkedFrom(doc)) _Ref.toDoc('link', target),
+    for (final story in _stepTargets(index, doc)) _Ref.toDoc('step', story),
+    for (final story in _tracedStories(index, doc))
+      _Ref.toDoc('traced_from', story),
+  ]);
+  return refs..addAll(_pointers(index, doc));
+}
+
+/// Returns the `output_ref` pointers of [doc], one field after another in
+/// field order, each without a code fingerprint, then each row of its
+/// Verification matrix as [MatrixRow.written], in file order.
+///
+/// An `item_exact` field belongs to a record: it gives each line's code path
+/// with the item left off, in line order, as [recordCodeLinesOf] reads them.
+/// An `item_test` field gives each line's test path alone, as
+/// [recordTestLinesOf] reads it. A malformed matrix line is no row.
+List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
+  final type = index.typeOf(doc);
+  if (type == null) return const [];
+  return [
+    for (final field in type.fields)
+      if (field.type == FieldType.outputRef)
+        if (field.pointer == PointerKind.itemExact)
+          for (final line in recordCodeLinesOf(doc, field))
+            _Ref.toPointer(field.id, line.code)
+        else if (field.pointer == PointerKind.itemTest)
+          for (final line in recordTestLinesOf(doc, field))
+            _Ref.toPointer(field.id, line.path)
+        else
+          for (final value in doc.valuesOf(field.id))
+            _Ref.toPointer(
+              field.id,
+              isCodeLinkField(field) ? CodeLinkEntry(value).pointer : value,
+            ),
+    for (final row in doc.matrixLines.whereType<MatrixRow>())
+      _Ref.toPointer(_verifiesKind, row.written),
+  ];
+}
+
+/// Returns each doc's inbound `doc_ref` references, in tree order of the
+/// referring docs.
+Map<String, List<_Ref>> _inboundByPath(DocIndex index) {
+  final inbound = <String, List<_Ref>>{};
+  for (final doc in index.docs) {
+    for (final field in _docRefFields(index, doc)) {
+      for (final value in doc.valuesOf(field.id).toSet()) {
+        for (final target in _carrying(index, field, value)) {
+          if (target.docPath == doc.docPath) continue;
+          (inbound[target.docPath] ??= []).add(_Ref.toDoc(field.id, doc));
+        }
+      }
+    }
+  }
+  return inbound;
+}
+
+/// Returns the stories the steps of the journey [doc] name, each once, in
+/// step order; empty for a doc that is no journey.
+///
+/// A step naming no story, or a scenario a story lacks, still counts when the
+/// story exists: the reference is to the story.
+List<IndexedDoc> _stepTargets(DocIndex index, IndexedDoc doc) {
+  if (doc.docTypeId != journeyTypeId) return const [];
+  final stories = <String, IndexedDoc>{};
+  for (final step in stepsOfIndexed(index, doc).steps) {
+    final target = step.target;
+    final story = target == null ? null : storyNamed(index, target.identity);
+    if (story != null) stories.putIfAbsent(story.docPath, () => story);
+  }
+  return stories.values.toList();
+}
+
+/// Returns, per story DocPath, the journeys with a step naming the story, in
+/// tree order.
+Map<String, List<IndexedDoc>> _journeysByStory(DocIndex index) =>
+    _journeysByStoryOf[index] ??= _journeysByStoryBuilt(index);
+
+Map<String, List<IndexedDoc>> _journeysByStoryBuilt(DocIndex index) {
+  final byStory = <String, List<IndexedDoc>>{};
+  for (final journey in index.docs) {
+    for (final story in _stepTargets(index, journey)) {
+      (byStory[story.docPath] ??= []).add(journey);
+    }
+  }
+  return byStory;
+}
+
+/// Returns the stories the `traced_from` entries `<story Name>#S<N>` of the
+/// `fr` [doc] name, each once, in entry order; empty for a doc that is no `fr`.
+///
+/// A story of another feature counts: only `check` limits an entry to siblings.
+List<IndexedDoc> _tracedStories(DocIndex index, IndexedDoc doc) {
+  if (doc.docTypeId != _frType) return const [];
+  final stories = <String, IndexedDoc>{};
+  for (final entry in doc.valuesOf(_tracedFromKey)) {
+    final name = readScenarioRef(entry)?.storyName;
+    final story = name == null ? null : storyNamed(index, name);
+    if (story != null) stories.putIfAbsent(story.docPath, () => story);
+  }
+  return stories.values.toList();
+}
+
+/// Returns, per story DocPath, the `fr` docs tracing it, in tree order.
+Map<String, List<IndexedDoc>> _tracedByStory(DocIndex index) =>
+    _tracedByStoryOf[index] ??= _tracedByStoryBuilt(index);
+
+Map<String, List<IndexedDoc>> _tracedByStoryBuilt(DocIndex index) {
+  final byStory = <String, List<IndexedDoc>>{};
+  for (final fr in index.docs) {
+    for (final story in _tracedStories(index, fr)) {
+      (byStory[story.docPath] ??= []).add(fr);
+    }
+  }
+  return byStory;
+}
+
+/// Returns the `doc_ref` fields of [doc]'s type, in field order.
+Iterable<MergedField> _docRefFields(DocIndex index, IndexedDoc doc) sync* {
+  for (final field in index.typeOf(doc)?.fields ?? const <MergedField>[]) {
+    if (field.type == FieldType.docRef) yield field;
+  }
+}
+
+/// Returns the typed docs carrying [value] whose type [field] names, in tree
+/// order; every typed doc carrying it when the field names none.
+Iterable<IndexedDoc> _carrying(
+  DocIndex index,
+  MergedField field,
+  String value,
+) sync* {
+  for (final doc in index.docs) {
+    final typeId = doc.docTypeId;
+    if (typeId != null &&
+        doc.name == value &&
+        (field.docTypes?.contains(typeId) ?? true)) {
+      yield doc;
+    }
+  }
+}
+
+/// Returns the docs each `bundle_with` field of [holder] names, in field
+/// order, each once.
+///
+/// A value resolves among the docs of the field's `doc_types` alone, so one
+/// that names a doc of another type, such as a story, names none, and a field
+/// with no `doc_types` names none.
+List<IndexedDoc> linkedDocsOf(DocIndex index, IndexedDoc holder) {
+  final seen = <String>{};
+  return [
+    for (final field in _docRefFields(index, holder))
+      if ((field.bundleWith ?? false) && (field.docTypes?.isNotEmpty ?? false))
+        for (final value in holder.valuesOf(field.id))
+          for (final named in _carrying(index, field, value))
+            if (seen.add(named.docPath)) named,
+  ];
+}
+
+/// Returns the one line per reference of [refs], or `- none` when empty.
+String _groupLines(List<_Ref> refs) => refs.isEmpty
+    ? '- none\n'
+    : '${[for (final ref in refs) ref.text].join('\n')}\n';
+
+/// Returns the docs that refer to [doc]: first those whose `doc_ref` value
+/// reaches it, then those linking to it, then the journeys with a step naming
+/// it, then the `fr` docs whose `traced_from` names it, each once and in tree
+/// order.
+///
+/// These are the inbound references `answerRefs` prints for [doc].
+List<IndexedDoc> referrersOf(DocIndex index, IndexedDoc doc) {
+  final byValue = [
+    for (final from in index.docs)
+      if (_refersTo(index, from, doc)) from,
+  ];
+  final seen = {for (final from in byValue) from.docPath};
+  return [
+    ...byValue,
+    for (final from in index.linkingTo(doc))
+      if (seen.add(from.docPath)) from,
+    for (final from
+        in _journeysByStory(index)[doc.docPath] ?? const <IndexedDoc>[])
+      if (seen.add(from.docPath)) from,
+    for (final from
+        in _tracedByStory(index)[doc.docPath] ?? const <IndexedDoc>[])
+      if (seen.add(from.docPath)) from,
+  ];
+}
+
+/// Whether a `doc_ref` value of [from] reaches [doc].
+bool _refersTo(DocIndex index, IndexedDoc from, IndexedDoc doc) {
+  for (final field in _docRefFields(index, from)) {
+    for (final value in from.valuesOf(field.id)) {
+      if (value != doc.name) continue;
+      if (_carrying(index, field, value).any((t) => t.docPath == doc.docPath)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}

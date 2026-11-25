@@ -1,0 +1,219 @@
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
+import 'package:specstone_core/src/doc_model/models/body_line.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/check_fixture.dart';
+import '../../helpers/index_fixture.dart';
+
+List<BodyLine> _body(String text, {Set<int> fenced = const {}}) => [
+  for (final (i, line) in text.split('\n').indexed)
+    BodyLine(text: line, line: i + 1, fenced: fenced.contains(i)),
+];
+
+Future<List<Finding>> _gapsOf(Map<String, String> edits) async {
+  final report = await checkOf(await writeCheckProject(extra: edits));
+  return [
+    for (final f in report.findings)
+      if (f.kind == FindingKind.itemSequenceGap) f,
+  ];
+}
+
+void main() {
+  group('scenarioBlocksIn', () {
+    test('keys each block S<N> from its heading to the next '
+        '### outside fences, the first of a repeated number winning', () {
+      final blocks = scenarioBlocksIn(
+        _body(
+          'intro\n'
+          '### Scenario 1 — one\n'
+          '- a\n'
+          '```\n'
+          '### Scenario 7 — inside a fence\n'
+          '```\n'
+          '\n'
+          '### Scenario 2 — two\n'
+          '- b\n'
+          '### Scenario 1 — again\n'
+          '- c\n'
+          '### Notes\n'
+          'x',
+          fenced: {3, 4, 5},
+        ),
+      );
+
+      expect(blocks.keys, ['S1', 'S2']);
+      expect(
+        blocks['S1'],
+        '### Scenario 1 — one\n- a\n```\n### Scenario 7 — inside a fence\n```',
+      );
+      expect(blocks['S2'], '### Scenario 2 — two\n- b');
+    });
+
+    test('a block is keyed by the value of its number, so '
+        'Scenario 01 keys S1 and a later Scenario 1 is its repeat', () {
+      final blocks = scenarioBlocksIn(
+        _body('### Scenario 01 — one\n- a\n### Scenario 1 — again\n- b'),
+      );
+
+      expect(blocks, {'S1': '### Scenario 01 — one\n- a'});
+    });
+
+    test('a ###x line stays inside the block, while a bare ### line and a '
+        'quoted ### line end it, as each opens a heading item', () {
+      final blocks = scenarioBlocksIn(
+        _body(
+          '### Scenario 1 — one\n###x\n- a\n###\n- b\n'
+          '### Scenario 2 — two\n- c\n> ### quoted\n- d\n'
+          '### Scenario 3 — three\n- e',
+        ),
+      );
+
+      expect(blocks, {
+        'S1': '### Scenario 1 — one\n###x\n- a',
+        'S2': '### Scenario 2 — two\n- c',
+        'S3': '### Scenario 3 — three\n- e',
+      });
+    });
+
+    test('a quoted scenario heading keys its block as the item reader names '
+        'it, and an unquoted one is unchanged', () {
+      final blocks = scenarioBlocksIn(
+        _body('### Scenario 1 — one\n- a\n> ### Scenario 3 — three\n- b'),
+      );
+
+      expect(blocks, {
+        'S1': '### Scenario 1 — one\n- a',
+        'S3': '> ### Scenario 3 — three\n- b',
+      });
+    });
+
+    test('Scenario 1 does not match Scenario 10', () {
+      final blocks = scenarioBlocksIn(
+        _body('### Scenario 10 — ten\n- a\n### Scenario 1 — one\n- b'),
+      );
+
+      expect(blocks['S1'], '### Scenario 1 — one\n- b');
+      expect(blocks['S10'], '### Scenario 10 — ten\n- a');
+    });
+  });
+
+  group('scenarioBlocksIn lettered', () {
+    test('Scenario 6 ends at Scenario 6a, which keys no '
+        'block', () {
+      final blocks = scenarioBlocksIn(
+        _body('### Scenario 6 — a\n- x\n### Scenario 6a — b\n- y'),
+      );
+
+      expect(blocks, {'S6': '### Scenario 6 — a\n- x'});
+    });
+  });
+
+  group('headingBlocksOf', () {
+    test('a ### block whose heading does not match closes the '
+        'block above and opens none', () {
+      final blocks = headingBlocksOf(
+        _body('### A — a\n- 1\n### other\n- 2\n### B — b\n- 3'),
+        (heading) => heading.startsWith('### A') || heading.startsWith('### B')
+            ? heading.substring(4, 5)
+            : null,
+      );
+
+      expect([for (final b in blocks) b.key], ['A', 'B']);
+      expect(
+        [for (final l in blocks.first.lines) l.text],
+        ['### A — a', '- 1'],
+      );
+    });
+  });
+
+  group('storyScenarioBlocks', () {
+    test('reads the acceptance_criteria section of a story', () async {
+      final session = openSession(await writeCheckProject());
+      addTearDown(session.close);
+      final index = session.index;
+      final story = index.docs.singleWhere((d) => d.docPath == loginStory);
+
+      expect(storyScenarioBlocks(index, story), {
+        'S1': loginScenario1,
+        'S2': loginScenario2,
+      });
+    });
+
+    test('a story whose header is spelled in another case '
+        'still reads, as CheckContext matches headers', () async {
+      final session = openSession(
+        await writeCheckProject(
+          extra: edit(loginStory, [
+            ('## Acceptance Criteria\n', '## Acceptance criteria\n'),
+          ]),
+        ),
+      );
+      addTearDown(session.close);
+      final index = session.index;
+      final story = index.docs.singleWhere((d) => d.docPath == loginStory);
+
+      expect(storyScenarioBlocks(index, story).keys, ['S1', 'S2']);
+    });
+
+    test('a doc with no acceptance_criteria section has no '
+        'blocks', () async {
+      final session = openSession(await writeCheckProject());
+      addTearDown(session.close);
+      final index = session.index;
+      final feature = index.docs.singleWhere((d) => d.docPath == loginFeature);
+
+      expect(storyScenarioBlocks(index, feature), isEmpty);
+    });
+  });
+
+  group('item_sequence_gap', () {
+    test('edge cases out of position give item_sequence_gap at the section '
+        'line', () async {
+      final found = await _gapsOf(
+        fr(
+          '1. E01 — An empty password → refused.',
+          '1. E01 — An empty password → refused.\n2. E03 — Skipped.',
+        ),
+      );
+
+      expect(found, hasLength(1));
+      expect(found.single.path, startsWith('prds/'));
+      expect(found.single.line, 16);
+      expect(found.single.waitsFor, WaitsFor.agent);
+      expect(found.single.toJson(), containsPair('section', 'edge_cases'));
+      expect(
+        found.single.message,
+        'the numbers or list ordinals of edge_cases are not their positions '
+        'from 1; number them with a keep plan: move --plan-out <doc>, then '
+        'move --plan-file',
+      );
+    });
+
+    test('scenarios with a gap give item_sequence_gap', () async {
+      final found = await _gapsOf(
+        doc(
+          loginStory,
+          loginScenario2,
+          loginScenario2.replaceFirst('Scenario 2', 'Scenario 3'),
+        ),
+      );
+
+      expect(found, hasLength(1));
+      expect(
+        found.single.toJson(),
+        containsPair('section', 'acceptance_criteria'),
+      );
+    });
+
+    test('list ordinal off its position gives item_sequence_gap', () async {
+      final found = await _gapsOf(fr('1. E01 — An empty', '2. E01 — An empty'));
+
+      expect(found, hasLength(1));
+    });
+
+    test('numbers and ordinals in position give none', () async {
+      expect(await _gapsOf({}), isEmpty);
+    });
+  });
+}

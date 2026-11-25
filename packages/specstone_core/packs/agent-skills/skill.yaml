@@ -1,0 +1,54 @@
+id: skill
+description: |-
+  A skill doc: the spec of one skill a project builds for other projects to use.
+  An AI grounds it before it writes or edits the skill.
+  Title it `# <Skill name>`, the skill's slug, with no number.
+  The skill's own files hold its wording, steps, and host frontmatter; the spec never restates them.
+  The `covers` entry is read from the project root, never from a code root, since it belongs to no code target.
+  Specstone installs and distributes no project skill.
+path: specs/skills/{slug}.md
+fields:
+  - id: feature
+    type: doc_ref
+    doc_types: [feature]
+    bundle_with: true
+    description: |-
+      Names the feature the skill serves.
+  - id: covers
+    type: output_ref
+    list: true
+    required: true
+    pointer: prefix
+    root: project
+    description: |-
+      Lists the skill's folder relative to the project root, such as `.claude/skills/review/`.
+      An entry may end in one space and its code fingerprint, which `check` compares with the folder it names.
+sections:
+  - id: purpose
+    header: Purpose
+    required: true
+    summary: true
+    description: |-
+      Write the job the skill does for the agent that loads it, and the gap it fills that the agent lacks without it.
+  - id: when_to_use
+    header: When to use
+    required: true
+    description: |-
+      List the tasks that load the skill, and the near-miss tasks that must not, each naming the sibling skill that wins instead.
+  - id: boundaries
+    header: Boundaries
+    required: true
+    description: |-
+      List what the skill never does, what it hands to another skill or to the Owner, and each rule it must hold.
+  - id: acceptance
+    header: Acceptance
+    required: true
+    description: |-
+      Write two or more realistic cases, at least one an edge case.
+      Give each as a prompt or input and assertions on the observable result, its parts and order included.
+  - id: inputs
+    header: Inputs
+    description: |-
+      List the arguments the skill takes, or the files and docs it must read first.
+lint:
+  title_no_number: true

@@ -1,0 +1,82 @@
+import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
+import 'package:test/test.dart';
+
+void main() {
+  const text =
+      '---\nstatus: planned\ntraced_from:\n  - S1\n  - S2\nowner: x\n---\n\n'
+      '# Title\n\n'
+      '## Statement\nBody.\n';
+
+  test('key, entry, and section lines are 1-based in the file', () {
+    final lines = docLinesOf(text);
+    expect(lines.keyLine('status'), 2);
+    expect(lines.keyLine('missing'), isNull);
+    expect(lines.entriesOf('traced_from'), [
+      const YamlEntry(value: 'S1', line: 4, text: 'S1'),
+      const YamlEntry(value: 'S2', line: 5, text: 'S2'),
+    ]);
+    expect(lines.entriesOf('owner'), [
+      const YamlEntry(value: 'x', line: 6, text: 'x'),
+    ]);
+    expect(lines.sectionLines, [11]);
+    expect(lines.lines, hasLength(12));
+    expect(lines.frontmatterErrorLine, isNull);
+  });
+
+  test('a CRLF file has the lines and counts of its LF twin', () {
+    final lf = docLinesOf(text);
+    final crlf = docLinesOf(text.replaceAll('\n', '\r\n'));
+    expect(crlf.lines, lf.lines);
+    expect(crlf.charCount, lf.charCount);
+    expect(crlf.sectionLines, lf.sectionLines);
+    expect(crlf.entriesOf('traced_from'), lf.entriesOf('traced_from'));
+  });
+
+  test('a ## line inside a fenced code block is no section', () {
+    final lines = docLinesOf(
+      '# T\n\n```\n## not a section\n```\n\n## Real\nx\n',
+    );
+    expect(lines.sectionLines, [7]);
+  });
+
+  test('frontmatter YAML with an unclosed quote names the parser line', () {
+    expect(
+      docLinesOf('---\ntitle: "open\n---\n\n# T\n').frontmatterErrorLine,
+      3,
+    );
+    expect(docLinesOf('---\n- a list\n---\n').frontmatterErrorLine, 1);
+    expect(docLinesOf('# No frontmatter\n').keyLine('status'), isNull);
+  });
+
+  test('review: a backtick fence with a backtick in its info string is no '
+      'fence', () {
+    final lines = docLinesOf('# T\n\n```x``` inline\n\n## Real\nx\n');
+    expect(lines.sectionLines, [5]);
+  });
+
+  test('review: empty frontmatter is valid and holds no keys', () {
+    final lines = docLinesOf('---\n---\n');
+    expect(lines.frontmatterErrorLine, isNull);
+    expect(lines.keyLine('status'), isNull);
+  });
+
+  test('a bare key, or a bare list item, has no entry', () {
+    final lines = docLinesOf(
+      '---\nconfirmed:\nimplements:\n  - \n  - a\n---\n',
+    );
+    expect(lines.entriesOf('confirmed'), isEmpty);
+    expect([for (final e in lines.entriesOf('implements')) e.value], ['a']);
+  });
+
+  test(
+    'isFenced is true for a fence line and its content, and false elsewhere',
+    () {
+      final lines = docLinesOf('---\nk: v\n---\n# T\n```\n### x\n```\nafter\n');
+      expect(
+        [for (var line = 1; line <= 9; line++) lines.isFenced(line)],
+        [false, false, false, false, true, true, true, false, false],
+      );
+    },
+  );
+}

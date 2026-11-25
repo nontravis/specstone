@@ -1,0 +1,2127 @@
+{
+  "accessibility": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "accessibility_bar": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "agent": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "role": {
+        "banned": {},
+        "required": {}
+      },
+      "dispatch_trigger": {
+        "banned": {},
+        "required": {}
+      },
+      "brief_inputs": {
+        "banned": {},
+        "required": {}
+      },
+      "report_shape": {
+        "banned": {},
+        "required": {}
+      },
+      "boundaries": {
+        "banned": {},
+        "required": {}
+      },
+      "acceptance": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "anti_persona": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "snapshot": {
+        "banned": {},
+        "required": {}
+      },
+      "goal": {
+        "banned": {},
+        "required": {}
+      },
+      "sources": {
+        "banned": {},
+        "required": {}
+      },
+      "motivations": {
+        "banned": {},
+        "required": {}
+      },
+      "actions": {
+        "banned": {},
+        "required": {}
+      },
+      "tools": {
+        "banned": {},
+        "required": {}
+      },
+      "needs": {
+        "banned": {},
+        "required": {}
+      },
+      "consequences": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "api": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "source_of_truth": {
+        "banned": {},
+        "required": {}
+      },
+      "fr_trace": {
+        "banned": {},
+        "required": {}
+      },
+      "operations": {
+        "banned": {
+          "operation_heading": {
+            "id": "operation_heading",
+            "pattern": "^### `[^`]+`\\s*\\S",
+            "message": "operation heading has text after its code span; guide line: alone with no FR label",
+            "in": "all"
+          },
+          "why_line": {
+            "id": "why_line",
+            "pattern": "^(?:- )?\\*\\*Why:\\*\\*",
+            "message": "operation holds a Why line; guide line: Write no Why line",
+            "in": "all"
+          }
+        },
+        "required": {
+          "errors_line": {
+            "id": "errors_line",
+            "pattern": "^(?:- )?\\*\\*Errors:\\*\\*",
+            "message": "no Errors line in the colon form; guide line: Write one Errors line",
+            "in": "text",
+            "perSubsection": true
+          },
+          "auth_line": {
+            "id": "auth_line",
+            "pattern": "^(?:- )?\\*\\*Auth:\\*\\*",
+            "message": "no Auth line in the colon form; guide line: **Auth:** <scope or none>",
+            "in": "text",
+            "perSubsection": true
+          }
+        }
+      },
+      "errors": {
+        "banned": {},
+        "required": {}
+      },
+      "compatibility": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "architecture": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "technical_diagram": {
+        "banned": {},
+        "required": {}
+      },
+      "components": {
+        "banned": {
+          "table_only": {
+            "id": "table_only",
+            "pattern": "^(?!\\||## |\\s*(?:- )?Overrides:)\\s*\\S",
+            "message": "line is not a table line; guide line: Write no line but a table line",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "data": {
+        "banned": {},
+        "required": {}
+      },
+      "deployment": {
+        "banned": {},
+        "required": {}
+      },
+      "rollout": {
+        "banned": {},
+        "required": {}
+      },
+      "observability": {
+        "banned": {
+          "log_channel_form": {
+            "id": "log_channel_form",
+            "pattern": "^(?!- \\S.* - \\S|- Overrides:)- ",
+            "message": "log channel bullet is not <name> - <events>; guide line: Add the log channels as `<name> - <events>`",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "risks": {
+        "banned": {},
+        "required": {}
+      },
+      "open_questions": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "audience": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "segments": {
+        "banned": {
+          "segment_link": {
+            "id": "segment_link",
+            "pattern": "^(?:[-*+]|\\d+[.)]) (?!.*\\[[^\\]]+\\]\\([^)]+\\))",
+            "message": "segment item has no link; guide line: Link each segment's `persona` doc",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "campaign": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "plan": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "campaign_results": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "funnel": {
+        "banned": {},
+        "required": {}
+      },
+      "channels": {
+        "banned": {},
+        "required": {}
+      },
+      "spend": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "channel": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "audience": {
+        "banned": {},
+        "required": {}
+      },
+      "format": {
+        "banned": {},
+        "required": {}
+      },
+      "cadence": {
+        "banned": {},
+        "required": {}
+      },
+      "measures": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "color": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "color_roles": {
+        "banned": {
+          "token_value": {
+            "id": "token_value",
+            "pattern": "(?<![\\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\\w-])|(?<![\\w.#])(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\\w%])",
+            "message": "token value in a foundation doc; guide line: it links the tokens doc and writes no token value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "competitor": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "summary": {
+        "banned": {},
+        "required": {}
+      },
+      "strengths": {
+        "banned": {},
+        "required": {}
+      },
+      "weaknesses": {
+        "banned": {},
+        "required": {}
+      },
+      "compared_with_us": {
+        "banned": {},
+        "required": {}
+      },
+      "lessons": {
+        "banned": {},
+        "required": {
+          "take_line": {
+            "id": "take_line",
+            "pattern": "^- \\*\\*Take:\\*\\* .*\\b(?:adopt|avoid|watch)\\b",
+            "message": "no Take line naming adopt, avoid, or watch; guide line: A `- **Take:**` line naming `adopt`, `avoid`, or `watch`",
+            "in": "text",
+            "perSubsection": true
+          },
+          "applies_to_line": {
+            "id": "applies_to_line",
+            "pattern": "^- \\*\\*Applies to:\\*\\*.*\\[[^\\]]+\\]\\([^)]+\\)",
+            "message": "no Applies to line with a link; guide line: A `- **Applies to:**` line linking a vision item, feature, or user story of the project",
+            "in": "text",
+            "perSubsection": true
+          },
+          "from_line": {
+            "id": "from_line",
+            "pattern": "^- \\*\\*From:\\*\\* \\S",
+            "message": "no From line; guide line: A `- **From:**` line naming the strength or weakness the lesson rests on",
+            "in": "text",
+            "perSubsection": true
+          }
+        }
+      },
+      "offer": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "component": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "purpose": {
+        "banned": {},
+        "required": {}
+      },
+      "when_to_use": {
+        "banned": {},
+        "required": {}
+      },
+      "anatomy": {
+        "banned": {},
+        "required": {}
+      },
+      "variants": {
+        "banned": {},
+        "required": {}
+      },
+      "states": {
+        "banned": {},
+        "required": {}
+      },
+      "props": {
+        "banned": {
+          "prop_type_value": {
+            "id": "prop_type_value",
+            "pattern": "^\\|[^|]*\\|(?!\\s*(?:`?(?:text|number|boolean|choice|on-tap)`?|[Tt]ype|:?-+:?)\\s*\\|)",
+            "message": "prop type is not text, number, boolean, choice, or on-tap; guide line: Write one row per prop, its type one of `text`, `number`, `boolean`, `choice`, and `on-tap` in the second column.",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "examples": {
+        "banned": {},
+        "required": {}
+      },
+      "keyboard": {
+        "banned": {},
+        "required": {}
+      },
+      "accessibility": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "component_group": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "purpose": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "content": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "writing_rules": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "content_pillars": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "themes": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "contributing": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "definition_of_done": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "decision": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "context": {
+        "banned": {},
+        "required": {}
+      },
+      "drivers": {
+        "banned": {},
+        "required": {}
+      },
+      "options": {
+        "banned": {},
+        "required": {}
+      },
+      "outcome": {
+        "banned": {},
+        "required": {}
+      },
+      "consequences": {
+        "banned": {},
+        "required": {}
+      },
+      "confirmation": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "discovery": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "finding_a_component": {
+        "banned": {},
+        "required": {}
+      },
+      "component_catalog": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "elevation": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "elevation_levels": {
+        "banned": {
+          "token_value": {
+            "id": "token_value",
+            "pattern": "(?<![\\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\\w-])|(?<![\\w.#])(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\\w%])",
+            "message": "token value in a foundation doc; guide line: it links the tokens doc and writes no token value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "feature": {
+    "doc": {
+      "banned": {
+        "code_identifier": {
+          "id": "code_identifier",
+          "pattern": "^(?=.*[A-Za-z0-9])\\S*(?:[a-z][A-Z]|[_./(]|::)\\S*$",
+          "message": "code identifier in reader-altitude prose",
+          "in": "code",
+          "except": [
+            "(?:[a-z]{1,4}\\d{2}(?:_\\d{2})?(?:_[a-z0-9_]+)?|s\\d+|e\\d{2})(?:/(?:[a-z]{1,4}\\d{2}(?:_\\d{2})?(?:_[a-z0-9_]+)?|s\\d+|e\\d{2}))*",
+            "[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+"
+          ]
+        },
+        "error_code": {
+          "id": "error_code",
+          "pattern": "\\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\\b(?!\\.\\w)",
+          "message": "error code or enum value in reader-altitude prose; describe what the person sees",
+          "in": "all"
+        },
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "problem": {
+        "banned": {},
+        "required": {}
+      },
+      "benefit_hypothesis": {
+        "banned": {},
+        "required": {}
+      },
+      "success_measures": {
+        "banned": {},
+        "required": {}
+      },
+      "current_alternatives": {
+        "banned": {},
+        "required": {}
+      },
+      "flow": {
+        "banned": {},
+        "required": {}
+      },
+      "out_of_scope": {
+        "banned": {
+          "out_of_scope_owner": {
+            "id": "out_of_scope_owner",
+            "pattern": "^[-*] (?!.* — )",
+            "message": "bullet names no owner; guide line: Write each line as `<thing> — <owning feature | not planned>`",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "appetite": {
+        "banned": {},
+        "required": {}
+      },
+      "assumptions": {
+        "banned": {},
+        "required": {}
+      },
+      "open_questions": {
+        "banned": {},
+        "required": {}
+      },
+      "faq": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "features": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "features": {
+        "banned": {},
+        "required": {}
+      },
+      "diagram": {
+        "banned": {},
+        "required": {}
+      },
+      "systems": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "fr": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "statement": {
+        "banned": {
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: Use one \"shall\" and a positive form",
+            "in": "text"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b[Tt]races? (?:from \\[?)?Scenarios?\\b|\\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \\[|\\[Scenarios? [0-9]+[^\\]]*\\]|#scenario-[0-9]",
+            "message": "trace outside traced_from; guide line: Keep the trace in `traced_from` alone",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "input_output": {
+        "banned": {},
+        "required": {}
+      },
+      "behavior": {
+        "banned": {},
+        "required": {}
+      },
+      "edge_cases": {
+        "banned": {
+          "edge_case_arrow": {
+            "id": "edge_case_arrow",
+            "pattern": "^(?:\\d+\\.|[-*]) (?!.*→)",
+            "message": "edge case has no →; guide line: E01 — <trigger> → <response>",
+            "in": "all"
+          },
+          "exit_status": {
+            "id": "exit_status",
+            "pattern": "\\b[Ee]xit status(?: rows?\\b|:? (?:(?:is|of|=) )?`?(?:[0-9]|(?:non-?)?zero\\b))|\\b(?:[Nn]on-?)?[Zz]ero [Ee]xit status\\b|\\[[Ee]xit status\\]",
+            "message": "edge case states an exit status; guide line: State no exit status",
+            "in": "all"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b[Tt]races? (?:from \\[?)?Scenarios?\\b|\\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \\[|\\[Scenarios? [0-9]+[^\\]]*\\]|#scenario-[0-9]",
+            "message": "trace outside traced_from; guide line: Keep the trace in `traced_from` alone",
+            "in": "text"
+          }
+        },
+        "required": {}
+      },
+      "rationale": {
+        "banned": {
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b[Tt]races? (?:from \\[?)?Scenarios?\\b|\\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \\[|\\[Scenarios? [0-9]+[^\\]]*\\]|#scenario-[0-9]",
+            "message": "trace outside traced_from; guide line: Keep the trace in `traced_from` alone",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "verification": {
+        "banned": {
+          "test_file_named": {
+            "id": "test_file_named",
+            "pattern": "(?<![\\w-])(?!(?<=(?:^|[^\\w/.-])(?:(?:test|analysis|inspection|demonstration)/)*)tests?/(?:(?:test|analysis|inspection|demonstration)/)*(?:test|analysis|inspection|demonstration)(?![\\w/-]|\\.\\w))tests?/(?![^\\s`]*(?:_test|\\.test|\\.spec)\\.\\w)(?=[\\w.-]|[`\\s]|$)|\\w(?:_test|\\.test|\\.spec)\\.[A-Za-z0-9]+",
+            "message": "Verification names a test file; guide line: Name no test file here",
+            "in": "all"
+          }
+        },
+        "required": {
+          "pass_criteria_line": {
+            "id": "pass_criteria_line",
+            "pattern": "^- \\*\\*Pass criteria:\\*\\* each edge case holds\\.\\s*$",
+            "message": "no Pass criteria line; guide line: Write `- **Pass criteria:** each edge case holds.`",
+            "in": "text"
+          },
+          "level_line": {
+            "id": "level_line",
+            "pattern": "^- \\*\\*Level:\\*\\*",
+            "message": "no Level line; guide line: Give the proof level",
+            "in": "text"
+          }
+        }
+      },
+      "tbr": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "glossary": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "terms": {
+        "banned": {
+          "term_bullet_form": {
+            "id": "term_bullet_form",
+            "pattern": "^(?!- \\*\\*[^*]+\\*\\* — \\S)[-*+] ",
+            "message": "term bullet is not `- **<Term>** — <definition>`; guide line: Write one bullet per term, in the section template form",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "gnfr": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "performance": {
+        "banned": {
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b|\\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "security": {
+        "banned": {
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b|\\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "reliability": {
+        "banned": {
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b|\\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "maintainability": {
+        "banned": {
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b|\\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "interface": {
+        "banned": {
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          },
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "environment": {
+        "banned": {
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b|\\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "safety": {
+        "banned": {
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b|\\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "operability": {
+        "banned": {
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          },
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b|\\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "design_standards": {
+        "banned": {
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b",
+            "message": "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet",
+            "in": "all"
+          },
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "goal": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "long_term": {
+        "banned": {
+          "metric_number": {
+            "id": "metric_number",
+            "pattern": "^(?:- )?\\*\\*Metric:\\*\\*(?!.*\\d)",
+            "message": "Metric line holds no number; guide line: a numeric metric with unit",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "mid_term": {
+        "banned": {
+          "metric_number": {
+            "id": "metric_number",
+            "pattern": "^(?:- )?\\*\\*Metric:\\*\\*(?!.*\\d)",
+            "message": "Metric line holds no number; guide line: a numeric metric with unit",
+            "in": "all"
+          }
+        },
+        "required": {
+          "by_line": {
+            "id": "by_line",
+            "pattern": "^- \\*\\*By:\\*\\*",
+            "message": "no By line; guide line: every other `**By:**` names a date or a milestone",
+            "in": "text",
+            "perSubsection": true
+          }
+        }
+      },
+      "short_term": {
+        "banned": {
+          "metric_number": {
+            "id": "metric_number",
+            "pattern": "^(?:- )?\\*\\*Metric:\\*\\*(?!.*\\d)",
+            "message": "Metric line holds no number; guide line: a numeric metric with unit",
+            "in": "all"
+          }
+        },
+        "required": {
+          "by_line": {
+            "id": "by_line",
+            "pattern": "^- \\*\\*By:\\*\\*",
+            "message": "no By line; guide line: every other `**By:**` names a date or a milestone",
+            "in": "text",
+            "perSubsection": true
+          }
+        }
+      }
+    }
+  },
+  "guidelines": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "reading_order": {
+        "banned": {
+          "link_item": {
+            "id": "link_item",
+            "pattern": "^(?:[-*+]|\\d+[.)]) (?!\\[)",
+            "message": "list item does not open with a markdown link; guide line: List the design-system docs in the order a reader opens them, one markdown link each.",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "hard_rules": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "icon": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "icon_set": {
+        "banned": {},
+        "required": {}
+      },
+      "sizes": {
+        "banned": {},
+        "required": {}
+      },
+      "naming": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "implementation": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "verification_matrix": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "integration": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "external_systems": {
+        "banned": {},
+        "required": {}
+      },
+      "contract_per_system": {
+        "banned": {},
+        "required": {
+          "endpoints_used": {
+            "id": "endpoints_used",
+            "pattern": "^\\|\\s*Direction\\s*\\|\\s*Method / Event\\s*\\|\\s*Purpose\\s*\\|\\s*$",
+            "message": "no Endpoints used table with the columns Direction, Method / Event, Purpose; guide line: Write one `###` per system, with Endpoints used as a table",
+            "in": "text",
+            "perSubsection": true
+          }
+        }
+      },
+      "translation": {
+        "banned": {},
+        "required": {}
+      },
+      "events": {
+        "banned": {
+          "action_value": {
+            "id": "action_value",
+            "pattern": "^\\|[^|]*\\|[^|]*\\|(?! *`?(?:Action|send|receive|:?-+:?)`? *\\|)[^|]*\\|",
+            "message": "Action is not send or receive; guide line: Write Action as send or receive",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "journey": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "goal": {
+        "banned": {},
+        "required": {}
+      },
+      "flow": {
+        "banned": {},
+        "required": {}
+      },
+      "steps": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "layout": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "layouts": {
+        "banned": {},
+        "required": {}
+      },
+      "grids": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "lifecycle": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "stages": {
+        "banned": {},
+        "required": {}
+      },
+      "triggers": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "loyalty": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "retention": {
+        "banned": {},
+        "required": {}
+      },
+      "rewards": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "measurement": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        }
+      }
+    },
+    "sections": {
+      "scope": {
+        "banned": {
+          "history": {
+            "id": "history",
+            "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+            "message": "history prose; state the present truth only",
+            "in": "text"
+          }
+        },
+        "required": {}
+      },
+      "method": {
+        "banned": {
+          "history": {
+            "id": "history",
+            "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+            "message": "history prose; state the present truth only",
+            "in": "text"
+          },
+          "method_numbered": {
+            "id": "method_numbered",
+            "pattern": "^(?!\\d+\\. |## )\\S.*$",
+            "message": "Method line does not open with a step number; guide line: Write numbered steps, one per action",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "baseline": {
+        "banned": {
+          "history": {
+            "id": "history",
+            "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+            "message": "history prose; state the present truth only",
+            "in": "text"
+          }
+        },
+        "required": {}
+      },
+      "results": {
+        "banned": {},
+        "required": {}
+      },
+      "open_causes": {
+        "banned": {
+          "history": {
+            "id": "history",
+            "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+            "message": "history prose; state the present truth only",
+            "in": "text"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "messaging": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "core_message": {
+        "banned": {},
+        "required": {}
+      },
+      "pillars": {
+        "banned": {},
+        "required": {}
+      },
+      "per_audience": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "motion": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "durations": {
+        "banned": {
+          "token_value": {
+            "id": "token_value",
+            "pattern": "(?<![\\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\\w-])|(?<![\\w.#])(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\\w%])",
+            "message": "token value in a foundation doc; guide line: it links the tokens doc and writes no token value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "easings": {
+        "banned": {
+          "token_value": {
+            "id": "token_value",
+            "pattern": "(?<![\\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\\w-])|(?<![\\w.#])(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\\w%])",
+            "message": "token value in a foundation doc; guide line: it links the tokens doc and writes no token value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "nf": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "statement": {
+        "banned": {
+          "trace_outside_field": {
+            "id": "trace_outside_field",
+            "pattern": "(?<![\\w-])S[0-9]+(?![\\w-])|\\b(?:NFR|PG)-[A-Za-z]*[0-9]+\\b|\\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+",
+            "message": "trace in the Statement; guide line: Keep the trace in `traced_from` alone, never in the Statement",
+            "in": "all"
+          },
+          "second_shall": {
+            "id": "second_shall",
+            "pattern": "\\bshall\\b.*\\bshall\\b",
+            "message": "a second \"shall\"; guide line: one \"shall\" and a quantified value",
+            "in": "text"
+          },
+          "statement_number": {
+            "id": "statement_number",
+            "pattern": "^(?!.*\\d)\\S.*\\bshall\\b",
+            "message": "statement holds no number; guide line: one \"shall\" and a quantified value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "rationale": {
+        "banned": {},
+        "required": {}
+      },
+      "verification": {
+        "banned": {},
+        "required": {
+          "level_line": {
+            "id": "level_line",
+            "pattern": "^- \\*\\*Level:\\*\\*",
+            "message": "no Level line; guide line: Give the proof level",
+            "in": "text"
+          }
+        }
+      },
+      "tbr": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "offer": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "ladder": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "persona": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "snapshot": {
+        "banned": {},
+        "required": {}
+      },
+      "jobs": {
+        "banned": {},
+        "required": {}
+      },
+      "behaviors": {
+        "banned": {},
+        "required": {}
+      },
+      "context_of_use": {
+        "banned": {},
+        "required": {
+          "setting_line": {
+            "id": "setting_line",
+            "pattern": "^(?:- )?\\*\\*Setting:\\*\\*",
+            "message": "no Setting line; guide line: State the setting, tools or devices, frequency, and whether use is chosen or required",
+            "in": "text"
+          },
+          "tools_line": {
+            "id": "tools_line",
+            "pattern": "^(?:- )?\\*\\*Tools or devices:\\*\\*",
+            "message": "no Tools or devices line; guide line: State the setting, tools or devices, frequency, and whether use is chosen or required",
+            "in": "text"
+          },
+          "frequency_line": {
+            "id": "frequency_line",
+            "pattern": "^(?:- )?\\*\\*Frequency:\\*\\*",
+            "message": "no Frequency line; guide line: State the setting, tools or devices, frequency, and whether use is chosen or required",
+            "in": "text"
+          },
+          "use_line": {
+            "id": "use_line",
+            "pattern": "^(?:- )?\\*\\*Use:\\*\\*",
+            "message": "no Use line; guide line: State the setting, tools or devices, frequency, and whether use is chosen or required",
+            "in": "text"
+          }
+        }
+      },
+      "pains": {
+        "banned": {},
+        "required": {}
+      },
+      "triggers": {
+        "banned": {},
+        "required": {}
+      },
+      "barriers": {
+        "banned": {},
+        "required": {
+          "anxiety_line": {
+            "id": "anxiety_line",
+            "pattern": "^(?:- )?\\*\\*Anxiety:\\*\\*",
+            "message": "no Anxiety line; guide line: Write barriers as anxieties about the new option and habits that keep the old one",
+            "in": "text"
+          },
+          "habit_line": {
+            "id": "habit_line",
+            "pattern": "^(?:- )?\\*\\*Habit:\\*\\*",
+            "message": "no Habit line; guide line: Write barriers as anxieties about the new option and habits that keep the old one",
+            "in": "text"
+          }
+        }
+      },
+      "alternatives": {
+        "banned": {},
+        "required": {}
+      },
+      "success": {
+        "banned": {},
+        "required": {}
+      },
+      "vocabulary": {
+        "banned": {},
+        "required": {}
+      },
+      "sources": {
+        "banned": {},
+        "required": {}
+      },
+      "decision_criteria": {
+        "banned": {},
+        "required": {}
+      },
+      "channels": {
+        "banned": {},
+        "required": {}
+      },
+      "how_we_talk": {
+        "banned": {},
+        "required": {
+          "voice_guide_line": {
+            "id": "voice_guide_line",
+            "pattern": "^(?:- )?\\*\\*Voice guide:\\*\\*.*\\[[^\\]]+\\]\\([^)]+\\)",
+            "message": "no Voice guide line with a link; guide line: Link the brand voice guide and state only the tone shift",
+            "in": "text"
+          },
+          "tone_shift_line": {
+            "id": "tone_shift_line",
+            "pattern": "^(?:- )?\\*\\*Tone shift:\\*\\*",
+            "message": "no Tone shift line; guide line: Link the brand voice guide and state only the tone shift",
+            "in": "text"
+          }
+        }
+      }
+    }
+  },
+  "positioning": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "competitive_alternatives": {
+        "banned": {},
+        "required": {}
+      },
+      "unique_attributes": {
+        "banned": {},
+        "required": {}
+      },
+      "value": {
+        "banned": {},
+        "required": {}
+      },
+      "best_fit_customers": {
+        "banned": {},
+        "required": {}
+      },
+      "market_category": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "project": {
+    "doc": {
+      "banned": {
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "name": {
+        "banned": {},
+        "required": {
+          "code_line": {
+            "id": "code_line",
+            "pattern": "^- \\*\\*Code:\\*\\* `[a-z][a-z0-9_]*`\\s*$",
+            "message": "no Code line holding one code span; guide line: The Code line stays here",
+            "in": "all"
+          }
+        }
+      },
+      "vision": {
+        "banned": {
+          "quote_words": {
+            "id": "quote_words",
+            "pattern": "^> \\S+: +(?:\\S+ +){15}\\S+",
+            "message": "quote over 15 words",
+            "in": "all"
+          },
+          "quote_language": {
+            "id": "quote_language",
+            "pattern": "^> (?![a-z]{2}:)[^\\s:]*:",
+            "message": "quote language is no two-letter lowercase code; guide line: Use an ISO 639-1 code",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "roles": {
+        "banned": {},
+        "required": {}
+      },
+      "out_of_scope": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "project_api": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "source_of_truth": {
+        "banned": {},
+        "required": {}
+      },
+      "surfaces": {
+        "banned": {},
+        "required": {}
+      },
+      "conventions": {
+        "banned": {},
+        "required": {}
+      },
+      "error_model": {
+        "banned": {},
+        "required": {}
+      },
+      "compatibility": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "project_architecture": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "technical_diagram": {
+        "banned": {},
+        "required": {}
+      },
+      "components": {
+        "banned": {
+          "table_only": {
+            "id": "table_only",
+            "pattern": "^(?!\\||## |\\s*(?:- )?Overrides:)\\s*\\S",
+            "message": "line is not a table line; guide line: Write no line but a table line",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "data": {
+        "banned": {},
+        "required": {}
+      },
+      "deployment": {
+        "banned": {},
+        "required": {}
+      },
+      "rollout": {
+        "banned": {},
+        "required": {}
+      },
+      "observability": {
+        "banned": {
+          "log_channel_form": {
+            "id": "log_channel_form",
+            "pattern": "^(?!- \\S.* - \\S|- Overrides:)- ",
+            "message": "log channel bullet is not <name> - <events>; guide line: Add the log channels as `<name> - <events>`",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "risks": {
+        "banned": {},
+        "required": {}
+      },
+      "open_questions": {
+        "banned": {},
+        "required": {}
+      },
+      "external_systems": {
+        "banned": {},
+        "required": {}
+      },
+      "contract_per_system": {
+        "banned": {},
+        "required": {}
+      },
+      "crosscutting_concepts": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "project_security": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "system_model": {
+        "banned": {},
+        "required": {}
+      },
+      "threats": {
+        "banned": {
+          "stride_value": {
+            "id": "stride_value",
+            "pattern": "^\\|[^|]*\\|(?! *`?(?:STRIDE|Spoofing|Tampering|Repudiation|Information disclosure|Denial of service|Elevation of privilege|:?-+:?)`? *\\|)[^|]*\\|",
+            "message": "STRIDE is not one of the six categories; guide line: Write STRIDE as one of the six categories",
+            "in": "all"
+          },
+          "response_value": {
+            "id": "response_value",
+            "pattern": "^\\|[^|]*\\|[^|]*\\|[^|]*\\|(?! *`?(?:Response|mitigate|eliminate|transfer|accept|:?-+:?)`? *\\|)[^|]*\\|",
+            "message": "Response is not mitigate, eliminate, transfer, or accept; guide line: Write Response as mitigate, eliminate, transfer, or accept",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "out_of_scope": {
+        "banned": {},
+        "required": {}
+      },
+      "enforcement": {
+        "banned": {},
+        "required": {}
+      },
+      "audit": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "proof": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "results": {
+        "banned": {},
+        "required": {}
+      },
+      "testimonials": {
+        "banned": {},
+        "required": {}
+      },
+      "credentials": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "reference": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "summary": {
+        "banned": {
+          "fact_locator": {
+            "id": "fact_locator",
+            "pattern": "^[-*+] (?!.*\\([^()]+\\)\\.?\\s*$)",
+            "message": "fact has no `(<page or section>)` tail; guide line: Give each fact's page or section",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "key_terms": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "relationships": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "people": {
+        "banned": {},
+        "required": {}
+      },
+      "groups": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "security": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "system_model": {
+        "banned": {},
+        "required": {}
+      },
+      "threats": {
+        "banned": {
+          "stride_value": {
+            "id": "stride_value",
+            "pattern": "^\\|[^|]*\\|(?! *`?(?:STRIDE|Spoofing|Tampering|Repudiation|Information disclosure|Denial of service|Elevation of privilege|:?-+:?)`? *\\|)[^|]*\\|",
+            "message": "STRIDE is not one of the six categories; guide line: Write STRIDE as one of the six categories",
+            "in": "all"
+          },
+          "response_value": {
+            "id": "response_value",
+            "pattern": "^\\|[^|]*\\|[^|]*\\|[^|]*\\|(?! *`?(?:Response|mitigate|eliminate|transfer|accept|:?-+:?)`? *\\|)[^|]*\\|",
+            "message": "Response is not mitigate, eliminate, transfer, or accept; guide line: Write Response as mitigate, eliminate, transfer, or accept",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "out_of_scope": {
+        "banned": {},
+        "required": {}
+      },
+      "enforcement": {
+        "banned": {},
+        "required": {}
+      },
+      "audit": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "setup": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "install_contract": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "shape": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "shapes": {
+        "banned": {
+          "token_value": {
+            "id": "token_value",
+            "pattern": "(?<![\\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\\w-])|(?<![\\w.#])(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\\w%])",
+            "message": "token value in a foundation doc; guide line: it links the tokens doc and writes no token value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "skill": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "purpose": {
+        "banned": {},
+        "required": {}
+      },
+      "when_to_use": {
+        "banned": {},
+        "required": {}
+      },
+      "boundaries": {
+        "banned": {},
+        "required": {}
+      },
+      "acceptance": {
+        "banned": {},
+        "required": {}
+      },
+      "inputs": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "spacing": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "spacing_scale": {
+        "banned": {
+          "token_value": {
+            "id": "token_value",
+            "pattern": "(?<![\\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\\w-])|(?<![\\w.#])(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\\w%])",
+            "message": "token value in a foundation doc; guide line: it links the tokens doc and writes no token value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "story": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "story": {
+        "banned": {},
+        "required": {}
+      },
+      "values": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "tech_stack": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "stack": {
+        "banned": {},
+        "required": {}
+      },
+      "constraints": {
+        "banned": {},
+        "required": {}
+      },
+      "naming": {
+        "banned": {},
+        "required": {}
+      },
+      "avoid": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "theme": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "themes": {
+        "banned": {},
+        "required": {}
+      },
+      "token_mapping": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "tokens": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "token_list": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "typography": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "type_scale": {
+        "banned": {
+          "token_value": {
+            "id": "token_value",
+            "pattern": "(?<![\\w/.-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\\w-])|(?<![\\w.#])(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:px|r?em|pt|dp|sp|ms|s|%)(?![\\w%])",
+            "message": "token value in a foundation doc; guide line: it links the tokens doc and writes no token value",
+            "in": "all"
+          }
+        },
+        "required": {}
+      }
+    }
+  },
+  "ui_pattern": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "purpose": {
+        "banned": {},
+        "required": {}
+      },
+      "components_used": {
+        "banned": {
+          "link_item": {
+            "id": "link_item",
+            "pattern": "^(?:[-*+]|\\d+[.)]) (?!\\[)",
+            "message": "list item does not open with a markdown link; guide line: List each component the pattern uses, one markdown link each.",
+            "in": "all"
+          }
+        },
+        "required": {}
+      },
+      "composition": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "user_story": {
+    "doc": {
+      "banned": {
+        "code_identifier": {
+          "id": "code_identifier",
+          "pattern": "^(?=.*[A-Za-z0-9])\\S*(?:[a-z][A-Z]|[_./(]|::)\\S*$",
+          "message": "code identifier in reader-altitude prose",
+          "in": "code",
+          "except": [
+            "(?:[a-z]{1,4}\\d{2}(?:_\\d{2})?(?:_[a-z0-9_]+)?|s\\d+|e\\d{2})(?:/(?:[a-z]{1,4}\\d{2}(?:_\\d{2})?(?:_[a-z0-9_]+)?|s\\d+|e\\d{2}))*",
+            "[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+"
+          ]
+        },
+        "error_code": {
+          "id": "error_code",
+          "pattern": "\\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\\b(?!\\.\\w)",
+          "message": "error code or enum value in reader-altitude prose; describe what the person sees",
+          "in": "all"
+        },
+        "doc_citation": {
+          "id": "doc_citation",
+          "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
+          "message": "cites a plan, milestone, ruling, or design doc",
+          "in": "all"
+        },
+        "history": {
+          "id": "history",
+          "pattern": "\\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\\d{4}-\\d{2}-\\d{2}|[A-Za-z]+ \\d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\\w-]* )?v?\\d+\\.\\d+)\\b",
+          "message": "history prose; state the present truth only",
+          "in": "text"
+        }
+      }
+    },
+    "sections": {
+      "use_case": {
+        "banned": {},
+        "required": {}
+      },
+      "rules": {
+        "banned": {},
+        "required": {}
+      },
+      "acceptance_criteria": {
+        "banned": {
+          "scenario_title": {
+            "id": "scenario_title",
+            "pattern": "^### Scenario(?! \\d+ — \\[(?:happy|edge|error)\\] \\S)",
+            "message": "scenario title has the wrong form; guide line: ### Scenario N — [happy|edge|error] <what differs>",
+            "in": "all"
+          }
+        },
+        "required": {
+          "error_case": {
+            "id": "error_case",
+            "pattern": "^### .*\\[error\\]|Error cases: N/A",
+            "message": "no [error] scenario and no \"Error cases: N/A\" line",
+            "in": "text"
+          }
+        }
+      },
+      "open_questions": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  },
+  "voice": {
+    "doc": {
+      "banned": {}
+    },
+    "sections": {
+      "tone": {
+        "banned": {},
+        "required": {}
+      },
+      "words": {
+        "banned": {},
+        "required": {}
+      },
+      "writing_habits": {
+        "banned": {},
+        "required": {}
+      }
+    }
+  }
+}

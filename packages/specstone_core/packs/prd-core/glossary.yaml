@@ -1,0 +1,33 @@
+id: glossary
+description: |-
+  The project glossary doc: every domain term.
+  A project has exactly one glossary doc.
+  Write one rule per item, since the `terms` section holds no IDs.
+  Write one bullet per term, in the section template form.
+  Put an entry's mechanics in the spec doc that owns them, cited by a link.
+title: Domain glossary
+path: prds/GLOSSARY.md
+bundle: [query, implement, design]
+bundle_refs: true
+sections:
+  - id: terms
+    header: Terms
+    skeleton: true
+    description: |-
+      Define each domain term in a definition that ties it to a concrete entity.
+    template: |-
+      - **<Term>** — <definition tying to a concrete entity>
+    query: true
+    lint:
+      max_item_lines: 1
+      banned_patterns:
+        - id: term_bullet_form
+          # A bullet line whose start is not `- **<Term>** — <definition>`; a wrapped, blank, or header line is no bullet.
+          pattern: '^(?!- \*\*[^*]+\*\* — \S)[-*+] '
+          message: 'term bullet is not `- **<Term>** — <definition>`; guide line: Write one bullet per term, in the section template form'
+          in: all
+lint:
+  title_no_number: true
+  max_lines: 400
+  max_chars: 20000
+  max_item_chars: 300

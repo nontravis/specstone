@@ -1,0 +1,843 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:specstone_core/src/canonical_path.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/temp_tree.dart';
+
+/// Shipped files that fail the test when `resolve` reads any of them.
+final class _NeverRead implements Map<String, Uint8List> {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw StateError('resolve was called: ${invocation.memberName}');
+}
+
+TemplateResolver _templates() =>
+    TemplateResolver(shippedFiles: fixturePackFiles());
+
+DocsProject _open(Directory workingDirectory) => DocsProject.open(
+  templates: _templates(),
+  workingDirectory: workingDirectory,
+  homeDirectory: null,
+);
+
+/// The fixture record doc type a `targets:` config needs
+/// (`template_packs/pin_pack_versions/read_project_config` E30).
+const _recordDocType = '''
+id: implementation
+description: One feature's record of its items per target.
+path: specs/{slug}/IMPLEMENTATION.md
+per_target: true
+fields:
+  - id: entries
+    type: record_status
+''';
+
+Directory _dir(Directory base, String relative) =>
+    Directory.fromUri(base.uri.resolve(relative));
+
+Matcher _renderFault(RenderFaultCode code, String message) => isA<RenderFault>()
+    .having((fault) => fault.code, 'code', code)
+    .having((fault) => fault.exitStatus, 'exitStatus', code.exitStatus)
+    .having((fault) => fault.message, 'message', message);
+
+void main() {
+  group('DocsProject.open', () {
+    test('a folder with no config.yaml above it '
+        'it refuses and never loads a pack', () async {
+      final outside = await writeTree({'note.txt': 'x'});
+
+      expect(
+        () => DocsProject.open(
+          templates: TemplateResolver(shippedFiles: _NeverRead()),
+          workingDirectory: outside,
+          homeDirectory: null,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.projectNotFound,
+            'no Specstone project: no folder from the working directory '
+            'upward holds .specstone/config.yaml',
+          ),
+        ),
+      );
+    });
+
+    test('finds the project from a subfolder '
+        'and takes docs/ as the docs root', () async {
+      final root = await fixtureProject({'docs/prds/a.md': ''});
+
+      final project = _open(_dir(root, 'docs/prds'));
+
+      expect(project.projectRoot.path, root.resolveSymbolicLinksSync());
+      expect(
+        project.docsRoot.path,
+        _dir(root, 'docs').resolveSymbolicLinksSync(),
+      );
+    });
+
+    test('codeRootOf joins code_root to the project root', () async {
+      final workspace = await writeTree({
+        'project/.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: ../code/example\n',
+        'project/docs/prds/a.md': '',
+        'code/example/lib/a.dart': '',
+      });
+      final root = _dir(workspace, 'project');
+
+      final project = _open(root);
+
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        _dir(workspace, 'code/example').resolveSymbolicLinksSync(),
+      );
+      expect(project.projectRoot.path, root.resolveSymbolicLinksSync());
+    });
+
+    test('codeRootOf is the project root when code_root is absent', () async {
+      final root = await fixtureProject({});
+
+      final project = _open(root);
+
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        root.resolveSymbolicLinksSync(),
+      );
+    });
+
+    test('a missing code folder still opens', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: gone\n',
+      });
+
+      final project = _open(root);
+
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        '${root.resolveSymbolicLinksSync()}${Platform.pathSeparator}gone',
+      );
+    });
+
+    test('a code_root through missing folders opens at the normalized '
+        'path', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: ../gone/../x\n',
+      });
+
+      final project = _open(root);
+
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        '${root.parent.resolveSymbolicLinksSync()}${Platform.pathSeparator}x',
+      );
+    });
+
+    test('a template fault propagates '
+        'with exit 78', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n',
+      });
+
+      expect(
+        () => _open(root),
+        throwsA(
+          isA<TemplateFault>().having(
+            (fault) => fault.exitStatus,
+            'exitStatus',
+            78,
+          ),
+        ),
+      );
+    });
+
+    test('a pack no Specstone carries and a config that is not YAML each fail '
+        'the open with their own fault code and exit 78', () async {
+      for (final (config, code) in [
+        (
+          'packs:\n  prd-core: 1.1.0\n  no-such-pack: 1.0.0\n',
+          FaultCode.packNotFound,
+        ),
+        ('packs: [prd-core\n', FaultCode.yamlSyntax),
+      ]) {
+        final root = await fixtureProject({'.specstone/config.yaml': config});
+
+        expect(
+          () => _open(root),
+          throwsA(
+            isA<TemplateFault>()
+                .having((fault) => fault.code, 'code', code)
+                .having((fault) => fault.exitStatus, 'exitStatus', 78),
+          ),
+          reason: config,
+        );
+      }
+    });
+
+    test('a two-target '
+        'config opens with two CodeTargets in config order', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\n'
+            'targets:\n  flutter:\n    code_root: stratum_ui\n'
+            '  jaspr:\n    code_root: jaspr-stratum-ui\n',
+        'stratum_ui/lib/a.dart': '',
+        'jaspr-stratum-ui/lib/b.dart': '',
+        'specs/implementation/IMPLEMENTATION.md': '',
+      });
+      final project = DocsProject.open(
+        templates: TemplateResolver(
+          shippedFiles: fixturePackFiles(
+            extra: {'implementation.yaml': _recordDocType},
+          ),
+        ),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+
+      expect(project.targets, [
+        const CodeTarget('flutter', codeRoot: 'stratum_ui'),
+        const CodeTarget('jaspr', codeRoot: 'jaspr-stratum-ui'),
+      ]);
+      expect(project.targetNames, ['flutter', 'jaspr']);
+      expect(
+        project.codeRootOf(project.targets.first).path,
+        _dir(root, 'stratum_ui').resolveSymbolicLinksSync(),
+      );
+      expect(
+        project.codeRootOf(project.targets.last).path,
+        _dir(root, 'jaspr-stratum-ui').resolveSymbolicLinksSync(),
+      );
+    });
+
+    test('a code_root '
+        'config opens with one unnamed target', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\ncode_root: stratum_ui\n',
+        'stratum_ui/lib/a.dart': '',
+      });
+
+      final project = _open(root);
+
+      expect(project.targets, [const CodeTarget(null, codeRoot: 'stratum_ui')]);
+      expect(project.targetNames, isEmpty);
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        _dir(root, 'stratum_ui').resolveSymbolicLinksSync(),
+      );
+    });
+
+    test('a project without docs/ still opens', () async {
+      final root = await fixtureProject({});
+
+      final project = _open(root);
+
+      expect(project.docsRoot.existsSync(), isFalse);
+      expect(project.displayPath(project.docsRoot), 'docs');
+    });
+  });
+
+  group('DocsProject.resolveTarget', () {
+    test('no target takes the docs root '
+        'when the command defaults to it', () async {
+      final root = await fixtureProject({'docs/prds/a.md': ''});
+      final project = _open(root);
+
+      final target = project.resolveTarget(
+        null,
+        workingDirectory: root,
+        defaultsToDocsRoot: true,
+      );
+
+      expect(target.isDocsRoot, isTrue);
+      expect(target.docPath, '');
+      expect(target.entity.path, project.docsRoot.path);
+    });
+
+    test('a records path is a target only when the call includes the records '
+        'root', () async {
+      const record = '.specstone/records/f05_x/IMPLEMENTATION.md';
+      final root = await fixtureProject({
+        'docs/prds/a.md': '',
+        record: '# Record\n',
+      });
+      final project = _open(root);
+
+      final target = project.resolveTarget(
+        record,
+        workingDirectory: root,
+        defaultsToDocsRoot: false,
+        includeRecordsRoot: true,
+      );
+
+      expect(target.docPath, record);
+      expect(
+        () => project.resolveTarget(
+          record,
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          isA<RenderFault>().having(
+            (fault) => fault.code,
+            'code',
+            RenderFaultCode.targetOutsideDocsRoot,
+          ),
+        ),
+      );
+    });
+
+    test('no target and no docs/ is target_not_found '
+        'naming docs/', () async {
+      final root = await fixtureProject({});
+      final project = _open(root);
+
+      expect(
+        () => project.resolveTarget(
+          null,
+          workingDirectory: root,
+          defaultsToDocsRoot: true,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetNotFound,
+            'the target docs/ does not exist',
+          ),
+        ),
+      );
+    });
+
+    test('no target without a default is target_missing', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      expect(
+        () => project.resolveTarget(
+          null,
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetMissing,
+            'no target given: name a file or folder under the docs root to '
+            'build',
+          ),
+        ),
+      );
+    });
+
+    test('a target that does not exist '
+        'is target_not_found', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      expect(
+        () => project.resolveTarget(
+          'docs/missing.md',
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetNotFound,
+            'the target docs/missing.md does not exist',
+          ),
+        ),
+      );
+    });
+
+    // ignore: lines_longer_than_80_chars -- the test name stays one literal
+    test('a target missing under the working directory resolves under the docs root, then the project root', () async {
+      const folder = 'prds/features/f01_login';
+      const story = 'prds/features/f01_login/us01_sign_in/USER_STORY.md';
+      const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      final root = await fixtureProject({
+        'docs/$story': '# Story\n',
+        record: '# Record\n',
+        'sub/keep.txt': '',
+      });
+      final project = _open(root);
+      final working = _dir(root, 'sub');
+
+      Target resolve(String path, {bool records = false}) =>
+          project.resolveTarget(
+            path,
+            workingDirectory: working,
+            defaultsToDocsRoot: false,
+            includeRecordsRoot: records,
+          );
+
+      expect(resolve(folder).docPath, folder);
+      expect(resolve(folder).entity, isA<Directory>());
+      expect(resolve(story).docPath, story);
+      expect(resolve(record, records: true).docPath, record);
+      expect(
+        () => resolve('missing/nowhere.md'),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetNotFound,
+            'the target missing/nowhere.md does not exist',
+          ),
+        ),
+      );
+      expect(
+        () => resolve(record),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetOutsideDocsRoot,
+            'the target $record lies outside the docs root docs/',
+          ),
+        ),
+      );
+    });
+
+    // ignore: lines_longer_than_80_chars -- the test name stays one literal
+    test('a path that exists from the working directory outside both roots is outside even when the same relative path exists under docs', () async {
+      final root = await fixtureProject({
+        'docs/note.md': '',
+        'sub/note.md': '',
+      });
+      final project = _open(root);
+
+      expect(
+        () => project.resolveTarget(
+          'note.md',
+          workingDirectory: _dir(root, 'sub'),
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetOutsideDocsRoot,
+            'the target note.md lies outside the docs root docs/',
+          ),
+        ),
+      );
+    });
+
+    test('a target above the '
+        'docs root is outside', () async {
+      final root = await fixtureProject({'README.md': '', 'docs/a.md': ''});
+      final project = _open(root);
+
+      Object? thrown;
+      try {
+        project.resolveTarget(
+          '../README.md',
+          workingDirectory: _dir(root, 'docs'),
+          defaultsToDocsRoot: false,
+        );
+      } on RenderFault catch (fault) {
+        thrown = fault;
+      }
+
+      expect(
+        thrown,
+        _renderFault(
+          RenderFaultCode.targetOutsideDocsRoot,
+          'the target ../README.md lies outside the docs root docs/',
+        ),
+      );
+      expect((thrown! as RenderFault).toJson(), {
+        'error': {
+          'code': 'target_outside_docs_root',
+          'message': 'the target ../README.md lies outside the docs root docs/',
+        },
+      });
+    });
+
+    test('a path that leaves docs/ and returns, or climbs '
+        'from the project root, is outside', () async {
+      final root = await fixtureProject({
+        'README.md': '',
+        'docs/prds/a.md': '',
+      });
+      final project = _open(root);
+
+      expect(
+        () => project.resolveTarget(
+          'docs/../README.md',
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetOutsideDocsRoot,
+            'the target docs/../README.md lies outside the docs root docs/',
+          ),
+        ),
+      );
+    });
+
+    test('a relative target resolves from the working '
+        'directory', () async {
+      final root = await fixtureProject({'docs/prds/a.md': ''});
+      final project = _open(root);
+
+      final target = project.resolveTarget(
+        'prds',
+        workingDirectory: _dir(root, 'docs'),
+        defaultsToDocsRoot: false,
+      );
+
+      expect(target.docPath, 'prds');
+      expect(target.isDocsRoot, isFalse);
+      expect(target.entity, isA<Directory>());
+    });
+
+    test('a file target is a File and an absolute target '
+        'works', () async {
+      final root = await fixtureProject({'docs/prds/a.md': ''});
+      final project = _open(root);
+
+      final target = project.resolveTarget(
+        File.fromUri(root.uri.resolve('docs/prds/a.md')).path,
+        workingDirectory: Directory.systemTemp,
+        defaultsToDocsRoot: false,
+      );
+
+      expect(target.entity, isA<File>());
+      expect(target.docPath, 'prds/a.md');
+    });
+
+    test('the docs root named as a target is the docs root', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      final target = project.resolveTarget(
+        'docs/',
+        workingDirectory: root,
+        defaultsToDocsRoot: false,
+      );
+
+      expect(target.isDocsRoot, isTrue);
+      expect(target.docPath, '');
+    });
+
+    test('a sibling folder named like docs is outside', () async {
+      final root = await fixtureProject({
+        'docs/a.md': '',
+        'docs-extra/b.md': '',
+      });
+      final project = _open(root);
+
+      expect(
+        () => project.resolveTarget(
+          'docs-extra',
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetOutsideDocsRoot,
+            'the target docs-extra lies outside the docs root docs/',
+          ),
+        ),
+      );
+    });
+
+    test('a link inside docs/ that points outside is outside', () async {
+      final root = await fixtureProject({'README.md': '', 'docs/a.md': ''});
+      await Link.fromUri(root.uri.resolve('docs/out.md'))
+          .create(File.fromUri(root.uri.resolve('README.md')).path);
+      final project = _open(root);
+
+      expect(
+        () => project.resolveTarget(
+          'docs/out.md',
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetOutsideDocsRoot,
+            'the target docs/out.md lies outside the docs root docs/',
+          ),
+        ),
+      );
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+  });
+
+  group('symbolic links in the working directory', () {
+    test('a target inside docs/ stays inside and one '
+        'above stays outside when run through a link', () async {
+      final root = await fixtureProject({
+        'README.md': '',
+        'docs/prds/a.md': '',
+      });
+      final holder = await Directory.systemTemp.createTemp('specstone_link_');
+      addTearDown(() => holder.delete(recursive: true));
+      final link = Link('${holder.path}/project');
+      await link.create(root.path);
+      final project = _open(_dir(Directory(link.path), 'docs'));
+      final working = _dir(Directory(link.path), 'docs');
+
+      final inside = project.resolveTarget(
+        'prds',
+        workingDirectory: working,
+        defaultsToDocsRoot: false,
+      );
+
+      expect(inside.docPath, 'prds');
+      expect(project.projectRoot.path, root.resolveSymbolicLinksSync());
+      expect(
+        () => project.resolveTarget(
+          '../README.md',
+          workingDirectory: working,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetOutsideDocsRoot,
+            'the target ../README.md lies outside the docs root docs/',
+          ),
+        ),
+      );
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+    test('displayPath: relative to the project root through a link, for an '
+        'entity that does not exist yet', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final holder = await Directory.systemTemp.createTemp('specstone_link_');
+      addTearDown(() => holder.delete(recursive: true));
+      final link = Link('${holder.path}/project');
+      await link.create(root.path);
+      final project = _open(Directory(link.path));
+
+      expect(
+        project.displayPath(File('${link.path}/.specstone/build/docs.html')),
+        '.specstone/build/docs.html',
+      );
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+  });
+
+  group('DocsProject.displayPath', () {
+    test('a docs root that is a link to a folder outside the '
+        'project still prints docs/... paths', () async {
+      final root = await fixtureProject({});
+      final outside = await writeTree({'prds/a.md': ''});
+      Link('${root.path}/docs').createSync(outside.path);
+      final project = _open(root);
+
+      expect(
+        project.displayPath(File('${root.path}/docs/prds/a.md')),
+        'docs/prds/a.md',
+      );
+      expect(project.displayPath(Directory('${root.path}/docs')), 'docs');
+      expect(
+        project.displayPath(File('${root.path}/docs/prds/new.md')),
+        'docs/prds/new.md',
+      );
+      expect(
+        project.displayPath(File('${root.path}/.specstone/build/docs.html')),
+        '.specstone/build/docs.html',
+      );
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+    test(
+      'a path under the project root is relative with / separators',
+      () async {
+        final root = await fixtureProject({'docs/prds/a.md': ''});
+        final project = _open(root);
+
+        expect(
+          project.displayPath(File.fromUri(root.uri.resolve('docs/prds/a.md'))),
+          'docs/prds/a.md',
+        );
+        expect(
+          project.displayPath(
+            File.fromUri(root.uri.resolve('.specstone/build/docs.html')),
+          ),
+          '.specstone/build/docs.html',
+        );
+      },
+    );
+
+    test(
+      'a path whose first segment is missing resolves without throwing',
+      () async {
+        final root = await fixtureProject({});
+        final project = _open(root);
+
+        expect(
+          project.displayPath(File('/specstone_missing_out/docs.html')),
+          '/specstone_missing_out/docs.html',
+        );
+      },
+      skip: Platform.isWindows ? 'POSIX root path' : false,
+    );
+
+    test('a relative path whose every segment is missing is resolved from '
+        'the current directory', () async {
+      final root = await fixtureProject({});
+      final project = _open(root);
+
+      final sep = Platform.pathSeparator;
+      final cwd = Directory.current.resolveSymbolicLinksSync();
+
+      expect(
+        project.displayPath(File('specstone_missing/none/docs.html')),
+        '$cwd${sep}specstone_missing${sep}none${sep}docs.html',
+      );
+    });
+
+    test('a path outside the project root is absolute', () async {
+      final root = await fixtureProject({});
+      final elsewhere = await writeTree({'x.html': ''});
+      final project = _open(root);
+      final output = File.fromUri(elsewhere.uri.resolve('x.html'));
+
+      expect(project.displayPath(output), output.resolveSymbolicLinksSync());
+    });
+  });
+
+  group('DocsProject.isInsideDocsRoot', () {
+    test('a file that does not exist yet below docs/ is inside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      expect(
+        project.isInsideDocsRoot(File.fromUri(root.uri.resolve('docs/x.html'))),
+        isTrue,
+      );
+      expect(
+        project.isInsideDocsRoot(
+          File.fromUri(root.uri.resolve('docs/new/deep/x.html')),
+        ),
+        isTrue,
+      );
+    });
+
+    test('the docs root itself is inside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      expect(project.isInsideDocsRoot(project.docsRoot), isTrue);
+    });
+
+    test('a path beside docs/, a sibling prefix, and a .. escape are '
+        'outside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+
+      for (final path in [
+        'x.html',
+        'docs2/x.html',
+        '.specstone/build/docs.html',
+        'docs/../x.html',
+      ]) {
+        expect(
+          project.isInsideDocsRoot(File.fromUri(root.uri.resolve(path))),
+          isFalse,
+          reason: path,
+        );
+      }
+    });
+
+    test('a .. path that returns into docs/ is inside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
+      final path = '${root.path}/other/../docs/x.html';
+
+      expect(project.isInsideDocsRoot(File(path)), isTrue);
+    });
+
+    test('a path through a symbolic link into docs/ is inside', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final holder = await Directory.systemTemp.createTemp('specstone_link_');
+      addTearDown(() => holder.delete(recursive: true));
+      final link = Link('${holder.path}/alias');
+      await link.create('${root.path}/docs');
+      final project = _open(root);
+
+      expect(project.isInsideDocsRoot(File('${link.path}/x.html')), isTrue);
+    }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+  });
+
+  group('parentOf', () {
+    test('on Windows a path whose first folder is missing stops '
+        r'at the drive root C:\, never the bare drive C:', () {
+      expect(parentOf(r'C:\missing', isWindows: true), r'C:\');
+      expect(parentOf(r'C:\missing\x', isWindows: true), r'C:\missing');
+      expect(parentOf(r'D:\a\b\c', isWindows: true), r'D:\a\b');
+    });
+
+    test('on Windows the drive root is its own parent', () {
+      expect(parentOf(r'C:\', isWindows: true), r'C:\');
+    });
+
+    test('a POSIX path stops at the file-system root', () {
+      expect(parentOf('/missing', isWindows: false), '/');
+      expect(parentOf('/missing/x', isWindows: false), '/missing');
+    });
+
+    test(
+      'off Windows a name that looks like a drive is an ordinary folder',
+      () {
+        expect(parentOf('C:/x', isWindows: false), 'C:');
+      },
+    );
+  });
+
+  group('withoutTrailingSeparator', () {
+    test('on Windows a drive root keeps its separator, so it '
+        'never becomes the bare drive C:', () {
+      expect(withoutTrailingSeparator(r'C:\', isWindows: true), r'C:\');
+      expect(withoutTrailingSeparator('C:/', isWindows: true), r'C:\');
+      expect(withoutTrailingSeparator(r'C:\\', isWindows: true), r'C:\');
+    });
+
+    test('on Windows any other trailing separator is dropped', () {
+      expect(withoutTrailingSeparator(r'C:\a\', isWindows: true), r'C:\a');
+      expect(withoutTrailingSeparator('C:/a//', isWindows: true), 'C:/a');
+    });
+
+    test('off Windows only slashes are dropped, and the root stays', () {
+      expect(withoutTrailingSeparator('/a/', isWindows: false), '/a');
+      expect(withoutTrailingSeparator('/', isWindows: false), '/');
+      expect(withoutTrailingSeparator(r'/a\', isWindows: false), r'/a\');
+    });
+  });
+
+  group('withNativeSeparators', () {
+    test(
+      'on Windows every slash becomes a backslash, so a '
+      'path spelled with slashes splits like one spelled with backslashes',
+      () {
+        expect(
+          withNativeSeparators(r'C:\proj/docs/out.html', isWindows: true),
+          r'C:\proj\docs\out.html',
+        );
+        expect(
+          withNativeSeparators('C:/proj/docs/x.html', isWindows: true),
+          r'C:\proj\docs\x.html',
+        );
+        expect(
+          withNativeSeparators('missing/../docs/x.html', isWindows: true),
+          r'missing\..\docs\x.html',
+        );
+      },
+    );
+
+    test('off Windows the path is unchanged, since a backslash '
+        'is a file name character there', () {
+      expect(
+        withNativeSeparators(r'/proj/docs/a\b.html', isWindows: false),
+        r'/proj/docs/a\b.html',
+      );
+    });
+
+    test('with no style given it follows the running platform', () {
+      expect(withNativeSeparators('a/b'), Platform.isWindows ? r'a\b' : 'a/b');
+    });
+  });
+}

@@ -1,0 +1,14 @@
+id: project_security
+extends: security
+description: |-
+  The project's threat model: the trust boundaries every feature runs inside, the threats to them, the response to each, and the risk left.
+  Title it `# <Project name> security`, such as `# Specstone security`, with no number.
+  This is the primary security doc; a feature's SECURITY adds only a new trust boundary or asset.
+  The project's SECURITY may cite the project's ARCHITECTURE by a section link, such as `[Specstone architecture](ARCHITECTURE.md#technical-diagram)`.
+  Write one rule per ID: one Threats row per threat.
+path: specs/SECURITY.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: overrides
+    disabled: true

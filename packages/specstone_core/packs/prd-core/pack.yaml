@@ -1,0 +1,87 @@
+name: prd-core
+version: 1.31.0
+migrations:
+  - from: 1.7.0
+    steps:
+      - strip_shared_copies: {}
+  - from: 1.19.0
+    steps:
+      - mark_retrim:
+          doc_types: [fr]
+          sections: [edge_cases, verification]
+shared_lines:
+  - id: present_truth
+    text: State the present truth; git holds history.
+    for_doc_types: [anti_persona, competitor, feature, features, fr, glossary, gnfr, goal, journey, nf, persona, project, user_story]
+  - id: one_rule_per_item
+    text: Keep one rule per item; put several conditions in a nested list. Move a one-sentence, no-ID paragraph's detail to the section of this doc that owns it, never into a sub-list.
+  - id: cite_at_item_end
+    text: End the item with any cite or ownership note.
+  - id: one_example
+    text: 'Give a non-obvious rule one in-item example: a `such as` clause or one "For example," sentence, within the sentence cap.'
+  - id: condition_first
+    text: Put the condition before the rule, one clause chain per sentence; split a sentence whose clauses nest.
+  - id: cite_by_link
+    text: Link to the item of a rule another doc owns; never restate it.
+shared_banned_patterns:
+  - id: code_identifier
+    pattern: '^(?=.*[A-Za-z0-9])\S*(?:[a-z][A-Z]|[_./(]|::)\S*$'
+    message: code identifier in reader-altitude prose
+    in: code
+    except:
+      - '(?:[a-z]{1,4}\d{2}(?:_\d{2})?(?:_[a-z0-9_]+)?|s\d+|e\d{2})(?:/(?:[a-z]{1,4}\d{2}(?:_\d{2})?(?:_[a-z0-9_]+)?|s\d+|e\d{2}))*'
+      - '[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+'
+    for_doc_types: [feature, user_story]
+  - id: error_code
+    pattern: '\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b(?!\.\w)'
+    message: error code or enum value in reader-altitude prose; describe what the person sees
+    in: all
+    for_doc_types: [feature, user_story]
+  - id: doc_citation
+    # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.
+    pattern: 'DESIGN-[A-Z]|\b[Rr]uling|\bPlan [A-Z]\.[0-9]|\bM[0-9][0-9]*-T[0-9]+\b|\b[Mm]ilestone M?[0-9]+|\bschema v[0-9]|docs/superpowers|\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\b'
+    message: cites a plan, milestone, ruling, or design doc
+    in: all
+    for_doc_types: [anti_persona, competitor, feature, features, fr, glossary, gnfr, goal, journey, measurement, nf, persona, project, user_story]
+  - id: history
+    pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+    message: history prose; state the present truth only
+    in: text
+    for_doc_types: [anti_persona, competitor, feature, features, fr, glossary, gnfr, goal, journey, nf, persona, project, user_story]
+  - id: metric_number
+    pattern: '^(?:- )?\*\*Metric:\*\*(?!.*\d)'
+    message: 'Metric line holds no number; guide line: a numeric metric with unit'
+    in: all
+    for_doc_types: [goal]
+    sections: [long_term, mid_term, short_term]
+  - id: second_shall
+    pattern: '\bshall\b.*\bshall\b'
+    message: 'a second "shall"; guide line: one "shall" and a quantified value'
+    in: text
+    for_doc_types: [gnfr, nf]
+    sections: [performance, security, reliability, maintainability, interface, environment, safety, operability, design_standards, statement]
+  - id: statement_number
+    pattern: '^(?!.*\d)\S.*\bshall\b'
+    message: 'statement holds no number; guide line: one "shall" and a quantified value'
+    in: all
+    for_doc_types: [gnfr, nf]
+    sections: [performance, security, reliability, maintainability, interface, environment, safety, operability, design_standards, statement]
+  - id: trace_outside_field
+    # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+    pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+    message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
+    in: all
+    for_doc_types: [gnfr]
+    sections: [performance, security, reliability, maintainability, environment, safety, operability]
+shared_required_patterns:
+  - id: by_line
+    pattern: '^- \*\*By:\*\*'
+    message: 'no By line; guide line: every other `**By:**` names a date or a milestone'
+    per_subsection: true
+    for_doc_types: [goal]
+    sections: [mid_term, short_term]
+  - id: level_line
+    pattern: '^- \*\*Level:\*\*'
+    message: 'no Level line; guide line: Give the proof level'
+    for_doc_types: [fr, nf]
+    sections: [verification]

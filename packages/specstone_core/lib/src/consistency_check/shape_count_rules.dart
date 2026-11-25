@@ -1,0 +1,435 @@
+import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/required_sections.dart';
+import 'package:specstone_core/src/consistency_check/size_excess.dart';
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show ownTextLineCountOf;
+import 'package:specstone_core/src/doc_model/models/section_item.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/index_query/models/readability_facts.dart';
+import 'package:specstone_core/src/index_query/models/sentence_fact.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+
+/// Returns the sentence, item-count, line-floor, subsection-cap,
+/// item-line-cap, and code-block-cap findings of a typed [doc]; an untyped doc
+/// has none.
+///
+/// An item is a top-level list item, table row, paragraph, or `###` heading
+/// with the paragraph under it; a nested item and fenced code are none. A
+/// sentence count is the stored fact of its item. A blank required section
+/// skips both floors, `min_lines` and the `item_count` minimum.
+Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
+  final type = context.typeOf(doc);
+  if (type == null) return;
+  final counts = [
+    for (final excess in sizeExcessesOf(doc, context.contentOf(doc), type))
+      if (excess.kind == FindingKind.itemCountOutOfRange && !excess.isFloor)
+        excess,
+  ];
+  final lines = context.linesOf(doc);
+  final held = context.contentOf(doc).sections;
+  for (var i = 0; i < held.length; i++) {
+    final template = context.templateSectionAt(doc, i);
+    if (template == null) continue;
+    final headerLine = lines.sectionLines[i];
+    final blankRequired =
+        isBlankAt(context, doc, i) && isRequiredOn(context, doc, template);
+    final minLines = template.minLines;
+    final actualLines = lines.sectionCounts[i].lines;
+    if (!blankRequired && minLines != null && actualLines < minLines) {
+      yield context.finding(
+        doc,
+        FindingKind.linesUnderLimit,
+        line: headerLine,
+        message:
+            'section ${template.id} has $actualLines lines; the floor is '
+            '$minLines',
+        keys: {
+          'section': template.id,
+          'limit': minLines,
+          'actual': actualLines,
+        },
+      );
+    }
+    final limits = template.maxSentences ?? const <SentenceLimit>[];
+    final count = template.itemCount;
+    final maxSubsections = template.maxSubsections;
+    final maxItemLines = template.maxItemLines;
+    final maxCodeBlocks = template.maxCodeBlocks;
+    if (limits.isEmpty &&
+        count == null &&
+        maxSubsections == null &&
+        maxItemLines == null &&
+        maxCodeBlocks == null) {
+      continue;
+    }
+    final section = _Block(_heldItemsIn(context, doc, i));
+    if (maxItemLines != null) {
+      yield* _itemLineFindings(context, doc, template.id, [
+        for (final entry in section.readable) entry.item,
+      ], maxItemLines);
+    }
+    if (maxCodeBlocks != null) {
+      yield* _codeBlockFindings(
+        context,
+        doc,
+        section,
+        template.id,
+        headerLine,
+        i + 1 < held.length ? lines.sectionLines[i + 1] : null,
+        maxCodeBlocks,
+      );
+    }
+    if (maxSubsections != null) {
+      yield* _subsectionLimitFindings(
+        context,
+        doc,
+        template.id,
+        section,
+        headerLine,
+        maxSubsections,
+      );
+    }
+    for (final limit in limits) {
+      yield* _sentenceFindings(context, doc, section, limit);
+    }
+    if (count != null) {
+      yield* _countFindings(
+        context,
+        doc,
+        section,
+        headerLine,
+        count,
+        counts,
+        skipMin: blankRequired,
+      );
+    }
+  }
+}
+
+/// Returns a finding for the section, or with `per_subsection` for each
+/// `###` subsection, holding more fenced blocks than [limit] allows.
+///
+/// A block is one stored fenced range opening between [headerLine] and the next
+/// section's header line, [nextHeaderLine]; a `###` line inside a run is no
+/// subsection, since [section] reads no fenced line as an item.
+Iterable<Finding> _codeBlockFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  _Block section,
+  String sectionId,
+  int headerLine,
+  int? nextHeaderLine,
+  MaxCodeBlocks limit,
+) sync* {
+  final runs = context.contentOf(doc).lineFacts.fenced;
+  int blocksFrom(int start, int? end) => _fencedRunsIn(runs, start, end);
+  if (!limit.perSubsection) {
+    final actual = blocksFrom(headerLine, nextHeaderLine);
+    if (actual <= limit.count) return;
+    yield context.finding(
+      doc,
+      FindingKind.codeBlocksOverLimit,
+      line: headerLine,
+      message:
+          'section $sectionId has $actual code blocks; the limit is '
+          '${limit.count}',
+      keys: {'section': sectionId, 'limit': limit.count, 'actual': actual},
+    );
+    return;
+  }
+  final subsections = section.subsections;
+  for (var k = 0; k < subsections.length; k++) {
+    final _Subsection(:line, :heading) = subsections[k];
+    final end = k + 1 < subsections.length
+        ? subsections[k + 1].line
+        : nextHeaderLine;
+    final actual = blocksFrom(line, end);
+    if (actual <= limit.count) continue;
+    yield context.finding(
+      doc,
+      FindingKind.codeBlocksOverLimit,
+      line: line,
+      message:
+          'subsection $heading has $actual code blocks; the limit is '
+          '${limit.count}',
+      keys: {
+        'section': sectionId,
+        'subsection': heading,
+        'limit': limit.count,
+        'actual': actual,
+      },
+    );
+  }
+}
+
+/// Returns how many of [runs] open at a line from [start] up to, not
+/// including, [end]; a null [end] runs to the end of the doc.
+int _fencedRunsIn(List<LineRange> runs, int start, int? end) => runs
+    .where((run) => run.first > start && (end == null || run.first < end))
+    .length;
+
+Iterable<Finding> _subsectionLimitFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  String sectionId,
+  _Block section,
+  int headerLine,
+  int limit,
+) sync* {
+  final actual = section.subsections.length;
+  if (actual <= limit) return;
+  yield context.finding(
+    doc,
+    FindingKind.subsectionsOverLimit,
+    line: headerLine,
+    message: 'section $sectionId has $actual subsections; the limit is $limit',
+    keys: {'section': sectionId, 'limit': limit, 'actual': actual},
+  );
+}
+
+/// Returns a finding for each of [items] with more non-blank lines of its own
+/// than [limit].
+///
+/// A `###` heading item counts its paragraph alone. A nested item and a fenced
+/// block sit outside an item's text, so they add no line.
+Iterable<Finding> _itemLineFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  String sectionId,
+  List<SectionItem> items,
+  int limit,
+) sync* {
+  for (final item in items) {
+    final actual = ownTextLineCountOf(item);
+    if (actual <= limit) continue;
+    yield context.finding(
+      doc,
+      FindingKind.itemLinesOverLimit,
+      line: item.line,
+      message: 'item has $actual lines; the limit is $limit',
+      keys: {'section': sectionId, 'limit': limit, 'actual': actual},
+    );
+  }
+}
+
+/// Returns the items of the held section at [index] of [doc], each with the
+/// readability facts the index stores for it.
+///
+/// The items and the stored facts read the same section by one item rule, so
+/// they pair by position; a section whose two counts differ is a fault in the
+/// index.
+List<_Held> _heldItemsIn(CheckContext context, IndexedDoc doc, int index) {
+  final items = context.itemsIn(doc, index);
+  final content = context.contentOf(doc);
+  final facts = content.itemFacts.sectionItems[index];
+  if (items.length != facts.length) {
+    throw StateError(
+      '${doc.docPath} section ${content.sections[index].key} holds '
+      '${items.length} items but the index stores ${facts.length}',
+    );
+  }
+  return [
+    for (var k = 0; k < items.length; k++)
+      _Held(item: items[k], facts: facts[k].readability),
+  ];
+}
+
+Iterable<Finding> _sentenceFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  _Block section,
+  SentenceLimit limit,
+) sync* {
+  for (final _SentenceCount(:line, :actual) in _countsToLimit(section, limit)) {
+    if (actual <= limit.count) continue;
+    yield context.finding(
+      doc,
+      FindingKind.sentencesOverLimit,
+      line: line,
+      message: 'holds $actual sentences; the limit is ${limit.count}',
+      keys: {'limit': limit.count, 'actual': actual},
+    );
+  }
+}
+
+/// Returns the sentence count of each item or cell [limit] bounds, with its
+/// file line.
+///
+/// A `###` heading's sentence adds none to the count.
+Iterable<_SentenceCount> _countsToLimit(
+  _Block section,
+  SentenceLimit limit,
+) sync* {
+  if (limit.column case final column?) {
+    for (final _Held(:item, :facts) in section.rows) {
+      final at = item.header!.indexOf(column);
+      if (at < 0 || at >= facts.cells.length) continue;
+      yield _SentenceCount(
+        line: item.line,
+        actual: _sentenceCountOf(facts.cells[at]),
+      );
+    }
+    return;
+  }
+  final prefix = limit.linePrefix;
+  for (final _Held(:item, :facts) in section.readable) {
+    if (prefix == null || item.firstLine.startsWith(prefix)) {
+      yield _SentenceCount(
+        line: item.line,
+        actual: _sentenceCountOf(facts.cells.expand((cell) => cell)),
+      );
+    }
+  }
+}
+
+int _sentenceCountOf(Iterable<SentenceFact> sentences) =>
+    sentences.where((sentence) => !sentence.isHeading).length;
+
+Iterable<Finding> _countFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  _Block section,
+  int headerLine,
+  ItemCountLint lint,
+  List<SizeExcess> overs, {
+  required bool skipMin,
+}) sync* {
+  if (!lint.perSubsection) {
+    yield* _countIn(
+      context,
+      doc,
+      section,
+      headerLine,
+      lint,
+      overs,
+      skipMin: skipMin,
+    );
+    return;
+  }
+  for (final _Subsection(:line, :block) in section.subsections) {
+    yield* _countIn(context, doc, block, line, lint, overs, skipMin: skipMin);
+  }
+}
+
+Iterable<Finding> _countIn(
+  CheckContext context,
+  IndexedDoc doc,
+  _Block block,
+  int line,
+  ItemCountLint lint,
+  List<SizeExcess> overs, {
+  required bool skipMin,
+}) sync* {
+  final actual = block.items.length;
+  final min = skipMin ? null : lint.min;
+  final over = overs.where((excess) => excess.line == line).firstOrNull;
+  final (bound, message) = switch ((min, over)) {
+    (final min?, _) when actual < min => (
+      min,
+      'holds $actual items; the fewest is $min',
+    ),
+    (_, final over?) => (
+      over.limit,
+      'holds ${over.actual} items; the most is ${over.limit}',
+    ),
+    _ => (null, ''),
+  };
+  if (bound != null) {
+    yield context.finding(
+      doc,
+      FindingKind.itemCountOutOfRange,
+      line: line,
+      message: message,
+      waitsFor: itemCountWait(waitsForOwner: lint.waitsForOwner),
+      keys: {'limit': bound, 'actual': actual},
+    );
+  }
+  for (final LinePrefixCount(:linePrefix, :count) in lint.prefixes) {
+    final held = block.items
+        .where((held) => held.item.firstLine.startsWith(linePrefix))
+        .length;
+    if (held == count) continue;
+    yield context.finding(
+      doc,
+      FindingKind.prefixCountMismatch,
+      line: line,
+      message: 'holds $held items opening with $linePrefix; it needs $count',
+      keys: {'line_prefix': linePrefix, 'limit': count, 'actual': held},
+    );
+  }
+}
+
+/// An item and the readability facts stored for it.
+final class _Held {
+  const new({required this.item, required this.facts});
+
+  final SectionItem item;
+  final ReadabilityFacts facts;
+}
+
+/// The sentence count of one item or cell, and its file line.
+final class _SentenceCount {
+  const new({required this.line, required this.actual});
+
+  final int line;
+  final int actual;
+}
+
+/// A `###` subsection: its heading's file line and text and the items under
+/// it.
+final class _Subsection {
+  const new({required this.line, required this.heading, required this.block});
+
+  final int line;
+  final String heading;
+  final _Block block;
+}
+
+/// A section's top-level items, grouped for the rules.
+final class _Block {
+  new(List<_Held> all)
+    : readable = [
+        for (final held in all)
+          if (!held.item.nested) held,
+      ];
+
+  /// Every top-level item a sentence limit reads.
+  final List<_Held> readable;
+
+  /// The list items, table rows, and paragraphs an item count counts.
+  late final List<_Held> items = [
+    for (final held in readable)
+      if (held.item.kind != SectionItemKind.heading) held,
+  ];
+
+  /// The table rows.
+  late final List<_Held> rows = [
+    for (final held in readable)
+      if (held.item.kind == SectionItemKind.tableRow) held,
+  ];
+
+  /// The `###` subsections, each with its heading's file line and the items
+  /// under it.
+  late final List<_Subsection> subsections = _subsectionsOf(readable);
+}
+
+List<_Subsection> _subsectionsOf(List<_Held> all) {
+  final subsections = <({int line, String heading, List<_Held> under})>[];
+  for (final held in all) {
+    if (held.item.kind == SectionItemKind.heading) {
+      subsections.add((
+        line: held.item.line,
+        heading: held.item.head,
+        under: [],
+      ));
+    } else if (subsections.isNotEmpty) {
+      subsections.last.under.add(held);
+    }
+  }
+  return [
+    for (final (:line, :heading, :under) in subsections)
+      _Subsection(line: line, heading: heading, block: _Block(under)),
+  ];
+}

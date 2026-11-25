@@ -1,0 +1,6 @@
+id: competitor
+sections:
+  - id: offer
+    header: Offer
+    description: |-
+      Write what the competitor sells and at what price.

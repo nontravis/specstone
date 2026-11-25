@@ -1,0 +1,103 @@
+id: project
+description: |-
+  The project-wide context doc: name, vision, roles, and scope limits.
+  A project has exactly one PROJECT.
+  Write one rule per `PV-*` ID, and leave mechanics to the spec docs.
+  PROJECT holds no measured number; a vision's evidence goes to the Baseline of the measurement of a goal that serves it.
+title: Project context
+path: prds/PROJECT.md
+bundle: [query, implement, design]
+bundle_refs: true
+fields:
+  - id: owner
+    type: string
+    required: true
+    description: |-
+      Names the default owner of every FR and NFR in the project.
+  - id: status
+    description: |-
+      planned: no feature is in use.
+      implemented: at least one feature is in use.
+      deprecated: still usable and being retired.
+sections:
+  - id: name
+    header: Project name
+    required: true
+    description: |-
+      The Code line stays here, since no folder carries the project's code.
+    template: |-
+      - **Human:** <Human-readable project name>
+      - **Code:** `<snake_case_code_name>`
+    lint:
+      max_item_lines: 1
+      required_patterns:
+        - id: code_line
+          pattern: '^- \*\*Code:\*\* `[a-z][a-z0-9_]*`\s*$'
+          in: all
+          message: 'no Code line holding one code span; guide line: The Code line stays here'
+  - id: vision
+    header: Project vision
+    prefix_id: PV-
+    required: true
+    description: |-
+      Put one `> <lang>: <sentence>` line per language right under each PV heading.
+      Use an ISO 639-1 code and give at least one language.
+      Write Problem in general words.
+      Add one more PV entry for each extra angle, such as a business vision beside a product vision.
+      Write at least one entry before the first feature.
+    template: |-
+      ### PV-01 — <short name>
+      > en: <vision sentence>
+      - **Why:** <why>
+      - **Problem:** <problem>
+      - **Audience:** <audience>
+    lint:
+      max_sentences:
+        - count: 1
+          line_prefix: "- **Why:**"
+        - count: 1
+          line_prefix: "- **Problem:**"
+        - count: 1
+          line_prefix: "- **Audience:**"
+      item_count:
+        max: 3
+        per_subsection: true
+        prefixes:
+          - line_prefix: "- **Why:**"
+            count: 1
+          - line_prefix: "- **Problem:**"
+            count: 1
+          - line_prefix: "- **Audience:**"
+            count: 1
+      banned_patterns:
+        - id: quote_words
+          pattern: '^> \S+: +(?:\S+ +){15}\S+'
+          message: 'quote over 15 words'
+          in: all
+        - id: quote_language
+          pattern: '^> (?![a-z]{2}:)[^\s:]*:'
+          message: 'quote language is no two-letter lowercase code; guide line: Use an ISO 639-1 code'
+          in: all
+  - id: roles
+    header: Role
+    required: true
+    description: |-
+      List every actor, human or not.
+      A story's "As a" line names one of these roles.
+    template: |-
+      - `<RoleName>` — <definition>
+    query: true
+    lint:
+      max_item_lines: 1
+  - id: out_of_scope
+    header: Out-of-scope
+    required: true
+    description: |-
+      List what the project will NOT do.
+    template: |-
+      - <thing the project will NOT do>
+    query: true
+lint:
+  title_no_number: true
+  max_lines: 400
+  max_chars: 20000

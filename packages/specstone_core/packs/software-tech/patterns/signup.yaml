@@ -1,0 +1,35 @@
+id: signup
+description: Account creation on top of sign-in.
+extends: auth
+items:
+  - id: password_min_length
+    text: A chosen password has at least 15 characters, or at least 8 when it is only ever used with a second factor.
+  - id: password_full_length
+    text: A password of at least 64 characters, with spaces and Unicode, is accepted and checked in full, never truncated.
+  - id: no_composition_rules
+    text: Sign-up demands no mix of character types, such as a digit or a symbol, beyond length and the blocklist.
+  - id: password_blocklist
+    text: A chosen password is checked against common and breached passwords, and a rejection tells the user why.
+  - id: strength_guidance
+    text: Sign-up guides the user toward a strong password, most of all right after a rejection.
+  - id: activation_code
+    text: An activation code or first password the system makes is random, expires soon or after one use, and never stays the password.
+  - id: sign_up_no_enumeration
+    text: Signing up with an address already in use gives the same reply as a new one, such as an activation link sent to that address.
+  - id: verified_email
+    text: An email address used as the user name is verified during sign-up.
+  - id: own_user_name
+    text: The user may choose a user name other than an email address, and any generated user name is unpredictable.
+  - id: more_than_one_factor
+    text: Sign-up encourages binding a second way to authenticate, so losing one does not force account recovery.
+  - id: recovery_code
+    text: Sign-up can issue a saved recovery code, stored only in hashed form, for later account recovery.
+  - id: notification_addresses
+    text: The account holds at least two notification addresses, each confirmed with a code before it is used.
+reference:
+  add:
+    - title: OWASP ASVS 5.0
+      url: https://github.com/OWASP/ASVS/tree/v5.0.0
+      locator: V6.4 Authentication Factor Lifecycle and Recovery
+    - title: OWASP Credential Stuffing Prevention Cheat Sheet
+      url: https://cheatsheetseries.owasp.org/cheatsheets/Credential_Stuffing_Prevention_Cheat_Sheet.html

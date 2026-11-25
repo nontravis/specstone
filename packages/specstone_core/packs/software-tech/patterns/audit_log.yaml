@@ -1,0 +1,41 @@
+id: audit_log
+description: Who did what and when, kept and protected.
+items:
+  - id: sign_in_events
+    text: Every sign-in success and failure is recorded.
+  - id: refused_access_events
+    text: Every refused access attempt is recorded.
+  - id: admin_actions
+    text: User administration, such as adding or deleting users and changing privileges, is recorded.
+  - id: sensitive_data_events
+    text: Reads and changes of sensitive data are recorded without copying the data itself.
+  - id: import_export_events
+    text: Every data import and export, screen reports included, is recorded.
+  - id: entry_fields
+    text: Each entry records when, where, who, and what, with the action, the object, and the result.
+  - id: utc_timestamps
+    text: Timestamps come from synchronized clocks and use UTC or an explicit offset.
+  - id: excluded_data
+    text: Entries never hold passwords, tokens, session ids, keys, or card data, and they mask sensitive personal data.
+  - id: log_injection
+    text: Logged values are encoded so user input cannot forge or split entries.
+  - id: tamper_protection
+    text: Entries cannot be changed or deleted, and any tampering is detectable.
+  - id: separate_store
+    text: Entries are sent to a separate system so a breach of the application does not reach them.
+  - id: restricted_reading
+    text: Reading the log is limited to approved roles, and every read is itself recorded.
+  - id: retention_period
+    text: Entries are kept for the required retention period and disposed of once it ends.
+  - id: logging_stays_on
+    text: Logging that compliance needs cannot be switched off, and a stop in logging is detected.
+  - id: shared_vocabulary
+    text: Event names follow one shared vocabulary so monitoring can match the same terms across systems.
+reference:
+  - title: OWASP ASVS 5.0
+    url: https://github.com/OWASP/ASVS/tree/v5.0.0
+    locator: V16 Security Logging and Error Handling
+  - title: OWASP Logging Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
+  - title: OWASP Logging Vocabulary Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Vocabulary_Cheat_Sheet.html

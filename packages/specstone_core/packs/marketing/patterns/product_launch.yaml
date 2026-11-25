@@ -1,0 +1,28 @@
+id: product_launch
+description: a launch of a new product or feature to its audience
+items:
+  - id: launch_goal
+    text: The launch states one goal with a number, so its results can be judged afterward.
+  - id: shared_positioning
+    text: The launch reuses positioning, messaging, audience, and proof by link and restates none.
+  - id: price_and_sales_model
+    text: The launch states the price and how the product is sold before it picks a channel.
+  - id: owned_earned_paid
+    text: Channels are grouped as owned, earned, or paid, so the plan shows where its reach comes from.
+  - id: launch_window
+    text: The launch names its launch date and the follow-up window.
+  - id: metrics_per_channel
+    text: The launch names the acquisition and activation number that shows it worked.
+  - id: after_purchase
+    text: The plan covers what happens after purchase, so new buyers reach first use and can become advocates.
+reference:
+  - title: Anthropic marketing plugin, campaign-plan
+    url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md
+  - title: HubSpot, GTM strategy
+    url: https://blog.hubspot.com/sales/gtm-strategy
+  - title: Amplitude, AARRR pirate metrics
+    url: https://amplitude.com/blog/pirate-metrics-framework
+  - title: Ortto, Marketing funnel explained
+    url: https://ortto.com/learn/marketing-funnel-explained/

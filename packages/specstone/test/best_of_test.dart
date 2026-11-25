@@ -1,0 +1,81 @@
+import 'dart:async';
+
+import 'package:test/test.dart';
+
+import 'helpers/best_of.dart';
+import 'helpers/reference_time.dart';
+import 'helpers/timing_metric.dart';
+
+const _scale = ReferenceScale(
+  Duration(milliseconds: 500),
+  Duration(milliseconds: 250),
+);
+
+void main() {
+  test('bestOf makes every run, prints each '
+      'time, and returns the fastest', () {
+    final times = [
+      const Duration(milliseconds: 1200),
+      const Duration(milliseconds: 400),
+      const Duration(milliseconds: 900),
+      const Duration(milliseconds: 700),
+      const Duration(milliseconds: 1100),
+    ];
+    var calls = 0;
+    Duration run() => times[calls++];
+    final lines = <String>[];
+    final best = runZoned(
+      () => bestOf(
+        5,
+        run,
+        label: 'full index runs',
+        metric: TimingMetric.cpu,
+        scale: _scale,
+      ),
+      zoneSpecification: ZoneSpecification(
+        print: (_, _, _, line) {
+          lines.add(line);
+        },
+      ),
+    );
+    expect(calls, 5);
+    expect(best, const Duration(milliseconds: 200));
+    const line =
+        'diagnostic: full index runs cpu 1200, 400, 900, 700, 1100 ms'
+        ' · probe 500 ms · factor 0.500 · reference-runner 200 ms';
+    expect(lines, [line]);
+  });
+
+  test('bestOf prints the finished runs '
+      'when a run throws', () async {
+    const times = [Duration(milliseconds: 1200), Duration(milliseconds: 400)];
+    var calls = 0;
+    Duration run() => calls < times.length
+        ? times[calls++]
+        : throw StateError('run ${calls + 1} died');
+    final lines = <String>[];
+
+    await expectLater(
+      () => runZoned(
+        () => bestOf(
+          3,
+          run,
+          label: 'full index runs',
+          metric: TimingMetric.cpu,
+          scale: _scale,
+        ),
+        zoneSpecification: ZoneSpecification(
+          print: (_, _, _, line) {
+            lines.add(line);
+          },
+        ),
+      ),
+      throwsStateError,
+    );
+
+    const line =
+        'diagnostic: full index runs cpu 1200, 400 ms'
+        ' · probe 500 ms · factor 0.500 · reference-runner 200 ms';
+    expect(lines, [line]);
+  });
+}

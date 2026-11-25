@@ -1,0 +1,796 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/src/document_writing/journal_bounds.dart';
+import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/rendering/build_output.dart';
+import 'package:specstone_core/src/rendering/models/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/relative_link.dart';
+import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart';
+
+final String? _linksUnavailable = Platform.isWindows
+    ? 'a link needs a privilege on Windows'
+    : null;
+
+/// Returns every entry under [root] as text: a file by its bytes, a link by
+/// its target, a folder by its name; nothing is followed.
+Map<String, String> _snapshot(Directory root) {
+  final prefix = '${root.path}${Platform.pathSeparator}';
+  return {
+    for (final entity in root.listSync(recursive: true, followLinks: false))
+      entity.path.substring(prefix.length): switch (entity) {
+        File() => 'file:${base64Encode(entity.readAsBytesSync())}',
+        Link() => 'link:${entity.targetSync()}',
+        _ => 'dir',
+      },
+  };
+}
+
+Matcher _refuses(String path, String reason) => throwsA(
+  isA<RenderFault>()
+      .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+      .having((f) => f.exitStatus, 'exit', 73)
+      .having((f) => f.file, 'file', path)
+      .having((f) => f.message, 'message', 'cannot write $path: $reason'),
+);
+
+const _leaves = 'it leads outside the project';
+const _underGit = 'it lies under .git';
+
+void main() {
+  group('writeRefusalOf', () {
+    late Directory base;
+    late Directory project;
+    late Directory outside;
+
+    setUp(() async {
+      base = Directory(
+        (await writeTree({
+          'proj/docs/a.md': 'a\n',
+          'proj/.git/config': '[core]\n',
+          'proj/src/x.dart': '',
+          'outside/victim.txt': 'mine\n',
+          'ext/prds/b.md': 'b\n',
+        })).resolveSymbolicLinksSync(),
+      );
+      project = Directory('${base.path}/proj');
+      outside = Directory('${base.path}/outside');
+      if (_linksUnavailable == null) {
+        createRelativeLink('${project.path}/out', '../outside');
+        createRelativeLink('${project.path}/lnk.txt', '../outside/victim.txt');
+        createRelativeLink('${project.path}/keep', 'src');
+      }
+    });
+
+    String? refusal(String relative, {Directory? docsRoot}) => writeRefusalOf(
+      '${project.path}/$relative',
+      projectRoot: project,
+      docsRoot: docsRoot,
+    );
+
+    for (final path in [
+      'docs/a.md',
+      'docs/new/deeper/b.md',
+      '.specstone/index.sqlite',
+      'src/x.dart',
+      'docs/.github/x',
+    ]) {
+      test('$path may be written', () {
+        expect(refusal(path), isNull);
+      });
+    }
+
+    for (final path in [
+      '../outside/victim.txt',
+      'docs/../../outside/victim.txt',
+      '../new.txt',
+    ]) {
+      test('$path leads outside the project', () {
+        expect(refusal(path), _leaves);
+      });
+    }
+
+    for (final path in [
+      'missing/../x.txt',
+      'docs/missing/../a.md',
+      'missing/./x.txt',
+    ]) {
+      test('$path is refused: a . or .. after a missing name', () {
+        // Windows collapses a `..` before the disk sees it, so none is left.
+        if (Platform.isWindows && path.contains('..')) {
+          expect(refusal(path), isNull);
+          return;
+        }
+        expect(refusal(path), startsWith('it cannot be resolved'));
+      });
+    }
+
+    for (final path in [
+      '.git/config',
+      '.GIT/config',
+      'docs/.git/hooks/x',
+      '.git:stream/config',
+      r'.git::$INDEX_ALLOCATION/x',
+      'git~1/config',
+      '.git./config',
+    ]) {
+      test('$path lies under .git', () {
+        expect(refusal(path), _underGit);
+      });
+    }
+
+    test('mayLeaveProject lets a path outside the project '
+        'pass and still refuses one under .git', () {
+      String? leaving(String relative) => writeRefusalOf(
+        '${project.path}/$relative',
+        projectRoot: project,
+        mayLeaveProject: true,
+      );
+      expect(leaving('../outside/new.txt'), isNull);
+      expect(leaving('src/new.txt'), isNull);
+      expect(leaving('.git/new.txt'), _underGit);
+    });
+
+    test('a link to a folder outside the project leads outside, for a '
+        'file below it and for a file not made yet', () {
+      expect(refusal('out/victim.txt'), _leaves);
+      expect(refusal('out/new/deeper.txt'), _leaves);
+    }, skip: _linksUnavailable);
+
+    test('a file that is a link to a file outside the project leads '
+        'outside', () {
+      expect(refusal('lnk.txt'), _leaves);
+    }, skip: _linksUnavailable);
+
+    test('a link to a folder inside the project may be written through', () {
+      expect(refusal('keep/x.dart'), isNull);
+      expect(refusal('keep/y.dart'), isNull);
+    }, skip: _linksUnavailable);
+
+    test('a docs root outside the project is a root of its own', () {
+      final docsRoot = Directory('${base.path}/ext');
+
+      expect(refusal('../ext/prds/b.md', docsRoot: docsRoot), isNull);
+      expect(refusal('../ext/prds/b.md'), _leaves);
+      expect(refusal('../ext/.git/config', docsRoot: docsRoot), _underGit);
+    });
+
+    test('a link to a path outside the project that does not exist yet leads '
+        'outside, for the link and for a file below it', () {
+      createRelativeLink('${project.path}/gone', '../outside/made/here');
+
+      expect(refusal('gone'), _leaves);
+      expect(refusal('gone/x.txt'), _leaves);
+    }, skip: _linksUnavailable);
+
+    test('a link to a path inside the project that does not exist yet may '
+        'be written through', () {
+      createRelativeLink('${project.path}/gone', 'inner/missing');
+
+      expect(refusal('gone'), isNull);
+      expect(refusal('gone/x.txt'), isNull);
+    }, skip: _linksUnavailable);
+
+    test('a chain of dangling links is followed to where it leads', () {
+      createRelativeLink('${project.path}/a', 'b');
+      createRelativeLink('${project.path}/b', '../outside/gone');
+
+      expect(refusal('a'), _leaves);
+    }, skip: _linksUnavailable);
+
+    test('a link loop is refused as unresolved, never thrown', () {
+      createRelativeLink('${project.path}/a', 'b');
+      createRelativeLink('${project.path}/b', 'a');
+
+      expect(refusal('a'), startsWith('it cannot be resolved'));
+      expect(refusal('a/x.txt'), startsWith('it cannot be resolved'));
+    }, skip: _linksUnavailable);
+
+    test('a docs root that does not exist is no root', () {
+      final docsRoot = Directory('${base.path}/not-made');
+
+      expect(refusal('../not-made/prds/b.md', docsRoot: docsRoot), _leaves);
+    });
+
+    test('requireWritableTarget names the path from the project root, and a '
+        'docs path as docs/...', () {
+      expect(
+        () => requireWritableTarget(
+          '${project.path}/../outside/victim.txt',
+          projectRoot: project,
+        ),
+        throwsA(isA<RenderFault>().having((f) => f.exitStatus, 'exit', 73)),
+      );
+      expect(
+        () => requireWritableTarget(
+          '${project.path}/.git/config',
+          projectRoot: project,
+        ),
+        _refuses('.git/config', _underGit),
+      );
+      expect(
+        () => requireWritableTarget(
+          '${project.path}/docs/.git/x',
+          projectRoot: project,
+          docsRoot: Directory('${project.path}/docs'),
+        ),
+        _refuses('docs/.git/x', _underGit),
+      );
+      expect(outside.existsSync(), isTrue);
+    });
+  });
+
+  group('pathFromProjectRoot', () {
+    test('on Windows a path joined with / is named from the root it lies '
+        'under', () {
+      final project = Directory(r'C:\proj');
+      final docs = Directory(r'C:\ext');
+
+      expect(
+        pathFromProjectRoot(
+          r'C:\proj/.specstone/index.sqlite',
+          project,
+          docs,
+          isWindows: true,
+        ),
+        '.specstone/index.sqlite',
+      );
+      expect(
+        pathFromProjectRoot(
+          r'C:/ext\prds/b.md',
+          project,
+          docs,
+          isWindows: true,
+        ),
+        'docs/prds/b.md',
+      );
+      expect(
+        pathFromProjectRoot('D:/other/x.md', project, docs, isWindows: true),
+        'D:/other/x.md',
+      );
+    });
+
+    test('off Windows only / separates, and a path under neither stays', () {
+      final project = Directory('/p/proj');
+
+      expect(
+        pathFromProjectRoot('/p/proj/a/b.md', project, null, isWindows: false),
+        'a/b.md',
+      );
+      expect(
+        pathFromProjectRoot('/p/other/b.md', project, null, isWindows: false),
+        '/p/other/b.md',
+      );
+    });
+  });
+
+  group('skippedLineOf', () {
+    test('names the reason a file is left', () {
+      expect(
+        skippedLineOf('../a/AGENTS.md'),
+        '../a/AGENTS.md reaches outside the project root; left as it is',
+      );
+      expect(
+        skippedLineOf('CLAUDE.md', _leaves),
+        'CLAUDE.md reaches outside the project root; left as it is',
+      );
+      expect(
+        skippedLineOf('CLAUDE.md', _underGit),
+        'CLAUDE.md lies under .git; left as it is',
+      );
+      expect(
+        skippedLineOf('CLAUDE.md', 'it cannot be resolved: loop'),
+        'CLAUDE.md cannot be resolved; left as it is',
+      );
+    });
+  });
+
+  group('a write outside the journal that leads out is refused', () {
+    late Directory outside;
+    late Directory root;
+
+    setUp(() async {
+      root = await writeWriteProject();
+      outside = await writeTree({'victim.txt': 'mine\n', 'doc/keep.md': 'k\n'});
+    });
+
+    test('a linked .specstone/index.sqlite refuses a read session before '
+        'it writes', () {
+      final victim = File('${outside.path}/victim.txt');
+      Link('${root.path}/.specstone/index.sqlite').createSync(victim.path);
+      final before = _snapshot(outside);
+
+      expect(
+        () => ReadSession.open(
+          templates: TemplateResolver(),
+          workingDirectory: root,
+          homeDirectory: null,
+        ),
+        _refuses('.specstone/index.sqlite', _leaves),
+      );
+
+      expect(_snapshot(outside), before);
+    }, skip: _linksUnavailable);
+
+    test('a linked index sibling (-wal) refuses the open too', () {
+      final victim = File('${outside.path}/victim.txt');
+      Link('${root.path}/.specstone/index.sqlite-wal').createSync(victim.path);
+      final before = _snapshot(outside);
+
+      expect(
+        () => IndexStore.open(root),
+        _refuses('.specstone/index.sqlite-wal', _leaves),
+      );
+
+      expect(_snapshot(outside), before);
+    }, skip: _linksUnavailable);
+
+    test('a linked .specstone/.gitignore refuses the first index open and '
+        'creates no index', () {
+      final victim = File('${outside.path}/victim.txt');
+      Link('${root.path}/.specstone/.gitignore').createSync(victim.path);
+      final before = _snapshot(outside);
+
+      expect(
+        () => IndexStore.open(root),
+        _refuses('.specstone/.gitignore', _leaves),
+      );
+
+      expect(_snapshot(outside), before);
+      expect(
+        File('${root.path}/.specstone/index.sqlite').existsSync(),
+        isFalse,
+      );
+    }, skip: _linksUnavailable);
+
+    test('the default build output below a linked .specstone/build is '
+        'refused and nothing lands outside', () {
+      Link('${root.path}/.specstone/build').createSync(outside.path);
+      final project = openProject(root);
+      final target = project.resolveTarget(
+        'prds/FEATURES.md',
+        workingDirectory: Directory('${root.path}/docs'),
+        defaultsToDocsRoot: false,
+      );
+      final output = defaultOutputFile(project, target, OutputFormat.html);
+      final before = _snapshot(outside);
+
+      expect(
+        () => writeBuildOutput(
+          output,
+          utf8.encode('<html></html>'),
+          displayPath: '.specstone/build/docs/prds/FEATURES.md.html',
+          within: project,
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having(
+                (f) => f.message,
+                'message',
+                contains('it leads outside the project'),
+              ),
+        ),
+      );
+
+      expect(_snapshot(outside), before);
+    }, skip: _linksUnavailable);
+
+    test('an output the Owner names outside the project is not judged', () {
+      final project = openProject(root);
+      final output = File('${outside.path}/out.html');
+
+      writeBuildOutput(
+        output,
+        utf8.encode('<html></html>'),
+        displayPath: output.path,
+      );
+
+      expect(output.readAsStringSync(), '<html></html>');
+      expect(project.projectRoot.path, isNotEmpty);
+    });
+
+    test('new refuses a doc folder linked out of the project and creates '
+        'nothing there', () {
+      writeIn(root, (session) => session.project);
+      const folder = 'prds/features/f01_login/us04_forgot_email';
+      Link('${root.path}/docs/$folder').createSync('${outside.path}/doc');
+      final before = _snapshot(outside);
+
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'forgot_email',
+          ),
+        ),
+        _refuses('docs/$folder/USER_STORY.md', _leaves),
+      );
+
+      expect(_snapshot(outside), before);
+    }, skip: _linksUnavailable);
+
+    test('set refuses a doc whose folder was swapped for a link out of the '
+        'project, and the folder behind it keeps its text', () {
+      final folder = story2.substring(0, story2.lastIndexOf('/'));
+      writeIn(root, (session) {
+        final real = Directory('${root.path}/docs/$folder');
+        final moved = Directory('${outside.path}/swapped');
+        real.renameSync(moved.path);
+        Link(real.path).createSync(moved.path);
+        final before = _snapshot(outside);
+
+        expect(
+          () => session.writeDoc(story2, '# Changed\n', LineEnding.lf),
+          _refuses('docs/$story2', _leaves),
+        );
+
+        expect(_snapshot(outside), before);
+      });
+    }, skip: _linksUnavailable);
+
+    test('set into a doc folder behind a link to a folder inside the project '
+        'still writes', () {
+      final folder = story2.substring(0, story2.lastIndexOf('/'));
+      writeIn(root, (session) {
+        final real = Directory('${root.path}/docs/$folder');
+        final moved = Directory('${root.path}/docs/prds/elsewhere');
+        real.renameSync(moved.path);
+        Link(real.path).createSync(moved.path);
+
+        session.writeDoc(story2, '# Changed\n', LineEnding.lf);
+      });
+
+      expect(
+        File('${root.path}/docs/prds/elsewhere/USER_STORY.md')
+            .readAsStringSync(),
+        contains('Changed'),
+      );
+    }, skip: _linksUnavailable);
+  });
+
+  group('a dangling link at an index name', () {
+    late Directory outside;
+    late Directory root;
+
+    setUp(() async {
+      root = await writeWriteProject();
+      outside = await writeTree({'keep.txt': 'mine\n'});
+    });
+
+    test('a link to a missing path outside the project refuses a read '
+        'session, and nothing is created there', () {
+      final target = File('${outside.path}/not-yet.sqlite');
+      Link('${root.path}/.specstone/index.sqlite').createSync(target.path);
+      final before = _snapshot(outside);
+
+      expect(
+        () => ReadSession.open(
+          templates: TemplateResolver(),
+          workingDirectory: root,
+          homeDirectory: null,
+        ),
+        _refuses('.specstone/index.sqlite', _leaves),
+      );
+
+      expect(_snapshot(outside), before);
+      expect(target.existsSync(), isFalse);
+    }, skip: _linksUnavailable);
+
+    test('a link to a missing path outside the project refuses new, and '
+        'nothing is created there', () {
+      final target = File('${outside.path}/not-yet.sqlite');
+      Link('${root.path}/.specstone/index.sqlite').createSync(target.path);
+      final before = _snapshot(outside);
+
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'forgot_email',
+          ),
+        ),
+        _refuses('.specstone/index.sqlite', _leaves),
+      );
+
+      expect(_snapshot(outside), before);
+      expect(target.existsSync(), isFalse);
+    }, skip: _linksUnavailable);
+
+    test('a link to a missing path inside the project opens the index '
+        'there', () {
+      Link('${root.path}/.specstone/index.sqlite').createSync('made.sqlite');
+
+      ReadSession.open(
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      ).close();
+
+      expect(File('${root.path}/.specstone/made.sqlite').existsSync(), isTrue);
+    }, skip: _linksUnavailable);
+  });
+
+  group('a docs link to a folder not made yet', () {
+    Future<Directory> projectWithoutDocs() => writeWriteProject(
+      without: {
+        for (final key in writeProject.keys)
+          if (key.startsWith('docs/')) key,
+      },
+    );
+
+    test('a dangling docs link to a missing folder outside the project '
+        'refuses new, and nothing is created', () async {
+      final root = await projectWithoutDocs();
+      final outside = await writeTree({'keep.txt': 'mine\n'});
+      Link('${root.path}/docs').createSync('${outside.path}/made/here');
+      // The Owner's record lifts the trust refusal, so the gate itself judges.
+      RootTrust.locate(root, homeDirectory: testHome()).record();
+      final before = _snapshot(outside);
+
+      expect(
+        () =>
+            writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73)
+              .having((f) => f.message, 'message', endsWith(_leaves)),
+        ),
+      );
+
+      expect(_snapshot(outside), before);
+    }, skip: _linksUnavailable);
+
+    test('a dangling docs link to a missing folder inside the project still '
+        'writes there', () async {
+      final root = await projectWithoutDocs();
+      Link('${root.path}/docs').createSync('inner/missing');
+
+      writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x'));
+
+      expect(
+        File('${root.path}/inner/missing/prds/personas/x/PERSONA.md')
+            .existsSync(),
+        isTrue,
+      );
+    }, skip: _linksUnavailable);
+  });
+
+  group('the layouts that lead out by design write once the Owner '
+      'trusts them', () {
+    test('a project reached through a docs link, with a .specstone link '
+        'beside the docs link, writes into the real project', () async {
+      final base = await writeTree({
+        for (final MapEntry(:key, :value) in writeProject.entries)
+          'ws/$key': value,
+        'ws/code/lib/a.dart': '// a\n',
+      });
+      createRelativeLink('${base.path}/ws/code/docs', '../docs');
+      createRelativeLink('${base.path}/ws/code/.specstone', '../.specstone');
+      final code = Directory('${base.path}/ws/code');
+      RootTrust.locate(code, homeDirectory: testHome()).record();
+
+      writeIn(code, (session) {
+        session.writeDoc(story2, '# Changed\n', LineEnding.lf);
+      });
+
+      expect(
+        File('${base.path}/ws/docs/$story2').readAsStringSync(),
+        contains('Changed'),
+      );
+      expect(
+        File('${base.path}/ws/.specstone/index.sqlite').existsSync(),
+        isTrue,
+      );
+    }, skip: _linksUnavailable);
+
+    test('a project whose docs link leads to a folder outside it writes into '
+        'that docs folder', () async {
+      final base = await writeTree({
+        '.keep': '',
+        for (final MapEntry(:key, :value) in writeProject.entries)
+          if (key.startsWith('docs/'))
+            'ext/${key.substring(5)}': value
+          else
+            'proj/$key': value,
+      });
+      createRelativeLink('${base.path}/proj/docs', '../ext');
+      final project = Directory('${base.path}/proj');
+      RootTrust.locate(project, homeDirectory: testHome()).record();
+
+      writeIn(project, (session) {
+        session.writeDoc(story2, '# Changed\n', LineEnding.lf);
+      });
+
+      expect(
+        File('${base.path}/ext/$story2').readAsStringSync(),
+        contains('Changed'),
+      );
+    }, skip: _linksUnavailable);
+  });
+
+  group('new and the index open at a path the gate refuses', () {
+    const folder = 'prds/features/f01_login/us04_forgot_email';
+    const storyPath = 'docs/$folder/USER_STORY.md';
+
+    Future<Directory> projectWithOpenIndex() async {
+      final root = await writeWriteProject();
+      writeIn(root, (session) => session.project);
+      return root;
+    }
+
+    ReadAnswer newStory(WriteSession session) => answerNew(
+      session,
+      docTypeId: 'user_story',
+      parent: 'login',
+      slug: 'forgot_email',
+    );
+
+    test(
+      'new refuses a doc folder linked below .git and creates nothing there',
+      () async {
+        final root = await projectWithOpenIndex();
+        Directory('${root.path}/.git/hooks').createSync(recursive: true);
+        Link('${root.path}/docs/$folder').createSync('${root.path}/.git/hooks');
+        final before = _snapshot(Directory('${root.path}/.git'));
+
+        expect(() => writeIn(root, newStory), _refuses(storyPath, _underGit));
+
+        expect(_snapshot(Directory('${root.path}/.git')), before);
+      },
+      skip: _linksUnavailable,
+    );
+
+    for (final folder in ['missing', 'personas']) {
+      test(
+        'new refuses a .. after the $folder folder in its doc path',
+        () async {
+          final root = await writeWriteProject(
+            extra: {
+              '.specstone/templates/persona.yaml':
+                  'path: "prds/$folder/../personas/{slug}/PERSONA.md"\n',
+            },
+          );
+          final before = treeBytes(root);
+
+          expect(
+            () => writeIn(
+              root,
+              (s) => answerNew(s, docTypeId: 'persona', slug: 'x'),
+            ),
+            _refuses(
+              'docs/prds/$folder/../personas/x/PERSONA.md',
+              'a doc path cannot hold a . or .. name',
+            ),
+          );
+
+          expect(
+            treeBytes(root).keys.where((k) => !k.startsWith('.specstone/')),
+            before.keys.where((k) => !k.startsWith('.specstone/')),
+          );
+        },
+      );
+    }
+
+    test(
+      'new refuses a doc folder linked to a .. after a missing name',
+      () async {
+        final root = await projectWithOpenIndex();
+        Link('${root.path}/docs/$folder').createSync('gone/../shelf');
+        final before = _snapshot(Directory('${root.path}/docs'));
+
+        expect(
+          () => writeIn(root, newStory),
+          _refuses(
+            storyPath,
+            'it cannot be resolved: a . or .. after a name that does not '
+            'exist cannot be resolved',
+          ),
+        );
+
+        expect(_snapshot(Directory('${root.path}/docs')), before);
+      },
+      skip: _linksUnavailable,
+    );
+
+    test(
+      'new on an untrusted dangling docs link refuses, then once trusted',
+      () async {
+        final root = await writeWriteProject(
+          without: {
+            for (final key in writeProject.keys)
+              if (key.startsWith('docs/')) key,
+          },
+        );
+        final outside = await writeTree({'keep.txt': 'mine\n'});
+        Link('${root.path}/docs').createSync('${outside.path}/made/here');
+        final before = _snapshot(outside);
+        const personaPath = 'docs/prds/personas/x/PERSONA.md';
+        ReadAnswer newPersona(WriteSession s) =>
+            answerNew(s, docTypeId: 'persona', slug: 'x');
+
+        expect(
+          () => writeIn(root, newPersona),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having((f) => f.exitStatus, 'exit', 73)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  allOf(
+                    startsWith('cannot write $personaPath: the docs folder '),
+                    endsWith(
+                      'lies outside the project; run specstone trust at a '
+                      'terminal to allow it',
+                    ),
+                  ),
+                ),
+          ),
+        );
+        expect(_snapshot(outside), before);
+
+        RootTrust.locate(root, homeDirectory: testHome()).record();
+
+        expect(() => writeIn(root, newPersona), _refuses(personaPath, _leaves));
+        expect(_snapshot(outside), before);
+      },
+      skip: _linksUnavailable,
+    );
+
+    for (final side in ['-shm', '-journal']) {
+      test('a linked index$side file refuses the index open', () async {
+        final root = await writeWriteProject();
+        final outside = await writeTree({'victim.txt': 'mine\n'});
+        Link('${root.path}/.specstone/index.sqlite$side')
+            .createSync('${outside.path}/victim.txt');
+        final before = _snapshot(outside);
+
+        expect(
+          () => IndexStore.open(root),
+          _refuses('.specstone/index.sqlite$side', _leaves),
+        );
+
+        expect(_snapshot(outside), before);
+      }, skip: _linksUnavailable);
+    }
+
+    test('an index link to a file below .git refuses the index open', () async {
+      final root = await writeWriteProject();
+      File('${root.path}/.git/config')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('[core]\n');
+      Link('${root.path}/.specstone/index.sqlite')
+          .createSync('${root.path}/.git/config');
+
+      expect(
+        () => IndexStore.open(root),
+        _refuses('.specstone/index.sqlite', _underGit),
+      );
+
+      expect(File('${root.path}/.git/config').readAsStringSync(), '[core]\n');
+    }, skip: _linksUnavailable);
+  });
+}

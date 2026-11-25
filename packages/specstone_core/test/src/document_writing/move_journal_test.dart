@@ -1,0 +1,2612 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/src/document_writing/delete_doc.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/move_doc.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/forwarding_entities.dart';
+import '../../helpers/git_repo.dart';
+import '../../helpers/hold_open.dart';
+import '../../helpers/nested_fixture.dart';
+import '../../helpers/posix_modes.dart';
+import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart';
+
+const _login = 'prds/features/f01_login';
+const _trashDocs = '.specstone/trash/files/docs';
+
+/// Returns a folder on another volume than the temp folder, else null.
+///
+/// Reads `SPECSTONE_OTHER_VOLUME`; on Linux falls back to `/dev/shm` when its
+/// device id differs from the temp folder's.
+Directory? _otherVolume() {
+  final given = Platform.environment['SPECSTONE_OTHER_VOLUME'];
+  if (given != null && given.isNotEmpty) return Directory(given);
+  if (!Platform.isLinux || !Directory('/dev/shm').existsSync()) return null;
+  String deviceOf(String path) =>
+      Process.runSync('stat', ['-c', '%d', path]).stdout.toString().trim();
+  return deviceOf('/dev/shm') == deviceOf(Directory.systemTemp.path)
+      ? null
+      : Directory('/dev/shm');
+}
+
+/// A `Directory` whose probe folders refuse to be removed, as a disk that
+/// turns read-only mid-run does.
+final class _StuckProbeDirectory implements Directory {
+  const new(this._inner);
+
+  final Directory _inner;
+
+  static Directory _wrap(Directory inner) => _StuckProbeDirectory(inner);
+
+  @override
+  void deleteSync({bool recursive = false}) {
+    if (path.split(RegExp(r'[/\\]')).last.startsWith('.specstone-probe-')) {
+      throw FileSystemException('Permission denied', path);
+    }
+    _inner.deleteSync(recursive: recursive);
+  }
+
+  @override
+  Directory renameSync(String newPath) => _wrap(_inner.renameSync(newPath));
+
+  @override
+  Directory createTempSync([String? prefix]) =>
+      _wrap(_inner.createTempSync(prefix));
+
+  @override
+  String get path => _inner.path;
+
+  @override
+  Uri get uri => _inner.uri;
+
+  @override
+  bool existsSync() => _inner.existsSync();
+
+  @override
+  void createSync({bool recursive = false}) =>
+      _inner.createSync(recursive: recursive);
+
+  @override
+  Directory get absolute => _wrap(_inner.absolute);
+
+  @override
+  Directory get parent => _wrap(_inner.parent);
+
+  @override
+  bool get isAbsolute => _inner.isAbsolute;
+
+  @override
+  Future<Directory> create({bool recursive = false}) =>
+      _inner.create(recursive: recursive);
+
+  @override
+  Future<Directory> createTemp([String? prefix]) => _inner.createTemp(prefix);
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) =>
+      _inner.delete(recursive: recursive);
+
+  @override
+  // ignore: avoid_slow_async_io, forwards the Directory interface
+  Future<bool> exists() => _inner.exists();
+
+  @override
+  Stream<FileSystemEntity> list({
+    bool recursive = false,
+    bool followLinks = true,
+  }) => _inner.list(recursive: recursive, followLinks: followLinks);
+
+  @override
+  List<FileSystemEntity> listSync({
+    bool recursive = false,
+    bool followLinks = true,
+  }) => _inner.listSync(recursive: recursive, followLinks: followLinks);
+
+  @override
+  Future<Directory> rename(String newPath) => _inner.rename(newPath);
+
+  @override
+  Future<String> resolveSymbolicLinks() => _inner.resolveSymbolicLinks();
+
+  @override
+  String resolveSymbolicLinksSync() => _inner.resolveSymbolicLinksSync();
+
+  @override
+  // ignore: avoid_slow_async_io, forwards the Directory interface
+  Future<FileStat> stat() => _inner.stat();
+
+  @override
+  FileStat statSync() => _inner.statSync();
+
+  @override
+  Stream<FileSystemEvent> watch({
+    int events = FileSystemEvent.all,
+    bool recursive = false,
+  }) => _inner.watch(events: events, recursive: recursive);
+}
+
+/// Makes every `Directory` the code under test opens a [_StuckProbeDirectory].
+final class _StuckProbeHook extends IOOverrides {
+  @override
+  Directory createDirectory(String path) =>
+      _StuckProbeDirectory(super.createDirectory(path));
+}
+
+/// Makes `deleteSync` throw for the one file whose path ends with the path
+/// given, as a disk that refuses that one delete does.
+final class _FailingDeleteHook extends IOOverrides {
+  new(this._pathEnd);
+
+  final String _pathEnd;
+
+  @override
+  File createFile(String path) => path.replaceAll(r'\', '/').endsWith(_pathEnd)
+      ? _FailingDeleteFile(super.createFile(path))
+      : super.createFile(path);
+}
+
+final class _FailingDeleteFile extends ForwardingFile {
+  const new(super.inner);
+
+  @override
+  void deleteSync({bool recursive = false}) =>
+      throw FileSystemException('Permission denied', path);
+}
+
+/// Records the path of every `File` the code under test opens.
+final class _CreatedFiles extends IOOverrides {
+  final _paths = <String>[];
+
+  @override
+  File createFile(String path) {
+    _paths.add(path);
+    return super.createFile(path);
+  }
+
+  /// Returns the temp siblings an atomic write of [relative] created, one per
+  /// write.
+  List<String> tempsOf(String relative) {
+    final name = relative.split('/').last;
+    return [
+      for (final path in _paths)
+        if (path.split(Platform.pathSeparator).last case final file
+            when file.startsWith('.$name.') && file.endsWith('.specstone.tmp'))
+          file,
+    ];
+  }
+}
+
+/// Runs `onCreate` with the path of each `File` the code under test makes.
+///
+/// A `File` made inside `onCreate` reaches the real file system: the hook is
+/// off while it runs.
+final class _OnCreateFile extends IOOverrides {
+  new(this._onCreate);
+
+  final void Function(String path) _onCreate;
+  var _inside = false;
+
+  @override
+  File createFile(String path) {
+    if (!_inside) {
+      _inside = true;
+      try {
+        _onCreate(path);
+      } finally {
+        _inside = false;
+      }
+    }
+    return super.createFile(path);
+  }
+}
+
+JournalTarget _target(Directory root) => JournalTarget(
+  projectRoot: root,
+  docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
+  homeDirectory: testHome(),
+);
+
+/// Writes [files] as a git work tree with one commit.
+Future<Directory> _gitTree(Map<String, String> files) async {
+  final root = await writeTree(files);
+  expect(git(root, ['init', '-q']).exitCode, 0);
+  for (final setting in [
+    ['user.name', 't'],
+    ['user.email', 't@t'],
+    ['core.autocrlf', 'false'],
+  ]) {
+    expect(git(root, ['config', ...setting]).exitCode, 0);
+  }
+  commitAll(root, 'initial');
+  return root;
+}
+
+String _head(Directory root) =>
+    (git(root, ['rev-parse', 'HEAD']).stdout as String).trim();
+
+List<String> _log(Directory root) =>
+    (git(root, ['log', '--format=%s']).stdout as String)
+        .split('\n')
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+void main() {
+  late Directory root;
+
+  setUp(() async {
+    root = await writeWriteProject();
+  });
+
+  bool dirExists(String relative) =>
+      Directory('${root.path}/$relative').existsSync();
+  bool journalExists() =>
+      File('${root.path}/${MoveJournal.journalPath}').existsSync();
+
+  /// Drops the one link into [story3], so a delete of its unit is not refused.
+  void dropLinkIntoStory3() {
+    final file = docFile(root, fr12);
+    file.writeAsStringSync(
+      file.readAsStringSync().replaceFirst(
+        ' See [reset](../us03_reset_password/USER_STORY.md#use-case).',
+        '',
+      ),
+    );
+  }
+
+  /// Moves `docs/<path>` to the trash, as a stopped run would have.
+  void moveToTrash(String path) {
+    final target = File('${root.path}/$_trashDocs/$path');
+    target.parent.createSync(recursive: true);
+    docFile(root, path).renameSync(target.path);
+  }
+
+  test('a delete move outwaits a '
+      'reader that holds the file open for 300 ms', () async {
+    await whileHeld(
+      docFile(root, story3).path,
+      const Duration(milliseconds: 300),
+      () => const MoveStep(
+        'docs/$story3',
+        '$_trashDocs/$story3',
+      ).apply(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+    );
+
+    expect(File('${root.path}/$_trashDocs/$story3').existsSync(), isTrue);
+    expect(hasDoc(root, story3), isFalse);
+  });
+
+  test('a reorder move of a folder outwaits a '
+      'reader that holds a file inside it for 300 ms', () async {
+    await whileHeld(
+      docFile(root, story2).path,
+      const Duration(milliseconds: 300),
+      () => const MoveStep(
+        'docs/$_login/us02_sign_out',
+        '${MoveJournal.stagePath}/us02_sign_out',
+      ).apply(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+    );
+
+    expect(
+      File(
+        '${root.path}/${MoveJournal.stagePath}/us02_sign_out/'
+        'USER_STORY.md',
+      ).existsSync(),
+      isTrue,
+    );
+  });
+
+  test(
+    'a move blocked past the 1 s limit fails with '
+    'output_not_writable',
+    () async {
+      final clock = Stopwatch();
+      Object? thrown;
+
+      await whileHeld(
+        docFile(root, story3).path,
+        const Duration(seconds: 3),
+        () {
+          clock.start();
+          try {
+            const MoveStep('docs/$story3', '$_trashDocs/$story3').apply(
+              JournalTarget.of(openProject(root), homeDirectory: testHome()),
+            );
+          } on RenderFault catch (error) {
+            thrown = error;
+          } finally {
+            clock.stop();
+          }
+        },
+      );
+
+      expect(
+        thrown,
+        isA<RenderFault>().having(
+          (e) => e.code,
+          'code',
+          RenderFaultCode.outputNotWritable,
+        ),
+      );
+      expect(clock.elapsed, lessThan(const Duration(milliseconds: 2500)));
+    },
+    skip: Platform.isWindows
+        ? false
+        : 'only Windows refuses to rename an open file',
+  );
+
+  test('run moves to the trash, prunes, then clears journal and trash', () {
+    const MoveJournal([
+      MoveStep('docs/$fr31', '$_trashDocs/$fr31'),
+      MoveStep('docs/$fr32', '$_trashDocs/$fr32'),
+      MoveStep('docs/$story3', '$_trashDocs/$story3'),
+      PruneStep('docs/$_login/us03_reset_password'),
+    ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome()));
+    expect(dirExists('docs/$_login/us03_reset_password'), isFalse);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+    expect(hasDoc(root, story1), isTrue);
+    expect(
+      File('${root.path}/.specstone/.gitignore').readAsStringSync(),
+      contains('trash/\n'),
+    );
+  });
+
+  test(
+    'a delete stopped after two of five moves is finished by the replay',
+    () {
+      final files = [story3, fr31, fr32, signupFeature, signupArch];
+      writeJournal(root, [
+        for (final path in files) MoveStep('docs/$path', '$_trashDocs/$path'),
+        const PruneStep('docs/$_login/us03_reset_password'),
+        const PruneStep('docs/prds/features/f02_signup'),
+        const PruneStep('docs/specs/f02_signup'),
+      ]);
+      moveToTrash(story3);
+      moveToTrash(fr31);
+      MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      );
+      for (final path in files) {
+        expect(hasDoc(root, path), isFalse, reason: path);
+      }
+      expect(dirExists('docs/$_login/us03_reset_password'), isFalse);
+      expect(dirExists('docs/prds/features/f02_signup'), isFalse);
+      expect(dirExists('docs/specs/f02_signup'), isFalse);
+      expect(hasDoc(root, loginFeature), isTrue);
+      expect(journalExists(), isFalse);
+      expect(dirExists(MoveJournal.trashPath), isFalse);
+    },
+  );
+
+  test(
+    'a rename stopped before its link rewrite writes the listed text on replay',
+    () {
+      const renamed = 'prds/features/f01_login/us03_forgot_password';
+      final rewritten = readDoc(
+        root,
+        fr12,
+      ).replaceAll('us03_reset_password', 'us03_forgot_password');
+      writeJournal(root, [
+        const MoveStep('docs/$_login/us03_reset_password', 'docs/$renamed'),
+        WriteStep.unguarded('docs/$fr12', rewritten),
+      ]);
+      Directory('${root.path}/docs/$_login/us03_reset_password')
+          .renameSync('${root.path}/docs/$renamed');
+      expect(readDoc(root, fr12), contains('us03_reset_password'));
+
+      MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      );
+
+      expect(readDoc(root, fr12), rewritten);
+      expect(hasDoc(root, '$renamed/USER_STORY.md'), isTrue);
+      expect(dirExists('docs/$_login/us03_reset_password'), isFalse);
+      expect(journalExists(), isFalse);
+    },
+  );
+
+  test('a reorder stopped mid-renumbering finishes, so no two siblings share a '
+      'number', () {
+    const stage = '.specstone/trash/stage';
+    const us01 = 'docs/$_login/us01_email_login';
+    const us03 = 'docs/$_login/us03_reset_password';
+    writeJournal(root, [
+      const MoveStep(us01, '$stage/0'),
+      const MoveStep(us03, '$stage/1'),
+      const MoveStep('$stage/0', 'docs/$_login/us03_email_login'),
+      const MoveStep('$stage/1', 'docs/$_login/us01_reset_password'),
+    ]);
+    Directory('${root.path}/$stage').createSync(recursive: true);
+    Directory('${root.path}/$us01').renameSync('${root.path}/$stage/0');
+    Directory('${root.path}/$us03').renameSync('${root.path}/$stage/1');
+    Directory('${root.path}/$stage/0')
+        .renameSync('${root.path}/docs/$_login/us03_email_login');
+
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
+
+    expect(hasDoc(root, '$_login/us03_email_login/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, '$_login/us01_reset_password/USER_STORY.md'), isTrue);
+    expect(dirExists('docs/$_login/us01_email_login'), isFalse);
+    expect(dirExists('docs/$_login/us03_reset_password'), isFalse);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+  });
+
+  test('a replay that stops partway keeps the journal, and the next replay '
+      'finishes', () {
+    final locked = Directory('${root.path}/docs/$_login/us03_reset_password');
+    writeJournal(root, [
+      const MoveStep(
+        'docs/$_login/us03_reset_password',
+        '$_trashDocs/$_login/us03_reset_password',
+      ),
+      const PruneStep('docs/$_login/us03_reset_password'),
+    ]);
+    Process.runSync('chmod', ['555', locked.path]);
+    addTearDown(() => Process.runSync('chmod', ['755', locked.path]));
+
+    expect(
+      () => MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (e) => e.message,
+              'message',
+              startsWith('cannot move $_login/us03_reset_password: '),
+            ),
+      ),
+    );
+    expect(journalExists(), isTrue);
+    expect(locked.existsSync(), isTrue);
+
+    Process.runSync('chmod', ['755', locked.path]);
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
+
+    expect(journalExists(), isFalse);
+    expect(locked.existsSync(), isFalse);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test('with no trash folder nothing is pending and replay does nothing', () {
+    final before = readDoc(root, story1);
+    expect(MoveJournal.pending(root), isFalse);
+
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
+
+    expect(readDoc(root, story1), before);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+    Directory('${root.path}/${MoveJournal.trashPath}')
+        .createSync(recursive: true);
+    expect(MoveJournal.pending(root), isTrue);
+  });
+
+  Matcher notReplayable(String reason) => throwsA(
+    isA<RenderFault>()
+        .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+        .having(
+          (f) => f.message,
+          'message',
+          'cannot replay .specstone/trash/journal.json: $reason; '
+              'fix or remove it',
+        ),
+  );
+
+  test('a journal that does not parse is refused and the trash stays', () {
+    final journal = File('${root.path}/${MoveJournal.journalPath}')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('{"steps": [');
+    recordJournalFile(root);
+    final leftover = File('${root.path}/$_trashDocs/leftover.md')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('x');
+    final before = readDoc(root, story1);
+
+    expect(
+      () => MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              allOf(
+                startsWith('cannot replay .specstone/trash/journal.json: '),
+                endsWith('; fix or remove it'),
+              ),
+            ),
+      ),
+    );
+
+    expect(journal.existsSync(), isTrue);
+    expect(leftover.existsSync(), isTrue);
+    expect(readDoc(root, story1), before);
+  });
+
+  test('a journal with an unknown step is refused like an unparsable one', () {
+    final journal = File('${root.path}/${MoveJournal.journalPath}')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync(
+        jsonEncode({
+          'steps': [
+            {'bogus': <String, Object>{}},
+          ],
+        }),
+      );
+    recordJournalFile(root);
+
+    expect(
+      () => MoveJournal.replay(
+        JournalTarget.of(openProject(root), homeDirectory: testHome()),
+      ),
+      notReplayable('not a journal step'),
+    );
+
+    expect(journal.existsSync(), isTrue);
+    expect(dirExists(MoveJournal.trashPath), isTrue);
+  });
+
+  test('a replay skips a stage move whose slot is taken', () {
+    const stage = MoveJournal.stagePath;
+    const us01 = 'docs/$_login/us01_email_login';
+    File('${root.path}/$stage/0/kept.md')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('staged');
+    writeJournal(root, const [MoveStep(us01, '$stage/0')]);
+
+    MoveJournal.replay(
+      JournalTarget.of(openProject(root), homeDirectory: testHome()),
+    );
+
+    expect(hasDoc(root, story1), isTrue);
+    expect(journalExists(), isFalse);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+  });
+
+  test(
+    'a PruneStep keeps a folder that holds a file and stops at the docs root',
+    () async {
+      final bare = await writeTree({
+        '.specstone/config.yaml': writeProject['.specstone/config.yaml']!,
+        'docs/keep/file.md': 'x',
+      });
+      Directory('${bare.path}/docs/a/b').createSync(recursive: true);
+      Directory('${bare.path}/docs/keep/inner').createSync();
+      final project = JournalTarget.of(
+        openProject(bare),
+        homeDirectory: testHome(),
+      );
+
+      const PruneStep('docs/keep/inner').apply(project);
+      const PruneStep('docs/a/b').apply(project);
+
+      expect(Directory('${bare.path}/docs/keep').existsSync(), isTrue);
+      expect(Directory('${bare.path}/docs/keep/inner').existsSync(), isFalse);
+      expect(Directory('${bare.path}/docs/a').existsSync(), isFalse);
+      expect(Directory('${bare.path}/docs').existsSync(), isTrue);
+    },
+  );
+
+  test('a WriteStep writes only a file that exists and differs, and a MoveStep '
+      'skips a missing source', () {
+    final project = JournalTarget.of(
+      openProject(root),
+      homeDirectory: testHome(),
+    );
+    final before = readDoc(root, story1);
+
+    const WriteStep.unguarded('docs/prds/missing.md', 'x').apply(project);
+    const MoveStep('docs/prds/missing.md', 'docs/prds/other.md').apply(project);
+    WriteStep.unguarded('docs/$story1', before).apply(project);
+    const WriteStep.unguarded('docs/$story1', 'changed\n').apply(project);
+
+    expect(hasDoc(root, 'prds/missing.md'), isFalse);
+    expect(hasDoc(root, 'prds/other.md'), isFalse);
+    expect(readDoc(root, story1), 'changed\n');
+  });
+
+  test('run reports a gitignore it cannot write as index_not_writable and '
+      'moves nothing', () {
+    final ignore = File('${root.path}/.specstone/.gitignore')
+      ..writeAsStringSync('mine\n');
+    Process.runSync('chmod', ['444', ignore.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', ignore.path]));
+
+    expect(
+      () => const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
+          .run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+      throwsA(
+        isA<IndexFault>().having(
+          (e) => e.code,
+          'code',
+          IndexFaultCode.indexNotWritable,
+        ),
+      ),
+    );
+    expect(hasDoc(root, story3), isTrue);
+    expect(journalExists(), isFalse);
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test(
+    'a WriteStep on a file that is not UTF-8 text fails as output_not_writable',
+    () {
+      docFile(root, story1).writeAsBytesSync([0xff, 0xfe, 0x41]);
+
+      expect(
+        () => const WriteStep.unguarded(
+          'docs/$story1',
+          'x',
+        ).apply(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+        throwsA(
+          isA<RenderFault>()
+              .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (e) => e.message,
+                'message',
+                startsWith('cannot write $story1: '),
+              ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'a replay whose journal cannot be read fails as output_not_writable',
+    () {
+      writeJournal(root, const []);
+      final journal = File('${root.path}/${MoveJournal.journalPath}');
+      Process.runSync('chmod', ['000', journal.path]);
+      addTearDown(() => Process.runSync('chmod', ['644', journal.path]));
+
+      expect(
+        () => MoveJournal.replay(
+          JournalTarget.of(openProject(root), homeDirectory: testHome()),
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (e) => e.message,
+                'message',
+                startsWith('cannot read ${MoveJournal.journalPath}: '),
+              ),
+        ),
+      );
+      expect(journal.existsSync(), isTrue);
+    },
+    skip: unreadablePathSkipReason() ?? false,
+  );
+
+  test(
+    'a docs root on another volume refuses before the journal',
+    () async {
+      final volume = _otherVolume()!;
+      final outside = volume.createTempSync('specstone_docs_');
+      addTearDown(() => outside.deleteSync(recursive: true));
+      final unlinked = writeProject['docs/$fr12']!.replaceFirst(
+        ' See [reset](../us03_reset_password/USER_STORY.md#use-case).',
+        '',
+      );
+      for (final MapEntry(:key, :value) in {
+        ...writeProject,
+        'docs/$fr12': unlinked,
+      }.entries) {
+        if (!key.startsWith('docs/')) continue;
+        File('${outside.path}/${key.substring(5)}')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(value);
+      }
+      final linked = await writeWriteProject(
+        without: {
+          for (final k in writeProject.keys)
+            if (k.startsWith('docs/')) k,
+        },
+      );
+      Link('${linked.path}/docs').createSync(outside.path);
+      // The trust gate runs before the volume probe; the Owner's record lets
+      // this docs root reach it.
+      RootTrust.locate(linked, homeDirectory: testHome()).record();
+
+      expect(
+        () => writeIn(
+          linked,
+          (s) => answerDelete(
+            s,
+            ['user_story:login/reset_password'],
+            confirmation: OwnerConfirmation.missing,
+            readLine: () => null,
+            prompts: StringBuffer(),
+          ),
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (e) => e.message,
+                'message',
+                startsWith('cannot move docs into .specstone/trash: '),
+              ),
+        ),
+      );
+      expect(
+        Directory('${linked.path}/.specstone/trash').existsSync(),
+        isFalse,
+      );
+      expect(File('${outside.path}/$story3').existsSync(), isTrue);
+      expect(
+        outside.listSync().map((e) => e.path.split('/').last),
+        isNot(contains(startsWith('.specstone-probe-'))),
+      );
+      writeIn(linked, (_) {});
+    },
+    skip: Platform.isWindows
+        ? 'links need privileges on Windows'
+        : _otherVolume() == null
+        ? 'no second volume: set SPECSTONE_OTHER_VOLUME'
+        : false,
+  );
+
+  test('a docs root without write permission still deletes a unit whose folder '
+      'is writable', () async {
+    final docs = '${root.path}/docs';
+    addTearDown(() => Process.runSync('chmod', ['755', docs]));
+    dropLinkIntoStory3();
+    Process.runSync('chmod', ['555', docs]);
+
+    writeIn(
+      root,
+      (s) => answerDelete(
+        s,
+        ['user_story:login/reset_password'],
+        confirmation: OwnerConfirmation.missing,
+        readLine: () => null,
+        prompts: StringBuffer(),
+      ),
+    );
+
+    expect(hasDoc(root, story3), isFalse);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test('a folder linked out of the roots refuses before the journal', () {
+    final outside = Directory.systemTemp.createTempSync('specstone_folder_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    File('${outside.path}/note.md').writeAsStringSync('note\n');
+    Link('${root.path}/docs/prds/elsewhere').createSync(outside.path);
+
+    expect(
+      () => const MoveJournal([
+        MoveStep(
+          'docs/prds/elsewhere/note.md',
+          '$_trashDocs/prds/elsewhere/note.md',
+        ),
+      ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+      throwsA(
+        isA<RenderFault>()
+            .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (e) => e.message,
+              'message',
+              startsWith(
+                'its step path docs/prds/elsewhere/note.md leaves the '
+                'project and docs roots; ',
+              ),
+            ),
+      ),
+    );
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+    expect(File('${outside.path}/note.md').existsSync(), isTrue);
+    writeIn(root, (_) {});
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+  test('a probe folder that cannot be removed does not hide the move', () {
+    IOOverrides.runWithIOOverrides(
+      () => const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
+          .run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+      _StuckProbeHook(),
+    );
+
+    expect(hasDoc(root, story3), isFalse);
+    expect(dirExists(MoveJournal.trashPath), isFalse);
+  });
+
+  test('a refused probe whose folder cannot be removed still comes back as the '
+      'refusal', () {
+    Directory('${root.path}/.specstone').createSync();
+    File('${root.path}/${MoveJournal.trashPath}').writeAsStringSync('');
+
+    expect(
+      () => IOOverrides.runWithIOOverrides(
+        () => const MoveJournal([
+          MoveStep('docs/$story3', '$_trashDocs/$story3'),
+        ]).run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+        _StuckProbeHook(),
+      ),
+      throwsA(
+        isA<RenderFault>()
+            .having((e) => e.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (e) => e.message,
+              'message',
+              startsWith('cannot move docs into .specstone/trash: '),
+            ),
+      ),
+    );
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test('a move step moves a symlink as itself', () {
+    final outside = Directory.systemTemp.createTempSync('specstone_link_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    File('${outside.path}/keep.md').writeAsStringSync('keep\n');
+    final link = Link('${root.path}/docs/prds/shortcut')
+      ..createSync(outside.path);
+
+    const MoveStep(
+      'docs/prds/shortcut',
+      '$_trashDocs/prds/shortcut',
+    ).apply(JournalTarget.of(openProject(root), homeDirectory: testHome()));
+
+    final landed = Link('${root.path}/$_trashDocs/prds/shortcut');
+    expect(landed.existsSync(), isTrue);
+    expect(landed.targetSync(), outside.path);
+    expect(link.existsSync(), isFalse);
+    expect(File('${outside.path}/keep.md').readAsStringSync(), 'keep\n');
+  }, skip: Platform.isWindows ? 'links need privileges on Windows' : false);
+
+  group('an untrusted journal', () {
+    Matcher untrusted(String reason) => throwsA(
+      isA<RenderFault>()
+          .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+          .having((f) => f.file, 'file', MoveJournal.journalPath)
+          .having(
+            (f) => f.message,
+            'message',
+            '$reason; check .specstone/trash/ and delete it to go on',
+          ),
+    );
+
+    JournalTarget target() =>
+        JournalTarget.of(openProject(root), homeDirectory: testHome());
+
+    test('a journal no run on this machine recorded is refused before any '
+        'step, and nothing moves', () {
+      final before = readDoc(root, story1);
+      writeJournal(root, [
+        const MoveStep('docs/$story1', '$_trashDocs/$story1'),
+        const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
+      ], recorded: false);
+
+      expect(
+        () => MoveJournal.replay(target()),
+        untrusted('no Specstone run on this machine wrote it'),
+      );
+      expect(
+        () => MoveJournal.remaining(target()),
+        untrusted('no Specstone run on this machine wrote it'),
+      );
+
+      expect(readDoc(root, story1), before);
+      expect(journalExists(), isTrue);
+    });
+
+    test('a journal recorded for another project is refused', () async {
+      final other = await writeWriteProject();
+      writeJournal(other, const [
+        WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
+      ]);
+      Directory('${root.path}/${MoveJournal.trashPath}')
+          .createSync(recursive: true);
+      File('${other.path}/${MoveJournal.journalPath}')
+          .copySync('${root.path}/${MoveJournal.journalPath}');
+
+      expect(
+        () => MoveJournal.replay(target()),
+        untrusted('no Specstone run on this machine wrote it'),
+      );
+    });
+
+    test('a journal edited after its run recorded it is refused', () {
+      writeJournal(root, const [
+        WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
+      ]);
+      final journal = File('${root.path}/${MoveJournal.journalPath}');
+      journal.writeAsStringSync(
+        journal.readAsStringSync().replaceFirst('PROJECT.md', 'PROJECT2.md'),
+      );
+
+      expect(
+        () => MoveJournal.replay(target()),
+        untrusted('no Specstone run on this machine wrote it'),
+      );
+    });
+
+    test('a journal with no home folder to hold its record is refused', () {
+      writeJournal(root, const [
+        WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
+      ]);
+
+      expect(
+        () => MoveJournal.replay(
+          JournalTarget.of(openProject(root), homeDirectory: null),
+        ),
+        untrusted('no Specstone run on this machine wrote it'),
+      );
+    });
+
+    test('an unrecorded journal is refused with exit status 73', () {
+      writeJournal(root, [
+        const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
+      ], recorded: false);
+
+      expect(
+        () => MoveJournal.replay(target()),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73),
+        ),
+      );
+      expect(journalExists(), isTrue);
+    });
+
+    test('a journal read with no home folder exits 73', () {
+      writeJournal(root, [
+        const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
+      ]);
+
+      expect(
+        () => MoveJournal.replay(
+          JournalTarget.of(openProject(root), homeDirectory: null),
+        ),
+        throwsA(isA<RenderFault>().having((f) => f.exitStatus, 'exit', 73)),
+      );
+    });
+
+    for (final path in [
+      '../outside.md',
+      'docs/../../outside.md',
+      '/etc/x',
+      'C:/x',
+      r'docs\x.md',
+      '.git/config',
+      '.GIT/config',
+      'docs/.git/hooks/pre-commit',
+    ]) {
+      test('a recorded journal naming $path is refused', () {
+        writeJournal(root, [WriteStep.unguarded(path, 'payload\n')]);
+
+        expect(
+          () => MoveJournal.replay(target()),
+          untrusted('its step path $path leaves the project and docs roots'),
+        );
+        expect(journalExists(), isTrue);
+      });
+    }
+
+    test('a recorded journal naming a path behind a link out of the project is '
+        'refused, and the file behind the link keeps its text', () async {
+      final outside = await writeTree({'victim.txt': 'mine\n'});
+      Link('${root.path}/docs/out').createSync(outside.path);
+      writeJournal(root, [
+        const WriteStep.unguarded('docs/out/victim.txt', 'payload\n'),
+        const MoveStep('docs/out/victim.txt', '$_trashDocs/victim.txt'),
+      ]);
+
+      expect(
+        () => MoveJournal.replay(target()),
+        untrusted(
+          'its step path docs/out/victim.txt leaves the project and docs roots',
+        ),
+      );
+      expect(File('${outside.path}/victim.txt').readAsStringSync(), 'mine\n');
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('a recorded journal naming a code file under a code root inside the '
+        'project replays', () async {
+      final project = await writeTree({
+        'src/a.dart': '// old\n',
+        '.specstone/config.yaml':
+            '${writeProject['.specstone/config.yaml']!}code_root: src\n',
+        'docs/prds/PROJECT.md': 'x\n',
+      });
+      writeJournal(project, const [
+        WriteStep.unguarded('src/a.dart', '// new\n'),
+      ]);
+
+      MoveJournal.replay(
+        JournalTarget.of(openProject(project), homeDirectory: testHome()),
+      );
+
+      expect(File('${project.path}/src/a.dart').readAsStringSync(), '// new\n');
+    });
+
+    test('a recorded journal naming a code file under a code root outside the '
+        'project is refused, and the file keeps its text', () async {
+      final base = await writeTree({
+        'lib/a.dart': '// old\n',
+        'proj/.specstone/config.yaml':
+            '${writeProject['.specstone/config.yaml']!}code_root: ..\n',
+        'proj/docs/prds/PROJECT.md': 'x\n',
+      });
+      final project = Directory('${base.path}/proj');
+      writeJournal(project, const [
+        WriteStep.unguarded('../lib/a.dart', '// new\n'),
+      ]);
+
+      expect(
+        () => MoveJournal.replay(
+          JournalTarget.of(openProject(project), homeDirectory: testHome()),
+        ),
+        untrusted(
+          'its step path ../lib/a.dart leaves the project and docs roots',
+        ),
+      );
+      expect(File('${base.path}/lib/a.dart').readAsStringSync(), '// old\n');
+    });
+
+    test('an agent file recorded outside the project root is refused like '
+        'any other path outside it, and the file keeps its text', () async {
+      final base = await writeTree({
+        'CLAUDE.md': 'Owner\n',
+        'notes.md': 'mine\n',
+        '.git/config': '[core]\n',
+        'specs/.specstone/config.yaml': writeProject['.specstone/config.yaml']!,
+        'specs/docs/prds/PROJECT.md': 'x\n',
+      });
+      final project = Directory('${base.path}/specs');
+      final top = base.resolveSymbolicLinksSync();
+      final agentFiles = {'$top/CLAUDE.md', '$top/.git/config'};
+      final target = JournalTarget(
+        projectRoot: project,
+        docsRoot: Directory('${project.path}/docs'),
+        homeDirectory: testHome(),
+      );
+
+      for (final path in ['../notes.md', '../.git/config', '../CLAUDE.md']) {
+        writeJournal(project, [
+          WriteStep.unguarded(path, 'payload\n'),
+        ], agentFiles: agentFiles);
+        expect(
+          () => MoveJournal.replay(target),
+          untrusted('its step path $path leaves the project and docs roots'),
+        );
+      }
+
+      expect(File('${base.path}/CLAUDE.md').readAsStringSync(), 'Owner\n');
+      expect(File('${base.path}/notes.md').readAsStringSync(), 'mine\n');
+      expect(File('${base.path}/.git/config').readAsStringSync(), '[core]\n');
+    });
+
+    test('a journal admits the agent files recorded with it inside the '
+        'project root', () async {
+      final base = await writeTree({
+        'CLAUDE.md': 'Owner\n',
+        '.specstone/config.yaml': writeProject['.specstone/config.yaml']!,
+        'docs/prds/PROJECT.md': 'x\n',
+      });
+      final target = JournalTarget(
+        projectRoot: base,
+        docsRoot: Directory('${base.path}/docs'),
+        homeDirectory: testHome(),
+      );
+      writeJournal(
+        base,
+        const [WriteStep.unguarded('CLAUDE.md', 'Owner\nblock\n')],
+        agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
+      );
+
+      MoveJournal.replay(target);
+
+      expect(
+        File('${base.path}/CLAUDE.md').readAsStringSync(),
+        'Owner\nblock\n',
+      );
+    });
+
+    test('a stopped run replays on the next command, and its record goes '
+        'with the journal', () {
+      final before = readDoc(root, persona);
+      final records = Directory('${testHome().path}/.specstone/journals');
+      final folder = docFile(root, persona).parent;
+      Process.runSync('chmod', ['555', folder.path]);
+      addTearDown(() => Process.runSync('chmod', ['755', folder.path]));
+
+      expect(
+        () => MoveJournal([
+          WriteStep('docs/$persona', 'new\n', before: textHashOf(before)),
+        ]).run(target()),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(journalExists(), isTrue);
+      expect(records.listSync(), hasLength(1));
+
+      Process.runSync('chmod', ['755', folder.path]);
+      MoveJournal.replay(target());
+
+      expect(readDoc(root, persona), 'new\n');
+      expect(journalExists(), isFalse);
+      expect(records.listSync(), isEmpty);
+    }, skip: unreadablePathSkipReason() ?? false);
+
+    test('a write command refuses an unrecorded migrate journal as '
+        'untrusted, not as a migration to finish', () async {
+      writeJournal(root, [
+        const WriteStep.unguarded('docs/prds/PROJECT.md', 'payload\n'),
+        const CommitStep(message: 'm', paths: ['docs'], base: 'HEAD'),
+      ], recorded: false);
+
+      expect(
+        () => writeIn(root, (session) => null),
+        untrusted('no Specstone run on this machine wrote it'),
+      );
+    });
+
+    test("the trash folder a stopped run leaves is its owner's alone", () {
+      final folder = docFile(root, persona).parent;
+      Process.runSync('chmod', ['555', folder.path]);
+      addTearDown(() => Process.runSync('chmod', ['755', folder.path]));
+
+      final before = readDoc(root, persona);
+
+      expect(
+        () => MoveJournal([
+          WriteStep('docs/$persona', 'new\n', before: textHashOf(before)),
+        ]).run(target()),
+        throwsA(isA<RenderFault>()),
+      );
+
+      final trash = Directory('${root.path}/${MoveJournal.trashPath}');
+      expect(trash.statSync().mode & 0x1FF, 448);
+    }, skip: unreadablePathSkipReason() ?? false);
+  });
+
+  test('a file made read-only since the run was planned is left '
+      'as it is, named in a warning, and keeps its mode', () {
+    final file = docFile(root, persona);
+    final original = file.readAsStringSync();
+    Process.runSync('chmod', ['444', file.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+    final lines = <String>[];
+
+    WriteStep('docs/$persona', 'new\n', before: textHashOf(original)).apply(
+      JournalTarget(
+        projectRoot: root,
+        docsRoot: Directory('${root.path}/docs'),
+        homeDirectory: testHome(),
+        warn: lines.add,
+      ),
+    );
+
+    expect(file.readAsStringSync(), original);
+    expect(file.statSync().mode & 0x1FF, 292);
+    expect(lines, ['docs/$persona is read-only; left as it is']);
+  }, skip: Platform.isWindows ? 'file modes need chmod' : null);
+
+  test('a run appends trash/ after every line a gitignore holds', () {
+    final ignore = File('${root.path}/.specstone/.gitignore')
+      ..writeAsStringSync('index.sqlite*\nmine\n# a comment\nbuild/\n');
+
+    const MoveJournal([MoveStep('docs/$story3', '$_trashDocs/$story3')])
+        .run(JournalTarget.of(openProject(root), homeDirectory: testHome()));
+
+    final lines = ignore.readAsLinesSync();
+    expect(lines.take(4), ['index.sqlite*', 'mine', '# a comment', 'build/']);
+    expect(lines.skip(4), contains('trash/'));
+  });
+
+  test('a replay names a read-only file and goes on with other steps', () {
+    final file = docFile(root, persona);
+    final original = file.readAsStringSync();
+    writeJournal(root, [
+      WriteStep('docs/$persona', 'new\n', before: textHashOf(original)),
+      const WriteStep.unguarded('docs/$antiPersona', 'second\n'),
+    ]);
+    Process.runSync('chmod', ['444', file.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+    final lines = <String>[];
+
+    MoveJournal.replay(
+      JournalTarget(
+        projectRoot: root,
+        docsRoot: Directory('${root.path}/docs'),
+        homeDirectory: testHome(),
+        warn: lines.add,
+      ),
+    );
+
+    expect(lines, ['docs/$persona is read-only; left as it is']);
+    expect(file.readAsStringSync(), original);
+    expect(readDoc(root, antiPersona), 'second\n');
+    expect(journalExists(), isFalse);
+  }, skip: Platform.isWindows ? 'file modes need chmod' : null);
+
+  group('create and commit steps', () {
+    final skipGit = hasGit ? null : 'git is not available';
+
+    test('a commit takes a path that reads as a glob as itself, '
+        'so a file it would match stays out of the commit', () async {
+      final root = await _gitTree({
+        'app/[slug]/page.ts': '// a\n',
+        'app/s/page.ts': '// b\n',
+      });
+      final base = _head(root);
+      File('${root.path}/app/[slug]/page.ts').writeAsStringSync('// a2\n');
+      File('${root.path}/app/s/page.ts').writeAsStringSync('// user edit\n');
+
+      CommitStep(
+        message: 'labels',
+        paths: const ['app/[slug]/page.ts'],
+        base: base,
+      ).apply(_target(root));
+
+      expect(
+        (git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout
+                as String)
+            .trim(),
+        'app/[slug]/page.ts',
+      );
+      expect(
+        (git(root, ['status', '--porcelain', '--', 'app']).stdout as String)
+            .trim(),
+        'M app/s/page.ts',
+      );
+    }, skip: skipGit);
+
+    test("a commit hook's own glob still matches", () async {
+      final root = await _gitTree({'app/[slug]/page.ts': '// a\n'});
+      final base = _head(root);
+      File('${root.path}/app/[slug]/page.ts').writeAsStringSync('// a2\n');
+      final hook = File('${root.path}/.git/hooks/pre-commit')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          "git diff --cached --name-only -- '*.ts' > .git/hook.out\n",
+        );
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+
+      CommitStep(
+        message: 'labels',
+        paths: const ['app/[slug]/page.ts'],
+        base: base,
+      ).apply(_target(root));
+
+      expect(
+        File('${root.path}/.git/hook.out').readAsStringSync(),
+        'app/[slug]/page.ts\n',
+      );
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
+
+    test('a create step writes an absent file', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'old\n'});
+      const CreateStep(
+        'docs/specs/TECH_STACK.md',
+        'draft\n',
+      ).apply(_target(root));
+      expect(
+        File('${root.path}/docs/specs/TECH_STACK.md').readAsStringSync(),
+        'draft\n',
+      );
+    });
+
+    test('a create step whose file holds its text byte for byte is '
+        'a replay, done', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'new\n'});
+      const step = CreateStep('docs/prds/PROJECT.md', 'new\n');
+
+      expect(step.isDone(_target(root)), isTrue);
+      step.apply(_target(root));
+
+      expect(
+        File('${root.path}/docs/prds/PROJECT.md').readAsStringSync(),
+        'new\n',
+      );
+    });
+
+    test('a create step never overwrites another file, and stops the '
+        'run before the later steps', () async {
+      final root = await writeTree({
+        'docs/prds/PROJECT.md': 'old\n',
+        'docs/prds/NOTE.md': 'note\n',
+      });
+      const step = CreateStep('docs/prds/PROJECT.md', 'new\n');
+
+      expect(step.isDone(_target(root)), isFalse);
+      expect(
+        () => const MoveJournal([
+          step,
+          WriteStep.unguarded('docs/prds/NOTE.md', 'later\n'),
+        ]).run(_target(root)),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot create prds/PROJECT.md: a file it did not write is '
+                    'there',
+              ),
+        ),
+      );
+      expect(
+        File('${root.path}/docs/prds/PROJECT.md').readAsStringSync(),
+        'old\n',
+      );
+      expect(
+        File('${root.path}/docs/prds/NOTE.md').readAsStringSync(),
+        'note\n',
+      );
+      expect(MoveJournal.pending(root), isTrue);
+    });
+
+    test('a folder where a create step writes stops the run too', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md/keep.txt': ''});
+
+      expect(
+        () => const CreateStep(
+          'docs/prds/PROJECT.md',
+          'new\n',
+        ).apply(_target(root)),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        Directory('${root.path}/docs/prds/PROJECT.md').existsSync(),
+        isTrue,
+      );
+    });
+
+    test('a journal of moves, commit 1, writes, commit 2 makes two commits, '
+        'the first pure renames', () async {
+      final root = await _gitTree({
+        'docs/prds/d01_context.md': '# D-01 — Project context\n',
+      });
+      final base = _head(root);
+      MoveJournal([
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+        const WriteStep.unguarded(
+          'docs/prds/PROJECT.md',
+          '# Project context\n',
+        ),
+        const CreateStep('.specstone/config.yaml', 'packs:\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: [
+            'docs/prds/PROJECT.md',
+            '.specstone/config.yaml',
+            '.specstone/.gitignore',
+          ],
+          base: base,
+        ),
+      ]).run(_target(root));
+      expect(_log(root), ['rewrite', 'move', 'initial']);
+      expect(
+        git(root, [
+          'show',
+          '--name-status',
+          '-M',
+          '--format=',
+          'HEAD~1',
+        ]).stdout,
+        'R100\tdocs/prds/d01_context.md\tdocs/prds/PROJECT.md\n',
+      );
+      expect(git(root, ['status', '--porcelain']).stdout, '');
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test('a commit of 320 moves passes its paths in a file, never on the git '
+        'command line', () async {
+      final names = [for (var i = 0; i < 320; i++) 'f${'$i'.padLeft(3, '0')}'];
+      final root = await _gitTree({
+        for (final name in names) 'docs/prds/old/$name.md': '# $name\n',
+      });
+      final paths = [
+        for (final name in names) ...[
+          'docs/prds/old/$name.md',
+          'docs/prds/new/$name.md',
+        ],
+      ];
+      final calls = <List<String>>[];
+      final target = JournalTarget(
+        projectRoot: root,
+        docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
+        homeDirectory: testHome(),
+        runGit: (arguments, {required workingDirectory, environment}) {
+          calls.add(arguments);
+          return runRealGit(arguments, workingDirectory: workingDirectory);
+        },
+      );
+
+      MoveJournal([
+        for (final name in names)
+          MoveStep('docs/prds/old/$name.md', 'docs/prds/new/$name.md'),
+        CommitStep(message: 'move', paths: paths, base: _head(root)),
+      ]).run(target);
+
+      expect(_log(root), ['move', 'initial']);
+      final renames =
+          (git(root, [
+                    'show',
+                    '--name-status',
+                    '-M',
+                    '--format=',
+                    'HEAD',
+                  ]).stdout
+                  as String)
+              .trim()
+              .split('\n');
+      expect(renames, hasLength(names.length));
+      expect(renames, everyElement(startsWith('R100')));
+      final named = {for (final call in calls) ...call}
+          .intersection({...paths});
+      expect(named, isEmpty);
+      for (final verb in ['add', 'commit']) {
+        expect(
+          calls.where((call) => call.first == verb).single,
+          containsAll(['--pathspec-file-nul']),
+          reason: verb,
+        );
+      }
+      expect(git(root, ['status', '--porcelain', '--', 'docs']).stdout, '');
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: skipGit);
+
+    test(
+      'a project in a subfolder of its repository commits its own paths',
+      () async {
+        final repo = await _gitTree({
+          'app/docs/prds/d01_context.md': '# D-01 — App context\n',
+          'docs/prds/d01_context.md': '# D-01 — Root context\n',
+        });
+        final app = Directory('${repo.path}${Platform.pathSeparator}app');
+        final base = _head(repo);
+
+        MoveJournal([
+          const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+          CommitStep(
+            message: 'move',
+            paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+            base: base,
+          ),
+        ]).run(_target(app));
+
+        expect(_log(repo), ['move', 'initial']);
+        expect(
+          git(repo, [
+            'show',
+            '--name-status',
+            '-M',
+            '--format=',
+            'HEAD',
+          ]).stdout,
+          'R100\tapp/docs/prds/d01_context.md\tapp/docs/prds/PROJECT.md\n',
+        );
+      },
+      skip: skipGit,
+    );
+
+    test(
+      'a path git ignores stays out of both commits and still moves',
+      () async {
+        final root = await _gitTree({
+          '.gitignore': '*.local.md\n',
+          'docs/prds/d01_context.md': '# D-01 — Project context\n',
+        });
+        File('${root.path}/docs/prds/notes.local.md')
+            .writeAsStringSync('# Notes\n');
+        final base = _head(root);
+
+        MoveJournal([
+          const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+          const MoveStep(
+            'docs/prds/notes.local.md',
+            'docs/specs/notes.local.md',
+          ),
+          CommitStep(
+            message: 'move',
+            paths: [
+              'docs/prds/d01_context.md',
+              'docs/prds/PROJECT.md',
+              'docs/prds/notes.local.md',
+              'docs/specs/notes.local.md',
+            ],
+            base: base,
+          ),
+          const WriteStep.unguarded(
+            'docs/specs/notes.local.md',
+            '# Local notes\n',
+          ),
+          CommitStep(
+            message: 'rewrite',
+            paths: ['docs/specs/notes.local.md', '.specstone/.gitignore'],
+            base: base,
+          ),
+        ]).run(_target(root));
+
+        expect(_log(root), ['rewrite', 'move', 'initial']);
+        expect(
+          git(root, ['log', '--name-only', '--format=', '$base..HEAD']).stdout,
+          isNot(contains('notes.local.md')),
+        );
+        expect(
+          File('${root.path}/docs/specs/notes.local.md').readAsStringSync(),
+          '# Local notes\n',
+        );
+      },
+      skip: skipGit,
+    );
+
+    test('an untracked ignored file with the bytes of a moved tracked file '
+        'stays out of the commit', () async {
+      final root = await _gitTree({
+        '.gitignore': '.DS_Store\n',
+        'docs/specs/shared/notes.txt': 'same bytes\n',
+      });
+      File('${root.path}/docs/specs/other/.DS_Store')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('same bytes\n');
+      final base = _head(root);
+      const moves = [
+        ('docs/specs/shared/notes.txt', 'docs/specs/topics/shared/notes.txt'),
+        ('docs/specs/other/.DS_Store', 'docs/specs/topics/other/.DS_Store'),
+      ];
+
+      MoveJournal([
+        for (final (from, to) in moves) MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: [
+            for (final (from, to) in moves) ...[from, to],
+          ],
+          base: base,
+          moves: [for (final (from, to) in moves) PathMove(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\tdocs/specs/shared/notes.txt\t'
+        'docs/specs/topics/shared/notes.txt\n',
+      );
+      expect(
+        git(root, ['ls-files', '--', 'docs/specs/topics/other']).stdout,
+        '',
+      );
+    }, skip: skipGit);
+
+    test('a tracked file moved onto an ignored path stays a rename, and an '
+        'untracked one stays out', () async {
+      final root = await _gitTree({
+        '.gitignore': '.DS_Store\n',
+        'docs/specs/shared/s01_architecture.md': '# Shared\n',
+      });
+      File('${root.path}/docs/specs/shared/.DS_Store')
+          .writeAsStringSync('finder, committed\n');
+      expect(
+        git(root, ['add', '-f', 'docs/specs/shared/.DS_Store']).exitCode,
+        0,
+      );
+      expect(git(root, ['commit', '-q', '-m', 'finder']).exitCode, 0);
+      File('${root.path}/docs/specs/other/.DS_Store')
+          .createSync(recursive: true);
+      File('${root.path}/docs/specs/other/.DS_Store')
+          .writeAsStringSync('finder, never committed\n');
+      final base = _head(root);
+      const moves = [
+        ('docs/specs/shared/.DS_Store', 'docs/specs/topics/shared/.DS_Store'),
+        (
+          'docs/specs/shared/s01_architecture.md',
+          'docs/specs/topics/shared/s01_architecture.md',
+        ),
+        ('docs/specs/other/.DS_Store', 'docs/specs/topics/other/.DS_Store'),
+      ];
+
+      MoveJournal([
+        for (final (from, to) in moves) MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: [
+            for (final (from, to) in moves) ...[from, to],
+          ],
+          base: base,
+          moves: [for (final (from, to) in moves) PathMove(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(_log(root).first, 'move');
+      expect(
+        git(root, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\tdocs/specs/shared/.DS_Store\tdocs/specs/topics/shared/.DS_Store\n'
+        'R100\tdocs/specs/shared/s01_architecture.md\t'
+        'docs/specs/topics/shared/s01_architecture.md\n',
+      );
+      expect(
+        git(root, [
+          'ls-files',
+          '--',
+          'docs/specs/topics/shared/.DS_Store',
+          'docs/specs/topics/other/.DS_Store',
+        ]).stdout,
+        'docs/specs/topics/shared/.DS_Store\n',
+      );
+      expect(
+        File('${root.path}/docs/specs/topics/other/.DS_Store')
+            .readAsStringSync(),
+        'finder, never committed\n',
+      );
+    }, skip: skipGit);
+
+    test(
+      'a replay after commit 1 skips the done steps and makes commit 2 only',
+      () async {
+        final root = await _gitTree({
+          'docs/prds/d01_context.md': '# D-01 — Project context\n',
+        });
+        final base = _head(root);
+        final steps = [
+          const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+          CommitStep(
+            message: 'move',
+            paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+            base: base,
+          ),
+          const WriteStep.unguarded(
+            'docs/prds/PROJECT.md',
+            '# Project context\n',
+          ),
+          const CreateStep('.specstone/config.yaml', 'packs:\n'),
+          CommitStep(
+            message: 'rewrite',
+            paths: [
+              'docs/prds/PROJECT.md',
+              '.specstone/config.yaml',
+              '.specstone/.gitignore',
+            ],
+            base: base,
+          ),
+        ];
+        final specstone = Directory('${root.path}/.specstone')
+          ..createSync(recursive: true);
+        ensureSpecstoneGitignore(specstone);
+        File('${root.path}/${MoveJournal.journalPath}')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+        recordJournalFile(root);
+        steps[0].apply(_target(root));
+        steps[1].apply(_target(root));
+        expect(_log(root), ['move', 'initial']);
+
+        MoveJournal.replay(_target(root));
+
+        expect(_log(root), ['rewrite', 'move', 'initial']);
+        expect(
+          File('${root.path}/docs/prds/PROJECT.md').readAsStringSync(),
+          '# Project context\n',
+        );
+        expect(MoveJournal.pending(root), isFalse);
+      },
+      skip: skipGit,
+    );
+
+    test(
+      'remaining lists the steps not done, and describe prints each',
+      () async {
+        final root = await _gitTree({
+          'docs/prds/d01_context.md': '# D-01 — Project context\n',
+        });
+        final base = _head(root);
+        final steps = [
+          const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+          CommitStep(
+            message: 'move',
+            paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+            base: base,
+          ),
+          const WriteStep.unguarded(
+            'docs/prds/PROJECT.md',
+            '# Project context\n',
+          ),
+          const CreateStep('.specstone/config.yaml', 'packs:\n'),
+          CommitStep(
+            message: 'rewrite',
+            paths: ['docs/prds/PROJECT.md'],
+            base: base,
+          ),
+        ];
+        expect(MoveJournal.remaining(_target(root)), isEmpty);
+        File('${root.path}/${MoveJournal.journalPath}')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+        recordJournalFile(root);
+        expect(steps.map((s) => s.describe()), [
+          'move docs/prds/d01_context.md -> docs/prds/PROJECT.md',
+          'commit "move"',
+          'write docs/prds/PROJECT.md',
+          'create .specstone/config.yaml',
+          'commit "rewrite"',
+        ]);
+        steps[0].apply(_target(root));
+        steps[1].apply(_target(root));
+
+        expect(MoveJournal.remaining(_target(root)).map((s) => s.describe()), [
+          'write docs/prds/PROJECT.md',
+          'create .specstone/config.yaml',
+          'commit "rewrite"',
+        ]);
+      },
+      skip: skipGit,
+    );
+
+    test('a commit-msg hook that prefixes the subject does '
+        'not make a resume commit twice', () async {
+      final root = await _gitTree({'docs/prds/d01_context.md': 'x\n'});
+      final hook = File('${root.path}/.git/hooks/commit-msg')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          r'printf "[X] " | cat - "$1" > "$1.tmp" && mv "$1.tmp" "$1"'
+          '\n',
+        );
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+      final base = _head(root);
+      final steps = [
+        const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+        CommitStep(
+          message: 'move',
+          paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+          base: base,
+        ),
+        const WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
+        CommitStep(
+          message: 'rewrite',
+          paths: ['docs/prds/PROJECT.md'],
+          base: base,
+        ),
+      ];
+      File('${root.path}/${MoveJournal.journalPath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(jsonEncode(MoveJournal(steps).toJson()));
+      recordJournalFile(root);
+      steps[0].apply(_target(root));
+      steps[1].apply(_target(root));
+      expect(_log(root), ['[X] move', 'initial']);
+      expect(steps[1].isDone(_target(root)), isTrue);
+
+      MoveJournal.replay(_target(root));
+
+      expect(_log(root), ['[X] rewrite', '[X] move', 'initial']);
+      expect(MoveJournal.pending(root), isFalse);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
+
+    test('a commit whose paths stage nothing is done and '
+        'makes no empty commit', () async {
+      final root = await _gitTree({'docs/prds/PROJECT.md': 'x\n'});
+      final base = _head(root);
+
+      CommitStep(
+        message: 'rewrite',
+        paths: ['docs/prds/PROJECT.md'],
+        base: base,
+      ).apply(_target(root));
+
+      expect(_log(root), ['initial']);
+    }, skip: skipGit);
+
+    test('read returns the pending steps, null when none or '
+        'unparsable', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'x\n'});
+      final target = _target(root);
+      expect(MoveJournal.read(target), isNull);
+      writeJournal(root, const [
+        WriteStep.unguarded('docs/prds/PROJECT.md', 'y\n'),
+      ]);
+      expect(MoveJournal.read(target)!.map((s) => s.describe()), [
+        'write docs/prds/PROJECT.md',
+      ]);
+      File('${root.path}/${MoveJournal.journalPath}')
+          .writeAsStringSync('{not json');
+      expect(MoveJournal.read(target), isNull);
+    });
+
+    test('a commit git refuses leaves the journal pending', () async {
+      final root = await _gitTree({'docs/prds/d01_context.md': 'x\n'});
+      final hook = File('${root.path}/.git/hooks/pre-commit')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
+      Process.runSync('chmod', ['755', hook.path]);
+
+      expect(
+        () => MoveJournal([
+          const MoveStep('docs/prds/d01_context.md', 'docs/prds/PROJECT.md'),
+          CommitStep(
+            message: 'move',
+            paths: ['docs/prds/d01_context.md', 'docs/prds/PROJECT.md'],
+            base: _head(root),
+          ),
+        ]).run(_target(root)),
+        throwsA(
+          isA<GitCommandFailed>()
+              .having((e) => e.verb, 'verb', 'commit')
+              .having((e) => e.line, 'line', 'lint failed'),
+        ),
+      );
+      expect(MoveJournal.pending(root), isTrue);
+    }, skip: Platform.isWindows ? 'hooks need a shell script' : skipGit);
+
+    test(
+      'the decisive line is the first fatal or error line, else the last line',
+      () async {
+        final root = await writeTree({'x': ''});
+        ProcessResult failing(String stderr, String stdout) =>
+            ProcessResult(0, 1, stdout, stderr);
+        void commitWith(String stderr, {String stdout = ''}) =>
+            const CommitStep(message: 'm', paths: ['x'], base: 'b').apply(
+              JournalTarget(
+                projectRoot: root,
+                docsRoot: root,
+                homeDirectory: testHome(),
+                runGit: (arguments, {required workingDirectory, environment}) =>
+                    arguments.first == 'log'
+                    ? ProcessResult(0, 0, '', '')
+                    : failing(stderr, stdout),
+              ),
+            );
+
+        expect(
+          () => commitWith('hint: x\nfatal: bad thing\nerror: later\n'),
+          throwsA(
+            isA<GitCommandFailed>()
+                .having((e) => e.line, 'line', 'fatal: bad thing')
+                .having((e) => e.verb, 'verb', 'add'),
+          ),
+        );
+        expect(
+          () => commitWith('one\n\nlast words\n\n'),
+          throwsA(
+            isA<GitCommandFailed>().having((e) => e.line, 'line', 'last words'),
+          ),
+        );
+      },
+    );
+
+    test('a failure with no stderr reports the last stdout line', () async {
+      final root = await writeTree({'x': ''});
+      JournalTarget target() => JournalTarget(
+        projectRoot: root,
+        docsRoot: root,
+        homeDirectory: testHome(),
+        runGit: (arguments, {required workingDirectory, environment}) =>
+            arguments.first == 'log'
+            ? ProcessResult(0, 0, '', '')
+            : ProcessResult(0, 1, 'On branch x\nnothing to commit\n\n', ''),
+      );
+
+      expect(
+        () => const CommitStep(
+          message: 'm',
+          paths: ['x'],
+          base: 'b',
+        ).apply(target()),
+        throwsA(
+          isA<GitCommandFailed>().having(
+            (e) => e.line,
+            'line',
+            'nothing to commit',
+          ),
+        ),
+      );
+    });
+
+    test('a commit step keeps its move pairs through JSON, and one without '
+        'pairs writes no moves key', () {
+      const step = CommitStep(
+        message: 'm',
+        paths: ['docs/a.md', 'docs/b.md'],
+        base: 'b',
+        moves: [PathMove(from: 'docs/a.md', to: 'docs/b.md')],
+      );
+
+      expect(step.toJson(), {
+        'commit': {
+          'message': 'm',
+          'paths': ['docs/a.md', 'docs/b.md'],
+          'base': 'b',
+          'moves': [
+            {'from': 'docs/a.md', 'to': 'docs/b.md'},
+          ],
+        },
+      });
+      final back = JournalStep.fromJson(
+        jsonDecode(jsonEncode(step.toJson())),
+      ) as CommitStep;
+      expect(back.moves, step.moves);
+      expect(const CommitStep(message: 'm', paths: ['x'], base: 'b').toJson(), {
+        'commit': {
+          'message': 'm',
+          'paths': ['x'],
+          'base': 'b',
+        },
+      });
+      expect(
+        (JournalStep.fromJson(
+          const CommitStep(message: 'm', paths: ['x'], base: 'b').toJson(),
+        ) as CommitStep).moves,
+        isEmpty,
+      );
+    });
+
+    test(
+      'fromJson refuses a commit step whose moves are not from and to strings',
+      () {
+        for (final moves in [
+          'docs/a.md',
+          [
+            {'from': 'docs/a.md'},
+          ],
+          [
+            {'from': 'docs/a.md', 'to': 1},
+          ],
+        ]) {
+          expect(
+            () => JournalStep.fromJson({
+              'commit': {
+                'message': 'm',
+                'paths': ['docs/a.md'],
+                'base': 'b',
+                'moves': moves,
+              },
+            }),
+            throwsFormatException,
+            reason: '$moves',
+          );
+        }
+      },
+    );
+
+    test('fromJson refuses a commit step whose path is not a string', () {
+      expect(
+        () => JournalStep.fromJson({
+          'commit': {
+            'message': 'm',
+            'paths': ['a', 1],
+            'base': 'b',
+          },
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('a prune step is done when its folder is gone', () async {
+      final root = await writeTree({'docs/keep.md': 'x'});
+      Directory('${root.path}/docs/a').createSync();
+
+      expect(const PruneStep('docs/a').isDone(_target(root)), isFalse);
+      const PruneStep('docs/a').apply(_target(root));
+      expect(const PruneStep('docs/a').isDone(_target(root)), isTrue);
+    });
+
+    test('a write step is done when the file already holds its text', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'same\n'});
+
+      expect(
+        const WriteStep.unguarded(
+          'docs/prds/PROJECT.md',
+          'same\n',
+        ).isDone(_target(root)),
+        isTrue,
+      );
+      expect(
+        const WriteStep.unguarded(
+          'docs/prds/PROJECT.md',
+          'other\n',
+        ).isDone(_target(root)),
+        isFalse,
+      );
+    });
+  });
+
+  group('the journal cursor', () {
+    const x = 'docs/prds/x.md';
+    const y = 'docs/prds/y.md';
+    const z = 'docs/prds/z.md';
+    const stuck = 'docs/prds/stuck.md';
+    // `z -> x` refills the source of `x -> y`, as a chained upgrade move does.
+    const chain = [MoveStep(x, y), MoveStep(z, x)];
+    const stopped = [...chain, WriteStep.unguarded(stuck, 'new\n')];
+    // A failing first step, then a park and its unpark: the unpark's source
+    // is absent until the park runs, so it reads as done with no cursor.
+    const firstFails = [
+      WriteStep.unguarded(stuck, 'new\n'),
+      MoveStep(x, '${MoveJournal.stagePath}/0'),
+      MoveStep('${MoveJournal.stagePath}/0', y),
+    ];
+    late Directory tree;
+
+    setUp(() async {
+      tree = await writeTree({x: 'x body\n', z: 'z body\n', stuck: 'old\n'});
+    });
+
+    File fileAt(String path) => File('${tree.path}/$path');
+    File journal() => fileAt(MoveJournal.journalPath);
+    File cursorFile() => fileAt(MoveJournal.cursorPath);
+
+    /// Makes the write step fail, as a disk that refuses it would.
+    void jamStuck() => fileAt(stuck).writeAsBytesSync([0xff, 0xfe, 0x41]);
+    void unjamStuck() => fileAt(stuck).writeAsStringSync('old\n');
+
+    /// Writes [steps] as a journal whose cursor file holds [cursor].
+    void writeAt(List<JournalStep> steps, String cursor) {
+      writeJournal(tree, steps);
+      cursorFile().writeAsStringSync(cursor);
+    }
+
+    /// Runs [stopped] until its write step fails, after both chain moves.
+    void stopAfterChain() {
+      jamStuck();
+      expect(
+        () => const MoveJournal(stopped).run(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+    }
+
+    void expectChainLanded() {
+      expect(fileAt(y).readAsStringSync(), 'x body\n');
+      expect(fileAt(x).readAsStringSync(), 'z body\n');
+      expect(fileAt(z).existsSync(), isFalse);
+    }
+
+    test('a run records the count of steps finished in the cursor file', () {
+      stopAfterChain();
+
+      expect(cursorFile().readAsStringSync(), '2');
+      expect(
+        journal().readAsStringSync(),
+        jsonEncode(const MoveJournal(stopped).toJson()),
+      );
+    });
+
+    test('a run writes the journal once and the cursor before the first step '
+        'and after each', () {
+      final files = _CreatedFiles();
+
+      IOOverrides.runWithIOOverrides(
+        () => const MoveJournal(stopped).run(_target(tree)),
+        files,
+      );
+
+      expect(files.tempsOf(MoveJournal.journalPath), hasLength(1));
+      expect(
+        files.tempsOf(MoveJournal.cursorPath),
+        hasLength(stopped.length + 1),
+      );
+    });
+
+    test('a finished run or replay leaves no cursor file', () {
+      const MoveJournal(stopped).run(_target(tree));
+
+      expect(cursorFile().existsSync(), isFalse);
+      expect(journal().existsSync(), isFalse);
+
+      writeJournal(tree, const [MoveStep(y, z)]);
+      MoveJournal.replay(_target(tree));
+
+      expect(cursorFile().existsSync(), isFalse);
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test('a run whose first step fails leaves cursor 0, so remaining keeps an '
+        'unpark whose slot is still empty', () {
+      jamStuck();
+
+      expect(
+        () => const MoveJournal(firstFails).run(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+
+      expect(cursorFile().readAsStringSync(), '0');
+      expect(
+        MoveJournal.remaining(_target(tree)).map((s) => s.describe()),
+        firstFails.map((s) => s.describe()),
+      );
+    });
+
+    test(
+      'a stopped run keeps its cursor in .specstone/trash/journal.cursor',
+      () {
+        stopAfterChain();
+
+        expect(
+          File('${tree.path}/.specstone/trash/journal.cursor')
+              .readAsStringSync(),
+          '2',
+        );
+      },
+    );
+
+    test('a run writes cursor 0 before it writes the journal', () {
+      Directory('${tree.path}/${MoveJournal.trashPath}')
+          .createSync(recursive: true);
+      cursorFile().writeAsStringSync('2');
+      final cursorWhenJournalWritten = <String?>[];
+      final hook = _OnCreateFile((path) {
+        final name = path.split(Platform.pathSeparator).last;
+        if (name.startsWith('.journal.json.')) {
+          cursorWhenJournalWritten.add(
+            cursorFile().existsSync() ? cursorFile().readAsStringSync() : null,
+          );
+        }
+      });
+
+      IOOverrides.runWithIOOverrides(
+        () => const MoveJournal(chain).run(_target(tree)),
+        hook,
+      );
+
+      expect(cursorWhenJournalWritten, ['0']);
+      expectChainLanded();
+    });
+
+    test(
+      'a run resets a cursor file no journal owns before its first step',
+      () {
+        Directory('${tree.path}/${MoveJournal.trashPath}')
+            .createSync(recursive: true);
+        cursorFile().writeAsStringSync('2');
+        jamStuck();
+
+        expect(
+          () => const MoveJournal(firstFails).run(_target(tree)),
+          throwsA(isA<RenderFault>()),
+        );
+        unjamStuck();
+
+        expect(cursorFile().readAsStringSync(), '0');
+        expect(
+          MoveJournal.remaining(_target(tree)).first.describe(),
+          'write $stuck',
+        );
+      },
+    );
+
+    test('a run stopped after a chain replays from its cursor and leaves the '
+        'landed doc alone', () {
+      stopAfterChain();
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test('remaining lists the steps from the cursor on', () {
+      stopAfterChain();
+
+      expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
+        'write $stuck',
+      ]);
+    });
+
+    test(
+      'a journal with no cursor replays every step, each skipped when done',
+      () {
+        fileAt(x).renameSync(fileAt(y).path);
+        writeJournal(tree, chain);
+
+        expect(MoveJournal.remaining(_target(tree)).map((s) => s.describe()), [
+          'move $z -> $x',
+        ]);
+        MoveJournal.replay(_target(tree));
+
+        expectChainLanded();
+        expect(MoveJournal.pending(tree), isFalse);
+      },
+    );
+
+    test('a replay records the cursor too, so a second stop resumes past the '
+        'chain', () {
+      writeJournal(tree, stopped);
+      jamStuck();
+      expect(
+        () => MoveJournal.replay(_target(tree)),
+        throwsA(isA<RenderFault>()),
+      );
+      unjamStuck();
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+    });
+
+    test('a journal delete that fails keeps the cursor, so a replay leaves the '
+        'chain landed', () {
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => const MoveJournal(chain).run(_target(tree)),
+          _FailingDeleteHook(MoveJournal.journalPath),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+
+      expect(journal().existsSync(), isTrue);
+      expect(cursorFile().readAsStringSync(), '${chain.length}');
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test('a crash between a step and its cursor write finishes on replay', () {
+      for (final step in chain) {
+        step.apply(_target(tree));
+      }
+      writeAt(stopped, '1');
+
+      MoveJournal.replay(_target(tree));
+
+      expectChainLanded();
+      expect(fileAt(stuck).readAsStringSync(), 'new\n');
+      expect(MoveJournal.pending(tree), isFalse);
+    });
+
+    test(
+      'a cursor that does not count the steps is refused and the trash stays',
+      () {
+        for (final cursor in ['-1', '3', '+1', ' 1', '1.5', 'two', '']) {
+          writeAt(chain, cursor);
+
+          for (final read in [
+            () => MoveJournal.replay(_target(tree)),
+            () => MoveJournal.remaining(_target(tree)),
+          ]) {
+            expect(
+              read,
+              throwsA(
+                isA<RenderFault>()
+                    .having(
+                      (e) => e.code,
+                      'code',
+                      RenderFaultCode.outputNotWritable,
+                    )
+                    .having(
+                      (e) => e.message,
+                      'message',
+                      'cannot replay ${MoveJournal.journalPath}: '
+                          '${MoveJournal.cursorPath} holds '
+                          '${jsonEncode(cursor)}, not a count of its 2 steps; '
+                          'fix or remove it',
+                    ),
+              ),
+              reason: cursor,
+            );
+          }
+          expect(journal().existsSync(), isTrue, reason: cursor);
+          expect(fileAt(x).readAsStringSync(), 'x body\n', reason: cursor);
+        }
+      },
+    );
+  });
+
+  group('a run with no home folder to record its journal', () {
+    final refusal = throwsA(
+      isA<RenderFault>()
+          .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+          .having((f) => f.exitStatus, 'exit', 73)
+          .having((f) => f.file, 'file', MoveJournal.journalPath)
+          .having(
+            (f) => f.message,
+            'message',
+            'cannot write .specstone/trash/journal.json: no home folder to '
+                'record it in',
+          ),
+    );
+
+    /// Runs [command] with no home folder and expects the refusal, the tree
+    /// as it stood after the first read unchanged.
+    void refuses(String command, void Function(WriteSession session) body) {
+      test('$command refuses before its first change', () async {
+        dropLinkIntoStory3();
+        getDoc(root, 'user_story:login/reset_password');
+        final before = treeBytes(root);
+
+        expect(() => writeInNoHome(root, body), refusal);
+
+        expect(treeBytes(root), before);
+        expect(dirExists('.specstone/trash'), isFalse);
+      });
+    }
+
+    refuses(
+      'a reorder that re-stamps an approved doc',
+      (s) => answerReorder(s, 'feature:signup', place: '1'),
+    );
+
+    test('a reorder to the same place writes no journal and is unaffected', () {
+      final answer = writeInNoHome(
+        root,
+        (s) => answerReorder(s, 'user_story:login/email_login', place: '1'),
+      );
+
+      expect(answer.text, isEmpty);
+      expect(dirExists('.specstone/trash'), isFalse);
+    });
+
+    test('a rename to the same slug writes no journal and is unaffected', () {
+      final answer = writeInNoHome(
+        root,
+        (s) => answerRename(
+          s,
+          'user_story:login/email_login',
+          slug: 'email_login',
+        ),
+      );
+
+      expect(answer.text, isEmpty);
+      expect(dirExists('.specstone/trash'), isFalse);
+    });
+
+    test('move refuses before its first change', () async {
+      final nested = await writeNestedProject();
+      getDoc(nested, 'user_story:shop/cart/add_item');
+      final before = treeBytes(nested);
+
+      expect(
+        () => writeInNoHome(
+          nested,
+          (s) => answerMove(s, [
+            'user_story:shop/cart/add_item',
+          ], under: 'shop/pay'),
+        ),
+        refusal,
+      );
+
+      expect(treeBytes(nested), before);
+    });
+
+    refuses(
+      'delete',
+      (s) => answerDelete(
+        s,
+        ['user_story:login/reset_password'],
+        confirmation: OwnerConfirmation.prompt,
+        readLine: () => 'y',
+        prompts: StringBuffer(),
+      ),
+    );
+    refuses(
+      'reorder',
+      (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+    );
+    refuses(
+      'rename',
+      (s) => answerRename(s, 'user_story:login/reset_password', slug: 'other'),
+    );
+  });
+
+  group('a move whose paths differ only in letter case', () {
+    String nameOf(FileSystemEntity entity) =>
+        entity.path.split(Platform.pathSeparator).last;
+
+    List<String> listed(Directory folder) =>
+        [for (final entity in folder.listSync()) nameOf(entity)]..sort();
+
+    test('a file move takes the new case, and its done test reads the case '
+        'the disk lists', () async {
+      final root = await writeTree({
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+      });
+      const step = MoveStep(
+        'docs/prds/runbooks/deploy/RUNBOOK.md',
+        'docs/prds/runbooks/deploy/Runbook.md',
+      );
+
+      expect(step.isDone(_target(root)), isFalse);
+      step.apply(_target(root));
+
+      expect(listed(Directory('${root.path}/docs/prds/runbooks/deploy')), [
+        'Runbook.md',
+      ]);
+      expect(step.isDone(_target(root)), isTrue);
+      expect(
+        File('${root.path}/docs/prds/runbooks/deploy/Runbook.md')
+            .readAsStringSync(),
+        '# Deploy\n',
+      );
+    });
+
+    test('a folder move takes the new case', () async {
+      final root = await writeTree({'docs/prds/RUNBOOKS/keep.md': 'x\n'});
+
+      const MoveStep(
+        'docs/prds/RUNBOOKS',
+        'docs/prds/runbooks',
+      ).apply(_target(root));
+
+      expect(listed(Directory('${root.path}/docs/prds')), ['runbooks']);
+      expect(
+        File('${root.path}/docs/prds/runbooks/keep.md').readAsStringSync(),
+        'x\n',
+      );
+    });
+
+    test(
+      'a replay stopped between the two renames finishes the move',
+      () async {
+        final root = await writeTree({
+          'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+        });
+        const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+        const to = 'docs/prds/runbooks/deploy/Runbook.md';
+        writeJournal(root, const [MoveStep(from, to)]);
+        File('${root.path}/$from')
+            .renameSync('${root.path}/$to.specstone-case-7');
+
+        MoveJournal.replay(_target(root));
+
+        expect(listed(Directory('${root.path}/docs/prds/runbooks/deploy')), [
+          'Runbook.md',
+        ]);
+        expect(journalExists(), isFalse);
+      },
+    );
+
+    test('isCaseOnlyMove tells a case-only pair from any other', () {
+      expect(isCaseOnlyMove('docs/A.md', 'docs/a.md'), isTrue);
+      expect(isCaseOnlyMove('docs/a.md', 'docs/a.md'), isFalse);
+      expect(isCaseOnlyMove('docs/A.md', 'docs/B.md'), isFalse);
+      expect(isCaseOnlyMove('docs/A.md', 'src/a.md'), isFalse);
+    });
+
+    test('a commit stages the move as a removal and an add, so git records '
+        'the new case', () async {
+      final root = await _gitTree({
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+      });
+      expect(git(root, ['config', 'core.ignorecase', 'true']).exitCode, 0);
+      final base = _head(root);
+      const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+      const to = 'docs/prds/runbooks/deploy/Runbook.md';
+
+      MoveJournal([
+        const MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: const [from, to],
+          base: base,
+          moves: const [PathMove(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(_log(root), ['move', 'initial']);
+      expect(
+        git(root, ['show', '--name-status', '-M', '--format=', 'HEAD']).stdout,
+        'R100\t$from\t$to\n',
+      );
+      expect(
+        git(root, ['ls-files', '--', 'docs/prds/runbooks/deploy']).stdout,
+        '$to\n',
+      );
+      expect(git(root, ['status', '--porcelain', '--', 'docs']).stdout, '');
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a tracked old spelling moved onto an ignored new one leaves only '
+        'the new spelling in the index', () async {
+      final root = await _gitTree({
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+      });
+      // The rule lands after the initial commit, so it ignores only the new
+      // spelling; a pattern both spellings match would leave the doc
+      // untracked, since git matches ignore rules case-blind here.
+      File('${root.path}/.gitignore')
+          .writeAsStringSync('docs/prds/runbooks/deploy/Runbook.md\n');
+      commitAll(root, 'ignore');
+      expect(git(root, ['config', 'core.ignorecase', 'true']).exitCode, 0);
+      final base = _head(root);
+      const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+      const to = 'docs/prds/runbooks/deploy/Runbook.md';
+
+      MoveJournal([
+        const MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: const [from, to],
+          base: base,
+          moves: const [PathMove(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['ls-files', '--', 'docs/prds/runbooks/deploy']).stdout,
+        '$to\n',
+      );
+      expect(_log(root).first, 'move');
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a forced-only case-only move leaves an unrelated untracked file out '
+        'of the commit', () async {
+      final root = await _gitTree({
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+      });
+      File('${root.path}/.gitignore')
+          .writeAsStringSync('docs/prds/runbooks/deploy/Runbook.md\n');
+      commitAll(root, 'ignore');
+      expect(git(root, ['config', 'core.ignorecase', 'true']).exitCode, 0);
+      File('${root.path}/notes.txt').writeAsStringSync('mine\n');
+      final base = _head(root);
+      const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+      const to = 'docs/prds/runbooks/deploy/Runbook.md';
+
+      MoveJournal([
+        const MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: const [from, to],
+          base: base,
+          moves: const [PathMove(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout,
+        '$to\n',
+      );
+      expect(git(root, ['ls-files', '--', 'notes.txt']).stdout, '');
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a bracketed path is read as a name by the ignore check, so a '
+        'sibling rule does not match it', () async {
+      final root = await _gitTree({
+        'app/[slug]/PAGE.ts': '// a\n',
+        'app/s/other.ts': '// b\n',
+      });
+      File('${root.path}/.gitignore').writeAsStringSync('app/s/Page.ts\n');
+      commitAll(root, 'ignore');
+      expect(git(root, ['config', 'core.ignorecase', 'true']).exitCode, 0);
+      final base = _head(root);
+      const from = 'app/[slug]/PAGE.ts';
+      const to = 'app/[slug]/Page.ts';
+
+      MoveJournal([
+        const MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: const [from, to],
+          base: base,
+          moves: const [PathMove(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['ls-files', '--', ':(literal)app/[slug]']).stdout,
+        '$to\n',
+      );
+    }, skip: hasGit ? null : 'git is not available');
+  });
+}

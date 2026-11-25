@@ -1,0 +1,64 @@
+id: tech_stack
+description: |-
+  The project's technology stack: one small set of tables that an Agent loads on most calls.
+  Keep one fact per table cell and write checkable rows.
+  The target's record holds each story's and FR's status and code paths, and each feature's `covers`; `code` names the target's own code only.
+  Hold no secret in any row.
+  Leave performance and scale to the project-wide and per-story non-functional requirements.
+  Write one rule per ID: one Stack row per slot.
+title: Tech stack
+path: specs/TECH_STACK.md
+per_target: true
+bundle: [implement, design]
+fields:
+  - id: code
+    type: string
+    list: true
+    description: |-
+      Lists each folder or file of the project's code, relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root), such as `packages/app/lib/`.
+      `specstone check` reports each file under it that no `covers` entry reaches.
+sections:
+  - id: stack
+    header: Stack
+    required: true
+    description: |-
+      Write one table with the columns Slot, Choice, Version, Why; keep the Why to one clause, linking a `decision` doc when it needs more.
+      Fill the slots Language, Architecture, API protocol, Storage, Auth / Identity, Frontend framework, and Repo layout.
+      Keep the Architecture row to one line pointing at the architecture docs.
+      Add the rows Primary dependencies, Testing, and Target platform.
+      Write the exact version in Version, since the Agent prefers the stack the doc sets.
+    lint:
+      max_sentences:
+        - count: 1
+          column: Why
+  - id: constraints
+    header: Constraints
+    description: |-
+      List the outside rules the stack must obey, such as a license or no network.
+      Write each as one checkable row.
+  - id: naming
+    header: Naming
+    required: true
+    description: |-
+      Record the project's naming canonicalization: one canonical noun per concept, and the casing of each artifact once.
+  - id: avoid
+    header: Avoid
+    description: |-
+      List what the project steers clear of, in a table with the columns What, Why.
+lint:
+  title_no_number: true
+  max_chars: 50000
+  max_lines: 300
+reference:
+  - title: arc42 section 2, Architecture Constraints
+    url: https://docs.arc42.org/section-2/
+    locator: Form (constraints table; conventions incl. naming)
+  - title: arc42 section 4, Solution Strategy
+    url: https://docs.arc42.org/section-4/
+    locator: Contents (technology decisions); Form (short, motivated)
+  - title: GitHub Spec Kit, plan-template.md
+    url: https://github.com/github/spec-kit/blob/main/templates/plan-template.md
+    locator: "## Technical Context"
+  - title: Google AIP-140, Field names
+    url: https://google.aip.dev/140
+    locator: Case; Uniformity

@@ -1,0 +1,29 @@
+id: campaign_results
+description: |-
+  One campaign's results: its funnel, channels, and spend, beside its campaign.
+  Title it `# <Campaign name> results`, with no number.
+  Keep a campaign's results out of `measurements/`, which holds the project goals' measurements alone.
+  Cite a small report file, such as a CSV or a short PDF, by markdown link; keep it in `results/` and large binary files out.
+path: specs/f{nn}_{slug}/results/RESULTS.md
+parent: campaign
+sections:
+  - id: funnel
+    header: Funnel
+    required: true
+    description: |-
+      Write the count at each lifecycle stage the campaign moved customers through.
+  - id: channels
+    header: Channels
+    required: true
+    description: |-
+      Write the results of each channel the campaign used.
+  - id: spend
+    header: Spend
+    required: true
+    description: |-
+      Write what the campaign cost, by channel.
+lint:
+  title_no_number: true
+reference:
+  - title: Anthropic marketing plugin, campaign-plan
+    url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md

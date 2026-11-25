@@ -1,0 +1,35 @@
+id: settings_profile
+description: A user's profile, preferences, and account deletion.
+items:
+  - id: editable_fields_only
+    text: A profile update accepts only the fields the user may edit, never role, owner, or account status.
+  - id: reauth_for_sensitive_change
+    text: Changing the email, phone, or a sign-in factor asks the user to authenticate again first.
+  - id: remote_session_end
+    text: Settings let the user see current sessions and end any that look suspicious, such as on a lost device.
+  - id: private_data_encrypted
+    text: Private profile data is encrypted in transit and at rest, under strict access.
+  - id: block_external_content
+    text: Users can choose to block third-party content, such as remote images, that could reveal their address.
+  - id: account_deletion
+    text: The user can ask to delete the account, and their personal data is then erased without undue delay.
+  - id: consent_withdrawal
+    text: Withdrawing consent stops the processing that relied on it, and the data is erased when nothing else allows keeping it.
+  - id: kept_after_deletion
+    text: Any data kept after deletion, such as for a legal duty or a legal claim, is named with its reason.
+  - id: erasure_passed_on
+    text: When erased data was made public, other parties processing it are told of the erasure request.
+  - id: sessions_end_on_deletion
+    text: Deleting or disabling the account ends all of its active sessions.
+  - id: disclosure_honesty
+    text: The user is told plainly when outside parties request their data, unless the law forbids it.
+reference:
+  - title: OWASP User Privacy Protection Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/User_Privacy_Protection_Cheat_Sheet.html
+  - title: GDPR Art. 17
+    url: https://gdpr-info.eu/art-17-gdpr/
+  - title: OWASP Mass Assignment Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html
+  - title: OWASP ASVS 5.0
+    url: https://github.com/OWASP/ASVS/tree/v5.0.0
+    locator: V7.4 Session Termination; V7.5 Defenses Against Session Abuse

@@ -1,0 +1,160 @@
+import 'dart:io';
+
+import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/own_segment.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/posix_modes.dart';
+import '../../helpers/prd_core.dart';
+import '../../helpers/write_fixture.dart';
+
+void main() {
+  late Directory root;
+  late MergedSet set;
+
+  setUpAll(() async {
+    root = await writeWriteProject();
+    set = openProject(root).set;
+  });
+
+  DocPathShape shape(String id) => DocPathShape.of(set.lookup(id)!, set)!;
+
+  test('spec folder moves pair each folder with the one its child doc type '
+      'holds after the move', () {
+    final feature = set.lookup('feature')!;
+    expect(specFolderMovesOf(set, feature, ['01', 'login'], ['02', 'login']), [
+      const PathMove(
+        from: '.specstone/records/f01_login/',
+        to: '.specstone/records/f02_login/',
+      ),
+      const PathMove(from: 'specs/f01_login/', to: 'specs/f02_login/'),
+    ]);
+    expect(
+      specFolderMovesOf(set, feature, ['01', 'login'], ['01', 'login']),
+      isEmpty,
+    );
+  });
+
+  test('spec folder moves pair child folders that sort differently before and '
+      'after by child type', () async {
+    final custom = await resolvePrdCore(
+      templates: {
+        'spec_a.yaml': 'id: spec_a\ndescription: Spec A\npath: specs/f{nn}_{slug}_a/A.md\nparent: feature\n',
+        'spec_b.yaml': 'id: spec_b\ndescription: Spec B\npath: specs/f{nn}_b_{slug}/B.md\nparent: feature\n',
+      },
+    );
+    final feature = custom.lookup('feature')!;
+    expect(specFoldersOf(custom, feature, ['01', 'z']), [
+      'specs/f01_b_z/',
+      'specs/f01_z_a/',
+    ]);
+    expect(specFoldersOf(custom, feature, ['01', 'a']), [
+      'specs/f01_a_a/',
+      'specs/f01_b_a/',
+    ]);
+    expect(specFolderMovesOf(custom, feature, ['01', 'z'], ['01', 'a']), [
+      const PathMove(from: 'specs/f01_b_z/', to: 'specs/f01_b_a/'),
+      const PathMove(from: 'specs/f01_z_a/', to: 'specs/f01_a_a/'),
+    ]);
+  });
+
+  test('padNumber pads to two digits and keeps a longer number', () {
+    expect([padNumber(1), padNumber(99), padNumber(100)], ['01', '99', '100']);
+  });
+
+  test('siblings on disk are the matching own segments, sorted by number', () {
+    expect(
+      [
+        for (final s in siblingsOnDisk(openProject(root), shape('user_story'), [
+          '01',
+          'login',
+        ]))
+          (s.name, s.number, s.slug),
+      ],
+      [
+        ('us01_email_login', 1, 'email_login'),
+        ('us02_sign_out', 2, 'sign_out'),
+        ('us03_reset_password', 3, 'reset_password'),
+      ],
+    );
+    expect(
+      siblingsOnDisk(openProject(root), shape('user_story'), ['09', 'nobody']),
+      isEmpty,
+    );
+  });
+
+  test('a folder with no doc file is no sibling', () async {
+    final copy = await writeWriteProject();
+    Directory('${copy.path}/docs/prds/features/f01_login/us09_empty')
+        .createSync();
+    final names = [
+      for (final s in siblingsOnDisk(openProject(copy), shape('user_story'), [
+        '01',
+        'login',
+      ]))
+        s.name,
+    ];
+    expect(names, ['us01_email_login', 'us02_sign_out', 'us03_reset_password']);
+  });
+
+  test('an unreadable container is output_not_writable', () async {
+    final copy = await writeWriteProject();
+    final container = '${copy.path}/docs/prds/features/f01_login';
+    Process.runSync('chmod', ['000', container]);
+    addTearDown(() => Process.runSync('chmod', ['755', container]));
+    expect(
+      () => siblingsOnDisk(openProject(copy), shape('user_story'), [
+        '01',
+        'login',
+      ]),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              startsWith('cannot read prds/features/f01_login: '),
+            ),
+      ),
+    );
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test('a file own segment lists files, not folders', () {
+    final names = [
+      for (final s in siblingsOnDisk(openProject(root), shape('fr'), [
+        '01',
+        'login',
+        '01',
+        'email_login',
+      ]))
+        s.name,
+    ];
+    expect(names, [
+      'fr01_validate_credentials.md',
+      'fr02_lock_after_failures.md',
+    ]);
+  });
+
+  test('checkSlug accepts lowercase letters, digits, and underscore only', () {
+    checkSlug('email_2');
+    for (final bad in ['', 'Email', 'a-b', 'a b', 'a\n']) {
+      expect(
+        () => checkSlug(bad),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '$bad is no slug: use lowercase letters, digits, and _',
+              ),
+        ),
+        reason: 'slug "$bad"',
+      );
+    }
+  });
+}

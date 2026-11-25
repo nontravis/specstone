@@ -1,0 +1,312 @@
+import 'dart:io';
+
+import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/refresh.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:sqlite3/sqlite3.dart';
+
+/// How many times [ReadSession.readFrom] refreshes before it gives up on a
+/// stamp a peer keeps changing.
+const _stampAttempts = 3;
+
+/// One command's view of a project: the project, a refreshed index, and one
+/// read snapshot of it.
+///
+/// [run] and [runAsync] open a session, answer from it, and close it. A
+/// session from [open] needs [close], which ends the snapshot and closes the
+/// index.
+final class ReadSession {
+  new _({
+    required this.project,
+    required this.store,
+    required this.docs,
+    required this.indexWarnings,
+    required this.workingDirectory,
+  });
+
+  /// Opens the project holding [workingDirectory], brings its index up to
+  /// date, and reads every doc from one snapshot.
+  ///
+  /// [homeDirectory] is where user-level doc types are read from; null reads
+  /// none. [fillSearchRows] brings the search rows up to date before the
+  /// snapshot begins; only a session that searches needs it. A fault from the
+  /// project, the templates, or the index propagates unchanged, and no index
+  /// is opened before the project and templates load.
+  /// An index that fails with a damage error is deleted and rebuilt once,
+  /// with [damagedIndexWarning]; any other database error is an
+  /// [IndexFault].
+  static ReadSession open({
+    required TemplateResolver templates,
+    required Directory workingDirectory,
+    required Directory? homeDirectory,
+    Duration busyTimeout = indexBusyTimeout,
+    bool fillSearchRows = false,
+  }) {
+    final project = DocsProject.open(
+      templates: templates,
+      workingDirectory: workingDirectory,
+      homeDirectory: homeDirectory,
+    );
+    try {
+      return readFrom(
+        project,
+        IndexStore.open(project.projectRoot, busyTimeout: busyTimeout),
+        workingDirectory: workingDirectory,
+        fillSearchRows: fillSearchRows,
+      );
+    } on SqliteException catch (e) {
+      if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
+    }
+    // A page the first read hit is lost: discard the index and read once more.
+    return _rebuilt(project, workingDirectory, busyTimeout, fillSearchRows);
+  }
+
+  /// Opens a session as [open] does, returns what [answer] computes from it,
+  /// and closes it.
+  ///
+  /// A damage error from [answer] closes the session, rebuilds the index as
+  /// [open] does, and computes [answer] once more from the new session. A
+  /// second damage error, or any other database error, is an [IndexFault].
+  static T run<T>(
+    T Function(ReadSession session) answer, {
+    required TemplateResolver templates,
+    required Directory workingDirectory,
+    required Directory? homeDirectory,
+    Duration busyTimeout = indexBusyTimeout,
+    bool fillSearchRows = false,
+  }) {
+    final session = open(
+      templates: templates,
+      workingDirectory: workingDirectory,
+      homeDirectory: homeDirectory,
+      busyTimeout: busyTimeout,
+      fillSearchRows: fillSearchRows,
+    );
+    try {
+      return _answer(session, answer);
+    } on SqliteException catch (e) {
+      if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
+    }
+    // A page only the answer reads is lost: discard the index and answer again.
+    try {
+      return _answer(
+        _rebuilt(
+          session.project,
+          session.workingDirectory,
+          busyTimeout,
+          fillSearchRows,
+        ),
+        answer,
+      );
+    } on SqliteException catch (e) {
+      throw IndexStore.faultOf(e);
+    }
+  }
+
+  /// Opens a session as [run] does and returns what [answer] awaits from it.
+  ///
+  /// Closes the session when [answer] completes or fails, and retries once on
+  /// a damage error as [run] does. For an answer that awaits a child process.
+  static Future<T> runAsync<T>(
+    Future<T> Function(ReadSession session) answer, {
+    required TemplateResolver templates,
+    required Directory workingDirectory,
+    required Directory? homeDirectory,
+    Duration busyTimeout = indexBusyTimeout,
+  }) async {
+    final session = open(
+      templates: templates,
+      workingDirectory: workingDirectory,
+      homeDirectory: homeDirectory,
+      busyTimeout: busyTimeout,
+    );
+    try {
+      return await _answerAsync(session, answer);
+    } on SqliteException catch (e) {
+      if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
+    }
+    // A page only the answer reads is lost: discard the index and answer again.
+    try {
+      return await _answerAsync(
+        _rebuilt(session.project, session.workingDirectory, busyTimeout, false),
+        answer,
+      );
+    } on SqliteException catch (e) {
+      throw IndexStore.faultOf(e);
+    }
+  }
+
+  static ReadSession _rebuilt(
+    DocsProject project,
+    Directory workingDirectory,
+    Duration busyTimeout,
+    bool fillSearchRows,
+  ) {
+    try {
+      return readFrom(
+        project,
+        IndexStore.openRebuilt(project.projectRoot, busyTimeout: busyTimeout),
+        workingDirectory: workingDirectory,
+        fillSearchRows: fillSearchRows,
+      );
+    } on SqliteException catch (e) {
+      throw IndexStore.faultOf(e);
+    }
+  }
+
+  static T _answer<T>(
+    ReadSession session,
+    T Function(ReadSession session) answer,
+  ) {
+    try {
+      return answer(session);
+    } finally {
+      session.close();
+    }
+  }
+
+  static Future<T> _answerAsync<T>(
+    ReadSession session,
+    Future<T> Function(ReadSession session) answer,
+  ) async {
+    try {
+      return await answer(session);
+    } finally {
+      session.close();
+    }
+  }
+
+  /// Refreshes [store], then reads every doc from one snapshot of it.
+  ///
+  /// [workingDirectory] is the folder a path target is read from.
+  /// [fillSearchRows] fills the lagging search rows after each refresh and
+  /// before the snapshot, so the stamp and the docs the snapshot reads are
+  /// those the rows were filled under.
+  /// A peer with another doc-type set can rewrite the index between the
+  /// refresh and the snapshot; the stamp is read again inside the snapshot,
+  /// and a mismatch, or a doc still lagging for a search, ends it and
+  /// refreshes again. After [_stampAttempts] such attempts the index is
+  /// [IndexFaultCode.indexBusy]. [afterRefresh] runs after each refresh and
+  /// [afterFill] after each fill, both before the snapshot begins. Closes
+  /// [store] on any error.
+  static ReadSession readFrom(
+    DocsProject project,
+    IndexStore store, {
+    required Directory workingDirectory,
+    void Function()? afterRefresh,
+    void Function()? afterFill,
+    bool fillSearchRows = false,
+  }) {
+    try {
+      final stamp = IndexStamp.of(
+        project.set,
+        targetNames: project.targetNames,
+      );
+      for (var attempt = 1; ; attempt++) {
+        final refreshed = refreshIndex(store, project);
+        afterRefresh?.call();
+        if (fillSearchRows) store.fillSearchRows();
+        afterFill?.call();
+        store.beginSnapshot();
+        // A same-stamp peer write after the fill leaves a doc lagging.
+        final searchReady = !fillSearchRows || !store.searchRowsLag;
+        if (store.readStamp() == stamp && searchReady) {
+          return ReadSession._(
+            project: project,
+            store: store,
+            docs: store.loadDocs(),
+            indexWarnings: [...store.warnings, ...refreshed.warnings],
+            workingDirectory: workingDirectory,
+          );
+        }
+        store.endSnapshot();
+        if (attempt == _stampAttempts) {
+          throw IndexFault(IndexFaultCode.indexBusy, indexBusyMessage);
+        }
+      }
+    } on Object {
+      store.close();
+      rethrow;
+    }
+  }
+
+  /// The project the session reads.
+  final DocsProject project;
+
+  /// The folder the command runs in; a path target is read from it.
+  final Directory workingDirectory;
+
+  /// The index, open on the session's snapshot.
+  final IndexStore store;
+
+  /// Every doc in tree order, as of the snapshot.
+  final List<IndexedDoc> docs;
+
+  /// The store's warnings, then the refresh's: the damaged-index rebuild and
+  /// the refresh's own.
+  final List<String> indexWarnings;
+
+  /// [indexWarnings], then each doc's in tree order.
+  late final List<String> warnings = [
+    ...indexWarnings,
+    for (final doc in docs) ...doc.warnings,
+  ];
+
+  /// The merged doc types of the project.
+  MergedSet get set => project.set;
+
+  /// The docs of the snapshot, with their names, parent tree, and links.
+  late final DocIndex index = DocIndex(
+    set,
+    docs,
+    store,
+    (path) => project.docPathAt(path, workingDirectory: workingDirectory),
+    docsRoot: project.docsRoot,
+    projectRoot: project.projectRoot,
+    targetNames: project.targetNames,
+  );
+
+  /// Runs [body] against the session's index in one write transaction.
+  ///
+  /// Ends the read snapshot first and begins a new one after, so [close] stays
+  /// valid and later reads see the written rows. Rolls back when [body] throws.
+  ///
+  /// With [codeFactsOnly], [body] writes code-file facts alone through
+  /// `IndexStore.writeCodeFacts`: it throws [IndexFault] `index_busy` at once
+  /// when another call holds the write lock, and moves no doc generation.
+  ///
+  /// Throws [IndexFault] when another call holds the write lock or the index
+  /// cannot be written.
+  void writeIndex(
+    void Function(IndexStore store) body, {
+    bool codeFactsOnly = false,
+  }) {
+    store.endSnapshot();
+    try {
+      void write() => body(store);
+      if (codeFactsOnly) {
+        store.writeCodeFacts(write);
+      } else {
+        store.write(write);
+      }
+    } on SqliteException catch (e) {
+      throw IndexStore.faultOf(e);
+    } finally {
+      store.beginSnapshot();
+    }
+  }
+
+  /// Ends the snapshot and closes the index.
+  void close() {
+    try {
+      store.endSnapshot();
+    } finally {
+      store.close();
+    }
+  }
+}

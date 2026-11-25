@@ -1,0 +1,19 @@
+id: relationships
+description: |-
+  The relationships doc: the people and groups to build ties with, for a network.
+title: Relationships
+path: specs/marketing/RELATIONSHIPS.md
+sections:
+  - id: people
+    header: People
+    description: |-
+      List each person to build a tie with, and why that tie matters.
+  - id: groups
+    header: Groups
+    description: |-
+      List each community or group to join or build, and what the person offers it.
+lint:
+  title_no_number: true
+reference:
+  - title: Scribblers, core elements of a personal brand
+    url: https://www.scribblersindia.com/blog/core-elements-of-a-personal-brand/

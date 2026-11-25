@@ -1,0 +1,13 @@
+id: tokens
+description: |-
+  The tokens doc: the closed token list.
+title: Tokens
+path: specs/design_system/foundations/TOKENS.md
+sections:
+  - id: token_list
+    header: Token list
+    required: true
+    description: |-
+      Write one table of Token, Value, Role; list every token once, since the list is closed.
+lint:
+  title_no_number: true

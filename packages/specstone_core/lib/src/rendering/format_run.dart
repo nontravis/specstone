@@ -1,0 +1,311 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show docPathOfProjectPath;
+import 'package:specstone_core/src/rendering/doc_reader.dart';
+import 'package:specstone_core/src/rendering/doc_tree.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/models/opened_resolver.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+
+/// What a format run did with one doc.
+enum FileStatus {
+  /// Changed, or under `check` would change.
+  formatted,
+
+  /// Already matches its template, line endings aside.
+  unchanged,
+
+  /// Not a doc the run can work on; a warning says why.
+  skipped,
+
+  /// Left alone because its headers or doc types are ambiguous.
+  refused,
+}
+
+/// The outcome of one doc in a [FormatReport].
+final class FileResult {
+  const new({
+    required this.path,
+    required this.status,
+    this.unknownHeaders = const [],
+    this.duplicateHeaders = const [],
+    this.docTypes = const [],
+    this.unclosedFence = false,
+    this.openBlock,
+    this.openBlockKind,
+    this.changesStructure = false,
+  });
+
+  /// The doc's path, relative to the project root.
+  final String path;
+
+  /// What the run did with the doc.
+  final FileStatus status;
+
+  /// Headers the template does not define, as written.
+  final List<String> unknownHeaders;
+
+  /// Headers that occur more than once, in template form.
+  final List<String> duplicateHeaders;
+
+  /// The doc types its path matches, when two or more do.
+  final List<String> docTypes;
+
+  /// Whether the doc ends inside a fenced code block.
+  final bool unclosedFence;
+
+  /// The opening marker, as written, of a generated block with no end marker.
+  final String? openBlock;
+
+  /// The generator kind that [openBlock] names.
+  final String? openBlockKind;
+
+  /// Whether laying the doc out would change its frontmatter or its sections.
+  final bool changesStructure;
+
+  /// Returns the wire form; `path` is the docs-root path for a doc and the
+  /// project path for a record. A list prints only when it is not empty,
+  /// `unclosedFence` and `changesStructure` only when true, and `openBlock`
+  /// only when set.
+  Map<String, Object> toJson() => {
+    'path': docPathOfProjectPath(path) ?? path,
+    'status': status.name,
+    if (unknownHeaders.isNotEmpty) 'unknownHeaders': unknownHeaders,
+    if (duplicateHeaders.isNotEmpty) 'duplicateHeaders': duplicateHeaders,
+    if (docTypes.isNotEmpty) 'docTypes': docTypes,
+    if (unclosedFence) 'unclosedFence': true,
+    'openBlock': ?openBlock,
+    if (changesStructure) 'changesStructure': true,
+  };
+
+  String get _reasons => [
+    for (final header in unknownHeaders) 'unknown header "$header"',
+    for (final header in duplicateHeaders) 'duplicate header "$header"',
+    if (docTypes.isNotEmpty) 'doc types ${docTypes.join(', ')} match this path',
+    if (unclosedFence) 'unclosed code fence',
+    if (openBlockKind != null) 'open generated block $openBlockKind',
+    if (changesStructure) 'layout would change the doc structure',
+  ].join('; ');
+}
+
+/// The result of a format run, in tree order.
+final class FormatReport {
+  const new({required this.check, required this.files, required this.warnings});
+
+  /// Whether the run only checked and wrote nothing.
+  final bool check;
+
+  /// Every doc the run visited.
+  final List<FileResult> files;
+
+  /// Warnings as plain message text.
+  final List<String> warnings;
+
+  /// 1 when a doc is refused, or under [check] a doc would change; else 0.
+  int get exitStatus {
+    final failed = files.any(
+      (file) =>
+          file.status == FileStatus.refused ||
+          (check && file.status == FileStatus.formatted),
+    );
+    return failed ? 1 : 0;
+  }
+
+  /// Returns one line per formatted or refused file, `''` when none.
+  String toText() {
+    final out = StringBuffer();
+    for (final file in files) {
+      switch (file.status) {
+        case FileStatus.formatted:
+          out.writeln(check ? file.path : '${file.path}: formatted');
+        case FileStatus.refused:
+          out.writeln('${file.path}: refused: ${file._reasons}');
+        case FileStatus.unchanged || FileStatus.skipped:
+          break;
+      }
+    }
+    return out.toString();
+  }
+
+  /// Returns the `--json` object: every file and the warnings.
+  Map<String, Object> toJson() => {
+    'files': [for (final file in files) file.toJson()],
+    'warnings': warnings,
+  };
+}
+
+/// The generators of a format run and the way to open what they read from.
+final class GeneratorRun<R> {
+  const new({required this.registry, required this.open});
+
+  /// The generators, keyed by kind.
+  final GeneratorRegistry<R> registry;
+
+  /// Opens the resolver the generators read from.
+  ///
+  /// Called at most once per run, and only when a doc under the target has a
+  /// doc type that lists generators. `close` runs after the last write.
+  final OpenedResolver<R> Function() open;
+}
+
+/// Formats the docs under [target] to their templates; a [target] that is the
+/// docs root takes in the records root too.
+///
+/// A doc is written, atomically and in its own line-ending style, only when
+/// its formatted text differs from its LF text and [check] is false. With
+/// [generators], a doc whose type lists generators also gets its generated
+/// blocks written; the resolver opens before the first write.
+///
+/// Throws a [RenderFault] `output_not_writable` naming the doc when a write
+/// fails; files written before it stay written. A fault from
+/// [GeneratorRun.open] propagates and no doc is written.
+FormatReport runFormat<R>(
+  DocsProject project,
+  Target target, {
+  required bool check,
+  GeneratorRun<R>? generators,
+}) {
+  final targets = [target, if (target.isDocsRoot) ?project.recordsTarget];
+  final reads = [
+    for (final target in targets)
+      for (final entry in collectDocEntries(target, project.matcher))
+        readDoc(project, entry),
+  ];
+  final run = generators;
+  final needsResolver = reads.whereType<ReadableDoc>().any(
+    (read) => read.docType.listedGenerators.isNotEmpty,
+  );
+  final opened = run != null && needsResolver ? run.open() : null;
+  try {
+    return _formatReads(
+      project,
+      reads,
+      check: check,
+      blocks: run == null || opened == null
+          ? null
+          : _Blocks(run: run, resolver: opened.resolver),
+    );
+  } finally {
+    opened?.close();
+  }
+}
+
+FormatReport _formatReads<R>(
+  DocsProject project,
+  List<DocRead> reads, {
+  required bool check,
+  required _Blocks<R>? blocks,
+}) {
+  final files = <FileResult>[];
+  final warnings = <String>[];
+  for (final read in reads) {
+    switch (read) {
+      case UnmatchedDoc(:final path, :final warning):
+        files.add(FileResult(path: path, status: FileStatus.skipped));
+        warnings.add(warning);
+      case NotUtf8Doc(:final path, :final warning):
+        files.add(FileResult(path: path, status: FileStatus.skipped));
+        warnings.add(warning);
+      case UnreadableDoc(:final path, :final isFolder, :final warning):
+        // A folder has no file entry, only its warning (s02_api_format).
+        if (!isFolder) {
+          files.add(FileResult(path: path, status: FileStatus.skipped));
+        }
+        warnings.add(warning);
+      case AmbiguousDoc(:final path, :final docTypeIds):
+        files.add(
+          FileResult(
+            path: path,
+            status: FileStatus.refused,
+            docTypes: docTypeIds,
+          ),
+        );
+      case final ReadableDoc read:
+        files.add(_formatReadable(project, read, check: check, blocks: blocks));
+    }
+  }
+  return FormatReport(check: check, files: files, warnings: warnings);
+}
+
+/// Formats [read]; a doc the layout refuses is never written.
+FileResult _formatReadable<R>(
+  DocsProject project,
+  ReadableDoc read, {
+  required bool check,
+  required _Blocks<R>? blocks,
+}) {
+  switch (formatDoc(read.doc, read.docType)) {
+    case Refused(
+      :final unknownHeaders,
+      :final duplicateHeaders,
+      :final unclosedFence,
+      :final openBlock,
+      :final openBlockKind,
+      :final changesStructure,
+    ):
+      return FileResult(
+        path: read.path,
+        status: FileStatus.refused,
+        unknownHeaders: unknownHeaders,
+        duplicateHeaders: duplicateHeaders,
+        unclosedFence: unclosedFence,
+        openBlock: openBlock,
+        openBlockKind: openBlockKind,
+        changesStructure: changesStructure,
+      );
+    case Formatted(:final text):
+      var finalText = text;
+      if (blocks != null && read.docType.listedGenerators.isNotEmpty) {
+        // The formatted text is laid out, and the inserted pair carries its
+        // own layout whitespace, so no second layout pass runs here.
+        finalText = fillGeneratedBlocks(
+          text,
+          read.docType,
+          blocks.run.registry,
+          blocks.resolver,
+          docPath: read.docPath,
+        );
+      }
+      if (finalText == toLf(read.text)) {
+        return FileResult(path: read.path, status: FileStatus.unchanged);
+      }
+      if (!check) _write(project, read, finalText);
+      return FileResult(path: read.path, status: FileStatus.formatted);
+  }
+}
+
+void _write(DocsProject project, ReadableDoc read, String text) {
+  project.requireWritablePath(read.file.path);
+  if (isReadOnly(read.file)) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'the doc is read-only',
+      file: read.path,
+    );
+  }
+  try {
+    final bytes = utf8.encode(read.lineEnding.apply(text));
+    writeFileAtomic(read.file, [if (read.hasBom) ...utf8Bom, ...bytes]);
+  } on FileSystemException catch (error) {
+    final reason = error.osError?.message ?? error.message;
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write the formatted doc: $reason',
+      file: read.path,
+    );
+  }
+}
+
+/// The generators of a run and the resolver they read from.
+final class _Blocks<R> {
+  const new({required this.run, required this.resolver});
+
+  final GeneratorRun<R> run;
+  final R resolver;
+}

@@ -1,0 +1,1855 @@
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
+import 'package:specstone_core/src/templates/reference_entry.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/templates/yaml_reader.dart';
+import 'package:yaml/yaml.dart';
+
+/// A word list as written: a whole list, or `add`/`remove` changes.
+sealed class ListWrite<T>;
+
+/// A whole list written in the layer that first defines it.
+final class PlainList<T> extends ListWrite<T> {
+  new(this.items);
+
+  /// The written list.
+  final List<T> items;
+}
+
+/// An `add`/`remove` change to a list a lower layer defines.
+final class ListChange<T> extends ListWrite<T> {
+  new(this.add, this.remove);
+
+  /// The entries added to the lower list.
+  final List<T> add;
+
+  /// The entries removed from the lower list.
+  final List<String> remove;
+}
+
+/// One frontmatter field of a doc type, as one layer writes it.
+///
+/// Every field but [id] and [disabled] is nullable so an overriding layer can
+/// write a field sparsely.
+final class FieldEntry {
+  new({
+    required this.id,
+    this.type,
+    this.list,
+    this.required,
+    this.enumValues,
+    this.docTypes,
+    this.pointer,
+    this.root,
+    this.bundleWith,
+    this.description,
+    this.lint,
+    required this.disabled,
+  });
+
+  /// The field id; the merge key.
+  final String id;
+
+  /// The field type, when this layer writes it.
+  final FieldType? type;
+
+  /// Whether the field is a list of [type], when written.
+  final bool? list;
+
+  /// Whether a doc must carry the field, when written.
+  final bool? required;
+
+  /// The allowed values of an `enum` field, when written.
+  final List<String>? enumValues;
+
+  /// The target doc type ids of a `doc_ref` field, when written.
+  final List<String>? docTypes;
+
+  /// The `pointer` value as written, or null when absent.
+  ///
+  /// Unchecked here: only an `output_ref` field must name a [PointerKind], and
+  /// a layer that writes no type is checked once the merge knows the type.
+  final Object? pointer;
+
+  /// The `root` value as written, or null when absent.
+  ///
+  /// Unchecked here like [pointer]: only an `output_ref` field reads it, and a
+  /// layer that writes no type is checked once the merge knows the type.
+  final Object? root;
+
+  /// The `bundle_with` value as written, or null when absent.
+  ///
+  /// A boolean on any field; the merge keeps it on a `doc_ref` field only.
+  final bool? bundleWith;
+
+  /// What the field holds, when written.
+  final String? description;
+
+  /// The sentence caps of a prose field, when this layer writes them.
+  ///
+  /// Whether the field is a string is checked once the merge knows the type.
+  final FieldCaps? lint;
+
+  /// Whether the field is turned off by this layer.
+  final bool disabled;
+}
+
+/// A section's own lint limits, replacing the doc-level values.
+final class SectionLint {
+  new({
+    this.maxChars,
+    this.maxLines,
+    this.bannedWords,
+    this.allowedWords,
+    this.linePrefix,
+    this.bannedPatterns,
+    this.requiredPatterns,
+    this.minLines,
+    this.catalog,
+    this.namesCodes,
+    this.itemFields,
+    this.requiredWhen,
+    this.diagram,
+    this.maxSentences,
+    this.itemCount,
+    this.maxSubsections,
+    this.maxItemLines,
+    this.maxCodeBlocks,
+  });
+
+  /// The section's character limit, when written.
+  final int? maxChars;
+
+  /// The section's line ceiling, when written.
+  final int? maxLines;
+
+  /// The section's own banned words, merged for this section; the doc-level
+  /// list applies on top of it.
+  final ListWrite<String>? bannedWords;
+
+  /// The section's own allowed words, merged for this section; the doc-level
+  /// list applies on top of it.
+  final ListWrite<String>? allowedWords;
+
+  /// Limits the section's own banned words to its lines that start with it.
+  final String? linePrefix;
+
+  /// The section's own banned patterns, merged for this section by `id`.
+  final ListWrite<PatternEntry>? bannedPatterns;
+
+  /// The section's own required patterns, merged for this section by `id`.
+  final ListWrite<PatternEntry>? requiredPatterns;
+
+  /// The section's floor of non-blank lines, when written.
+  final int? minLines;
+
+  /// The section's code catalog, when written.
+  final CatalogLint? catalog;
+
+  /// Whether a code span in the section can name a catalog code, when written.
+  final bool? namesCodes;
+
+  /// The section's nested item fields, plain or as changes, merged by `field`.
+  final ListWrite<ItemFieldLint>? itemFields;
+
+  /// The rule that makes the section required, when written.
+  final RequiredWhenLint? requiredWhen;
+
+  /// The checks on the section's flowcharts, when written.
+  final DiagramLint? diagram;
+
+  /// The section's sentence limits, when written.
+  final List<SentenceLimit>? maxSentences;
+
+  /// The bounds on the section's item count, when written.
+  final ItemCountLint? itemCount;
+
+  /// The most `###` subsections the section holds, when written.
+  final int? maxSubsections;
+
+  /// The most non-blank lines one item of the section holds, when written.
+  final int? maxItemLines;
+
+  /// The cap on the section's code blocks, when written.
+  final MaxCodeBlocks? maxCodeBlocks;
+}
+
+/// One guide section of a doc type, as one layer writes it.
+///
+/// Every field but [id] and [disabled] is nullable for sparse overrides.
+final class SectionEntry {
+  new({
+    required this.id,
+    this.prefixId,
+    this.required,
+    this.header,
+    this.description,
+    this.template,
+    this.lint,
+    this.after,
+    this.query,
+    this.summary,
+    this.summaryRows,
+    this.skeleton,
+    this.whenField,
+    this.outputRef,
+    required this.disabled,
+  });
+
+  /// The section id; the merge key.
+  final String id;
+
+  /// The section's numbering prefix, when written.
+  final String? prefixId;
+
+  /// Whether a doc must carry the section, when written.
+  final bool? required;
+
+  /// The section's heading, when written.
+  final String? header;
+
+  /// What the section holds, when written.
+  final String? description;
+
+  /// The section's body template, when written.
+  final String? template;
+
+  /// The section's own lint limits, when written.
+  final SectionLint? lint;
+
+  /// The section this one follows in an adding layer, when written.
+  final String? after;
+
+  /// Whether the section is a query section, when written.
+  final bool? query;
+
+  /// Whether the section prints in a summary doc of a design bundle, when
+  /// written.
+  final bool? summary;
+
+  /// The rows a summary doc prints of the section's table, or off, when
+  /// written.
+  final SummaryRows? summaryRows;
+
+  /// Whether an optional section's header joins the skeleton `new` writes,
+  /// when written.
+  final bool? skeleton;
+
+  /// The doc field and values that bind the section's `required`, when
+  /// written.
+  final WhenField? whenField;
+
+  /// Whether the section's lines are pointers the CLI checks, when written.
+  final bool? outputRef;
+
+  /// Whether the section is turned off by this layer.
+  final bool disabled;
+}
+
+/// A doc type's doc-level lint block, as one layer writes it.
+final class LintLayer {
+  new({
+    this.maxChars,
+    this.maxLines,
+    this.maxItemChars,
+    this.bannedWords,
+    this.allowedWords,
+    this.bannedPatterns,
+    this.requiredFieldGroups,
+    this.maxSentenceWords,
+    this.maxSentenceChars,
+    this.traceNoteLast,
+    this.titleNoNumber,
+  });
+
+  /// The doc-level character limit, when written.
+  final int? maxChars;
+
+  /// The doc-level line ceiling, when written.
+  final int? maxLines;
+
+  /// The doc-level character limit of one item, when written.
+  final int? maxItemChars;
+
+  /// The banned word list, plain or as changes, when written.
+  final ListWrite<String>? bannedWords;
+
+  /// The allowed word list, plain or as changes, when written.
+  final ListWrite<String>? allowedWords;
+
+  /// The banned pattern list, plain or as changes, when written.
+  final ListWrite<PatternEntry>? bannedPatterns;
+
+  /// The field groups of which a doc must carry at least one field each, when
+  /// written; an upper layer's value replaces the lower one.
+  final List<List<String>>? requiredFieldGroups;
+
+  /// The most words of one sentence per language key, when written; each
+  /// entry an upper layer writes replaces the lower entry.
+  final Map<String, int>? maxSentenceWords;
+
+  /// The most characters of one sentence per language key in a script with no
+  /// spaces, when written; merged per entry as [maxSentenceWords] is.
+  final Map<String, int>? maxSentenceChars;
+
+  /// Whether a trace note must close its item, when written.
+  final bool? traceNoteLast;
+
+  /// Whether a digit in the title line is a finding, when written.
+  final bool? titleNoNumber;
+}
+
+/// One layer's view of a doc type, parsed from one doc-type YAML file.
+final class DocTypeLayer {
+  const new _({
+    required this.docTypeId,
+    required this.file,
+    required this.kind,
+    required this.id,
+    required this.description,
+    required this.writesParent,
+    required this.parent,
+    required this.extendsId,
+    required this.path,
+    required this.title,
+    required this.maxDepth,
+    required this.perTarget,
+    required this.fixedNumbers,
+    required this.fields,
+    required this.sections,
+    required this.lint,
+    required this.reference,
+    required this.bundle,
+    required this.bundleRefs,
+    required this.summaryFor,
+    required this.generators,
+  });
+
+  /// Parses one doc-type file; [docTypeId] is the file name without `.yaml`.
+  ///
+  /// [files] answers whether the layer holds a file at a layer-relative path,
+  /// for `reference` checks.
+  /// Throws a [TemplateFault] for any format fault, `unknown_value` first when
+  /// [docTypeId] is no slug or is the reserved `shared`.
+  static DocTypeLayer parse(
+    String text, {
+    required String file,
+    required String docTypeId,
+    required LayerKind kind,
+    required LayerFiles files,
+  }) {
+    if (!isDocTypeIdShaped(docTypeId)) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the file name without .yaml must be a slug: [a-z][a-z0-9_]*',
+        file: file,
+        key: 'id',
+      );
+    }
+    if (docTypeId == reservedDocTypeId) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'doc type id $reservedDocTypeId is reserved',
+        file: file,
+        key: 'id',
+      );
+    }
+    final map = readYamlMap(text, file: file);
+    checkKeys(map, _topKeys, file: file, format: 'doc-type');
+    final id = optionalValue<String>(map, 'id', file: file);
+    if (id != null && id != docTypeId) {
+      throw TemplateFault(
+        FaultCode.docTypeIdMismatch,
+        'the key id must equal the file name without .yaml',
+        file: file,
+        key: 'id',
+      );
+    }
+    final parentWritten = map.keys.contains('parent');
+    final lintMap = optionalValue<YamlMap>(map, 'lint', file: file);
+    return DocTypeLayer._(
+      docTypeId: docTypeId,
+      file: file,
+      kind: kind,
+      id: id,
+      description: optionalValue<String>(map, 'description', file: file),
+      writesParent: parentWritten,
+      parent: optionalValue<String>(map, 'parent', file: file),
+      extendsId: optionalValue<String>(map, 'extends', file: file),
+      path: optionalValue<String>(map, 'path', file: file),
+      title: _parseTitle(map, file: file),
+      maxDepth: _parseMaxDepth(map, file: file),
+      perTarget: optionalValue<bool>(map, 'per_target', file: file),
+      fixedNumbers: optionalValue<bool>(map, 'fixed_numbers', file: file),
+      fields: _parseFields(map, file: file),
+      sections: _parseSections(map, file: file),
+      lint: lintMap == null ? null : _parseLint(lintMap, file: file),
+      reference: parseReferenceList(
+        map,
+        file: file,
+        kind: kind,
+        files: files,
+        templateFolder: '',
+      ),
+      bundle: _parseBundle(map, file: file),
+      bundleRefs: optionalValue<bool>(map, 'bundle_refs', file: file),
+      summaryFor: _parseSummaryFor(map, file: file),
+      generators: _listWrite(map, 'generators', file: file, prefix: ''),
+    );
+  }
+
+  /// The file name without `.yaml`; the doc type id this layer carries.
+  final String docTypeId;
+
+  /// The file this layer was parsed from, with `/` separators.
+  final String file;
+
+  /// The layer this file sits in.
+  final LayerKind kind;
+
+  /// The written `id`, or null when the layer writes none.
+  final String? id;
+
+  /// The guide intro, when this layer writes it.
+  final String? description;
+
+  /// Whether the layer writes `parent` at all, even with no value.
+  final bool writesParent;
+
+  /// The parent doc type id, when written and not cleared.
+  final String? parent;
+
+  /// The doc type this one builds on, when written.
+  final String? extendsId;
+
+  /// The file pattern, when this layer writes it.
+  final String? path;
+
+  /// The fixed text of every doc's `# ` line, when this layer writes it.
+  final String? title;
+
+  /// The folder nesting cap, when this layer writes it; 0 keeps the type flat.
+  final int? maxDepth;
+
+  /// Whether the doc type reads its patterns once per target, when written.
+  final bool? perTarget;
+
+  /// Whether a doc's number never changes, so `reorder` refuses the type,
+  /// when written.
+  final bool? fixedNumbers;
+
+  /// The fields this layer writes, in file order.
+  final List<FieldEntry> fields;
+
+  /// The sections this layer writes, in file order.
+  final List<SectionEntry> sections;
+
+  /// The doc-level lint block, when written.
+  final LintLayer? lint;
+
+  /// The reference list this layer writes, when written.
+  final ListWrite<ReferenceEntry>? reference;
+
+  /// The bundle modes this layer writes, plain or as changes, when written.
+  final ListWrite<String>? bundle;
+
+  /// Whether the doc type's bundle join goes to the refs file, when written.
+  final bool? bundleRefs;
+
+  /// The doc type ids whose bundles print this doc type in summary, when
+  /// written.
+  ///
+  /// `TemplateResolver` checks each id against the merged set.
+  final List<String>? summaryFor;
+
+  /// The generated-block kinds this layer writes, plain or as changes.
+  ///
+  /// Each entry is checked as a string only; `TemplateResolver` checks the
+  /// kind names against the registered kinds.
+  final ListWrite<String>? generators;
+
+  /// The first key a layer defining a new doc type lacks, or null when it
+  /// holds them all: `id`, `path`, and `description` unless it extends a type.
+  String? get missingNewDocTypeKey {
+    if (id == null) return 'id';
+    if (path == null) return 'path';
+    if (extendsId == null && description == null) return 'description';
+    return null;
+  }
+}
+
+/// Reads the `summary_for` key of [map] as a list of strings, or null.
+List<String>? _parseSummaryFor(YamlMap map, {required String file}) {
+  final list = optionalValue<YamlList>(map, 'summary_for', file: file);
+  return list == null ? null : stringsOf(list, 'summary_for', file: file);
+}
+
+/// Reads the `summary_rows` of the section at [index]: a positive integer, or
+/// `false`.
+SummaryRows? _parseSummaryRows(
+  YamlMap entry, {
+  required int index,
+  required String file,
+}) => switch (entry['summary_rows']) {
+  null => null,
+  false => const SummaryRows.off(),
+  final int count when count > 0 => SummaryRows.rows(count),
+  _ => throw TemplateFault(
+    FaultCode.unknownValue,
+    'the key summary_rows must be a positive whole number or false',
+    file: file,
+    key: 'sections[$index].summary_rows',
+  ),
+};
+
+/// The bundle modes a doc type may name on the wire.
+const bundleModeWires = <String>{'query', 'implement', 'design'};
+
+/// Reads the `bundle` key of [map], checking each written mode.
+///
+/// `remove` entries are not checked here; the merger owns that fault.
+ListWrite<String>? _parseBundle(YamlMap map, {required String file}) {
+  final write = _listWrite(map, 'bundle', file: file, prefix: '');
+  final written = switch (write) {
+    null => const <String>[],
+    PlainList<String>(:final items) => items,
+    ListChange<String>(:final add) => add,
+  };
+  for (final mode in written) {
+    if (!bundleModeWires.contains(mode)) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key bundle takes query, implement, or design, not $mode',
+        file: file,
+        key: 'bundle',
+      );
+    }
+  }
+  return write;
+}
+
+/// Reads the `reference` key of [map] as a [ListWrite] of entries.
+///
+/// Entries resolve `file` links against [templateFolder], the folder of the
+/// template file relative to its layer folder (`''` at the top).
+ListWrite<ReferenceEntry>? parseReferenceList(
+  YamlMap map, {
+  required String file,
+  required LayerKind kind,
+  required LayerFiles files,
+  required String templateFolder,
+}) {
+  final value = map['reference'];
+  return switch (value) {
+    null => null,
+    final YamlList list => PlainList<ReferenceEntry>([
+      for (var i = 0; i < list.length; i++)
+        parseReferenceEntry(
+          _entryMap(list[i], 'reference[$i]', file: file),
+          file: file,
+          key: 'reference[$i]',
+          kind: kind,
+          templateFolder: templateFolder,
+          files: files,
+        ),
+    ]),
+    final YamlMap changeMap => _referenceChange(
+      changeMap,
+      file: file,
+      kind: kind,
+      files: files,
+      templateFolder: templateFolder,
+    ),
+    _ => throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key reference must be a list or a mapping of add and remove',
+      file: file,
+      key: 'reference',
+    ),
+  };
+}
+
+ListChange<ReferenceEntry> _referenceChange(
+  YamlMap map, {
+  required String file,
+  required LayerKind kind,
+  required LayerFiles files,
+  required String templateFolder,
+}) {
+  checkKeys(
+    map,
+    const {'add', 'remove'},
+    file: file,
+    format: 'doc-type',
+    prefix: 'reference.',
+  );
+  final add = optionalValue<YamlList>(
+    map,
+    'add',
+    file: file,
+    prefix: 'reference.',
+  );
+  final remove = optionalValue<YamlList>(
+    map,
+    'remove',
+    file: file,
+    prefix: 'reference.',
+  );
+  return ListChange<ReferenceEntry>(
+    add == null
+        ? <ReferenceEntry>[]
+        : [
+            for (var i = 0; i < add.length; i++)
+              parseReferenceEntry(
+                _entryMap(add[i], 'reference.add[$i]', file: file),
+                file: file,
+                key: 'reference.add[$i]',
+                kind: kind,
+                templateFolder: templateFolder,
+                files: files,
+              ),
+          ],
+    remove == null
+        ? <String>[]
+        : stringsOf(remove, 'remove', file: file, prefix: 'reference.'),
+  );
+}
+
+/// Whether [name] is a doc-type file: a top-level `<id>.yaml`, not `pack.yaml`.
+bool isDocTypeFileName(String name) {
+  if (name.contains('/')) return false;
+  if (name == 'pack.yaml') return false;
+  return name.endsWith('.yaml');
+}
+
+/// Returns the `title` of [map], or null when absent.
+///
+/// Throws `unknown_value` for a value that is no string, is blank, has leading
+/// or trailing white space, holds a line break, or holds a `<…>` span.
+String? _parseTitle(YamlMap map, {required String file}) {
+  final value = map['title'];
+  if (value == null) return null;
+  if (value is String &&
+      value.trim().isNotEmpty &&
+      value == value.trim() &&
+      !value.contains(_lineBreak) &&
+      !_placeholderSpan.hasMatch(value)) {
+    return value;
+  }
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'title takes a fixed one-line string with no <…> span, no padding, '
+    'and not blank',
+    file: file,
+    key: 'title',
+  );
+}
+
+final _placeholderSpan = RegExp('<[^<>]*>');
+
+final _lineBreak = RegExp(r'[\r\n]');
+
+/// Returns the `max_depth` of [map], or null when absent.
+///
+/// Throws `unknown_value` for a value that is no integer from 0.
+int? _parseMaxDepth(YamlMap map, {required String file}) {
+  final value = map['max_depth'];
+  return switch (value) {
+    null => null,
+    final int depth when depth >= 0 => depth,
+    _ => throw TemplateFault(
+      FaultCode.unknownValue,
+      'max_depth takes an integer from 0',
+      file: file,
+      key: 'max_depth',
+    ),
+  };
+}
+
+/// The doc type id no file may take: `shared.yaml` holds shared lines.
+const reservedDocTypeId = 'shared';
+
+const _topKeys = {
+  'id',
+  'description',
+  'path',
+  'title',
+  'max_depth',
+  'per_target',
+  'fixed_numbers',
+  'parent',
+  'extends',
+  'fields',
+  'sections',
+  'lint',
+  'reference',
+  'bundle',
+  'bundle_refs',
+  'summary_for',
+  'generators',
+};
+
+const _fieldKeys = {
+  'id',
+  'type',
+  'list',
+  'enum',
+  'doc_types',
+  'pointer',
+  'root',
+  'bundle_with',
+  'required',
+  'description',
+  'lint',
+  'disabled',
+};
+
+const _fieldLintKeys = {
+  'max_sentences',
+  'max_sentence_words',
+  'max_sentence_chars',
+};
+
+const _sectionKeys = {
+  'id',
+  'prefix_id',
+  'required',
+  'header',
+  'description',
+  'template',
+  'lint',
+  'disabled',
+  'after',
+  'query',
+  'summary',
+  'summary_rows',
+  'skeleton',
+  'when_field',
+  'output_ref',
+};
+
+const _docLintKeys = {
+  'max_chars',
+  'max_lines',
+  'max_item_chars',
+  'banned_words',
+  'allowed_words',
+  'banned_patterns',
+  'required_field_groups',
+  'max_sentence_words',
+  'max_sentence_chars',
+  'trace_note_last',
+  'title_no_number',
+};
+
+const _sectionLintKeys = {
+  'max_chars',
+  'max_lines',
+  'banned_words',
+  'allowed_words',
+  'line_prefix',
+  'banned_patterns',
+  'required_patterns',
+  'min_lines',
+  'catalog',
+  'names_codes',
+  'item_fields',
+  'required_when',
+  'diagram',
+  'max_sentences',
+  'item_count',
+  'max_subsections',
+  'max_item_lines',
+  'max_code_blocks',
+};
+
+List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
+  final entries = optionalValue<YamlList>(map, 'fields', file: file);
+  if (entries == null) return <FieldEntry>[];
+  return [
+    for (var i = 0; i < entries.length; i++)
+      parseFieldEntry(
+        _entryMap(entries[i], 'fields[$i]', file: file),
+        index: i,
+        file: file,
+        keyPrefix: 'fields',
+      ),
+  ];
+}
+
+/// Parses one field entry of the list [keyPrefix] names, at [index].
+///
+/// The `id` fault key is `<keyPrefix>[<index>].id`. Every other key reads as
+/// `<keyPrefix>.<id>.<key>`, or `<keyPrefix>[<index>].<key>` when
+/// [keyByIndex] is true. [extraKeys] join the keys the field format defines,
+/// and the caller reads them.
+FieldEntry parseFieldEntry(
+  YamlMap entry, {
+  required int index,
+  required String file,
+  required String keyPrefix,
+  bool keyByIndex = false,
+  Set<String> extraKeys = const {},
+}) {
+  final id = requireValue<String>(
+    entry,
+    'id',
+    file: file,
+    prefix: '$keyPrefix[$index].',
+  );
+  final prefix = keyByIndex ? '$keyPrefix[$index].' : '$keyPrefix.$id.';
+  checkKeys(
+    entry,
+    {..._fieldKeys, ...extraKeys},
+    file: file,
+    format: 'doc-type',
+    prefix: prefix,
+  );
+  final type = _optionalFieldType(entry, file: file, prefix: prefix);
+  if (type == FieldType.enumType) {
+    requireValue<YamlList>(entry, 'enum', file: file, prefix: prefix);
+  }
+  final pointer = entry['pointer'];
+  if (type == FieldType.outputRef) {
+    if (pointer == null) {
+      throw TemplateFault(
+        FaultCode.missingKey,
+        'the key pointer is required',
+        file: file,
+        key: '${prefix}pointer',
+      );
+    }
+    PointerKind.read(pointer, file: file, prefix: prefix);
+  }
+  final root = entry['root'];
+  if (type == FieldType.outputRef && root != null) {
+    PointerRoot.read(root, file: file, prefix: prefix);
+  }
+  final enumList = optionalValue<YamlList>(
+    entry,
+    'enum',
+    file: file,
+    prefix: prefix,
+  );
+  final docTypesList = optionalValue<YamlList>(
+    entry,
+    'doc_types',
+    file: file,
+    prefix: prefix,
+  );
+  return FieldEntry(
+    id: id,
+    type: type,
+    list: optionalValue<bool>(entry, 'list', file: file, prefix: prefix),
+    required: optionalValue<bool>(
+      entry,
+      'required',
+      file: file,
+      prefix: prefix,
+    ),
+    enumValues: enumList == null
+        ? null
+        : stringsOf(enumList, 'enum', file: file, prefix: prefix),
+    docTypes: docTypesList == null
+        ? null
+        : stringsOf(docTypesList, 'doc_types', file: file, prefix: prefix),
+    pointer: pointer,
+    root: root,
+    bundleWith: optionalValue<bool>(
+      entry,
+      'bundle_with',
+      file: file,
+      prefix: '$keyPrefix[$index].',
+    ),
+    description: optionalValue<String>(
+      entry,
+      'description',
+      file: file,
+      prefix: prefix,
+    ),
+    lint: _fieldCaps(entry, file: file, prefix: prefix),
+    disabled:
+        optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
+        false,
+  );
+}
+
+const _defaultLanguage = 'default';
+
+/// Returns the field `lint` of [entry], or null when absent.
+///
+/// [prefix] is the field's key prefix. Throws `unknown_key` for a key other
+/// than the three, `unknown_value` for a bad value, and `missing_key` for a
+/// sentence map without `default` or written without the other.
+FieldCaps? _fieldCaps(
+  YamlMap entry, {
+  required String file,
+  required String prefix,
+}) {
+  final map = optionalValue<YamlMap>(entry, 'lint', file: file, prefix: prefix);
+  if (map == null) return null;
+  final lintPrefix = '${prefix}lint.';
+  checkKeys(
+    map,
+    _fieldLintKeys,
+    file: file,
+    format: 'doc-type',
+    prefix: lintPrefix,
+  );
+  final maxSentences = _wholeNumberFromOne(
+    map,
+    'max_sentences',
+    file: file,
+    prefix: lintPrefix,
+  );
+  final words = _sentenceCaps(
+    map,
+    'max_sentence_words',
+    sentenceWordLanguages,
+    file: file,
+    prefix: lintPrefix,
+  );
+  final chars = _sentenceCaps(
+    map,
+    'max_sentence_chars',
+    sentenceCharLanguages,
+    file: file,
+    prefix: lintPrefix,
+  );
+  for (final (key, caps) in [
+    ('max_sentence_words', words),
+    ('max_sentence_chars', chars),
+  ]) {
+    if (caps != null && !caps.containsKey(_defaultLanguage)) {
+      throw TemplateFault(
+        FaultCode.missingKey,
+        'the key $_defaultLanguage of $key is required',
+        file: file,
+        key: '$lintPrefix$key.$_defaultLanguage',
+      );
+    }
+  }
+  if ((words == null) != (chars == null)) {
+    final absent = words == null ? 'max_sentence_words' : 'max_sentence_chars';
+    throw TemplateFault(
+      FaultCode.missingKey,
+      'the key $absent is required beside its partner',
+      file: file,
+      key: '$lintPrefix$absent',
+    );
+  }
+  return FieldCaps(
+    maxSentences: maxSentences,
+    maxSentenceWords: words,
+    maxSentenceChars: chars,
+  );
+}
+
+List<SectionEntry> _parseSections(YamlMap map, {required String file}) {
+  final entries = optionalValue<YamlList>(map, 'sections', file: file);
+  if (entries == null) return <SectionEntry>[];
+  return [
+    for (var i = 0; i < entries.length; i++)
+      _parseSection(
+        _entryMap(entries[i], 'sections[$i]', file: file),
+        index: i,
+        file: file,
+      ),
+  ];
+}
+
+SectionEntry _parseSection(
+  YamlMap entry, {
+  required int index,
+  required String file,
+}) {
+  final id = requireValue<String>(
+    entry,
+    'id',
+    file: file,
+    prefix: 'sections[$index].',
+  );
+  if (id.startsWith('_')) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'a section id must not start with _, '
+      'which marks a reserved key such as _lead',
+      file: file,
+      key: 'sections[$index].id',
+    );
+  }
+  checkKeys(
+    entry,
+    _sectionKeys,
+    file: file,
+    format: 'doc-type',
+    prefix: 'sections.$id.',
+  );
+  final prefix = 'sections.$id.';
+  final lintMap = optionalValue<YamlMap>(
+    entry,
+    'lint',
+    file: file,
+    prefix: prefix,
+  );
+  return SectionEntry(
+    id: id,
+    prefixId: optionalValue<String>(
+      entry,
+      'prefix_id',
+      file: file,
+      prefix: prefix,
+    ),
+    required: optionalValue<bool>(
+      entry,
+      'required',
+      file: file,
+      prefix: prefix,
+    ),
+    header: optionalValue<String>(entry, 'header', file: file, prefix: prefix),
+    description: optionalValue<String>(
+      entry,
+      'description',
+      file: file,
+      prefix: prefix,
+    ),
+    template: optionalValue<String>(
+      entry,
+      'template',
+      file: file,
+      prefix: prefix,
+    ),
+    lint: lintMap == null
+        ? null
+        : _parseSectionLint(lintMap, file: file, prefix: prefix),
+    after: optionalValue<String>(entry, 'after', file: file, prefix: prefix),
+    query: optionalValue<bool>(entry, 'query', file: file, prefix: prefix),
+    summary: optionalValue<bool>(entry, 'summary', file: file, prefix: prefix),
+    summaryRows: _parseSummaryRows(entry, index: index, file: file),
+    skeleton: optionalValue<bool>(
+      entry,
+      'skeleton',
+      file: file,
+      prefix: 'sections[$index].',
+    ),
+    whenField: _parseWhenField(entry, file: file, prefix: prefix),
+    outputRef: optionalValue<bool>(
+      entry,
+      'output_ref',
+      file: file,
+      prefix: 'sections[$index].',
+    ),
+    disabled:
+        optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
+        false,
+  );
+}
+
+LintLayer _parseLint(YamlMap map, {required String file}) {
+  checkKeys(map, _docLintKeys, file: file, format: 'doc-type', prefix: 'lint.');
+  return LintLayer(
+    maxChars: optionalValue<int>(map, 'max_chars', file: file, prefix: 'lint.'),
+    maxLines: optionalValue<int>(map, 'max_lines', file: file, prefix: 'lint.'),
+    maxItemChars: optionalValue<int>(
+      map,
+      'max_item_chars',
+      file: file,
+      prefix: 'lint.',
+    ),
+    bannedWords: _listWrite(map, 'banned_words', file: file, prefix: 'lint.'),
+    allowedWords: _listWrite(map, 'allowed_words', file: file, prefix: 'lint.'),
+    bannedPatterns: _patternWrite(
+      map,
+      'banned_patterns',
+      file: file,
+      prefix: 'lint.',
+      forRequired: false,
+    ),
+    requiredFieldGroups: _fieldGroups(map, file: file),
+    maxSentenceWords: _sentenceCaps(
+      map,
+      'max_sentence_words',
+      sentenceWordLanguages,
+      file: file,
+      prefix: 'lint.',
+    ),
+    maxSentenceChars: _sentenceCaps(
+      map,
+      'max_sentence_chars',
+      sentenceCharLanguages,
+      file: file,
+      prefix: 'lint.',
+    ),
+    traceNoteLast: optionalValue<bool>(
+      map,
+      'trace_note_last',
+      file: file,
+      prefix: 'lint.',
+    ),
+    titleNoNumber: optionalValue<bool>(
+      map,
+      'title_no_number',
+      file: file,
+      prefix: 'lint.',
+    ),
+  );
+}
+
+/// Returns the sentence cap map at [key] of [map], or null when absent.
+///
+/// [prefix] is the key prefix of [map], `lint.` at doc level.
+///
+/// Throws `unknown_value` for a map that is no map, a language key outside
+/// [languages], or an entry that is no whole number of 1 or more.
+Map<String, int>? _sentenceCaps(
+  YamlMap map,
+  String key,
+  Set<String> languages, {
+  required String file,
+  required String prefix,
+}) {
+  final caps = optionalValue<YamlMap>(map, key, file: file, prefix: prefix);
+  if (caps == null) return null;
+  final entries = <String, int>{};
+  for (final MapEntry(key: language, :value) in caps.entries) {
+    final entryKey = '$prefix$key.$language';
+    if (language is! String || !languages.contains(language)) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key $key takes the languages ${languages.join(', ')}',
+        file: file,
+        key: entryKey,
+      );
+    }
+    if (value is! int || value < 1) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key $language of $key must be a whole number of 1 or more',
+        file: file,
+        key: entryKey,
+      );
+    }
+    entries[language] = value;
+  }
+  return entries;
+}
+
+SectionLint _parseSectionLint(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  checkKeys(
+    map,
+    _sectionLintKeys,
+    file: file,
+    format: 'doc-type',
+    prefix: '${prefix}lint.',
+  );
+  final keyPrefix = '${prefix}lint.';
+  return SectionLint(
+    maxChars: optionalValue<int>(
+      map,
+      'max_chars',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    maxLines: optionalValue<int>(
+      map,
+      'max_lines',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    bannedWords: _listWrite(map, 'banned_words', file: file, prefix: keyPrefix),
+    allowedWords: _listWrite(
+      map,
+      'allowed_words',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    linePrefix: optionalValue<String>(
+      map,
+      'line_prefix',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    bannedPatterns: _patternWrite(
+      map,
+      'banned_patterns',
+      file: file,
+      prefix: keyPrefix,
+      forRequired: false,
+    ),
+    requiredPatterns: _patternWrite(
+      map,
+      'required_patterns',
+      file: file,
+      prefix: keyPrefix,
+      forRequired: true,
+    ),
+    minLines: optionalValue<int>(
+      map,
+      'min_lines',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    catalog: _parseCatalog(map, file: file, prefix: keyPrefix),
+    namesCodes: optionalValue<bool>(
+      map,
+      'names_codes',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    itemFields: _entryWrite<ItemFieldLint>(
+      map,
+      'item_fields',
+      file: file,
+      prefix: keyPrefix,
+      parseEntry: (entry, key) => _parseItemField(entry, file: file, key: key),
+    ),
+    requiredWhen: _parseRequiredWhen(map, file: file, prefix: keyPrefix),
+    diagram: _parseDiagram(map, file: file, prefix: keyPrefix),
+    maxSentences: _parseMaxSentences(map, file: file, prefix: keyPrefix),
+    itemCount: _parseItemCount(map, file: file, prefix: keyPrefix),
+    maxSubsections: _wholeNumberFromOne(
+      map,
+      'max_subsections',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    maxItemLines: _wholeNumberFromOne(
+      map,
+      'max_item_lines',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    maxCodeBlocks: _parseMaxCodeBlocks(map, file: file, prefix: keyPrefix),
+  );
+}
+
+MaxCodeBlocks? _parseMaxCodeBlocks(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final blocks = optionalValue<YamlMap>(
+    map,
+    'max_code_blocks',
+    file: file,
+    prefix: prefix,
+  );
+  if (blocks == null) return null;
+  final keyPrefix = '${prefix}max_code_blocks.';
+  checkKeys(
+    blocks,
+    const {'count', 'per_subsection'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  final count = _wholeNumberFromOne(
+    blocks,
+    'count',
+    file: file,
+    prefix: keyPrefix,
+  );
+  if (count == null) {
+    throw TemplateFault(
+      FaultCode.missingKey,
+      'the key count is required',
+      file: file,
+      key: '${keyPrefix}count',
+    );
+  }
+  return MaxCodeBlocks(
+    count: count,
+    perSubsection:
+        optionalValue<bool>(
+          blocks,
+          'per_subsection',
+          file: file,
+          prefix: keyPrefix,
+        ) ??
+        false,
+  );
+}
+
+/// Reads [key] as a whole number of 1 or more; null when absent.
+int? _wholeNumberFromOne(
+  YamlMap map,
+  String key, {
+  required String file,
+  required String prefix,
+}) {
+  final count = optionalValue<int>(map, key, file: file, prefix: prefix);
+  if (count == null || count >= 1) return count;
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'the key $key must be a whole number of 1 or more',
+    file: file,
+    key: '$prefix$key',
+  );
+}
+
+/// Reads a section's `when_field` as its `field` and `values`.
+WhenField? _parseWhenField(
+  YamlMap entry, {
+  required String file,
+  required String prefix,
+}) {
+  final map = optionalValue<YamlMap>(
+    entry,
+    'when_field',
+    file: file,
+    prefix: prefix,
+  );
+  if (map == null) return null;
+  final keyPrefix = '${prefix}when_field.';
+  checkKeys(
+    map,
+    const {'field', 'values'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  final field = requireValue<String>(
+    map,
+    'field',
+    file: file,
+    prefix: keyPrefix,
+  );
+  final values = stringsOf(
+    requireValue<YamlList>(map, 'values', file: file, prefix: keyPrefix),
+    'values',
+    file: file,
+    prefix: keyPrefix,
+  );
+  if (values.isEmpty) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'when_field values holds no value',
+      file: file,
+      key: '${keyPrefix}values',
+    );
+  }
+  return WhenField(field: field, values: List.unmodifiable(values));
+}
+
+/// Reads `lint.required_field_groups` as a list of non-empty field id lists.
+List<List<String>>? _fieldGroups(YamlMap map, {required String file}) {
+  const key = 'required_field_groups';
+  final groups = optionalValue<YamlList>(map, key, file: file, prefix: 'lint.');
+  if (groups == null) return null;
+  return List.unmodifiable([
+    for (final group in groups)
+      switch (group) {
+        final YamlList ids when ids.isNotEmpty => List<String>.unmodifiable(
+          stringsOf(ids, key, file: file, prefix: 'lint.'),
+        ),
+        _ => throw TemplateFault(
+          FaultCode.unknownValue,
+          'the key $key must hold lists of field ids',
+          file: file,
+          key: 'lint.$key',
+        ),
+      },
+  ]);
+}
+
+/// Reads the value at [key] as a [PlainList] or a [ListChange] of patterns.
+///
+/// A `remove` list names entry ids.
+ListWrite<PatternEntry>? _patternWrite(
+  YamlMap map,
+  String key, {
+  required String file,
+  required String prefix,
+  required bool forRequired,
+}) => _entryWrite<PatternEntry>(
+  map,
+  key,
+  file: file,
+  prefix: prefix,
+  parseEntry: (entry, keyPath) => parsePatternEntry(
+    entry,
+    file: file,
+    key: keyPath,
+    forRequired: forRequired,
+  ),
+);
+
+/// Reads the value at [key] as a [PlainList] or a [ListChange] of entries.
+///
+/// [parseEntry] reads one mapping at its fault key path; a `remove` list names
+/// the merge keys of the entries to drop.
+ListWrite<T>? _entryWrite<T>(
+  YamlMap map,
+  String key, {
+  required String file,
+  required String prefix,
+  required T Function(YamlMap entry, String keyPath) parseEntry,
+}) {
+  T entryAt(Object? entry, String keyPath) =>
+      parseEntry(_entryMap(entry, keyPath, file: file), keyPath);
+  final value = map[key];
+  return switch (value) {
+    null => null,
+    final YamlList list => PlainList<T>([
+      for (var i = 0; i < list.length; i++) entryAt(list[i], '$prefix$key[$i]'),
+    ]),
+    final YamlMap changeMap => () {
+      final changePrefix = '$prefix$key.';
+      checkKeys(
+        changeMap,
+        const {'add', 'remove'},
+        file: file,
+        format: 'doc-type',
+        prefix: changePrefix,
+      );
+      final add = optionalValue<YamlList>(
+        changeMap,
+        'add',
+        file: file,
+        prefix: changePrefix,
+      );
+      return ListChange<T>([
+        if (add != null)
+          for (var i = 0; i < add.length; i++)
+            entryAt(add[i], '${changePrefix}add[$i]'),
+      ], stringList(changeMap, 'remove', file: file, prefix: changePrefix));
+    }(),
+    _ => throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key $key must be a list or a mapping of add and remove',
+      file: file,
+      key: '$prefix$key',
+    ),
+  };
+}
+
+CatalogLint? _parseCatalog(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final catalog = optionalValue<YamlMap>(
+    map,
+    'catalog',
+    file: file,
+    prefix: prefix,
+  );
+  if (catalog == null) return null;
+  final keyPrefix = '${prefix}catalog.';
+  checkKeys(
+    catalog,
+    const {'column'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return CatalogLint(
+    column: requireValue<String>(
+      catalog,
+      'column',
+      file: file,
+      prefix: keyPrefix,
+    ),
+  );
+}
+
+const _exclusiveItemFieldKeys = ['when', 'optional', 'default_from'];
+const _defaultFromSection = 'entities';
+
+ItemFieldLint _parseItemField(
+  YamlMap entry, {
+  required String file,
+  required String key,
+}) {
+  final keyPrefix = '$key.';
+  checkKeys(
+    entry,
+    const {'field', 'values', 'when', 'optional', 'default_from'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  if (_exclusiveItemFieldKeys.where(entry.containsKey).length > 1) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'an item_fields entry takes one of '
+      '${_exclusiveItemFieldKeys.join(', ')}',
+      file: file,
+      key: key,
+    );
+  }
+  final values = optionalValue<YamlList>(
+    entry,
+    'values',
+    file: file,
+    prefix: keyPrefix,
+  );
+  return ItemFieldLint(
+    field: requireValue<String>(entry, 'field', file: file, prefix: keyPrefix),
+    values: values == null
+        ? null
+        : List.unmodifiable(
+            stringsOf(values, 'values', file: file, prefix: keyPrefix),
+          ),
+    when: _parseItemFieldWhen(entry, file: file, prefix: keyPrefix),
+    optional:
+        optionalValue<bool>(entry, 'optional', file: file, prefix: keyPrefix) ??
+        false,
+    defaultFrom: _parseDefaultFrom(entry, file: file, prefix: keyPrefix),
+  );
+}
+
+String? _parseDefaultFrom(
+  YamlMap entry, {
+  required String file,
+  required String prefix,
+}) {
+  final value = optionalValue<String>(
+    entry,
+    'default_from',
+    file: file,
+    prefix: prefix,
+  );
+  if (value == null || value == _defaultFromSection) return value;
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'the key default_from must be $_defaultFromSection',
+    file: file,
+    key: '${prefix}default_from',
+  );
+}
+
+ItemFieldWhen? _parseItemFieldWhen(
+  YamlMap entry, {
+  required String file,
+  required String prefix,
+}) {
+  final when = optionalValue<YamlMap>(
+    entry,
+    'when',
+    file: file,
+    prefix: prefix,
+  );
+  if (when == null) return null;
+  final keyPrefix = '${prefix}when.';
+  checkKeys(
+    when,
+    const {'field', 'value'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  String read(String name) =>
+      requireValue<String>(when, name, file: file, prefix: keyPrefix);
+  return ItemFieldWhen(field: read('field'), value: read('value'));
+}
+
+RequiredWhenLint? _parseRequiredWhen(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final rule = optionalValue<YamlMap>(
+    map,
+    'required_when',
+    file: file,
+    prefix: prefix,
+  );
+  if (rule == null) return null;
+  final keyPrefix = '${prefix}required_when.';
+  checkKeys(
+    rule,
+    const {'section', 'field', 'value'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  String read(String name) =>
+      requireValue<String>(rule, name, file: file, prefix: keyPrefix);
+  return RequiredWhenLint(
+    section: read('section'),
+    field: read('field'),
+    value: read('value'),
+  );
+}
+
+DiagramLint? _parseDiagram(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final diagram = optionalValue<YamlMap>(
+    map,
+    'diagram',
+    file: file,
+    prefix: prefix,
+  );
+  if (diagram == null) return null;
+  final keyPrefix = '${prefix}diagram.';
+  checkKeys(
+    diagram,
+    const {'title', 'edge_labels', 'banned_labels', 'names'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return DiagramLint(
+    title:
+        optionalValue<bool>(diagram, 'title', file: file, prefix: keyPrefix) ??
+        false,
+    edgeLabels:
+        optionalValue<bool>(
+          diagram,
+          'edge_labels',
+          file: file,
+          prefix: keyPrefix,
+        ) ??
+        false,
+    bannedLabels: List.unmodifiable(
+      stringList(diagram, 'banned_labels', file: file, prefix: keyPrefix),
+    ),
+    names:
+        optionalValue<bool>(diagram, 'names', file: file, prefix: keyPrefix) ??
+        false,
+  );
+}
+
+List<SentenceLimit>? _parseMaxSentences(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final entries = optionalValue<YamlList>(
+    map,
+    'max_sentences',
+    file: file,
+    prefix: prefix,
+  );
+  if (entries == null) return null;
+  return List.unmodifiable([
+    for (var i = 0; i < entries.length; i++)
+      _parseSentenceLimit(
+        _entryMap(entries[i], '${prefix}max_sentences[$i]', file: file),
+        file: file,
+        key: '${prefix}max_sentences[$i]',
+      ),
+  ]);
+}
+
+SentenceLimit _parseSentenceLimit(
+  YamlMap entry, {
+  required String file,
+  required String key,
+}) {
+  final keyPrefix = '$key.';
+  checkKeys(
+    entry,
+    const {'count', 'line_prefix', 'column'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return SentenceLimit(
+    count: requireValue<int>(entry, 'count', file: file, prefix: keyPrefix),
+    linePrefix: optionalValue<String>(
+      entry,
+      'line_prefix',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    column: optionalValue<String>(
+      entry,
+      'column',
+      file: file,
+      prefix: keyPrefix,
+    ),
+  );
+}
+
+ItemCountLint? _parseItemCount(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final count = optionalValue<YamlMap>(
+    map,
+    'item_count',
+    file: file,
+    prefix: prefix,
+  );
+  if (count == null) return null;
+  final keyPrefix = '${prefix}item_count.';
+  checkKeys(
+    count,
+    const {'min', 'max', 'per_subsection', 'prefixes', 'waits_for'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  final min = optionalValue<int>(count, 'min', file: file, prefix: keyPrefix);
+  final max = optionalValue<int>(count, 'max', file: file, prefix: keyPrefix);
+  if (min != null && max != null && min > max) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key min must not exceed max',
+      file: file,
+      key: '${keyPrefix}min',
+    );
+  }
+  final waitsFor = optionalValue<String>(
+    count,
+    'waits_for',
+    file: file,
+    prefix: keyPrefix,
+  );
+  if (waitsFor != null && waitsFor != 'agent' && waitsFor != 'owner') {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key waits_for must be agent or owner',
+      file: file,
+      key: '${keyPrefix}waits_for',
+    );
+  }
+  final prefixes = optionalValue<YamlList>(
+    count,
+    'prefixes',
+    file: file,
+    prefix: keyPrefix,
+  );
+  return ItemCountLint(
+    waitsForOwner: waitsFor == 'owner',
+    min: min,
+    max: max,
+    perSubsection:
+        optionalValue<bool>(
+          count,
+          'per_subsection',
+          file: file,
+          prefix: keyPrefix,
+        ) ??
+        false,
+    prefixes: List.unmodifiable([
+      if (prefixes != null)
+        for (var i = 0; i < prefixes.length; i++)
+          _parsePrefixCount(
+            _entryMap(prefixes[i], '${keyPrefix}prefixes[$i]', file: file),
+            file: file,
+            key: '${keyPrefix}prefixes[$i]',
+          ),
+    ]),
+  );
+}
+
+LinePrefixCount _parsePrefixCount(
+  YamlMap entry, {
+  required String file,
+  required String key,
+}) {
+  final keyPrefix = '$key.';
+  checkKeys(
+    entry,
+    const {'line_prefix', 'count'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return LinePrefixCount(
+    linePrefix: requireValue<String>(
+      entry,
+      'line_prefix',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    count: requireValue<int>(entry, 'count', file: file, prefix: keyPrefix),
+  );
+}
+
+/// Reads the value at [key] as a [PlainList] or a [ListChange].
+ListWrite<String>? _listWrite(
+  YamlMap map,
+  String key, {
+  required String file,
+  required String prefix,
+}) {
+  final value = map[key];
+  return switch (value) {
+    null => null,
+    final YamlList list => PlainList<String>(
+      stringsOf(list, key, file: file, prefix: prefix),
+    ),
+    final YamlMap changeMap => _listChange(
+      changeMap,
+      key,
+      file: file,
+      prefix: prefix,
+    ),
+    _ => throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key $key must be a list or a mapping of add and remove',
+      file: file,
+      key: '$prefix$key',
+    ),
+  };
+}
+
+ListChange<String> _listChange(
+  YamlMap map,
+  String key, {
+  required String file,
+  required String prefix,
+}) {
+  checkKeys(
+    map,
+    const {'add', 'remove'},
+    file: file,
+    format: 'doc-type',
+    prefix: '$prefix$key.',
+  );
+  final add = optionalValue<YamlList>(
+    map,
+    'add',
+    file: file,
+    prefix: '$prefix$key.',
+  );
+  final remove = optionalValue<YamlList>(
+    map,
+    'remove',
+    file: file,
+    prefix: '$prefix$key.',
+  );
+  return ListChange<String>(
+    add == null
+        ? <String>[]
+        : stringsOf(add, 'add', file: file, prefix: '$prefix$key.'),
+    remove == null
+        ? <String>[]
+        : stringsOf(remove, 'remove', file: file, prefix: '$prefix$key.'),
+  );
+}
+
+/// Returns the entry as a [YamlMap], or throws `unknown_value`.
+YamlMap _entryMap(Object? entry, String keyPath, {required String file}) {
+  if (entry is YamlMap) return entry;
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'the entry must be a mapping',
+    file: file,
+    key: keyPath,
+  );
+}
+
+FieldType? _optionalFieldType(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final wire = optionalValue<String>(map, 'type', file: file, prefix: prefix);
+  if (wire == null) return null;
+  return FieldType.byWire(wire, file: file, prefix: prefix);
+}

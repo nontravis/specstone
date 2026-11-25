@@ -1,0 +1,263 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/document_writing/journal_bounds.dart'
+    show requireWritableTarget;
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show warnOnStderr;
+import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
+import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/carried_packs.dart';
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/setup_migration/project_files.dart';
+import 'package:specstone_core/src/setup_migration/project_root.dart';
+import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
+    show codexTrustLine, holdsCodexHooks, skillFolderOf;
+import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
+
+/// What one `specstone init` call runs with.
+final class InitRequest {
+  const new({
+    required this.workingDirectory,
+    required this.homeDirectory,
+    required this.templates,
+    required this.confirmation,
+    required this.readLine,
+    required this.out,
+    this.planHash,
+    this.runGit = runRealGit,
+    this.warn = warnOnStderr,
+  });
+
+  /// The folder the new project root is taken from.
+  final Directory workingDirectory;
+
+  /// The personal pack home, or null.
+  final Directory? homeDirectory;
+
+  /// Loads the carried packs.
+  final TemplateResolver templates;
+
+  /// How the Owner confirms the legacy migrate run: at the terminal's `y`, or
+  /// `--yes`.
+  final OwnerConfirmation confirmation;
+
+  /// Reads one line of the Owner's answer, or null at the end of input.
+  final String? Function() readLine;
+
+  /// Where the run prints.
+  final StringSink out;
+
+  /// The hash on the `plan <hash>` line of the dry run the Owner saw; under
+  /// `--yes` the legacy run applies only a plan with this hash.
+  final String? planHash;
+
+  /// Starts `git`; replaced in tests.
+  final RunGit runGit;
+
+  /// Reports one warning line, such as an agent file the run leaves outside
+  /// the project root; writes it to stderr unless replaced.
+  final void Function(String line) warn;
+}
+
+/// Runs `specstone init` and returns its exit status.
+///
+/// The root is [rootThroughDocsLink] of the working directory with no walk up,
+/// so a nested project stays possible. A root holding the config
+/// refuses `config_exists`; a root holding the legacy context doc enters the
+/// legacy migrate run at its git checks; otherwise the drafts are
+/// written and the config last. A root reached through a `docs` link
+/// that leaves the folder, or whose docs folder lies outside it, is written
+/// only once the Owner trusted it: the scaffold refuses `output_not_writable`
+/// naming the config before any write. Throws a `SpecstoneFault` for a
+/// refused run, `output_not_writable` naming the file the disk refuses.
+Future<int> runInit(InitRequest request) async {
+  final root = rootThroughDocsLink(request.workingDirectory);
+  requireSpecstoneFolder(root);
+  if (File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) {
+    throw MigrateFault(
+      MigrateFaultCode.configExists,
+      'this folder is already a Specstone project; run specstone migrate to '
+      'upgrade its packs',
+      file: projectConfigPath,
+    );
+  }
+  if (File.fromUri(root.uri.resolve(legacyContextPath)).existsSync()) {
+    return await runLegacyAt(
+      root,
+      _migrateRequestOf(root, request),
+      linkFolder: _linkFolderOf(request.workingDirectory, root),
+    );
+  }
+  RootTrust.at(
+    folder: _linkFolderOf(request.workingDirectory, root) ?? root,
+    root: root,
+    homeDirectory: request.homeDirectory,
+  ).requireTrusted(projectConfigPath);
+  return _scaffold(root, request);
+}
+
+/// Returns the migrate request `init` enters the legacy run with.
+MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
+    MigrateRequest(
+      workingDirectory: root,
+      homeDirectory: request.homeDirectory,
+      templates: request.templates,
+      dryRun: false,
+      confirmation: request.confirmation,
+      readLine: request.readLine,
+      out: request.out,
+      planHash: request.planHash,
+      runGit: request.runGit,
+      warn: request.warn,
+    );
+
+/// Returns [folder], canonical, when it is not [root], else null.
+///
+/// [root] is `rootThroughDocsLink(folder)`, canonical, which differs from the
+/// folder exactly when the folder's `docs` link led to it.
+Directory? _linkFolderOf(Directory folder, Directory root) {
+  final own = Directory(folder.resolveSymbolicLinksSync());
+  return own.path == root.path ? null : own;
+}
+
+/// Plans the agent files, writes each singular draft, project spec doc types
+/// excepted, then the agent files, then the config last.
+///
+/// Keeps each draft that already exists and names it `kept`; prints the Codex
+/// trust line last when the plan writes `.codex/hooks.json`. Starts no git
+/// process, so the new files stay untracked. Throws
+/// `agent_block_malformed` before the first write.
+int _scaffold(Directory root, InitRequest request) {
+  final PinnedSet(:set, :pins) = request.templates.resolveCarriedPinned(
+    packNames: carriedPacks,
+    homeDirectory: request.homeDirectory,
+  );
+  final agentInputs = _agentInputsOf(root, set);
+  final agentPlan = planAgentWrites(agentInputs, full: true);
+  final stamp = agentFilesStampAfter(agentInputs, agentPlan, current: null);
+  agentPlan.skipped.forEach(request.warn);
+  final docsRoot = Directory.fromUri(root.uri.resolve('docs/'));
+  for (final docType in singularDocTypes(set)) {
+    final path = docType.path;
+    if (path == null) continue;
+    final file = fileOfDocPath(path, docsRoot: docsRoot, projectRoot: root);
+    if (file.existsSync()) {
+      request.out.writeln('kept docs/$path: exists');
+      continue;
+    }
+    _writeNew(root, file, skeletonOf(docType, docType.id), shown: 'docs/$path');
+    request.out.writeln('created docs/$path (draft)');
+  }
+  _writeAgentFiles(root, agentPlan, request.out);
+  _writeNew(
+    root,
+    File.fromUri(root.uri.resolve(projectConfigPath)),
+    configText(
+      pins,
+      agentFileRoots: agentPlan.agentFileRoots,
+      agentFilesVersion: stamp,
+    ),
+    shown: projectConfigPath,
+  );
+  final list = [
+    for (final name in pins.keys.toList()..sort(compareCodePoints))
+      '$name ${pins[name]}',
+  ].join(', ');
+  request.out.writeln('created $projectConfigPath: $list');
+  if (holdsCodexHooks(agentPlan.paths)) request.out.writeln(codexTrustLine);
+  return 0;
+}
+
+/// Returns the agent file inputs of a new project at [root].
+AgentFileInputs _agentInputsOf(Directory root, MergedSet set) {
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  return AgentFileInputs(
+    projectRoot: projectRoot,
+    cliVersion: specstoneVersion,
+    codeRootFolders: codeFoldersOf(
+      projectRoot,
+      set,
+      targets: const [CodeTarget(null, codeRoot: '.')],
+    ),
+    agentFileRoots: const [],
+  );
+}
+
+/// Writes each file of [plan] and prints `created <path>` or `updated <path>`,
+/// then one `created <folder>: <n> files` line per skill or agent folder.
+///
+/// A symbolic-link instruction file is written through to its target, so the
+/// path stays a link.
+void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
+  final counts = <String, int>{};
+  for (final write in [...plan.rootWrites, ...plan.topWrites]) {
+    _writeNew(
+      root,
+      File(
+        '${root.path}${Platform.pathSeparator}'
+        '${write.path.split('/').join(Platform.pathSeparator)}',
+      ),
+      write.text,
+      shown: write.path,
+      followLink: true,
+    );
+    final folder = skillFolderOf(write.path);
+    if (folder == null) {
+      out.writeln('${write.isNew ? 'created' : 'updated'} ${write.path}');
+    } else {
+      counts.update(folder, (count) => count + 1, ifAbsent: () => 1);
+    }
+  }
+  for (final MapEntry(:key, :value) in counts.entries) {
+    out.writeln('created $key: $value files');
+  }
+}
+
+/// Writes [text] to [file] of the project at [root], creating its folders.
+///
+/// Writes through a symbolic link when [followLink]. A file that leads outside
+/// the project or docs root, or into `.git`, is refused before any folder is
+/// made. Throws [RenderFault] `output_not_writable` naming [shown], the file's
+/// ProjectPath, when the disk refuses.
+void _writeNew(
+  Directory root,
+  File file,
+  String text, {
+  required String shown,
+  bool followLink = false,
+}) {
+  try {
+    final target = followLink && _isLink(file)
+        ? File(file.resolveSymbolicLinksSync())
+        : file;
+    requireWritableTarget(
+      target.path,
+      projectRoot: root,
+      docsRoot: Directory.fromUri(root.uri.resolve('docs/')),
+    );
+    file.parent.createSync(recursive: true);
+    writeFileAtomic(target, utf8.encode(text));
+  } on FileSystemException catch (error) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write $shown: ${error.osError?.message ?? error.message}',
+    );
+  }
+}
+
+bool _isLink(File file) =>
+    FileSystemEntity.typeSync(file.path, followLinks: false) ==
+    FileSystemEntityType.link;

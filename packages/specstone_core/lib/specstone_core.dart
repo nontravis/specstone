@@ -1,0 +1,162 @@
+/// Core library of Specstone, shared by the specstone CLI and MCP server.
+library;
+
+export 'src/atomic_write.dart' show writeFileAtomic;
+export 'src/canonical_path.dart'
+    show absoluteFrom, canonicalPath, isWindowsAbsolutePath, pathInside;
+export 'src/consistency_check/check_report.dart' show CheckReport;
+export 'src/consistency_check/check_run.dart' show runCheck, runRepeats;
+export 'src/consistency_check/finding.dart' show Finding, FindingKind;
+export 'src/consistency_check/repeat_listing.dart' show RepeatReport;
+export 'src/consistency_check/suspect_list.dart' show answerListSuspect;
+export 'src/consistency_check/tree_rules.dart'
+    show checkedFoldersOf, isInCheckedFolder;
+export 'src/doc_model/models/doc_address.dart';
+export 'src/doc_model/reference_grammar.dart' show readDocAddress;
+export 'src/document_writing/approval.dart' show ApprovalHistory;
+export 'src/document_writing/approval_view.dart' show DraftView;
+export 'src/document_writing/approve_auto.dart'
+    show AutoApproveCall, approveAuto;
+export 'src/document_writing/approve_drafts.dart'
+    show approveDrafts, approveDryRun, approveNamed, draftViewsOf;
+export 'src/document_writing/batch_fault.dart' show BatchEntry, BatchFault;
+export 'src/document_writing/batch_file.dart'
+    show parseBatchFile, readBatchFile;
+export 'src/document_writing/delete_doc.dart'
+    show answerDelete, answerDeleteDryRun;
+export 'src/document_writing/models/parsed_batch.dart' show ParsedBatch;
+export 'src/document_writing/models/seen_draft.dart' show SeenDraft;
+export 'src/document_writing/move_doc.dart'
+    show answerMove, answerRename, answerReorder;
+export 'src/document_writing/move_plan.dart' show parseMovePlan;
+export 'src/document_writing/move_plan_engine.dart' show answerPlanMove;
+export 'src/document_writing/new_doc.dart' show answerNew;
+export 'src/document_writing/owner_confirmation.dart' show OwnerConfirmation;
+export 'src/document_writing/plan_skeleton.dart' show planSkeletonOf;
+export 'src/document_writing/remove_task_refs.dart'
+    show answerRemoveTasks, requireTaskIds;
+export 'src/document_writing/root_trust.dart' show locateReadRoots;
+export 'src/document_writing/set_batch.dart' show answerSetBatch;
+export 'src/document_writing/set_doc.dart'
+    show SetRequest, answerSet, replaceConflictMessage;
+export 'src/document_writing/set_dry_run.dart'
+    show DryRunRequest, answerSetDryRun;
+export 'src/document_writing/set_sync.dart' show answerSetSync;
+export 'src/document_writing/stamp_fault.dart' show StampFault, StampRefusal;
+export 'src/document_writing/stamp_fingerprints.dart'
+    show StampPair, StampRequest, answerStamp;
+export 'src/document_writing/sync_lines.dart'
+    show
+        FingerprintedLine,
+        MatchLine,
+        MismatchLine,
+        ParsedSync,
+        PlannedLine,
+        RemoveTaskLine,
+        RepointLine,
+        RowLine,
+        SyncFault,
+        SyncLine,
+        SyncRefusal,
+        TestsLine,
+        UnjudgedLine,
+        VerdictLine,
+        parseSyncFile;
+export 'src/document_writing/write_fault.dart'
+    show CurrentTarget, WriteFault, WriteFaultCode;
+export 'src/document_writing/write_session.dart' show WriteSession;
+export 'src/executable_lookup.dart' show findExecutable;
+export 'src/fault.dart';
+export 'src/index_query/bundle.dart' show Bundle, BundleMode, pickBundle;
+export 'src/index_query/bundle_file.dart'
+    show answerBundleFile, bareBundleFile, bundleFileName;
+export 'src/index_query/bundle_render.dart'
+    show ContextAnswer, answerCodeContext, answerContext;
+export 'src/index_query/code_bundle.dart'
+    show CodePath, pickCodeBundle, projectRootMatch, resolveCodePath;
+export 'src/index_query/doc_index.dart' show DocIndex;
+export 'src/index_query/feature_catalog.dart'
+    show featureCatalogBlocks, featureCatalogKind;
+export 'src/index_query/folder_prune.dart' show pruneSpecstoneFolder;
+export 'src/index_query/get_docs.dart' show answerGet;
+export 'src/index_query/group_files.dart' show answerGroupFiles;
+export 'src/index_query/index_fault.dart'
+    show IndexFault, IndexFaultCode, IndexFaults;
+export 'src/index_query/index_store.dart' show indexBusyTimeout;
+export 'src/index_query/list_docs.dart' show ListFilters, answerList;
+export 'src/index_query/models/indexed_doc.dart';
+export 'src/index_query/out_file.dart'
+    show answerOutFile, bareOutFile, outFileName, requireOutPath;
+export 'src/index_query/read_answer.dart'
+    show
+        ReadAnswer,
+        docJson,
+        docLine,
+        missingArgument,
+        nameWithType,
+        namingLine,
+        parsePositiveOption;
+export 'src/index_query/read_session.dart' show ReadSession;
+export 'src/index_query/refs.dart' show answerRefs;
+export 'src/index_query/review_files.dart' show answerReviewFiles;
+export 'src/index_query/review_parts.dart'
+    show ReviewPart, ReviewPartKind, ReviewParts, pickReviewParts;
+export 'src/index_query/search_docs.dart'
+    show SearchOptions, answerSearch, checkQuery, defaultSearchLimit;
+export 'src/index_query/structure.dart' show answerStructure;
+export 'src/index_query/sync_feature.dart' show syncFeatureOf;
+export 'src/index_query/sync_work.dart' show answerSyncWork;
+export 'src/index_query/work_groups.dart'
+    show WorkGroup, WorkGroupPick, WorkUnit, pickWorkGroups, workGroupBudget;
+export 'src/journeys/first_confirmations.dart' show withFirstConfirmations;
+export 'src/journeys/journey_answers.dart'
+    show answerJourneyCode, answerJourneyPaths;
+export 'src/journeys/journey_generators.dart' show journeyGenerators;
+export 'src/journeys/unwalked.dart' show answerListUnwalked;
+export 'src/release_version.dart';
+export 'src/rendering/build_output.dart'
+    show
+        BuildResult,
+        OutputFormat,
+        defaultOutputFile,
+        outputName,
+        requireOutputOutsideDocRoots,
+        writeBuildOutput;
+export 'src/rendering/docs_project.dart' show DocsProject, Target;
+export 'src/rendering/format_run.dart'
+    show FormatReport, GeneratorRun, runFormat;
+export 'src/rendering/generated_blocks.dart';
+export 'src/rendering/html_build.dart' show HtmlBuild, buildHtml;
+export 'src/rendering/models/opened_resolver.dart';
+export 'src/rendering/page_setup.dart' show PageSetup, Paper;
+export 'src/rendering/render_fault.dart';
+export 'src/setup_migration/imported_docs.dart' show importedDocPaths;
+export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
+export 'src/setup_migration/migrate_fault.dart'
+    show MigrateFault, MigrateFaultCode, MigrateUsageError;
+export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
+export 'src/setup_migration/stale_project.dart' show staleProjectLine;
+export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
+export 'src/templates/cleanup_bounds.dart' show CleanupBounds;
+export 'src/templates/component_catalog.dart'
+    show componentCatalogBlocks, componentCatalogKind;
+export 'src/templates/feature_pattern.dart' show FeaturePatternBody;
+export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
+export 'src/templates/merged_doc_type.dart';
+export 'src/templates/merged_set.dart';
+export 'src/templates/models/checklist_item.dart';
+export 'src/templates/models/feature_pattern.dart';
+export 'src/templates/models/root_match.dart';
+export 'src/templates/project_config.dart'
+    show
+        isPackName,
+        matchProjectRoot,
+        readCleanupBounds,
+        requireSpecstoneFolder;
+export 'src/templates/shared_entry.dart'
+    show SharedEntries, SharedField, SharedLine;
+export 'src/templates/shared_merge.dart'
+    show MergedSharedField, SharedSet, sharedByAll;
+export 'src/templates/template_fault.dart';
+export 'src/templates/template_resolver.dart';
+export 'src/version.dart';

@@ -1,0 +1,562 @@
+import 'package:specstone_core/src/doc_model/name_mentions.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show mermaidTokensIn;
+import 'package:test/test.dart';
+
+void main() {
+  group('nameMentionsInMarkdown', () {
+    test('a code span of a name or a typed name is a '
+        'mention, its section key kept apart', () {
+      final mentions = nameMentionsInMarkdown(
+        'See `feature:login#goal` and `login/email_login`.\n',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.column, m.text)],
+        [(1, 5, 'feature:login#goal'), (1, 30, 'login/email_login')],
+      );
+      expect(mentions.first.address.typeId, 'feature');
+      expect(mentions.first.address.body, 'login');
+      expect(mentions.first.address.sectionKey, 'goal');
+    });
+
+    test('a bare one-slug span is no mention', () {
+      expect(nameMentionsInMarkdown('Say `login` or `user_id`.\n'), isEmpty);
+    });
+
+    test('a span inside fenced code is no mention', () {
+      expect(
+        nameMentionsInMarkdown(
+          'Run:\n\n```sh\necho `login/email_login`\n```\n\n'
+          '`login/email_login`\n',
+        ).map((m) => m.line),
+        [7],
+      );
+    });
+
+    test('a span of prose text or a plain name is no '
+        'mention', () {
+      expect(
+        nameMentionsInMarkdown(
+          '`check architecture:login` and login/email_login\n',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('each line is read alone, so a span split across '
+        'two lines is no mention', () {
+      expect(nameMentionsInMarkdown('`login/\nemail_login`\n'), isEmpty);
+    });
+
+    test('a double-backtick span is read by its text, its '
+        'column after the opening run', () {
+      final mentions = nameMentionsInMarkdown('x ``login/email_login`` y\n');
+      expect(
+        [for (final m in mentions) (m.column, m.text)],
+        [(4, 'login/email_login')],
+      );
+    });
+
+    test('a backslash-escaped backtick opens no span, so '
+        'no mention', () {
+      expect(
+        nameMentionsInMarkdown('Write \\`login/email_login\\` as is.\n'),
+        isEmpty,
+      );
+    });
+
+    test('a mermaid token is read at its line and column', () {
+      const lf =
+          '```mermaid\n'
+          'flowchart LR\n'
+          '  N[shop/cart/add_item E06] --> M[fr:shop/cart/add_item/check_stock]\n'
+          '```\n';
+      final mentions = nameMentionsInMarkdown(lf);
+      final line = lf.split('\n')[2];
+      expect(
+        [for (final m in mentions) (m.line, m.column, m.text)],
+        [
+          (3, line.indexOf('shop/cart/add_item'), 'shop/cart/add_item'),
+          (
+            3,
+            line.indexOf('fr:shop/cart'),
+            'fr:shop/cart/add_item/check_stock',
+          ),
+        ],
+      );
+      expect(mentions.last.address.typeId, 'fr');
+      expect(mentions.last.address.body, 'shop/cart/add_item/check_stock');
+    });
+
+    test('a mermaid token is bounded by a bracket, a space, or a capital '
+        'letter', () {
+      final mentions = nameMentionsInMarkdown(
+        '```mermaid\n'
+        'flowchart LR\n'
+        '  A[shop/cart/add_item] B(shop/pay/card) C shop/cart/drop_item '
+        'Dshop/pay/refundE\n'
+        '```\n',
+      );
+      expect(
+        [for (final m in mentions) m.text],
+        [
+          'shop/cart/add_item',
+          'shop/pay/card',
+          'shop/cart/drop_item',
+          'shop/pay/refund',
+        ],
+      );
+    });
+
+    test("another language's fence yields nothing", () {
+      expect(
+        nameMentionsInMarkdown(
+          '```text\nN[shop/cart/add_item E06]\n```\n\n'
+          '~~~yaml\nN[shop/cart/add_item E06]\n~~~\n',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('the fence lines of a mermaid block yield nothing', () {
+      final mentions = nameMentionsInMarkdown(
+        '```mermaid shop/cart/add_item\n'
+        '  N[shop/cart/add_item]\n'
+        '```\n',
+      );
+      expect([for (final m in mentions) m.line], [2]);
+    });
+
+    test('a mermaid block holds tokens only between its fences, and prose '
+        'after it reads as prose', () {
+      final mentions = nameMentionsInMarkdown(
+        'shop/cart/add_item\n\n```mermaid\nN[shop/pay/card]\n```\n\n'
+        'shop/cart/add_item `shop/pay/refund`\n',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.text)],
+        [(4, 'shop/pay/card'), (7, 'shop/pay/refund')],
+      );
+    });
+
+    test('a title line and an edge word yield nothing, and a name in an edge '
+        'label is read', () {
+      final mentions = nameMentionsInMarkdown(
+        '```mermaid\n'
+        '---\n'
+        'title: Cart flow\n'
+        '---\n'
+        'flowchart LR\n'
+        '  A -->|yes| B\n'
+        '  B -->|shop/cart| C\n'
+        '```\n',
+      );
+      expect([for (final m in mentions) (m.line, m.text)], [(7, 'shop/cart')]);
+    });
+
+    test('a web address in a label gives no token', () {
+      for (final label in [
+        'https://example.com/a/b',
+        'https://my.app/x/y',
+        'https://x.shop/cart/add',
+      ]) {
+        expect(
+          nameMentionsInMarkdown(
+            '```mermaid\nflowchart LR\n  N[$label]\n```\n',
+          ),
+          isEmpty,
+          reason: label,
+        );
+      }
+    });
+
+    test('a name beside a web address is still read', () {
+      final mentions = nameMentionsInMarkdown(
+        '```mermaid\nflowchart LR\n  N["shop/cart/x https://my.app/x/y"]\n```\n',
+      );
+      expect([for (final m in mentions) m.text], ['shop/cart/x']);
+    });
+
+    test('a name next to a slash, a colon, or an arrow is read at its true '
+        'column', () {
+      for (final line in [
+        'A[/shop/cart/x/]',
+        r'C[/shop/cart/x\]',
+        'A["shop/cart/x: add item"]',
+        r'B[\shop/cart/x\]',
+        r'D[\shop/cart/x/]',
+        'A->>B:shop/cart/x',
+        'A[shop/cart/x,http://a.b/c]',
+      ]) {
+        final mention = nameMentionsInMarkdown('```mermaid\n$line\n```\n')
+            .single;
+        expect(mention.text, 'shop/cart/x', reason: line);
+        expect(mention.column, line.indexOf('shop/cart/x'), reason: line);
+      }
+    });
+
+    test('a name after dots that follow no letter or digit is read, and one '
+        'after a host dot is not', () {
+      for (final (line, text) in [
+        ('A["loading...fr:shop/cart/x"]', 'fr:shop/cart/x'),
+        ('A[see shop/cart/x.https://a.b/c]', 'shop/cart/x'),
+      ]) {
+        final mention = nameMentionsInMarkdown('```mermaid\n$line\n```\n')
+            .single;
+        expect(mention.text, text, reason: line);
+        expect(mention.column, line.indexOf(text), reason: line);
+      }
+      expect(
+        nameMentionsInMarkdown('```mermaid\nA["Done.shop/cart/x"]\n```\n'),
+        isEmpty,
+      );
+    });
+
+    test('a path, a route, or a host in a label yields no token', () {
+      for (final line in [
+        'A -->|GET /shop/cart/items| B',
+        'N[./shop/cart/x.md]',
+        'N[example.com/a/b]',
+      ]) {
+        expect(
+          nameMentionsInMarkdown('```mermaid\n$line\n```\n'),
+          isEmpty,
+          reason: line,
+        );
+      }
+    });
+
+    test('a sequence message line gives its text, not its participant id, '
+        'whatever the arrow', () {
+      for (final message in [
+        'a->>b:',
+        'a->>+b:',
+        'a->>-b:',
+        'a-)b:',
+        'a-xb:',
+        'a--)b:',
+        'a--xb:',
+        'a->b:',
+        'a-->b:',
+        'a-->>b:',
+        'a <<->> b: ',
+        'a<<-->>b:',
+        '  A ->> B : ',
+      ]) {
+        final line = '${message}shop/cart/x';
+        for (final head in ['', '---\ntitle: t\n---\n\n%% c\n']) {
+          final lf = '```mermaid\n${head}sequenceDiagram\n$line\n```\n';
+          final mention = nameMentionsInMarkdown(lf).single;
+          expect(mention.text, 'shop/cart/x', reason: line);
+          expect(mention.column, line.indexOf('shop/cart/x'), reason: line);
+        }
+      }
+    });
+
+    test('a typed name keeps its type in a label, after a tag, after a flow '
+        'arrow, and in a sequence note', () {
+      for (final (head, line) in [
+        ('flowchart LR', 'A["line<br/>fr:shop/cart/x"]'),
+        ('flowchart LR', 'A["<b>fr:shop/cart/x</b>"]'),
+        ('flowchart LR', 'A-->fr:shop/cart/x'),
+        ('sequenceDiagram', 'Note right of b: fr:shop/cart/x'),
+        ('sequenceDiagram', 'a->>b: fr:shop/cart/x'),
+      ]) {
+        final mention = nameMentionsInMarkdown(
+          '```mermaid\n$head\n$line\n```\n',
+        ).single;
+        expect(mention.text, 'fr:shop/cart/x', reason: line);
+        expect(mention.column, line.indexOf('fr:'), reason: line);
+      }
+    });
+
+    test('a sequence head inside a quote or a list item still marks a sequence '
+        'block', () {
+      const quoted =
+          '> ```mermaid\n> sequenceDiagram\n> a->>b:shop/cart/x\n> ```\n';
+      const listed =
+          '- item\n\n  ```mermaid\n  sequenceDiagram\n  a->>b:shop/cart/x\n'
+          '  ```\n';
+      const nested =
+          '> - ```mermaid\n>   %% c\n>   sequenceDiagram\n'
+          '>   a->>b:shop/cart/x\n>   ```\n';
+      for (final lf in [quoted, listed, nested]) {
+        final mention = nameMentionsInMarkdown(lf).single;
+        final line = lf.split('\n')[mention.line - 1];
+        expect(mention.text, 'shop/cart/x', reason: lf);
+        expect(mention.column, line.indexOf('shop/cart/x'), reason: lf);
+      }
+    });
+
+    test('a typed name next to a slash keeps its type', () {
+      const line = 'A[/fr:shop/cart/x/]';
+      final mention = nameMentionsInMarkdown('```mermaid\n$line\n```\n').single;
+      expect(mention.text, 'fr:shop/cart/x');
+      expect(mention.column, line.indexOf('fr:'));
+      expect(mention.address.typeId, 'fr');
+    });
+
+    test(
+      'a mermaid fence inside a list item still yields its token column',
+      () {
+        const lf =
+            '- item\n\n'
+            '  ```mermaid\n'
+            '  flowchart LR\n'
+            '    N[shop/cart/add_item]\n'
+            '  ```\n';
+        final mention = nameMentionsInMarkdown(lf).single;
+        final line = lf.split('\n')[mention.line - 1];
+        expect(mention.line, 5);
+        expect(
+          line.substring(mention.column, mention.column + mention.text.length),
+          'shop/cart/add_item',
+        );
+      },
+    );
+
+    test('a tilde mermaid fence is read as a backtick one is', () {
+      expect(
+        [
+          for (final m in nameMentionsInMarkdown(
+            '~~~mermaid\nN[shop/cart/add_item]\n~~~\n',
+          ))
+            m.text,
+        ],
+        ['shop/cart/add_item'],
+      );
+    });
+  });
+
+  group('mermaidTokensIn', () {
+    test('each run of slug characters, slash, and colon that reads as a '
+        'no-lookup address is a token at its 0-based column', () {
+      const text = 'N[shop/cart/add_item E06] --> fr:shop/cart/x, login';
+      final tokens = mermaidTokensIn(text);
+      expect(
+        [for (final t in tokens) (t.column, t.text)],
+        [(2, 'shop/cart/add_item'), (text.indexOf('fr:'), 'fr:shop/cart/x')],
+      );
+      expect(tokens.last.address.typeId, 'fr');
+    });
+
+    test('a one-slug word, an edge word, and a lone prefix are no token', () {
+      expect(mermaidTokensIn('A -->|yes| B title: x login'), isEmpty);
+    });
+  });
+
+  group('isCommentLine', () {
+    test('// marks a comment in .dart, .js, and .ts', () {
+      for (final extension in ['.dart', '.js', '.ts']) {
+        expect(isCommentLine('// note', extension), isTrue, reason: extension);
+        expect(isCommentLine('/// doc', extension), isTrue, reason: extension);
+        expect(isCommentLine('# note', extension), isFalse, reason: extension);
+      }
+    });
+
+    test('# marks a comment in .sh, .ps1, .yaml, .yml, and '
+        '.py', () {
+      for (final extension in ['.sh', '.ps1', '.yaml', '.yml', '.py']) {
+        expect(isCommentLine('# note', extension), isTrue, reason: extension);
+        expect(isCommentLine('// note', extension), isFalse, reason: extension);
+      }
+    });
+
+    test('an indented mark is a comment line', () {
+      expect(isCommentLine('    // note', '.dart'), isTrue);
+      expect(isCommentLine('\t# note', '.sh'), isTrue);
+    });
+
+    test('an end-of-line comment makes no comment line', () {
+      expect(isCommentLine('final a = 1; // note', '.dart'), isFalse);
+      expect(isCommentLine('run --all # note', '.sh'), isFalse);
+    });
+
+    test('any other extension holds no comment line', () {
+      for (final extension in ['.txt', '.json', '.c', '.md', '']) {
+        expect(isCommentLine('// note', extension), isFalse);
+        expect(isCommentLine('# note', extension), isFalse);
+      }
+    });
+  });
+
+  group('nameMentionsInFile', () {
+    test('markdown is read after its frontmatter, outside '
+        'fenced code, at the lines of the file', () {
+      final mentions = nameMentionsInFile(
+        '---\ndescription: `login/email_login`\n---\n\n'
+            'Use `login/email_login`.\n\n```\n`login/email_login`\n```\n',
+        '.md',
+      );
+      expect([for (final m in mentions) m.line], [5]);
+    });
+
+    test('any other file is read by its comment lines', () {
+      final mentions = nameMentionsInFile(
+        '# `login/email_login`\nrun `login/email_login`\n',
+        '.sh',
+      );
+      expect([for (final m in mentions) m.line], [1]);
+    });
+
+    test('a dart file yields a doc comment mention at its column, no string '
+        'line mention', () {
+      final mentions = nameMentionsInFile(
+        '/// Lays out `login/email_login`.\n'
+            'final a = `login/email_login`;\n'
+            '  // see `feature:login#goal`\n'
+            'x(); // `login/email_login`\n'
+            '// `login/\n'
+            '// email_login`\n',
+        '.dart',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.column, m.text)],
+        [(1, 14, 'login/email_login'), (3, 10, 'feature:login#goal')],
+      );
+    });
+
+    test('a file of an extension with no comment mark holds none', () {
+      expect(nameMentionsInFile('// `login/email_login`\n', '.c'), isEmpty);
+    });
+
+    test('a comment line holds a doc path, plain or in a code span, with its '
+        'anchor and closing mark left off', () {
+      final mentions = nameMentionsInFile(
+        '// See prds/features/f01_login/FEATURE.md.\n'
+            '  // And `docs/prds/PROJECT.md#goal`, then prds/d01.md:12 end\n',
+        '.dart',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.column, m.text)],
+        [
+          (1, 7, 'prds/features/f01_login/FEATURE.md'),
+          (2, 10, 'docs/prds/PROJECT.md'),
+          (2, 43, 'prds/d01.md'),
+        ],
+      );
+    });
+
+    test('a path mention is no reference without lookup', () {
+      final mention = nameMentionsInFile(
+        '// prds/PROJECT.md\n',
+        '.dart',
+      ).single;
+      expect(mention.address.isReferenceWithoutLookup, isFalse);
+    });
+
+    test('a path in an end-of-line comment or a string line is not read', () {
+      expect(
+        nameMentionsInFile(
+          "final p = 'prds/PROJECT.md'; // prds/PROJECT.md\n",
+          '.dart',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('markdown holds a path in its text outside fenced code and its '
+        'frontmatter', () {
+      final mentions = nameMentionsInFile(
+        '---\nsee: prds/PROJECT.md\n---\n\nRead prds/PROJECT.md now.\n\n'
+            '```\nprds/PROJECT.md\n```\n',
+        '.md',
+      );
+      expect([for (final m in mentions) m.line], [5]);
+    });
+
+    test('a path is read from a name mention alongside it, in line order', () {
+      final mentions = nameMentionsInFile(
+        '// `login/email_login` and prds/PROJECT.md\n',
+        '.dart',
+      );
+      expect(
+        [for (final m in mentions) m.text],
+        ['login/email_login', 'prds/PROJECT.md'],
+      );
+    });
+
+    test('a word that is no path is not a mention', () {
+      expect(
+        nameMentionsInFile('// notes.mdx and x.md.bak and .md\n', '.dart'),
+        isEmpty,
+      );
+    });
+
+    test(
+      'mermaid tokens are read after the frontmatter at their file line',
+      () {
+        const lf =
+            '---\nk: shop/cart/add_item\n---\n\n'
+            'Text.\n\n```mermaid\nN[shop/cart/add_item]\n```\n';
+        final mentions = nameMentionsInFile(lf, '.md', withMermaid: true);
+        expect(
+          [for (final m in mentions) (m.line, m.text)],
+          [(8, 'shop/cart/add_item')],
+        );
+      },
+    );
+
+    test('mermaid tokens are not read unless asked for, nor in a file of '
+        'another extension', () {
+      const lf = '```mermaid\nN[shop/cart/add_item]\n```\n';
+      expect(nameMentionsInFile(lf, '.md'), isEmpty);
+      expect(nameMentionsInFile(lf, '.dart', withMermaid: true), isEmpty);
+    });
+
+    test('a span and a mermaid token come in line order', () {
+      final mentions = nameMentionsInFile(
+        'See `shop/cart/add_item`.\n\n```mermaid\nN[shop/pay/card]\n```\n',
+        '.md',
+        withMermaid: true,
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.text)],
+        [(1, 'shop/cart/add_item'), (4, 'shop/pay/card')],
+      );
+    });
+  });
+
+  group('longerSpanMentionsInMarkdown', () {
+    test('a span holding a name inside longer text yields that name', () {
+      final mentions = longerSpanMentionsInMarkdown(
+        'Read `shop/cart/add_item E05` and `fr:shop/cart/x see`.\n',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.text, m.address.docPart)],
+        [
+          (1, 'shop/cart/add_item E05', 'shop/cart/add_item'),
+          (1, 'fr:shop/cart/x see', 'fr:shop/cart/x'),
+        ],
+      );
+    });
+
+    test(
+      'a whole-text name, a bare one-slug word, and fenced code yield none',
+      () {
+        expect(
+          longerSpanMentionsInMarkdown(
+            '`shop/cart/add_item` `cat add_item`\n\n```\n`a/b c`\n```\n',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test('frontmatter is skipped and a line counts from the file top', () {
+      final mentions = longerSpanMentionsInMarkdown(
+        '---\nk: v\n---\n\nx `a/b c`\n',
+      );
+      expect([for (final m in mentions) m.line], [5]);
+    });
+
+    test('a mermaid block yields no longer span', () {
+      expect(
+        longerSpanMentionsInMarkdown(
+          '```mermaid\nN[shop/cart/add_item E06]\n```\n',
+        ),
+        isEmpty,
+      );
+    });
+  });
+}

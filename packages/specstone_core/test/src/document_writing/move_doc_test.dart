@@ -1,0 +1,6791 @@
+// The test names are plan text kept as written.
+// ignore_for_file: lines_longer_than_80_chars
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
+import 'package:specstone_core/src/document_writing/models/typed_name.dart';
+import 'package:specstone_core/src/document_writing/move_doc.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/move_plan.dart';
+import 'package:specstone_core/src/document_writing/move_plan_engine.dart';
+import 'package:specstone_core/src/document_writing/rewrite_records.dart'
+    show planRecordRewrites;
+import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart' show storyType;
+import 'package:specstone_core/src/index_query/list_docs.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/index_query/refs.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/check_fixture.dart'
+    show
+        checkOf,
+        doc,
+        edit,
+        fingerprintFor,
+        gnfrDoc,
+        loginArchitecture,
+        loginRecord,
+        projectDoc,
+        spots,
+        techStack,
+        writeCheckProject;
+import '../../helpers/cold_node.dart';
+import '../../helpers/failing_rename.dart';
+import '../../helpers/fixed_numbers_fixture.dart';
+import '../../helpers/git_repo.dart' show hasGit;
+import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/legacy_fixture.dart' show commitRepo;
+import '../../helpers/nested_fixture.dart';
+import '../../helpers/posix_modes.dart';
+import '../../helpers/record_fixture.dart';
+import '../../helpers/rulebook_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
+import '../../helpers/write_fixture.dart';
+
+void main() {
+  useColdHostNode();
+
+  ReadAnswer reorder(Directory root, String address, String place) =>
+      writeIn(root, (s) => answerReorder(s, address, place: place));
+
+  ReadAnswer rename(Directory root, String address, String slug) =>
+      writeIn(root, (s) => answerRename(s, address, slug: slug));
+
+  const f = 'prds/features/f01_login';
+
+  const cartDir = 'prds/features/f02_shop/f01_cart';
+  const payDir = 'prds/features/f02_shop/f02_pay';
+  const dropFr = '$cartDir/us02_drop_item/fr01_drop_line.md';
+  const reserveFr = '$cartDir/us01_add_item/fr02_reserve_stock.md';
+  const refundFr = '$payDir/us02_refund/fr01_issue_refund.md';
+
+  /// The FRs the FR move tests add to the nested project: one under
+  /// `drop_item`, a second under `add_item`, and one under `refund`.
+  const frExtras = {
+    'docs/$dropFr': '# Drop a line\n',
+    'docs/$reserveFr': '# Reserve stock\n',
+    'docs/$refundFr': '# Issue a refund\n',
+  };
+
+  test('the third story moves to the top and every link follows', () async {
+    final root = await writeWriteProject();
+    final answer = reorder(root, 'user_story:login/reset_password', '1');
+    expect(
+      answer.text,
+      'moved $f/us03_reset_password/ to $f/us01_reset_password/\n'
+      'moved $f/us01_email_login/ to $f/us02_email_login/\n'
+      'moved $f/us02_sign_out/ to $f/us03_sign_out/\n'
+      'rewrote $f/us01_reset_password/USER_STORY.md\n'
+      'rewrote $f/us02_email_login/fr02_lock_after_failures.md\n',
+    );
+    expect(
+      readDoc(root, '$f/us02_email_login/fr02_lock_after_failures.md'),
+      contains('](../us01_reset_password/USER_STORY.md#use-case)'),
+    );
+    expect(
+      readDoc(root, '$f/us01_reset_password/USER_STORY.md'),
+      contains('](../us03_sign_out/USER_STORY.md)'),
+    );
+    expect(
+      writeIn(root, (s) => s.target('user_story:login/reset_password').docPath),
+      '$f/us01_reset_password/USER_STORY.md',
+    );
+  });
+
+  test('a reordered story links to itself through its own folder, and the link follows it', () async {
+    final root = await writeWriteProject();
+    docFile(root, story2).writeAsStringSync(
+      '\nSee [me](../us02_sign_out/USER_STORY.md#use-case).\n',
+      mode: FileMode.append,
+    );
+    reorder(root, 'user_story:login/sign_out', '1');
+    expect(
+      readDoc(root, '$f/us01_sign_out/USER_STORY.md'),
+      contains('[me](USER_STORY.md#use-case)'),
+    );
+    expect(
+      spots(await checkOf(root), FindingKind.linkUnresolved),
+      isNot(contains(startsWith('$f/us01_sign_out/'))),
+    );
+  });
+
+  test(
+    'a feature moves with its spec folder, and untyped referrers follow',
+    () async {
+      final root = await writeWriteProject();
+      expect(reorder(root, 'feature:signup', '1').json, {
+        'moved': [
+          {
+            'from': 'prds/features/f02_signup/',
+            'to': 'prds/features/f01_signup/',
+          },
+          {'from': 'specs/f02_signup/', 'to': 'specs/f01_signup/'},
+          {
+            'from': 'prds/features/f01_login/',
+            'to': 'prds/features/f02_login/',
+          },
+          {'from': 'specs/f01_login/', 'to': 'specs/f02_login/'},
+        ],
+        'rewritten': ['prds/FEATURES.md', 'prds/d01_context.md'],
+        'mentions': <Object>[],
+      });
+      expect(
+        readDoc(root, 'prds/d01_context.md'),
+        contains('](features/f01_signup/FEATURE.md)'),
+      );
+    },
+  );
+
+  test(
+    'a reorder stages under .specstone/trash/stage, never in the project root',
+    () async {
+      final root = await writeWriteProject();
+      final answer = reorder(root, 'user_story:login/reset_password', '1');
+      expect(answer.text, startsWith('moved '));
+      expect(
+        Directory('${root.path}/MoveJournal.stagePath').existsSync(),
+        isFalse,
+      );
+      expect(
+        Directory('${root.path}/${MoveJournal.stagePath}').existsSync(),
+        isFalse,
+      );
+    },
+  );
+
+  test('a replay skips a phase-1 move whose stage slot is taken', () async {
+    final root = await writeWriteProject();
+    final moves = [
+      ('us03_reset_password', 'us01_reset_password'),
+      ('us01_email_login', 'us02_email_login'),
+      ('us02_sign_out', 'us03_sign_out'),
+    ];
+    String path(String name) => 'docs/$f/$name';
+    String stage(int i) => '${MoveJournal.stagePath}/$i';
+    writeJournal(root, [
+      for (final (i, (from, _)) in moves.indexed)
+        MoveStep(path(from), stage(i)),
+      for (final (i, (_, to)) in moves.indexed) MoveStep(stage(i), path(to)),
+    ]);
+    // Slot 0 is taken by a folder of its own while its step's `from` still
+    // exists, so the replay must skip that step, not move onto the slot.
+    final taken = File('${root.path}/${stage(0)}/taken.md')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('taken');
+
+    writeIn(root, (_) {});
+
+    for (final (_, to) in moves) {
+      expect(Directory('${root.path}/${path(to)}').existsSync(), isTrue);
+    }
+    expect(hasDoc(root, '$f/us03_reset_password/USER_STORY.md'), isTrue);
+    expect(
+      File('${root.path}/${path('us01_reset_password')}/taken.md')
+          .readAsStringSync(),
+      'taken',
+    );
+    expect(taken.existsSync(), isFalse);
+    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+    expect(
+      Directory('${root.path}/MoveJournal.stagePath').existsSync(),
+      isFalse,
+    );
+  });
+
+  test('a place outside the list is position_out_of_range, and nothing moves', () async {
+    final root = await writeWriteProject();
+    for (final place in ['0', '4']) {
+      expect(
+        () => reorder(root, 'user_story:login/reset_password', place),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.positionOutOfRange)
+              .having(
+                (f) => f.message,
+                'message',
+                'user_story:login/reset_password cannot move to place $place: the places run from 1 to 3',
+              ),
+        ),
+      );
+    }
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test('a doc type with no number is doc_type_not_movable', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => reorder(root, 'persona:buyer', '1'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+            .having(
+              (f) => f.message,
+              'message',
+              'persona docs carry no number, so reorder cannot move them',
+            ),
+      ),
+    );
+  });
+
+  test('a reorder of a doc whose type fixes its numbers is doc_type_not_movable naming the type, and nothing moves', () async {
+    final root = await writeWriteProject(extra: decisionFiles());
+    writeIn(root, (s) => s.target('decision:use_wal'));
+    final before = treeBytes(root);
+    expect(
+      () => reorder(root, 'decision:use_wal', '1'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+            .having((f) => f.exitStatus, 'exitStatus', 64)
+            .having(
+              (f) => f.message,
+              'message',
+              'decision docs keep their number, so reorder cannot move them',
+            ),
+      ),
+    );
+    expect(treeBytes(root), before);
+  });
+
+  test(
+    'a rename of a doc whose type fixes its numbers keeps its number',
+    () async {
+      final root = await writeWriteProject(extra: decisionFiles());
+      rename(root, 'decision:use_wal', 'enable_wal');
+      expect(hasDoc(root, 'specs/decisions/d02_enable_wal.md'), isTrue);
+      expect(hasDoc(root, secondDecision), isFalse);
+      expect(hasDoc(root, firstDecision), isTrue);
+    },
+  );
+
+  for (final target in [loginArchitecture, projectDoc]) {
+    test(
+      'a reorder of $target, whose own segment holds no number, is doc_type_not_movable naming its type, and nothing moves',
+      () async {
+        final root = await writeCheckProject();
+        writeIn(root, (s) => s.target('feature:login'));
+        final before = treeBytes(root);
+        expect(
+          () => reorder(root, target, '1'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  allOf(
+                    startsWith(
+                      '${target == projectDoc ? 'project' : 'architecture'} docs',
+                    ),
+                    contains('reorder'),
+                  ),
+                ),
+          ),
+        );
+        expect(treeBytes(root), before);
+      },
+    );
+  }
+
+  test('an approved doc a reorder rewrites carries no draft key and holds the hash of its new content', () async {
+    final root = await writeWriteProject();
+    expect(holdsApproval(root, featuresIndex), isTrue);
+    reorder(root, 'feature:signup', '1');
+    expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
+    expect(
+      readDoc(root, featuresIndex),
+      isNot(contains(RegExp('^draft:', multiLine: true))),
+    );
+    expect(holdsApproval(root, featuresIndex), isTrue);
+  });
+
+  test('a Name mention in an agent file is not listed by a reorder, and the file keeps every byte', () async {
+    const agent =
+        'Read `login/reset_password` and `user_story:login/reset_password`.\n';
+    final root = await writeWriteProject(extra: {'CLAUDE.md': agent});
+    final answer = reorder(root, 'user_story:login/reset_password', '1');
+    expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
+    expect(answer.json['mentions'], isEmpty);
+    expect(answer.text, isNot(contains('mentions')));
+  });
+
+  test('an agent file naming a doc path a reorder moves keeps every byte, and its path mention is listed', () async {
+    const mention =
+        'docs/prds/features/f01_login/us03_reset_password/USER_STORY.md';
+    const agent = 'Open $mention first.\n';
+    final root = await writeWriteProject(extra: {'CLAUDE.md': agent});
+    final answer = reorder(root, 'user_story:login/reset_password', '1');
+    expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
+    expect(answer.json['mentions'], [
+      {'path': 'CLAUDE.md', 'line': 1, 'mention': mention},
+    ]);
+    expect(answer.text, endsWith('mentions CLAUDE.md:1 $mention\n'));
+  });
+
+  test('a doc the markdown parser fails on keeps its links in a reorder and draws the index warning naming it, and a rename still rewrites its doc_ref values', () async {
+    const link = '(../../features/f01_login/us03_reset_password/USER_STORY.md)';
+    const broken =
+        '---\ndraft: true\nreference:\n  - login/email_login\n---\n\n# Buyer\n\n'
+        '## Profile\nBuys things. See [reset]$link.\n\n[a]:<b\\';
+    final root = await writeWriteProject(extra: {'docs/$persona': broken});
+    late List<String> warnings;
+    writeIn(root, (s) {
+      final answer = answerReorder(
+        s,
+        'user_story:login/reset_password',
+        place: '1',
+      );
+      warnings = s.warnings;
+      return answer;
+    });
+    expect(
+      warnings,
+      contains(
+        '$persona: the markdown parser failed; its links are not indexed',
+      ),
+    );
+    expect(readDoc(root, persona), broken);
+
+    rename(root, 'feature:login', 'signin');
+    expect(
+      readDoc(root, persona),
+      broken.replaceFirst('login/email_login', 'signin/email_login'),
+    );
+  });
+
+  test('a doc a reorder would write that is not UTF-8 text stops it with output_not_writable and exit status 73, naming its path, and nothing is written', () async {
+    final root = await writeWriteProject();
+    docFile(root, fr12).writeAsBytesSync([0xff], mode: FileMode.append);
+    writeIn(root, (s) => s.target('feature:login'));
+    Map<String, List<int>> tree() => {
+      for (final MapEntry(:key, :value) in treeBytes(root).entries)
+        if (!key.contains('.specstone/index.sqlite')) key: value,
+    };
+    final before = tree();
+    expect(
+      () => reorder(root, 'user_story:login/reset_password', '1'),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.exitStatus, 'exitStatus', 73)
+            .having((f) => f.message, 'message', contains(fr12)),
+      ),
+    );
+    expect(tree(), before);
+  });
+
+  test('the gaps a delete left close', () async {
+    final root = await writeWriteProject(
+      without: {'docs/$story2'},
+      extra: {'docs/$f/us04_audit/USER_STORY.md': '# Audit\n'},
+    );
+    reorder(root, 'user_story:login/audit', '3');
+    expect(hasDoc(root, '$f/us01_email_login/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, '$f/us02_reset_password/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, '$f/us03_audit/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, story3), isFalse);
+  });
+
+  test('the place it holds, with no gap, moves nothing', () async {
+    final root = await writeWriteProject();
+    final answer = reorder(root, 'user_story:login/email_login', '1');
+    expect(answer.text, '');
+    expect(answer.json, {
+      'moved': <Object>[],
+      'rewritten': <Object>[],
+      'mentions': <Object>[],
+    });
+    expect(hasDoc(root, story1), isTrue);
+  });
+
+  test('the FRs and the nfs under one story number apart', () async {
+    final root = await writeWriteProject(
+      extra: {'docs/$f/us03_reset_password/nf01_fast_link.md': '# Fast link\n'},
+    );
+    reorder(root, 'fr:login/reset_password/expire_reset_link', '1');
+    expect(
+      hasDoc(root, '$f/us03_reset_password/fr01_expire_reset_link.md'),
+      isTrue,
+    );
+    expect(
+      hasDoc(root, '$f/us03_reset_password/fr02_send_reset_link.md'),
+      isTrue,
+    );
+    expect(hasDoc(root, '$f/us03_reset_password/nf01_fast_link.md'), isTrue);
+    expect(
+      readDoc(root, '$f/us03_reset_password/fr01_expire_reset_link.md'),
+      contains('](fr02_send_reset_link.md)'),
+    );
+  });
+
+  test('parsePlace refuses a missing or non-integer place', () {
+    expect(parsePlace('0'), 0);
+    expect(parsePlace('12'), 12);
+    expect(
+      () => parsePlace(null),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+            .having(
+              (f) => f.message,
+              'message',
+              'reorder needs a place, such as specstone reorder user_story:login/reset_password --to 1',
+            ),
+      ),
+    );
+    for (final value in [
+      '',
+      'one',
+      '-1',
+      '1.5',
+      ' 1',
+      '٣',
+      '99999999999999999999',
+    ]) {
+      expect(
+        () => parsePlace(value),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '--to takes a whole number, got $value',
+              ),
+        ),
+      );
+    }
+  });
+
+  test('an approved doc moves with no Owner step, and no moved or rewritten doc is marked draft', () async {
+    final root = await writeWriteProject();
+    final before = readDoc(root, story2);
+    reorder(root, 'user_story:login/sign_out', '1');
+    final moved = readDoc(root, '$f/us01_sign_out/USER_STORY.md');
+    expect(moved, before);
+    final rewritten = readDoc(root, '$f/us03_reset_password/USER_STORY.md');
+    expect(rewritten, contains('](../us01_sign_out/USER_STORY.md)'));
+    expect('draft: true'.allMatches(rewritten), hasLength(1));
+    expect(
+      'draft: true'.allMatches(
+        readDoc(root, '$f/us02_email_login/USER_STORY.md'),
+      ),
+      hasLength(1),
+    );
+  });
+
+  test(
+    'reorder leaves doc_ref values and covers pointers as written',
+    () async {
+      const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      const recordText =
+          '---\ncovers:\n  - app/lib/src/login/\n---\n\n'
+          '# Login implementation\n';
+      final root = await writeWriteProject(extra: {record: recordText});
+      final personaBefore = readDoc(root, persona);
+      final storyBefore = readDoc(root, story1);
+      reorder(root, 'user_story:login/reset_password', '1');
+      expect(readDoc(root, persona), personaBefore);
+      expect(readDoc(root, '$f/us02_email_login/USER_STORY.md'), storyBefore);
+      expect(File('${root.path}/$record').readAsStringSync(), recordText);
+    },
+  );
+
+  test('refs and the reorder rewrite read the same mention lines, a link form in a code span and a stray ]( included', () async {
+    const domain = 'specs/f01_login/DOMAIN.md';
+    const story = '../../$f/us02_sign_out/USER_STORY.md';
+    const before =
+        '# Login domain\n\n## Entities\n\n'
+        '| Entity | Kind | Identity | Owns | Notes |\n'
+        '|---|---|---|---|---|\n'
+        '| Session | Aggregate root | id | none | none |\n\n'
+        '## Invariants\n\n'
+        '- **INV-1** A session follows `$story`.\n'
+        '- **INV-2** It ends as `[x]($story)` says.\n'
+        '- **INV-3** A stray ]($story stays prose.\n';
+    final root = await writeWriteProject(extra: {'docs/$domain': before});
+    final refs =
+        (writeIn(
+                      root,
+                      (s) => answerRefs(s.index, 'user_story:login/sign_out'),
+                    ).json['docs']!
+                    as List)
+                .single
+            as Map;
+    final mentioned = [
+      for (final key in ['mentions', 'untypedMentions'])
+        for (final mention in refs[key]! as List)
+          if ((mention as Map)['path'] == domain) mention['line'],
+    ];
+    final naming = [
+      for (final (i, line) in before.split('\n').indexed)
+        if (line.contains('us02_sign_out/')) i + 1,
+    ];
+    expect(mentioned, naming);
+    expect(naming, hasLength(3));
+
+    reorder(root, 'user_story:login/sign_out', '3');
+    expect(
+      readDoc(root, domain),
+      before.replaceAll('/us02_sign_out/', '/us03_sign_out/'),
+    );
+  });
+
+  test(
+    'a reorder journal stopped mid-way is finished by the next write',
+    () async {
+      final root = await writeWriteProject();
+      const moves = [
+        ('us03_reset_password', 'us01_reset_password'),
+        ('us01_email_login', 'us02_email_login'),
+        ('us02_sign_out', 'us03_sign_out'),
+      ];
+      String path(String name) => 'docs/$f/$name';
+      String stage(int i) => '.specstone/trash/stage/$i';
+      const linkFile = '$f/us01_email_login/fr02_lock_after_failures.md';
+      final linkText = readDoc(root, linkFile);
+      writeJournal(root, [
+        for (final (i, (from, _)) in moves.indexed)
+          MoveStep(path(from), stage(i)),
+        for (final (i, (_, to)) in moves.indexed) MoveStep(stage(i), path(to)),
+        WriteStep.unguarded(
+          'docs/$f/us02_email_login/fr02_lock_after_failures.md',
+          linkText.replaceAll('us03_reset_password', 'us01_reset_password'),
+        ),
+      ]);
+      // The first three moves ran before the stop.
+      for (final (i, (from, _)) in moves.indexed) {
+        final target = '${root.path}/${stage(i)}';
+        Directory(target).parent.createSync(recursive: true);
+        Directory('${root.path}/${path(from)}').renameSync(target);
+      }
+
+      writeIn(root, (_) {});
+
+      for (final (_, to) in moves) {
+        expect(Directory('${root.path}/${path(to)}').existsSync(), isTrue);
+      }
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+      expect(
+        readDoc(root, '$f/us02_email_login/fr02_lock_after_failures.md'),
+        contains('](../us01_reset_password/USER_STORY.md#use-case)'),
+      );
+    },
+  );
+
+  test(
+    'a doc gone from disk since the index is doc_not_found, not a crash',
+    () async {
+      Future<void> expectNotFound(void Function(WriteSession) body) async {
+        final fresh = await writeWriteProject();
+        expect(
+          () => writeIn(fresh, (s) {
+            Directory('${fresh.path}/docs/$f/us03_reset_password')
+                .deleteSync(recursive: true);
+            body(s);
+          }),
+          throwsA(
+            isA<IndexFault>().having(
+              (e) => e.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+      }
+
+      await expectNotFound(
+        (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+      );
+      await expectNotFound(
+        (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
+      );
+    },
+  );
+
+  test(
+    'a spec doc whose feature is not indexed still names its feature',
+    () async {
+      final root = await writeWriteProject(without: {'docs/$signupFeature'});
+      expect(
+        () => rename(root, 'architecture:signup', 'register'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+              .having(
+                (f) => f.message,
+                'message',
+                'architecture:signup takes its name from its feature; '
+                    'rename feature:signup instead',
+              ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'a parented file type numbered but unslugged is told it carries no slug',
+    () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/templates/note.yaml': 'id: note\ndescription: A numbered note\npath: specs/f{nn}_{slug}/note_{nn}.md\nparent: feature\n',
+          'docs/specs/f01_login/note_01.md': '# A note\n',
+        },
+      );
+      expect(
+        () => rename(root, 'note:login', 'other'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+              .having(
+                (f) => f.message,
+                'message',
+                'note docs carry no slug, so rename cannot rename them',
+              ),
+        ),
+      );
+    },
+  );
+
+  test('two spec folders that sort differently after the rename each move to their own new path', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      ...rulebookLayers,
+      '.specstone/templates/spec_a.yaml': 'id: spec_a\ndescription: Spec A\npath: specs/f{nn}_{slug}_a/A.md\nparent: feature\n',
+      '.specstone/templates/spec_b.yaml': 'id: spec_b\ndescription: Spec B\npath: specs/f{nn}_b_{slug}/B.md\nparent: feature\n',
+      'docs/prds/features/f01_z/FEATURE.md': '# Z\n',
+      'docs/specs/f01_z_a/A.md': '# A\n',
+      'docs/specs/f01_b_z/B.md': '# B\n',
+    });
+    expect(rename(root, 'feature:z', 'a').json['moved'], [
+      {'from': 'prds/features/f01_z/', 'to': 'prds/features/f01_a/'},
+      {'from': 'specs/f01_b_z/', 'to': 'specs/f01_b_a/'},
+      {'from': 'specs/f01_z_a/', 'to': 'specs/f01_a_a/'},
+    ]);
+    expect(hasDoc(root, 'specs/f01_b_a/B.md'), isTrue);
+    expect(hasDoc(root, 'specs/f01_a_a/A.md'), isTrue);
+  });
+
+  test('a feature with no spec folder on disk moves alone', () async {
+    final root = await writeWriteProject();
+    Directory('${root.path}/docs/specs/f02_signup').deleteSync(recursive: true);
+    expect(reorder(root, 'feature:signup', '1').json['moved'], [
+      {'from': 'prds/features/f02_signup/', 'to': 'prds/features/f01_signup/'},
+      {'from': 'prds/features/f01_login/', 'to': 'prds/features/f02_login/'},
+      {'from': 'specs/f01_login/', 'to': 'specs/f02_login/'},
+    ]);
+    expect(hasDoc(root, 'prds/features/f01_signup/FEATURE.md'), isTrue);
+  });
+
+  test('the reorder journal lists every stage move first, then every target move, then the rewrites', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => IOOverrides.runWithIOOverrides(
+        () => reorder(root, 'user_story:login/reset_password', '1'),
+        FailingRenameHook('docs/$f/us03_reset_password'),
+      ),
+      throwsA(
+        isA<RenderFault>().having(
+          (e) => e.code,
+          'code',
+          RenderFaultCode.outputNotWritable,
+        ),
+      ),
+    );
+
+    final journal = jsonDecode(
+      File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
+    ) as Map<String, Object?>;
+    final steps = (journal['steps']! as List).cast<Map<String, Object?>>();
+    String stage(int i) => '${MoveJournal.stagePath}/$i';
+    String path(String name) => 'docs/$f/$name';
+    const moves = [
+      ('us03_reset_password', 'us01_reset_password'),
+      ('us01_email_login', 'us02_email_login'),
+      ('us02_sign_out', 'us03_sign_out'),
+    ];
+    expect(steps.take(6).toList(), [
+      for (final (i, (from, _)) in moves.indexed)
+        {
+          'move': {'from': path(from), 'to': stage(i)},
+        },
+      for (final (i, (_, to)) in moves.indexed)
+        {
+          'move': {'from': stage(i), 'to': path(to)},
+        },
+    ]);
+    expect(steps.skip(6).map((s) => s.keys.single).toSet(), {'write'});
+    expect(steps.length, greaterThan(6));
+
+    writeIn(root, (_) {});
+
+    expect(hasDoc(root, '$f/us01_reset_password/USER_STORY.md'), isTrue);
+    expect(hasDoc(root, '$f/us03_sign_out/USER_STORY.md'), isTrue);
+  });
+
+  test('a read-only rewrite target stops a rename', () async {
+    final root = await writeWriteProject();
+    final linker = docFile(root, fr12);
+    Process.runSync('chmod', ['444', linker.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', linker.path]));
+    final before = readDoc(root, fr12);
+    expect(
+      () => rename(root, 'user_story:login/reset_password', 'recover'),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write $fr12: read-only',
+            ),
+      ),
+    );
+    expect(readDoc(root, fr12), before);
+    expect(hasDoc(root, story3), isTrue);
+    expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+  }, skip: unreadablePathSkipReason() ?? false);
+
+  test(
+    'a story takes a new slug, keeps its number and title, and links follow',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        rename(root, 'user_story:login/reset_password', 'recover_account').text,
+        'moved $f/us03_reset_password/ to $f/us03_recover_account/\n'
+        'rewrote $f/us01_email_login/fr02_lock_after_failures.md\n',
+      );
+      expect(
+        readDoc(root, '$f/us03_recover_account/USER_STORY.md'),
+        contains('\n# Reset password\n'),
+      );
+      expect(
+        readDoc(root, fr12),
+        contains('](../us03_recover_account/USER_STORY.md#use-case)'),
+      );
+      expect(
+        writeIn(
+          root,
+          (s) => s.target('user_story:login/recover_account').docPath,
+        ),
+        '$f/us03_recover_account/USER_STORY.md',
+      );
+    },
+  );
+
+  test('a feature renames with its spec folder, and names under it follow in doc_ref values', () async {
+    final root = await writeWriteProject();
+    expect(rename(root, 'feature:login', 'signin').json, {
+      'moved': [
+        {'from': 'prds/features/f01_login/', 'to': 'prds/features/f01_signin/'},
+        {'from': 'specs/f01_login/', 'to': 'specs/f01_signin/'},
+      ],
+      'rewritten': ['prds/FEATURES.md', 'prds/personas/buyer/PERSONA.md'],
+      'mentions': <Object>[],
+    });
+    expect(
+      readDoc(root, persona),
+      contains('reference:\n  - signin/email_login\n'),
+    );
+  });
+
+  test('a persona renames with the anti-persona in its folder', () async {
+    final root = await writeWriteProject();
+    rename(root, 'persona:buyer', 'shopper');
+    expect(
+      [
+        hasDoc(root, 'prds/personas/shopper/PERSONA.md'),
+        hasDoc(root, 'prds/personas/shopper/ANTI_PERSONA.md'),
+      ],
+      [true, true],
+    );
+    expect(readDoc(root, story1), contains('persona:\n  - shopper\n'));
+  });
+
+  test(
+    'a slug a sibling carries is doc_exists naming it, and nothing moves',
+    () async {
+      final root = await writeWriteProject();
+      expect(
+        () => rename(root, 'user_story:login/reset_password', 'sign_out'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having(
+                (f) => f.message,
+                'message',
+                'a user_story named login/sign_out exists',
+              )
+              .having((f) => f.file, 'file', story2),
+        ),
+      );
+      expect(hasDoc(root, story3), isTrue);
+    },
+  );
+
+  test('a spec doc refuses and names its feature', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => rename(root, 'architecture:login', 'signin'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+            .having(
+              (f) => f.message,
+              'message',
+              'architecture:login takes its name from its feature; '
+                  'rename feature:login instead',
+            ),
+      ),
+    );
+  });
+
+  test('an FR file takes the new slug', () async {
+    final root = await writeWriteProject();
+    rename(root, 'fr:login/reset_password/expire_reset_link', 'expire_link');
+    expect(hasDoc(root, '$f/us03_reset_password/fr02_expire_link.md'), isTrue);
+    expect(hasDoc(root, fr32), isFalse);
+  });
+
+  test('a doc type with no slug is doc_type_not_movable', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => rename(root, 'features:features', 'index'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+            .having(
+              (f) => f.message,
+              'message',
+              'features docs carry no slug, so rename cannot rename them',
+            ),
+      ),
+    );
+  });
+
+  for (final (:address, :docPath, :text) in [
+    (
+      address: 'goal:goal',
+      docPath: 'prds/GOAL.md',
+      text: '# Project goals\n\n## Long-term goals\n',
+    ),
+    (
+      address: 'glossary:glossary',
+      docPath: 'prds/GLOSSARY.md',
+      text: '# Domain glossary\n\n## Terms\n\n- **Agent** — an AI agent.\n',
+    ),
+  ]) {
+    test(
+      '$address holds no slug, so it is doc_type_not_movable, and nothing changes',
+      () async {
+        final root = await writeWriteProject(extra: {'docs/$docPath': text});
+        getDoc(root, address);
+        final before = treeBytes(root);
+        expect(
+          () => rename(root, address, 'renamed'),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.code,
+              'code',
+              WriteFaultCode.docTypeNotMovable,
+            ),
+          ),
+        );
+        expect(treeBytes(root), before);
+      },
+    );
+  }
+
+  for (final docPath in [projectDoc, gnfrDoc, techStack]) {
+    test(
+      'rename of $docPath, whose path holds no slug, is doc_type_not_movable with exit status 64, and nothing changes',
+      () async {
+        final root = await writeCheckProject();
+        writeIn(root, (s) => s.target('feature:login'));
+        final before = treeBytes(root);
+        expect(
+          () => rename(root, docPath, 'renamed'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+                .having((f) => f.exitStatus, 'exitStatus', 64),
+          ),
+        );
+        expect(treeBytes(root), before);
+      },
+    );
+  }
+
+  test('an approved doc a rename rewrites carries no draft key and holds the hash of its new content', () async {
+    final root = await writeWriteProject();
+    expect(holdsApproval(root, featuresIndex), isTrue);
+    rename(root, 'feature:signup', 'register');
+    expect(readDoc(root, featuresIndex), contains('f02_register/FEATURE.md'));
+    expect(
+      readDoc(root, featuresIndex),
+      isNot(contains(RegExp('^draft:', multiLine: true))),
+    );
+    expect(holdsApproval(root, featuresIndex), isTrue);
+  });
+
+  test('a bad or missing slug is refused', () async {
+    final root = await writeWriteProject();
+    expect(
+      () => rename(root, 'user_story:login/reset_password', 'Recover'),
+      throwsA(
+        isA<IndexFault>().having(
+          (f) => f.code,
+          'code',
+          IndexFaultCode.argumentInvalid,
+        ),
+      ),
+    );
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerRename(s, 'user_story:login/reset_password', slug: null),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+            .having(
+              (f) => f.message,
+              'message',
+              'rename needs a slug, such as specstone rename user_story:login/reset_password --to recover_account',
+            ),
+      ),
+    );
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test('the slug a doc already carries changes nothing', () async {
+    final root = await writeWriteProject();
+    final answer = rename(
+      root,
+      'user_story:login/reset_password',
+      'reset_password',
+    );
+    expect(answer.text, '');
+    expect(answer.json, {
+      'moved': <Object>[],
+      'rewritten': <Object>[],
+      'mentions': <Object>[],
+    });
+    expect(hasDoc(root, story3), isTrue);
+  });
+
+  test(
+    'an approved doc renames with no Owner step, and every mark stays',
+    () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story2);
+      rename(root, 'user_story:login/sign_out', 'log_out');
+      expect(readDoc(root, '$f/us02_log_out/USER_STORY.md'), before);
+      final linked = readDoc(root, story3);
+      expect(linked, contains('](../us02_log_out/USER_STORY.md)'));
+      expect('draft: true'.allMatches(linked), hasLength(1));
+    },
+  );
+
+  test('prose, code, and unrelated values stay', () async {
+    final root = await writeWriteProject();
+    final apiBefore = readDoc(root, fr11);
+    rename(root, 'feature:login', 'signin');
+    final personaText = readDoc(root, persona);
+    expect(personaText, contains('draft: true'));
+    expect(personaText, contains('# Buyer\n\n## Profile\nBuys things.\n'));
+    expect(
+      readDoc(
+        root,
+        'prds/features/f01_signin/us01_email_login/fr01_validate_credentials.md',
+      ),
+      apiBefore,
+    );
+    expect(
+      readDoc(root, 'prds/features/f01_signin/us01_email_login/USER_STORY.md'),
+      contains('persona:\n  - buyer\n'),
+    );
+    expect(
+      readDoc(root, 'prds/FEATURES.md'),
+      contains('- [Login](features/f01_signin/FEATURE.md)\n'),
+    );
+  });
+
+  test('a folder already at the new path is doc_exists', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/prds/personas/shopper/ANTI_PERSONA.md': '# Not a shopper\n',
+      },
+    );
+    expect(
+      () => rename(root, 'persona:buyer', 'shopper'),
+      throwsA(
+        isA<WriteFault>()
+            .having((f) => f.code, 'code', WriteFaultCode.docExists)
+            .having((f) => f.file, 'file', 'prds/personas/shopper/'),
+      ),
+    );
+    expect(hasDoc(root, persona), isTrue);
+  });
+
+  test(
+    'a rename stopped before its link rewrite is finished by the next write',
+    () async {
+      final root = await writeWriteProject();
+      const linkFile = '$f/us01_email_login/fr02_lock_after_failures.md';
+      final linkText = readDoc(root, linkFile);
+      writeJournal(root, [
+        const MoveStep(
+          'docs/$f/us03_reset_password',
+          'docs/$f/us03_recover_account',
+        ),
+        WriteStep.unguarded(
+          'docs/$linkFile',
+          linkText.replaceAll('us03_reset_password', 'us03_recover_account'),
+        ),
+      ]);
+      // The move ran before the stop.
+      Directory('${root.path}/docs/$f/us03_reset_password')
+          .renameSync('${root.path}/docs/$f/us03_recover_account');
+
+      writeIn(root, (_) {});
+
+      expect(
+        readDoc(root, linkFile),
+        contains('](../us03_recover_account/USER_STORY.md#use-case)'),
+      );
+    },
+  );
+
+  group('nested features', () {
+    const shop = 'prds/features/f02_shop';
+    const payDomain = 'specs/f02_shop/f02_pay/DOMAIN.md';
+
+    test('reordering a sub-feature renumbers only its siblings and moves its spec folder', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/$payDomain': '# Pay domain\n'},
+      );
+      final answer = reorder(root, 'feature:shop/pay', '1');
+      expect(answer.text, contains('moved $shop/f02_pay/ to $shop/f01_pay/\n'));
+      expect(answer.text, contains('moved $shop/f01_cart/ to $shop/f02_cart/'));
+      expect(
+        answer.text,
+        contains('moved specs/f02_shop/f02_pay/ to specs/f02_shop/f01_pay/'),
+      );
+      expect(hasDoc(root, '$shop/f01_pay/FEATURE.md'), isTrue);
+      expect(
+        hasDoc(root, '$shop/f02_cart/us01_add_item/USER_STORY.md'),
+        isTrue,
+      );
+      expect(hasDoc(root, 'specs/f02_shop/f01_pay/DOMAIN.md'), isTrue);
+      expect(hasDoc(root, 'specs/f02_shop/f02_cart/DOMAIN.md'), isTrue);
+      expect(hasDoc(root, shopFeature), isTrue);
+    });
+
+    test('reordering a story under a sub-feature moves only the stories of that sub-feature', () async {
+      final root = await writeNestedProject();
+      final answer = reorder(root, 'user_story:shop/cart/drop_item', '1');
+      expect(
+        answer.text,
+        startsWith(
+          'moved $shop/f01_cart/us02_drop_item/ to $shop/f01_cart/us01_drop_item/\n'
+          'moved $shop/f01_cart/us01_add_item/ to $shop/f01_cart/us02_add_item/\n',
+        ),
+      );
+      expect(hasDoc(root, '$shop/f02_pay/us01_card/USER_STORY.md'), isTrue);
+    });
+
+    test('renaming a sub-feature moves its folder and spec folder', () async {
+      final root = await writeNestedProject();
+      final answer = rename(root, 'feature:shop/cart', 'basket');
+      expect(
+        answer.text,
+        startsWith(
+          'moved $shop/f01_cart/ to $shop/f01_basket/\n'
+          'moved specs/f02_shop/f01_cart/ to specs/f02_shop/f01_basket/\n',
+        ),
+      );
+      expect(hasDoc(root, 'specs/f02_shop/f01_basket/DOMAIN.md'), isTrue);
+      expect(
+        hasDoc(root, '$shop/f01_basket/us01_add_item/USER_STORY.md'),
+        isTrue,
+      );
+    });
+
+    test(
+      'renaming a sub-feature spec doc names the sub-feature to rename',
+      () async {
+        final root = await writeNestedProject();
+        expect(
+          () => rename(root, 'rulebook:shop/cart', 'basket'),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.message,
+              'message',
+              contains('rename feature:shop/cart instead'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'renaming the top feature renames the docs under every sub-feature',
+      () async {
+        final root = await writeNestedProject();
+        rename(root, 'feature:shop', 'market');
+        expect(
+          hasDoc(
+            root,
+            'prds/features/f02_market/f01_cart/us01_add_item/USER_STORY.md',
+          ),
+          isTrue,
+        );
+        expect(
+          writeIn(root, (s) => s.index.resolve('market/cart/add_item')),
+          hasLength(1),
+        );
+        expect(hasDoc(root, 'specs/f02_market/f01_cart/DOMAIN.md'), isTrue);
+        expect(hasDoc(root, 'specs/f02_market/DOMAIN.md'), isTrue);
+      },
+    );
+  });
+
+  group('move', () {
+    const shop = 'prds/features/f02_shop';
+    const journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
+    const notesPath = 'notes/ideas.md';
+    const addItemFolder = 'prds/features/f02_shop/f01_cart/us01_add_item';
+    const movedFolder = 'prds/features/f02_shop/f02_pay/us03_add_item';
+    const addNf = '$addItemFolder/nf01_load_fast.md';
+    const cartAddAddress = 'user_story:shop/cart/add_item';
+
+    ReadAnswer moveAll(Directory root, List<String> addresses, String? under) =>
+        writeIn(root, (s) => answerMove(s, addresses, under: under));
+
+    ReadAnswer move(Directory root, String address, String? under) =>
+        moveAll(root, [address], under);
+
+    void appendTo(Directory root, String docPath, String text) =>
+        docFile(root, docPath).writeAsStringSync(text, mode: FileMode.append);
+
+    test('argv story move runs as a one-line plan', () async {
+      final plan = planOfArgv([cartAddAddress], under: 'shop/pay', top: false);
+      expect(plan.lines, hasLength(1));
+      final line = plan.lines.single as MoveLine;
+      expect(line.lineNumber, 1);
+      expect(line.unit.typeId, 'user_story');
+      expect(line.unit.body, 'shop/cart/add_item');
+      expect(line.destination?.body, 'shop/pay');
+      final top = planOfArgv(['feature:shop/cart'], under: null, top: true);
+      expect((top.lines.single as MoveLine).destination, isNull);
+      final root = await writeNestedProject();
+      final answer = writeIn(
+        root,
+        (s) => answerPlanMove(s, plan, dryRun: false),
+      );
+      expect(
+        answer.text,
+        startsWith('moved $addItemFolder/ to $movedFolder/\n'),
+      );
+      expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
+    });
+
+    test('argv --under with a # suffix is refused before a plan is built', () {
+      expect(
+        () => planOfArgv(
+          [cartAddAddress],
+          under: 'feature:shop/pay#x',
+          top: false,
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                'feature:shop/pay#x: this command takes no #<section key> or @<hash>',
+              ),
+        ),
+      );
+    });
+
+    test('argv mixed item and doc targets stay refused', () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/$shopDomain':
+              '# Domain\n\n## Invariants\n\n- **INV-1** Rule 1 holds.\n',
+        },
+      );
+      expect(
+        () =>
+            moveAll(root, [cartAddAddress, 'rulebook:shop#INV-1'], 'shop/pay'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                'move takes item targets or doc targets, not both',
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('a story moves to the last place of another feature with its FR, and the old siblings keep their numbers', () async {
+      final root = await writeNestedProject();
+      final answer = move(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      expect(
+        answer.text,
+        startsWith('moved $addItemFolder/ to $movedFolder/\n'),
+      );
+      expect(answer.json['moved'], [
+        {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+      ]);
+      expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
+      expect(hasDoc(root, '$movedFolder/fr01_check_stock.md'), isTrue);
+      expect(hasDoc(root, cartAdd), isFalse);
+      expect(hasDoc(root, cartDrop), isTrue);
+      expect(hasDoc(root, payCard), isTrue);
+      expect(hasDoc(root, payRefund), isTrue);
+    });
+
+    test("shop's api cell and confirmed label become pay/add_item/check_stock, and a step, a link, and a path mention follow", () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/$journeyPath':
+              '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+              '### 1. Add\nstep: shop/cart/add_item S1\n',
+          'docs/$notesPath':
+              '# Ideas\n\nSee `../$addItemFolder/USER_STORY.md` first.\n',
+        },
+      );
+      appendTo(
+        root,
+        projectDoc,
+        '\nSee [add item](features/f02_shop/f01_cart/us01_add_item/USER_STORY.md).\n',
+      );
+      move(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      final api = readDoc(root, shopApi);
+      expect(api, contains('| pay/add_item/check_stock | `addItem` |'));
+      expect(api, contains('  - pay/add_item/check_stock '));
+      expect(api, isNot(contains('cart/add_item')));
+      expect(
+        readDoc(root, journeyPath),
+        contains('step: shop/pay/add_item S1\n'),
+      );
+      expect(
+        readDoc(root, projectDoc),
+        contains('(features/f02_shop/f02_pay/us03_add_item/USER_STORY.md)'),
+      );
+      expect(
+        readDoc(root, notesPath),
+        contains('`../$movedFolder/USER_STORY.md`'),
+      );
+    });
+
+    test('a move under the top feature f03_other leaves the shop cell, and check reports fr_trace_unresolved on it', () async {
+      final root = await writeNestedProject();
+      const other = 'prds/features/f03_other/FEATURE.md';
+      docFile(root, other)
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(readDoc(root, payFeature));
+      move(root, 'user_story:shop/cart/add_item', 'other');
+      expect(
+        hasDoc(root, 'prds/features/f03_other/us01_add_item/USER_STORY.md'),
+        isTrue,
+      );
+      expect(
+        readDoc(root, shopApi),
+        contains('| cart/add_item/check_stock | `addItem` |'),
+      );
+      expect(
+        spots(await checkOf(root), FindingKind.frTraceUnresolved),
+        contains(startsWith('$shopApi:')),
+      );
+    });
+
+    for (final (first, second) in [
+      ('add_item', 'drop_item'),
+      ('drop_item', 'add_item'),
+    ]) {
+      test(
+        'two sibling stories that link each other move under login, $first first, and each link resolves',
+        () async {
+          final root = await writeNestedProject();
+          appendTo(
+            root,
+            cartAdd,
+            '\nSee [drop item](../us02_drop_item/USER_STORY.md).\n',
+          );
+          appendTo(
+            root,
+            cartDrop,
+            '\nSee [stock check](../us01_add_item/fr01_check_stock.md).\n',
+          );
+          move(root, 'user_story:shop/cart/$first', 'login');
+          move(root, 'user_story:shop/cart/$second', 'login');
+          String folderOf(String slug) =>
+              slug == first ? 'us02_$slug' : 'us03_$slug';
+          expect(
+            readDoc(root, '$f/${folderOf('add_item')}/USER_STORY.md'),
+            contains('(../${folderOf('drop_item')}/USER_STORY.md)'),
+          );
+          expect(
+            readDoc(root, '$f/${folderOf('drop_item')}/USER_STORY.md'),
+            contains('(../${folderOf('add_item')}/fr01_check_stock.md)'),
+          );
+          expect(
+            spots(await checkOf(root), FindingKind.linkUnresolved),
+            isEmpty,
+          );
+        },
+      );
+    }
+
+    test('a moved story links to itself through its own folder, and the link follows it', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [me](../us02_drop_item/USER_STORY.md#x).\n',
+      );
+      move(root, 'user_story:shop/cart/drop_item', 'shop/pay');
+      expect(
+        readDoc(root, '$shop/f02_pay/us03_drop_item/USER_STORY.md'),
+        contains('[me](USER_STORY.md#x)'),
+      );
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test(
+      'a moved story links to a plain file that stays, and the link follows',
+      () async {
+        final root = await writeNestedProject(
+          extra: {'docs/$shop/f01_cart/flow.png': 'png'},
+        );
+        appendTo(root, cartDrop, '\n![flow](../flow.png)\n');
+        move(root, 'user_story:shop/cart/drop_item', 'login');
+        expect(
+          readDoc(root, '$f/us02_drop_item/USER_STORY.md'),
+          contains('![flow](../../f02_shop/f01_cart/flow.png)'),
+        );
+        expect(
+          spots(await checkOf(root), FindingKind.linkTargetMissing),
+          isEmpty,
+        );
+      },
+    );
+
+    test('a non-UTF-8 moved story whose link must change refuses with output_not_writable, and nothing moves', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [stock](../us01_add_item/fr01_check_stock.md).\n',
+      );
+      docFile(root, cartDrop).writeAsBytesSync([0xff], mode: FileMode.append);
+      expect(
+        () => move(root, 'user_story:shop/cart/drop_item', 'shop/pay'),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $cartDrop: not UTF-8 text',
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartDrop), isTrue);
+      expect(
+        hasDoc(root, '$shop/f02_pay/us03_drop_item/USER_STORY.md'),
+        isFalse,
+      );
+    });
+
+    test('a non-UTF-8 moved story whose link still reaches its target moves with every byte kept', () async {
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        cartDrop,
+        '\nSee [cart](../../../f02_shop/f01_cart/FEATURE.md).\n',
+      );
+      docFile(root, cartDrop).writeAsBytesSync([0xff], mode: FileMode.append);
+      final bytes = docFile(root, cartDrop).readAsBytesSync();
+      move(root, 'user_story:shop/cart/drop_item', 'shop/pay');
+      expect(
+        docFile(
+          root,
+          '$shop/f02_pay/us03_drop_item/USER_STORY.md',
+        ).readAsBytesSync(),
+        bytes,
+      );
+    });
+
+    test('no moved doc gains draft, and check reports no confirmed_entry_stale and no suspect link', () async {
+      final root = await writeNestedProject();
+      final answer = move(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      for (final path in [
+        '$movedFolder/USER_STORY.md',
+        '$movedFolder/fr01_check_stock.md',
+        for (final p in answer.json['rewritten']! as List<Object?>) '$p',
+      ]) {
+        expect(readDoc(root, path), isNot(contains('status: draft')));
+      }
+      final report = await checkOf(root);
+      expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
+      expect(spots(report, FindingKind.suspect), isEmpty);
+    });
+
+    test('a sibling with the story slug is doc_exists naming its path, and nothing moves', () async {
+      const clash = 'prds/features/f02_shop/f02_pay/us03_add_item';
+      final root = await writeNestedProject(
+        extra: {'docs/$clash/USER_STORY.md': '# Add item\n'},
+      );
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', 'shop/pay'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having(
+                (f) => f.message,
+                'message',
+                'a user_story named shop/pay/add_item exists',
+              )
+              .having((f) => f.file, 'file', '$clash/USER_STORY.md'),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('a landing path already on disk is doc_exists naming that path, and nothing moves', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/$movedFolder/note.md': '# Note\n'},
+      );
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', 'shop/pay'),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.docExists)
+              .having((f) => f.file, 'file', '$movedFolder/'),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('a story moved into the feature it sits in changes nothing', () async {
+      final root = await writeNestedProject();
+      final answer = move(root, 'user_story:shop/cart/drop_item', 'shop/cart');
+      expect(answer.text, isEmpty);
+      expect(answer.json['moved'], isEmpty);
+      expect(answer.json['rewritten'], isEmpty);
+      expect(hasDoc(root, cartDrop), isTrue);
+    });
+
+    test(
+      'a feature that holds features takes no story, and nothing moves',
+      () async {
+        final root = await writeNestedProject();
+        expect(
+          () => move(root, 'user_story:shop/cart/add_item', 'shop'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'shop (feature) holds sub-features, so it takes no story',
+                ),
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+      },
+    );
+
+    test(
+      'a doc of another type is doc_type_not_movable, and nothing moves',
+      () async {
+        final root = await writeNestedProject();
+        expect(
+          () => move(root, 'api:shop', 'shop/pay'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'api docs cannot move; move takes a user_story, an fr, an '
+                      'nf, or a feature',
+                ),
+          ),
+        );
+        expect(hasDoc(root, shopApi), isTrue);
+      },
+    );
+
+    test(
+      'a call with no target is refused before its flags are read',
+      () async {
+        final root = await writeNestedProject();
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(s, const [], under: 'shop/pay', top: true),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move needs a target, such as specstone move '
+                      'user_story:login/reset_password --under account',
+                ),
+          ),
+        );
+      },
+    );
+
+    test('under and top together, or neither, are refused before any target resolves', () async {
+      final root = await writeNestedProject();
+      const nowhere = 'user_story:shop/cart/nothing_here';
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerMove(s, const [nowhere], under: 'shop/pay', top: true),
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentConflict,
+          ),
+        ),
+      );
+      expect(
+        () => move(root, nowhere, null),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+              .having(
+                (f) => f.message,
+                'message',
+                'move needs --under <doc address> or --top',
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('item targets with neither flag take the item message', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(root, 'rulebook:shop#INV-1', null),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+              .having(
+                (f) => f.message,
+                'message',
+                'move needs --under <doc address> for item targets',
+              ),
+        ),
+      );
+    });
+
+    test('a call of items beside a story with neither flag takes the doc-target message', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => moveAll(root, ['rulebook:shop#INV-1', cartAddAddress], null),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.message,
+            'message',
+            'move needs --under <doc address> or --top',
+          ),
+        ),
+      );
+    });
+
+    test(
+      'top beside a story, fr, or item target is refused after resolving',
+      () async {
+        final root = await writeNestedProject(extra: frExtras);
+        const refused = [
+          cartAddAddress,
+          'fr:shop/cart/add_item/check_stock',
+          'rulebook:shop#INV-1',
+        ];
+        for (final address in refused) {
+          expect(
+            () => writeIn(
+              root,
+              (s) => answerMove(s, [address], under: null, top: true),
+            ),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move takes --top only with feature targets',
+                  ),
+            ),
+            reason: address,
+          );
+        }
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              const ['user_story:shop/cart/nothing_here'],
+              under: null,
+              top: true,
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+        expect(hasDoc(root, cartAddFr), isTrue);
+      },
+    );
+
+    test('no doc a story move writes gains a draft key, and an approved one still holds its hash', () async {
+      final root = await writeNestedProject();
+      stampApproved(root, cartAdd);
+      stampApproved(root, shopApi);
+      final answer = move(root, cartAddAddress, 'shop/pay');
+      expect(answer.json['rewritten'], contains(shopApi));
+      for (final path in [
+        '$movedFolder/USER_STORY.md',
+        '$movedFolder/fr01_check_stock.md',
+        for (final p in answer.json['rewritten']! as List<Object?>) '$p',
+      ]) {
+        expect(
+          readDoc(root, path),
+          isNot(contains(RegExp('^draft:', multiLine: true))),
+          reason: path,
+        );
+      }
+      expect(holdsApproval(root, '$movedFolder/USER_STORY.md'), isTrue);
+      expect(holdsApproval(root, shopApi), isTrue);
+    });
+
+    test('check reports a feature that holds stories and features after a story leaves it, until the last story has gone', () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/$shop/us01_orphan/USER_STORY.md': '# Orphan\n',
+          'docs/$shop/us02_stray/USER_STORY.md': '# Stray\n',
+        },
+      );
+      Future<List<String>> mixed() async =>
+          spots(await checkOf(root), FindingKind.featureMixedChildren);
+      expect(await mixed(), contains(startsWith('$shopFeature:')));
+      move(root, 'user_story:shop/orphan', 'shop/pay');
+      expect(await mixed(), contains(startsWith('$shopFeature:')));
+      move(root, 'user_story:shop/stray', 'shop/pay');
+      expect(await mixed(), isEmpty);
+    });
+
+    test('a doc the move rewrites that its type refuses to lay out keeps every other byte, and a doc the move leaves unchanged is not rewritten', () async {
+      const link =
+          '(../../prds/features/f02_shop/f01_cart/us01_add_item/USER_STORY.md)';
+      final root = await writeNestedProject();
+      appendTo(
+        root,
+        shopDomain,
+        '\n## Mystery\nSee [add item]$link.\n\n\n\nTrailing   spaces.  \n',
+      );
+      final domainBefore = readDoc(root, shopDomain);
+      final dropBefore = docFile(root, cartDrop).readAsBytesSync();
+      final cardBefore = docFile(root, payCard).readAsBytesSync();
+      final answer = move(root, cartAddAddress, 'shop/pay');
+      expect(
+        readDoc(root, shopDomain),
+        domainBefore.replaceFirst(
+          link,
+          '(../../prds/features/f02_shop/f02_pay/us03_add_item/USER_STORY.md)',
+        ),
+      );
+      final rewritten = answer.json['rewritten']! as List<Object?>;
+      expect(rewritten, contains(shopDomain));
+      expect(rewritten, isNot(contains(cartDrop)));
+      expect(rewritten, isNot(contains(payCard)));
+      expect(docFile(root, cartDrop).readAsBytesSync(), dropBefore);
+      expect(docFile(root, payCard).readAsBytesSync(), cardBefore);
+    });
+
+    test('a target that names a feature and its spec docs is refused with exit status 64, naming them, and nothing moves', () async {
+      final root = await writeNestedProject();
+      writeIn(root, (s) => s.target('feature:shop'));
+      Map<String, List<int>> tree() => {
+        for (final MapEntry(:key, :value) in treeBytes(root).entries)
+          if (!key.contains('.specstone/index.sqlite')) key: value,
+      };
+      final before = tree();
+      expect(
+        () => move(root, 'shop', 'shop/pay'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having((f) => f.exitStatus, 'exitStatus', 64)
+              .having(
+                (f) => f.message,
+                'message',
+                allOf(contains('feature:shop'), contains('architecture:shop')),
+              ),
+        ),
+      );
+      expect(tree(), before);
+    });
+
+    test('a bare name only the story carries, and a path to its USER_STORY.md, make the move the typed address makes', () async {
+      for (final target in [cartAddAddress, 'cart/add_item', cartAdd]) {
+        final root = await writeNestedProject();
+        final answer = move(root, target, 'shop/pay');
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+        ], reason: target);
+        expect(hasDoc(root, '$movedFolder/fr01_check_stock.md'), isTrue);
+        expect(hasDoc(root, cartAdd), isFalse, reason: target);
+      }
+    });
+
+    test('an untyped path as a story move target is untyped_target with exit status 64, and nothing moves', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/prds/d02_notes.md': '# Notes\n'},
+      );
+      writeIn(root, (s) => s.target('feature:shop'));
+      Map<String, List<int>> tree() => {
+        for (final MapEntry(:key, :value) in treeBytes(root).entries)
+          if (!key.contains('.specstone/index.sqlite')) key: value,
+      };
+      final before = tree();
+      expect(
+        () => move(root, 'prds/d02_notes.md', 'shop/pay'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.untypedTarget)
+              .having((f) => f.exitStatus, 'exitStatus', 64),
+        ),
+      );
+      expect(tree(), before);
+    });
+
+    test('two stories moved in one call write one journal holding both folder moves and one write for a doc that names both', () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/$journeyPath':
+              '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+              '### 1. Add\nstep: shop/cart/add_item S1\n'
+              '### 2. Drop\nstep: shop/cart/drop_item S1\n',
+        },
+      );
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => moveAll(root, [
+            cartAddAddress,
+            'user_story:shop/cart/drop_item',
+          ], 'shop/pay'),
+          FailingRenameHook('docs/$addItemFolder'),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+      final journal = jsonDecode(
+        File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
+      ) as Map<String, Object?>;
+      final steps = (journal['steps']! as List).cast<Map<String, Object?>>();
+      final moveFroms = [
+        for (final step in steps)
+          if (step['move'] case {'from': final String from}) from,
+      ];
+      expect(
+        moveFroms,
+        containsAll(['docs/$addItemFolder', 'docs/$cartDir/us02_drop_item']),
+      );
+      expect(
+        steps.where(
+          (step) => switch (step['write']) {
+            {'path': final String path} => path == 'docs/$journeyPath',
+            _ => false,
+          },
+        ),
+        hasLength(1),
+      );
+    });
+
+    test('a doc mention with a type prefix and a section key follows a story move, both kept, and a code comment with it is kept and listed', () async {
+      const code =
+          '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n';
+      final root = await writeNestedProject(
+        extra: {
+          'docs/notes.md':
+              'See `shop/cart/add_item` and '
+              '`user_story:shop/cart/add_item#acceptance_criteria`.\n',
+          'app/lib/cart.dart': code,
+        },
+      );
+      final answer = move(root, cartAddAddress, 'shop/pay');
+      expect(
+        readDoc(root, 'notes.md'),
+        'See `shop/pay/add_item` and '
+        '`user_story:shop/pay/add_item#acceptance_criteria`.\n',
+      );
+      expect(File('${root.path}/app/lib/cart.dart').readAsStringSync(), code);
+      expect(answer.json['mentions'], [
+        {
+          'path': 'app/lib/cart.dart',
+          'line': 1,
+          'mention': 'user_story:shop/cart/add_item#acceptance_criteria',
+        },
+      ]);
+    });
+
+    group('fr targets', () {
+      const addFolder = '$cartDir/us01_add_item';
+      const dropFolder = '$cartDir/us02_drop_item';
+      const refundFolder = '$payDir/us02_refund';
+      const checkStock = 'fr:shop/cart/add_item/check_stock';
+      const dropLine = 'fr:shop/cart/drop_item/drop_line';
+      const checkStockFile = '$addFolder/fr01_check_stock.md';
+      const reserveFile = '$addFolder/fr02_reserve_stock.md';
+
+      Future<Directory> frProject([Map<String, String> more = const {}]) =>
+          writeNestedProject(extra: {...frExtras, ...more});
+
+      test('an fr moves to the end of a sibling story, and its old siblings stay numbered as before', () async {
+        final root = await frProject();
+        final answer = move(root, checkStock, 'shop/cart/drop_item');
+        expect(
+          answer.text,
+          startsWith(
+            'moved $checkStockFile to $dropFolder/fr02_check_stock.md\n',
+          ),
+        );
+        expect(hasDoc(root, '$dropFolder/fr02_check_stock.md'), isTrue);
+        expect(hasDoc(root, '$dropFolder/fr01_drop_line.md'), isTrue);
+        expect(hasDoc(root, checkStockFile), isFalse);
+        expect(hasDoc(root, reserveFile), isTrue);
+        expect(
+          readDoc(root, '$dropFolder/fr02_check_stock.md'),
+          isNot(contains('draft')),
+        );
+      });
+
+      test('several frs from two stories move as listed, in one run', () async {
+        final root = await frProject();
+        final answer = moveAll(root, [checkStock, dropLine], 'shop/pay/refund');
+        expect(answer.json['moved'], [
+          {'from': checkStockFile, 'to': '$refundFolder/fr02_check_stock.md'},
+          {'from': dropFr, 'to': '$refundFolder/fr03_drop_line.md'},
+        ]);
+        expect(
+          answer.text.split('\n').where((l) => l.startsWith('moved ')),
+          hasLength(2),
+        );
+        expect(hasDoc(root, '$refundFolder/fr02_check_stock.md'), isTrue);
+        expect(hasDoc(root, '$refundFolder/fr03_drop_line.md'), isTrue);
+      });
+
+      test(
+        'a call naming a story and an fr is argument_invalid and moves nothing',
+        () async {
+          final root = await frProject();
+          expect(
+            () => moveAll(root, [
+              'user_story:shop/cart/add_item',
+              dropLine,
+            ], 'shop/pay'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move takes one doc type per call, not user_story and fr',
+                  ),
+            ),
+          );
+          expect(hasDoc(root, cartAdd), isTrue);
+          expect(hasDoc(root, dropFr), isTrue);
+        },
+      );
+
+      test(
+        'an --under naming no story, or a feature, is doc_not_found',
+        () async {
+          final root = await frProject();
+          for (final under in ['nothing', 'shop/pay']) {
+            expect(
+              () => move(root, checkStock, under),
+              throwsA(
+                isA<IndexFault>()
+                    .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+                    .having(
+                      (f) => f.message,
+                      'message',
+                      'no user_story doc carries the name $under',
+                    ),
+              ),
+              reason: under,
+            );
+          }
+          expect(hasDoc(root, checkStockFile), isTrue);
+        },
+      );
+
+      test(
+        'an --under naming two stories is argument_invalid listing both',
+        () async {
+          final root = await frProject({
+            'docs/$payDir/us05_refund/USER_STORY.md': '# Refund again\n',
+          });
+          expect(
+            () => move(root, checkStock, 'pay/refund'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    allOf(
+                      startsWith('pay/refund names 2 user_story docs: '),
+                      contains(payRefund),
+                      contains('$payDir/us05_refund/USER_STORY.md'),
+                    ),
+                  ),
+            ),
+          );
+          expect(hasDoc(root, checkStockFile), isTrue);
+        },
+      );
+
+      test(
+        'a typed or path --under names the story a bare name does',
+        () async {
+          for (final under in [
+            'shop/pay/refund',
+            'user_story:shop/pay/refund',
+            payRefund,
+          ]) {
+            final root = await frProject();
+            final answer = move(root, checkStock, under);
+            expect(answer.json['moved'], [
+              {
+                'from': checkStockFile,
+                'to': '$refundFolder/fr02_check_stock.md',
+              },
+            ], reason: under);
+          }
+        },
+      );
+
+      test(
+        'two doc types in one call print the two type ids in target order',
+        () async {
+          final root = await frProject({'docs/$addNf': '# Load\n'});
+          const nf = 'nf:shop/cart/add_item/load_fast';
+          const mixes = {
+            'fr and nf': [checkStock, nf],
+            'nf and fr': [nf, checkStock],
+            'user_story and fr': [cartAddAddress, checkStock],
+          };
+          for (final MapEntry(key: pair, value: targets) in mixes.entries) {
+            expect(
+              () => moveAll(root, targets, 'shop/pay/refund'),
+              throwsA(
+                isA<IndexFault>()
+                    .having(
+                      (f) => f.code,
+                      'code',
+                      IndexFaultCode.argumentInvalid,
+                    )
+                    .having(
+                      (f) => f.message,
+                      'message',
+                      'move takes one doc type per call, not $pair',
+                    ),
+              ),
+              reason: pair,
+            );
+          }
+          expect(hasDoc(root, checkStockFile), isTrue);
+          expect(hasDoc(root, addNf), isTrue);
+        },
+      );
+
+      test(
+        'a spec doc beside a movable doc is doc_type_not_movable first',
+        () async {
+          final root = await frProject();
+          expect(
+            () => moveAll(root, [
+              checkStock,
+              'architecture:shop',
+            ], 'shop/pay/refund'),
+            throwsA(
+              isA<WriteFault>()
+                  .having(
+                    (f) => f.code,
+                    'code',
+                    WriteFaultCode.docTypeNotMovable,
+                  )
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'architecture docs cannot move; move takes a user_story, '
+                        'an fr, an nf, or a feature',
+                  ),
+            ),
+          );
+          expect(hasDoc(root, checkStockFile), isTrue);
+          expect(hasDoc(root, shopArchitecture), isTrue);
+        },
+      );
+
+      test('a slug the story holds, a slug two targets share, or a taken landing path is doc_exists', () async {
+        const heldFile = '$dropFolder/fr03_check_stock.md';
+        final held = await frProject({'docs/$heldFile': '# Check stock\n'});
+        expect(
+          () => move(held, checkStock, 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'a fr named shop/cart/drop_item/check_stock exists',
+                )
+                .having((f) => f.file, 'file', heldFile),
+          ),
+        );
+        expect(hasDoc(held, checkStockFile), isTrue);
+
+        const twinFile = '$payDir/us01_card/fr01_check_stock.md';
+        final twins = await frProject({'docs/$twinFile': '# Check stock\n'});
+        expect(
+          () => moveAll(twins, [
+            checkStock,
+            'fr:shop/pay/card/check_stock',
+          ], 'shop/pay/refund'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', checkStockFile),
+          ),
+        );
+        expect(hasDoc(twins, twinFile), isTrue);
+
+        const landing = '$dropFolder/fr02_check_stock.md';
+        final taken = await frProject({'docs/$landing/keep.md': '# Keep\n'});
+        expect(
+          () => move(taken, checkStock, 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', landing),
+          ),
+        );
+        expect(hasDoc(taken, checkStockFile), isTrue);
+      });
+
+      test('an fr already in place is skipped while the rest move, and a repeated fr moves once', () async {
+        final root = await frProject();
+        final answer = moveAll(root, [
+          dropLine,
+          checkStock,
+          checkStock,
+        ], 'shop/cart/drop_item');
+        expect(answer.json['moved'], [
+          {'from': checkStockFile, 'to': '$dropFolder/fr02_check_stock.md'},
+        ]);
+        expect(hasDoc(root, dropFr), isTrue);
+
+        final settled = moveAll(root, [dropLine], 'shop/cart/drop_item');
+        expect(settled.text, isEmpty);
+        expect(settled.json['moved'], isEmpty);
+      });
+
+      test('one refused target among several stops the whole call', () async {
+        final root = await frProject();
+        expect(
+          () => moveAll(root, [
+            checkStock,
+            'fr:shop/cart/add_item/nothing_here',
+          ], 'shop/pay/refund'),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+        expect(hasDoc(root, checkStockFile), isTrue);
+        expect(hasDoc(root, '$refundFolder/fr02_check_stock.md'), isFalse);
+
+        const heldFile = '$dropFolder/fr03_check_stock.md';
+        final held = await frProject({'docs/$heldFile': '# Check stock\n'});
+        expect(
+          () => moveAll(held, [
+            'fr:shop/cart/add_item/reserve_stock',
+            checkStock,
+          ], 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', heldFile),
+          ),
+        );
+        expect(hasDoc(held, reserveFile), isTrue);
+        expect(hasDoc(held, checkStockFile), isTrue);
+        expect(hasDoc(held, '$dropFolder/fr02_reserve_stock.md'), isFalse);
+      });
+
+      test(
+        'no --under, or no target, is argument_missing before targets are read',
+        () async {
+          final root = await frProject();
+          expect(
+            () => move(root, 'fr:shop/cart/add_item/nothing_here', null),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move needs --under <doc address> or --top',
+                  ),
+            ),
+          );
+          expect(
+            () => moveAll(root, const [], 'shop/pay/refund'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move needs a target, such as specstone move '
+                        'user_story:login/reset_password --under account',
+                  ),
+            ),
+          );
+        },
+      );
+
+      test('a target no doc carries, an untyped path, or a name of two docs refuses before the type tests', () async {
+        final root = await frProject({
+          'docs/prds/d02_notes.md': '# Notes\n',
+          'docs/$addNf': '# Load\n',
+        });
+        const nf = 'nf:shop/cart/add_item/load_fast';
+        final refusals = {
+          'fr:shop/cart/add_item/nothing_here': IndexFaultCode.docNotFound,
+          'prds/d02_notes.md': IndexFaultCode.untypedTarget,
+          'shop': IndexFaultCode.argumentInvalid,
+        };
+        for (final MapEntry(key: target, value: code) in refusals.entries) {
+          expect(
+            () => moveAll(root, [nf, target], 'shop/pay/refund'),
+            throwsA(isA<IndexFault>().having((f) => f.code, 'code', code)),
+            reason: target,
+          );
+        }
+        expect(hasDoc(root, checkStockFile), isTrue);
+      });
+
+      test('a spec doc target is doc_type_not_movable', () async {
+        final root = await frProject();
+        expect(
+          () => move(root, 'architecture:shop', 'shop/pay'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'architecture docs cannot move; move takes a user_story, an '
+                      'fr, an nf, or a feature',
+                ),
+          ),
+        );
+        expect(hasDoc(root, shopArchitecture), isTrue);
+      });
+
+      test('two frs moved in one call share one journal and one rewrite pass, and each reference to either is rewritten once', () async {
+        const refer =
+            '\nSee [drop line](../us02_drop_item/fr01_drop_line.md) and '
+            '[stock](fr01_check_stock.md).\n';
+        final root = await frProject();
+        appendTo(root, cartAdd, refer);
+        final answer = moveAll(root, [checkStock, dropLine], 'shop/pay/refund');
+        final rewritten = answer.json['rewritten']! as List<Object?>;
+        expect(rewritten.where((p) => p == cartAdd), hasLength(1));
+        expect(
+          answer.text.split('\n').where((l) => l == 'rewrote $cartAdd'),
+          hasLength(1),
+        );
+        expect(
+          readDoc(root, cartAdd),
+          allOf(
+            contains('(../../f02_pay/us02_refund/fr03_drop_line.md)'),
+            contains('(../../f02_pay/us02_refund/fr02_check_stock.md)'),
+          ),
+        );
+
+        final stopped = await frProject();
+        appendTo(stopped, cartAdd, refer);
+        expect(
+          () => IOOverrides.runWithIOOverrides(
+            () => moveAll(stopped, [checkStock, dropLine], 'shop/pay/refund'),
+            FailingRenameHook('docs/$checkStockFile'),
+          ),
+          throwsA(isA<RenderFault>()),
+        );
+        final journal = jsonDecode(
+          File('${stopped.path}/${MoveJournal.journalPath}').readAsStringSync(),
+        ) as Map<String, Object?>;
+        final steps = (journal['steps']! as List).cast<Map<String, Object?>>();
+        expect([
+          for (final step in steps)
+            if (step['move'] case {'from': final String from}) from,
+        ], containsAll(['docs/$checkStockFile', 'docs/$dropFr']));
+        expect(
+          steps.where(
+            (step) => switch (step['write']) {
+              {'path': final String path} => path == 'docs/$cartAdd',
+              _ => false,
+            },
+          ),
+          hasLength(1),
+        );
+      });
+
+      test('a dry run of an fr move prints a rewrites line for each doc it would rewrite, the api doc included', () async {
+        final root = await frProject();
+        appendTo(
+          root,
+          cartDrop,
+          '\nSee [stock check](../us01_add_item/fr01_check_stock.md).\n',
+        );
+        final answer = writeIn(
+          root,
+          (s) => answerMove(
+            s,
+            [checkStock],
+            under: 'shop/pay/refund',
+            dryRun: true,
+          ),
+        );
+        expect(
+          answer.text,
+          startsWith(
+            'moves $checkStockFile to $refundFolder/fr02_check_stock.md\n',
+          ),
+        );
+        expect(answer.text, contains('rewrites $shopApi\n'));
+        expect(answer.text, contains('rewrites $cartDrop\n'));
+        expect(answer.text, endsWith('dry run: nothing moved\n'));
+        expect(answer.json['rewritten'], containsAll([shopApi, cartDrop]));
+        expect(hasDoc(root, checkStockFile), isTrue);
+        expect(readDoc(root, shopApi), contains('cart/add_item/check_stock'));
+      });
+
+      test('an untyped path beside an fr and an nf is untyped_target with exit status 64, not the mixed-type refusal', () async {
+        final root = await frProject({
+          'docs/prds/d02_notes.md': '# Notes\n',
+          'docs/$addNf': '# Load\n',
+        });
+        for (final targets in [
+          [checkStock, 'nf:shop/cart/add_item/load_fast', 'prds/d02_notes.md'],
+          ['prds/d02_notes.md', checkStock, 'nf:shop/cart/add_item/load_fast'],
+        ]) {
+          expect(
+            () => moveAll(root, targets, 'shop/pay/refund'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.untypedTarget)
+                  .having((f) => f.exitStatus, 'exitStatus', 64),
+            ),
+            reason: '$targets',
+          );
+        }
+        expect(hasDoc(root, checkStockFile), isTrue);
+        expect(hasDoc(root, addNf), isTrue);
+      });
+
+      test('a target that names two docs beside an fr and an nf is argument_invalid listing the candidates, ahead of the mixed-type refusal', () async {
+        final root = await frProject({'docs/$addNf': '# Load\n'});
+        expect(
+          () => moveAll(root, [
+            checkStock,
+            'nf:shop/cart/add_item/load_fast',
+            'shop',
+          ], 'shop/pay/refund'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  allOf(
+                    startsWith('shop names '),
+                    contains('feature:shop'),
+                    contains('api:shop'),
+                    isNot(contains('one doc type per call')),
+                  ),
+                ),
+          ),
+        );
+        expect(hasDoc(root, checkStockFile), isTrue);
+        expect(hasDoc(root, addNf), isTrue);
+      });
+
+      test('a link text that is the old Name of a moved fr follows to its new Name, and any other link text stays', () async {
+        final root = await frProject();
+        appendTo(
+          root,
+          cartDrop,
+          '\nSee [shop/cart/add_item/check_stock](../us01_add_item/fr01_check_stock.md)'
+          ' and [the stock rule](../us01_add_item/fr01_check_stock.md).\n',
+        );
+        move(root, checkStock, 'shop/pay/refund');
+        expect(
+          readDoc(root, cartDrop),
+          allOf(
+            contains(
+              '[shop/pay/refund/check_stock]'
+              '(../../f02_pay/us02_refund/fr02_check_stock.md)',
+            ),
+            contains(
+              '[the stock rule](../../f02_pay/us02_refund/fr02_check_stock.md)',
+            ),
+          ),
+        );
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      });
+
+      test('an agent file and a code comment naming a moved fr keep every byte and each prints as a mentions line', () async {
+        const code =
+            '/// Checks `shop/cart/add_item/check_stock`.\nclass Shop {}\n';
+        const agent = 'Read `shop/cart/add_item/check_stock` first.\n';
+        final root = await frProject({
+          'app/lib/shop.dart': code,
+          'CLAUDE.md': agent,
+        });
+        final answer = move(root, checkStock, 'shop/pay/refund');
+        expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
+        expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
+        expect(
+          answer.text,
+          endsWith(
+            'mentions CLAUDE.md:1 shop/cart/add_item/check_stock\n'
+            'mentions app/lib/shop.dart:1 shop/cart/add_item/check_stock\n',
+          ),
+        );
+      });
+
+      test('a moved fr and the api doc and linking doc the move rewrites keep a matching approval hash', () async {
+        final root = await frProject();
+        appendTo(
+          root,
+          cartDrop,
+          '\nSee [stock check](../us01_add_item/fr01_check_stock.md).\n',
+        );
+        stampApproved(root, shopApi);
+        stampApproved(root, cartDrop);
+        stampApproved(root, checkStockFile);
+        expect(holdsApproval(root, shopApi), isTrue);
+        expect(holdsApproval(root, cartDrop), isTrue);
+        move(root, checkStock, 'shop/pay/refund');
+        expect(readDoc(root, shopApi), contains('pay/refund/check_stock'));
+        expect(
+          readDoc(root, cartDrop),
+          contains('(../../f02_pay/us02_refund/fr02_check_stock.md)'),
+        );
+        expect(holdsApproval(root, shopApi), isTrue);
+        expect(holdsApproval(root, cartDrop), isTrue);
+        expect(
+          holdsApproval(root, '$refundFolder/fr02_check_stock.md'),
+          isTrue,
+        );
+      });
+
+      test('a confirmed entry that names the landing story by a short name reads S2 with its fingerprint kept', () async {
+        const scenario2 =
+            '### Scenario 2 — [edge] Drop twice\n- **Given** a shopper\n'
+            '- **When** the shopper acts\n- **Then** the shopper sees the result';
+        final fp = fingerprintFor(scenario2);
+        final root = await frProject();
+        appendTo(root, cartDrop, '\n$scenario2\n');
+        final original = readDoc(root, checkStockFile);
+        docFile(root, checkStockFile).writeAsStringSync(
+          original
+              .replaceFirst(
+                'traced_from:\n  - S1\n',
+                'traced_from:\n  - S1\n  - cart/drop_item#S2\n',
+              )
+              .replaceFirst(
+                '\n---\n\n# Check the stock',
+                '\n  - cart/drop_item#S2 $fp\n---\n\n# Check the stock',
+              ),
+        );
+        move(root, checkStock, 'shop/cart/drop_item');
+        final moved = readDoc(root, '$dropFolder/fr02_check_stock.md');
+        expect(
+          moved,
+          contains('traced_from:\n  - shop/cart/add_item#S1\n  - S2\n'),
+        );
+        expect(moved, contains('  - S2 $fp\n'));
+        expect(moved, isNot(contains('draft')));
+        expect(spots(await checkOf(root), FindingKind.suspect), isEmpty);
+      });
+    });
+
+    group('longer code spans in docs', () {
+      const spanDoc = 'notes/ideas.md';
+      const spanDocPath = 'docs/$spanDoc';
+      const note =
+          '# Ideas\n\nA span `shop/cart/add_item E05` and a span '
+          '`shop/cart/drop_item E05`.\n';
+
+      List<Object?> mentionsOf(ReadAnswer answer) =>
+          answer.json['mentions']! as List<Object?>;
+
+      test('a story move lists a longer span naming it, keeps every byte, and lists none naming a doc that stays', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = move(root, cartAddAddress, 'shop/pay');
+        expect(readDoc(root, spanDoc), note);
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+        ]);
+        expect(
+          answer.text,
+          endsWith('mentions $spanDocPath:3 shop/cart/add_item E05\n'),
+        );
+        expect(
+          answer.text.indexOf('rewrote '),
+          lessThan(answer.text.indexOf('mentions ')),
+        );
+      });
+
+      test('a longer span inside a doc the move moves lists at its path after the move', () async {
+        final root = await writeNestedProject();
+        appendTo(root, cartAdd, '\nIt is `shop/cart/add_item E05`.\n');
+        final answer = move(root, cartAddAddress, 'shop/pay');
+        final moved = readDoc(root, '$movedFolder/USER_STORY.md');
+        expect(mentionsOf(answer), [
+          {
+            'path': 'docs/$movedFolder/USER_STORY.md',
+            'line': moved.split('\n').indexWhere((l) => l.contains('E05`')) + 1,
+            'mention': 'shop/cart/add_item E05',
+          },
+        ]);
+      });
+
+      test(
+        'an fr move lists a longer span naming it and keeps every byte',
+        () async {
+          const text =
+              '# Ideas\n\nIt is `shop/cart/add_item/check_stock E05`.\n';
+          final root = await writeNestedProject(extra: {spanDocPath: text});
+          final answer = move(
+            root,
+            'fr:shop/cart/add_item/check_stock',
+            'shop/pay/refund',
+          );
+          expect(readDoc(root, spanDoc), text);
+          expect(mentionsOf(answer), [
+            {
+              'path': spanDocPath,
+              'line': 3,
+              'mention': 'shop/cart/add_item/check_stock E05',
+            },
+          ]);
+        },
+      );
+
+      test('a rename lists a longer span naming the renamed doc', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = rename(root, cartAddAddress, 'add_one');
+        expect(readDoc(root, spanDoc), note);
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+        ]);
+      });
+
+      test('a rename lists a longer span naming a renamed doc after its rewrote lines and writes no byte of it', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = rename(root, cartAddAddress, 'add_one');
+        const mention = 'mentions $spanDocPath:3 shop/cart/add_item E05\n';
+        expect(readDoc(root, spanDoc), note);
+        expect(answer.text, contains('rewrote '));
+        expect(answer.text, endsWith(mention));
+        expect(
+          answer.text.lastIndexOf('rewrote '),
+          lessThan(answer.text.indexOf('mentions ')),
+        );
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+        ]);
+      });
+
+      test('a rename lists a longer span naming a descendant of the renamed feature', () async {
+        const text =
+            '# Ideas\n\nA span `shop/cart/add_item E05`, a span '
+            '`shop/cart/add_item/check_stock E05`, and a span '
+            '`shop/pay E05`.\n';
+        final root = await writeNestedProject(extra: {spanDocPath: text});
+        final answer = rename(root, 'feature:shop/cart', 'basket');
+        expect(readDoc(root, spanDoc), text);
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+          {
+            'path': spanDocPath,
+            'line': 3,
+            'mention': 'shop/cart/add_item/check_stock E05',
+          },
+        ]);
+      });
+
+      test('a dry run lists the longer span the apply would list', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = writeIn(
+          root,
+          (s) =>
+              answerMove(s, [cartAddAddress], under: 'shop/pay', dryRun: true),
+        );
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+        ]);
+        expect(
+          answer.text,
+          endsWith(
+            'mentions $spanDocPath:3 shop/cart/add_item E05\n'
+            'dry run: nothing moved\n',
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+      });
+
+      test('a dry run of an fr move lists the longer span', () async {
+        const text = '# Ideas\n\nIt is `shop/cart/add_item/check_stock E05`.\n';
+        final root = await writeNestedProject(extra: {spanDocPath: text});
+        final answer = writeIn(
+          root,
+          (s) => answerMove(
+            s,
+            ['fr:shop/cart/add_item/check_stock'],
+            under: 'shop/pay/refund',
+            dryRun: true,
+          ),
+        );
+        expect(mentionsOf(answer), [
+          {
+            'path': spanDocPath,
+            'line': 3,
+            'mention': 'shop/cart/add_item/check_stock E05',
+          },
+        ]);
+        expect(
+          answer.text,
+          endsWith(
+            'mentions $spanDocPath:3 shop/cart/add_item/check_stock E05\n'
+            'dry run: nothing moved\n',
+          ),
+        );
+        expect(readDoc(root, spanDoc), text);
+      });
+
+      test('a reorder keeps every name, so it lists no longer span', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = reorder(root, 'user_story:shop/cart/drop_item', '1');
+        expect(mentionsOf(answer), isEmpty);
+      });
+    });
+
+    group('nf targets', () {
+      const addFolder = '$cartDir/us01_add_item';
+      const dropFolder = '$cartDir/us02_drop_item';
+      const refundFolder = '$payDir/us02_refund';
+      const loadFast = 'nf:shop/cart/add_item/load_fast';
+      const stayLight = 'nf:shop/cart/add_item/stay_light';
+      const keepLight = 'nf:shop/cart/drop_item/keep_light';
+      const checkStock = 'fr:shop/cart/add_item/check_stock';
+      const checkStockFile = '$addFolder/fr01_check_stock.md';
+      const stayLightFile = '$addFolder/nf02_stay_light.md';
+      const keepLightFile = '$dropFolder/nf01_keep_light.md';
+      const tightened =
+          '---\nkind: tighten\noverrides: NFR-P01\nverify_method: test\n'
+          'confirmed:\n  - NFR-P01 0123456789ab\n---\n\n# Load fast\n\n'
+          '## Statement\nThe system shall load within 1 s.\n\n'
+          '## Verification\nTest: a timed load.\n';
+      const added =
+          '---\nkind: add\ntraced_from:\n  - PG-02\nverify_method: test\n'
+          '---\n\n# Stay light\n\n## Statement\nThe system shall stay light.\n';
+      const nfExtras = {
+        'docs/$addNf': tightened,
+        'docs/$stayLightFile': added,
+        'docs/$keepLightFile': '# Keep light\n',
+      };
+
+      Future<Directory> nfProject([Map<String, String> more = const {}]) =>
+          writeNestedProject(extra: {...nfExtras, ...more});
+
+      test(
+        'an nf lands last in the story and its old siblings keep their numbers',
+        () async {
+          final root = await nfProject({
+            'docs/$dropFolder/nf03_far_light.md': '# Far light\n',
+          });
+          final answer = move(root, loadFast, 'shop/cart/drop_item');
+          expect(
+            answer.text,
+            startsWith('moved $addNf to $dropFolder/nf04_load_fast.md\n'),
+          );
+          expect(hasDoc(root, '$dropFolder/nf04_load_fast.md'), isTrue);
+          expect(hasDoc(root, '$dropFolder/nf02_load_fast.md'), isFalse);
+          expect(hasDoc(root, keepLightFile), isTrue);
+          expect(hasDoc(root, stayLightFile), isTrue);
+          expect(hasDoc(root, addNf), isFalse);
+          expect(
+            readDoc(root, '$dropFolder/nf04_load_fast.md'),
+            isNot(contains('draft')),
+          );
+        },
+      );
+
+      test('several nfs from two stories land in order, in one run', () async {
+        final root = await nfProject();
+        final answer = moveAll(root, [loadFast, keepLight], 'shop/pay/refund');
+        expect(answer.json['moved'], [
+          {'from': addNf, 'to': '$refundFolder/nf01_load_fast.md'},
+          {'from': keepLightFile, 'to': '$refundFolder/nf02_keep_light.md'},
+        ]);
+        expect(
+          answer.text.split('\n').where((l) => l.startsWith('moved ')),
+          hasLength(2),
+        );
+        expect(hasDoc(root, '$refundFolder/nf01_load_fast.md'), isTrue);
+        expect(hasDoc(root, '$refundFolder/nf02_keep_light.md'), isTrue);
+      });
+
+      test("an nf's kind and overrides values stay as written", () async {
+        final root = await nfProject();
+        final tightenedBefore = readDoc(root, addNf);
+        final addedBefore = readDoc(root, stayLightFile);
+        moveAll(root, [loadFast, stayLight], 'shop/pay/refund');
+        final moved = readDoc(root, '$refundFolder/nf01_load_fast.md');
+        expect(moved, tightenedBefore);
+        expect(moved, contains('kind: tighten\noverrides: NFR-P01\n'));
+        expect(moved, contains('  - NFR-P01 0123456789ab\n'));
+        expect(readDoc(root, '$refundFolder/nf02_stay_light.md'), addedBefore);
+      });
+
+      test('a slug the story holds, a slug two targets share, or a taken path is doc_exists', () async {
+        const heldFile = '$dropFolder/nf03_load_fast.md';
+        final held = await nfProject({'docs/$heldFile': '# Load fast\n'});
+        expect(
+          () => move(held, loadFast, 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'a nf named shop/cart/drop_item/load_fast exists',
+                )
+                .having((f) => f.file, 'file', heldFile),
+          ),
+        );
+        expect(hasDoc(held, addNf), isTrue);
+
+        const twinFile = '$payDir/us01_card/nf01_load_fast.md';
+        final twins = await nfProject({'docs/$twinFile': '# Load fast\n'});
+        expect(
+          () => moveAll(twins, [
+            loadFast,
+            'nf:shop/pay/card/load_fast',
+          ], 'shop/pay/refund'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', addNf),
+          ),
+        );
+        expect(hasDoc(twins, twinFile), isTrue);
+
+        const landing = '$dropFolder/nf02_load_fast.md';
+        final taken = await nfProject({'docs/$landing/keep.md': '# Keep\n'});
+        expect(
+          () => move(taken, loadFast, 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', landing),
+          ),
+        );
+        expect(hasDoc(taken, addNf), isTrue);
+      });
+
+      test(
+        'an nf already in place stays, and one named twice moves once',
+        () async {
+          final root = await nfProject();
+          final answer = moveAll(root, [
+            keepLight,
+            loadFast,
+            loadFast,
+          ], 'shop/cart/drop_item');
+          expect(answer.json['moved'], [
+            {'from': addNf, 'to': '$dropFolder/nf02_load_fast.md'},
+          ]);
+          expect(hasDoc(root, keepLightFile), isTrue);
+
+          final settled = moveAll(root, [keepLight], 'shop/cart/drop_item');
+          expect(settled.text, isEmpty);
+          expect(settled.json['moved'], isEmpty);
+        },
+      );
+
+      test(
+        'an nf beside a spec doc is doc_type_not_movable before the mixed test',
+        () async {
+          final root = await nfProject();
+          for (final targets in [
+            [loadFast, 'architecture:shop'],
+            ['architecture:shop', loadFast],
+          ]) {
+            expect(
+              () => moveAll(root, targets, 'shop/pay/refund'),
+              throwsA(
+                isA<WriteFault>()
+                    .having(
+                      (f) => f.code,
+                      'code',
+                      WriteFaultCode.docTypeNotMovable,
+                    )
+                    .having(
+                      (f) => f.message,
+                      'message',
+                      'architecture docs cannot move; move takes a user_story, '
+                          'an fr, an nf, or a feature',
+                    ),
+              ),
+              reason: '$targets',
+            );
+          }
+          expect(hasDoc(root, addNf), isTrue);
+          expect(hasDoc(root, shopArchitecture), isTrue);
+        },
+      );
+
+      test('an nf beside an fr of the same story is refused and nothing moves, in both target orders', () async {
+        final root = await nfProject();
+        const mixes = {
+          'nf and fr': [loadFast, checkStock],
+          'fr and nf': [checkStock, loadFast],
+        };
+        for (final MapEntry(key: pair, value: targets) in mixes.entries) {
+          expect(
+            () => moveAll(root, targets, 'shop/pay/refund'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move takes one doc type per call, not $pair',
+                  ),
+            ),
+            reason: pair,
+          );
+        }
+        expect(hasDoc(root, addNf), isTrue);
+        expect(hasDoc(root, checkStockFile), isTrue);
+        expect(hasDoc(root, '$refundFolder/nf01_load_fast.md'), isFalse);
+      });
+
+      test('top or a code target on an nf move is argument_invalid', () async {
+        final root = await nfProject();
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(s, [loadFast], under: null, top: true),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move takes --top only with feature targets',
+                ),
+          ),
+        );
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              [loadFast],
+              under: 'shop/cart/drop_item',
+              codeTarget: 'server',
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move takes --target only with item targets',
+                ),
+          ),
+        );
+        expect(hasDoc(root, addNf), isTrue);
+      });
+
+      test(
+        'a dry run prints the nf moves and writes nothing, journal included',
+        () async {
+          final root = await nfProject();
+          writeIn(root, (s) => s.target('feature:shop'));
+          Map<String, List<int>> tree() => {
+            for (final MapEntry(:key, :value) in treeBytes(root).entries)
+              if (!key.contains('.specstone/index.sqlite')) key: value,
+          };
+          final before = tree();
+          final answer = writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              [loadFast],
+              under: 'shop/cart/drop_item',
+              dryRun: true,
+            ),
+          );
+          expect(
+            answer.text,
+            startsWith('moves $addNf to $dropFolder/nf02_load_fast.md\n'),
+          );
+          expect(answer.text, endsWith('dry run: nothing moved\n'));
+          expect(answer.json['dryRun'], isTrue);
+          expect(tree(), before);
+        },
+      );
+
+      test('a records project keeps every record byte', () async {
+        final root = await nfProject(nestedRecords());
+        Map<String, List<int>> records() => {
+          for (final MapEntry(:key, :value) in treeBytes(root).entries)
+            if (key.startsWith('.specstone/records/')) key: value,
+        };
+        final before = records();
+        expect(before, isNotEmpty);
+        move(root, loadFast, 'shop/pay/refund');
+        expect(records(), before);
+      });
+
+      test('links, doc-name mentions, and link texts follow a moved nf, and a code mention prints as mentions', () async {
+        const code =
+            '/// Loads fast `shop/cart/add_item/load_fast`.\nclass Shop {}\n';
+        final root = await nfProject({'app/lib/shop.dart': code});
+        appendTo(
+          root,
+          cartDrop,
+          '\nSee [load fast](../us01_add_item/nf01_load_fast.md).\n'
+          'See [shop/cart/add_item/load_fast](../us01_add_item/nf01_load_fast.md).\n'
+          'It reads `shop/cart/add_item/load_fast`.\n'
+          'It reads `shop/cart/add_item/load_fast Verification`.\n',
+        );
+        final answer = move(root, loadFast, 'shop/cart/drop_item');
+        final drop = readDoc(root, cartDrop);
+        expect(drop, contains('[load fast](nf02_load_fast.md)'));
+        expect(
+          drop,
+          contains('[shop/cart/drop_item/load_fast](nf02_load_fast.md)'),
+        );
+        expect(drop, contains('`shop/cart/drop_item/load_fast`'));
+        expect(drop, contains('`shop/cart/add_item/load_fast Verification`'));
+        expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
+        final spanLine =
+            drop.split('\n').indexWhere((l) => l.contains('Verification`')) + 1;
+        expect(answer.json['mentions'], [
+          {
+            'path': 'app/lib/shop.dart',
+            'line': 1,
+            'mention': 'shop/cart/add_item/load_fast',
+          },
+          {
+            'path': 'docs/$cartDrop',
+            'line': spanLine,
+            'mention': 'shop/cart/add_item/load_fast Verification',
+          },
+        ]);
+        expect(
+          answer.text,
+          endsWith(
+            'mentions docs/$cartDrop:$spanLine '
+            'shop/cart/add_item/load_fast Verification\n',
+          ),
+        );
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      });
+
+      test('a link inside a moved nf follows, and a longer span in it lists at its new path', () async {
+        final root = await nfProject({
+          'docs/$addNf':
+              '$tightened\nSee [check stock](fr01_check_stock.md).\n'
+              'It is `shop/cart/add_item/load_fast Verification`.\n',
+        });
+        final answer = move(root, loadFast, 'shop/cart/drop_item');
+        const landed = '$dropFolder/nf02_load_fast.md';
+        final moved = readDoc(root, landed);
+        expect(
+          moved,
+          contains('[check stock](../us01_add_item/fr01_check_stock.md)'),
+        );
+        expect(moved, contains('`shop/cart/add_item/load_fast Verification`'));
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(answer.json['mentions'], [
+          {
+            'path': 'docs/$landed',
+            'line':
+                moved
+                    .split('\n')
+                    .indexWhere((l) => l.contains('Verification`')) +
+                1,
+            'mention': 'shop/cart/add_item/load_fast Verification',
+          },
+        ]);
+      });
+
+      test(
+        "a rewritten doc's matching approval hash is stamped again",
+        () async {
+          final root = await nfProject();
+          appendTo(
+            root,
+            cartDrop,
+            '\nSee [load fast](../us01_add_item/nf01_load_fast.md).\n',
+          );
+          stampApproved(root, cartDrop);
+          stampApproved(root, addNf);
+          expect(holdsApproval(root, cartDrop), isTrue);
+          move(root, loadFast, 'shop/cart/drop_item');
+          expect(
+            readDoc(root, cartDrop),
+            contains('[load fast](nf02_load_fast.md)'),
+          );
+          expect(holdsApproval(root, cartDrop), isTrue);
+          expect(holdsApproval(root, '$dropFolder/nf02_load_fast.md'), isTrue);
+        },
+      );
+
+      test('an nf beside an item target in either order is argument_invalid with the item-or-doc message and exit status 64', () async {
+        final root = await nfProject();
+        const item = 'rulebook:shop#INV-1';
+        for (final targets in [
+          [loadFast, item],
+          [item, loadFast],
+        ]) {
+          expect(
+            () => moveAll(root, targets, 'shop/pay/refund'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having((f) => f.exitStatus, 'exitStatus', 64)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move takes item targets or doc targets, not both',
+                  ),
+            ),
+            reason: '$targets',
+          );
+        }
+        expect(hasDoc(root, addNf), isTrue);
+        expect(hasDoc(root, '$refundFolder/nf01_load_fast.md'), isFalse);
+      });
+
+      test('an nf --under that names no story is doc_not_found and one that names two stories is argument_invalid, each with exit status 64', () async {
+        final root = await nfProject({
+          'docs/$payDir/us05_refund/USER_STORY.md': '# Refund again\n',
+        });
+        expect(
+          () => move(root, loadFast, 'nothing'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+                .having((f) => f.exitStatus, 'exitStatus', 64),
+          ),
+        );
+        expect(
+          () => move(root, loadFast, 'pay/refund'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  allOf(
+                    startsWith('pay/refund names 2 user_story docs: '),
+                    contains(payRefund),
+                    contains('$payDir/us05_refund/USER_STORY.md'),
+                  ),
+                ),
+          ),
+        );
+        expect(hasDoc(root, addNf), isTrue);
+      });
+
+      test('an nf --under given as a typed address or a path names the story a bare name does', () async {
+        for (final under in [
+          'shop/pay/refund',
+          'user_story:shop/pay/refund',
+          payRefund,
+        ]) {
+          final root = await nfProject();
+          final answer = move(root, loadFast, under);
+          expect(answer.json['moved'], [
+            {'from': addNf, 'to': '$refundFolder/nf01_load_fast.md'},
+          ], reason: under);
+        }
+      });
+
+      test('two nf targets that carry one slug are refused with exit status 64 and every file stays as it was', () async {
+        final root = await nfProject({
+          'docs/$payDir/us01_card/nf01_load_fast.md': '# Load fast\n',
+        });
+        writeIn(root, (s) => s.target('feature:shop'));
+        Map<String, List<int>> tree() => {
+          for (final MapEntry(:key, :value) in treeBytes(root).entries)
+            if (!key.contains('.specstone/index.sqlite')) key: value,
+        };
+        final before = tree();
+        expect(
+          () => moveAll(root, [
+            loadFast,
+            'nf:shop/pay/card/load_fast',
+          ], 'shop/pay/refund'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.exitStatus, 'exitStatus', 64),
+          ),
+        );
+        expect(tree(), before);
+      });
+
+      test('an nf call with no --under is argument_missing and one with a target that names two docs lists the candidates, each with exit status 64', () async {
+        final root = await nfProject();
+        expect(
+          () => move(root, loadFast, null),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move needs --under <doc address> or --top',
+                ),
+          ),
+        );
+        expect(
+          () => moveAll(root, [loadFast, 'shop'], 'shop/pay/refund'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  allOf(contains('feature:shop'), contains('api:shop')),
+                ),
+          ),
+        );
+        expect(hasDoc(root, addNf), isTrue);
+      });
+
+      test('a dry run of an nf move lists the docs it rewrites and its mentions, and repeats the refusal of the apply', () async {
+        const code =
+            '/// Loads fast `shop/cart/add_item/load_fast`.\nclass Shop {}\n';
+        final root = await nfProject({'app/lib/shop.dart': code});
+        appendTo(
+          root,
+          cartDrop,
+          '\nSee [load fast](../us01_add_item/nf01_load_fast.md).\n',
+        );
+        final answer = writeIn(
+          root,
+          (s) => answerMove(
+            s,
+            [loadFast],
+            under: 'shop/cart/drop_item',
+            dryRun: true,
+          ),
+        );
+        expect(answer.text, contains('rewrites $cartDrop\n'));
+        expect(
+          answer.text,
+          contains(
+            'mentions app/lib/shop.dart:1 shop/cart/add_item/load_fast\n',
+          ),
+        );
+        expect(answer.text, endsWith('dry run: nothing moved\n'));
+        expect(answer.json['rewritten'], contains(cartDrop));
+        expect(hasDoc(root, addNf), isTrue);
+
+        const heldFile = '$dropFolder/nf03_load_fast.md';
+        final held = await nfProject({'docs/$heldFile': '# Load fast\n'});
+        expect(
+          () => writeIn(
+            held,
+            (s) => answerMove(
+              s,
+              [loadFast],
+              under: 'shop/cart/drop_item',
+              dryRun: true,
+            ),
+          ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'a nf named shop/cart/drop_item/load_fast exists',
+                )
+                .having((f) => f.file, 'file', heldFile),
+          ),
+        );
+      });
+
+      test('--top or --target on an nf move is refused with exit status 64, and --target is refused under a dry run too', () async {
+        final root = await nfProject();
+        IndexFault fault(void Function() run) {
+          try {
+            run();
+          } on IndexFault catch (e) {
+            return e;
+          }
+          fail('the call was not refused');
+        }
+
+        final top = fault(
+          () => writeIn(
+            root,
+            (s) => answerMove(s, [loadFast], under: null, top: true),
+          ),
+        );
+        expect(top.exitStatus, 64);
+        for (final dryRun in [false, true]) {
+          final target = fault(
+            () => writeIn(
+              root,
+              (s) => answerMove(
+                s,
+                [loadFast],
+                under: 'shop/cart/drop_item',
+                codeTarget: 'server',
+                dryRun: dryRun,
+              ),
+            ),
+          );
+          expect(
+            target.code,
+            IndexFaultCode.argumentInvalid,
+            reason: '$dryRun',
+          );
+          expect(target.exitStatus, 64, reason: '$dryRun');
+          expect(
+            target.message,
+            'move takes --target only with item targets',
+            reason: '$dryRun',
+          );
+        }
+        expect(hasDoc(root, addNf), isTrue);
+      });
+
+      test('an agent file naming a moved nf keeps every byte and lists as a mentions line', () async {
+        const agent = 'Read `shop/cart/add_item/load_fast` first.\n';
+        final root = await nfProject({'CLAUDE.md': agent});
+        final answer = move(root, loadFast, 'shop/cart/drop_item');
+        expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
+        expect(answer.json['mentions'], [
+          {
+            'path': 'CLAUDE.md',
+            'line': 1,
+            'mention': 'shop/cart/add_item/load_fast',
+          },
+        ]);
+        expect(
+          answer.text,
+          endsWith('mentions CLAUDE.md:1 shop/cart/add_item/load_fast\n'),
+        );
+      });
+    });
+
+    group('the traces of a moved fr', () {
+      const dropFolder = '$cartDir/us02_drop_item';
+      const refundFolder = '$payDir/us02_refund';
+      const checkStock = 'fr:shop/cart/add_item/check_stock';
+      const checkStockFile = '$cartDir/us01_add_item/fr01_check_stock.md';
+      const movedWithin = '$dropFolder/fr02_check_stock.md';
+      const movedAcross = '$refundFolder/fr02_check_stock.md';
+
+      Future<Directory> frProject([Map<String, String> more = const {}]) =>
+          writeNestedProject(extra: {...frExtras, ...more});
+
+      String scenarioFingerprint(Directory root) =>
+          RegExp('S1 ([0-9a-f]{12})')
+              .firstMatch(readDoc(root, checkStockFile))!
+              .group(1)!;
+
+      test("a moved fr's traces resolve after a move within its feature, and it gains no draft", () async {
+        final root = await frProject();
+        final fp = scenarioFingerprint(root);
+        move(root, checkStock, 'shop/cart/drop_item');
+        final moved = readDoc(root, movedWithin);
+        expect(moved, contains('traced_from:\n  - shop/cart/add_item#S1\n'));
+        expect(moved, contains('  - shop/cart/add_item#S1 $fp\n'));
+        expect(moved, isNot(contains('draft')));
+        final report = await checkOf(root);
+        for (final kind in [
+          FindingKind.suspect,
+          FindingKind.unconfirmed,
+          FindingKind.confirmedEntryStale,
+          FindingKind.scenarioTraceUnresolved,
+        ]) {
+          expect(spots(report, kind), isEmpty, reason: '$kind');
+        }
+      });
+
+      test('an approved fr keeps a matching approval hash after its traces are rewritten', () async {
+        final root = await frProject();
+        stampApproved(root, checkStockFile);
+        expect(holdsApproval(root, checkStockFile), isTrue);
+        move(root, checkStock, 'shop/cart/drop_item');
+        final moved = readDoc(root, movedWithin);
+        expect(moved, contains('approved:'));
+        expect(moved, contains('  - shop/cart/add_item#S1 '));
+        expect(holdsApproval(root, movedWithin), isTrue);
+      });
+
+      test(
+        "a moved fr's traces are reported after a move to another feature",
+        () async {
+          final root = await frProject();
+          final fp = scenarioFingerprint(root);
+          move(root, checkStock, 'shop/pay/refund');
+          final moved = readDoc(root, movedAcross);
+          expect(moved, contains('  - shop/cart/add_item#S1 $fp\n'));
+          expect(
+            spots(await checkOf(root), FindingKind.scenarioTraceUnresolved),
+            contains(startsWith('$movedAcross:')),
+          );
+        },
+      );
+
+      test(
+        'the api trace cell and confirmed label of a moved fr follow',
+        () async {
+          final root = await frProject();
+          final fp = RegExp('cart/add_item/check_stock ([0-9a-f]{12})')
+              .firstMatch(readDoc(root, shopApi))!
+              .group(1)!;
+          move(root, checkStock, 'shop/pay/refund');
+          final api = readDoc(root, shopApi);
+          expect(api, contains('| pay/refund/check_stock | `addItem` |'));
+          expect(api, contains('  - pay/refund/check_stock $fp\n'));
+          expect(api, isNot(contains('cart/add_item/check_stock')));
+        },
+      );
+
+      test('links into and out of a moved fr follow', () async {
+        final root = await frProject();
+        appendTo(
+          root,
+          cartDrop,
+          '\nSee [stock check](../us01_add_item/fr01_check_stock.md).\n',
+        );
+        appendTo(
+          root,
+          checkStockFile,
+          '\nSee [reserve](fr02_reserve_stock.md).\n',
+        );
+        move(root, checkStock, 'shop/pay/refund');
+        expect(
+          readDoc(root, cartDrop),
+          contains(
+            '[stock check](../../f02_pay/us02_refund/fr02_check_stock.md)',
+          ),
+        );
+        expect(
+          readDoc(root, movedAcross),
+          contains(
+            '[reserve](../../f01_cart/us01_add_item/fr02_reserve_stock.md)',
+          ),
+        );
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      });
+
+      test('a code comment naming a moved fr is listed and kept', () async {
+        const code =
+            '/// Checks `shop/cart/add_item/check_stock`.\nclass Shop {}\n';
+        final root = await frProject({'app/lib/shop.dart': code});
+        final answer = move(root, checkStock, 'shop/pay/refund');
+        expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
+        expect(answer.json['mentions'], [
+          {
+            'path': 'app/lib/shop.dart',
+            'line': 1,
+            'mention': 'shop/cart/add_item/check_stock',
+          },
+        ]);
+      });
+
+      test(
+        'an fr already under the story keeps its traces while another moves',
+        () async {
+          const held =
+              '---\ntraced_from:\n  - S1\n  - shop/cart/add_item#S2\n'
+              'confirmed:\n  - S1 00c22a7251ca\n---\n\n# Drop a line\n';
+          final root = await frProject({'docs/$dropFr': held});
+          final before = readDoc(root, dropFr);
+          moveAll(root, [
+            checkStock,
+            'fr:shop/cart/drop_item/drop_line',
+          ], 'shop/cart/drop_item');
+          expect(readDoc(root, '$dropFolder/fr01_drop_line.md'), before);
+          expect(
+            readDoc(root, movedWithin),
+            contains('  - shop/cart/add_item#S1\n'),
+          );
+        },
+      );
+
+      test('an entry naming the landing story becomes bare, and an ambiguous short name is kept', () async {
+        final root = await frProject({
+          'docs/$payDir/us03_drop_item/USER_STORY.md': '# Drop item\n',
+        });
+        final original = readDoc(root, checkStockFile);
+        docFile(root, checkStockFile).writeAsStringSync(
+          original.replaceFirst(
+            'traced_from:\n  - S1\n',
+            'traced_from:\n  - S1\n  - shop/cart/drop_item#S1\n'
+                '  - drop_item#S1\n',
+          ),
+        );
+        move(root, checkStock, 'shop/cart/drop_item');
+        expect(
+          readDoc(root, movedWithin),
+          contains(
+            'traced_from:\n  - shop/cart/add_item#S1\n  - S1\n'
+            '  - drop_item#S1\n',
+          ),
+        );
+      });
+    });
+
+    group('several stories in one call', () {
+      const dropFolder = 'prds/features/f02_shop/f01_cart/us02_drop_item';
+      const addLanded = 'prds/features/f02_shop/f02_pay/us04_add_item';
+      const dropLanded = 'prds/features/f02_shop/f02_pay/us03_drop_item';
+      const addItem = 'user_story:shop/cart/add_item';
+      const dropItem = 'user_story:shop/cart/drop_item';
+
+      void expectNothingMoved(Directory root) {
+        expect(hasDoc(root, cartAdd), isTrue);
+        expect(hasDoc(root, cartDrop), isTrue);
+        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isFalse);
+        expect(hasDoc(root, '$dropLanded/USER_STORY.md'), isFalse);
+      }
+
+      test('no target is argument_missing', () async {
+        final root = await writeNestedProject();
+        expect(
+          () => moveAll(root, const [], 'shop/pay'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move needs a target, such as specstone move '
+                      'user_story:login/reset_password --under account',
+                ),
+          ),
+        );
+      });
+
+      test('two stories land in the order given, through one pass that rewrites each reference once', () async {
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$journeyPath':
+                '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+                '### 1. Add\nstep: shop/cart/drop_item S1\n'
+                '### 2. Drop\nstep: shop/cart/add_item S1\n',
+          },
+        );
+        final answer = moveAll(root, [dropItem, addItem], 'shop/pay');
+        expect(answer.json['moved'], [
+          {'from': '$dropFolder/', 'to': '$dropLanded/'},
+          {'from': '$addItemFolder/', 'to': '$addLanded/'},
+        ]);
+        expect(hasDoc(root, '$dropLanded/USER_STORY.md'), isTrue);
+        expect(hasDoc(root, '$addLanded/fr01_check_stock.md'), isTrue);
+        expect(hasDoc(root, cartAdd), isFalse);
+        expect(hasDoc(root, cartDrop), isFalse);
+        final journey = readDoc(root, journeyPath);
+        expect(journey, contains('step: shop/pay/drop_item S1'));
+        expect(journey, contains('step: shop/pay/add_item S1'));
+        final rewritten = answer.json['rewritten']! as List<Object?>;
+        expect(rewritten.where((p) => p == journeyPath), hasLength(1));
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      });
+
+      test(
+        'a target of another type refuses the whole call, and nothing moves',
+        () async {
+          final root = await writeNestedProject();
+          expect(
+            () => moveAll(root, [addItem, 'architecture:shop'], 'shop/pay'),
+            throwsA(
+              isA<WriteFault>().having(
+                (f) => f.code,
+                'code',
+                WriteFaultCode.docTypeNotMovable,
+              ),
+            ),
+          );
+          expectNothingMoved(root);
+        },
+      );
+
+      test(
+        'a name no doc carries refuses the whole call, and nothing moves',
+        () async {
+          final root = await writeNestedProject();
+          expect(
+            () => moveAll(root, [
+              addItem,
+              'user_story:shop/cart/nothing_here',
+            ], 'shop/pay'),
+            throwsA(
+              isA<IndexFault>().having(
+                (f) => f.code,
+                'code',
+                IndexFaultCode.docNotFound,
+              ),
+            ),
+          );
+          expectNothingMoved(root);
+        },
+      );
+
+      test('a slug the feature carries refuses the whole call before the lock, and nothing moves', () async {
+        final root = await writeNestedProject(
+          extra: {'docs/$dropLanded/USER_STORY.md': '# Drop item\n'},
+        );
+        expect(
+          () => moveAll(root, [addItem, dropItem], 'shop/pay'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', '$dropLanded/USER_STORY.md'),
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+        expect(hasDoc(root, cartDrop), isTrue);
+        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isFalse);
+      });
+
+      test('two targets that carry one slug are doc_exists naming the first target, and nothing moves', () async {
+        final root = await writeNestedProject(
+          extra: {
+            'docs/prds/features/f04_wishlist/us01_add_item/USER_STORY.md':
+                '# Add item\n',
+          },
+        );
+        expect(
+          () => moveAll(root, [
+            addItem,
+            'user_story:wishlist/add_item',
+          ], 'shop/pay'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', cartAdd),
+          ),
+        );
+        expectNothingMoved(root);
+        expect(
+          hasDoc(
+            root,
+            'prds/features/f04_wishlist/us01_add_item/USER_STORY.md',
+          ),
+          isTrue,
+        );
+      });
+
+      test('a story created after the targets are checked is skipped by the landing numbers', () async {
+        final root = await writeNestedProject();
+        var raced = false;
+        final answer = IOOverrides.runWithIOOverrides(
+          () => moveAll(root, [addItem, dropItem], 'shop/pay'),
+          _CreateFileHook((path) {
+            if (raced ||
+                !path.replaceAll(r'\', '/').endsWith('f02_pay/us03_add_item')) {
+              return;
+            }
+            raced = true;
+            File('${root.path}/docs/$shop/f02_pay/us03_other/USER_STORY.md')
+                .createSync(recursive: true);
+          }),
+        );
+        expect(raced, isTrue);
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$shop/f02_pay/us04_add_item/'},
+          {'from': '$dropFolder/', 'to': '$shop/f02_pay/us05_drop_item/'},
+        ]);
+        expect(hasDoc(root, '$shop/f02_pay/us03_other/USER_STORY.md'), isTrue);
+      });
+
+      test('the same story named twice moves once', () async {
+        final root = await writeNestedProject();
+        final answer = moveAll(root, [addItem, addItem], 'shop/pay');
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+        ]);
+        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
+        expect(hasDoc(root, cartAdd), isFalse);
+      });
+
+      test('a target already directly under the feature stays, and the others move', () async {
+        final root = await writeNestedProject();
+        final answer = moveAll(root, [
+          'user_story:shop/pay/card',
+          addItem,
+        ], 'shop/pay');
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+        ]);
+        expect(hasDoc(root, payCard), isTrue);
+        expect(hasDoc(root, '$movedFolder/USER_STORY.md'), isTrue);
+      });
+    });
+
+    test(
+      'an --under no feature carries is doc_not_found, and nothing moves',
+      () async {
+        final root = await writeNestedProject();
+        expect(
+          () => move(root, 'user_story:shop/cart/add_item', 'nothing'),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'no feature doc carries the name nothing',
+                ),
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+      },
+    );
+
+    test('an --under that names no feature doc is doc_not_found naming the value, and nothing moves', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(
+          root,
+          'user_story:shop/cart/add_item',
+          'architecture:shop/pay',
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+              .having(
+                (f) => f.message,
+                'message',
+                contains('architecture:shop/pay'),
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('--under feature:shop/pay and a path name the feature as a bare name does', () async {
+      for (final under in [
+        'feature:shop/pay',
+        'prds/features/f02_shop/f02_pay/FEATURE.md',
+      ]) {
+        final root = await writeNestedProject();
+        final answer = move(root, 'user_story:shop/cart/add_item', under);
+        expect(answer.json['moved'], [
+          {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+        ], reason: under);
+      }
+    });
+
+    test('an --under that names 2 or more feature docs is argument_invalid listing each, and nothing moves', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/prds/features/f02_shop/f03_pay/FEATURE.md': '# Pay\n'},
+      );
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', 'shop/pay'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                allOf(
+                  contains(payFeature),
+                  contains('prds/features/f02_shop/f03_pay/FEATURE.md'),
+                ),
+              ),
+        ),
+      );
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('a target that names a feature and its spec docs is argument_invalid, never doc_type_not_movable', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(root, 'shop', 'shop/pay'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+      );
+    });
+
+    test('a move out of a mixed parent is allowed', () async {
+      const orphan = '$shop/us01_orphan';
+      final root = await writeNestedProject(
+        extra: {'docs/$orphan/USER_STORY.md': '# Orphan\n'},
+      );
+      final answer = move(root, 'user_story:shop/orphan', 'shop/pay');
+      expect(
+        answer.text,
+        startsWith('moved $orphan/ to $shop/f02_pay/us03_orphan/\n'),
+      );
+      expect(hasDoc(root, '$shop/f02_pay/us03_orphan/USER_STORY.md'), isTrue);
+    });
+  });
+
+  group('approval stamp on a reference rewrite', () {
+    String? approvedValue(Directory root, String docPath) => RegExp(
+      r'^approved: "([^"]+)"$',
+      multiLine: true,
+    ).firstMatch(readDoc(root, docPath))?.group(1);
+
+    Future<List<String>> staleDocs(Directory root) async => spots(
+      await checkOf(root),
+      FindingKind.approvalStale,
+    ).map((spot) => spot.split(':').first).toList();
+
+    void leaveStale(Directory root, String docPath) => docFile(
+      root,
+      docPath,
+    ).writeAsStringSync('\nA late note.\n', mode: FileMode.append);
+
+    test('a rewritten approved doc is stamped with the hash of its new content and stays approved', () async {
+      final root = await writeWriteProject();
+      final before = approvedValue(root, featuresIndex);
+      writeIn(root, (s) => answerReorder(s, 'feature:signup', place: '1'));
+      expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
+      expect(approvedValue(root, featuresIndex), isNotNull);
+      expect(approvedValue(root, featuresIndex), isNot(before));
+      expect(await staleDocs(root), isEmpty);
+    });
+
+    test('a rewritten doc whose hash did not match keeps its hash and still awaits approval', () async {
+      final root = await writeWriteProject();
+      leaveStale(root, featuresIndex);
+      final before = approvedValue(root, featuresIndex);
+      writeIn(root, (s) => answerReorder(s, 'feature:signup', place: '1'));
+      expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
+      expect(approvedValue(root, featuresIndex), before);
+      expect(await staleDocs(root), [featuresIndex]);
+    });
+
+    test('a rewritten draft keeps draft and gains no approved', () async {
+      final root = await writeWriteProject();
+      writeIn(
+        root,
+        (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+      );
+      final draftStory = readDoc(
+        root,
+        'prds/features/f01_login/us01_reset_password/USER_STORY.md',
+      );
+      expect(draftStory, contains('draft: true'));
+      expect(draftStory, isNot(contains('approved:')));
+    });
+
+    test(
+      'an approved doc edited after the session read it keeps its stale hash',
+      () async {
+        final root = await writeWriteProject();
+        final before = approvedValue(root, featuresIndex);
+        writeIn(root, (s) {
+          leaveStale(root, featuresIndex);
+          return answerRename(s, 'feature:signup', slug: 'register');
+        });
+        expect(
+          readDoc(root, featuresIndex),
+          contains('f02_register/FEATURE.md'),
+        );
+        expect(approvedValue(root, featuresIndex), before);
+        expect(await staleDocs(root), [featuresIndex]);
+      },
+    );
+
+    test('a rename stamps an approved doc it rewrites and keeps a stale hash stale', () async {
+      final root = await writeWriteProject();
+      final before = approvedValue(root, featuresIndex);
+      rename(root, 'feature:signup', 'register');
+      expect(readDoc(root, featuresIndex), contains('f02_register/FEATURE.md'));
+      expect(approvedValue(root, featuresIndex), isNot(before));
+      expect(await staleDocs(root), isEmpty);
+
+      final stale = await writeWriteProject();
+      leaveStale(stale, featuresIndex);
+      final kept = approvedValue(stale, featuresIndex);
+      rename(stale, 'feature:signup', 'register');
+      expect(approvedValue(stale, featuresIndex), kept);
+      expect(await staleDocs(stale), [featuresIndex]);
+    });
+
+    test(
+      'a renamed doc_ref name stamps the approved doc that held it',
+      () async {
+        final root = await writeWriteProject();
+        final withPersona = readDoc(
+          root,
+          story2,
+        ).replaceFirst('approved:', 'persona:\n  - buyer\napproved:');
+        docFile(root, story2).writeAsStringSync(
+          writeIn(
+            root,
+            (s) => withApprovalHash(
+              withPersona,
+              s.docTypeAt(story2),
+              statusesOutside: s.project.statusesOutsideApproval,
+            ),
+          ),
+        );
+        expect(await staleDocs(root), isEmpty);
+        rename(root, 'persona:buyer', 'shopper');
+        expect(readDoc(root, story2), contains('persona:\n  - shopper\n'));
+        expect(await staleDocs(root), isEmpty);
+      },
+    );
+
+    test('a move stamps the approved api doc it rewrites and keeps a stale hash stale', () async {
+      final root = await writeNestedProject();
+      final before = approvedValue(root, shopApi);
+      writeIn(
+        root,
+        (s) =>
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+      );
+      expect(readDoc(root, shopApi), contains('pay/add_item/check_stock'));
+      expect(approvedValue(root, shopApi), isNot(before));
+      expect(await staleDocs(root), isNot(contains(shopApi)));
+
+      final stale = await writeNestedProject();
+      leaveStale(stale, shopApi);
+      final kept = approvedValue(stale, shopApi);
+      writeIn(
+        stale,
+        (s) =>
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+      );
+      expect(approvedValue(stale, shopApi), kept);
+      expect(await staleDocs(stale), contains(shopApi));
+    });
+
+    test(
+      'a move saves the approved copy of the api doc it re-stamps',
+      () async {
+        final root = await writeNestedProject();
+        writeIn(
+          root,
+          (s) => answerMove(s, [
+            'user_story:shop/cart/add_item',
+          ], under: 'shop/pay'),
+        );
+
+        final mark = approvedValue(root, shopApi)!;
+        expect(
+          File('${root.path}/.specstone/approved/$mark.md').readAsStringSync(),
+          readDoc(root, shopApi),
+        );
+      },
+    );
+  });
+  group('doc-name mentions in docs and code files', () {
+    String codeText(Directory root, String path) =>
+        File('${root.path}/$path').readAsStringSync();
+
+    List<int> codeBytes(Directory root, String path) =>
+        File('${root.path}/$path').readAsBytesSync();
+
+    void putBytes(Directory root, String path, List<int> bytes) =>
+        File('${root.path}/$path')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(bytes);
+
+    ReadAnswer renameLogin(Directory root) =>
+        rename(root, 'feature:login', 'signin');
+
+    String? approvedHash(Directory root, String docPath) => RegExp(
+      r'^approved: "([^"]+)"$',
+      multiLine: true,
+    ).firstMatch(readDoc(root, docPath))?.group(1);
+
+    Future<List<String>> staleDocs(Directory root) async => spots(
+      await checkOf(root),
+      FindingKind.approvalStale,
+    ).map((spot) => spot.split(':').first).toList();
+
+    test('a doc-name mention in any doc follows the rename, its type prefix and section key kept', () async {
+      final root = await writeCheckProject(
+        extra: {
+          'docs/notes.md':
+              'See `login/email_login` or `feature:login#problem`, plain '
+              'login/email_login, and `login`.\n',
+        },
+      );
+      renameLogin(root);
+      expect(
+        readDoc(root, 'notes.md'),
+        'See `signin/email_login` or `feature:signin#problem`, plain '
+        'login/email_login, and `login`.\n',
+      );
+    });
+
+    /// A doc whose `mermaid` block holds [block] and whose `text` block holds
+    /// [text], with a plain mention between them.
+    String mermaidNotes(String block, {String? text}) =>
+        '# Notes\n\nPlain shop/cart/add_item stays.\n\n'
+        '```mermaid\nflowchart LR\n$block\n```\n\n'
+        '```text\n${text ?? block}\n```\n';
+
+    ReadAnswer moveUnder(Directory root, String address, String under) =>
+        writeIn(root, (s) => answerMove(s, [address], under: under));
+
+    test(
+      'a node naming a moved fr in a mermaid block follows the move',
+      () async {
+        const before =
+            '  N[shop/cart/add_item/check_stock E06]\n'
+            '  M[fr:shop/cart/add_item/check_stock]';
+        final root = await writeNestedProject(
+          extra: {'docs/notes.md': mermaidNotes(before)},
+        );
+        final answer = moveUnder(
+          root,
+          'fr:shop/cart/add_item/check_stock',
+          'shop/cart/drop_item',
+        );
+        expect(
+          readDoc(root, 'notes.md'),
+          mermaidNotes(
+            '  N[shop/cart/drop_item/check_stock E06]\n'
+            '  M[fr:shop/cart/drop_item/check_stock]',
+            text: before,
+          ),
+        );
+        expect(answer.json['rewritten'], contains('notes.md'));
+      },
+    );
+
+    test('a story move rewrites a mermaid node naming the story', () async {
+      const before =
+          '  N[shop/cart/add_item E06]\n'
+          '  M[fr:shop/cart/add_item/check_stock]';
+      final root = await writeNestedProject(
+        extra: {'docs/notes.md': mermaidNotes(before)},
+      );
+      moveUnder(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      expect(
+        readDoc(root, 'notes.md'),
+        mermaidNotes(
+          '  N[shop/pay/add_item E06]\n'
+          '  M[fr:shop/pay/add_item/check_stock]',
+          text: before,
+        ),
+      );
+    });
+
+    test(
+      'a mermaid node naming a doc under a moved feature follows the move',
+      () async {
+        const before = '  N[shop/cart/add_item E06]';
+        final root = await writeNestedProject(
+          extra: {
+            'docs/prds/features/f03_other/FEATURE.md': '# Other\n',
+            'docs/notes.md': mermaidNotes(before),
+          },
+        );
+        moveUnder(root, 'feature:shop/cart', 'other');
+        expect(
+          readDoc(root, 'notes.md'),
+          mermaidNotes('  N[other/cart/add_item E06]', text: before),
+        );
+      },
+    );
+
+    test('a mermaid node naming a moved nf follows the move', () async {
+      const before = '  N[shop/cart/add_item/load_fast]';
+      final root = await writeNestedProject(
+        extra: {
+          'docs/prds/features/f02_shop/f01_cart/us01_add_item/nf01_load_fast.md':
+              '# Load fast\n',
+          'docs/notes.md': mermaidNotes(before),
+        },
+      );
+      moveUnder(root, 'nf:shop/cart/add_item/load_fast', 'shop/cart/drop_item');
+      expect(
+        readDoc(root, 'notes.md'),
+        mermaidNotes('  N[shop/cart/drop_item/load_fast]', text: before),
+      );
+    });
+
+    test('two names on one mermaid line both follow, the arrow and brackets unchanged', () async {
+      const before =
+          '  A[shop/cart/add_item] --> B[fr:shop/cart/add_item/check_stock]';
+      final root = await writeNestedProject(
+        extra: {'docs/notes.md': mermaidNotes(before)},
+      );
+      moveUnder(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      expect(
+        readDoc(root, 'notes.md'),
+        mermaidNotes(
+          '  A[shop/pay/add_item] --> B[fr:shop/pay/add_item/check_stock]',
+          text: before,
+        ),
+      );
+    });
+
+    test('a crlf doc keeps its line ends through a mermaid rewrite', () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/notes.md':
+              '# Notes\r\n\r\n```mermaid\r\nflowchart LR\r\n'
+              '  N[shop/cart/add_item E06]\r\n```\r\n',
+        },
+      );
+      moveUnder(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      expect(
+        utf8.decode(docFile(root, 'notes.md').readAsBytesSync()),
+        '# Notes\r\n\r\n```mermaid\r\nflowchart LR\r\n'
+        '  N[shop/pay/add_item E06]\r\n```\r\n',
+      );
+    });
+
+    test('a rename lists the mentions in the code root when no tech stack code entry narrows it', () async {
+      final root = await writeCheckProject(
+        extra: {
+          ...edit(techStack, [('code:\n  - app/lib/\n', 'code: []\n')]),
+          'app/lib/doc.dart': '/// Lays out `login/email_login`.\n',
+        },
+      );
+      final answer = renameLogin(root);
+      expect(answer.json['mentions'], [
+        {'path': 'app/lib/doc.dart', 'line': 1, 'mention': 'login/email_login'},
+      ]);
+    });
+
+    test('a rename keeps a Dart file under a code root as it is and lists the comment lines that stop resolving', () async {
+      const before =
+          '/// Lays out `login/email_login`.\n'
+          'final a = "`login/email_login`";\n'
+          '  // see `user_story:login/email_login#acceptance_criteria` and `feature:login`\n'
+          'void f() {} // also `login/email_login`\n'
+          '// split `login/\n'
+          '// email_login`\n'
+          "const tag = '`login/email_login`';\n";
+      final root = await writeCheckProject(
+        extra: {'app/lib/doc.dart': before, 'other/doc.dart': before},
+      );
+      final answer = renameLogin(root);
+      expect(codeText(root, 'app/lib/doc.dart'), before);
+      expect(codeText(root, 'other/doc.dart'), before);
+      expect(answer.json['mentions'], [
+        {'path': 'app/lib/doc.dart', 'line': 1, 'mention': 'login/email_login'},
+        {
+          'path': 'app/lib/doc.dart',
+          'line': 3,
+          'mention': 'user_story:login/email_login#acceptance_criteria',
+        },
+        {'path': 'app/lib/doc.dart', 'line': 3, 'mention': 'feature:login'},
+      ]);
+      expect(answer.json['rewritten'], isNot(contains('app/lib/doc.dart')));
+      expect(
+        answer.text,
+        endsWith(
+          'mentions app/lib/doc.dart:1 login/email_login\n'
+          'mentions app/lib/doc.dart:3 '
+          'user_story:login/email_login#acceptance_criteria\n'
+          'mentions app/lib/doc.dart:3 feature:login\n',
+        ),
+      );
+    });
+
+    test('a rename keeps every byte of a CRLF file, a file with a byte-order mark, a PNG, and a file of invalid text', () async {
+      final root = await writeCheckProject();
+      final files = {
+        'app/lib/crlf.dart': utf8.encode(
+          '// `login/email_login`\r\nfinal a = 1;\n// `login/email_login`\r\n',
+        ),
+        'app/lib/bom.dart': [
+          0xEF,
+          0xBB,
+          0xBF,
+          ...utf8.encode('// `login/email_login` é\n'),
+        ],
+        'app/lib/logo.png': [0x89, 0x50, 0x4E, 0x47, 0x60, 0xFF, 0xFE],
+        'app/lib/bad.dart': [
+          ...utf8.encode('// `login/email_login`\n'),
+          0xFF,
+          0xFE,
+        ],
+      };
+      for (final MapEntry(:key, :value) in files.entries) {
+        putBytes(root, key, value);
+      }
+      final answer = renameLogin(root);
+      for (final MapEntry(:key, :value) in files.entries) {
+        expect(codeBytes(root, key), value, reason: key);
+      }
+      expect(hasDoc(root, 'prds/features/f01_signin/FEATURE.md'), isTrue);
+      expect(
+        [
+          for (final m in answer.json['mentions']! as List)
+            '${(m as Map)['path']}:${m['line']}',
+        ],
+        ['app/lib/bom.dart:1', 'app/lib/crlf.dart:1', 'app/lib/crlf.dart:3'],
+      );
+    });
+
+    test('a rename lists a markdown file under a code root as a doc is read and keeps its bytes', () async {
+      const before =
+          '---\nname: skill\ndescription: Use `login/email_login`.\n'
+          'approved: "abc"\n---\n\n# Skill\n\nRun `login/email_login`.\n\n'
+          '```sh\n`login/email_login`\n```\n\nPlain login/email_login.\n';
+      final root = await writeCheckProject(extra: {'app/lib/SKILL.md': before});
+      final answer = renameLogin(root);
+      expect(codeText(root, 'app/lib/SKILL.md'), before);
+      expect(answer.json['mentions'], [
+        {'path': 'app/lib/SKILL.md', 'line': 9, 'mention': 'login/email_login'},
+      ]);
+    });
+
+    test('a rename lists a CLAUDE.md naming the feature and a markdown file under a code root naming its doc path, and keeps both files byte for byte', () async {
+      const agent = 'Read `feature:login` before editing.\n';
+      const guide =
+          'See docs/prds/features/f01_login/FEATURE.md for the problem.\n';
+      final root = await writeCheckProject(
+        extra: {'CLAUDE.md': agent, 'app/lib/GUIDE.md': guide},
+      );
+      final answer = renameLogin(root);
+      expect(codeText(root, 'CLAUDE.md'), agent);
+      expect(codeText(root, 'app/lib/GUIDE.md'), guide);
+      expect(answer.json['mentions'], [
+        {'path': 'CLAUDE.md', 'line': 1, 'mention': 'feature:login'},
+        {
+          'path': 'app/lib/GUIDE.md',
+          'line': 1,
+          'mention': 'docs/prds/features/f01_login/FEATURE.md',
+        },
+      ]);
+    });
+
+    test('a rename lists a read-only code file and does not refuse', () async {
+      final root = await writeCheckProject(
+        extra: {'app/lib/locked.dart': '// `login/email_login`\n'},
+      );
+      Process.runSync('chmod', ['444', '${root.path}/app/lib/locked.dart']);
+      addTearDown(
+        () => Process.runSync('chmod', [
+          '644',
+          '${root.path}/app/lib/locked.dart',
+        ]),
+      );
+      final answer = renameLogin(root);
+      expect(hasDoc(root, 'prds/features/f01_signin/FEATURE.md'), isTrue);
+      expect(codeText(root, 'app/lib/locked.dart'), '// `login/email_login`\n');
+      expect(answer.text, contains('mentions app/lib/locked.dart:1 '));
+    }, skip: unreadablePathSkipReason() ?? false);
+
+    test('a reorder lists a path mention in a code file and no Name mention, and keeps the file', () async {
+      const code =
+          '// docs/prds/features/f01_login/us03_reset_password/USER_STORY.md:4\n'
+          '// `login/reset_password` keeps its name\n'
+          '// docs/prds/features/f01_login/nothing.md\n';
+      final root = await writeWriteProject(
+        extra: {
+          'docs/specs/TECH_STACK.md':
+              '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
+              '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+              '## Naming\n\n- snake_case file names\n',
+          'app/lib/doc.dart': code,
+        },
+      );
+      final answer = reorder(root, 'user_story:login/reset_password', '1');
+      expect(codeText(root, 'app/lib/doc.dart'), code);
+      expect(answer.json['mentions'], [
+        {
+          'path': 'app/lib/doc.dart',
+          'line': 1,
+          'mention':
+              'docs/prds/features/f01_login/us03_reset_password/USER_STORY.md',
+        },
+      ]);
+      expect(
+        answer.text,
+        endsWith(
+          'mentions app/lib/doc.dart:1 '
+          'docs/prds/features/f01_login/us03_reset_password/USER_STORY.md\n',
+        ),
+      );
+    });
+
+    test(
+      'a rewritten draft keeps draft: true; an approved doc is stamped again',
+      () async {
+        final root = await writeWriteProject();
+        File(
+          '${root.path}/docs/$antiPersona',
+        ).writeAsStringSync('\nSee `feature:signup`.\n', mode: FileMode.append);
+        final approvedText =
+            '${readDoc(root, loginFeature)}\nSee `feature:signup`.\n';
+        docFile(root, loginFeature).writeAsStringSync(
+          writeIn(
+            root,
+            (s) => withApprovalHash(
+              approvedText,
+              s.docTypeAt(loginFeature),
+              statusesOutside: s.project.statusesOutsideApproval,
+            ),
+          ),
+        );
+        final before = approvedHash(root, loginFeature);
+        expect(await staleDocs(root), isEmpty);
+        rename(root, 'feature:signup', 'register');
+        expect(readDoc(root, antiPersona), contains('draft: true'));
+        expect(readDoc(root, antiPersona), contains('`feature:register`'));
+        expect(readDoc(root, loginFeature), contains('`feature:register`'));
+        expect(approvedHash(root, loginFeature), isNot(before));
+        expect(await staleDocs(root), isEmpty);
+      },
+    );
+
+    test('a move lists a mention in a code comment, a code markdown file, and an agent file, and keeps their bytes, but lists no fenced one or plain text', () async {
+      const code =
+          '// Adds `shop/cart/add_item` and '
+          '`user_story:shop/cart/add_item#acceptance_criteria`.\n'
+          'final plain = "shop/cart/add_item";\n';
+      const skill =
+          'Use `shop/cart/add_item`.\n\n```\n'
+          '`shop/cart/add_item`\n```\n\nPlain shop/cart/add_item.\n';
+      const agent = 'Read `shop/cart/add_item` first.\n';
+      final root = await writeNestedProject(
+        extra: {
+          'docs/notes.md': 'See `shop/cart/add_item`.\n',
+          'app/lib/cart.dart': code,
+          'app/lib/SKILL.md': skill,
+          'CLAUDE.md': agent,
+        },
+      );
+      final answer = writeIn(
+        root,
+        (s) =>
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+      );
+      expect(readDoc(root, 'notes.md'), 'See `shop/pay/add_item`.\n');
+      expect(codeText(root, 'app/lib/cart.dart'), code);
+      expect(codeText(root, 'app/lib/SKILL.md'), skill);
+      expect(codeText(root, 'CLAUDE.md'), agent);
+      expect(answer.json['rewritten'], contains('notes.md'));
+      expect(
+        answer.text,
+        endsWith(
+          'mentions CLAUDE.md:1 shop/cart/add_item\n'
+          'mentions app/lib/SKILL.md:1 shop/cart/add_item\n'
+          'mentions app/lib/cart.dart:1 shop/cart/add_item\n'
+          'mentions app/lib/cart.dart:1 '
+          'user_story:shop/cart/add_item#acceptance_criteria\n',
+        ),
+      );
+    });
+
+    test('a move lists a mention in a tracked file under .codex/agents and keeps its bytes', () async {
+      const agent = 'Read `shop/cart/add_item` first.\n';
+      final root = await writeNestedProject(
+        extra: {'.codex/agents/reader.md': agent},
+      );
+      commitRepo(root);
+      final answer = writeIn(
+        root,
+        (s) =>
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+      );
+      expect(codeText(root, '.codex/agents/reader.md'), agent);
+      expect(answer.json['mentions'], [
+        {
+          'path': '.codex/agents/reader.md',
+          'line': 1,
+          'mention': 'shop/cart/add_item',
+        },
+      ]);
+      expect(
+        answer.text,
+        endsWith('mentions .codex/agents/reader.md:1 shop/cart/add_item\n'),
+      );
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a move stamps an approved doc whose mention it rewrites', () async {
+      final root = await writeNestedProject();
+      final approvedText =
+          '${readDoc(root, shopDomain)}\nSee `shop/cart/add_item`.\n';
+      docFile(root, shopDomain).writeAsStringSync(
+        writeIn(
+          root,
+          (s) => withApprovalHash(
+            approvedText,
+            s.docTypeAt(shopDomain),
+            statusesOutside: s.project.statusesOutsideApproval,
+          ),
+        ),
+      );
+      final before = approvedHash(root, shopDomain);
+      writeIn(
+        root,
+        (s) =>
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+      );
+      expect(readDoc(root, shopDomain), contains('`shop/pay/add_item`'));
+      expect(approvedHash(root, shopDomain), isNot(before));
+      expect(await staleDocs(root), isNot(contains(shopDomain)));
+    });
+
+    test('a rename lists only the files a code entry names', () async {
+      const before = '// `login/email_login`\n';
+      final root = await writeCheckProject(
+        extra: {
+          ...doc(techStack, '- app/lib/\n', '- app/lib/note.dart\n'),
+          'app/lib/note.dart': before,
+          'app/lib/other.dart': before,
+        },
+      );
+      final answer = renameLogin(root);
+      expect(codeText(root, 'app/lib/note.dart'), before);
+      expect(codeText(root, 'app/lib/other.dart'), before);
+      expect(answer.json['mentions'], [
+        {
+          'path': 'app/lib/note.dart',
+          'line': 1,
+          'mention': 'login/email_login',
+        },
+      ]);
+    });
+
+    test('a code root that holds the docs folder rewrites a doc through the doc step only, which keeps it approved and prints no warning', () async {
+      final root = await writeCheckProject(
+        extra: {...doc(techStack, '- app/lib/\n', '- ./\n')},
+      );
+      final approvedText =
+          '${readDoc(root, projectDoc)}\nSee `login/email_login`.\n';
+      docFile(root, projectDoc).writeAsStringSync(
+        writeIn(
+          root,
+          (s) => withApprovalHash(
+            approvedText,
+            s.docTypeAt(projectDoc),
+            statusesOutside: s.project.statusesOutsideApproval,
+          ),
+        ),
+      );
+      final before = approvedHash(root, projectDoc);
+      final stderrLines = _CapturedStderr();
+      final answer = IOOverrides.runZoned(
+        () => renameLogin(root),
+        stderr: () => stderrLines,
+      );
+      expect(readDoc(root, projectDoc), contains('See `signin/email_login`.'));
+      expect(approvedHash(root, projectDoc), isNot(before));
+      expect(await staleDocs(root), isEmpty);
+      expect(stderrLines.lines, isEmpty);
+      expect(
+        (answer.json['rewritten']! as List).where(
+          (p) => (p! as String).startsWith('docs/'),
+        ),
+        isEmpty,
+      );
+    });
+
+    group('a code root outside the project root', () {
+      late Directory outside;
+      late String folder;
+
+      setUp(() {
+        outside = Directory.systemTemp.createTempSync('specstone_outside_');
+        addTearDown(() => outside.deleteSync(recursive: true));
+        folder = outside.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+      });
+
+      String config() => '${shippedPinsConfig()}code_root: ../$folder\n';
+
+      Map<String, List<int>> outsideBytes() => {
+        for (final entity in outside.listSync(recursive: true))
+          if (entity is File) entity.path: entity.readAsBytesSync(),
+      };
+
+      test('a rename keeps a code file outside the project as it is, lists it by its path from the project root, and applies the rename', () async {
+        File('${outside.path}/app/lib/doc.dart')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('// `login/email_login`\n');
+        final root = await writeCheckProject(
+          extra: {'.specstone/config.yaml': config()},
+          // The code lies outside the project, so no link can take a fingerprint.
+          unfingerprinted: {loginRecord, 'docs/$loginArchitecture'},
+        );
+        final before = outsideBytes();
+
+        final answer = renameLogin(root);
+
+        expect(outsideBytes(), before);
+        expect(answer.warnings, isEmpty);
+        expect(answer.json['mentions'], [
+          {
+            'path': '../$folder/app/lib/doc.dart',
+            'line': 1,
+            'mention': 'login/email_login',
+          },
+        ]);
+        expect(answer.json['rewritten'], isNot(contains(contains(folder))));
+        expect(hasDoc(root, 'prds/features/f01_signin/FEATURE.md'), isTrue);
+        expect(hasDoc(root, 'prds/features/f01_login/FEATURE.md'), isFalse);
+      });
+
+      test(
+        'a code file outside the project with no mention is not listed',
+        () async {
+          File('${outside.path}/app/lib/doc.dart')
+            ..createSync(recursive: true)
+            ..writeAsStringSync('// nothing renamed here\n');
+          final root = await writeCheckProject(
+            extra: {'.specstone/config.yaml': config()},
+            // The code lies outside the project, so no link can take a fingerprint.
+            unfingerprinted: {loginRecord, 'docs/$loginArchitecture'},
+          );
+
+          final answer = renameLogin(root);
+
+          expect(answer.warnings, isEmpty);
+          expect(answer.json['mentions'], isEmpty);
+        },
+      );
+
+      test('a move keeps a code file outside the project as it is, lists it, and applies the move', () async {
+        File('${outside.path}/app/lib/cart.dart')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('// Adds `shop/cart/add_item`.\n');
+        final root = await writeNestedProject(
+          extra: {
+            '.specstone/config.yaml': config(),
+            'docs/notes.md': 'See `shop/cart/add_item`.\n',
+          },
+          // The code lies outside the project, so no link can take a fingerprint.
+          unfingerprinted: {
+            'docs/$shopArchitecture',
+            loginRecord,
+            'docs/$loginArchitecture',
+          },
+        );
+        final before = outsideBytes();
+
+        final answer = writeIn(
+          root,
+          (s) => answerMove(s, [
+            'user_story:shop/cart/add_item',
+          ], under: 'shop/pay'),
+        );
+
+        expect(outsideBytes(), before);
+        expect(answer.warnings, isEmpty);
+        expect(
+          answer.text,
+          contains('mentions ../$folder/app/lib/cart.dart:1 '),
+        );
+        expect(readDoc(root, 'notes.md'), 'See `shop/pay/add_item`.\n');
+      });
+    });
+
+    group('a replayed write step', () {
+      const original = 'old text\n';
+      const planned = 'new text\n';
+      const edited = 'old text\nthe user added a line\n';
+
+      // A doc and a code file, each with the step the run planned for it.
+      final cases = {
+        'a doc': ('docs/notes.md', 'notes.md'),
+        'a code file': ('app/lib/note.dart', 'app/lib/note.dart'),
+      };
+
+      for (final MapEntry(key: label, value: (path, _)) in cases.entries) {
+        Future<Directory> stopped(String onDisk) async {
+          final root = await writeCheckProject(extra: {path: onDisk});
+          writeJournal(root, [
+            WriteStep(path, planned, before: textHashOf(original)),
+          ]);
+          return root;
+        }
+
+        String text(Directory root) =>
+            File('${root.path}/$path').readAsStringSync();
+
+        test('$label that holds the step text counts as done', () async {
+          final root = await stopped(planned);
+          writeIn(root, (s) => s.index.docs.length);
+          expect(text(root), planned);
+          expect(MoveJournal.pending(root), isFalse);
+        });
+
+        test('$label that holds the planned-from text gets the step', () async {
+          final root = await stopped(original);
+          writeIn(root, (s) => s.index.docs.length);
+          expect(text(root), planned);
+          expect(MoveJournal.pending(root), isFalse);
+        });
+
+        test(
+          '$label edited after the stop is left as it is, named in a warning, and the journal still clears',
+          () async {
+            final root = await stopped(edited);
+            final lines = <String>[];
+            final target = JournalTarget(
+              projectRoot: root,
+              docsRoot: Directory('${root.path}/docs'),
+              homeDirectory: testHome(),
+              warn: lines.add,
+            );
+            WriteStep(
+              path,
+              planned,
+              before: textHashOf(original),
+            ).apply(target);
+            expect(text(root), edited);
+            expect(lines, [
+              '$path changed since the stopped run; left as it is',
+            ]);
+            writeIn(root, (s) => s.index.docs.length);
+            expect(text(root), edited);
+            expect(MoveJournal.pending(root), isFalse);
+          },
+        );
+      }
+    });
+  });
+
+  group('with two code targets', () {
+    const flutterLogin =
+        '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprLogin = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+    const flutterSignup =
+        '.specstone/records/flutter/f02_signup/IMPLEMENTATION.md';
+    const jasprSignup = '.specstone/records/jaspr/f02_signup/IMPLEMENTATION.md';
+
+    final loginRecord = recordText(
+      statuses: [
+        'email_login:implemented',
+        'reset_password:implemented',
+        'reset_password/send_reset_link:planned',
+        'reset_password/expire_reset_link:planned',
+        ':skipped:no tablet',
+      ],
+      code: [
+        'email_login:app/lib/login.dart:SignIn',
+        'reset_password:app/lib/reset.dart:ResetPage',
+        'reset_password/send_reset_link:app/lib/reset.dart:Send',
+      ],
+    );
+
+    Future<Directory> twinProject({
+      Map<String, String> extra = const {},
+      Set<String> without = const {},
+    }) => writeWriteProject(
+      without: without,
+      extra: {
+        for (final MapEntry(:key, :value) in {
+          '.specstone/config.yaml': twinConfig(),
+          // The shared architecture docs of the fixture stay shared: a layer
+          // takes them back from the shipped per-target pack.
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
+          'flutter_ws/app/lib/login.dart': 'class SignIn {}\n',
+          'jaspr_ws/app/lib/login.dart': 'class SignIn {}\n',
+          flutterLogin: loginRecord,
+          jasprLogin: loginRecord,
+          flutterSignup: recordText(statuses: ['ghost:planned']),
+          jasprSignup: recordText(statuses: ['ghost:planned']),
+          ...extra,
+        }.entries)
+          if (!without.contains(key)) key: value,
+      },
+    );
+
+    List<String> movedPairs(ReadAnswer answer) => [
+      for (final move in answer.json['moved']! as List)
+        '${(move as Map)['from']} ${move['to']}',
+    ];
+
+    test('a feature reorder moves its spec folder in every target, each record with it and every entry as written', () async {
+      final root = await twinProject();
+      final signupBefore = readDoc(root, flutterSignup);
+      final loginBefore = readDoc(root, jasprLogin);
+      final answer = reorder(root, 'feature:signup', '1');
+      expect(movedPairs(answer), [
+        'prds/features/f02_signup/ prds/features/f01_signup/',
+        '.specstone/records/flutter/f02_signup/ .specstone/records/flutter/f01_signup/',
+        '.specstone/records/jaspr/f02_signup/ .specstone/records/jaspr/f01_signup/',
+        'specs/f02_signup/ specs/f01_signup/',
+        'prds/features/f01_login/ prds/features/f02_login/',
+        '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f02_login/',
+        '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f02_login/',
+        'specs/f01_login/ specs/f02_login/',
+      ]);
+      expect(
+        readDoc(
+          root,
+          '.specstone/records/flutter/f01_signup/IMPLEMENTATION.md',
+        ),
+        signupBefore,
+      );
+      expect(
+        readDoc(root, '.specstone/records/jaspr/f02_login/IMPLEMENTATION.md'),
+        loginBefore,
+      );
+      expect(hasDoc(root, flutterSignup), isFalse);
+    });
+
+    test('a reorder that moves a story leaves every record byte for byte and out of the rewritten list', () async {
+      final root = await twinProject();
+      final answer = reorder(root, 'user_story:login/reset_password', '1');
+      expect(readDoc(root, flutterLogin), loginRecord);
+      expect(readDoc(root, jasprLogin), loginRecord);
+      expect(
+        answer.json['rewritten'],
+        isNot(contains(anyOf(flutterLogin, jasprLogin))),
+      );
+    });
+
+    test(
+      'a record code path that spells a moved doc path keeps its bytes',
+      () async {
+        final spelled = recordText(
+          statuses: ['reset_password:implemented'],
+          code: ['reset_password:$f/us03_reset_password/USER_STORY.md:Page'],
+        );
+        final root = await twinProject(extra: {flutterLogin: spelled});
+        reorder(root, 'user_story:login/reset_password', '1');
+        expect(readDoc(root, flutterLogin), spelled);
+      },
+    );
+
+    test('a feature rename moves its spec folder in every target', () async {
+      final root = await twinProject();
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(movedPairs(answer), [
+        'prds/features/f01_login/ prds/features/f01_signin/',
+        '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+        '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
+        'specs/f01_login/ specs/f01_signin/',
+      ]);
+      expect(
+        hasDoc(root, '.specstone/records/jaspr/f01_signin/IMPLEMENTATION.md'),
+        isTrue,
+      );
+    });
+
+    test('a target with no spec folder for the feature gets none', () async {
+      final root = await twinProject(without: {jasprLogin});
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(movedPairs(answer), [
+        'prds/features/f01_login/ prds/features/f01_signin/',
+        '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+        'specs/f01_login/ specs/f01_signin/',
+      ]);
+      expect(
+        Directory('${root.path}/docs/specs/jaspr/f01_signin').existsSync(),
+        isFalse,
+      );
+    });
+
+    group('with per-target architecture docs', () {
+      const flutterArch = 'specs/flutter/f01_login/ARCHITECTURE.md';
+      const jasprArch = 'specs/jaspr/f01_login/ARCHITECTURE.md';
+
+      Future<Directory> archTwins() => twinProject(
+        without: {'docs/specs/f01_login/ARCHITECTURE.md'},
+        extra: {
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          'docs/$flutterArch': '# Login architecture\n',
+          'docs/$jasprArch': '# Login architecture\n',
+          'docs/notes.md': 'See `architecture:login` and `login`.\n',
+        },
+      );
+
+      test('a per-target doc names its feature to rename, read in the shape of its own target', () async {
+        final root = await archTwins();
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerRename(
+              s,
+              'architecture:login',
+              slug: 'signin',
+              codeTarget: 'flutter',
+            ),
+          ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  contains('rename feature:login instead'),
+                ),
+          ),
+        );
+      });
+
+      test(
+        'a mention of a per-target doc takes the feature name the twins share',
+        () async {
+          final root = await archTwins();
+          rename(root, 'feature:login', 'signin');
+          expect(
+            readDoc(root, 'notes.md'),
+            'See `architecture:signin` and `login`.\n',
+          );
+          expect(
+            hasDoc(root, 'specs/flutter/f01_signin/ARCHITECTURE.md'),
+            isTrue,
+          );
+          expect(
+            hasDoc(root, 'specs/jaspr/f01_signin/ARCHITECTURE.md'),
+            isTrue,
+          );
+        },
+      );
+    });
+
+    group('record entries on a rename', () {
+      String approvedValue(Directory root, String docPath) => RegExp(
+        r'^approved: "([^"]+)"$',
+        multiLine: true,
+      ).firstMatch(readDoc(root, docPath))!.group(1)!;
+
+      test('a story rename rewrites its entry and its FRs entries in each target, status and code paths kept, every other line as written', () async {
+        final root = await twinProject();
+        final answer = rename(
+          root,
+          'user_story:login/reset_password',
+          'recover',
+        );
+        for (final path in [flutterLogin, jasprLogin]) {
+          final record = readDoc(root, path);
+          expect(record, contains("'recover:implemented'"));
+          expect(record, contains("'recover/send_reset_link:planned'"));
+          expect(record, contains("'recover/expire_reset_link:planned'"));
+          expect(record, contains("'recover:app/lib/reset.dart:ResetPage'"));
+          expect(
+            record,
+            contains("'recover/send_reset_link:app/lib/reset.dart:Send'"),
+          );
+          expect(record, contains("'email_login:implemented'"));
+          expect(record, contains("':skipped:no tablet'"));
+          expect(record, contains("'email_login:app/lib/login.dart:SignIn'"));
+          expect(record, isNot(contains('reset_password')));
+        }
+        expect(
+          answer.json['rewritten'],
+          containsAll([flutterLogin, jasprLogin]),
+        );
+      });
+
+      test('an FR rename rewrites only its own entry', () async {
+        final root = await twinProject();
+        rename(root, 'fr:login/reset_password/send_reset_link', 'send_link');
+        final record = readDoc(root, flutterLogin);
+        expect(record, contains("'reset_password/send_link:planned'"));
+        expect(
+          record,
+          contains("'reset_password/send_link:app/lib/reset.dart:Send'"),
+        );
+        expect(record, contains("'reset_password/expire_reset_link:planned'"));
+        expect(record, contains("'reset_password:implemented'"));
+        expect(record, isNot(contains('reset_password/send_reset_link')));
+      });
+
+      test('a feature rename leaves each entry, the record moving with the spec folder', () async {
+        final root = await twinProject();
+        rename(root, 'feature:login', 'signin');
+        expect(
+          readDoc(
+            root,
+            '.specstone/records/flutter/f01_signin/IMPLEMENTATION.md',
+          ),
+          loginRecord,
+        );
+        expect(
+          readDoc(
+            root,
+            '.specstone/records/jaspr/f01_signin/IMPLEMENTATION.md',
+          ),
+          loginRecord,
+        );
+      });
+
+      test('a record whose approval held is stamped again, a draft and a stale record keep theirs, and none gains draft', () async {
+        final root = await twinProject();
+        stampApproved(root, flutterLogin);
+        stampApproved(root, jasprLogin);
+        docFile(
+          root,
+          jasprLogin,
+        ).writeAsStringSync('\nLate note.\n', mode: FileMode.append);
+        final staleHash = approvedValue(root, jasprLogin);
+        final before = approvedValue(root, flutterLogin);
+        rename(root, 'user_story:login/reset_password', 'recover');
+        expect(holdsApproval(root, flutterLogin), isTrue);
+        // At the shipped pins the rewritten entries all stay outside the hash.
+        expect(approvedValue(root, flutterLogin), before);
+        expect(approvedValue(root, jasprLogin), staleHash);
+        expect(holdsApproval(root, jasprLogin), isFalse);
+        expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
+        expect(readDoc(root, jasprLogin), isNot(contains('draft: true')));
+      });
+
+      test('below the statuses pin, a rename stamps the hash the rewritten statuses give a record whose approval held', () async {
+        final root = await twinProject();
+        pinStatusesBelow(root);
+        final below = statusesBelowResolver;
+        stampApproved(root, flutterLogin, templates: below);
+        final before = approvedValue(root, flutterLogin);
+        writeIn(
+          root,
+          templates: below,
+          (s) => answerRename(
+            s,
+            'user_story:login/reset_password',
+            slug: 'recover',
+          ),
+        );
+        expect(holdsApproval(root, flutterLogin, templates: below), isTrue);
+        expect(approvedValue(root, flutterLogin), isNot(before));
+        expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
+      });
+    });
+  });
+
+  group('with one unnamed code target', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+    test('a story rename rewrites its entries in the one record', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          record: recordText(
+            statuses: ['reset_password:implemented', 'sign_out:planned'],
+          ),
+        },
+      );
+      rename(root, 'user_story:login/reset_password', 'recover');
+      final text = readDoc(root, record);
+      expect(text, contains("'recover:implemented'"));
+      expect(text, contains("'sign_out:planned'"));
+      expect(text, isNot(contains('reset_password')));
+    });
+  });
+
+  group('with one unnamed code target and a tests line', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+    test('a story rename renames its tests lines, so check finds no entry the rename left behind', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          'app/test/reset_test.dart': 'void main() {}\n',
+          record: recordText(
+            statuses: ['reset_password:implemented'],
+            tests: [
+              'reset_password:app/test/reset_test.dart',
+              'reset_password/send_reset_link:app/test/reset_test.dart:sends',
+            ],
+          ),
+        },
+      );
+      rename(root, 'user_story:login/reset_password', 'recover');
+      final text = readDoc(root, record);
+      expect(text, contains("'recover:app/test/reset_test.dart'"));
+      expect(
+        text,
+        contains("'recover/send_reset_link:app/test/reset_test.dart:sends'"),
+      );
+      expect(text, isNot(contains('reset_password')));
+      expect(
+        spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+        isEmpty,
+      );
+    });
+  });
+
+  group('with one named code target', () {
+    test('a per-target doc outside a target folder keeps the feature name its mention takes', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  web:\n    code_root: web_ws\n',
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          'web_ws/app/lib/login.dart': 'class SignIn {}\n',
+          'docs/notes.md': 'See `architecture:login`.\n',
+        },
+      );
+      rename(root, 'feature:login', 'signin');
+      expect(readDoc(root, 'notes.md'), 'See `architecture:signin`.\n');
+    });
+  });
+
+  group('move with record entries', () {
+    const cartFlutter =
+        '.specstone/records/flutter/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const cartJaspr =
+        '.specstone/records/jaspr/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const payFlutter =
+        '.specstone/records/flutter/f02_shop/f02_pay/IMPLEMENTATION.md';
+    const payJaspr =
+        '.specstone/records/jaspr/f02_shop/f02_pay/IMPLEMENTATION.md';
+    const addItem = 'user_story:shop/cart/add_item';
+
+    final flutterCart = recordText(
+      statuses: [
+        'add_item:implemented',
+        'add_item/check_stock:implemented',
+        'drop_item:planned',
+      ],
+      code: [
+        'add_item:app/lib/shop.dart:Shop',
+        'add_item/check_stock:app/lib/shop.dart:Shop',
+      ],
+    );
+    final jasprCart = recordText(
+      statuses: [
+        ':skipped:no web cart',
+        'add_item:implemented',
+        'drop_item:planned',
+      ],
+    );
+    final jasprPay = recordText(statuses: ['card:implemented']);
+
+    Future<Directory> shopTwins({
+      Map<String, String> extra = const {},
+      Set<String> without = const {},
+    }) => writeNestedProject(
+      without: without,
+      unfingerprinted: {cartFlutter, cartJaspr, payJaspr},
+      extra: {
+        '.specstone/config.yaml': twinConfig(),
+        '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+        cartFlutter: flutterCart,
+        cartJaspr: jasprCart,
+        payJaspr: jasprPay,
+        ...extra,
+      },
+    );
+
+    ReadAnswer moveAddItem(Directory root) =>
+        writeIn(root, (s) => answerMove(s, [addItem], under: 'shop/pay'));
+
+    String statusIn(Directory root, String type, String target, String name) {
+      final session = openSession(root);
+      try {
+        final line = answerList(
+          session.index,
+          type,
+          ListFilters(codeTarget: target),
+        ).text.split('\n').firstWhere((l) => l.startsWith('$name ($type)'));
+        return line.split(' · ')[1];
+      } finally {
+        session.close();
+      }
+    }
+
+    test('each target carries the story and FR entries to its pay record, creating a missing one as a draft, and its skip of cart stays on cart', () async {
+      final root = await shopTwins();
+      stampApproved(root, cartFlutter);
+      stampApproved(root, cartJaspr);
+      stampApproved(root, payJaspr);
+      final answer = moveAddItem(root);
+
+      final flutterCartAfter = readDoc(root, cartFlutter);
+      expect(flutterCartAfter, contains("'drop_item:planned'"));
+      expect(flutterCartAfter, isNot(contains('add_item')));
+      expect(flutterCartAfter, isNot(contains('implements:')));
+      expect(holdsApproval(root, cartFlutter), isTrue);
+
+      final jasprCartAfter = readDoc(root, cartJaspr);
+      expect(jasprCartAfter, contains("':skipped:no web cart'"));
+      expect(jasprCartAfter, contains("'drop_item:planned'"));
+      expect(jasprCartAfter, isNot(contains('add_item')));
+      expect(holdsApproval(root, cartJaspr), isTrue);
+
+      final created = readDoc(root, payFlutter);
+      expect(created, contains('draft: true'));
+      expect(created, contains('add_item:implemented'));
+      expect(created, contains('add_item/check_stock:implemented'));
+      expect(created, contains('add_item:app/lib/shop.dart:Shop'));
+      expect(created, contains('add_item/check_stock:app/lib/shop.dart:Shop'));
+      expect(created, isNot(contains('skipped')));
+      expect(holdsApproval(root, payFlutter), isFalse);
+
+      final payJasprAfter = readDoc(root, payJaspr);
+      expect(payJasprAfter, contains("'card:implemented'"));
+      expect(payJasprAfter, contains("'add_item:implemented'"));
+      expect(payJasprAfter, isNot(contains('skipped')));
+      expect(holdsApproval(root, payJaspr), isTrue);
+
+      expect(
+        answer.json['rewritten'],
+        containsAll([cartFlutter, cartJaspr, payFlutter, payJaspr]),
+      );
+    });
+
+    test(
+      'a story move carries its tests lines to the record it lands in',
+      () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: recordText(
+              statuses: ['add_item:implemented', 'drop_item:planned'],
+              tests: [
+                'add_item:app/test/shop_test.dart',
+                'add_item/check_stock:app/test/shop_test.dart:checks',
+                'drop_item:app/test/shop_test.dart',
+              ],
+            ),
+          },
+        );
+        moveAddItem(root);
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'drop_item:app/test/shop_test.dart'"));
+        expect(cart, isNot(contains('add_item')));
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('add_item:app/test/shop_test.dart'));
+        expect(
+          created,
+          contains('add_item/check_stock:app/test/shop_test.dart:checks'),
+        );
+      },
+    );
+
+    test(
+      'a story move carries a code line with its fingerprint after the pointer',
+      () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: recordText(
+              statuses: ['add_item:implemented', 'drop_item:planned'],
+              code: [
+                'add_item:app/lib/shop.dart:Shop 0123456789ab',
+                'drop_item:app/lib/drop.dart 0123456789ab',
+              ],
+            ),
+          },
+        );
+        moveAddItem(root);
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'drop_item:app/lib/drop.dart 0123456789ab'"));
+        expect(cart, isNot(contains('add_item')));
+        expect(
+          readDoc(root, payFlutter),
+          contains('add_item:app/lib/shop.dart:Shop 0123456789ab'),
+        );
+      },
+    );
+
+    group('matrix rows', () {
+      const stockRow =
+          '- add_item/check_stock E01: `refuses an item out of stock` '
+          '5d1e0c4b7a92';
+      const stockSkip =
+          '- add_item/check_stock E02 skipped: needs a stock service '
+          '9a1c03be55d2';
+      const dropRow = '- drop_item/drop_line E01: `drops a line` 1b2c3d4e5f60';
+      const chargeRow = '- card/charge E01: `charges a card`';
+      const header = '\n## Verification matrix\n\n';
+
+      String withRows(String record, List<String> rows) =>
+          '$record$header${rows.join('\n')}\n';
+
+      test("move carries a moved FR's matrix rows to the new record", () async {
+        final root = await shopTwins(
+          extra: {
+            cartJaspr: withRows(
+              recordText(
+                statuses: ['add_item:implemented', 'drop_item:planned'],
+              ),
+              [stockRow, stockSkip, dropRow],
+            ),
+            payJaspr: withRows(jasprPay, [chargeRow]),
+          },
+        );
+        stampApproved(root, cartJaspr);
+        stampApproved(root, payJaspr);
+        moveAddItem(root);
+
+        final cart = readDoc(root, cartJaspr);
+        expect(cart, endsWith('$header$dropRow\n'));
+        expect(holdsApproval(root, cartJaspr), isTrue);
+        final pay = readDoc(root, payJaspr);
+        expect(pay, endsWith('$header$chargeRow\n$stockRow\n$stockSkip\n'));
+        expect(holdsApproval(root, payJaspr), isTrue);
+      });
+
+      test('a move stopped before its folder moves lands the rows when the '
+          'next write replays it', () async {
+        final root = await shopTwins(
+          extra: {
+            cartJaspr: withRows(
+              recordText(
+                statuses: ['add_item:implemented', 'drop_item:planned'],
+              ),
+              [stockRow, dropRow],
+            ),
+            payJaspr: withRows(jasprPay, [chargeRow]),
+          },
+        );
+        expect(
+          () => IOOverrides.runWithIOOverrides(
+            () => moveAddItem(root),
+            FailingRenameHook(
+              'docs/prds/features/f02_shop/f01_cart/us01_add_item',
+            ),
+          ),
+          throwsA(isA<RenderFault>()),
+        );
+        expect(
+          File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+          isTrue,
+        );
+
+        writeIn(root, (_) {});
+
+        expect(readDoc(root, cartJaspr), endsWith('$header$dropRow\n'));
+        expect(
+          readDoc(root, payJaspr),
+          endsWith('$header$chargeRow\n$stockRow\n'),
+        );
+        expect(
+          File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+          isFalse,
+        );
+      });
+
+      test('a move into a feature with no record creates one holding the '
+          'rows', () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: withRows(flutterCart, [stockRow, dropRow]),
+          },
+        );
+        moveAddItem(root);
+
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('draft: true'));
+        expect(created, contains('add_item/check_stock:implemented'));
+        expect(created, endsWith('$header$stockRow\n'));
+        expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
+      });
+
+      test('an fr with matrix rows alone moves with its story', () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: withRows(recordText(statuses: ['drop_item:planned']), [
+              stockRow,
+              dropRow,
+            ]),
+          },
+        );
+        moveAddItem(root);
+
+        expect(readDoc(root, payFlutter), endsWith('$header$stockRow\n'));
+        expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
+      });
+
+      test('an fr moved to another feature carries its rows, named relative '
+          'to the story it lands in', () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: withRows(flutterCart, [stockRow, stockSkip, dropRow]),
+            payJaspr: jasprPay,
+            cartJaspr: withRows(
+              recordText(statuses: ['add_item/check_stock:implemented']),
+              [stockRow],
+            ),
+          },
+        );
+        writeIn(
+          root,
+          (s) => answerMove(s, [
+            'fr:shop/cart/add_item/check_stock',
+          ], under: 'shop/pay/card'),
+        );
+
+        final created = readDoc(root, payFlutter);
+        expect(
+          created,
+          endsWith(
+            '$header'
+            '- card/check_stock E01: `refuses an item out of stock` '
+            '5d1e0c4b7a92\n'
+            '- card/check_stock E02 skipped: needs a stock service '
+            '9a1c03be55d2\n',
+          ),
+        );
+        expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
+        expect(
+          readDoc(root, payJaspr),
+          endsWith(
+            '$header- card/check_stock E01: `refuses an item out of stock` '
+            '5d1e0c4b7a92\n',
+          ),
+        );
+        expect(readDoc(root, cartJaspr), isNot(contains('check_stock')));
+      });
+
+      test('an fr moved to a sibling story keeps its matrix rows in the same record, renamed, with each edge case and literal as written', () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: withRows(flutterCart, [stockRow, stockSkip, dropRow]),
+          },
+        );
+        writeIn(
+          root,
+          (s) => answerMove(s, [
+            'fr:shop/cart/add_item/check_stock',
+          ], under: 'shop/cart/drop_item'),
+        );
+
+        final cart = readDoc(root, cartFlutter);
+        expect(
+          cart,
+          contains(
+            '- drop_item/check_stock E01: `refuses an item out of stock` '
+            '5d1e0c4b7a92\n',
+          ),
+        );
+        expect(
+          cart,
+          contains(
+            '- drop_item/check_stock E02 skipped: needs a stock service '
+            '9a1c03be55d2\n',
+          ),
+        );
+        expect(cart, contains('$dropRow\n'));
+        expect(cart, isNot(contains('add_item/check_stock E0')));
+        expect(hasDoc(root, payFlutter), isFalse);
+      });
+    });
+
+    test('a dry run lists the records it would rewrite and create, and writes none', () async {
+      final root = await shopTwins();
+      final answer = writeIn(
+        root,
+        (s) => answerMove(s, [addItem], under: 'shop/pay', dryRun: true),
+      );
+      expect(answer.text, contains('rewrites $cartFlutter\n'));
+      expect(answer.text, contains('rewrites $payFlutter\n'));
+      expect(answer.text, isNot(contains('rewrote')));
+      expect(answer.json['rewritten'], containsAll([cartFlutter, payFlutter]));
+      expect(docFile(root, payFlutter).existsSync(), isFalse);
+      expect(readDoc(root, cartFlutter), flutterCart);
+    });
+
+    test('the entries name the story and FR relative to pay, so check finds no unresolved entry', () async {
+      final root = await shopTwins();
+      moveAddItem(root);
+      expect(
+        spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+        isEmpty,
+      );
+    });
+
+    test('a target whose cart record holds no entry of the moved items changes nothing, and no pay record is made there', () async {
+      final bare = recordText(statuses: ['drop_item:planned']);
+      final root = await shopTwins(
+        extra: {cartJaspr: bare},
+        without: {payJaspr},
+      );
+      moveAddItem(root);
+      expect(readDoc(root, cartJaspr), bare);
+      expect(hasDoc(root, payJaspr), isFalse);
+      expect(hasDoc(root, payFlutter), isTrue);
+    });
+
+    test('a target with no cart record changes nothing', () async {
+      final root = await shopTwins(without: {cartJaspr, payJaspr});
+      moveAddItem(root);
+      expect(hasDoc(root, cartJaspr), isFalse);
+      expect(hasDoc(root, payJaspr), isFalse);
+    });
+
+    test('moved items read skipped in a target that skips pay and planned in a target whose cart record holds no entry for them', () async {
+      final bare = recordText(statuses: ['drop_item:planned']);
+      final root = await shopTwins(
+        extra: {
+          cartFlutter: bare,
+          cartJaspr: bare,
+          payJaspr: recordText(
+            statuses: [':skipped:no web pay', 'card:implemented'],
+          ),
+        },
+      );
+      moveAddItem(root);
+      for (final (type, name) in [
+        ('user_story', 'shop/pay/add_item'),
+        ('fr', 'shop/pay/add_item/check_stock'),
+      ]) {
+        expect(statusIn(root, type, 'jaspr', name), 'skipped', reason: name);
+        expect(statusIn(root, type, 'flutter', name), 'planned', reason: name);
+      }
+      expect(readDoc(root, cartFlutter), bare);
+      expect(hasDoc(root, payFlutter), isFalse);
+    });
+
+    test('a skip on cart stays on cart, and the moved items read skipped under pay only when the target skips pay or a feature above it', () async {
+      const shopJaspr = '.specstone/records/jaspr/f02_shop/IMPLEMENTATION.md';
+      final skippedCart = recordText(
+        statuses: [
+          ':skipped:no web cart',
+          'add_item:implemented',
+          'add_item/check_stock:implemented',
+          'drop_item:planned',
+        ],
+      );
+      final cases = {
+        'no skip on pay or above': (<String, String>{}, 'implemented'),
+        'a skip on pay': (
+          {
+            payJaspr: recordText(
+              statuses: [':skipped:no web pay', 'card:implemented'],
+            ),
+          },
+          'skipped',
+        ),
+        'a skip on shop': (
+          {
+            shopJaspr: recordText(statuses: [':skipped:no web shop']),
+          },
+          'skipped',
+        ),
+      };
+      for (final MapEntry(key: label, value: (extra, status))
+          in cases.entries) {
+        final root = await shopTwins(extra: {cartJaspr: skippedCart, ...extra});
+        moveAddItem(root);
+        expect(readDoc(root, cartJaspr), contains("':skipped:no web cart'"));
+        for (final name in [
+          'shop/pay/add_item',
+          'shop/pay/add_item/check_stock',
+        ]) {
+          final type = name.split('/').length == 3 ? 'user_story' : 'fr';
+          expect(statusIn(root, type, 'jaspr', name), status, reason: label);
+        }
+      }
+    });
+
+    test('a record whose hash did not match keeps its hash and gains no draft mark', () async {
+      final root = await shopTwins();
+      stampApproved(root, cartJaspr);
+      docFile(
+        root,
+        cartJaspr,
+      ).writeAsStringSync('\nLate note.\n', mode: FileMode.append);
+      final before = RegExp(
+        r'^approved: "([^"]+)"$',
+        multiLine: true,
+      ).firstMatch(readDoc(root, cartJaspr))!.group(1);
+      moveAddItem(root);
+      final after = readDoc(root, cartJaspr);
+      expect(after, contains('approved: "$before"'));
+      expect(after, isNot(contains('draft: true')));
+      expect(after, isNot(contains('add_item')));
+    });
+
+    test('two stories moved in one call keep the order of the record, whatever order the call names them', () async {
+      final root = await shopTwins(
+        extra: {
+          cartFlutter: recordText(
+            statuses: ['add_item:implemented', 'drop_item:planned'],
+          ),
+        },
+      );
+      writeIn(
+        root,
+        (s) => answerMove(s, [
+          'user_story:shop/cart/drop_item',
+          addItem,
+        ], under: 'shop/pay'),
+      );
+      final created = readDoc(root, payFlutter);
+      expect(
+        created.indexOf('add_item:implemented'),
+        lessThan(created.indexOf('drop_item:planned')),
+      );
+      expect(readDoc(root, cartFlutter), isNot(contains('statuses')));
+    });
+
+    test('a record doc type with no path of its own for the feature refuses argument_invalid, and the old record keeps its lines', () async {
+      const slugged =
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPL_{slug}.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n';
+      final record = recordText(statuses: ['reset_password:implemented']);
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': slugged,
+          'docs/specs/f01_login/IMPL_login.md': record,
+        },
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerMove(s, [
+            'user_story:login/reset_password',
+          ], under: 'signup'),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                contains('has no path to create a record at for signup'),
+              ),
+        ),
+      );
+      expect(readDoc(root, 'specs/f01_login/IMPL_login.md'), record);
+      expect(hasDoc(root, story3), isTrue);
+    });
+
+    test('a pay record written after the session opened takes the entries beside its own', () async {
+      final root = await shopTwins();
+      writeIn(root, (s) {
+        docFile(root, payFlutter)
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(recordText(statuses: ['card:planned']));
+        return answerMove(s, [addItem], under: 'shop/pay');
+      });
+
+      final pay = readDoc(root, payFlutter);
+      expect(pay, contains("'card:planned'"));
+      expect(pay, contains("'add_item:implemented'"));
+      expect(pay, contains("'add_item/check_stock:implemented'"));
+      expect(pay, contains('add_item:app/lib/shop.dart:Shop'));
+      expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
+    });
+
+    test('a file at the pay record path that is no UTF-8 text refuses before any change', () async {
+      final root = await shopTwins();
+      expect(
+        () => writeIn(root, (s) {
+          docFile(root, payFlutter)
+            ..parent.createSync(recursive: true)
+            ..writeAsBytesSync([0xff, 0xfe, 0x00]);
+          return answerMove(s, [addItem], under: 'shop/pay');
+        }),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $payFlutter: not UTF-8 text',
+              ),
+        ),
+      );
+      expect(readDoc(root, cartFlutter), flutterCart);
+      expect(docFile(root, payFlutter).readAsBytesSync(), [0xff, 0xfe, 0x00]);
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('a pay record whose implements block is not valid YAML refuses before any change, its lines kept', () async {
+      const broken =
+          "---\nstatuses:\n  - 'card:implemented'\n"
+          "implements:\n  - 'card:web/lib/card.dart\n  - card:web/lib/pay.dart\n"
+          '---\n\n# Record\n';
+      final root = await shopTwins(
+        extra: {
+          cartJaspr: recordText(
+            statuses: ['add_item:implemented', 'drop_item:planned'],
+            code: ['add_item:web/lib/shop.dart'],
+          ),
+          payJaspr: broken,
+        },
+      );
+      expect(
+        () => moveAddItem(root),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $payJaspr: its implements block is not valid '
+                    'YAML',
+              ),
+        ),
+      );
+      expect(readDoc(root, payJaspr), broken);
+      expect(readDoc(root, cartJaspr), contains("'add_item:implemented'"));
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('a cart record whose implements block is not valid YAML refuses, the moved entries kept there', () async {
+      const broken =
+          "---\nstatuses:\n  - 'add_item:implemented'\n"
+          "implements:\n  - 'add_item:web/lib/shop.dart\n"
+          '---\n\n# Record\n';
+      final root = await shopTwins(extra: {cartJaspr: broken});
+      expect(
+        () => moveAddItem(root),
+        throwsA(
+          isA<RenderFault>().having(
+            (f) => f.message,
+            'message',
+            'cannot write $cartJaspr: its implements block is not valid YAML',
+          ),
+        ),
+      );
+      expect(readDoc(root, cartJaspr), broken);
+    });
+
+    test('one unnamed code target carries its entries too', () async {
+      final root = await writeNestedProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md': flutterCart,
+        },
+      );
+      moveAddItem(root);
+      final created = readDoc(
+        root,
+        '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md',
+      );
+      expect(created, contains('draft: true'));
+      expect(created, contains('add_item/check_stock:implemented'));
+      expect(
+        readDoc(root, '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md'),
+        isNot(contains('add_item')),
+      );
+    });
+
+    group('into a sub-feature of its own feature', () {
+      const shopDir = 'prds/features/f02_shop';
+      const shopFlutter =
+          '.specstone/records/flutter/f02_shop/IMPLEMENTATION.md';
+      const shopJaspr = '.specstone/records/jaspr/f02_shop/IMPLEMENTATION.md';
+      const checkout = 'user_story:shop/checkout';
+      final shopEntries = recordText(
+        statuses: [
+          ':skipped:no tablet',
+          'checkout:implemented',
+          'checkout/total:implemented',
+        ],
+        code: [
+          'checkout:app/lib/shop.dart:Shop',
+          'checkout/total:app/lib/shop.dart:Shop',
+        ],
+      );
+
+      Future<Directory> shopWithCheckout({
+        Map<String, String> extra = const {},
+        Set<String> without = const {},
+      }) => shopTwins(
+        without: without,
+        extra: {
+          'docs/$shopDir/us01_checkout/USER_STORY.md': '# Checkout\n',
+          'docs/$shopDir/us01_checkout/fr01_total.md': '# Total\n',
+          shopFlutter: shopEntries,
+          ...extra,
+        },
+      );
+
+      test("a story moved into a sub-feature with no record creates that record as a draft holding the story and FR entries relative to it, and the parent's record loses them", () async {
+        final root = await shopWithCheckout(without: {payJaspr});
+        writeIn(root, (s) => answerMove(s, [checkout], under: 'shop/pay'));
+
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('draft: true'));
+        expect(created, contains('checkout:implemented'));
+        expect(created, contains('checkout/total:implemented'));
+        expect(created, contains('checkout:app/lib/shop.dart:Shop'));
+        expect(created, contains('checkout/total:app/lib/shop.dart:Shop'));
+        expect(created, isNot(contains('skipped')));
+
+        final parent = readDoc(root, shopFlutter);
+        expect(parent, contains("':skipped:no tablet'"));
+        expect(parent, isNot(contains('checkout')));
+        expect(
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      });
+
+      test('a story moved into a sub-feature with a record appends its entries there, beside the ones it holds', () async {
+        final root = await shopWithCheckout(
+          extra: {
+            shopJaspr: recordText(
+              statuses: [':skipped:no web shop', 'checkout:planned'],
+            ),
+          },
+        );
+        writeIn(root, (s) => answerMove(s, [checkout], under: 'shop/pay'));
+
+        final pay = readDoc(root, payJaspr);
+        expect(pay, contains("'card:implemented'"));
+        expect(pay, contains("'checkout:planned'"));
+        expect(pay, isNot(contains('skipped')));
+        final parent = readDoc(root, shopJaspr);
+        expect(parent, contains("':skipped:no web shop'"));
+        expect(parent, isNot(contains('checkout')));
+      });
+
+      test("an fr moved to a story of a sub-feature lands in that sub-feature's record, named relative to it", () async {
+        final root = await shopWithCheckout();
+        writeIn(
+          root,
+          (s) =>
+              answerMove(s, ['fr:shop/checkout/total'], under: 'shop/pay/card'),
+        );
+
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('card/total:implemented'));
+        expect(created, contains('card/total:app/lib/shop.dart:Shop'));
+        expect(created, isNot(contains('checkout')));
+        final parent = readDoc(root, shopFlutter);
+        expect(parent, contains("'checkout:implemented'"));
+        expect(parent, isNot(contains('total')));
+      });
+
+      test("a story moved up out of a sub-feature lands in its parent feature's record", () async {
+        final root = await shopWithCheckout(
+          extra: {
+            payJaspr: recordText(
+              statuses: ['card:implemented', 'refund:planned'],
+            ),
+          },
+        );
+        final plan = writeIn(root, (s) {
+          final moved = planRecordRewrites(
+            s,
+            RenamedNames({
+              const TypedName(typeId: storyType, name: 'shop/pay/card'):
+                  'shop/card',
+            }),
+          );
+          return (
+            payJaspr: moved.edits[payJaspr]?.call(readDoc(root, payJaspr)),
+            creates: moved.creates,
+            shopJaspr: moved.edits[shopJaspr]?.call(readDoc(root, shopJaspr)),
+          );
+        });
+
+        expect(plan.payJaspr, isNot(contains('card')));
+        expect(plan.payJaspr, contains("'refund:planned'"));
+        expect(plan.shopJaspr, isNull);
+        expect([
+          for (final step in plan.creates) step.path,
+        ], contains(shopJaspr));
+        expect(
+          plan.creates.map((step) => step.text).join(),
+          contains('card:implemented'),
+        );
+      });
+
+      test("a feature rename rewrites no entry of its own or its sub-feature's record, and a story rename in the feature renames its entries in place", () async {
+        final root = await shopWithCheckout();
+        rename(root, 'user_story:shop/checkout', 'purchase');
+        final shop = readDoc(root, shopFlutter);
+        expect(shop, contains("'purchase:implemented'"));
+        expect(shop, contains("'purchase/total:implemented'"));
+        expect(shop, contains("'purchase:app/lib/shop.dart:Shop'"));
+        expect(shop, isNot(contains('checkout')));
+
+        rename(root, 'feature:shop/cart', 'basket');
+        const basketFlutter =
+            '.specstone/records/flutter/f02_shop/f01_basket/IMPLEMENTATION.md';
+        expect(readDoc(root, basketFlutter), flutterCart);
+        expect(
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      });
+    });
+
+    group('an fr move', () {
+      const checkStock = 'fr:shop/cart/add_item/check_stock';
+      final stockEntries = recordText(
+        statuses: [
+          'add_item:implemented',
+          'add_item/check_stock:implemented',
+          'drop_item:planned',
+        ],
+        code: [
+          'add_item:app/lib/shop.dart:Shop',
+          'add_item/check_stock:app/lib/shop.dart:Shop',
+        ],
+        tests: ['add_item/check_stock:app/test/shop_test.dart:checks'],
+      );
+
+      ReadAnswer moveStock(Directory root, String under) =>
+          writeIn(root, (s) => answerMove(s, [checkStock], under: under));
+
+      test("an fr moved to a sibling story renames its entry and matrix rows in place, and its old story's entry stays", () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: stockEntries,
+            cartJaspr: recordText(
+              statuses: [
+                'add_item:implemented',
+                'add_item/check_stock:implemented',
+              ],
+              tests: ['add_item/check_stock:web/test/shop_test.dart:checks'],
+            ),
+          },
+        );
+        moveStock(root, 'shop/cart/drop_item');
+
+        final jaspr = readDoc(root, cartJaspr);
+        expect(jaspr, contains("'add_item:implemented'"));
+        expect(jaspr, contains("'drop_item/check_stock:implemented'"));
+        expect(
+          jaspr,
+          contains('drop_item/check_stock:web/test/shop_test.dart:checks'),
+        );
+        expect(jaspr, isNot(contains('add_item/check_stock')));
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'add_item:implemented'"));
+        expect(cart, contains("'drop_item/check_stock:implemented'"));
+        expect(
+          cart,
+          contains("'drop_item/check_stock:app/lib/shop.dart:Shop'"),
+        );
+        expect(
+          cart,
+          contains("'drop_item/check_stock:app/test/shop_test.dart:checks'"),
+        );
+        expect(cart, isNot(contains('add_item/check_stock')));
+        expect(hasDoc(root, payFlutter), isFalse);
+      });
+
+      test("an fr moved to a story of another feature carries its entry and matrix rows to that feature's record, creating a missing one as a draft", () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: stockEntries,
+            cartJaspr: recordText(
+              statuses: ['add_item/check_stock:implemented'],
+              tests: ['add_item/check_stock:web/test/shop_test.dart:checks'],
+            ),
+          },
+        );
+        moveStock(root, 'shop/pay/card');
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'add_item:implemented'"));
+        expect(cart, contains("'drop_item:planned'"));
+        expect(cart, isNot(contains('check_stock')));
+
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('draft: true'));
+        expect(created, contains('card/check_stock:implemented'));
+        expect(created, contains('card/check_stock:app/lib/shop.dart:Shop'));
+        expect(
+          created,
+          contains('card/check_stock:app/test/shop_test.dart:checks'),
+        );
+        expect(created, isNot(contains('add_item')));
+
+        final jaspr = readDoc(root, payJaspr);
+        expect(jaspr, contains("'card:implemented'"));
+        expect(jaspr, contains("'card/check_stock:implemented'"));
+        expect(
+          jaspr,
+          contains('card/check_stock:web/test/shop_test.dart:checks'),
+        );
+        expect(readDoc(root, cartJaspr), isNot(contains('check_stock')));
+        expect(
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      });
+
+      test('a target whose record lacks the fr, or has no record, is left as it was', () async {
+        final bare = recordText(statuses: ['drop_item:planned']);
+        final root = await shopTwins(
+          extra: {cartFlutter: stockEntries, cartJaspr: bare},
+          without: {payJaspr},
+        );
+        moveStock(root, 'shop/pay/card');
+        expect(readDoc(root, cartJaspr), bare);
+        expect(hasDoc(root, payJaspr), isFalse);
+
+        final noRecord = await shopTwins(without: {cartJaspr, payJaspr});
+        moveStock(noRecord, 'shop/pay/card');
+        expect(hasDoc(noRecord, cartJaspr), isFalse);
+        expect(hasDoc(noRecord, payJaspr), isFalse);
+      });
+
+      test('frs of the landing feature and of another feature move in one call, and the landing record renames its own entries and gains the arrivals', () async {
+        const cardFr = '$payDir/us01_card/fr01_x.md';
+        final root = await shopTwins(
+          extra: {
+            'docs/$cardFr': '# X\n',
+            payJaspr: recordText(
+              statuses: ['card:implemented', 'card/x:implemented'],
+            ),
+            cartJaspr: recordText(
+              statuses: ['add_item/check_stock:implemented'],
+            ),
+          },
+        );
+        writeIn(
+          root,
+          (s) => answerMove(s, [
+            'fr:shop/pay/card/x',
+            checkStock,
+          ], under: 'shop/pay/refund'),
+        );
+
+        final pay = readDoc(root, payJaspr);
+        expect(pay, contains("'card:implemented'"));
+        expect(pay, contains("'refund/x:implemented'"));
+        expect(pay, contains("'refund/check_stock:implemented'"));
+        expect(pay, isNot(contains('card/x')));
+        expect(
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      });
+
+      test('an fr moved across features lands in the record on disk the snapshot lacks', () async {
+        final root = await shopTwins(extra: {cartFlutter: stockEntries});
+        writeIn(root, (s) {
+          docFile(root, payFlutter)
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync(recordText(statuses: ['card:planned']));
+          return answerMove(s, [checkStock], under: 'shop/pay/card');
+        });
+
+        final pay = readDoc(root, payFlutter);
+        expect(pay, contains("'card:planned'"));
+        expect(pay, contains("'card/check_stock:implemented'"));
+        expect(pay, contains('card/check_stock:app/lib/shop.dart:Shop'));
+        expect(readDoc(root, cartFlutter), isNot(contains('check_stock')));
+      });
+
+      test('a moved fr reads skipped in a target that skips its new feature and planned in a target whose record holds no entry for it', () async {
+        final bare = recordText(statuses: ['drop_item:planned']);
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: bare,
+            cartJaspr: bare,
+            payJaspr: recordText(
+              statuses: [':skipped:no web pay', 'card:implemented'],
+            ),
+          },
+        );
+        expect(
+          statusIn(root, 'fr', 'jaspr', 'shop/cart/add_item/check_stock'),
+          'planned',
+        );
+        moveStock(root, 'shop/pay/card');
+        expect(
+          statusIn(root, 'fr', 'jaspr', 'shop/pay/card/check_stock'),
+          'skipped',
+        );
+        expect(
+          statusIn(root, 'fr', 'flutter', 'shop/pay/card/check_stock'),
+          'planned',
+        );
+        expect(hasDoc(root, payFlutter), isFalse);
+      });
+    });
+
+    group('a plan whose new line makes the landing feature', () {
+      const giftFlutter =
+          '.specstone/records/flutter/f02_shop/f03_gift/IMPLEMENTATION.md';
+      const giftJaspr =
+          '.specstone/records/jaspr/f02_shop/f03_gift/IMPLEMENTATION.md';
+      const giftPlan =
+          'new feature --parent shop --slug gift\n'
+          'user_story:shop/cart/add_item -> feature:shop/gift\n';
+
+      ReadAnswer applyPlan(
+        Directory root,
+        String plan, {
+        bool dryRun = false,
+      }) => writeIn(
+        root,
+        (s) => answerPlanMove(
+          s,
+          parseMovePlan(plan, path: 'plan.txt'),
+          dryRun: dryRun,
+        ),
+      );
+
+      test('a plan that creates the landing feature carries the story and FR entries to a new draft record in each target, its skip of cart kept on cart', () async {
+        final root = await shopTwins();
+        stampApproved(root, cartFlutter);
+        stampApproved(root, cartJaspr);
+        final answer = applyPlan(root, giftPlan);
+
+        final giftFlutterAfter = readDoc(root, giftFlutter);
+        expect(giftFlutterAfter, contains('draft: true'));
+        expect(giftFlutterAfter, contains('add_item:implemented'));
+        expect(giftFlutterAfter, contains('add_item/check_stock:implemented'));
+        expect(giftFlutterAfter, contains('add_item:app/lib/shop.dart:Shop'));
+        expect(giftFlutterAfter, isNot(contains('skipped')));
+        expect(holdsApproval(root, giftFlutter), isFalse);
+        expect(readDoc(root, giftJaspr), contains('add_item:implemented'));
+
+        expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
+        final jasprCartAfter = readDoc(root, cartJaspr);
+        expect(jasprCartAfter, contains("':skipped:no web cart'"));
+        expect(jasprCartAfter, contains("'drop_item:planned'"));
+        expect(jasprCartAfter, isNot(contains('add_item')));
+
+        expect(
+          answer.json['rewritten'],
+          containsAll([cartFlutter, cartJaspr, giftFlutter, giftJaspr]),
+        );
+        expect(
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      });
+
+      test('a plan that creates the landing feature changes nothing in a target whose cart record holds no entry of the moved items', () async {
+        final root = await shopTwins(
+          extra: {
+            cartJaspr: recordText(statuses: ['drop_item:planned']),
+          },
+        );
+        final jasprCartBefore = readDoc(root, cartJaspr);
+        applyPlan(root, giftPlan);
+
+        expect(readDoc(root, cartJaspr), jasprCartBefore);
+        expect(hasDoc(root, giftJaspr), isFalse);
+        expect(readDoc(root, giftFlutter), contains('add_item:implemented'));
+      });
+
+      test('a dry run of a plan that creates the landing feature lists the record it would create and writes nothing', () async {
+        final root = await shopTwins();
+        final flutterCartBefore = readDoc(root, cartFlutter);
+        final answer = applyPlan(root, giftPlan, dryRun: true);
+
+        expect(answer.json['rewritten'], contains(giftFlutter));
+        expect(hasDoc(root, giftFlutter), isFalse);
+        expect(readDoc(root, cartFlutter), flutterCartBefore);
+      });
+
+      test('a plan that creates the landing story carries a moved FR entry to the new feature record', () async {
+        final root = await shopTwins();
+        applyPlan(
+          root,
+          'new feature --parent shop --slug gift\n'
+          'new user_story --parent shop/gift --slug wrap\n'
+          'fr:shop/cart/add_item/check_stock -> user_story:shop/gift/wrap\n',
+        );
+
+        final giftFlutterAfter = readDoc(root, giftFlutter);
+        expect(giftFlutterAfter, contains('wrap/check_stock:implemented'));
+        expect(giftFlutterAfter, contains('draft: true'));
+        final flutterCartAfter = readDoc(root, cartFlutter);
+        expect(flutterCartAfter, contains('add_item:implemented'));
+        expect(flutterCartAfter, isNot(contains('add_item/check_stock')));
+      });
+    });
+  });
+
+  group('dry run', () {
+    const shopStory = 'prds/features/f02_shop/f01_cart/us01_add_item';
+    const payStory = 'prds/features/f02_shop/f02_pay/us03_add_item';
+
+    /// Every file under [root] but the index, by path, with its bytes.
+    Map<String, List<int>> treeOf(Directory root) => {
+      for (final entity in root.listSync(recursive: true, followLinks: false))
+        if (entity is File &&
+            !entity.path.contains(
+              '${Platform.pathSeparator}.specstone'
+              '${Platform.pathSeparator}index.sqlite',
+            ))
+          entity.path: entity.readAsBytesSync(),
+    };
+
+    /// Runs [dryRun] and returns its answer, checking it wrote no file.
+    ReadAnswer untouched(
+      Directory root,
+      ReadAnswer Function(WriteSession session) dryRun,
+    ) {
+      writeIn(root, (s) => s.target('feature:login'));
+      final before = treeOf(root);
+      final answer = writeIn(root, dryRun);
+      expect(treeOf(root).keys, before.keys);
+      for (final MapEntry(:key, :value) in before.entries) {
+        expect(treeOf(root)[key], value, reason: key);
+      }
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+      return answer;
+    }
+
+    test('a reorder lists its moves and rewrites, then says nothing moved, and writes no file', () async {
+      final root = await writeWriteProject();
+      final answer = untouched(
+        root,
+        (s) => answerReorder(
+          s,
+          'user_story:login/reset_password',
+          place: '1',
+          dryRun: true,
+        ),
+      );
+      expect(
+        answer.text,
+        'moves $f/us03_reset_password/ to $f/us01_reset_password/\n'
+        'moves $f/us01_email_login/ to $f/us02_email_login/\n'
+        'moves $f/us02_sign_out/ to $f/us03_sign_out/\n'
+        'rewrites $f/us01_reset_password/USER_STORY.md\n'
+        'rewrites $f/us02_email_login/fr02_lock_after_failures.md\n'
+        'dry run: nothing moved\n',
+      );
+      expect(answer.json, {
+        'moved': [
+          {'from': '$f/us03_reset_password/', 'to': '$f/us01_reset_password/'},
+          {'from': '$f/us01_email_login/', 'to': '$f/us02_email_login/'},
+          {'from': '$f/us02_sign_out/', 'to': '$f/us03_sign_out/'},
+        ],
+        'rewritten': [
+          '$f/us01_reset_password/USER_STORY.md',
+          '$f/us02_email_login/fr02_lock_after_failures.md',
+        ],
+        'mentions': <Object>[],
+        'dryRun': true,
+      });
+    });
+
+    test(
+      'a reorder to the place a doc holds prints the closing line alone',
+      () async {
+        final root = await writeWriteProject();
+        final answer = untouched(
+          root,
+          (s) => answerReorder(
+            s,
+            'user_story:login/email_login',
+            place: '1',
+            dryRun: true,
+          ),
+        );
+        expect(answer.text, 'dry run: nothing moved\n');
+        expect(answer.json, {
+          'moved': <Object>[],
+          'rewritten': <Object>[],
+          'mentions': <Object>[],
+          'dryRun': true,
+        });
+      },
+    );
+
+    test(
+      'a reorder dry run refuses a place out of range as the apply does',
+      () async {
+        final root = await writeWriteProject();
+        Object? caught(bool dryRun) {
+          try {
+            writeIn(
+              root,
+              (s) => answerReorder(
+                s,
+                'user_story:login/reset_password',
+                place: '9',
+                dryRun: dryRun,
+              ),
+            );
+          } on WriteFault catch (fault) {
+            return (fault.code, fault.message);
+          }
+          return null;
+        }
+
+        final apply = caught(false);
+        expect(apply, isNotNull);
+        expect(caught(true), apply);
+      },
+    );
+
+    test('a rename lists its moves and rewrites, then says nothing moved, and writes no file', () async {
+      final root = await writeWriteProject();
+      final answer = untouched(
+        root,
+        (s) => answerRename(
+          s,
+          'user_story:login/reset_password',
+          slug: 'recover',
+          dryRun: true,
+        ),
+      );
+      expect(
+        answer.text,
+        startsWith('moves $f/us03_reset_password/ to $f/us03_recover/\n'),
+      );
+      expect(answer.text, endsWith('dry run: nothing moved\n'));
+      expect(answer.text, isNot(contains('rewrote')));
+      expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['moved'], [
+        {'from': '$f/us03_reset_password/', 'to': '$f/us03_recover/'},
+      ]);
+    });
+
+    test('a rename dry run prints a rewrites line for each doc it would rewrite, and lists the same docs under rewritten', () async {
+      final root = await writeWriteProject();
+      final answer = untouched(
+        root,
+        (s) => answerRename(
+          s,
+          'user_story:login/reset_password',
+          slug: 'recover',
+          dryRun: true,
+        ),
+      );
+      expect(
+        answer.text,
+        contains('rewrites $f/us01_email_login/fr02_lock_after_failures.md\n'),
+      );
+      expect(
+        answer.json['rewritten'],
+        contains('$f/us01_email_login/fr02_lock_after_failures.md'),
+      );
+      expect(answer.text, isNot(contains('rewrote')));
+    });
+
+    test(
+      'a rename to the slug a doc carries prints the closing line alone',
+      () async {
+        final root = await writeWriteProject();
+        final answer = untouched(
+          root,
+          (s) => answerRename(
+            s,
+            'user_story:login/reset_password',
+            slug: 'reset_password',
+            dryRun: true,
+          ),
+        );
+        expect(answer.text, 'dry run: nothing moved\n');
+      },
+    );
+
+    test(
+      'a rename dry run refuses a slug a sibling carries as the apply does',
+      () async {
+        final root = await writeWriteProject();
+        Object? caught(bool dryRun) {
+          try {
+            writeIn(
+              root,
+              (s) => answerRename(
+                s,
+                'user_story:login/reset_password',
+                slug: 'sign_out',
+                dryRun: dryRun,
+              ),
+            );
+          } on WriteFault catch (fault) {
+            return (fault.code, fault.message, fault.file);
+          }
+          return null;
+        }
+
+        final apply = caught(false);
+        expect(apply, isNotNull);
+        expect(caught(true), apply);
+      },
+    );
+
+    test('a move lists its moves, rewrites, and mentions, then says nothing moved, and writes no file', () async {
+      const code =
+          '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n';
+      final root = await writeNestedProject(extra: {'app/lib/cart.dart': code});
+      final answer = untouched(
+        root,
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/add_item'],
+          under: 'shop/pay',
+          dryRun: true,
+        ),
+      );
+      expect(answer.text, startsWith('moves $shopStory/ to $payStory/\n'));
+      expect(answer.text, contains('rewrites $shopApi\n'));
+      expect(
+        answer.text,
+        endsWith(
+          'mentions app/lib/cart.dart:1 '
+          'user_story:shop/cart/add_item#acceptance_criteria\n'
+          'dry run: nothing moved\n',
+        ),
+      );
+      expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['moved'], [
+        {'from': '$shopStory/', 'to': '$payStory/'},
+      ]);
+      expect(answer.json['rewritten'], contains(shopApi));
+      expect(answer.json['mentions'], [
+        {
+          'path': 'app/lib/cart.dart',
+          'line': 1,
+          'mention': 'user_story:shop/cart/add_item#acceptance_criteria',
+        },
+      ]);
+      expect(File('${root.path}/app/lib/cart.dart').readAsStringSync(), code);
+    });
+
+    test('a move of a story already under the feature prints the closing line alone', () async {
+      final root = await writeNestedProject();
+      final answer = untouched(
+        root,
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/drop_item'],
+          under: 'shop/cart',
+          dryRun: true,
+        ),
+      );
+      expect(answer.text, 'dry run: nothing moved\n');
+    });
+
+    test('a dry run of an fr move prints the moves and the closing line and leaves the disk untouched, journal included', () async {
+      final root = await writeNestedProject(extra: frExtras);
+      final answer = untouched(
+        root,
+        (s) => answerMove(
+          s,
+          ['fr:shop/cart/add_item/check_stock'],
+          under: 'shop/pay/refund',
+          dryRun: true,
+        ),
+      );
+      expect(
+        answer.text,
+        startsWith(
+          'moves $shopStory/fr01_check_stock.md to '
+          '$payDir/us02_refund/fr02_check_stock.md\n',
+        ),
+      );
+      expect(answer.text, endsWith('dry run: nothing moved\n'));
+      expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['moved'], [
+        {
+          'from': '$shopStory/fr01_check_stock.md',
+          'to': '$payDir/us02_refund/fr02_check_stock.md',
+        },
+      ]);
+    });
+
+    test("a dry run of a refused fr move gives the apply's refusal", () async {
+      const held = '$cartDir/us02_drop_item/fr03_check_stock.md';
+      final root = await writeNestedProject(
+        extra: {...frExtras, 'docs/$held': '# Check stock\n'},
+      );
+      Object? caught(bool dryRun) {
+        try {
+          writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              ['fr:shop/cart/add_item/check_stock'],
+              under: 'shop/cart/drop_item',
+              dryRun: dryRun,
+            ),
+          );
+        } on WriteFault catch (fault) {
+          return (fault.code, fault.message, fault.file);
+        }
+        return null;
+      }
+
+      final apply = caught(false);
+      expect(apply, isNotNull);
+      expect(caught(true), apply);
+    });
+
+    test('a move dry run refuses a feature that holds sub-features as the apply does', () async {
+      final root = await writeNestedProject();
+      Object? caught(bool dryRun) {
+        try {
+          writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              ['user_story:shop/cart/add_item'],
+              under: 'shop',
+              dryRun: dryRun,
+            ),
+          );
+        } on IndexFault catch (fault) {
+          return (fault.code, fault.message);
+        }
+        return null;
+      }
+
+      final apply = caught(false);
+      expect(apply, isNotNull);
+      expect(caught(true), apply);
+    });
+  });
+
+  group('records under .specstone/records/', () {
+    const loginRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const signupRecordPath = '.specstone/records/f02_signup/IMPLEMENTATION.md';
+    final loginRecordText = recordText(statuses: ['email_login:implemented']);
+    final signupRecordText = recordText(statuses: ['ghost:planned']);
+
+    File recordFile(Directory root, String path) => File(
+      '${root.path}${Platform.pathSeparator}'
+      '${path.replaceAll('/', Platform.pathSeparator)}',
+    );
+
+    Future<Directory> recordProject({Set<String> without = const {}}) =>
+        writeWriteProject(
+          extra: {
+            ...recordsRootTemplates,
+            if (!without.contains(loginRecordPath))
+              loginRecordPath: loginRecordText,
+            if (!without.contains(signupRecordPath))
+              signupRecordPath: signupRecordText,
+          },
+        );
+
+    void appendTo(File file, String text) =>
+        file.writeAsStringSync(text, mode: FileMode.append);
+
+    test('renaming a docs doc a record links to rewrites the record href', () async {
+      final root = await recordProject();
+      appendTo(
+        recordFile(root, loginRecordPath),
+        '\nSee [stories](../../../docs/$story2).\n',
+      );
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+      rename(root, 'user_story:login/sign_out', 'log_out');
+
+      expect(
+        recordFile(root, loginRecordPath).readAsStringSync(),
+        contains(
+          '](../../../docs/prds/features/f01_login/us02_log_out/USER_STORY.md)',
+        ),
+      );
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test(
+      'renaming a feature rewrites the href of a record link to its spec doc',
+      () async {
+        final root = await recordProject();
+        appendTo(
+          recordFile(root, loginRecordPath),
+          '\nSee [arch](../../../docs/$loginArch).\n',
+        );
+
+        rename(root, 'feature:login', 'signin');
+
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/f01_signin/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          contains('](../../../docs/specs/f01_signin/ARCHITECTURE.md)'),
+        );
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      },
+    );
+
+    test('reordering stories rewrites a record file link into a moved story folder', () async {
+      final root = await recordProject();
+      const folder = 'prds/features/f01_login/us02_sign_out';
+      File(
+        '${docFile(root, '$folder/USER_STORY.md').parent.path}${Platform.pathSeparator}diagram.png',
+      ).writeAsBytesSync([1, 2, 3]);
+      appendTo(
+        recordFile(root, loginRecordPath),
+        '\nSee [diagram](../../../docs/$folder/diagram.png).\n',
+      );
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+      reorder(root, 'user_story:login/reset_password', '1');
+
+      expect(
+        recordFile(root, loginRecordPath).readAsStringSync(),
+        contains(
+          '](../../../docs/prds/features/f01_login/us03_sign_out/diagram.png)',
+        ),
+      );
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test('reordering features rewrites a docs file link into a moved record folder', () async {
+      final root = await recordProject();
+      File(
+        '${recordFile(root, loginRecordPath).parent.path}'
+        '${Platform.pathSeparator}notes.png',
+      ).writeAsBytesSync([1, 2, 3]);
+      docFile(root, persona).writeAsStringSync(
+        '\nSee [notes](../../../../.specstone/records/f01_login/notes.png).\n',
+        mode: FileMode.append,
+      );
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+      reorder(root, 'feature:signup', '1');
+
+      expect(
+        readDoc(root, persona),
+        contains('](../../../../.specstone/records/f02_login/notes.png)'),
+      );
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test(
+      'renaming a story rewrites a record prose mention of its doc',
+      () async {
+        final root = await recordProject();
+        appendTo(
+          recordFile(root, loginRecordPath),
+          '\nSee ../../../docs/$story2 for the flow.\n',
+        );
+
+        rename(root, 'user_story:login/sign_out', 'log_out');
+
+        expect(
+          recordFile(root, loginRecordPath).readAsStringSync(),
+          contains(
+            'See ../../../docs/prds/features/f01_login/us02_log_out/USER_STORY.md for the flow.',
+          ),
+        );
+      },
+    );
+
+    test(
+      'renaming a feature rewrites the href of a docs link to its record',
+      () async {
+        final root = await recordProject();
+        docFile(root, 'prds/d01_context.md').writeAsStringSync(
+          '\nSee [record](../../$loginRecordPath).\n',
+          mode: FileMode.append,
+        );
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+        rename(root, 'feature:login', 'signin');
+
+        expect(
+          readDoc(root, 'prds/d01_context.md'),
+          contains('](../../.specstone/records/f01_signin/IMPLEMENTATION.md)'),
+        );
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      },
+    );
+
+    test('a feature rename moves its record folder beside its spec folder, bytes kept', () async {
+      final root = await recordProject();
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(
+        answer.text,
+        contains(
+          'moved .specstone/records/f01_login/ to '
+          '.specstone/records/f01_signin/\n',
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signin/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test(
+      'a feature reorder renumbers its record folder with the spec folder',
+      () async {
+        final root = await recordProject();
+        final answer = reorder(root, 'feature:signup', '1');
+        expect(
+          [
+            for (final move in answer.json['moved']! as List)
+              '${(move as Map)['from']} ${move['to']}',
+          ],
+          containsAll([
+            '.specstone/records/f02_signup/ .specstone/records/f01_signup/',
+            '.specstone/records/f01_login/ .specstone/records/f02_login/',
+          ]),
+        );
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/f01_signup/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          signupRecordText,
+        );
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/f02_login/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          loginRecordText,
+        );
+        expect(recordFile(root, signupRecordPath).existsSync(), isFalse);
+      },
+    );
+
+    test('renames a feature that has no record yet', () async {
+      final root = await recordProject(without: {loginRecordPath});
+      final answer = rename(root, 'feature:login', 'signin');
+      expect([
+        for (final move in answer.json['moved']! as List)
+          '${(move as Map)['from']}',
+      ], isNot(contains(startsWith('.specstone/records/'))));
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test('a dry run lists the record folder move', () async {
+      final root = await recordProject();
+      final answer = writeIn(
+        root,
+        (s) => answerRename(s, 'feature:login', slug: 'signin', dryRun: true),
+      );
+      expect(
+        answer.text,
+        contains(
+          'moves .specstone/records/f01_login/ to '
+          '.specstone/records/f01_signin/\n',
+        ),
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isTrue);
+    });
+
+    test('a rename that stops on the record folder leaves a journal the next write replays', () async {
+      final root = await recordProject();
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => rename(root, 'feature:login', 'signin'),
+          FailingRenameHook('.specstone/records/f01_login'),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isTrue,
+      );
+
+      writeIn(root, (_) {});
+
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signin/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test('a reorder that stops on a record folder leaves a journal the next write replays', () async {
+      final root = await recordProject();
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => reorder(root, 'feature:signup', '1'),
+          FailingRenameHook('.specstone/records/f02_signup'),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isTrue,
+      );
+
+      writeIn(root, (_) {});
+
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signup/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        signupRecordText,
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_login/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, signupRecordPath).existsSync(), isFalse);
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+    });
+
+    test('a reorder of a feature with no record moves the records of its siblings alone', () async {
+      final root = await recordProject(without: {signupRecordPath});
+      final answer = reorder(root, 'feature:signup', '1');
+      final from = [
+        for (final move in answer.json['moved']! as List)
+          '${(move as Map)['from']}',
+      ];
+      expect(from, contains('.specstone/records/f01_login/'));
+      expect(from, isNot(contains('.specstone/records/f02_signup/')));
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_login/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(hasDoc(root, 'specs/f01_signup/ARCHITECTURE.md'), isTrue);
+    });
+
+    test('with two targets each target record folder moves', () async {
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      const jasprRecord =
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+      final root = await writeWriteProject(
+        extra: {
+          ...recordsRootTemplates,
+          '.specstone/config.yaml': twinConfig(),
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
+          flutterRecord: loginRecordText,
+          jasprRecord: loginRecordText,
+        },
+      );
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(
+        [
+          for (final move in answer.json['moved']! as List)
+            '${(move as Map)['from']} ${move['to']}',
+        ],
+        containsAll([
+          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+          '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
+        ]),
+      );
+      for (final target in ['flutter', 'jaspr']) {
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/$target/f01_signin/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          loginRecordText,
+        );
+        expect(
+          recordFile(root, '.specstone/records/$target/f01_login').existsSync(),
+          isFalse,
+        );
+      }
+    });
+  });
+
+  group('nested feature records under .specstone/records/', () {
+    const cartRecordPath =
+        '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const payRecordPath =
+        '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md';
+
+    File recordFile(Directory root, String path) => File(
+      '${root.path}${Platform.pathSeparator}'
+      '${path.replaceAll('/', Platform.pathSeparator)}',
+    );
+
+    Future<Directory> nestedRecordProject() => writeNestedProject(
+      extra: {
+        ...recordsRootTemplates,
+        cartRecordPath: recordText(statuses: ['add_item:implemented']),
+        payRecordPath: recordText(statuses: ['card:planned']),
+      },
+    );
+
+    String movedLines(ReadAnswer answer) => [
+      for (final move in answer.json['moved']! as List)
+        '${(move as Map)['from']} ${move['to']}',
+    ].join('\n');
+
+    test('renaming a sub-feature moves its nested record folder', () async {
+      final root = await nestedRecordProject();
+      final answer = rename(root, 'feature:shop/cart', 'basket');
+      expect(
+        movedLines(answer),
+        contains(
+          '.specstone/records/f02_shop/f01_cart/ '
+          '.specstone/records/f02_shop/f01_basket/',
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f01_basket/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'add_item:implemented'"),
+      );
+      expect(recordFile(root, cartRecordPath).existsSync(), isFalse);
+      expect(recordFile(root, payRecordPath).existsSync(), isTrue);
+    });
+
+    test('reordering a sub-feature renumbers its nested record folder and its sibling', () async {
+      final root = await nestedRecordProject();
+      final answer = reorder(root, 'feature:shop/pay', '1');
+      expect(
+        movedLines(answer),
+        allOf(
+          contains(
+            '.specstone/records/f02_shop/f02_pay/ '
+            '.specstone/records/f02_shop/f01_pay/',
+          ),
+          contains(
+            '.specstone/records/f02_shop/f01_cart/ '
+            '.specstone/records/f02_shop/f02_cart/',
+          ),
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f01_pay/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'card:planned'"),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f02_cart/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'add_item:implemented'"),
+      );
+    });
+
+    test('renaming the top feature moves the record folder that holds its sub-feature records', () async {
+      final root = await nestedRecordProject();
+      rename(root, 'feature:shop', 'market');
+      for (final path in [
+        '.specstone/records/f02_market/f01_cart/IMPLEMENTATION.md',
+        '.specstone/records/f02_market/f02_pay/IMPLEMENTATION.md',
+      ]) {
+        expect(recordFile(root, path).existsSync(), isTrue, reason: path);
+      }
+      expect(
+        Directory('${root.path}/.specstone/records/f02_shop').existsSync(),
+        isFalse,
+      );
+    });
+  });
+}
+
+/// A stderr that keeps the lines written to it.
+final class _CapturedStderr implements Stdout {
+  final lines = <String>[];
+
+  @override
+  void writeln([Object? object = '']) => lines.add('$object');
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// A `File` made inside `onCreate` reaches the real file system: the hook is
+/// off while it runs.
+final class _CreateFileHook extends IOOverrides {
+  new(this._onCreate);
+
+  final void Function(String path) _onCreate;
+  var _inside = false;
+
+  @override
+  File createFile(String path) {
+    if (!_inside) {
+      _inside = true;
+      try {
+        _onCreate(path);
+      } finally {
+        _inside = false;
+      }
+    }
+    return super.createFile(path);
+  }
+}

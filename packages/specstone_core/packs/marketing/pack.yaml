@@ -1,0 +1,14 @@
+name: marketing
+version: 1.5.0
+extends: prd-core
+shared_lines:
+  - id: stable_facts_and_plan
+    text: The docs hold the stable facts and the campaign plan; the project's own skills write the content outside the docs.
+    for_doc_types: [audience, campaign, campaign_results, channel, content_pillars, lifecycle, loyalty, messaging, positioning, voice]
+  - id: learning_edits_doc
+    text: A learning edits the doc it corrects.
+    for_doc_types: [audience, campaign, campaign_results, channel, content_pillars, lifecycle, loyalty, messaging, positioning, voice]
+leftover_homes:
+  - path: 'specs/marketing/competitors/{slug}.md'
+    to: [competitor]
+    home: 'the `competitor` doc at `prds/competitors/{slug}/COMPETITOR.md`: its `offer` to Offer, `position` to Summary, and `gaps` to Weaknesses'

@@ -1,0 +1,21 @@
+id: story
+description: |-
+  The story doc: the person's story and what they stand for.
+title: Story
+path: specs/marketing/STORY.md
+sections:
+  - id: story
+    header: Story
+    description: |-
+      Write the story others can repeat: where the person started, what changed, and where they stand now.
+  - id: values
+    header: Values
+    description: |-
+      List what the person stands for and the opinions they hold.
+lint:
+  title_no_number: true
+reference:
+  - title: Zanfia, how to build a personal brand
+    url: https://zanfia.com/blog/how-to-build-personal-brand/
+  - title: INPUT Global, voice framework
+    url: https://input.global/insights/voice-framework/

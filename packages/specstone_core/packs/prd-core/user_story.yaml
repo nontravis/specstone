@@ -1,0 +1,117 @@
+id: user_story
+description: |-
+  A user story: one behavior change someone outside the team cares about, sized for one iteration.
+  Title it `# <Name>`, with no number: the activity as actor, verb, and object.
+  State what the person does and gets, never how: no screens, fields, tables, or design choices.
+  Check INVEST: independent, negotiable, valuable, estimable, small, testable.
+  Split a story that holds too many scenarios by business behavior, never by technical layer.
+  Keep team-wide quality checks in the Definition of Done, not in a story.
+  Write one rule per `BR-*` ID, with mechanics left to the spec docs.
+  Keep a bound in the rule it limits, and the trace in `vision:` and `goals:`, never in the prose.
+  Mark the story ready only when no open question can change its scope.
+  Keep prose at reader altitude: no class, function, file path, error code, plan, or ruling.
+path: prds/features/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md
+parent: feature
+fields:
+  - id: vision
+    type: string
+    list: true
+    description: |-
+      Lists the PROJECT vision IDs (`PV-*`) the story serves.
+  - id: goals
+    type: string
+    list: true
+    description: |-
+      Lists the GOAL goal IDs (`PG-*`) the story serves.
+  - id: persona
+    type: doc_ref
+    list: true
+    doc_types: [persona]
+    description: |-
+      Names the personas the story serves; an Agent-actor story has none.
+sections:
+  - id: use_case
+    header: Use Case
+    required: true
+    description: |-
+      Name a Role registered in PROJECT, never a bare "user"; add "who <situation>" when it matters.
+      Keep the so-that clause or say why it is left out; if the action cannot deliver it, look for a missing story.
+    template: |-
+      - **As a** <Role> [who <situation>]
+      - **I want to** <action>
+      - **so that** <benefit>
+    summary: true
+  - id: rules
+    header: Rules
+    prefix_id: BR-
+    description: |-
+      Write it for rules the story needs spelled out, never for one everyone knows.
+      Write each rule as `**BR-NN** — <rule>`.
+      Cite a rule's id at the end of each scenario title that illustrates it.
+    template: |-
+      - **BR-01** — <rule>
+    summary: true
+    lint:
+      item_count:
+        min: 2
+  - id: acceptance_criteria
+    header: Acceptance Criteria
+    required: true
+    description: |-
+      Title each scenario `### Scenario N — [happy|edge|error] <what differs> (BR-NN)`.
+      Chain at most two extra outcomes with And or But; more outcomes make a second scenario.
+      Make each Then observable by the person or an external system, in the domain's words.
+      Write an `[error]` scenario, or write "Error cases: N/A — <reason>".
+    template: |-
+      ### Scenario 1 — [happy] <what differs>
+      - **Given** <only the state the scenario needs>
+      - **When** <trigger>
+      - **Then** <observed outcome>
+
+      ### Scenario 2 — [error] <what differs> (BR-01)
+      - **Given** <only the state the scenario needs>
+      - **When** <trigger>
+      - **Then** <what the person sees or what the system refuses>
+    lint:
+      names_codes: true
+      max_subsections: 6
+      item_count:
+        min: 3
+        max: 5
+        per_subsection: true
+        prefixes:
+          - line_prefix: "- **When**"
+            count: 1
+          - line_prefix: "- **Then**"
+            count: 1
+      banned_patterns:
+        - id: scenario_title
+          pattern: '^### Scenario(?! \d+ — \[(?:happy|edge|error)\] \S)'
+          message: 'scenario title has the wrong form; guide line: ### Scenario N — [happy|edge|error] <what differs>'
+          in: all
+      required_patterns:
+        - id: error_case
+          pattern: '^### .*\[error\]|Error cases: N/A'
+          message: 'no [error] scenario and no "Error cases: N/A" line'
+  - id: open_questions
+    header: Open questions
+    description: |-
+      Record each example whose outcome nobody knows as a question, not a scenario.
+      Leave it empty before the Owner approves the story.
+    template: |-
+      - <question>
+lint:
+  title_no_number: true
+  required_field_groups:
+    - [vision, goals]
+  max_lines: 400
+  max_chars: 20000
+reference:
+  - title: Dan North, What's in a Story?
+    url: https://dannorth.net/blog/whats-in-a-story/
+  - title: Mike Cohn, User Stories guide
+    url: https://www.mountaingoatsoftware.com/agile/user-stories
+  - title: Cucumber, Gherkin Reference
+    url: https://cucumber.io/docs/gherkin/reference/
+  - title: Matt Wynne, Introducing Example Mapping
+    url: https://cucumber.io/blog/bdd/example-mapping-introduction/

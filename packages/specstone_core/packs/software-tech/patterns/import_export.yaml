@@ -1,0 +1,38 @@
+id: import_export
+description: Bulk import and export of records.
+items:
+  - id: file_format
+    text: An exported file follows one stated format, with a header line and the same field count on every row.
+  - id: field_quoting
+    text: A field holding a comma, a quote, or a line break is quoted, with each inner quote doubled.
+  - id: character_set
+    text: The file's character set is stated and is the same on export and on import.
+  - id: formula_injection
+    text: An exported cell that starts with an equals, plus, minus, or at sign is escaped so spreadsheets read it as text.
+  - id: own_data_export
+    text: A user can export the personal data they provided in a structured, machine-readable format.
+  - id: direct_transfer
+    text: Where feasible, a user's data can be sent straight to another service.
+  - id: others_rights
+    text: A user's export leaves out data whose release would harm other people's rights.
+  - id: import_size_limits
+    text: An import has size and row limits applied before the file is parsed.
+  - id: row_validation
+    text: Each imported row is checked for type, format, range, and required fields before it is stored.
+  - id: no_partial_import
+    text: An invalid import is refused with a clear error rather than going on with partly checked data.
+  - id: import_authorization
+    text: An import checks that the caller may write each record it touches, apart from whether the data is valid.
+  - id: import_field_binding
+    text: An import binds only the intended fields, so a file cannot set fields such as owner or role.
+  - id: untrusted_file
+    text: An imported file is treated as untrusted, since crafted content can attack the program that parses it.
+reference:
+  - title: RFC 4180
+    url: https://www.rfc-editor.org/rfc/rfc4180
+  - title: OWASP CSV Injection
+    url: https://owasp.org/www-community/attacks/CSV_Injection
+  - title: GDPR Art. 20
+    url: https://gdpr-info.eu/art-20-gdpr/
+  - title: OWASP Input Validation Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html

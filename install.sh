@@ -1,0 +1,365 @@
+#!/bin/sh
+# Installs the Specstone CLI under ~/.specstone:
+#   curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/main/install.sh | sh
+# A version, such as the pre-release 1.2.0-beta.1, installs from the script of
+# its own tag:
+#   curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/vX.Y.Z/install.sh | SPECSTONE_VERSION=X.Y.Z sh
+# The body sits in functions and `main "$@"` is the last line, so a truncated
+# stream runs nothing.
+set -eu
+
+release_url='https://github.com/nontravis/specstone/releases/latest/download'
+version=${SPECSTONE_VERSION:-}
+tmp=''
+install_dir=''
+other_stn=''
+stn_removal_failed=''
+
+fail() {
+  printf 'specstone: %s\n' "$1" >&2
+  exit 1
+}
+
+cleanup() {
+  if [ -n "$tmp" ]; then
+    rm -rf "$tmp"
+  fi
+  if [ -n "$install_dir" ]; then
+    rm -rf "${install_dir:?}/.lib.new" "${install_dir:?}/.bin.new"
+  fi
+}
+
+# Prints the release target for this machine, or refuses before any download.
+pick_target() {
+  os=$(uname -s)
+  arch=$(uname -m)
+  case "$os $arch" in
+    'Darwin arm64') echo 'macos-arm64' ;;
+    'Darwin x86_64') echo 'macos-x64' ;;
+    'Linux x86_64') echo 'linux-x64' ;;
+    *)
+      fail "unsupported machine $os $arch; supported: macOS arm64, macOS x64, Linux x64, Windows x64"
+      ;;
+  esac
+}
+
+# Succeeds when $1 is a version of the form MAJOR.MINOR.PATCH[-<pre-release>].
+# The byte check comes first: grep tests each line alone and honors GREP_OPTIONS.
+is_version() (
+  LC_ALL=C
+  export LC_ALL
+  case "$1" in
+    *[!0-9A-Za-z.-]*) return 1 ;;
+  esac
+  printf '%s\n' "$1" |
+    GREP_OPTIONS='' grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?'
+)
+
+# Prints $1 with each byte outside printable ASCII (0x20-0x7E) as `?`, so a
+# shown value cannot move the cursor, rewrite the terminal, or reach a C1 control.
+printable() {
+  printf '%s' "$1" | LC_ALL=C tr -c ' -~' '?'
+}
+
+# Prints the SHA-256 of the file named $1 in the folder $tmp as lower-case hex.
+hash_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    (cd "$tmp" && sha256sum "$1") | cut -d ' ' -f 1 | tr 'A-F' 'a-f'
+  elif command -v shasum >/dev/null 2>&1; then
+    (cd "$tmp" && shasum -a 256 "$1") | cut -d ' ' -f 1 | tr 'A-F' 'a-f'
+  else
+    fail "no sha256sum or shasum to check $1; the install is unchanged"
+  fi
+}
+
+# Copies or downloads the file $1 from the archive folder or the release into $tmp.
+fetch() {
+  if [ -n "${SPECSTONE_ARCHIVE_DIR:-}" ]; then
+    cp "$SPECSTONE_ARCHIVE_DIR/$1" "$tmp/$1" 2>/dev/null ||
+      fail "download failed for $1; the install is unchanged"
+  else
+    curl -fsSL --connect-timeout 30 --speed-limit 1 --speed-time 60 \
+      -o "$tmp/$1" "$release_url/$1" ||
+      fail "download failed for $1; the install is unchanged"
+  fi
+}
+
+# Downloads archive $1 and SHA256SUMS into $tmp and checks the archive's hash.
+fetch_and_verify() {
+  fetch "$1"
+  fetch SHA256SUMS
+  expected=$(awk -v asset="$1" '$2 == asset || $2 == "*" asset { print $1; exit }' "$tmp/SHA256SUMS" |
+    tr 'A-F' 'a-f')
+  actual=$(hash_of "$1")
+  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    fail "checksum mismatch for $1; the install is unchanged"
+  fi
+}
+
+# Replaces ~/.specstone/lib and bin with the archive's, bin last, without the
+# archive's stn when another stn was found. Each folder is copied aside first
+# and moved in, so a failed copy leaves the old install runnable and no
+# existing file is written (`specstone upgrade` runs from the binary being
+# replaced).
+place() {
+  install_dir=$1
+  mkdir -p "$install_dir" || fail "could not place $install_dir: run the install again"
+  rm -rf "${install_dir:?}/.lib.new" "${install_dir:?}/.bin.new"
+  cp -R "$tmp/unpack/lib" "$install_dir/.lib.new" ||
+    fail "could not place $install_dir/lib: run the install again"
+  cp -R "$tmp/unpack/bin" "$install_dir/.bin.new" ||
+    fail "could not place $install_dir/bin: run the install again"
+  if [ -n "$other_stn" ]; then
+    rm -f -- "$install_dir/.bin.new/stn"
+  fi
+  rm -rf "${install_dir:?}/lib"
+  mv "$install_dir/.lib.new" "$install_dir/lib" ||
+    fail "could not place $install_dir/lib: run the install again"
+  rm -rf "${install_dir:?}/bin"
+  mv "$install_dir/.bin.new" "$install_dir/bin" ||
+    fail "could not place $install_dir/bin: run the install again"
+}
+
+# Warns that the profile $1 is not written; the CLI is placed, so the run goes on.
+warn_unwritten() {
+  printf '%s\n' "specstone: could not write $1: add $2 to it yourself" >&2
+}
+
+# Appends the line $2 to the file $1 unless a whole line already matches it,
+# and notes the file in the added_* list; a file whose last byte is not a
+# newline gets one first.
+add_path_line() {
+  grep_status=0
+  if [ -e "$1" ]; then
+    grep -qxF -- "$2" "$1" 2>/dev/null || grep_status=$?
+  else
+    grep_status=1
+  fi
+  case "$grep_status" in
+    0) return 0 ;;
+    1) ;;
+    *)
+      warn_unwritten "$1" "$2"
+      return 0
+      ;;
+  esac
+  if ! mkdir -p -- "${1%/*}" 2>/dev/null; then
+    warn_unwritten "$1" "$2"
+    return 0
+  fi
+  lead=''
+  if [ -s "$1" ] && [ -n "$(tail -c 1 "$1")" ]; then
+    lead='
+'
+  fi
+  if ! printf '%s%s\n' "$lead" "$2" 2>/dev/null >> "$1"; then
+    warn_unwritten "$1" "$2"
+    return 0
+  fi
+  note_added "$1"
+}
+
+# Adds the file $1 to the files this run wrote: all but the last in added_head,
+# the last in added_last, so the note can join them without a list to split.
+note_added() {
+  if [ "$added_count" -gt 0 ]; then
+    added_head=${added_head:+$added_head, }$added_last
+  fi
+  added_last=$1
+  added_count=$((added_count + 1))
+}
+
+# Says which files this run wrote, as "a", "a and b", or "a, b, and c".
+say_added() {
+  case "$added_count" in
+    0) return 0 ;;
+    1) added_files=$added_last ;;
+    2) added_files="$added_head and $added_last" ;;
+    *) added_files="$added_head, and $added_last" ;;
+  esac
+  printf '%s\n' "Added ~/.specstone/bin to the PATH in $added_files. Open a new terminal to use specstone."
+}
+
+# Prints the file a macOS bash login shell reads first, or ~/.bash_profile when none exists.
+bash_login_file() {
+  for name in .bash_profile .bash_login .profile; do
+    if [ -e "$home_dir/$name" ]; then
+      printf '%s\n' "$home_dir/$name"
+      return 0
+    fi
+  done
+  printf '%s\n' "$home_dir/.bash_profile"
+}
+
+# Puts ~/.specstone/bin first on the PATH of new shells, once per profile file:
+# the shell's own files, then ~/.profile, which every login shell can read.
+add_path_entry() {
+  # shellcheck disable=SC2016  # the profile must hold a literal $HOME and $PATH
+  posix_line='export PATH="$HOME/.specstone/bin:$PATH"'
+  # shellcheck disable=SC2016  # same: the line is written unexpanded
+  fish_line='set -gx PATH "$HOME/.specstone/bin" $PATH'
+  added_head=''
+  added_last=''
+  added_count=0
+  case "${SHELL:-}" in
+    */zsh | zsh)
+      add_path_line "$home_dir/.zshrc" "$posix_line"
+      add_path_line "${ZDOTDIR:-$home_dir}/.zshenv" "$posix_line"
+      ;;
+    */bash | bash)
+      add_path_line "$home_dir/.bashrc" "$posix_line"
+      if [ "$(uname -s)" = 'Darwin' ]; then
+        add_path_line "$(bash_login_file)" "$posix_line"
+      fi
+      ;;
+    */fish | fish) add_path_line "$home_dir/.config/fish/conf.d/specstone.fish" "$fish_line" ;;
+  esac
+  add_path_line "$home_dir/.profile" "$posix_line"
+  say_added
+}
+
+# Prints the first non-blank line of stdin without its trailing CR. Always succeeds.
+first_line() {
+  tr -d '\r' | sed -n '/[^[:space:]]/{p;q;}' || true
+}
+
+# Keeps only the absolute entries of PATH, so no program is found in the
+# current folder or a relative folder; an empty entry means the current folder.
+# With none left, PATH is the system folders, since an empty PATH searches ".".
+absolute_path_only() {
+  kept=''
+  rest=${PATH:-}:
+  while [ -n "$rest" ]; do
+    entry=${rest%%:*}
+    rest=${rest#*:}
+    case "$entry" in
+      /*) kept=${kept:+$kept:}$entry ;;
+    esac
+  done
+  PATH=${kept:-/usr/bin:/bin}
+  export PATH
+}
+
+# Sets other_stn to the first `stn` on an absolute PATH entry other than the
+# install folder's bin, or to nothing. A first install has no bin yet, so every
+# absolute entry counts.
+find_other_stn() {
+  other_stn=''
+  own_bin=$(cd "$install_dir/bin" 2>/dev/null && pwd -P) || own_bin=''
+  rest=${PATH:-}:
+  while [ -n "$rest" ]; do
+    entry=${rest%%:*}
+    rest=${rest#*:}
+    case "$entry" in
+      /*) ;;
+      *) continue ;;
+    esac
+    resolved=$(cd "$entry" 2>/dev/null && pwd -P) || continue
+    if [ "$resolved" != "$own_bin" ] &&
+      [ -f "$entry/stn" ] && [ -x "$entry/stn" ]; then
+      other_stn=${entry%/}/stn
+      return 0
+    fi
+  done
+}
+
+# Removes the stn an earlier run placed; a failure sets stn_removal_failed to
+# its path, and the run goes on.
+remove_placed_stn() {
+  rm -f -- "$install_dir/bin/stn" 2>/dev/null ||
+    stn_removal_failed=$install_dir/bin/stn
+}
+
+# Prints one notice naming other_stn, which the Owner then types the specstone
+# command in place of. Always returns 0: the notice never changes the run's
+# exit status.
+name_other_stn() {
+  [ -n "$other_stn" ] || return 0
+  printf 'specstone: another stn is at %s; stn is not installed, type specstone to run the CLI\n' "$other_stn"
+}
+
+# Succeeds when the git version text $1 is 2.25 or later; a text that names no
+# version, such as the empty output of a git that failed, does not.
+meets_git_floor() {
+  printf '%s\n' "$1" | awk '
+    /git version [0-9]+\.[0-9]+/ {
+      split($0, parts, /[ .]+/)
+      major = parts[3] + 0
+      minor = parts[4] + 0
+      ok = (major > 2 || (major == 2 && minor >= 25))
+    }
+    END { exit (ok ? 0 : 1) }'
+}
+
+# Prints one warning line per prerequisite this machine lacks. The check runs
+# after every install step and only prints: it installs nothing and never
+# changes the exit status.
+warn_missing_prerequisites() {
+  git_command='sudo apt install git'
+  if [ "$(uname -s)" = 'Darwin' ]; then
+    git_command='xcode-select --install'
+  fi
+  git_text=$(git --version 2>/dev/null) || git_text=''
+  if ! meets_git_floor "$git_text"; then
+    printf 'specstone: git 2.25 or later is missing; install it with %s\n' "$git_command"
+  fi
+}
+
+main() {
+  absolute_path_only
+  target=$(pick_target)
+  if [ -n "$version" ]; then
+    is_version "$version" ||
+      fail "$(printable "$version") is not a version of the form MAJOR.MINOR.PATCH[-<pre-release>]; the install is unchanged"
+    release_url="https://github.com/nontravis/specstone/releases/download/v$version"
+  fi
+  home_dir=${HOME:-${USERPROFILE:-}}
+  if [ -z "$home_dir" ]; then
+    fail 'no home folder: HOME and USERPROFILE are unset'
+  fi
+  install_dir="$home_dir/.specstone"
+  asset="specstone-$target.tar.gz"
+
+  trap cleanup EXIT
+  trap 'exit 1' HUP INT TERM
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/specstone.XXXXXX" 2>/dev/null) || {
+    tmp=''
+    fail "could not make a temporary folder in ${TMPDIR:-/tmp}; the install is unchanged"
+  }
+
+  fetch_and_verify "$asset"
+  mkdir "$tmp/unpack"
+  tar -xzf "$tmp/$asset" -C "$tmp/unpack" 2>/dev/null ||
+    fail "could not unpack $asset; the install is unchanged"
+
+  probe_status=0
+  new_version=$("$tmp/unpack/bin/specstone" --version 2>"$tmp/probe.err") || probe_status=$?
+  if [ "$probe_status" -ne 0 ]; then
+    probe_reason=$(first_line <"$tmp/probe.err") || probe_reason=''
+    fail "the downloaded specstone does not run (exit $probe_status${probe_reason:+: $probe_reason}); if TMPDIR is mounted noexec, set TMPDIR to another folder; the install is unchanged"
+  fi
+  find_other_stn
+  old_version=$("$install_dir/bin/specstone" --version 2>/dev/null || true)
+  if [ -n "$old_version" ] && [ "$old_version" = "$new_version" ]; then
+    if [ -n "$version" ]; then
+      printf '%s\n' "specstone $new_version is already installed"
+    else
+      printf '%s\n' "specstone $new_version is already the latest release"
+    fi
+    if [ -n "$other_stn" ]; then
+      remove_placed_stn
+    fi
+  else
+    place "$install_dir"
+    printf '%s\n' "specstone $new_version installed in $install_dir/bin"
+  fi
+
+  add_path_entry
+  name_other_stn
+  if [ -n "$stn_removal_failed" ]; then
+    printf 'specstone: could not remove %s: delete it yourself\n' "$stn_removal_failed" >&2
+  fi
+  warn_missing_prerequisites
+}
+
+main "$@"

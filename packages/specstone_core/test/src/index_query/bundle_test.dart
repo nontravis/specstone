@@ -1,0 +1,2035 @@
+// The test titles and literals are plan values kept as written.
+// ignore_for_file: lines_longer_than_80_chars
+
+import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_render.dart';
+import 'package:specstone_core/src/index_query/code_bundle.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
+import '../../helpers/pick_modes.dart';
+import '../../helpers/rulebook_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
+
+void main() {
+  late DocIndex index;
+  setUpAll(() async => index = await indexWith());
+  const f = 'prds/features/f01_login';
+  const s = 'specs/f01_login';
+  final specs = <String>{'$s/API.md', '$s/ARCHITECTURE.md', '$s/DOMAIN.md'};
+
+  test(
+    'a story for implement: feature, spec docs, story, its FRs and nfs',
+    () async {
+      final b = pickBundle(
+        index,
+        ['login/email_login'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(b.docPaths, {
+        '$f/FEATURE.md',
+        ...specs,
+        '$f/us01_email_login/USER_STORY.md',
+        '$f/us01_email_login/fr01_validate_credentials.md',
+        '$f/us01_email_login/fr02_lock_after_failures.md',
+        '$f/us01_email_login/nf01_login_latency.md',
+      });
+      expect(b.joinedPaths, {
+        'prds/GNFR.md',
+        'prds/PROJECT.md',
+        'specs/TECH_STACK.md',
+      });
+    },
+  );
+  test(
+    "an FR for implement keeps its story's nfs and drops the other FRs",
+    () async {
+      final b = pickBundle(
+        index,
+        ['login/email_login/validate_credentials'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(b.docPaths, {
+        '$f/FEATURE.md',
+        ...specs,
+        '$f/us01_email_login/USER_STORY.md',
+        '$f/us01_email_login/fr01_validate_credentials.md',
+        '$f/us01_email_login/nf01_login_latency.md',
+      });
+    },
+  );
+  const us01 = '$f/us01_email_login';
+  const us02 = '$f/us02_reset_password';
+  test('a story for design: its story whole, siblings in summary', () {
+    final b = pickBundle(
+      index,
+      ['login/email_login'],
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      '$f/FEATURE.md',
+      ...specs,
+      '$us01/USER_STORY.md',
+      '$us01/fr01_validate_credentials.md',
+      '$us01/fr02_lock_after_failures.md',
+      '$us01/nf01_login_latency.md',
+    });
+    expect(b.summaryOnly, {
+      '$us02/USER_STORY.md',
+      '$us02/fr01_send_reset_link.md',
+    });
+    expect(b.joinedPaths, {
+      'prds/PROJECT.md',
+      'prds/GNFR.md',
+      'specs/TECH_STACK.md',
+    });
+  });
+  test("an FR or nf for design gives its story's bundle", () {
+    final story = pickBundle(
+      index,
+      ['login/email_login'],
+      BundleMode.design,
+      noProject: false,
+    );
+    for (final t in [
+      'login/email_login/validate_credentials',
+      'login/email_login/login_latency',
+    ]) {
+      final b = pickBundle(index, [t], BundleMode.design, noProject: false);
+      expect(b.docPaths, story.docPaths, reason: t);
+      expect(b.summaryOnly, story.summaryOnly, reason: t);
+    }
+  });
+  test('a feature for design is whole, no summary doc', () {
+    final b = pickBundle(index, ['login'], BundleMode.design, noProject: false);
+    expect(b.summaryOnly, isEmpty);
+    expect(
+      b.docPaths,
+      containsAll(['$us02/USER_STORY.md', '$us02/fr01_send_reset_link.md']),
+    );
+  });
+  test('a feature with summary: spec docs whole, every story in summary', () {
+    final b = pickBundle(
+      index,
+      ['login'],
+      BundleMode.design,
+      noProject: false,
+      summary: true,
+    );
+    expect(b.docPaths, {'$f/FEATURE.md', ...specs});
+    expect(b.summaryOnly, {
+      '$us01/USER_STORY.md',
+      '$us01/fr01_validate_credentials.md',
+      '$us01/fr02_lock_after_failures.md',
+      '$us01/nf01_login_latency.md',
+      '$us02/USER_STORY.md',
+      '$us02/fr01_send_reset_link.md',
+    });
+  });
+  test('a story for implement holds every per-feature spec doc type and the record', () async {
+    final full = await indexWith({
+      ...loginRecords,
+      'docs/$s/SECURITY.md': '# Login security\n',
+      'docs/$s/INTEGRATION.md': '# Login integration\n',
+    });
+    final b = pickBundle(
+      full,
+      ['login/email_login'],
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(
+      {for (final p in b.docPaths) full.at(p)!.docTypeId},
+      {
+        'feature',
+        'api',
+        'architecture',
+        'security',
+        'rulebook',
+        'implementation',
+        'integration',
+        'user_story',
+        'fr',
+        'nf',
+      },
+    );
+  });
+  test(
+    'a bare name with no chain doc lists its docs in tree order, once each',
+    () {
+      final implement = pickBundle(
+        index,
+        ['buyer'],
+        BundleMode.implement,
+        noProject: true,
+      );
+      expect(
+        [for (final d in implement.printOrder(index)) d.docPath],
+        [
+          'prds/personas/buyer/ANTI_PERSONA.md',
+          'prds/personas/buyer/PERSONA.md',
+        ],
+      );
+      final query = pickBundle(
+        index,
+        ['buyer'],
+        BundleMode.query,
+        noProject: true,
+      );
+      expect(query.targetPaths, {
+        'prds/personas/buyer/ANTI_PERSONA.md',
+        'prds/personas/buyer/PERSONA.md',
+      });
+      expect(
+        [for (final d in query.printOrder(index)) d.docPath],
+        [
+          'prds/personas/buyer/ANTI_PERSONA.md',
+          'prds/personas/buyer/PERSONA.md',
+        ],
+      );
+    },
+  );
+  test('a top doc with no children joins features, persona, anti_persona, reference, and topic docs', () async {
+    final joining = await indexWith({
+      for (final id in [
+        'features',
+        'persona',
+        'anti_persona',
+        'reference',
+        'charter',
+      ])
+        '.specstone/templates/$id.yaml':
+            '${id == 'charter' ? charterLayer : ''}bundle: [implement]\n',
+    });
+    final b = pickBundle(
+      joining,
+      ['project'],
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.docPaths, {'prds/PROJECT.md'});
+    expect(b.joinedPaths, {
+      'prds/FEATURES.md',
+      'prds/personas/buyer/PERSONA.md',
+      'prds/personas/buyer/ANTI_PERSONA.md',
+      'prds/references/password_rules/REFERENCE.md',
+      'specs/topics/auth_tokens.md',
+      'prds/GNFR.md',
+      'specs/TECH_STACK.md',
+    });
+  });
+  test('no --for is argument_missing with exit status 64', () {
+    expect(
+      () => BundleMode.parse(null),
+      throwsA(
+        isA<IndexFault>()
+            .having((x) => x.code, 'code', IndexFaultCode.argumentMissing)
+            .having((x) => x.exitStatus, 'exit status', 64),
+      ),
+    );
+  });
+  test(
+    'a goal target with --no-project keeps the goal doc, joining nothing',
+    () async {
+      final withGoal = await indexWith({
+        'docs/prds/GOAL.md':
+            '# Goals\n\n## Long-term goals\n- **PG-01** One.\n',
+      });
+      for (final mode in pickModes) {
+        final b = pickBundle(withGoal, ['goal'], mode, noProject: true);
+        expect(b.docPaths, {'prds/GOAL.md'}, reason: mode.wire);
+        expect(b.joinedPaths, isEmpty, reason: mode.wire);
+      }
+    },
+  );
+  test('summary with query or implement is argument_conflict, before the target check', () {
+    for (final mode in [BundleMode.query, BundleMode.implement]) {
+      expect(
+        () => pickBundle(
+          index,
+          ['login/email_login'],
+          mode,
+          noProject: false,
+          summary: true,
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
+              .having(
+                (f) => f.message,
+                'message',
+                '--summary works only with --for design',
+              ),
+        ),
+      );
+    }
+  });
+  test('summary on a story, a spec doc, or project is argument_conflict', () {
+    for (final (target, named) in [
+      ('login/email_login', 'login/email_login (user_story)'),
+      ('architecture:login', 'login (architecture)'),
+      ('project', 'project (project)'),
+    ]) {
+      expect(
+        () => pickBundle(
+          index,
+          [target],
+          BundleMode.design,
+          noProject: false,
+          summary: true,
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
+              .having(
+                (f) => f.message,
+                'message',
+                '--summary takes a doc with children, such as a feature; $named is not one',
+              ),
+        ),
+      );
+    }
+  });
+  test('a doc one target picks whole and another in summary is whole', () {
+    final b = Bundle(BundleMode.design)
+      ..addTarget(index, index.resolve('login/email_login').single)
+      ..addTarget(index, index.resolve('login/reset_password').single);
+    expect(b.summaryOnly, isEmpty);
+  });
+  test('--no-project on a story for design drops joined docs and keeps summary docs', () {
+    final b = pickBundle(
+      index,
+      ['login/email_login'],
+      BundleMode.design,
+      noProject: true,
+    );
+    expect(b.joinedPaths, isEmpty);
+    expect(b.summaryOnly, hasLength(2));
+  });
+  test('a doc a bundle: join adds is whole, never summary-only', () async {
+    final i = await indexWith({
+      '.specstone/templates/fr.yaml': 'bundle: [design]\n',
+    });
+    final b = pickBundle(
+      i,
+      ['login/email_login'],
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.summaryOnly, {'$us02/USER_STORY.md'});
+    expect(b.joinedPaths, contains('$us02/fr01_send_reset_link.md'));
+  });
+  test(
+    'a feature for implement gives its spec docs and its story name list',
+    () async {
+      final b = pickBundle(
+        index,
+        ['feature:login'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(b.docPaths, {'$f/FEATURE.md', ...specs});
+      expect(b.nameListTops, {'$f/FEATURE.md'});
+    },
+  );
+  test("a spec doc builds its parent's bundle", () async {
+    final b = pickBundle(
+      index,
+      ['architecture:login'],
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.docPaths, {'$f/FEATURE.md', ...specs});
+    expect(b.nameListTops, {'$f/FEATURE.md'});
+  });
+  test('a bare name takes its one chain doc', () async {
+    expect(
+      pickBundle(
+        index,
+        ['login'],
+        BundleMode.implement,
+        noProject: false,
+      ).nameListTops,
+      {'$f/FEATURE.md'},
+    );
+  });
+  test('buyer, with no single chain doc, bundles both docs once', () async {
+    final b = pickBundle(
+      index,
+      ['buyer'],
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      'prds/personas/buyer/ANTI_PERSONA.md',
+      'prds/personas/buyer/PERSONA.md',
+    });
+    expect(b.joinedPaths, {
+      'prds/GNFR.md',
+      'prds/PROJECT.md',
+      'specs/TECH_STACK.md',
+    });
+  });
+  test(
+    'project for implement appears once, with gnfr and tech_stack joined',
+    () async {
+      final b = pickBundle(
+        index,
+        ['project'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(b.docPaths, {'prds/PROJECT.md'});
+      expect(b.joinedPaths, {'prds/GNFR.md', 'specs/TECH_STACK.md'});
+    },
+  );
+  test('an untyped target is untyped_target', () async {
+    expect(
+      () => pickBundle(
+        index,
+        ['prds/d01_context.md'],
+        BundleMode.implement,
+        noProject: false,
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((x) => x.code, 'code', IndexFaultCode.untypedTarget)
+            .having(
+              (x) => x.message,
+              'message',
+              'prds/d01_context.md has no doc type, so it never joins a bundle; read it with specstone get',
+            ),
+      ),
+    );
+  });
+  test('a target no doc carries is doc_not_found', () async {
+    expect(
+      () => pickBundle(index, ['nobody'], BundleMode.query, noProject: false),
+      throwsA(isA<IndexFault>()),
+    );
+  });
+  test('--for is required and takes the five modes only', () {
+    expect(
+      () => BundleMode.parse(null),
+      throwsA(
+        isA<IndexFault>().having(
+          (x) => x.message,
+          'message',
+          'context needs --for, such as specstone context login --for implement',
+        ),
+      ),
+    );
+    expect(
+      () => BundleMode.parse('deploy'),
+      throwsA(
+        isA<IndexFault>()
+            .having((x) => x.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (x) => x.message,
+              'message',
+              '--for takes query, implement, design, sync, or review, not deploy',
+            ),
+      ),
+    );
+    expect(BundleMode.parse('design'), BundleMode.design);
+    expect(BundleMode.parse('review'), BundleMode.review);
+  });
+  test('a feature for query: its chain, its map, and project joined', () async {
+    final b = pickBundle(index, ['login'], BundleMode.query, noProject: false);
+    expect(b.docPaths, {'$f/FEATURE.md'});
+    expect(b.mapTops, {'$f/FEATURE.md'});
+    expect(b.joinedPaths, {'prds/PROJECT.md'});
+  });
+  test('a query on an FR records the FR as its one target', () {
+    final b = pickBundle(
+      index,
+      ['login/email_login/validate_credentials'],
+      BundleMode.query,
+      noProject: false,
+    );
+    expect(b.targetPaths, {'$f/us01_email_login/fr01_validate_credentials.md'});
+  });
+  test('a query on a spec doc adds that doc and records it as the target', () {
+    final b = pickBundle(
+      index,
+      ['architecture:login'],
+      BundleMode.query,
+      noProject: false,
+    );
+    expect(b.docPaths, containsAll(['$f/FEATURE.md', '$s/ARCHITECTURE.md']));
+    expect(b.targetPaths, {'$s/ARCHITECTURE.md'});
+    expect(b.mapTops, {'$f/FEATURE.md'});
+  });
+  test(
+    'a query on a shared name with no chain doc records each doc as a target',
+    () {
+      final b = pickBundle(
+        index,
+        ['buyer'],
+        BundleMode.query,
+        noProject: false,
+      );
+      expect(b.targetPaths, {
+        'prds/personas/buyer/PERSONA.md',
+        'prds/personas/buyer/ANTI_PERSONA.md',
+      });
+    },
+  );
+  test('no mode but query records a target', () {
+    for (final mode in [BundleMode.implement, BundleMode.design]) {
+      expect(
+        pickBundle(
+          index,
+          ['login/email_login'],
+          mode,
+          noProject: false,
+        ).targetPaths,
+        isEmpty,
+      );
+    }
+  });
+  test('--no-project drops joined docs, never a chain doc', () async {
+    expect(
+      pickBundle(
+        index,
+        ['login/email_login'],
+        BundleMode.implement,
+        noProject: true,
+      ).joinedPaths,
+      isEmpty,
+    );
+    expect(
+      pickBundle(
+        index,
+        ['project'],
+        BundleMode.implement,
+        noProject: true,
+      ).docPaths,
+      {'prds/PROJECT.md'},
+    );
+  });
+  const importedDoc = 'prds/PROJECT.md';
+  test('an imported bundle-list doc stays picked and is marked imported', () {
+    final b = pickBundle(
+      index,
+      ['login/email_login'],
+      BundleMode.implement,
+      noProject: false,
+      importedPaths: {importedDoc},
+    );
+    expect(b.joinedPaths, contains(importedDoc));
+    expect(b.importedPaths, {importedDoc});
+    expect(b.isImported(index.at(importedDoc)!), isTrue);
+    expect(b.isImported(index.at('$f/FEATURE.md')!), isFalse);
+  });
+  test('an imported doc a target argument names is never marked', () {
+    final b = pickBundle(
+      index,
+      ['project'],
+      BundleMode.implement,
+      noProject: false,
+      importedPaths: {importedDoc, 'prds/GNFR.md'},
+    );
+    expect(b.importedPaths, {'prds/GNFR.md'});
+    expect(b.isImported(index.at(importedDoc)!), isFalse);
+  });
+  test('a doc named as a target and joined through a bundle list prints once, unmarked', () {
+    final b = pickBundle(
+      index,
+      ['project', 'login/email_login'],
+      BundleMode.implement,
+      noProject: false,
+      importedPaths: {importedDoc},
+    );
+    final printed = [
+      for (final doc in b.printOrder(index))
+        if (doc.docPath == importedDoc) doc,
+    ];
+    expect(b.docPaths, contains(importedDoc));
+    expect(b.joinedPaths, isNot(contains(importedDoc)));
+    expect(printed, hasLength(1));
+    expect(b.isImported(printed.single), isFalse);
+    expect(b.importedPaths, isEmpty);
+  });
+  test('--no-project drops an imported doc and marks none', () {
+    final b = pickBundle(
+      index,
+      ['login/email_login'],
+      BundleMode.implement,
+      noProject: true,
+      importedPaths: {importedDoc},
+    );
+    expect(b.droppedPaths, contains(importedDoc));
+    expect(b.importedPaths, isEmpty);
+  });
+  test("a story's implement bundle holds the goal doc", () async {
+    final withGoal = await indexWith({
+      'docs/prds/GOAL.md': '# Goals\n\n## Long-term goals\n- **PG-01** One.\n',
+    });
+    Set<String> joined(
+      BundleMode mode, {
+      bool noProject = false,
+      String target = 'login/email_login',
+    }) =>
+        pickBundle(withGoal, [target], mode, noProject: noProject).joinedPaths;
+
+    expect(joined(BundleMode.implement), {
+      'prds/GOAL.md',
+      'prds/GNFR.md',
+      'prds/PROJECT.md',
+      'specs/TECH_STACK.md',
+    });
+    expect(joined(BundleMode.design), contains('prds/GOAL.md'));
+    expect(joined(BundleMode.implement, noProject: true), isEmpty);
+    expect(
+      pickBundle(
+        withGoal,
+        ['login/email_login'],
+        BundleMode.implement,
+        noProject: true,
+      ).droppedPaths,
+      contains('prds/GOAL.md'),
+    );
+    expect(joined(BundleMode.query, target: 'login'), {'prds/PROJECT.md'});
+  });
+  group('the glossary doc', () {
+    const glossary = 'prds/GLOSSARY.md';
+    late DocIndex withGlossary;
+    setUpAll(
+      () async => withGlossary = await indexWith({
+        'docs/$glossary': '# Domain glossary\n\n## Terms\n\n- **Doc** — one markdown file under the docs root.\n',
+      }),
+    );
+    Bundle pick(String target, BundleMode mode, {bool noProject = false}) =>
+        pickBundle(withGlossary, [target], mode, noProject: noProject);
+
+    test('a story bundle in every mode holds it, joined', () {
+      expect(pick('login/email_login', BundleMode.implement).joinedPaths, {
+        glossary,
+        'prds/GNFR.md',
+        'prds/PROJECT.md',
+        'specs/TECH_STACK.md',
+      });
+      expect(
+        pick('login/email_login', BundleMode.design).joinedPaths,
+        contains(glossary),
+      );
+      for (final target in ['login', 'login/email_login']) {
+        expect(pick(target, BundleMode.query).joinedPaths, {
+          glossary,
+          'prds/PROJECT.md',
+        }, reason: target);
+      }
+      for (final mode in pickModes) {
+        expect(
+          pick('login/email_login', mode).docPaths,
+          isNot(contains(glossary)),
+          reason: mode.wire,
+        );
+      }
+    });
+    test('it joins the refs file in implement and design', () {
+      for (final mode in [BundleMode.implement, BundleMode.design]) {
+        final b = pick('login/email_login', mode);
+        expect(b.joinsRefs(withGlossary, withGlossary.at(glossary)!), isTrue);
+      }
+    });
+    test('--no-project drops it from a story bundle', () {
+      for (final mode in pickModes) {
+        final b = pick('login/email_login', mode, noProject: true);
+        expect(b.joinedPaths, isEmpty, reason: mode.wire);
+        expect(b.droppedPaths, contains(glossary), reason: mode.wire);
+      }
+    });
+    test('--no-project keeps it as the chain doc of its own target', () {
+      for (final mode in pickModes) {
+        final b = pick('glossary', mode, noProject: true);
+        expect(b.docPaths, {glossary}, reason: mode.wire);
+        expect(b.joinedPaths, isEmpty, reason: mode.wire);
+      }
+    });
+    test('its own target holds it once, never as a join', () {
+      for (final mode in pickModes) {
+        final b = pick('glossary', mode);
+        expect(b.docPaths, {glossary}, reason: mode.wire);
+        expect(b.joinedPaths, isNot(contains(glossary)), reason: mode.wire);
+        expect(b.joinsRefs(withGlossary, withGlossary.at(glossary)!), isFalse);
+      }
+    });
+  });
+  test('a set with no bundle keys joins nothing', () async {
+    final bare = await indexWith({
+      '.specstone/templates/project.yaml':
+          'bundle: {remove: [query, implement, design]}\n',
+      '.specstone/templates/gnfr.yaml':
+          'bundle: {remove: [implement, design]}\n',
+      '.specstone/templates/tech_stack.yaml':
+          'bundle: {remove: [implement, design]}\n',
+    });
+    expect(
+      pickBundle(
+        bare,
+        ['login/email_login'],
+        BundleMode.implement,
+        noProject: false,
+      ).joinedPaths,
+      isEmpty,
+    );
+    expect(
+      pickBundle(
+        bare,
+        ['login'],
+        BundleMode.query,
+        noProject: false,
+      ).joinedPaths,
+      isEmpty,
+    );
+  });
+  group('joinsRefs', () {
+    Bundle implementBundle(DocIndex i, String target) =>
+        pickBundle(i, [target], BundleMode.implement, noProject: false);
+
+    test('joinsRefs reads bundleRefs, never a type id', () async {
+      final i = await indexWith({
+        '.specstone/templates/gnfr.yaml': 'bundle_refs: false\n',
+      });
+      final b = implementBundle(i, 'login/email_login');
+
+      bool joinsRefs(String docPath) => b.joinsRefs(i, i.at(docPath)!);
+      expect(joinsRefs('prds/PROJECT.md'), isTrue);
+      expect(joinsRefs('prds/GNFR.md'), isFalse);
+      expect(joinsRefs('specs/TECH_STACK.md'), isFalse);
+    });
+    test(
+      'a doc the chain picks never joins refs, whatever its doc type sets',
+      () async {
+        final i = await indexWith();
+        final b = implementBundle(i, 'project');
+
+        expect(b.joinsRefs(i, i.at('prds/PROJECT.md')!), isFalse);
+        expect(b.joinsRefs(i, i.at('prds/GNFR.md')!), isTrue);
+      },
+    );
+    test('a doc the bundle does not hold joins no refs', () async {
+      final i = await indexWith();
+      final b = pickBundle(
+        i,
+        ['login/email_login'],
+        BundleMode.implement,
+        noProject: true,
+      );
+
+      expect(b.joinsRefs(i, i.at('prds/PROJECT.md')!), isFalse);
+    });
+  });
+  const shopSpecs = {shopDomain, shopArchitecture, shopApi};
+  test("implement on shop/cart/add_item gives the chain, shop's spec docs, cartDomain, and the FR", () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      ['shop/cart/add_item'],
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, isEmpty);
+  });
+  test(
+    'a story left in shop joins the implement bundle of shop/cart/add_item',
+    () async {
+      const left = 'prds/features/f02_shop/us01_browse/USER_STORY.md';
+      final b = pickBundle(
+        await nestedIndexWith({'docs/$left': '# Agent browses\n'}),
+        ['shop/cart/add_item'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(b.docPaths, {
+        shopFeature,
+        ...shopSpecs,
+        left,
+        cartFeature,
+        cartDomain,
+        cartAdd,
+        cartAddFr,
+      });
+      expect(b.summaryPaths, isEmpty);
+      expect(b.nameListTops, isEmpty);
+    },
+  );
+  test("design on shop/cart/add_item gives cart whole, drop_item in summary, shop with its spec docs, and shop's names list", () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      ['shop/cart/add_item'],
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+    });
+    expect(b.summaryPaths, {cartDrop});
+    expect(b.nameListTops, {shopFeature});
+    expect(b.docPaths.union(b.summaryPaths), isNot(contains(payFeature)));
+    expect(b.docPaths.union(b.summaryPaths), isNot(contains(payCard)));
+  });
+  test("design on shop/cart gives cart's subtree, shop with its spec docs, and shop's names list", () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      ['shop/cart'],
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+      cartDrop,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, {shopFeature});
+  });
+  test('summary takes a nested feature with children', () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      ['shop/cart'],
+      BundleMode.design,
+      noProject: false,
+      summary: true,
+    );
+    expect(b.docPaths, {cartFeature, cartDomain, shopFeature, ...shopSpecs});
+    expect(b.summaryPaths, {cartAdd, cartAddFr, cartDrop});
+    expect(b.nameListTops, {shopFeature});
+    expect(b.docPaths.union(b.summaryPaths), isNot(contains(payFeature)));
+    expect(b.docPaths.union(b.summaryPaths), isNot(contains(payCard)));
+  });
+  test(
+    'summary on a nested feature holds a deeper feature story in summary',
+    () async {
+      const promo = 'prds/features/f02_shop/f01_cart/f01_promo/FEATURE.md';
+      const coupon =
+          'prds/features/f02_shop/f01_cart/f01_promo/us01_coupon/USER_STORY.md';
+      final b = pickBundle(
+        await nestedIndexWith({
+          'docs/$promo': '# Promo\n',
+          'docs/$coupon': '# Agent uses a coupon\n',
+        }),
+        ['shop/cart'],
+        BundleMode.design,
+        noProject: false,
+        summary: true,
+      );
+      expect(b.summaryPaths, contains(coupon));
+      expect(b.docPaths, isNot(contains(coupon)));
+      expect(b.summaryPaths, isNot(contains(payCard)));
+    },
+  );
+  test('summary still refuses a story', () async {
+    final nested = await nestedIndexWith();
+    expect(
+      () => pickBundle(
+        nested,
+        ['shop/cart/add_item'],
+        BundleMode.design,
+        noProject: false,
+        summary: true,
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
+            .having(
+              (f) => f.message,
+              'message',
+              '--summary takes a doc with children, such as a feature; shop/cart/add_item (user_story) is not one',
+            ),
+      ),
+    );
+  });
+  test('summary still refuses a doc with no children', () async {
+    final nested = await nestedIndexWith();
+    for (final (target, named) in [
+      ('architecture:shop', 'shop (architecture)'),
+      ('project', 'project (project)'),
+    ]) {
+      expect(
+        () => pickBundle(
+          nested,
+          [target],
+          BundleMode.design,
+          noProject: false,
+          summary: true,
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
+              .having(
+                (f) => f.message,
+                'message',
+                '--summary takes a doc with children, such as a feature; $named is not one',
+              ),
+        ),
+      );
+    }
+  });
+  test('design on shop keeps its whole subtree', () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      ['shop'],
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+      cartDrop,
+      payFeature,
+      payCard,
+      payRefund,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, isEmpty);
+  });
+  test('sf-c7 (pin): design on an FR gives the bundle of its story under the nearest feature', () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      ['shop/cart/add_item/check_stock'],
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      cartFeature,
+      cartDomain,
+      cartAdd,
+      cartAddFr,
+    });
+    expect(b.summaryPaths, {cartDrop});
+    expect(b.nameListTops, {shopFeature});
+  });
+  test('sf-c7 (pin): design at depth 2 prints every feature above the nearest one whole with its names list', () async {
+    const promo = 'prds/features/f02_shop/f01_cart/f01_promo/FEATURE.md';
+    const coupon =
+        'prds/features/f02_shop/f01_cart/f01_promo/us01_coupon/USER_STORY.md';
+    final b = pickBundle(
+      await nestedIndexWith({
+        'docs/$promo': '# Promo\n',
+        'docs/$coupon': '# Agent uses a coupon\n',
+      }),
+      ['shop/cart/promo/coupon'],
+      BundleMode.design,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      promo,
+      coupon,
+      cartFeature,
+      cartDomain,
+      shopFeature,
+      ...shopSpecs,
+    });
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, {cartFeature, shopFeature});
+  });
+  test("query on shop/cart/add_item gives the chain and shop's map", () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      ['shop/cart/add_item'],
+      BundleMode.query,
+      noProject: false,
+    );
+    expect(b.docPaths, {shopFeature, cartFeature, cartAdd});
+    expect(b.mapTops, {shopFeature});
+    expect(b.summaryPaths, isEmpty);
+    expect(b.nameListTops, isEmpty);
+  });
+  test(
+    'a story design bundle marks the feature spec docs as ancestor spec docs',
+    () {
+      final b = pickBundle(
+        index,
+        ['login/email_login'],
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.ancestorSpecPaths, specs);
+      expect(b.hasAncestorSpecs, isTrue);
+      expect(b.targetSubtreePaths, {
+        '$us01/USER_STORY.md',
+        '$us01/fr01_validate_credentials.md',
+        '$us01/fr02_lock_after_failures.md',
+        '$us01/nf01_login_latency.md',
+      });
+    },
+  );
+  test('an fr design bundle marks the subtree of its story', () {
+    final story = pickBundle(
+      index,
+      ['login/email_login'],
+      BundleMode.design,
+      noProject: false,
+    );
+    for (final t in [
+      'login/email_login/validate_credentials',
+      'login/email_login/login_latency',
+    ]) {
+      final b = pickBundle(index, [t], BundleMode.design, noProject: false);
+      expect(b.ancestorSpecPaths, story.ancestorSpecPaths, reason: t);
+      expect(b.targetSubtreePaths, story.targetSubtreePaths, reason: t);
+      expect(b.targetSubtreePaths, hasLength(4), reason: t);
+    }
+  });
+  test(
+    'a nested story marks the spec docs of every feature above it',
+    () async {
+      final b = pickBundle(
+        await nestedIndexWith(),
+        ['shop/cart/add_item'],
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.ancestorSpecPaths, {cartDomain, ...shopSpecs});
+      expect(b.targetSubtreePaths, {cartAdd, cartAddFr});
+    },
+  );
+  test(
+    'a sub-feature target keeps its own spec docs out of the ancestor set',
+    () async {
+      final b = pickBundle(
+        await nestedIndexWith(),
+        ['shop/cart'],
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.ancestorSpecPaths, shopSpecs);
+      expect(b.ancestorSpecPaths, isNot(contains(cartDomain)));
+      expect(b.targetSubtreePaths, {
+        cartFeature,
+        cartDomain,
+        cartAdd,
+        cartAddFr,
+        cartDrop,
+      });
+    },
+  );
+  test(
+    'a summary sub-feature target takes its whole subtree as target subtree',
+    () async {
+      final b = pickBundle(
+        await nestedIndexWith(),
+        ['shop/cart'],
+        BundleMode.design,
+        noProject: false,
+        summary: true,
+      );
+      expect(b.ancestorSpecPaths, shopSpecs);
+      expect(b.targetSubtreePaths, {
+        cartFeature,
+        cartDomain,
+        cartAdd,
+        cartAddFr,
+        cartDrop,
+      });
+    },
+  );
+  test('a top feature target has no ancestor spec docs', () {
+    for (final summary in [false, true]) {
+      final b = pickBundle(
+        index,
+        ['login'],
+        BundleMode.design,
+        noProject: false,
+        summary: summary,
+      );
+      expect(b.ancestorSpecPaths, isEmpty, reason: 'summary $summary');
+      expect(b.hasAncestorSpecs, isFalse, reason: 'summary $summary');
+      expect(b.targetSubtreePaths, {
+        for (final d in index.subtreeOf(index.at('$f/FEATURE.md')!)) d.docPath,
+      }, reason: 'summary $summary');
+    }
+  });
+  test('a spec doc design target takes its parent summary bundle with the spec doc as the target subtree', () async {
+    final nested = await nestedIndexWith();
+    final cart = pickBundle(
+      nested,
+      ['rulebook:shop/cart'],
+      BundleMode.design,
+      noProject: false,
+    );
+    final cartSummary = pickBundle(
+      nested,
+      ['shop/cart'],
+      BundleMode.design,
+      noProject: false,
+      summary: true,
+    );
+    expect(cart.docPaths, cartSummary.docPaths);
+    expect(cart.summaryOnly, cartSummary.summaryOnly);
+    expect(cart.nameListTops, cartSummary.nameListTops);
+    expect(cart.targetSubtreePaths, {cartDomain});
+    expect(cart.chainAbovePaths, {cartFeature, shopFeature});
+    expect(cart.ancestorSpecPaths, shopSpecs);
+
+    const architecture = '$s/ARCHITECTURE.md';
+    final login = pickBundle(
+      index,
+      ['architecture:login'],
+      BundleMode.design,
+      noProject: false,
+    );
+    final loginSummary = pickBundle(
+      index,
+      ['login'],
+      BundleMode.design,
+      noProject: false,
+      summary: true,
+    );
+    expect(login.docPaths, loginSummary.docPaths);
+    expect(login.summaryOnly, loginSummary.summaryOnly);
+    expect(login.targetSubtreePaths, {architecture});
+    expect(login.chainAbovePaths, {'$f/FEATURE.md'});
+    expect(login.ancestorSpecPaths, specs.difference({architecture}));
+  });
+  test('a nested spec doc for implement takes its parent as top doc, with no story of the parent', () async {
+    const left = 'prds/features/f02_shop/us01_browse/USER_STORY.md';
+    final b = pickBundle(
+      await nestedIndexWith({'docs/$left': '# Agent browses\n'}),
+      ['rulebook:shop/cart'],
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.docPaths, {
+      shopFeature,
+      ...shopSpecs,
+      left,
+      cartFeature,
+      cartDomain,
+    });
+    expect(b.docPaths, isNot(contains(cartAdd)));
+    expect(b.docPaths, isNot(contains(cartAddFr)));
+    expect(b.nameListTops, {cartFeature});
+    expect(b.summaryPaths, isEmpty);
+  });
+  test(
+    'a spec doc for implement marks itself alone and the chain above it',
+    () async {
+      final nested = await nestedIndexWith();
+      final cart = pickBundle(
+        nested,
+        ['rulebook:shop/cart'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(cart.targetSubtreePaths, {cartDomain});
+      expect(cart.chainAbovePaths, {cartFeature, shopFeature});
+      expect(cart.ancestorSpecPaths, isEmpty);
+
+      final login = pickBundle(
+        index,
+        ['architecture:login'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(login.targetSubtreePaths, {'$s/ARCHITECTURE.md'});
+      expect(login.chainAbovePaths, {'$f/FEATURE.md'});
+      expect(login.ancestorSpecPaths, isEmpty);
+    },
+  );
+  test('a saved nested spec doc implement bundle keeps itself and its chain read-first and moves a wide parent spec doc', () async {
+    final wide = '${'word ' * 24000}\n';
+    const cartArchitecture = 'specs/f02_shop/f01_cart/ARCHITECTURE.md';
+    final nested = await nestedIndexWith({
+      'docs/$shopArchitecture': '# Shop architecture\n\n## Components\n$wide',
+      'docs/$cartArchitecture': '# Cart architecture\n\n## Components\n$wide',
+    });
+    final answer = answerContext(
+      nested,
+      pickBundle(
+        nested,
+        ['rulebook:shop/cart'],
+        BundleMode.implement,
+        noProject: false,
+      ),
+      targets: ['rulebook:shop/cart'],
+      split: true,
+    );
+    for (final path in [shopFeature, cartFeature, cartDomain]) {
+      expect(answer.text, contains(path), reason: path);
+    }
+    expect(answer.text, isNot(contains(' · $shopArchitecture <==')));
+    expect(answer.refs!.text, contains(' · $shopArchitecture <=='));
+    expect(answer.text, isNot(contains(' · $cartArchitecture <==')));
+    expect(answer.refs!.text, contains(' · $cartArchitecture <=='));
+  });
+  test('a nested spec doc and a story of its parent keep the story subtree as target subtree', () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      ['rulebook:shop/cart', 'shop/cart/add_item'],
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.targetSubtreePaths, {cartDomain, cartAdd, cartAddFr});
+  });
+  test('a spec doc design target keeps its parent and the chain above it read-first past the read-first budget', () async {
+    // Each feature fits the read-first budget alone; the two together pass it.
+    final wide = '${'word ' * 12000}\n';
+    final nested = await nestedIndexWith({
+      'docs/$shopFeature': '# Shop\n\n## Problem\n$wide',
+      'docs/$cartFeature': '# Cart\n\n## Problem\n$wide',
+    });
+    final answer = answerContext(
+      nested,
+      pickBundle(
+        nested,
+        ['rulebook:shop/cart'],
+        BundleMode.design,
+        noProject: false,
+      ),
+      targets: ['rulebook:shop/cart'],
+      split: true,
+    );
+    for (final head in [
+      '==> shop (feature) · $shopFeature <==',
+      '==> shop/cart (feature) · $cartFeature <==',
+    ]) {
+      expect(answer.text, contains(head), reason: head);
+      expect(answer.refs!.text, isNot(contains(head)), reason: head);
+    }
+  });
+  test('a code path bundle marks its matches as targets, so only the record of its spec folder is an ancestor spec doc', () async {
+    final project = await writeLoginProject(extra: loginRecords);
+    final session = openSession(project);
+    addTearDown(session.close);
+    final b = pickCodeBundle(
+      session.index,
+      resolveCodePath(
+        'app/lib/src/login/credential_validator.dart',
+        workingDirectory: project,
+        targets: session.project.targets,
+        codeRootOf: session.project.codeRootOf,
+        projectRoot: session.project.projectRoot,
+        reachedFromProjectRoot: (_) => false,
+      ),
+      BundleMode.design,
+      noProject: false,
+    );
+    final story = session.index.at('$f/us01_email_login/USER_STORY.md')!;
+    expect(b.targetSubtreePaths, {
+      for (final d in session.index.subtreeOf(story)) d.docPath,
+      ...specs,
+    });
+    expect(b.chainAbovePaths, {'$f/FEATURE.md'});
+    expect(b.ancestorSpecPaths.difference(b.targetSubtreePaths), {
+      '.specstone/records/f01_login/IMPLEMENTATION.md',
+    });
+  });
+  test('implement and query bundles have no ancestor spec docs', () async {
+    final nested = await nestedIndexWith();
+    for (final mode in [BundleMode.implement, BundleMode.query]) {
+      for (final (i, target) in [
+        (index, 'login/email_login'),
+        (nested, 'shop/cart/add_item'),
+      ]) {
+        final b = pickBundle(i, [target], mode, noProject: false);
+        expect(b.ancestorSpecPaths, isEmpty, reason: '${mode.wire} $target');
+      }
+    }
+  });
+  test('implement and design mark the story subtree of an FR target and the chain above it', () async {
+    final nested = await nestedIndexWith();
+    for (final mode in [BundleMode.implement, BundleMode.design]) {
+      final b = pickBundle(
+        nested,
+        ['shop/cart/add_item/check_stock'],
+        mode,
+        noProject: false,
+      );
+      expect(b.targetSubtreePaths, {cartAdd, cartAddFr}, reason: mode.wire);
+      expect(b.chainAbovePaths, {cartFeature, shopFeature}, reason: mode.wire);
+    }
+  });
+  test('a feature target in implement marks its whole subtree and nothing above it', () {
+    final b = pickBundle(
+      index,
+      ['login'],
+      BundleMode.implement,
+      noProject: false,
+    );
+    expect(b.targetSubtreePaths, {
+      for (final d in index.subtreeOf(index.at('$f/FEATURE.md')!)) d.docPath,
+    });
+    expect(b.chainAbovePaths, isEmpty);
+  });
+  test('a query bundle marks no target subtree and no chain above it', () {
+    final b = pickBundle(
+      index,
+      ['login/email_login'],
+      BundleMode.query,
+      noProject: false,
+    );
+    expect(b.targetSubtreePaths, isEmpty);
+    expect(b.chainAbovePaths, isEmpty);
+  });
+  test('preflight: BundleMode wires match bundleModeWires', () {
+    expect(pickModes.map((m) => m.wire).toSet(), bundleModeWires);
+  });
+
+  group('per code target', () {
+    const archToast = 'f02_feedback/f03_toast/ARCHITECTURE.md';
+    const flutterArch = 'specs/flutter/$archToast';
+    const jasprArch = 'specs/jaspr/$archToast';
+    const showStory =
+        'prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md';
+    final projectFiles = <String, String>{
+      '.specstone/templates/architecture.yaml':
+          'id: architecture\nper_target: true\n',
+      '.specstone/templates/implementation.yaml':
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n',
+      '.specstone/templates/tech_stack.yaml':
+          'id: tech_stack\nper_target: true\n',
+      '.specstone/config.yaml':
+          '${shippedPinsConfig()}targets:\n'
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+      'flutter_lib/.keep': '',
+      'jaspr_lib/.keep': '',
+      'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
+      'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '# Toast\n',
+      'docs/$showStory': '# Agent sees a toast\n',
+      'docs/$flutterArch': '# Toast architecture\n',
+      'docs/$jasprArch': '# Toast architecture\n',
+      'docs/specs/flutter/TECH_STACK.md': '# Flutter stack\n',
+      'docs/specs/jaspr/TECH_STACK.md': '# Jaspr stack\n',
+      'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+      'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+    };
+
+    /// Returns the index of the two-target toast fixture.
+    Future<DocIndex> toastIndex([Map<String, String> extra = const {}]) async {
+      final session = openSession(await writeTree({...projectFiles, ...extra}));
+      addTearDown(session.close);
+      return session.index;
+    }
+
+    test('one target needs no --target in implement', () async {
+      final session = openSession(
+        await writeTree({
+          ...projectFiles,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: flutter_lib\n',
+          'docs/$flutterArch': '',
+          'docs/$jasprArch': '',
+          'docs/specs/$archToast': '# Toast architecture\n',
+        }),
+      );
+      addTearDown(session.close);
+      final b = pickBundle(
+        session.index,
+        ['feedback/toast/show'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(b.docPaths, contains('specs/$archToast'));
+    });
+
+    test('implement with two targets and no --target is argument_missing', () async {
+      final index = await toastIndex();
+      expect(
+        () => pickBundle(
+          index,
+          ['feedback/toast/show'],
+          BundleMode.implement,
+          noProject: false,
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+              .having(
+                (f) => f.message,
+                'message',
+                '--for implement needs --target with two or more code targets; '
+                    'the targets are flutter, jaspr',
+              ),
+        ),
+      );
+    });
+
+    test('several implement targets with two code targets and no --target refuse argument_missing once', () async {
+      final index = await toastIndex();
+      for (final targets in [
+        ['feedback/toast/show', 'feedback/toast'],
+        ['feedback/toast/show', 'nobody'],
+      ]) {
+        expect(
+          () => pickBundle(
+            index,
+            targets,
+            BundleMode.implement,
+            noProject: false,
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  '--for implement needs --target with two or more code targets; '
+                      'the targets are flutter, jaspr',
+                ),
+          ),
+          reason: '$targets',
+        );
+      }
+    });
+
+    test('--target jaspr keeps jaspr docs alone in implement', () async {
+      final b = pickBundle(
+        await toastIndex(),
+        ['feedback/toast/show'],
+        BundleMode.implement,
+        noProject: false,
+        codeTarget: 'jaspr',
+      );
+      expect(b.docPaths, {
+        'prds/features/f02_feedback/FEATURE.md',
+        'prds/features/f02_feedback/f03_toast/FEATURE.md',
+        showStory,
+        jasprArch,
+        'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+      });
+      expect(b.docPaths, isNot(contains(flutterArch)));
+      expect(b.joinedPaths, {'specs/jaspr/TECH_STACK.md'});
+    });
+
+    test('design and query with no --target take every target doc', () async {
+      final index = await toastIndex();
+      final design = pickBundle(
+        index,
+        ['feedback/toast/show'],
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(design.docPaths, contains(flutterArch));
+      expect(design.docPaths, contains(jasprArch));
+      final query = pickBundle(
+        index,
+        ['feedback/toast/show'],
+        BundleMode.query,
+        noProject: false,
+      );
+      expect(query.mapTops, {'prds/features/f02_feedback/FEATURE.md'});
+      final queryAnswer = answerContext(
+        index,
+        query,
+        targets: ['feedback/toast/show'],
+      );
+      expect(
+        queryAnswer.text
+            .split('\n')
+            .where((l) => l.contains('feedback/toast (architecture)'))
+            .length,
+        2,
+        reason: 'the map holds each target spec doc',
+      );
+      final queryTargeted = answerContext(
+        index,
+        pickBundle(
+          index,
+          ['feedback/toast/show'],
+          BundleMode.query,
+          noProject: false,
+          codeTarget: 'jaspr',
+        ),
+        targets: ['feedback/toast/show'],
+      );
+      expect(
+        queryTargeted.text
+            .split('\n')
+            .where((l) => l.contains('feedback/toast (architecture)'))
+            .length,
+        1,
+        reason: 'the map holds the named target spec doc alone',
+      );
+      expect(queryTargeted.text, isNot(contains('flutter')));
+      final withTarget = pickBundle(
+        index,
+        ['feedback/toast'],
+        BundleMode.design,
+        noProject: false,
+        codeTarget: 'jaspr',
+      );
+      expect(withTarget.docPaths, contains(jasprArch));
+      expect(withTarget.docPaths, isNot(contains(flutterArch)));
+    });
+
+    test(
+      'query with no --target maps every target spec doc and no tech stack',
+      () async {
+        final index = await toastIndex();
+        final query = pickBundle(
+          index,
+          ['feedback/toast/show'],
+          BundleMode.query,
+          noProject: false,
+        );
+        expect(query.joinedPaths, isEmpty);
+        final text = answerContext(
+          index,
+          query,
+          targets: ['feedback/toast/show'],
+        ).text;
+        expect(text, isNot(contains('(tech_stack)')));
+        expect(text, isNot(contains('TECH_STACK.md')));
+        expect(text, isNot(contains('Flutter stack')));
+        expect(text, isNot(contains('Jaspr stack')));
+      },
+    );
+
+    test('query on one target lists its spec docs in the map with no --target', () async {
+      final session = openSession(
+        await writeTree({
+          ...projectFiles,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: flutter_lib\n',
+          'docs/$flutterArch': '',
+          'docs/$jasprArch': '',
+          'docs/specs/$archToast': '# Toast architecture\n',
+        }),
+      );
+      addTearDown(session.close);
+      final answer = answerContext(
+        session.index,
+        pickBundle(
+          session.index,
+          ['feedback/toast/show'],
+          BundleMode.query,
+          noProject: false,
+        ),
+        targets: ['feedback/toast/show'],
+      );
+      expect(
+        answer.text
+            .split('\n')
+            .where((l) => l.contains('feedback/toast (architecture)')),
+        hasLength(1),
+      );
+    });
+
+    test('a per-target chain doc of another target stays out', () async {
+      final session = openSession(
+        await writeTree({
+          ...projectFiles,
+          '.specstone/templates/feature.yaml': 'per_target: true\n',
+          'docs/prds/features/f02_feedback/FEATURE.md': '',
+          'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': '',
+          'docs/prds/flutter/features/f02_feedback/FEATURE.md': '# Feedback\n',
+          'docs/prds/flutter/features/f02_feedback/f04_pay/FEATURE.md':
+              '# Pay\n',
+          'docs/prds/features/f02_feedback/f04_pay/us01_card/USER_STORY.md':
+              '# Agent pays by card\n',
+        }),
+      );
+      addTearDown(session.close);
+      final b = pickBundle(
+        session.index,
+        ['feedback/pay/card'],
+        BundleMode.implement,
+        noProject: false,
+        codeTarget: 'jaspr',
+      );
+      expect(
+        b.docPaths.where((p) => p.contains('prds/flutter/')),
+        isEmpty,
+        reason: 'the chain walk keeps the named target alone',
+      );
+    });
+
+    test('the names list holds no other-target chain doc', () async {
+      final session = openSession(
+        await writeTree(
+          {
+            ...projectFiles,
+            '.specstone/templates/user_story.yaml':
+                'id: user_story\nper_target: true\n',
+            'docs/prds/flutter/features/f02_feedback/us01_show/USER_STORY.md':
+                '# Agent sees a toast\n',
+            'docs/prds/jaspr/features/f02_feedback/us01_show/USER_STORY.md':
+                '# Agent sees a toast\n',
+          }..remove('docs/$showStory'),
+        ),
+      );
+      addTearDown(session.close);
+      final index = session.index;
+      final b = pickBundle(
+        index,
+        ['feedback'],
+        BundleMode.implement,
+        noProject: false,
+        codeTarget: 'jaspr',
+      );
+      expect(b.nameListTops, {'prds/features/f02_feedback/FEATURE.md'});
+      final answer = answerContext(index, b, targets: ['feedback']);
+      expect(
+        answer.text
+            .split('\n')
+            .where((l) => l.contains('feedback/show (user_story)'))
+            .length,
+        1,
+        reason: 'the names list names the target story alone',
+      );
+    });
+
+    test('one named target takes its spec docs with no --target in every mode', () async {
+      final session = openSession(
+        await writeTree({
+          ...projectFiles,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: flutter_lib\n',
+          'docs/$flutterArch': '',
+          'docs/$jasprArch': '',
+          'docs/specs/$archToast': '# Toast architecture\n',
+        }),
+      );
+      addTearDown(session.close);
+      for (final mode in pickModes) {
+        final b = pickBundle(
+          session.index,
+          ['feedback/toast/show'],
+          mode,
+          noProject: false,
+        );
+        if (mode == BundleMode.query) {
+          expect(b.mapTops, {
+            'prds/features/f02_feedback/FEATURE.md',
+          }, reason: '$mode');
+        } else {
+          expect(b.docPaths, contains('specs/$archToast'), reason: '$mode');
+        }
+      }
+    });
+
+    test(
+      'a design out bundle keeps no ancestor spec doc of another code target',
+      () async {
+        final b = pickBundle(
+          await toastIndex(),
+          ['feedback/toast/show'],
+          BundleMode.design,
+          noProject: false,
+          codeTarget: 'jaspr',
+        );
+        expect(b.ancestorSpecPaths, contains(jasprArch));
+        expect(
+          b.ancestorSpecPaths.where((p) => p.startsWith('specs/flutter/')),
+          isEmpty,
+        );
+        expect(b.targetSubtreePaths, {showStory});
+      },
+    );
+
+    test('two targets change no trim order in implement', () async {
+      final index = await toastIndex();
+      final b = pickBundle(
+        index,
+        ['feedback/toast/show'],
+        BundleMode.implement,
+        noProject: false,
+        codeTarget: 'jaspr',
+      );
+      final answer = answerContext(index, b, targets: ['feedback/toast/show']);
+      expect(
+        answer.text
+            .split('\n')
+            .where((l) => l.startsWith('==> ') && !l.contains('bundle: '))
+            .toList(),
+        [
+          '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==',
+          '==> feedback (feature) · prds/features/f02_feedback/FEATURE.md <==',
+          '==> feedback/toast (feature) · prds/features/f02_feedback/f03_toast/FEATURE.md <==',
+          '==> feedback/toast/show (user_story) · $showStory <==',
+          '==> feedback/toast (architecture) · $jasprArch <==',
+          '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==',
+        ],
+      );
+    });
+
+    test('the budget counts only the docs that print under --target', () async {
+      final index = await toastIndex();
+      final flutterAnswer = answerContext(
+        index,
+        pickBundle(
+          index,
+          ['feedback/toast/show'],
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'flutter',
+        ),
+        targets: ['feedback/toast/show'],
+        budget: 1,
+      );
+      final jasprAnswer = answerContext(
+        index,
+        pickBundle(
+          index,
+          ['feedback/toast/show'],
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'jaspr',
+        ),
+        targets: ['feedback/toast/show'],
+        budget: 1,
+      );
+      expect(flutterAnswer.exitStatus, 1);
+      expect(jasprAnswer.exitStatus, 1);
+      for (final (name, answer) in [
+        ('flutter', flutterAnswer),
+        ('jaspr', jasprAnswer),
+      ]) {
+        expect(
+          answer.text.split('\n').where((l) => l.startsWith('- ')).length,
+          6,
+          reason: '$name lists only the docs that print',
+        );
+        expect(
+          answer.text,
+          isNot(contains('specs/${name == 'flutter' ? 'jaspr' : 'flutter'}')),
+          reason: '$name holds no other-target doc',
+        );
+      }
+    });
+  });
+
+  group('project spec docs at the spec folder root', () {
+    const rootDomain = 'specs/DOMAIN.md';
+    final chainOfStory = {
+      '$f/FEATURE.md',
+      ...specs,
+      '$f/us01_email_login/USER_STORY.md',
+      '$f/us01_email_login/fr01_validate_credentials.md',
+      '$f/us01_email_login/fr02_lock_after_failures.md',
+      '$f/us01_email_login/nf01_login_latency.md',
+    };
+    Future<DocIndex> oneTargetIndex() =>
+        indexWith({'docs/$rootDomain': '# Project domain\n'});
+
+    test(
+      "a root spec doc joins a story's implement bundle beside the tech stack",
+      () async {
+        final b = pickBundle(
+          await oneTargetIndex(),
+          ['login/email_login'],
+          BundleMode.implement,
+          noProject: false,
+        );
+        expect(b.docPaths, chainOfStory);
+        expect(b.joinedPaths, {
+          'prds/GNFR.md',
+          'prds/PROJECT.md',
+          'specs/TECH_STACK.md',
+          rootDomain,
+        });
+      },
+    );
+
+    test(
+      'a root spec doc as target bundles itself plus the joined docs',
+      () async {
+        final b = pickBundle(
+          await oneTargetIndex(),
+          ['project_rulebook'],
+          BundleMode.implement,
+          noProject: false,
+        );
+        expect(b.docPaths, {rootDomain});
+        expect(b.joinedPaths, {
+          'prds/GNFR.md',
+          'prds/PROJECT.md',
+          'specs/TECH_STACK.md',
+        });
+      },
+    );
+
+    test('no-project drops the root spec doc', () async {
+      final b = pickBundle(
+        await oneTargetIndex(),
+        ['login/email_login'],
+        BundleMode.implement,
+        noProject: true,
+      );
+      expect(b.docPaths, chainOfStory);
+      expect(b.joinedPaths, isEmpty);
+      expect(b.droppedPaths, contains(rootDomain));
+    });
+
+    group('with two targets', () {
+      const flutterDomain = 'specs/flutter/SECURITY.md';
+      const jasprDomain = 'specs/jaspr/SECURITY.md';
+      Future<DocIndex> twoTargetIndex() async {
+        final session = openSession(
+          await writeTree({
+            '.specstone/templates/tech_stack.yaml':
+                'id: tech_stack\nper_target: true\n',
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}targets:\n'
+                '  flutter:\n    code_root: flutter_lib\n'
+                '  jaspr:\n    code_root: jaspr_lib\n',
+            'flutter_lib/.keep': '',
+            'jaspr_lib/.keep': '',
+            'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
+            'docs/prds/features/f02_feedback/us01_show/USER_STORY.md':
+                '# Agent sees a toast\n',
+            'docs/$flutterDomain': '# Flutter security\n',
+            'docs/$jasprDomain': '# Jaspr security\n',
+            'docs/specs/flutter/TECH_STACK.md': '# Flutter stack\n',
+            'docs/specs/jaspr/TECH_STACK.md': '# Jaspr stack\n',
+          }),
+        );
+        addTearDown(session.close);
+        return session.index;
+      }
+
+      test("with two targets and a target flag only that target's root spec docs join", () async {
+        final index = await twoTargetIndex();
+        for (final mode in [BundleMode.implement, BundleMode.design]) {
+          final b = pickBundle(
+            index,
+            ['feedback/show'],
+            mode,
+            noProject: false,
+            codeTarget: 'jaspr',
+          );
+          expect(b.joinedPaths, {
+            'specs/jaspr/TECH_STACK.md',
+            jasprDomain,
+          }, reason: '$mode');
+        }
+        final unflagged = pickBundle(
+          index,
+          ['feedback/show'],
+          BundleMode.design,
+          noProject: false,
+        );
+        expect(unflagged.joinedPaths, {
+          'specs/flutter/TECH_STACK.md',
+          'specs/jaspr/TECH_STACK.md',
+          flutterDomain,
+          jasprDomain,
+        });
+      });
+    });
+
+    test('a query bundle holds no root spec doc', () async {
+      final b = pickBundle(
+        await oneTargetIndex(),
+        ['login'],
+        BundleMode.query,
+        noProject: false,
+      );
+      expect(b.docPaths, {'$f/FEATURE.md'});
+      expect(b.joinedPaths, {'prds/PROJECT.md'});
+      expect(b.droppedPaths, isEmpty);
+    });
+  });
+
+  group('several targets', () {
+    List<String> printedPaths(Bundle b) => [
+      for (final d in b.printOrder(index)) d.docPath,
+    ];
+
+    test(
+      'two stories of one feature give one bundle holding both, each doc once',
+      () {
+        final b = pickBundle(
+          index,
+          ['login/email_login', 'login/reset_password'],
+          BundleMode.design,
+          noProject: false,
+        );
+        expect(b.docPaths, {
+          '$f/FEATURE.md',
+          ...specs,
+          '$us01/USER_STORY.md',
+          '$us01/fr01_validate_credentials.md',
+          '$us01/fr02_lock_after_failures.md',
+          '$us01/nf01_login_latency.md',
+          '$us02/USER_STORY.md',
+          '$us02/fr01_send_reset_link.md',
+        });
+        expect(b.summaryOnly, isEmpty);
+        final printed = printedPaths(b);
+        expect(printed.toSet(), hasLength(printed.length));
+      },
+    );
+
+    test('a story and an FR of it as two targets give one bundle', () {
+      final story = pickBundle(
+        index,
+        ['login/email_login'],
+        BundleMode.design,
+        noProject: false,
+      );
+      for (final targets in [
+        ['login/email_login', 'login/email_login/validate_credentials'],
+        ['login/email_login/validate_credentials', 'login/email_login'],
+        ['login/email_login', 'login/email_login'],
+      ]) {
+        final b = pickBundle(
+          index,
+          targets,
+          BundleMode.design,
+          noProject: false,
+        );
+        expect(b.docPaths, story.docPaths, reason: '$targets');
+        expect(b.summaryOnly, story.summaryOnly, reason: '$targets');
+        expect(printedPaths(b), printedPaths(story), reason: '$targets');
+      }
+    });
+
+    test('two unknown targets refuse with two faults in argument order', () {
+      expect(
+        () => pickBundle(
+          index,
+          ['nobody', 'login/email_login', 'nope'],
+          BundleMode.design,
+          noProject: false,
+        ),
+        throwsA(
+          isA<IndexFaults>()
+              .having(
+                (x) => [for (final f in x.faults) (f as IndexFault).code],
+                'codes',
+                [IndexFaultCode.docNotFound, IndexFaultCode.docNotFound],
+              )
+              .having(
+                (x) => [for (final f in x.faults) f.toText()],
+                'messages',
+                [contains('nobody'), contains('nope')],
+              )
+              .having((x) => x.exitStatus, 'exit status', 64),
+        ),
+      );
+    });
+
+    test(
+      'an untyped target beside an unknown one adds an untyped_target fault',
+      () {
+        expect(
+          () => pickBundle(
+            index,
+            ['prds/d01_context.md', 'nobody'],
+            BundleMode.implement,
+            noProject: false,
+          ),
+          throwsA(
+            isA<IndexFaults>().having(
+              (x) => [for (final f in x.faults) (f as IndexFault).code],
+              'codes',
+              [IndexFaultCode.untypedTarget, IndexFaultCode.docNotFound],
+            ),
+          ),
+        );
+      },
+    );
+
+    test('one unresolved target among several throws its one fault', () {
+      expect(
+        () => pickBundle(
+          index,
+          ['login/email_login', 'nobody'],
+          BundleMode.design,
+          noProject: false,
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (x) => x.code,
+            'code',
+            IndexFaultCode.docNotFound,
+          ),
+        ),
+      );
+    });
+
+    test('a bare name and its DocPath as two targets hold the doc once', () {
+      final bare = pickBundle(
+        index,
+        ['login'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      final both = pickBundle(
+        index,
+        ['login', '$f/FEATURE.md'],
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(both.docPaths, bare.docPaths);
+      expect(both.nameListTops, bare.nameListTops);
+      final printed = printedPaths(both);
+      expect(printed.toSet(), hasLength(printed.length));
+      expect(printed, printedPaths(bare));
+    });
+
+    test('a spec doc target beside a story target in design prints the story whole in the union', () {
+      final story = pickBundle(
+        index,
+        ['login/email_login'],
+        BundleMode.design,
+        noProject: false,
+      );
+      final b = pickBundle(
+        index,
+        ['architecture:login', 'login/email_login/validate_credentials'],
+        BundleMode.design,
+        noProject: false,
+      );
+      expect(b.docPaths, story.docPaths);
+      expect(b.summaryOnly, story.summaryOnly);
+      expect(b.targetSubtreePaths, {
+        '$s/ARCHITECTURE.md',
+        ...story.targetSubtreePaths,
+      });
+    });
+
+    test('a shared bare name with --for query stays one target argument', () {
+      final b = pickBundle(index, ['buyer'], BundleMode.query, noProject: true);
+      expect(b.targetPaths, {
+        'prds/personas/buyer/ANTI_PERSONA.md',
+        'prds/personas/buyer/PERSONA.md',
+      });
+    });
+  });
+}

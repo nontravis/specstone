@@ -1,0 +1,79 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone_core/specstone_core.dart';
+
+/// The terminal facts and input a write command reads.
+///
+/// Tests replace it; [SystemConsole] is the process's own.
+abstract interface class Console {
+  /// Whether stdin is an interactive terminal.
+  bool get stdinIsTerminal;
+
+  /// Whether stdout is an interactive terminal.
+  bool get stdoutIsTerminal;
+
+  /// Whether stderr is an interactive terminal.
+  bool get stderrIsTerminal;
+
+  /// Whether the user asked for no colour (`NO_COLOR` set and not empty).
+  bool get noColor;
+
+  /// The raw value of `SPECSTONE_APPROVE_MODE`, or null when unset.
+  String? get approveModeVariable;
+
+  /// Reads stdin to its end as UTF-8 text.
+  Future<String> readAll();
+
+  /// Reads one line from stdin, or null at the end of input.
+  String? readLine();
+}
+
+/// The [Console] of the running process.
+final class SystemConsole implements Console {
+  /// Creates the console of the process.
+  ///
+  /// [input] replaces stdin for [readAll] and makes [stdinIsTerminal] false,
+  /// since an injected stream is never a terminal. [readLine] and
+  /// [stdoutIsTerminal] still read the process's own stdin and stdout.
+  new({Stream<List<int>>? input})
+    : _input = input ?? stdin,
+      _injected = input != null;
+
+  final Stream<List<int>> _input;
+  final bool _injected;
+
+  @override
+  bool get stdinIsTerminal => !_injected && stdin.hasTerminal;
+
+  @override
+  bool get stdoutIsTerminal => stdout.hasTerminal;
+
+  @override
+  bool get stderrIsTerminal => stderr.hasTerminal;
+
+  @override
+  bool get noColor => (Platform.environment['NO_COLOR'] ?? '').isNotEmpty;
+
+  @override
+  String? get approveModeVariable =>
+      Platform.environment['SPECSTONE_APPROVE_MODE'];
+
+  /// Reads stdin to its end as UTF-8 text.
+  ///
+  /// Throws [IndexFault] `argument_invalid` when the bytes are not UTF-8.
+  @override
+  Future<String> readAll() async {
+    try {
+      return await _input.transform(utf8.decoder).join();
+    } on FormatException {
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        'stdin is not UTF-8 text',
+      );
+    }
+  }
+
+  @override
+  String? readLine() => stdin.readLineSync();
+}

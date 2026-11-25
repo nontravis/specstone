@@ -1,0 +1,453 @@
+import 'package:markdown/markdown.dart' show markdownToHtml;
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:test/test.dart';
+
+List<String> _keys(Doc doc) => [for (final b in doc.frontmatter!) b.key];
+
+List<String> _texts(Doc doc) => [for (final b in doc.frontmatter!) b.text];
+
+List<String> _headers(Doc doc) => [for (final s in doc.sections) s.headerText];
+
+void main() {
+  group('Doc.parse', () {
+    test('frontmatter, head, and sections in file '
+        'order', () {
+      final doc = Doc.parse(
+        '---\nstatus: planned\n---\n\n# T\n\nlead\n\n## A\na1\n### A.1\na2\n'
+        '\n## B\nb\n',
+      );
+
+      expect(_keys(doc), ['status']);
+      expect(doc.head, '\n# T\n\nlead\n');
+      expect(_headers(doc), ['A', 'B']);
+      expect(doc.sections[0].body, 'a1\n### A.1\na2\n');
+      expect(doc.sections[1].body, 'b\n');
+      expect(doc.title, 'T');
+    });
+
+    test('afterFrontmatter is the text after the closing '
+        'line', () {
+      final doc = Doc.parse('---\nstatus: planned\n---\n\n# T\n\n## A\na\n');
+
+      expect(doc.afterFrontmatter, '\n# T\n\n## A\na\n');
+    });
+
+    test('a section keeps its header line as written and '
+        'the text after ## trimmed', () {
+      final doc = Doc.parse('##   Spaced  Title \t\n   ## Indented\n##\nend\n');
+
+      expect(
+        [for (final s in doc.sections) s.headerLine],
+        ['##   Spaced  Title \t', '   ## Indented', '##'],
+      );
+      expect(_headers(doc), ['Spaced  Title', 'Indented', '']);
+    });
+
+    test('a line that is not a ## header opens no '
+        'section', () {
+      final doc = Doc.parse('##x\n    ## four spaces\n#### deep\n# one\n');
+
+      expect(doc.sections, isEmpty);
+      expect(doc.head, '##x\n    ## four spaces\n#### deep\n# one\n');
+    });
+
+    test('a section body keeps inner bytes and drops '
+        'trailing blank lines', () {
+      final doc = Doc.parse('## A\nx  \n\n\ty\n\n\n');
+
+      expect(doc.sections.single.body, 'x  \n\n\ty\n');
+    });
+
+    test('a section with only blank lines has an empty '
+        'body', () {
+      final doc = Doc.parse('## A\n\n  \n## B\nb\n');
+
+      expect(doc.sections[0].body, '');
+      expect(doc.sections[1].body, 'b\n');
+    });
+
+    test('a last line without a newline is kept', () {
+      final doc = Doc.parse('## A\na\nlast');
+
+      expect(doc.sections.single.body, 'a\nlast');
+    });
+
+    test('key blocks keep their text byte '
+        'for byte', () {
+      final doc = Doc.parse(
+        '---\n# owner note\nvision:\n  - PV-01\n  # inner\n# date note\n'
+        'date: 2026-10-23 # c\nq: "x"\n# tail\n---\n',
+      );
+
+      expect(_keys(doc), ['vision', 'date', 'q']);
+      expect(_texts(doc), [
+        '# owner note\nvision:\n  - PV-01\n  # inner\n',
+        '# date note\ndate: 2026-10-23 # c\n',
+        'q: "x"\n# tail\n',
+      ]);
+      expect(doc.frontmatter![1].valueText, '2026-10-23 # c');
+      expect(doc.frontmatter![0].valueText, '- PV-01');
+      expect(doc.frontmatter![2].valueText, '"x"');
+    });
+
+    test('doc_model: indentedValueText keeps the indent of a list and '
+        'drops comment lines and trailing blank lines', () {
+      final doc = Doc.parse(
+        '---\n# note\nvision:\n  - PV-01\n  # inner\n  - PV-02\n\n'
+        'date: 2026-10-23 # c\nempty:\n"q k": [a, b]\n---\n',
+      );
+      final values = [for (final b in doc.frontmatter!) b.indentedValueText];
+
+      expect(values, ['  - PV-01\n  - PV-02', '2026-10-23 # c', '', '[a, b]']);
+      expect(
+        Doc.parse('---\n# note\n---\n').frontmatter!.single.indentedValueText,
+        '',
+      );
+    });
+
+    test('blank lines above a key join that key and '
+        'the blocks cover every line', () {
+      const inner = 'a: 1\n\n# about b\n\nb: 2\n  more\nc:\n\n';
+      final doc = Doc.parse('---\n$inner---\n');
+
+      expect(_texts(doc), [
+        'a: 1\n',
+        '\n# about b\n\nb: 2\n  more\n',
+        'c:\n\n',
+      ]);
+      expect(_texts(doc).join(), inner);
+    });
+
+    test('a quoted key and a key holding a colon start '
+        'blocks', () {
+      final doc = Doc.parse('---\n"a b": 1\nurl: http://x\n\'q\': 2\n---\n');
+
+      expect(_keys(doc), ['"a b"', 'url', "'q'"]);
+    });
+
+    test("a key block's name drops its YAML quotes", () {
+      final doc = Doc.parse('---\n"a b": 1\nurl: http://x\n\'q\': 2\n---\n');
+
+      expect([for (final b in doc.frontmatter!) b.name], ['a b', 'url', 'q']);
+      expect(_keys(doc), ['"a b"', 'url', "'q'"]);
+      expect(Doc.parse('---\n# note\n---\n').frontmatter!.single.name, '');
+    });
+
+    test('an empty frontmatter has no blocks', () {
+      final doc = Doc.parse('---\n---\n# T\n');
+
+      expect(doc.frontmatter, isEmpty);
+      expect(doc.title, 'T');
+    });
+
+    test('frontmatter with no key '
+        'line forms one keyless block', () {
+      final list = Doc.parse('---\n- a\n- b\n---\n# T\n');
+      final comment = Doc.parse('---\n# note\n---\n');
+
+      expect(_keys(list), ['']);
+      expect(_texts(list), ['- a\n- b\n']);
+      expect(list.frontmatter!.single.valueText, '');
+      expect(_keys(comment), ['']);
+      expect(_texts(comment), ['# note\n']);
+    });
+
+    test('a stray line above the '
+        'first key forms a leading keyless block', () {
+      final doc = Doc.parse(
+        '---\n- a\n# stray note\n\n  indented\n# owns k\nk: 1\nj: 2\n---\n',
+      );
+
+      expect(_keys(doc), ['', 'k', 'j']);
+      expect(_texts(doc), [
+        '- a\n# stray note\n\n  indented\n',
+        '# owns k\nk: 1\n',
+        'j: 2\n',
+      ]);
+    });
+
+    test('comments directly above '
+        'the first key stay with that key', () {
+      final doc = Doc.parse('---\n# one\n\n# two\nk: 1\n---\n');
+
+      expect(_keys(doc), ['k']);
+      expect(_texts(doc), ['# one\n\n# two\nk: 1\n']);
+    });
+
+    test('no leading --- means no frontmatter', () {
+      final doc = Doc.parse('\n---\nstatus: planned\n---\n# T\n');
+
+      expect(doc.frontmatter, isNull);
+      expect(doc.afterFrontmatter, '\n---\nstatus: planned\n---\n# T\n');
+    });
+
+    test('--- with trailing space does not open or close '
+        'frontmatter', () {
+      expect(Doc.parse('--- \nk: v\n---\n').frontmatter, isNull);
+      expect(Doc.parse('---\nk: v\n--- \n').frontmatter, isNull);
+    });
+
+    test('no closing line means no frontmatter and all text is '
+        'head', () {
+      final doc = Doc.parse('---\nstatus: planned\n');
+
+      expect(doc.frontmatter, isNull);
+      expect(doc.head, '---\nstatus: planned\n');
+      expect(doc.sections, isEmpty);
+    });
+
+    test('a ### heading stays in the ## body', () {
+      final doc = Doc.parse('## A\n### sub\ntext\n#### deeper\n## B\n');
+
+      expect(_headers(doc), ['A', 'B']);
+      expect(doc.sections[0].body, '### sub\ntext\n#### deeper\n');
+    });
+
+    test('a ## line inside a fenced block is not a section', () {
+      final doc = Doc.parse('## A\n```md\n## not a section\n```\n');
+
+      expect(_headers(doc), ['A']);
+      expect(doc.sections.single.body, '```md\n## not a section\n```\n');
+    });
+
+    test('a fence closes on the same character and at least '
+        'as many', () {
+      final doc = Doc.parse(
+        '## A\n````\n```\n## in\n~~~~\n````\n## B\n~~~\n## in\n```\n'
+        '~~~~\n## C\n',
+      );
+
+      expect(_headers(doc), ['A', 'B', 'C']);
+    });
+
+    test('an unclosed fence runs to the end of the text', () {
+      final doc = Doc.parse('## A\n   ```\n## in\n## in too\n');
+
+      expect(_headers(doc), ['A']);
+    });
+
+    test('a ## line inside a '
+        'fence nested in a list item is not a section', () {
+      final doc = Doc.parse(
+        '# T\n\n## A\n\n- item\n\n    ```\n    ## not a section\n'
+        '  ## not one either\n    ```\n## B\n',
+      );
+
+      expect(_headers(doc), ['A', 'B']);
+      expect(doc.hasUnclosedFence, isFalse);
+    });
+
+    test('a fence nested in a list item or a block quote ends where its '
+        'container ends', () {
+      for (final text in [
+        '## A\n- item\n  ```\n  code\n## B\n',
+        '## A\n> ```\n> code\n## B\n',
+        '## A\n- > ```\n  > code\n## B\n',
+      ]) {
+        final doc = Doc.parse(text);
+
+        expect(_headers(doc), ['A', 'B'], reason: text);
+        expect(doc.hasUnclosedFence, isFalse, reason: text);
+      }
+    });
+
+    test('a fence nested in '
+        'a list item that runs to the end is unclosed', () {
+      expect(
+        Doc.parse('## A\n- item\n\n    ```\n    code\n').hasUnclosedFence,
+        isTrue,
+      );
+    });
+
+    test('a fence indented 4 or more columns past its container opens no '
+        'fence', () {
+      for (final text in [
+        '## A\n    ```\n## B\n',
+        '## A\n- item\n\n      ```\n      code\n## B\n',
+        '## A\n>     ```\n> code\n## B\n',
+      ]) {
+        final doc = Doc.parse(text);
+
+        expect(_headers(doc), ['A', 'B'], reason: text);
+        expect(doc.hasUnclosedFence, isFalse, reason: text);
+      }
+      expect(
+        fencedLines(['## A', '- item', '', '      ```', '      code', 'after']),
+        everyElement(isFalse),
+      );
+    });
+
+    test('a closing fence outdented out of its list item opens a new '
+        'top-level fence', () {
+      final open = Doc.parse('## A\n- item\n  ```\n  code\n```\n## in\n');
+
+      expect(_headers(open), ['A']);
+      expect(open.hasUnclosedFence, isTrue);
+
+      final closed = Doc.parse(
+        '## A\n- item\n  ```\n  code\n```\n## in\n```\n## B\n',
+      );
+
+      expect(_headers(closed), ['A', 'B']);
+      expect(closed.hasUnclosedFence, isFalse);
+      expect(fencedLines(['- a', '  ```', '  x', '```', 'after']), [
+        false,
+        true,
+        true,
+        true,
+        true,
+      ]);
+    });
+
+    test('fencedLines marks the '
+        'lines of a fence nested in a container', () {
+      expect(
+        fencedLines(['- a', '', '    ```', '    x', '    ```', '  after']),
+        [false, false, true, true, true, false],
+      );
+      expect(fencedLines(['> ```', '> x', 'after', '```']), [
+        true,
+        true,
+        false,
+        true,
+      ]);
+    });
+
+    test('blockScan reads a thematic break with tabs between '
+        'its marks as markdown does, one that ends the paragraph above it', () {
+      for (final rule in ['*\t*\t*', '- -\t-', '_\t_ _\t', '---\t']) {
+        expect(
+          markdownToHtml('> quote\n$rule\n'),
+          contains('<hr />'),
+          reason: rule,
+        );
+        expect(blockScan(['> quote', rule]).continuesParagraph, [
+          false,
+          false,
+        ], reason: rule);
+      }
+    });
+
+    test('hasUnclosedFence is true when the text ends inside '
+        'a fence', () {
+      expect(Doc.parse('## A\n```\n## in\n').hasUnclosedFence, isTrue);
+      expect(Doc.parse('# T\n~~~~\ncode\n~~~\n').hasUnclosedFence, isTrue);
+    });
+
+    test('hasUnclosedFence is false when every fence closes '
+        'or the frontmatter holds the backticks', () {
+      expect(Doc.parse('## A\n```\ncode\n```\n').hasUnclosedFence, isFalse);
+      expect(Doc.parse('## A\ntext\n').hasUnclosedFence, isFalse);
+      expect(
+        Doc.parse('---\nnote: "```"\n---\n## A\ntext\n').hasUnclosedFence,
+        isFalse,
+      );
+    });
+
+    test('a backtick fence whose info string holds a '
+        'backtick is not a fence', () {
+      final doc = Doc.parse('## A\n```a`b\n## B\n');
+
+      expect(_headers(doc), ['A', 'B']);
+    });
+
+    test('a fenced block in the head hides its ## line', () {
+      final doc = Doc.parse('~~~\n## x\n~~~\n## A\n');
+
+      expect(_headers(doc), ['A']);
+      expect(doc.head, '~~~\n## x\n~~~\n');
+    });
+
+    test('title is the text after "# " on the first such head line', () {
+      expect(Doc.parse('# List doc types\n\n## A\n').title, 'List doc types');
+      expect(Doc.parse('lead\n#  Spaced \n# second\n').title, ' Spaced ');
+    });
+
+    test('lead is the head text after the title line, as a section body', () {
+      const text =
+          '---\ndraft: true\n---\n\n# GNFR\n\nLead [x](a.md).\n\n## P\nfast\n';
+      expect(Doc.parse(text).lead, '\nLead [x](a.md).\n');
+    });
+
+    test('lead is the whole head when the doc has no title line', () {
+      const text =
+          '---\ndraft: true\n---\n\nOnly lead.\n\n## Performance\nfast\n';
+      expect(Doc.parse(text).lead, '\nOnly lead.\n');
+    });
+
+    test('lead is empty when nothing follows the title line', () {
+      expect(Doc.parse('# GNFR\n\n## A\n').lead, '');
+      expect(Doc.parse('# GNFR\n').lead, '');
+      expect(Doc.parse('').lead, '');
+    });
+
+    test('text before the title line is no lead', () {
+      expect(Doc.parse('before\n# T\nlead\n\n## A\n').lead, 'lead\n');
+    });
+
+    test(
+      'titleLineIndex is the title line among the afterFrontmatter lines',
+      () {
+        expect(Doc.parse('---\na: b\n---\nlead\n# T\n').titleLineIndex, 1);
+        expect(Doc.parse('```\n# T\n```\n# T\n').titleLineIndex, 3);
+        expect(Doc.parse('lead\n## A\n# not in head\n').titleLineIndex, isNull);
+      },
+    );
+
+    test('title is null without a "# " head line', () {
+      expect(Doc.parse('lead\n## A\n# not in head\n').title, isNull);
+      expect(Doc.parse('#nospace\n').title, isNull);
+      expect(Doc.parse('').title, isNull);
+    });
+
+    test('title ignores a "# " line inside a fenced block', () {
+      expect(Doc.parse('```sh\n# comment\n```\n# Real\n').title, 'Real');
+    });
+
+    test('isDraft reads the draft key as a YAML boolean', () {
+      expect(Doc.parse('---\ndraft: true\n---\n').isDraft, isTrue);
+      expect(Doc.parse('---\ndraft: false\n---\n').isDraft, isFalse);
+      expect(Doc.parse('---\ndraft: [\n---\n').isDraft, isFalse);
+      expect(Doc.parse('---\n"draft": true\n---\n').isDraft, isTrue);
+    });
+
+    test('isDraft is false without a draft key, without frontmatter, or for '
+        'a non-boolean value', () {
+      expect(Doc.parse('---\nstatus: planned\n---\n').isDraft, isFalse);
+      expect(Doc.parse('draft: true\n').isDraft, isFalse);
+      expect(Doc.parse('---\ndraft: "true"\n---\n').isDraft, isFalse);
+      expect(Doc.parse('---\ndraft:\n---\n').isDraft, isFalse);
+    });
+
+    test('isDraft ignores comments around the draft key', () {
+      final doc = Doc.parse('---\n# flag\ndraft: true # now\n# tail\n---\n');
+
+      expect(doc.isDraft, isTrue);
+    });
+
+    test('an empty text parses to an empty doc', () {
+      final doc = Doc.parse('');
+
+      expect(doc.frontmatter, isNull);
+      expect(doc.head, '');
+      expect(doc.sections, isEmpty);
+      expect(doc.afterFrontmatter, '');
+    });
+
+    test('sectionLineIndexes lists each header line among the afterFrontmatter '
+        'lines, skipping fenced and inline-fence lines', () {
+      expect(
+        Doc.parse('---\na: b\n---\n# T\n## A\nx\n## B\n').sectionLineIndexes,
+        [1, 3],
+      );
+      expect(
+        Doc.parse('# T\n\n```x``` inline\n\n## Real\nx\n').sectionLineIndexes,
+        [4],
+      );
+      expect(
+        Doc.parse('# T\n~~~\n## hidden\n~~~\n## Real\n').sectionLineIndexes,
+        [4],
+      );
+    });
+  });
+}

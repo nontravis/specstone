@@ -1,0 +1,27 @@
+id: channel
+description: |-
+  A channel: one place the project's marketing reaches its audience, with its format, cadence, and measures.
+  Title it `# <Channel name>`, with no number.
+path: specs/marketing/channels/{slug}.md
+sections:
+  - id: audience
+    header: Audience
+    description: |-
+      Name the audience segments the channel reaches.
+  - id: format
+    header: Format
+    description: |-
+      Name the content formats the channel carries.
+  - id: cadence
+    header: Cadence
+    description: |-
+      Write how often the project posts on the channel.
+  - id: measures
+    header: Measures
+    description: |-
+      List the measures that show the channel works.
+lint:
+  title_no_number: true
+reference:
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

@@ -1,0 +1,440 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/number_label.dart'
+    show numberLabelLinesInMarkdown;
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/doc_model/tbr_marker.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/index_query/banned_matches.dart';
+import 'package:specstone_core/src/index_query/bare_item_ids.dart';
+import 'package:specstone_core/src/index_query/cite_candidates.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
+import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
+    show mermaidSourcesOf;
+import 'package:specstone_core/src/index_query/models/cite_form.dart';
+import 'package:specstone_core/src/index_query/models/doc_content.dart';
+import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
+import 'package:specstone_core/src/index_query/models/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/indexed_section.dart';
+import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/index_query/models/section_counts.dart';
+import 'package:specstone_core/src/index_query/section_counts.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:yaml/yaml.dart';
+
+export 'package:specstone_core/src/index_query/models/doc_content.dart';
+export 'package:specstone_core/src/index_query/models/indexed_doc.dart';
+export 'package:specstone_core/src/index_query/models/indexed_section.dart';
+
+/// The id of the `feature` doc type.
+const featureType = 'feature';
+
+/// The id of the `user_story` doc type.
+const storyType = 'user_story';
+
+/// The id of the `fr` doc type.
+const frType = 'fr';
+
+/// The id of the `nf` doc type.
+const nfType = 'nf';
+
+/// Returns the SHA-256 of [bytes] as lowercase hex.
+String contentHashOf(List<int> bytes) => sha256.convert(bytes).toString();
+
+/// The code points one est. token counts.
+const runesPerToken = 4;
+
+/// Returns the size of [text] in tokens: its code points divided by
+/// [runesPerToken], rounded down.
+int tokenSizeOf(String text) => runeCountOf(text) ~/ runesPerToken;
+
+/// Returns `text.runes.length`, counted over code units with no rune decode.
+///
+/// A surrogate pair counts as one rune and a lone surrogate as one, as `runes`
+/// counts them.
+int runeCountOf(String text) {
+  var pairs = 0;
+  for (var i = 0; i < text.length - 1; i++) {
+    if (_isHighSurrogate(text.codeUnitAt(i)) &&
+        _isLowSurrogate(text.codeUnitAt(i + 1))) {
+      pairs++;
+      i++;
+    }
+  }
+  return text.length - pairs;
+}
+
+/// The bits of a UTF-16 code unit that tell a surrogate and its half.
+const _surrogateMask = 0xFC00;
+const _highSurrogateBits = 0xD800;
+const _lowSurrogateBits = 0xDC00;
+
+bool _isHighSurrogate(int unit) => unit & _surrogateMask == _highSurrogateBits;
+
+bool _isLowSurrogate(int unit) => unit & _surrogateMask == _lowSurrogateBits;
+
+final _outsideKey = RegExp(r'[^\p{L}\p{M}\p{N} _-]', unicode: true);
+final _keySeparators = RegExp('[ _-]+');
+final _keyEdges = RegExp(r'^_+|_+$');
+
+/// The key of the lead: the text before a doc's first `##` header.
+///
+/// Reserved: no template section id and no derived key may start with `_`.
+const leadKey = '_lead';
+
+/// Returns the section key a header without a template id takes.
+///
+/// The header lowercases, loses every character that is not a letter, mark,
+/// digit, space, `-`, or `_`, turns each run of spaces, `-`, and `_` into one
+/// `_`, and loses `_` at both ends. Empty when no word remains.
+String sectionKeyOf(String headerText) => headerText
+    .toLowerCase()
+    .replaceAll(_outsideKey, '')
+    .replaceAll(_keySeparators, '_')
+    .replaceAll(_keyEdges, '');
+
+/// Returns the name a doc answers to in a query.
+///
+/// The `{slug}` values of the doc type path that matches joined with `/`; the
+/// doc type id when that path has none; [docPath] when [docType] is null. A
+/// doc matched through [target]'s pattern set is read with that set's
+/// patterns, as the matcher expands them, so its target folder names no slug
+/// and twins of two targets share the name.
+String docNameOf(String docPath, MergedDocType? docType, {String? target}) {
+  if (docType == null) return docPath;
+  for (final path in docType.paths) {
+    final pattern = target == null
+        ? PathPattern(path)
+        : PathPattern(path).forTarget(target);
+    final slugs = pattern.slugValues(docPath);
+    if (slugs != null) return slugs.isEmpty ? docType.id : slugs.join('/');
+  }
+  return docType.id;
+}
+
+/// Returns [n] as the word a message uses: `two` for 2, else the digits.
+String countWord(int n) => n == 2 ? 'two' : '$n';
+
+/// Adds its token size to an [IndexedSection].
+extension IndexedSectionTokens on IndexedSection {
+  /// The size of `text` in tokens.
+  int get tokens => tokenSizeOf(text);
+}
+
+/// One parsed file: its index entry, its content, and its content hash.
+final class ParsedDoc {
+  const new(this.doc, this.content, this.contentHash);
+
+  /// The index entry.
+  final IndexedDoc doc;
+
+  /// The text and structure.
+  final DocContent content;
+
+  /// The SHA-256 of the file bytes as hex.
+  final String contentHash;
+}
+
+/// Parses the file [bytes] at [docPath] into its index entry and content.
+///
+/// [codeTarget] names the project's one target when it has exactly one and it
+/// is named, so a per-target doc stores it; null leaves a per-target
+/// doc's target unset, as a project with one unnamed target or no code root
+/// stores no name. Invalid UTF-8 decodes with replacement characters, and
+/// invalid frontmatter YAML leaves no values; each adds a warning instead of
+/// failing. A doc that is not UTF-8, which format skips, is not laid out and
+/// has no `formatted` value. [statusesOutside] is the rule its approval hash
+/// follows (`comparedApprovalHash`). [idPrefixes] are the item ID prefixes of
+/// the merged doc type set (see `itemIdPrefixesOf`); a typed doc's rule item
+/// words drop the tokens of those prefixes alone, and its cite candidates read
+/// those tokens alone as item IDs. [contentHash] is the hash of [bytes] when
+/// the caller already holds it; null hashes [bytes] here.
+ParsedDoc parseIndexedDoc({
+  required String docPath,
+  required List<int> bytes,
+  required DocTypeMatch match,
+  required bool statusesOutside,
+  String? contentHash,
+  String? codeTarget,
+  Set<String> idPrefixes = const {},
+}) {
+  final warnings = <String>[];
+  final _Decoded(:text, :isUtf8) = _decode(bytes, docPath, warnings);
+  final lfText = toLf(text);
+  final doc = Doc.parse(lfText);
+  final (:docType, :target) = switch (match) {
+    MatchedDocType(:final docType, :final target) => (
+      docType: docType,
+      target: target,
+    ),
+    _ => (docType: null, target: null),
+  };
+  if (match case AmbiguousDocType(:final docTypeIds)) {
+    warnings.add(
+      '$docPath matches ${countWord(docTypeIds.length)} doc types: '
+      '${docTypeIds.join(', ')}',
+    );
+  }
+  final yaml = switch (doc.frontmatter) {
+    final blocks? => FrontmatterYaml.parse(blocks.map((b) => b.text).join()),
+    null => null,
+  };
+  final frontmatter = _frontmatterValues(yaml, docPath, warnings);
+  final templates = _templatesByKey(docType);
+  final sections = [
+    for (final section in doc.sections) _sectionOf(section, templates),
+  ];
+  final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
+  final counted = laid is Formatted ? laid.doc : doc;
+  final matrixLines = docType == null
+      ? const <MatrixLine>[]
+      : matrixLinesOfDoc(doc, lfText, docType);
+  final citeForms = docType == null
+      ? const <CiteForm>[]
+      : citeFormsOf(
+          lfText,
+          idPrefixes: idPrefixes,
+          skipLines: testRowLinesOf(matrixLines),
+        );
+  final lineFacts = lineFactsOf(
+    lfText: lfText,
+    countedText: docType == null
+        ? counted.text
+        : withoutMatrixSection(counted, docType),
+    docPath: docPath,
+    doc: doc,
+    sectionCounts: _countsOf(sections, laid, templates),
+    frontmatterErrorLine: yaml?.errorLine,
+    bodyNumberLabels: numberLabelLinesInMarkdown(doc.afterFrontmatter),
+    bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
+    citeCandidates: [for (final form in citeForms) form.candidate],
+    bareItemIds: docType == null
+        ? const []
+        : bareItemIdsOf(lfText, idPrefixes: idPrefixes, citeForms: citeForms),
+    mermaidBlocks: docType == null
+        ? const []
+        : [for (final s in mermaidSourcesOf(doc, lfText)) s.block],
+    warnings: warnings,
+  );
+  final content = DocContent(
+    readText: () => text,
+    frontmatterText: doc.frontmatter == null
+        ? null
+        : lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
+    head: doc.head,
+    sections: sections,
+    links: {for (final place in lineFacts.links) place.target}.toList(),
+    lineFacts: lineFacts,
+    readBannedMatches: () => bannedMatchesOf(
+      sections,
+      lineFacts,
+      docType,
+      frontmatter: frontmatter,
+      keyLines: _keyLinesOf(yaml),
+      isGenerated: generatedLineTest(
+        doc,
+        lfText,
+        docType?.listedGenerators.toSet() ?? const {},
+      ),
+    ),
+    readItemFacts: () => itemFactsOf(
+      doc: doc,
+      lfText: lfText,
+      lineFacts: lineFacts,
+      laid: laid is Formatted ? laid : null,
+      type: docType,
+      idPrefixes: idPrefixes,
+      frontmatter: frontmatter,
+    ),
+    itemWords: docType == null
+        ? const []
+        : ruleItemWordsOf(
+            doc: doc,
+            lfText: lfText,
+            sections: sections,
+            lineFacts: lineFacts,
+            type: docType,
+            idPrefixes: idPrefixes,
+          ),
+  );
+  final indexed = IndexedDoc(
+    docPath: docPath,
+    docTypeId: docType?.id,
+    name: docNameOf(docPath, docType, target: target),
+    target: docType != null && docType.isPerTarget
+        ? (target ?? codeTarget)
+        : null,
+    title: doc.title,
+    frontmatter: frontmatter,
+    tokens: tokenSizeOf(text),
+    formatted: laid is Formatted ? laid.text == lfText : null,
+    approvalHash: docType == null
+        ? null
+        : comparedApprovalHash(
+            lfText,
+            docType,
+            statusesOutside: statusesOutside,
+          ),
+    warnings: warnings,
+    matrixLines: matrixLines,
+  );
+  return ParsedDoc(indexed, content, contentHash ?? contentHashOf(bytes));
+}
+
+/// Returns the content of [lfText], a doc of [docType], as far as a reader of
+/// its item IDs and blocks reads it: its sections, keyed as
+/// [parseIndexedDoc] keys them, and their section and fenced lines.
+///
+/// No markdown parse, layout, or YAML read runs, so the content holds no
+/// links, banned matches, or section counts (see [lineStructureOf]). Its
+/// item facts count [lfText] as it is, with no layout.
+DocContent docStructureOf(String lfText, MergedDocType? docType) {
+  final doc = Doc.parse(lfText);
+  final lineFacts = lineStructureOf(lfText: lfText, doc: doc);
+  return DocContent(
+    readText: () => lfText,
+    frontmatterText: doc.frontmatter == null
+        ? null
+        : lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
+    head: doc.head,
+    sections: indexedSectionsOf(doc, docType),
+    links: const [],
+    lineFacts: lineFacts,
+    readBannedMatches: () => const [],
+    readItemFacts: () => itemFactsOf(
+      doc: doc,
+      lfText: lfText,
+      lineFacts: lineFacts,
+      laid: null,
+      type: docType,
+    ),
+  );
+}
+
+_Decoded _decode(List<int> bytes, String docPath, List<String> warnings) {
+  try {
+    return _Decoded(text: utf8.decode(bytes), isUtf8: true);
+  } on FormatException {
+    warnings.add(
+      '$docPath: not UTF-8 text; indexed with replacement characters',
+    );
+    return _Decoded(
+      text: utf8.decode(bytes, allowMalformed: true),
+      isUtf8: false,
+    );
+  }
+}
+
+/// A file's decoded text, and whether its bytes were UTF-8.
+final class _Decoded {
+  const new({required this.text, required this.isUtf8});
+
+  final String text;
+  final bool isUtf8;
+}
+
+/// Returns the counts of each of [sections], in its order.
+///
+/// A section takes the counts of its laid-out twin; without a layout the
+/// counts are those of the text on disk.
+List<SectionCounts> _countsOf(
+  List<IndexedSection> sections,
+  FormatOutcome? laid,
+  Map<String, MergedSection> templates,
+) {
+  if (laid is! Formatted) return [for (final s in sections) sectionCountsOf(s)];
+  return [
+    for (final twin in laid.twinOf)
+      sectionCountsOf(_sectionOf(laid.sections[twin], templates)),
+  ];
+}
+
+/// Returns the sections of [doc], keyed as [parseIndexedDoc] keys them under
+/// [docType].
+List<IndexedSection> indexedSectionsOf(Doc doc, MergedDocType? docType) {
+  final templates = _templatesByKey(docType);
+  return [for (final section in doc.sections) _sectionOf(section, templates)];
+}
+
+/// Returns the sections of [docType] by the [headerKey] of their header.
+Map<String, MergedSection> _templatesByKey(MergedDocType? docType) => {
+  for (final section in docType?.sections ?? const <MergedSection>[])
+    headerKey(section.header): section,
+};
+
+/// Keys [section] by the template section its header names.
+IndexedSection _sectionOf(
+  Section section,
+  Map<String, MergedSection> templates,
+) {
+  final headerText = section.headerText;
+  final template = templates[headerKey(headerText)];
+  return IndexedSection(
+    key: template?.id ?? sectionKeyOf(headerText),
+    headerLine: section.headerLine,
+    body: section.body,
+  );
+}
+
+/// Returns the frontmatter values of [doc] as the index stores them.
+///
+/// Empty when the frontmatter is absent or is not valid YAML.
+Map<String, Object?> frontmatterValuesOf(Doc doc) {
+  final blocks = doc.frontmatter;
+  final yaml = blocks == null
+      ? null
+      : FrontmatterYaml.parse(blocks.map((b) => b.text).join());
+  return _frontmatterValues(yaml, '', []);
+}
+
+Map<String, Object?> _frontmatterValues(
+  FrontmatterYaml? yaml,
+  String docPath,
+  List<String> warnings,
+) {
+  if (yaml == null) return const {};
+  // An empty frontmatter has no mapping and no error: valid YAML with no
+  // values.
+  if (yaml.errorLine != null) return _notIndexed(docPath, warnings);
+  final map = yaml.map;
+  if (map == null) return const {};
+  return {for (final entry in map.entries) '${entry.key}': _plain(entry.value)};
+}
+
+/// Returns the file line of each top-level key of [yaml]; empty when the
+/// frontmatter holds no mapping or is not valid YAML.
+Map<String, int> _keyLinesOf(FrontmatterYaml? yaml) {
+  final map = yaml?.map;
+  if (yaml == null || yaml.errorLine != null || map == null) return const {};
+  // The YAML text starts under the opening `---` line.
+  return {
+    for (final entry in map.nodes.entries)
+      '${entry.key}': (entry.key as YamlNode).span.start.line + 2,
+  };
+}
+
+Map<String, Object?> _notIndexed(String docPath, List<String> warnings) {
+  warnings.add(
+    '$docPath: frontmatter is not valid YAML; its values are not indexed',
+  );
+  return const {};
+}
+
+/// Returns [value] as plain maps, lists, and scalars that `jsonEncode` takes.
+///
+/// A non-finite number has no JSON form, so it stays as its YAML text.
+Object? _plain(Object? value) => switch (value) {
+  YamlMap() => {for (final e in value.entries) '${e.key}': _plain(e.value)},
+  YamlList() => [for (final item in value) _plain(item)],
+  double(isNaN: true) => '.nan',
+  double(isInfinite: true, isNegative: true) => '-.inf',
+  double(isInfinite: true) => '.inf',
+  _ => value,
+};

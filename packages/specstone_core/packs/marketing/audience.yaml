@@ -1,0 +1,23 @@
+id: audience
+description: |-
+  The audience doc: each segment the project's marketing speaks to.
+  Link each segment's `persona` doc and restate none of it; persona and goals stay in the PRD.
+title: Audience
+path: specs/marketing/AUDIENCE.md
+sections:
+  - id: segments
+    header: Segments
+    description: |-
+      Write one item per segment.
+    lint:
+      banned_patterns:
+        - id: segment_link
+          # A list item whose line holds no markdown link; a wrapped, blank, table, or header line is no item.
+          pattern: '^(?:[-*+]|\d+[.)]) (?!.*\[[^\]]+\]\([^)]+\))'
+          message: "segment item has no link; guide line: Link each segment's `persona` doc"
+          in: all
+lint:
+  title_no_number: true
+reference:
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

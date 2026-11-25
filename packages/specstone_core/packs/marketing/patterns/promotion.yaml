@@ -1,0 +1,30 @@
+id: promotion
+description: a time-boxed offer that drives sales
+items:
+  - id: offer_terms
+    text: The offer states what the buyer gets, the price or discount, and who may claim it.
+  - id: time_box
+    text: The offer has a start date and an end date, and every place that shows the offer states the end.
+  - id: sales_goal
+    text: The promotion states one sales goal with a number and a baseline, so its lift can be judged.
+  - id: send_calendar
+    text: The calendar gives each send or post a date, with a reminder before the offer ends.
+  - id: cost_per_sale
+    text: The plan states what the offer costs per sale and compares it with the lifetime value of a customer.
+  - id: revenue_and_use
+    text: The plan measures revenue and the share of buyers who go on to use the product, not clicks alone.
+  - id: metrics_per_channel
+    text: Each channel has a metric tied to the sales goal.
+  - id: after_the_offer
+    text: The plan states what happens when the offer ends, and how buyers hear from the team afterward.
+  - id: budget_and_risks
+    text: The plan states its budget and each risk with its response.
+reference:
+  - title: Anthropic marketing plugin, campaign-plan
+    url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md
+  - title: HubSpot, GTM strategy
+    url: https://blog.hubspot.com/sales/gtm-strategy
+  - title: Amplitude, AARRR pirate metrics
+    url: https://amplitude.com/blog/pirate-metrics-framework
+  - title: Ortto, Marketing funnel explained
+    url: https://ortto.com/learn/marketing-funnel-explained/

@@ -1,0 +1,61 @@
+id: goal
+description: |-
+  The project goal doc: every goal, grouped by horizon.
+  A project has exactly one GOAL.
+  Write one rule per `PG-*` ID, and leave mechanics to the spec docs.
+  A new goal takes the next number above the doc's highest `PG-` ID.
+  A goal that changes horizon moves its block to that horizon's section, its ID kept.
+  A goal met or dropped is deleted with its measurement; the doc has no status field and no archive section.
+  A long-term goal with no deadline leaves out `**By:**`; every other `**By:**` names a date or a milestone.
+  The Metric holds the goal's pass bound and unit and links the goal's measurement; GOAL holds no measured number.
+title: Project goals
+path: prds/GOAL.md
+bundle: [implement, design]
+bundle_refs: true
+sections:
+  - id: long_term
+    header: Long-term goals
+    prefix_id: PG-
+    skeleton: true
+    description: |-
+      Put here a goal for a year or more, or for the project's whole life.
+      Its `**Serves:**` names a vision.
+      The Metric is a numeric metric with unit; it names no other project, no scope item, and no baseline number.
+    template: |-
+      ### PG-01 — <short name>
+      - **Serves:** PV-01
+      - **Statement:** <goal statement>
+      - **Metric:** <numeric target with unit>
+      - **By:** <date or milestone>
+  - id: mid_term
+    header: Mid-term goals
+    prefix_id: PG-
+    skeleton: true
+    description: |-
+      Put here a goal for a quarter or more.
+      Its `**Serves:**` names a vision or a long-term goal.
+      The Metric is a numeric metric with unit; it names no other project, no scope item, and no baseline number.
+    template: |-
+      ### PG-01 — <short name>
+      - **Serves:** PV-01
+      - **Statement:** <goal statement>
+      - **Metric:** <numeric target with unit>
+      - **By:** <date or milestone>
+  - id: short_term
+    header: Short-term goals
+    prefix_id: PG-
+    skeleton: true
+    description: |-
+      Put here a goal for under a quarter.
+      Its `**Serves:**` names a vision, a long-term goal, or a mid-term goal.
+      The Metric is a numeric metric with unit; it names no other project, no scope item, and no baseline number.
+    template: |-
+      ### PG-01 — <short name>
+      - **Serves:** PV-01
+      - **Statement:** <goal statement>
+      - **Metric:** <numeric target with unit>
+      - **By:** <date or milestone>
+lint:
+  title_no_number: true
+  max_lines: 400
+  max_chars: 20000

@@ -1,0 +1,4396 @@
+// Test names stay one literal so `specstone check` finds them by exact text.
+// ignore_for_file: lines_longer_than_80_chars
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:specstone/src/command_runner.dart';
+import 'package:specstone_core/specstone_core.dart';
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
+    show fileCodeFingerprint, legacyFileCodeFingerprint;
+import 'package:specstone_core/src/consistency_check/fingerprint.dart'
+    show fingerprintOf, legacyFingerprintOf;
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
+import 'package:specstone_core/src/index_query/index_store.dart'
+    show specstoneGitignoreLines;
+import 'package:specstone_core/src/setup_migration/agent_files.dart'
+    show agentMdText, importBlock;
+import 'package:specstone_core/src/setup_migration/project_files.dart'
+    show parseOverrides;
+import 'package:specstone_core/src/setup_migration/record_placement.dart'
+    show typeBeforeMoves;
+import 'package:specstone_core/src/templates/models/migration_step.dart'
+    show MoveToRecord;
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
+import 'package:test/test.dart';
+
+import '../../../../specstone_core/test/helpers/git_repo.dart';
+import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
+import '../../../../specstone_core/test/helpers/posix_modes.dart';
+import '../../../../specstone_core/test/helpers/record_fixture.dart'
+    show recordLayer, twinConfig;
+import '../../../../specstone_core/test/helpers/rulebook_fixture.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../../specstone_core/test/helpers/skill_files.dart';
+import '../../../../specstone_core/test/helpers/temp_tree.dart';
+import '../../../../specstone_core/test/helpers/write_fixture.dart'
+    show testHome;
+import '../../helpers/built_cli.dart';
+import '../../helpers/write_runner.dart';
+
+const _gitignore = '.specstone/.gitignore';
+final _ignoreFile = '${specstoneGitignoreLines.join('\n')}\n';
+const _threeLineIgnoreFile = 'index.sqlite*\nbuild/\ntrash/\n';
+const _overridePath = '.specstone/templates/runbook.yaml';
+const _runbookPath = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+
+const _runbookDoc = '''
+---
+owner: sre
+---
+# Deploy
+
+## Steps
+
+Run it.
+''';
+
+const _renameMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
+  - from: 1.1.0
+    steps:
+      - rename_field: {doc_type: runbook, from: owner, to: on_call}
+''';
+
+const _moveMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "ops/runbooks/{slug}/RUNBOOK.md"}
+''';
+
+const _swapMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+''';
+
+const _collideMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/PLAYBOOK.md"}
+''';
+
+/// Moves a doc onto the path the next step's doc leaves.
+const _chainMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/ops/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/ops/{slug}/RUNBOOK.md"}
+''';
+
+/// Swaps RUNBOOK.md and NOTES.md through a temporary name, so the two docs
+/// trade places.
+const _rotationMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/TMP.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/TMP.md", to: "prds/runbooks/{slug}/NOTES.md"}
+''';
+
+const _heldRenamedMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
+  - from: 1.1.0
+    steps:
+      - rename_field: {doc_type: runbook, from: owner, to: on_call}
+''';
+
+String _pack(String version, String migrations) =>
+    'name: acme\nversion: $version\nextends: software-tech\n$migrations';
+
+String _runbookType(String path, String sectionId) =>
+    '''
+id: runbook
+description: A runbook.
+path: $path
+fields:
+  - {id: on_call, type: string}
+sections:
+  - {id: $sectionId, header: Steps, required: true}
+''';
+
+String _config(String acmePin) => '${shippedPinsConfig()}  acme: $acmePin\n';
+
+/// The key every run that writes the config sets: the running Version.
+const _stamp = 'agent_files_version: $specstoneVersion\n';
+
+/// The temp personal-pack home holding `acme`.
+Future<Directory> _home({
+  String version = '1.2.0',
+  String migrations = _renameMigrations,
+  String type = '',
+  String typeFile = 'runbook',
+}) => writeTree({
+  '.specstone/packs/acme/pack.yaml': _pack(version, migrations),
+  '.specstone/packs/acme/$typeFile.yaml': type.isEmpty
+      ? _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'procedure')
+      : type,
+});
+
+/// The project layer of [_rulesLayer].
+const _rulesLayerFile = '.specstone/templates/rules.yaml';
+
+/// A per-feature doc of `INV-` invariants at a path no shipped step folds,
+/// which a pin below 1.20.0 would fold at `DOMAIN.md`.
+final String _rulesLayer = rulebookLayer
+    .replaceFirst('id: rulebook', 'id: rules')
+    .replaceFirst('/DOMAIN.md', '/RULES.md');
+
+/// A git project pinning `acme` at [pin], with the ignore file committed.
+Future<Directory> _project({
+  String pin = '1.0.0',
+  Map<String, String> files = const {
+    _runbookPath: _runbookDoc,
+    _overridePath: 'sections: [{id: steps, required: true}]\n',
+  },
+}) => gitFixture({
+  '.specstone/config.yaml': _config(pin),
+  _gitignore: _ignoreFile,
+  ...files,
+});
+
+FakeConsole _owner() =>
+    FakeConsole(stdinIsTerminal: true, stdoutIsTerminal: true, answers: ['y']);
+
+/// Runs [args] in [root] against the personal pack [home].
+Future<({int status, String out, String err})> _run(
+  Directory root,
+  Directory home,
+  List<String> args, {
+  FakeConsole? console,
+}) async {
+  final out = StringBuffer();
+  final err = StringBuffer();
+  final runner = SpecstoneCommandRunner(
+    out: out,
+    err: err,
+    templates: TemplateResolver(),
+    workingDirectory: root,
+    homeDirectory: home,
+    console: console ?? FakeConsole(),
+  );
+  final status = await runner.run(args);
+  return (status: status, out: out.toString(), err: err.toString());
+}
+
+/// The `kind` of each finding in [checkJson], those at [docPath] alone when
+/// given.
+Set<String> _findingKinds(String checkJson, {String? docPath}) => {
+  for (final finding
+      in (jsonDecode(checkJson) as Map<String, Object?>)['findings']!
+          as List<Object?>)
+    if (finding case {'kind': final String kind, 'path': final Object? path})
+      if (docPath == null || path == docPath) kind,
+};
+
+String _gitOut(Directory root, List<String> args) =>
+    git(root, args).stdout as String;
+
+List<String> _subjects(Directory root) =>
+    _gitOut(root, ['log', '--format=%s']).trim().split('\n');
+
+String _head(Directory root) => _gitOut(root, ['rev-parse', 'HEAD']).trim();
+
+String _read(Directory root, String path) =>
+    File('${root.path}/$path').readAsStringSync();
+
+/// The shipped pins with `software-tech` at [pin].
+String _pinnedConfig(String pin) => shippedPinsConfig().replaceFirst(
+  'software-tech: ${shippedPackVersions()['software-tech']}',
+  'software-tech: $pin',
+);
+
+/// [text] approved as a doc of the shipped type [typeId].
+String _approved(String typeId, String text) => withApprovalHash(
+  text,
+  TemplateResolver()
+      .resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+      )
+      .lookup(typeId),
+  statusesOutside: true,
+);
+
+/// The approved login feature, its sign-in story, and its `check` FR whose
+/// text after the title is [body].
+Map<String, String> _relinkedFr(String body) => {
+  'docs/prds/features/f01_login/FEATURE.md': _approved('feature', '# Login\n'),
+  'docs/prds/features/f01_login/us01_sign_in/USER_STORY.md': _approved(
+    'user_story',
+    '# Sign in\n',
+  ),
+  'docs/prds/features/f01_login/us01_sign_in/fr01_check.md': _approved(
+    'fr',
+    '# Check the password\n\n$body',
+  ),
+};
+
+/// The approved login record holding the matrix [rows].
+String _relinkedRecord(String rows) => _approved(
+  'implementation',
+  "---\nstatuses:\n  - 'sign_in/check:implemented'\n---\n\n"
+      '# Login implementation\n\n## Verification matrix\n\n$rows',
+);
+
+/// Migrates a 1.23.0 git project of [files] and returns it, after checking
+/// that no `suspect` or `approval_stale` finding is left before or after.
+///
+/// [files] takes the pin and the fingerprint of each of [links]; each is the
+/// one `check` reads at the carried pin, whose doc types are those of 1.23.0.
+Future<Directory> _relinkedProject(
+  Map<String, String> Function(String pin, String Function(String link) stamp)
+  files, {
+  required List<String> links,
+}) async {
+  final shipped = '${shippedPackVersions()['software-tech']}';
+  final home = await writeTree({});
+  Future<Directory> project(String pin, Map<String, String> stamps) =>
+      gitFixture({
+        _gitignore: _ignoreFile,
+        ...files(pin, (link) => stamps[link] ?? '000000000000'),
+      });
+  Map<String, Object?> checked(String out) =>
+      jsonDecode(out) as Map<String, Object?>;
+  Set<String> stale(String out) =>
+      _findingKinds(out).intersection(const {'suspect', 'approval_stale'});
+
+  final probe = await _run(await project(shipped, const {}), home, [
+    'check',
+    '--json',
+  ]);
+  final current = {
+    for (final finding in checked(probe.out)['findings']! as List<Object?>)
+      if (finding case {
+        'link': final String link,
+        'fingerprint': final String fingerprint,
+      })
+        link: fingerprint,
+  };
+  expect(current.keys, containsAll(links), reason: probe.out);
+  final before = await _run(await project(shipped, current), home, [
+    'check',
+    '--json',
+  ]);
+  expect(stale(before.out), isEmpty, reason: before.out);
+
+  final root = await project('1.23.0', current);
+  final result = await _run(root, home, ['migrate'], console: _owner());
+  expect(result.status, 0, reason: result.err);
+  final after = await _run(root, home, ['check', '--json']);
+  expect(stale(after.out), isEmpty, reason: after.out);
+  return root;
+}
+
+/// Installs a commit-msg hook that refuses commit 2, so a run stops after
+/// commit 1; returns the hook, to delete before the resume.
+File _refuseCommit2(Directory root) {
+  final hook = File('${root.path}/.git/hooks/commit-msg')
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync(
+      '#!/bin/sh\ngrep -q "upgrade pack pins" "\$1" && exit 1\nexit 0\n',
+    );
+  expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+  return hook;
+}
+
+Map<String, String> _bytesUnder(Directory root) => {
+  for (final entity in root.listSync(recursive: true, followLinks: false))
+    if (entity is File &&
+        !entity.path.contains(
+          '${Platform.pathSeparator}.git${Platform.pathSeparator}',
+        ))
+      entity.path: entity.readAsStringSync(),
+};
+
+/// Matches output that ends with [commitLine], then the closing count line.
+Matcher _endingWith(String commitLine) => matches(
+  RegExp(
+    '${RegExp.escape(commitLine)}'
+    r'check: \d+ findings left; run specstone check to see them\n$',
+  ),
+);
+
+const _bulletMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - bullet_lines: {doc_type: runbook, section: goals, prefixes: ["**Serves:**", "**By:**"]}
+''';
+
+const _bulletType = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: goals, header: Goals}
+  - {id: notes, header: Notes}
+''';
+
+const _bulletDoc =
+    '# Deploy\n\n## Goals\n\n**Serves:** PV-01\n- **By:** v1\n\n'
+    '## Notes\n\n**Serves:** kept\n';
+const _bulletedDoc =
+    '# Deploy\n\n## Goals\n\n- **Serves:** PV-01\n- **By:** v1\n\n'
+    '## Notes\n\n**Serves:** kept\n';
+
+const _stripMigrations = '''
+shared_lines:
+  - {id: acme_no_status, text: Never write a status field.}
+migrations:
+  - from: 1.0.0
+    steps:
+      - strip_shared_copies: {}
+''';
+
+const _stripType = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+''';
+
+const _stripOverride =
+    'description: |-\n  A runbook.\n  Never write a status field.\n';
+
+void main() {
+  group('strip_shared_copies step', () {
+    test('--dry-run --json lists the copy under sharedCopies and writes '
+        'nothing, and bare migrate writes the stripped override in '
+        'commit 2', () async {
+      final home = await _home(migrations: _stripMigrations, type: _stripType);
+      final root = await _project(
+        files: {_runbookPath: '# Deploy\n', _overridePath: _stripOverride},
+      );
+      final before = _bytesUnder(root);
+
+      final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+
+      expect(json.status, 0, reason: json.err);
+      final plan = jsonDecode(json.out) as Map<String, Object?>;
+      expect(plan['sharedCopies'], {
+        'stripped': ['$_overridePath:3 acme_no_status'],
+        'left': <String>[],
+      });
+      expect(_bytesUnder(root), before);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        result.out,
+        contains('  from 1.0.0: strip_shared_copies: 1 docs\n'),
+      );
+      expect(result.out, isNot(contains('shared copies left:')));
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_read(root, _overridePath), 'description: |-\n  A runbook.\n');
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+  });
+  group('bullet_lines step', () {
+    test('bare migrate writes the bullet lines in commit 2 and changes '
+        'nothing else, and --dry-run writes nothing', () async {
+      final home = await _home(
+        migrations: _bulletMigrations,
+        type: _bulletType,
+      );
+      final root = await _project(files: {_runbookPath: _bulletDoc});
+      final before = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(
+        dry.out,
+        contains('  from 1.0.0: bullet_lines runbook goals: 1 docs\n'),
+      );
+      expect(_bytesUnder(root), before);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_read(root, _runbookPath), _bulletedDoc);
+      expect(
+        _gitOut(root, [
+          'show',
+          '--name-only',
+          '--format=',
+          'HEAD',
+        ]).trim().split('\n').toSet(),
+        {'.specstone/config.yaml', _runbookPath},
+      );
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('a step the pack load refuses stops bare migrate and --dry-run '
+        'with exit 78 and writes nothing', () async {
+      final home = await _home(
+        migrations: _bulletMigrations.replaceFirst(
+          'section: goals',
+          'section: nope',
+        ),
+        type: _bulletType,
+      );
+      final root = await _project(files: {_runbookPath: _bulletDoc});
+      final before = _bytesUnder(root);
+      final head = _head(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+
+        expect(result.status, 78, reason: args.join(' '));
+        expect(result.err, contains('bullet_lines.section'));
+        expect(result.out, isEmpty, reason: args.join(' '));
+      }
+      expect(_bytesUnder(root), before);
+      expect(_head(root), head);
+    });
+  });
+  group('drop_default_lines step', () {
+    // The acme pack ships the rulebook stand-in for the per-feature rule doc
+    // that software-tech no longer ships.
+    const migrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - drop_default_lines: {doc_types: [rulebook]}
+''';
+    const domainPath = 'docs/specs/f01_login/DOMAIN.md';
+    const head =
+        '# Login domain\n\n## Entities\n\n'
+        '| Entity | Kind | Identity | Owns |\n|---|---|---|---|\n'
+        '| Account | Aggregate root | its email | a name |\n\n'
+        '## Invariants\n\n- **INV-1** An email is unique.\n';
+    const stated =
+        '$head  - **Enforcer:** Account\n  - **Consistency:** immediate\n';
+
+    test('bare migrate drops default lines in commit 2 and changes nothing '
+        'else, and --dry-run writes nothing', () async {
+      final home = await _home(
+        migrations: migrations,
+        type: rulebookLayer,
+        typeFile: 'rulebook',
+      );
+      final root = await _project(files: {domainPath: stated});
+      final before = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(dry.out, contains('  from 1.0.0: drop_default_lines: 1 docs\n'));
+      expect(_bytesUnder(root), before);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_read(root, domainPath), head);
+      expect(
+        _gitOut(root, [
+          'show',
+          '--name-only',
+          '--format=',
+          'HEAD',
+        ]).trim().split('\n').toSet(),
+        {'.specstone/config.yaml', domainPath},
+      );
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+  });
+  group('mark_retrim step', () {
+    const migrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - mark_retrim: {doc_types: [fr], sections: [edge_cases, verification]}
+''';
+    const frType = '''
+id: fr
+description: An FR.
+path: prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md
+fields:
+  - {id: traced_from, type: string, list: true, required: true}
+sections:
+  - {id: statement, header: Statement, required: true}
+  - {id: edge_cases, header: Edge cases, required: true}
+  - {id: rationale, header: Rationale, required: true}
+  - {id: verification, header: Verification, required: true}
+''';
+
+    /// The merged `fr` type of the acme pack: the shipped one with the test's
+    /// sections, as `withApprovalHash` hashes it.
+    MergedDocType acmeFrType() => switch (DocTypeMatcher(
+      TemplateResolver().resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+      ),
+      targetNames: const [],
+    ).match('prds/features/f01_login/us01_email_login/fr01_validate.md')) {
+      MatchedDocType(:final docType) => docType,
+      _ => throw StateError('no doc type matches the fr path'),
+    };
+
+    String storyWithScenario() =>
+        '# Email login\n\n## Acceptance Criteria\n\n'
+        '### Scenario 1 — [happy] Sign in\n\n- **Given** an account\n';
+    const frPath =
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate.md';
+    const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+    const storyPath =
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const frBody =
+        '# Validate\n\n'
+        '## Statement\n\nThe system shall refuse a wrong password.\n\n'
+        '## Edge cases\n\n1. E01 — An empty password → refused.\n\n'
+        '## Rationale\n\nA wrong password must not sign in.\n\n'
+        '## Verification\n\nTest: a wrong password is refused.\n';
+    final frApproved = withApprovalHash(
+      '---\ntraced_from: [S1]\n---\n\n$frBody',
+      acmeFrType(),
+      statusesOutside: shippedStatusesOutside,
+    );
+
+    test('an upgrade with a mark_retrim entry marks FRs in commit 2 and '
+        'counts them on its plan line', () async {
+      final home = await _home(
+        migrations: migrations,
+        type: frType,
+        typeFile: 'fr',
+      );
+      final root = await _project(
+        files: {
+          frPath: frApproved,
+          featurePath: '# Login\n',
+          storyPath: storyWithScenario(),
+        },
+      );
+      final before = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run', '--json']);
+
+      expect(dry.status, 0, reason: dry.err);
+      final plan = jsonDecode(dry.out) as Map<String, Object?>;
+      expect(plan['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'mark_retrim',
+          'paths': [frPath.substring('docs/'.length)],
+        },
+      ]);
+      expect(_bytesUnder(root), before);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, contains('  from 1.0.0: mark_retrim: 1 docs\n'));
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(
+        _read(root, frPath),
+        withApprovalHash(
+          '---\nretrim:\n  - edge_cases\n  - verification\n'
+          'traced_from: [S1]\n---\n\n$frBody',
+          acmeFrType(),
+          statusesOutside: shippedStatusesOutside,
+        ),
+      );
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      final check = await _run(root, home, ['check', '--json']);
+      final kinds = _findingKinds(
+        check.out,
+        docPath: 'prds/features/f01_login/us01_email_login/fr01_validate.md',
+      );
+      expect(kinds, contains('retrim_due'));
+      expect(kinds, isNot(contains('approval_stale')));
+    });
+  });
+  group('drop_section step', () {
+    const migrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - drop_section: {doc_types: [runbook], section: {id: legacy, header: Legacy}}
+''';
+    const before =
+        '---\non_call: sre\n---\n# Deploy steps\n\n## Procedure\n\nRun it.\n\n'
+        '## Legacy\n\nOld.\n';
+    const after =
+        '---\non_call: sre\n---\n# Deploy steps\n\n## Procedure\n\nRun it.\n';
+    const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+fields:
+  - {id: on_call, type: string}
+sections:
+  - {id: procedure, header: Procedure, required: true}
+''';
+
+    test('a release that drops a section removes it and prints its step '
+        'line', () async {
+      final home = await _home(migrations: migrations, type: type);
+      final root = await _project(files: {_runbookPath: before});
+      final bytes = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(
+        dry.out,
+        contains('  from 1.0.0: drop_section runbook legacy: 1 docs\n'),
+      );
+      expect(_bytesUnder(root), bytes);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        result.out,
+        contains('  from 1.0.0: drop_section runbook legacy: 1 docs\n'),
+      );
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_read(root, _runbookPath), after);
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      final check = await _run(root, home, ['check', '--json']);
+      // The doc never carried an approval, so only the Owner's wait is left.
+      expect(
+        _findingKinds(
+          check.out,
+          docPath: _runbookPath.substring('docs/'.length),
+        ),
+        {'approval_stale'},
+      );
+    });
+  });
+  group('merge_doc step', () {
+    const migrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - merge_doc:
+          from: {id: playbook, path: "prds/runbooks/{slug}/PLAYBOOK.md"}
+          to: runbook
+          sections:
+            - from: {id: moves, header: Moves}
+              to: procedure
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+fields:
+  - {id: on_call, type: string}
+sections:
+  - {id: goals, header: Goals}
+  - {id: procedure, header: Procedure}
+''';
+    const playbookPath = 'docs/prds/runbooks/deploy/PLAYBOOK.md';
+    const toText = '---\non_call: sre\n---\n# Deploy\n\n## Goals\n\nShip it.\n';
+    const playbook = '# Deploy playbook\n\n## Moves\n\nRun it.\n';
+    const merged =
+        '---\non_call: sre\n---\n# Deploy\n\n## Goals\n\nShip it.\n\n'
+        '## Procedure\n\nRun it.\n';
+    const layerPath = '.specstone/templates/playbook.yaml';
+
+    test('a run folds the sections into the to doc, moves the from file out '
+        'of the docs, keeps the layer file, and prints both lines', () async {
+      final home = await _home(migrations: migrations, type: type);
+      final root = await _project(
+        files: {
+          _runbookPath: toText,
+          playbookPath: playbook,
+          layerPath: 'sections: []\n',
+        },
+      );
+      final bytes = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(
+        dry.out,
+        contains(
+          '  from 1.0.0: merge_doc playbook -> runbook: 1 docs\n'
+          '  layers kept: 1\n',
+        ),
+      );
+      expect(_bytesUnder(root), bytes);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_read(root, _runbookPath), merged);
+      expect(File('${root.path}/$playbookPath').existsSync(), isFalse);
+      expect(_read(root, layerPath), 'sections: []\n');
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('a to doc approved before the run is stamped again, so check '
+        'reports no approval_stale on it', () async {
+      final home = await _home(migrations: migrations, type: type);
+      final runbookType = TemplateResolver()
+          .resolveCarried(
+            packNames: const ['prd-core', 'software-tech', 'acme'],
+            homeDirectory: home,
+          )
+          .lookup('runbook');
+      final root = await _project(
+        files: {
+          _runbookPath: withApprovalHash(
+            toText,
+            runbookType,
+            statusesOutside: shippedStatusesOutside,
+          ),
+          playbookPath: playbook,
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_read(root, _runbookPath), contains('approved:'));
+      final check = await _run(root, home, ['check', '--json']);
+      expect(
+        _findingKinds(
+          check.out,
+          docPath: _runbookPath.substring('docs/'.length),
+        ),
+        isNot(contains('approval_stale')),
+      );
+    });
+  });
+  group('the shipped software-tech 1.21.0 upgrade', () {
+    /// A git project pinning the shipped `software-tech` at [pin].
+    Future<Directory> pinned(String pin, Map<String, String> files) =>
+        gitFixture({
+          '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
+            'software-tech: ${shippedPackVersions()['software-tech']}',
+            'software-tech: $pin',
+          ),
+          _gitignore: _ignoreFile,
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          ...files,
+        });
+    const featureArchitecture = 'docs/specs/f01_login/ARCHITECTURE.md';
+    const featureDomain = 'docs/specs/f01_login/DOMAIN.md';
+    const entities =
+        '| Entity | Kind | Identity | Owns |\n|---|---|---|---|\n'
+        '| Account | Aggregate root | its email | a name |\n';
+
+    test(
+      'a software-tech pin at 1.12.0 drops the default lines and marks a '
+      'DOMAIN.md before the 1.20.0 merge folds it into ARCHITECTURE.md',
+      () async {
+        final root = await pinned('1.12.0', {
+          featureDomain:
+              '# Login domain\n\n## Entities\n\n$entities\n'
+              '## Invariants\n\n- **INV-1** An email is unique.\n'
+              '  - **Enforcer:** Account\n  - **Consistency:** immediate\n',
+        });
+        final home = await writeTree({});
+
+        final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        final order = [
+          '  from 1.13.0: drop_default_lines: 1 docs\n',
+          '  from 1.14.0: mark_retrim: 1 docs\n',
+          '  from 1.20.0: merge_doc domain -> architecture: 1 docs\n',
+        ].map(dry.out.indexOf).toList();
+        expect(order, everyElement(isNonNegative), reason: dry.out);
+        expect(order, orderedEquals([...order]..sort()));
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(File('${root.path}/$featureDomain').existsSync(), isFalse);
+        final architecture = _read(root, featureArchitecture);
+        expect(
+          architecture,
+          allOf(
+            contains('## Data\n\n$entities'),
+            contains('- **INV-1** An email is unique.\n'),
+            isNot(contains('**Enforcer:** Account')),
+            isNot(contains('**Consistency:** immediate')),
+          ),
+        );
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      },
+    );
+
+    test('a 1.20.0 project upgrades in one run: covers into the record, five '
+        'folds, concerns dropped, and the topic doc kept', () async {
+      const architecture =
+          '---\ncovers:\n  - lib/login/\n---\n\n# Login architecture\n\n'
+          '## Components\n\n'
+          '| Component | Responsibility | Tech | Owns |\n|---|---|---|---|\n'
+          '| Gate | Checks the password | Dart | sessions |\n\n'
+          '## Concerns\n\n- Auth: see SECURITY\n';
+      const dataTouch =
+          '| Entity | Reads | Writes |\n|---|---|---|\n'
+          '| Account | yes | no |\n';
+      const enforcement = 'The gate checks each call.\n';
+      const audit =
+          '| Event | Triggered by | Logged fields |\n|---|---|---|\n'
+          '| authn_login_success | sign-in | when, who |\n';
+      const systems =
+          '| System | Purpose | Protocol | Owned by |\n|---|---|---|---|\n'
+          '| Mailer | sends codes | REST | vendor |\n';
+      const contract =
+          '### Mailer\n\n| Direction | Method / Event | Purpose |\n'
+          '|---|---|---|\n| out | POST /send | a code |\n';
+      const topicPath = 'docs/specs/topics/sessions.md';
+      const topic =
+          '# Sessions\n\n## Rules\n\n- **RULE-1** A session ends after 30 '
+          'min.\n';
+      final root = await pinned('1.20.0', {
+        featureArchitecture: architecture,
+        featureDomain:
+            '# Login domain\n\n## Entities\n\n$entities\n'
+            '## Data touch\n\n$dataTouch',
+        'docs/specs/f01_login/AUTH.md':
+            '# Login auth\n\n## Enforcement\n\n$enforcement\n'
+            '## Audit\n\n$audit',
+        'docs/specs/INTEGRATION.md':
+            '# Project integrations\n\n## External systems\n\n$systems\n'
+            '## Contract per system\n\n$contract',
+        topicPath: topic,
+      });
+      final home = await writeTree({});
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      const step = '  from 1.20.0:';
+      const architectures = 'architecture, project_architecture';
+      final order = [
+        '$step move_to_record',
+        '$step merge_doc domain -> architecture: 1 docs\n',
+        '$step merge_doc project_domain -> project_architecture: 0 docs\n',
+        '$step merge_doc project_integration -> project_architecture: 1 docs\n',
+        '$step merge_doc auth -> security: 1 docs\n',
+        '$step merge_doc project_auth -> project_security: 0 docs\n',
+        '$step drop_section $architectures concerns: 1 docs\n',
+        '$step drop_doc_type topic: 0 docs\n',
+      ].map(dry.out.indexOf).toList();
+      expect(order, everyElement(isNonNegative), reason: dry.out);
+      expect(order, orderedEquals([...order]..sort()));
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        _read(root, '.specstone/records/f01_login/IMPLEMENTATION.md'),
+        contains('covers:\n  - lib/login/\n'),
+      );
+      expect(
+        _read(root, featureArchitecture),
+        allOf(
+          isNot(contains('covers:')),
+          isNot(contains('## Concerns')),
+          contains('| Gate | Checks the password | Dart | sessions |\n'),
+          contains('## Data\n\n$entities'),
+          contains(dataTouch),
+        ),
+      );
+      expect(
+        _read(root, 'docs/specs/f01_login/SECURITY.md'),
+        allOf(contains('## Enforcement\n\n$enforcement'), contains(audit)),
+      );
+      expect(
+        _read(root, 'docs/specs/ARCHITECTURE.md'),
+        allOf(
+          contains('## External systems\n\n$systems'),
+          contains('## Contract per system\n\n$contract'),
+        ),
+      );
+      expect(_read(root, topicPath), topic);
+      for (final gone in [
+        featureDomain,
+        'docs/specs/f01_login/AUTH.md',
+        'docs/specs/INTEGRATION.md',
+      ]) {
+        expect(File('${root.path}/$gone').existsSync(), isFalse, reason: gone);
+      }
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+  });
+  group('the shipped software-tech 1.24.0 upgrade', () {
+    /// A git project pinning the shipped `software-tech` at [pin].
+    Future<Directory> pinned(String pin, Map<String, String> files) =>
+        gitFixture({
+          '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
+            'software-tech: ${shippedPackVersions()['software-tech']}',
+            'software-tech: $pin',
+          ),
+          _gitignore: _ignoreFile,
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          ...files,
+        });
+    const featureArchitecture = 'docs/specs/f01_login/ARCHITECTURE.md';
+
+    test('a 1.23.0 project takes the relink step and its self link turns into a section link', () async {
+      final root = await pinned('1.23.0', {
+        featureArchitecture:
+            '# Login\n\n## Data\n\nSee [domain:login](ARCHITECTURE.md).\n',
+      });
+      final home = await writeTree({});
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(dry.out, contains('  from 1.23.0: relink_merged_docs: 1 docs\n'));
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        _read(root, featureArchitecture),
+        contains('See [architecture:login](#data).'),
+      );
+    });
+
+    test('after the 1.24.0 relink no overrides entry or matrix row is suspect', () async {
+      const address = 'project_architecture:project_architecture#CC-1';
+      const row = 'sign_in/check';
+      final root = await _relinkedProject(
+        (pin, stamp) => {
+          '.specstone/config.yaml':
+              '${_pinnedConfig(pin)}verification_coverage: fr\n',
+          'docs/specs/ARCHITECTURE.md': _approved(
+            'project_architecture',
+            '# Project architecture\n\n## Crosscutting concepts\n\n'
+                '- **CC-1** A session ends after 7 days, as '
+                '[domain:login](f01_login/ARCHITECTURE.md) states.\n',
+          ),
+          featureArchitecture: _approved(
+            'architecture',
+            '---\noverrides:\n  - $address ${stamp(address)}\n---\n\n'
+                '# Login architecture\n\n## Data\n\n'
+                '- Overrides: [CC-1](../ARCHITECTURE.md#crosscutting-concepts) '
+                '— a session ends after 1 day, because a login is short\n',
+          ),
+          ..._relinkedFr(
+            '## Statement\n\nThe system shall check the password, as '
+            '[domain:login](../../../../specs/f01_login/ARCHITECTURE.md) '
+            'states.\n',
+          ),
+          '.specstone/records/f01_login/IMPLEMENTATION.md': _relinkedRecord(
+            '- $row: `checks the password` ${stamp(row)}\n',
+          ),
+        },
+        links: const [address, row],
+      );
+
+      expect(
+        _read(root, 'docs/specs/ARCHITECTURE.md'),
+        contains('[architecture:login](f01_login/ARCHITECTURE.md)'),
+      );
+    });
+
+    test('after the 1.24.0 relink no overrides entry or matrix row of a sub-feature is suspect', () async {
+      const address = 'project_architecture:project_architecture#CC-1';
+      const row = 'sign_in/check';
+      const nestedArchitecture =
+          'docs/specs/f01_auth/f01_login/ARCHITECTURE.md';
+      await _relinkedProject(
+        (pin, stamp) => {
+          '.specstone/config.yaml':
+              '${_pinnedConfig(pin)}verification_coverage: fr\n',
+          'docs/specs/ARCHITECTURE.md': _approved(
+            'project_architecture',
+            '# Project architecture\n\n## Crosscutting concepts\n\n'
+                '- **CC-1** A session ends after 7 days.\n',
+          ),
+          nestedArchitecture: _approved(
+            'architecture',
+            '---\noverrides:\n  - $address ${stamp(address)}\n---\n\n'
+                '# Login architecture\n\n## Data\n\n'
+                '- Overrides: [CC-1](../../ARCHITECTURE.md#crosscutting-concepts) '
+                '— a session ends after 1 day, because a login is short\n',
+          ),
+          'docs/prds/features/f01_auth/FEATURE.md': _approved(
+            'feature',
+            '# Auth\n',
+          ),
+          'docs/prds/features/f01_auth/f01_login/FEATURE.md': _approved(
+            'feature',
+            '# Login\n',
+          ),
+          'docs/prds/features/f01_auth/f01_login/us01_sign_in/USER_STORY.md':
+              _approved('user_story', '# Sign in\n'),
+          'docs/prds/features/f01_auth/f01_login/us01_sign_in/fr01_check.md':
+              _approved(
+                'fr',
+                '# Check the password\n\n## Statement\n\nThe system shall '
+                    'check the password, as '
+                    '[domain:login](../../../../../specs/f01_auth/f01_login/'
+                    'ARCHITECTURE.md) states.\n',
+              ),
+          '.specstone/records/f01_auth/f01_login/IMPLEMENTATION.md':
+              _relinkedRecord('- $row: `checks the password` ${stamp(row)}\n'),
+        },
+        links: const [address, row],
+      );
+    });
+
+    test('in a two-target project the relink restamps the edge case row of a per-target record', () async {
+      const row = 'sign_in/check#E01';
+      await _relinkedProject(
+        (pin, stamp) => {
+          '.specstone/config.yaml':
+              '${_pinnedConfig(pin)}verification_coverage: edge_case\n'
+              'targets:\n  flutter:\n    code_root: flutter_ws\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          'docs/specs/flutter/f01_login/ARCHITECTURE.md': _approved(
+            'architecture',
+            '# Login architecture\n\n## Data\n\nAccounts.\n',
+          ),
+          ..._relinkedFr(
+            '## Statement\n\nThe system shall check the password.\n\n'
+            '## Edge cases\n\n1. E01 — A wrong password, as '
+            '[domain:login](../../../../specs/flutter/f01_login/ARCHITECTURE.md) '
+            'states → refused.\n',
+          ),
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md':
+              _relinkedRecord(
+                '- sign_in/check E01: `rejects a wrong password` ${stamp(row)}\n',
+              ),
+        },
+        links: const [row],
+      );
+    });
+  });
+  group('prd-core 1.9.0 pin upgrade', () {
+    const projectPath = 'docs/prds/PROJECT.md';
+    const bareGoals =
+        '### PG-01 — Fast\n\n**Serves:** PV-01\n**Statement:** Be fast.\n'
+        '**Metric:** 3 calls\n**By:** v1\n';
+    String project(String goals) =>
+        '---\nowner: sre\n---\n# Project context\n\n'
+        '## Project name\n\n- **Human:** Acme\n\n'
+        '## Project goals\n\n$goals\n'
+        '## Role\n\n- `Owner` — runs it.\n';
+
+    test(
+      'a project pinned at the 1.9.0 prd-core pack migrates to the shipped pin '
+      'with its bare goal lines and every other line unchanged',
+      () async {
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.9.0\n'
+              '  software-tech: ${shippedPackVersions()['software-tech']}\n',
+          _gitignore: _ignoreFile,
+          projectPath: project(bareGoals),
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_read(root, projectPath), project(bareGoals));
+        expect(
+          _read(root, '.specstone/config.yaml'),
+          contains('prd-core: ${shippedPackVersions()['prd-core']}\n'),
+        );
+      },
+    );
+  });
+  group('upgrade a pack pin', () {
+    test('a release that '
+        'only adds makes one commit that changes only the pins', () async {
+      final home = await _home(migrations: '');
+      final root = await _project(files: {_runbookPath: _runbookDoc});
+      final before = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_subjects(root), hasLength(before.length + 1));
+      expect(
+        _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+        '.specstone/config.yaml',
+      );
+      expect(
+        result.out,
+        _endingWith(
+          'commit 2 ${_head(root).substring(0, 7)}: upgrade pack pins\n',
+        ),
+      );
+      expect(
+        _read(root, '.specstone/config.yaml'),
+        '${_config('1.2.0')}$_stamp',
+      );
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test(
+      'a project holding the three older ignore '
+      'lines ends migrate with a clean tree and the five lines committed',
+      () async {
+        final home = await _home(migrations: '');
+        final root = await _project(
+          files: {_runbookPath: _runbookDoc, _gitignore: _threeLineIgnoreFile},
+        );
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        expect(_read(root, _gitignore), _ignoreFile);
+        expect(_gitOut(root, ['show', 'HEAD:$_gitignore']), _ignoreFile);
+      },
+    );
+
+    test(
+      'a layout-only run over the three older '
+      'ignore lines ends with a clean tree and the five lines committed',
+      () async {
+        final home = await _home(migrations: '');
+        final root = await _project(
+          pin: '1.2.0',
+          files: {
+            _runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  '),
+            _gitignore: _threeLineIgnoreFile,
+          },
+        );
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        expect(_gitOut(root, ['show', 'HEAD:$_gitignore']), _ignoreFile);
+      },
+    );
+
+    test('a docs-root file named with # is read as a file name, not a URI '
+        'fragment', () async {
+      final home = await _home();
+      final root = await _project(
+        files: {
+          _runbookPath: _runbookDoc,
+          'docs/prds/notes#draft.md': '# Notes\n',
+        },
+      );
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(dry.out, endsWith('dry run: nothing written\n'));
+    });
+
+    test('every doc of the type and the override carry the new '
+        'section name, and the pin moves', () async {
+      final home = await _home();
+      final root = await _project();
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+      expect(dry.status, 0, reason: dry.err);
+      expect(dry.out, startsWith('pack upgrade: acme 1.0.0 -> 1.2.0\n'));
+      expect(dry.out, endsWith('dry run: nothing written\n'));
+      expect(_read(root, _runbookPath), _runbookDoc);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_read(root, _runbookPath), contains('## Procedure\n'));
+      expect(_read(root, _runbookPath), contains('on_call: sre\n'));
+      expect(_read(root, _overridePath), contains('id: procedure'));
+      expect(
+        _read(root, '.specstone/config.yaml'),
+        '${_config('1.2.0')}$_stamp',
+      );
+      expect(_subjects(root).first, 'upgrade pack pins');
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('a release that moves files makes a '
+        'pure-rename first commit, then links and pins', () async {
+      final home = await _home(
+        migrations: _moveMigrations,
+        type: _runbookType('ops/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      final root = await _project(
+        files: {
+          _runbookPath: _runbookDoc,
+          'docs/prds/notes.md':
+              '# Notes\n\n[run](runbooks/deploy/RUNBOOK.md)\n',
+        },
+      );
+      final before = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_subjects(root).take(2).toList(), [
+        'upgrade pack pins',
+        'move docs to their new pack paths',
+      ]);
+      expect(_subjects(root), hasLength(before.length + 2));
+      final commit1 = _gitOut(root, [
+        'show',
+        '--name-status',
+        '--format=',
+        'HEAD~1',
+      ]);
+      expect(commit1, matches(RegExp(r'^R100\t')));
+      expect(
+        File('${root.path}/docs/ops/runbooks/deploy/RUNBOOK.md').existsSync(),
+        isTrue,
+      );
+      expect(File('${root.path}/$_runbookPath').existsSync(), isFalse);
+      expect(
+        _read(root, 'docs/prds/notes.md'),
+        contains('](../ops/runbooks/deploy/RUNBOOK.md)'),
+      );
+      final commit2 = _gitOut(root, [
+        'show',
+        '--name-only',
+        '--format=',
+        'HEAD',
+      ]).trim().split('\n').toSet();
+      expect(commit2, {'.specstone/config.yaml', 'docs/prds/notes.md'});
+      final commits = RegExp(r'commit (\d) [0-9a-f]+: (.*)\n')
+          .allMatches(result.out);
+      expect(
+        [for (final m in commits) '${m[1]}: ${m[2]}'],
+        ['1: move docs to their new pack paths', '2: upgrade pack pins'],
+      );
+    });
+
+    test('a removed section stays and check '
+        'lists it', () async {
+      final home = await _home(
+        migrations: '',
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'rollback'),
+      );
+      final root = await _project(
+        files: {
+          _runbookPath:
+              '---\nowner: sre\n---\n# Deploy\n\n## Rollback\n\nx\n\n'
+              '## Steps\n\nkeep me\n',
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_read(root, _runbookPath), contains('## Steps\n\nkeep me\n'));
+      final check = await _run(root, home, ['check', '--json']);
+      final findings =
+          (jsonDecode(check.out) as Map<String, Object?>)['findings']! as List;
+      expect([
+        for (final f in findings) (f as Map)['kind'],
+      ], contains('section_undeclared'));
+    });
+
+    test('a release that removes a field and a doc type and makes a section '
+        'required adds no section and leaves each for check to list', () async {
+      const releaseType = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+fields:
+  - {id: on_call, type: string}
+sections:
+  - {id: steps, header: Steps, required: true}
+  - {id: verify, header: Verify, required: true}
+''';
+      const playbookPath = 'docs/prds/playbooks/p1/PLAYBOOK.md';
+      const playbook = '# P\n\n## Steps\n\nx\n';
+      final home = await _home(migrations: '', type: releaseType);
+      final root = await _project(
+        files: {_runbookPath: _runbookDoc, playbookPath: playbook},
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_read(root, _runbookPath), _runbookDoc);
+      expect(_read(root, playbookPath), playbook);
+      final check = await _run(root, home, ['check', '--json']);
+      expect(
+        _findingKinds(check.out, docPath: 'prds/runbooks/deploy/RUNBOOK.md'),
+        containsAll(['field_undeclared', 'required_section_missing']),
+      );
+      expect(
+        _findingKinds(check.out, docPath: 'prds/playbooks/p1/PLAYBOOK.md'),
+        contains('untyped_doc'),
+      );
+    });
+
+    test(
+      'a step that renames a section and a field and the layout pass '
+      'write the doc once, so the first check raises no format_drift',
+      () async {
+        final home = await _home(
+          type: _runbookType(
+            'prds/runbooks/{slug}/RUNBOOK.md',
+            'procedure',
+          ).replaceFirst('header: Steps', 'header: Procedure'),
+        );
+        final root = await _project(
+          files: {
+            _runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.   '),
+            _overridePath: 'sections: [{id: steps, required: true}]\n',
+          },
+        );
+        final writes = _gitOut(root, [
+          'log',
+          '--format=%h',
+          '--',
+          _runbookPath,
+        ]).trim().split('\n').length;
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          _read(root, _runbookPath),
+          '---\non_call: sre\n---\n# Deploy\n\n## Procedure\n\nRun it.\n',
+        );
+        expect(
+          _gitOut(root, [
+            'log',
+            '--format=%h',
+            '--',
+            _runbookPath,
+          ]).trim().split('\n'),
+          hasLength(writes + 1),
+        );
+        final check = await _run(root, home, ['check', '--json']);
+        expect(_findingKinds(check.out), isNot(contains('format_drift')));
+      },
+    );
+
+    test('a doc the format command refuses stays as it is and keeps the '
+        'finding that names its cause', () async {
+      const refusedPath = 'docs/prds/features/f01_a/FEATURE.md';
+      const refused = '## Notes\nx   \n';
+      final home = await _home(migrations: '');
+      final root = await _project(
+        pin: '1.2.0',
+        files: {
+          _runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  '),
+          refusedPath: refused,
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, contains('  format layout: 1 docs\n'));
+      expect(_read(root, refusedPath), refused);
+      final check = await _run(root, home, ['check', '--json']);
+      expect(
+        _findingKinds(check.out, docPath: 'prds/features/f01_a/FEATURE.md'),
+        contains('section_undeclared'),
+      );
+    });
+
+    test('a doc that cannot be read refuses the dry run with exit 73 before '
+        'anything prints and writes nothing', () async {
+      final home = await _home();
+      final root = await _project(files: {_runbookPath: _runbookDoc});
+      final before = _bytesUnder(root);
+      final head = _head(root);
+      final doc = '${root.path}/$_runbookPath';
+      expect(Process.runSync('chmod', ['000', doc]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', doc]));
+
+      final result = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(result.status, 73);
+      expect(result.out, isEmpty);
+      expect(
+        result.err,
+        startsWith('cannot read prds/runbooks/deploy/RUNBOOK.md: '),
+      );
+      Process.runSync('chmod', ['644', doc]);
+      expect(_bytesUnder(root), before);
+      expect(_head(root), head);
+    }, skip: unreadablePathSkipReason());
+
+    test('pins equal and one doc off its layout makes one layout-only '
+        'commit, then a rerun has nothing to migrate', () async {
+      final home = await _home(migrations: '');
+      final root = await _project(
+        pin: '1.2.0',
+        files: {_runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  ')},
+      );
+      final before = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        result.out,
+        startsWith(
+          'pack upgrade: pins unchanged, layout only\n'
+          'commit 2, rewrites:\n'
+          '  format layout: 1 docs\n',
+        ),
+      );
+      expect(
+        result.out,
+        _endingWith(
+          'commit 2 ${_head(root).substring(0, 7)}: '
+          'lay docs out as format writes them\n',
+        ),
+      );
+      expect(_subjects(root), hasLength(before.length + 1));
+      expect(
+        _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+        _runbookPath,
+      );
+      expect(_read(root, _runbookPath), _runbookDoc);
+      expect(_read(root, '.specstone/config.yaml'), _config('1.2.0'));
+
+      final again = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(again.status, 0, reason: again.err);
+      expect(again.out, 'nothing to migrate\n');
+    });
+
+    test('a layout-only run adds neither a required nor an optional section '
+        'the doc lacks', () async {
+      final home = await _home(
+        migrations: '',
+        type: '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+  - {id: checks, header: Checks, required: true}
+  - {id: notes, header: Notes}
+''',
+      );
+      final root = await _project(
+        pin: '1.2.0',
+        files: {_runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  ')},
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, contains('format layout: 1 docs\n'));
+      expect(_read(root, _runbookPath), _runbookDoc);
+    });
+
+    test('nothing to upgrade prints nothing to migrate and writes '
+        'nothing', () async {
+      final home = await _home(
+        version: '1.0.0',
+        migrations: '',
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      final root = await _project(files: {_runbookPath: _runbookDoc});
+      final before = _bytesUnder(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, 'nothing to migrate\n');
+      expect(_bytesUnder(root), before);
+    });
+
+    test(
+      'with equal pins, an override that does not merge stops migrate '
+      'and check with override_id_not_found naming the override file',
+      () async {
+        final home = await _home(version: '1.0.0', migrations: '');
+        final root = await _project();
+
+        for (final args in [
+          ['migrate'],
+          ['check'],
+        ]) {
+          final result = await _run(root, home, args, console: _owner());
+
+          expect(result.status, 78, reason: args.join(' '));
+          expect(result.err, contains(_overridePath), reason: args.join(' '));
+          expect(
+            result.err,
+            contains('sections.steps'),
+            reason: args.join(' '),
+          );
+        }
+      },
+    );
+
+    test('an override that names a section the merged type lacks refuses '
+        'bare migrate and the dry run with exit 78 before a run is chosen, '
+        'and writes nothing', () async {
+      final home = await _home(version: '1.0.0', migrations: '');
+      final root = await _project();
+      final before = _bytesUnder(root);
+      final head = _head(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+
+        expect(result.status, 78, reason: args.join(' '));
+        expect(
+          result.err,
+          '$_overridePath: sections.steps: no section "steps" in the merged '
+          'doc type and no header to add it\n',
+          reason: args.join(' '),
+        );
+        expect(result.out, isEmpty, reason: args.join(' '));
+      }
+      expect(_bytesUnder(root), before);
+      expect(_head(root), head);
+    });
+
+    test('a project override that gives a doc type the code field puts the '
+        'repository top its docs list into the agent-only upgrade', () async {
+      final home = await _home(
+        version: '1.0.0',
+        migrations: '',
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      Future<Directory> project(String override) => _project(
+        files: {
+          _runbookPath:
+              '---\ncode:\n  - other/\n---\n# Deploy\n\n## Steps\n\nRun it.\n',
+          _overridePath: 'sections: [{id: steps, required: true}]\n$override',
+          'other/.git/HEAD': 'ref: refs/heads/main\n',
+          '.gitignore': 'other/\n',
+        },
+      );
+
+      final without = await _run(await project(''), home, [
+        'migrate',
+        '--dry-run',
+      ]);
+      final withCode = await _run(
+        await project('fields: [{id: code, type: string, list: true}]\n'),
+        home,
+        ['migrate', '--dry-run'],
+      );
+
+      expect(without.out, 'nothing to migrate\n');
+      expect(
+        withCode.out,
+        startsWith(
+          'pack upgrade: pins unchanged, agent files only\n'
+          'commit 2, rewrites:\n'
+          '  agent files: ${1 + skillFileCount} files\n',
+        ),
+      );
+    });
+
+    test('a pin newer than Specstone refuses', () async {
+      final home = await _home(version: '1.2.0');
+      final root = await _project(pin: '9.0.0');
+
+      for (final args in [
+        ['migrate'],
+        ['migrate', '--dry-run'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+        expect(result.status, 78, reason: args.join(' '));
+        expect(
+          result.err,
+          startsWith(
+            '.specstone/config.yaml: packs.acme: Pack acme is pinned at 9.0.0, '
+            'and this Specstone carries 1.2.0. Upgrade Specstone',
+          ),
+        );
+        expect(result.out, isEmpty);
+      }
+    });
+
+    test('an override left pointing at nothing '
+        'refuses in the dry run and in bare migrate, and the edited override '
+        'prints the plan', () async {
+      final home = await _home();
+      final root = await _project(
+        files: {
+          _runbookPath: _runbookDoc,
+          _overridePath: 'sections: [{id: checklist, required: true}]\n',
+        },
+      );
+      final before = _bytesUnder(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+        expect(result.status, 78, reason: args.join(' '));
+        expect(
+          result.err,
+          '.specstone/templates/runbook.yaml: sections.checklist: pack acme '
+          '1.2.0 defines no section checklist and no step renames it; edit the '
+          'override, then run specstone migrate again\n',
+        );
+        expect(result.out, isEmpty);
+      }
+      expect(_bytesUnder(root), before);
+
+      File('${root.path}/$_overridePath')
+          .writeAsStringSync('sections: [{id: steps, required: true}]\n');
+      commitAll(root, 'edit the override');
+      final edited = await _run(root, home, ['migrate', '--dry-run']);
+      expect(edited.status, 0, reason: edited.err);
+      expect(edited.out, startsWith('pack upgrade: acme 1.0.0 -> 1.2.0\n'));
+    });
+
+    test('a malformed migrations list refuses with the pack '
+        'fault', () async {
+      final home = await _home(
+        migrations: 'migrations:\n  - from: 1.0\n    steps: []\n',
+      );
+      final root = await _project();
+
+      final result = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(result.status, 78);
+      expect(
+        result.err,
+        startsWith('~/.specstone/packs/acme/pack.yaml: migrations[0].from: '),
+      );
+      expect(result.out, isEmpty);
+    });
+
+    /// Runs the dry run and bare migrate over a pack whose [migrations] the
+    /// load refuses, and expects exit 78 at [key], nothing printed, and the
+    /// tree as it was.
+    Future<void> expectPackRefused(String migrations, String key) async {
+      final home = await _home(migrations: migrations);
+      final root = await _project();
+      final before = _bytesUnder(root);
+      final head = _head(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+
+        expect(result.status, 78, reason: '$key ${args.join(' ')}');
+        expect(
+          result.err,
+          startsWith('~/.specstone/packs/acme/pack.yaml: $key'),
+          reason: args.join(' '),
+        );
+        expect(result.out, isEmpty, reason: '$key ${args.join(' ')}');
+      }
+      expect(_bytesUnder(root), before, reason: key);
+      expect(_head(root), head, reason: key);
+    }
+
+    test('a step of an unknown kind, a step with a key missing, and a step '
+        'with a key unknown each refuse with exit 78 and leave the tree '
+        'as it was', () async {
+      const cases = [
+        (
+          'migrations[0].steps[0]',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - frob_section: {doc_type: runbook}\n',
+        ),
+        (
+          'migrations[0].steps[0].rename_field.to',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - rename_field: {doc_type: runbook, from: owner}\n',
+        ),
+        (
+          'migrations[0].steps[0].rename_field.extra',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - rename_field: {doc_type: runbook, from: owner, '
+              'to: on_call, extra: x}\n',
+        ),
+      ];
+
+      for (final (key, migrations) in cases) {
+        await expectPackRefused(migrations, key);
+      }
+    });
+
+    test('a move_file step whose to pattern holds other placeholders or the '
+        'same ones in another order, and a move_to_record step whose to names '
+        'no doc type, each refuse with exit 78 and leave the tree '
+        'as it was', () async {
+      const cases = [
+        (
+          'migrations[0].steps[0].move_file.to',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - move_file: {doc_type: runbook, '
+              'from: "prds/runbooks/{slug}/RUNBOOK.md", '
+              'to: "ops/{slug}/{extra}/RUNBOOK.md"}\n',
+        ),
+        (
+          'migrations[0].steps[0].move_file.to',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - move_file: {doc_type: runbook, '
+              'from: "prds/{a}/{b}/RUNBOOK.md", '
+              'to: "prds/{b}/{a}/RUNBOOK.md"}\n',
+        ),
+        (
+          'migrations[0].steps[0].move_to_record.to',
+          'migrations:\n  - from: 1.0.0\n    steps:\n'
+              '      - move_to_record: {doc_types: [runbook], '
+              'fields: [owner], to: nosuch}\n',
+        ),
+      ];
+
+      for (final (key, migrations) in cases) {
+        await expectPackRefused(migrations, key);
+      }
+    });
+
+    test('a hook that prepends a paragraph to each message '
+        'still lists both commits', () async {
+      final home = await _home(
+        migrations: _moveMigrations,
+        type: _runbookType('ops/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      final root = await _project(files: {_runbookPath: _runbookDoc});
+      final hook = File('${root.path}/.git/hooks/commit-msg')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          'printf "ticket: T-1\\n\\n" | cat - "\$1" > "\$1.new"\n'
+          'mv "\$1.new" "\$1"\n',
+        );
+      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_subjects(root).take(2).toList(), ['ticket: T-1', 'ticket: T-1']);
+      final commits = RegExp(r'commit (\d) [0-9a-f]+: ').allMatches(result.out);
+      expect([for (final m in commits) m[1]], ['1', '2']);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+
+    test('an upgrade stopped after commit 1 '
+        'resumes with its own output and the closing count', () async {
+      final home = await _home(
+        migrations: _moveMigrations,
+        type: _runbookType('ops/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      final root = await _project(files: {_runbookPath: _runbookDoc});
+      final hook = _refuseCommit2(root);
+
+      final stopped = await _run(root, home, ['migrate'], console: _owner());
+      expect(stopped.status, 75, reason: stopped.err);
+      expect(_subjects(root).first, 'move docs to their new pack paths');
+      hook.deleteSync();
+
+      final resumed = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(resumed.status, 0, reason: resumed.err);
+      expect(_subjects(root).first, 'upgrade pack pins');
+      expect(resumed.out, contains('commit 2 '));
+      expect(
+        resumed.out,
+        matches(
+          RegExp(
+            r'check: \d+ findings left; run specstone check to see them\n$',
+          ),
+        ),
+      );
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+
+    test('a move onto a staying doc refuses in the dry '
+        'run and in bare migrate, exits 65, and writes nothing', () async {
+      final home = await _home(
+        migrations: _collideMigrations,
+        type: _runbookType('prds/runbooks/{slug}/PLAYBOOK.md', 'steps'),
+      );
+      final root = await _project(
+        files: {
+          _runbookPath: _runbookDoc,
+          'docs/prds/runbooks/deploy/PLAYBOOK.md': '# Kept\n\n## Steps\n\ny\n',
+        },
+      );
+      final before = _bytesUnder(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+        expect(result.status, 65, reason: args.join(' '));
+        expect(
+          result.err,
+          'prds/runbooks/deploy/RUNBOOK.md: move_file of runbook moves '
+          'prds/runbooks/{slug}/RUNBOOK.md to prds/runbooks/{slug}/PLAYBOOK.md, '
+          'which the doc already there holds; move, rename, or merge each '
+          'listed doc or entry so the step no longer lands on it, then run '
+          'specstone migrate again\n',
+        );
+        expect(result.out, isEmpty);
+      }
+      expect(_bytesUnder(root), before);
+    });
+
+    test('a rename onto a header or key the doc already '
+        'holds refuses, exits 65, listing the doc once', () async {
+      final home = await _home(
+        migrations: _heldRenamedMigrations,
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      final root = await _project(
+        files: {
+          _runbookPath:
+              '---\nowner: sre\non_call: ira\n---\n# Deploy\n\n## Steps\n\n'
+              'x\n\n## Procedure\n\ny\n',
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 65);
+      expect(
+        result.err,
+        'prds/runbooks/deploy/RUNBOOK.md: rename_section of runbook renames '
+        'Steps to Procedure, which the doc already holds; move, rename, or '
+        'merge each listed doc or entry so the step no longer lands on it, '
+        'then run specstone migrate again\n',
+      );
+      expect(_subjects(root).single, 'legacy');
+    });
+
+    test('a swap composes onto one path and refuses at the '
+        'terminal', () async {
+      final home = await _home(
+        migrations: _swapMigrations,
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+      const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+      final root = await _project(
+        files: {
+          _runbookPath: runbookText,
+          'docs/prds/runbooks/deploy/NOTES.md': notesText,
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 65);
+      expect(
+        result.err,
+        startsWith(
+          'prds/runbooks/deploy/NOTES.md: move_file of runbook moves '
+          'prds/runbooks/{slug}/NOTES.md to prds/runbooks/{slug}/RUNBOOK.md',
+        ),
+      );
+      expect(_read(root, _runbookPath), runbookText);
+      expect(_read(root, 'docs/prds/runbooks/deploy/NOTES.md'), notesText);
+      expect(_subjects(root).single, 'legacy');
+    });
+
+    test('a chained move through a freed path lands with no '
+        'content lost', () async {
+      final home = await _home(
+        migrations: _chainMigrations,
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+      const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+      final root = await _project(
+        files: {
+          'docs/prds/ops/deploy/RUNBOOK.md': runbookText,
+          'docs/prds/runbooks/deploy/NOTES.md': notesText,
+        },
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_read(root, _runbookPath), runbookText);
+      expect(_read(root, 'docs/prds/ops/deploy/RUNBOOK.md'), notesText);
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('a chained move stopped after commit 1 '
+        'resumes without overwriting the doc it landed', () async {
+      final home = await _home(
+        migrations: _chainMigrations,
+        type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+      );
+      const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+      const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+      final root = await _project(
+        files: {
+          'docs/prds/ops/deploy/RUNBOOK.md': runbookText,
+          'docs/prds/runbooks/deploy/NOTES.md': notesText,
+        },
+      );
+      final hook = _refuseCommit2(root);
+      final stopped = await _run(root, home, ['migrate'], console: _owner());
+      expect(stopped.status, 75, reason: stopped.err);
+      hook.deleteSync();
+
+      final resumed = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(resumed.status, 0, reason: resumed.err);
+      expect(_read(root, _runbookPath), runbookText);
+      expect(_read(root, 'docs/prds/ops/deploy/RUNBOOK.md'), notesText);
+      expect(_subjects(root).first, 'upgrade pack pins');
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+
+    group('a rotation through a temporary name', () {
+      const notesPath = 'docs/prds/runbooks/deploy/NOTES.md';
+      const runbookText = '# Deploy\n\n## Steps\n\nrunbook body\n';
+      const notesText = '# Notes\n\n## Steps\n\nnotes body\n';
+      late Directory home;
+      late Directory root;
+
+      setUp(() async {
+        home = await _home(
+          migrations: _rotationMigrations,
+          type: _runbookType('prds/runbooks/{slug}/RUNBOOK.md', 'steps'),
+        );
+        root = await _project(
+          files: {_runbookPath: runbookText, notesPath: notesText},
+        );
+      });
+
+      void expectTraded() {
+        expect(_read(root, notesPath), runbookText);
+        expect(_read(root, _runbookPath), notesText);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      }
+
+      test('trades the two docs and prints no '
+          'stage path', () async {
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(result.out, isNot(contains('.specstone/trash')));
+        expectTraded();
+      });
+
+      test('stopped after commit 1, resumes '
+          'without trading them back', () async {
+        final hook = _refuseCommit2(root);
+        final stopped = await _run(root, home, ['migrate'], console: _owner());
+        expect(stopped.status, 75, reason: stopped.err);
+        hook.deleteSync();
+
+        final resumed = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(resumed.status, 0, reason: resumed.err);
+        expect(resumed.out, isNot(contains('.specstone/trash/stage')));
+        expectTraded();
+      }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+    });
+
+    group('agent files', () {
+      const begin = '<!-- BEGIN specstone v$specstoneVersion -->';
+      const staleBlock = '$begin\nold rules\n<!-- END specstone -->\n';
+      const belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
+
+      Future<Directory> agentProject(
+        Map<String, String> files,
+        String config,
+      ) => gitFixture({
+        '.specstone/config.yaml': config,
+        _gitignore: _ignoreFile,
+        '.gitignore': 'code/\n',
+        ...files,
+      });
+
+      test('a stale block is rewritten alone and '
+          'the pins stay', () async {
+        final root = await agentProject({
+          '.specstone/AGENT.md': agentMdText,
+          'CLAUDE.md': '# Owner rules\n\n$staleBlock',
+        }, shippedPinsConfig());
+        final config = _read(root, '.specstone/config.yaml');
+        final before = _subjects(root);
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0);
+        expect(
+          result.out,
+          startsWith(
+            'pack upgrade: pins unchanged, agent files only\n'
+            'commit 2, rewrites:\n'
+            '  agent files: 1 files\n'
+            'apply? [y/N] ',
+          ),
+        );
+        expect(
+          result.out,
+          matches(
+            RegExp(
+              r'commit 2 [0-9a-f]+: refresh the Specstone agent files\n'
+              r'check: \d+ findings left; run specstone check to see them\n$',
+            ),
+          ),
+        );
+        expect(_subjects(root), hasLength(before.length + 1));
+        expect(
+          _gitOut(root, [
+            'show',
+            '--name-only',
+            '--format=',
+            'HEAD',
+          ]).trim().split('\n'),
+          unorderedEquals(['CLAUDE.md', '.specstone/config.yaml']),
+        );
+        expect(_read(root, '.specstone/config.yaml'), '$config$_stamp');
+        expect(
+          _read(root, 'CLAUDE.md'),
+          startsWith('# Owner rules\n\n$begin\n'),
+        );
+        expect(_read(root, 'CLAUDE.md'), isNot(contains('old rules')));
+      });
+
+      test(
+        'a mixed pair '
+        'with one pin below agentFilesSince triggers the one-time write',
+        () async {
+          final root = await agentProject({
+            'CLAUDE.md': '# Owner rules\n',
+          }, 'packs:\n  prd-core: 1.6.9\n  software-tech: 1.3.0\n');
+          final home = await writeTree({});
+
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(result.status, 0, reason: result.err);
+          expect(
+            result.out,
+            contains('  agent files: ${2 + skillFileCount} files\n'),
+          );
+          expect(_read(root, 'CLAUDE.md'), startsWith('# Owner rules\n'));
+          expect(_read(root, 'CLAUDE.md'), contains(begin));
+        },
+      );
+
+      test('a pin below agentFilesSince writes the files once and a '
+          'deleted block stays deleted', () async {
+        final root = await agentProject({
+          'CLAUDE.md': '# Owner rules\n',
+        }, belowSince);
+        final home = await writeTree({});
+
+        final first = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(first.status, 0);
+        expect(
+          first.out,
+          contains('  agent files: ${2 + skillFileCount} files\n'),
+        );
+        expect(_read(root, 'CLAUDE.md'), startsWith('# Owner rules\n'));
+        expect(_read(root, 'CLAUDE.md'), contains(begin));
+        expect(_read(root, '.specstone/AGENT.md'), agentMdText);
+        expect(
+          _gitOut(root, [
+            'show',
+            '--name-only',
+            '--format=',
+            'HEAD',
+          ]).trim().split('\n').toSet(),
+          {
+            '.specstone/AGENT.md',
+            'CLAUDE.md',
+            ...skillPaths(),
+            '.specstone/config.yaml',
+          },
+        );
+
+        File('${root.path}/CLAUDE.md').writeAsStringSync('# Owner rules\n');
+        commitAll(root, 'owner deletes the block');
+        final second = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(second.out, 'nothing to migrate\n');
+        expect(_read(root, 'CLAUDE.md'), '# Owner rules\n');
+      });
+
+      test('a top the config '
+          'does not list takes its files outside both commits', () async {
+        final root = await agentProject(
+          {},
+          '${shippedPinsConfig()}code_root: code\n',
+        );
+        Directory('${root.path}/code/.git').createSync(recursive: true);
+        File('${root.path}/code/.git/HEAD')
+            .writeAsStringSync('ref: refs/heads/main\n');
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0);
+        expect(
+          result.out,
+          contains('  agent files: ${1 + skillFileCount} files\n'),
+        );
+        expect(File('${root.path}/code/AGENTS.md').existsSync(), isTrue);
+        for (final path in skillPaths('code/')) {
+          expect(File('${root.path}/$path').existsSync(), isTrue, reason: path);
+        }
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+          '.specstone/config.yaml',
+        );
+        expect(
+          _read(root, '.specstone/config.yaml'),
+          contains('agent_file_roots:\n  - code\n'),
+        );
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+      });
+
+      test(
+        'a pin between agentFilesSince and the cite rule writes every '
+        'skill and agent file once, in commit 2, and gains no block',
+        () async {
+          final root = await agentProject({
+            'CLAUDE.md': '# Owner rules\n',
+          }, 'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n');
+          final home = await writeTree({});
+
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(result.status, 0, reason: result.err);
+          expect(
+            result.out,
+            contains('  agent files: $skillFileCount files\n'),
+          );
+          expect(_read(root, 'CLAUDE.md'), '# Owner rules\n');
+          expect(
+            _gitOut(root, [
+              'show',
+              '--name-only',
+              '--format=',
+              'HEAD',
+            ]).trim().split('\n').toSet(),
+            containsAll(skillPaths()),
+          );
+          final rerun = await _run(root, home, ['migrate'], console: _owner());
+          expect(rerun.out, 'nothing to migrate\n');
+        },
+      );
+
+      test(
+        'a .cursor file that is no folder is named and left, and the '
+        'one-time run still writes the other folders and ends clean',
+        () async {
+          final root = await agentProject({
+            'CLAUDE.md': '# Owner rules\n',
+            '.cursor': 'mine\n',
+          }, 'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n');
+          final home = await writeTree({});
+
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(result.status, 0, reason: result.err);
+          expect(
+            result.err,
+            contains('.cursor is not a folder; left as it is'),
+          );
+          expect(_read(root, '.cursor'), 'mine\n');
+          expect(
+            _gitOut(root, [
+              'show',
+              '--name-only',
+              '--format=',
+              'HEAD',
+            ]).trim().split('\n'),
+            isNot(contains(startsWith('.cursor/'))),
+          );
+          final rerun = await _run(root, home, ['migrate'], console: _owner());
+          expect(rerun.status, 0, reason: rerun.err);
+          expect(rerun.out, 'nothing to migrate\n');
+        },
+      );
+
+      test('a hand-edited skill file with every pin equal is the '
+          'agent-only upgrade, one file listed and rewritten', () async {
+        final texts = skillFileTexts();
+        final path = texts.keys.first;
+        final root = await agentProject({
+          ...texts,
+          path: '${texts[path]}hand edit\n',
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+
+        final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(json.status, 0, reason: json.err);
+        final plan = jsonDecode(json.out) as Map<String, Object?>;
+        expect(plan['agentFiles'], [path]);
+        expect(result.status, 0, reason: result.err);
+        expect(result.out, contains('  agent files: 1 files\n'));
+        expect(_read(root, path), texts[path]);
+        expect(
+          _gitOut(root, [
+            'show',
+            '--name-only',
+            '--format=',
+            'HEAD',
+          ]).trim().split('\n'),
+          unorderedEquals([path, '.specstone/config.yaml']),
+        );
+      });
+
+      test('every pin equal and an agent file with malformed marker lines '
+          'refuses with exit 65, prints nothing, and writes nothing', () async {
+        final root = await agentProject({
+          'AGENTS.md': '$begin\nbody\n',
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+        final before = _bytesUnder(root);
+        final head = _head(root);
+
+        for (final args in [
+          ['migrate', '--dry-run'],
+          ['migrate'],
+        ]) {
+          final result = await _run(root, home, args, console: _owner());
+
+          expect(result.status, 65, reason: args.join(' '));
+          expect(result.out, isEmpty, reason: args.join(' '));
+          expect(
+            result.err,
+            startsWith('AGENTS.md:1: the Specstone marker lines are malformed'),
+            reason: args.join(' '),
+          );
+        }
+        expect(_bytesUnder(root), before);
+        expect(_head(root), head);
+      });
+
+      test('bare migrate over a pin below agentFilesSince refuses a file '
+          'with malformed marker lines, prints the refusal, and writes '
+          'nothing', () async {
+        final root = await agentProject({
+          'AGENTS.md': '$begin\nbody\n',
+        }, belowSince);
+        final home = await writeTree({});
+        final before = _bytesUnder(root);
+        final head = _head(root);
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 65);
+        expect(result.out, isEmpty);
+        expect(
+          result.err,
+          startsWith('AGENTS.md:1: the Specstone marker lines are malformed'),
+        );
+        expect(_bytesUnder(root), before);
+        expect(_head(root), head);
+      });
+
+      test('an import block whose AGENT.md is missing plans the agent files '
+          'step alone', () async {
+        final root = await agentProject({
+          'CLAUDE.md': importBlock(
+            cliVersion: specstoneVersion,
+            agentMdPath: '.specstone/AGENT.md',
+            projectDocPath: 'docs/prds/PROJECT.md',
+            goalDocPath: 'docs/prds/GOAL.md',
+            featuresDocPath: 'docs/prds/FEATURES.md',
+          ),
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+
+        final dry = await _run(root, home, ['migrate', '--dry-run', '--json']);
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(dry.status, 0, reason: dry.err);
+        expect((jsonDecode(dry.out) as Map<String, Object?>)['agentFiles'], [
+          '.specstone/AGENT.md',
+        ]);
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          startsWith(
+            'pack upgrade: pins unchanged, agent files only\n'
+            'commit 2, rewrites:\n'
+            '  agent files: 1 files\n',
+          ),
+        );
+        expect(_read(root, '.specstone/AGENT.md'), agentMdText);
+      });
+
+      test('a repository top the config does not list plans the agent files '
+          'step alone', () async {
+        final root = await agentProject(
+          {},
+          '${shippedPinsConfig()}code_root: code\n',
+        );
+        Directory('${root.path}/code/.git').createSync(recursive: true);
+        File('${root.path}/code/.git/HEAD')
+            .writeAsStringSync('ref: refs/heads/main\n');
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          startsWith(
+            'pack upgrade: pins unchanged, agent files only\n'
+            'commit 2, rewrites:\n'
+            '  agent files: ${1 + skillFileCount} files\n',
+          ),
+        );
+      });
+
+      group('an unshipped skill or agent file', () {
+        const oldSkill = '.claude/skills/specstone-old';
+        const refreshMessage = 'refresh the Specstone agent files';
+
+        /// The fixture files: every shipped file, an unshipped skill folder
+        /// with two files, an extra file inside a shipped skill folder, and
+        /// two files the Owner owns.
+        ({Map<String, String> files, List<String> unshipped}) fixture() {
+          final texts = skillFileTexts();
+          final shipped = texts.keys.firstWhere(
+            (path) => path.startsWith('.claude/skills/'),
+          );
+          final extra =
+              '${shipped.substring(0, shipped.lastIndexOf('/'))}/extra.md';
+          final unshipped = [
+            '$oldSkill/SKILL.md',
+            '$oldSkill/references/more.md',
+            extra,
+          ];
+          return (
+            files: {
+              ...texts,
+              for (final path in unshipped) path: 'old\n',
+              '.claude/skills/own-skill/SKILL.md': 'own\n',
+              '.claude/agents/own-agent.md': 'own\n',
+            },
+            unshipped: unshipped,
+          );
+        }
+
+        File refuseRefresh(Directory root) {
+          final hook = File('${root.path}/.git/hooks/commit-msg')
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync(
+              '#!/bin/sh\ngrep -q "$refreshMessage" "\$1" && exit 1\nexit 0\n',
+            );
+          expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+          return hook;
+        }
+
+        test('moves to the trash, counted on the line, and no other file '
+            'is deleted', () async {
+          final (:files, :unshipped) = fixture();
+          final root = await agentProject(files, shippedPinsConfig());
+          final home = await writeTree({});
+
+          final dry = await _run(root, home, [
+            'migrate',
+            '--dry-run',
+            '--json',
+          ]);
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(dry.status, 0, reason: dry.err);
+          expect(
+            (jsonDecode(dry.out) as Map<String, Object?>)['agentFiles'],
+            unorderedEquals(unshipped),
+          );
+          expect(result.status, 0, reason: result.err);
+          expect(result.out, contains('  agent files: 3 files\n'));
+          for (final path in unshipped) {
+            expect(
+              File('${root.path}/$path').existsSync(),
+              isFalse,
+              reason: path,
+            );
+          }
+          expect(Directory('${root.path}/$oldSkill').existsSync(), isFalse);
+          for (final path in [
+            ...files.keys.where((path) => !unshipped.contains(path)),
+          ]) {
+            expect(_read(root, path), files[path], reason: path);
+          }
+          expect(
+            _gitOut(root, [
+              'show',
+              '--name-only',
+              '--format=',
+              'HEAD',
+            ]).trim().split('\n'),
+            unorderedEquals([...unshipped, '.specstone/config.yaml']),
+          );
+          expect(
+            Directory('${root.path}/.specstone/trash').existsSync(),
+            isFalse,
+          );
+          expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+          final rerun = await _run(root, home, ['migrate'], console: _owner());
+          expect(rerun.out, 'nothing to migrate\n');
+        });
+
+        test('at a listed repository top moves outside both commits', () async {
+          final root = await agentProject({}, '''
+${shippedPinsConfig()}code_root: code
+agent_file_roots:
+  - code
+''');
+          final top = Directory('${root.path}/code')..createSync();
+          Directory('${top.path}/.git').createSync();
+          File('${top.path}/.git/HEAD')
+              .writeAsStringSync('ref: refs/heads/main\n');
+          for (final MapEntry(:key, :value) in {
+            ...skillFileTexts('code/'),
+            'code/$oldSkill/SKILL.md': 'old\n',
+          }.entries) {
+            File('${root.path}/$key')
+              ..createSync(recursive: true)
+              ..writeAsStringSync(value);
+          }
+          final home = await writeTree({});
+          final before = _subjects(root);
+
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(result.status, 0, reason: result.err);
+          expect(result.out, contains('  agent files: 1 files\n'));
+          expect(
+            Directory('${root.path}/code/$oldSkill').existsSync(),
+            isFalse,
+          );
+          expect(_subjects(root), [refreshMessage, ...before]);
+          expect(
+            _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+            '.specstone/config.yaml',
+          );
+          final rerun = await _run(root, home, ['migrate'], console: _owner());
+          expect(rerun.out, 'nothing to migrate\n');
+        });
+
+        test('a run stopped after the move resumes without moving it '
+            'again', () async {
+          final (:files, :unshipped) = fixture();
+          final root = await agentProject(files, shippedPinsConfig());
+          final home = await writeTree({});
+          final hook = refuseRefresh(root);
+
+          final stopped = await _run(root, home, [
+            'migrate',
+          ], console: _owner());
+          expect(stopped.status, 75, reason: stopped.err);
+          expect(Directory('${root.path}/$oldSkill').existsSync(), isFalse);
+          expect(
+            File('${root.path}/.specstone/trash/files/$oldSkill/SKILL.md')
+                .existsSync(),
+            isTrue,
+          );
+          hook.deleteSync();
+
+          final pending = await _run(root, home, ['migrate', '--dry-run']);
+          final resumed = await _run(root, home, [
+            'migrate',
+          ], console: _owner());
+
+          expect(pending.out, contains('remaining steps:'));
+          expect(pending.out, isNot(contains('move ')));
+          expect(resumed.status, 0, reason: resumed.err);
+          expect(
+            _gitOut(root, [
+              'show',
+              '--name-only',
+              '--format=',
+              'HEAD',
+            ]).trim().split('\n'),
+            unorderedEquals([...unshipped, '.specstone/config.yaml']),
+          );
+          expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+      });
+
+      test('a group none of whose folders holds a specstone entry starts '
+          'no run', () async {
+        final root = await agentProject({
+          '.claude/skills/own-skill/SKILL.md': 'own\n',
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate']);
+
+        expect(result.out, 'nothing to migrate\n');
+      });
+
+      test('the plan hash moves when the bytes of one skill file '
+          'change', () async {
+        final texts = skillFileTexts();
+        final path = texts.keys.first;
+        final root = await agentProject({
+          ...texts,
+          path: '${texts[path]}first edit\n',
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+        String hashOf(String out) => RegExp(
+          r'^plan ([0-9a-f]+)$',
+          multiLine: true,
+        ).firstMatch(out)!.group(1)!;
+
+        final first = await _run(root, home, ['migrate', '--dry-run']);
+        File('${root.path}/$path')
+            .writeAsStringSync('${texts[path]}second edit\n');
+        commitAll(root, 'second edit');
+        final second = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(first.status, 0, reason: first.err);
+        expect(second.status, 0, reason: second.err);
+        expect(hashOf(first.out), isNot(hashOf(second.out)));
+      });
+
+      test('a malformed file refuses before '
+          'anything prints', () async {
+        final root = await agentProject({
+          'AGENTS.md': '$begin\nbody\n',
+        }, belowSince);
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(result.status, 65);
+        expect(result.out, isEmpty);
+        expect(result.err, contains('AGENTS.md'));
+      });
+    });
+
+    group('renumber pass', () {
+      const topicPath = 'docs/specs/topics/doc_model.md';
+      const storyPath = 'docs/prds/features/f01_a/us01_b/USER_STORY.md';
+      const tracingPath = 'docs/prds/features/f01_a/us01_b/fr01_c.md';
+      const suspectPath = 'docs/prds/features/f01_a/us01_b/fr02_g.md';
+      const proseTracingPath = 'docs/prds/features/f01_a/us01_b/fr03_h.md';
+      const apiPath = 'docs/specs/f01_a/API.md';
+      const lettered = '### Scenario 6a — [edge] lettered\n\n- **Given** g';
+      const two =
+          '### Scenario 2 — [error] two, unlike Scenario 6a\n\n- **Given** g';
+      const topic =
+          '# Doc model\n\n## Rules\n\n- **RULE-1** — One.\n'
+          '- **RULE-7a** — Lettered.\n- **RULE-30** — Thirty.\n';
+
+      String tracing(
+        String fingerprint, {
+        String scenario = 'S6a',
+        String body = '',
+      }) =>
+          '---\ntraced_from:\n  - $scenario\nconfirmed:\n'
+          '  - $scenario $fingerprint\n---\n# C\n$body';
+
+      /// The `docPath` of each finding of [kind] a `check --json` run reports.
+      Future<List<Object?>> findingsOf(
+        Directory root,
+        Directory home,
+        String kind,
+      ) async {
+        final check = await _run(root, home, ['check', '--json']);
+        expect(check.out, isNotEmpty, reason: check.err);
+        final report = jsonDecode(check.out) as Map<String, Object?>;
+        return [
+          for (final finding in report['findings']! as List<Object?>)
+            if (finding case {'kind': final String found, 'path': final path}
+                when found == kind)
+              path,
+        ];
+      }
+
+      test('the first check after the run raises no item_id_lettered '
+          'and no suspect link the pass made, a later upgrade renumbers '
+          'nothing, and a lettered ID written after it gets the '
+          'finding', () async {
+        final citing = tracing(
+          fingerprintOf(lettered),
+          body: '\n## Statement\n\n`charter:doc_model` RULE-7a\n',
+        );
+        final statement = Doc.parse(citing).sections.single.body;
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: _ignoreFile,
+          charterLayerFile: charterLayer,
+          topicPath: topic,
+          'docs/prds/features/f01_a/FEATURE.md': '# A\n',
+          storyPath:
+              '# B\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] one'
+              '\n\n- **Given** g\n\n$two\n\n$lettered\n',
+          tracingPath: citing,
+          suspectPath: tracing('000000000000'),
+          proseTracingPath: tracing(fingerprintOf(two), scenario: 'S2'),
+          apiPath:
+              '---\nconfirmed:\n  - b/c ${fingerprintOf(statement)}\n---\n'
+              '# A\n\n## FR trace\n\n| FR | Operation |\n|----|-----------|\n'
+              '| b/c | get |\n',
+        });
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(result.out, contains('  renumber ids: 2 IDs in 4 docs\n'));
+        // The renumber pass renames labels only; the stamp pass re-stamps
+        // the two entries, so their docs are on its line, not the references.
+        expect(
+          result.out,
+          contains('  stamps: 7 approval hashes, 3 fingerprints\n'),
+        );
+        // The cite pass after the renumber pass links the renumbered ID.
+        expect(
+          _read(root, tracingPath),
+          contains('[RULE-31](../../../../specs/topics/doc_model.md#rules)\n'),
+        );
+        expect(_read(root, storyPath), contains('unlike Scenario 3\n'));
+        expect(await findingsOf(root, home, 'item_id_lettered'), isEmpty);
+        expect(await findingsOf(root, home, 'suspect'), [
+          suspectPath.substring(5),
+        ]);
+
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+
+        void edit(String path, String from, String to) =>
+            File('${root.path}/$path')
+                .writeAsStringSync(_read(root, path).replaceFirst(from, to));
+        edit(
+          topicPath,
+          '- **RULE-30**',
+          '- **RULE-40b** — New.\n- **RULE-30**',
+        );
+        // The two re-stamped links are live: an edit upstream makes each
+        // suspect.
+        edit(storyPath, 'unlike Scenario 3', 'unlike Scenario 1');
+        edit(tracingPath, '[RULE-31](', '[RULE-1](');
+        expect(await findingsOf(root, home, 'item_id_lettered'), [
+          topicPath.substring(5),
+        ]);
+        expect(
+          await findingsOf(root, home, 'suspect'),
+          unorderedEquals([
+            for (final path in [suspectPath, proseTracingPath, apiPath])
+              path.substring(5),
+          ]),
+        );
+      });
+
+      test('an upgrade over every renumber case raises no '
+          'finding of any kind the tree lacked before, and a second upgrade '
+          'changes nothing', () async {
+        const anchor = 'scenario-6a--edge-lettered';
+        const story =
+            '---\ngoals: [PG-2a]\n---\n# B\n\n## Acceptance Criteria\n\n'
+            '### Scenario 1 — [happy] one\n\n- **Given** g\n\n'
+            '### Scenario 2 — [error] two\n\n- **Given** g\n\n'
+            '$lettered\n\nSee [it](#$anchor), S6a.\n';
+        final blockFingerprint = fingerprintOf(
+          '$lettered\n\nSee [it](#$anchor), S6a.',
+        );
+        const paddedStory =
+            '# E\n\n## Acceptance Criteria\n\n'
+            '### Scenario 01 — [happy] one\n\n- **Given** g\n\n'
+            '### Scenario 02 — [error] two\n\n- **Given** g\n\n'
+            '$lettered\n';
+        final docs = {
+          'docs/prds/PROJECT.md':
+              '# P\n\n## Project vision\n\n### PV-01 — One\n\n'
+              '### PV-1a — Lettered\n\n## Project goals\n\n'
+              '### PG-01 — One\n\n**Serves:** PV-01\n\n'
+              '### PG-2a — Two\n\n**Serves:** PV-1a\n',
+          'docs/prds/GNFR.md':
+              '# G\n\n## Performance\n\n### NFR-P07 — Seven\n\n'
+              '- **Statement:** s7\n\n### NFR-P06a — Latency\n\n'
+              '- **Statement:** s6a\n',
+          'docs/prds/features/f01_a/FEATURE.md':
+              '---\nvision: [PV-1a]\ngoals: [PG-2a]\n---\n# A\n',
+          storyPath: story,
+          tracingPath:
+              '---\ntraced_from:\n  - S6a\nconfirmed:\n'
+              '  - S6a $blockFingerprint\n---\n# C\n\n## Statement\n\n'
+              'See [the lockout](USER_STORY.md#$anchor) and S6a.\n',
+          suspectPath:
+              '---\ntraced_from: [S6]\nconfirmed:\n  - S6 $blockFingerprint\n'
+              '---\n# G\n',
+          'docs/prds/features/f01_a/us01_b/nf01_d.md':
+              '---\nkind: tighten\noverrides: NFR-P06a\nconfirmed:\n'
+              '  - NFR-P06a ${fingerprintOf('- **Statement:** s6a')}\n'
+              '---\n# D\n',
+          'docs/prds/journeys/onboard/JOURNEY.md':
+              '---\nconfirmed:\n  - a/b#S6a $blockFingerprint\n---\n'
+              '# Onboard\n\n## Steps\n\n### 1. Start\nstep: a/b S6a\n',
+          'docs/prds/notes.md':
+              '# Notes\n\n[latency](GNFR.md#nfr-p06a--latency)\n',
+          'docs/prds/features/f01_a/us02_e/USER_STORY.md': paddedStory,
+          'docs/prds/journeys/padded/JOURNEY.md':
+              '---\nconfirmed:\n  - a/e#S6a ${fingerprintOf(lettered)}\n---\n'
+              '# Padded\n\n## Steps\n\n### 1. Start\nstep: a/e S6a\n',
+          topicPath:
+              '# Doc model\n\n## Purpose\n\n'
+              '[RULE-7a](https://example.com/RULE-7a.md) and '
+              '<https://example.com/RULE-7a>, `RULE-7a`.\n\n'
+              '## Rules\n\n- **RULE-1** — One.\n- **RULE-7a** — Lettered.\n'
+              '- **RULE-9a2** — Odd.\n- **RULE-30** — Thirty.\n',
+          'docs/specs/f01_a/RULES.md':
+              '# A\n\n## Invariants\n\n'
+              '[rules](../topics/doc_model.md) RULE-7a, '
+              '[latency](../../prds/GNFR.md#nfr-p06a--latency).\n',
+          'docs/specs/f01_a/ARCHITECTURE.md':
+              '# A\n\n## Concerns\n\n- Errors — see '
+              '../../prds/features/f01_a/us01_b/USER_STORY.md#$anchor\n',
+          charterLayerFile: charterLayer,
+          concernsLayerFile: concernsLayer,
+          _rulesLayerFile: _rulesLayer,
+        };
+        Future<Set<String>> findings(Directory root, Directory home) async {
+          final check = await _run(root, home, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return {
+            for (final finding in report['findings']! as List<Object?>)
+              if (finding case {'kind': final kind, 'path': final path})
+                '$kind $path',
+          };
+        }
+
+        final home = await writeTree({});
+        final before = await findings(
+          await gitFixture({
+            '.specstone/config.yaml': shippedPinsConfig(),
+            _gitignore: _ignoreFile,
+            ...docs,
+          }),
+          home,
+        );
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: _ignoreFile,
+          ...docs,
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(before, contains('item_id_lettered specs/topics/doc_model.md'));
+        expect(
+          before,
+          contains('reference_malformed specs/topics/doc_model.md'),
+        );
+        expect(
+          _read(root, 'docs/prds/journeys/padded/JOURNEY.md'),
+          allOf(contains('  - a/e#S3 '), contains('step: a/e S3\n')),
+        );
+        expect(
+          _read(root, 'docs/specs/f01_a/ARCHITECTURE.md'),
+          contains('USER_STORY.md#scenario-3--edge-lettered\n'),
+        );
+        final after = await findings(root, home);
+        expect(after.difference(before), isEmpty);
+        expect(
+          after.where((finding) => finding.startsWith('item_id_lettered')),
+          isEmpty,
+        );
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+      });
+    });
+
+    group('label pass', () {
+      test('the run converts a label in a doc, keeps the rest '
+          'listed, and reads no file under the code roots', () async {
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: _ignoreFile,
+          'docs/specs/TECH_STACK.md':
+              '---\ncode:\n  - lib/\n---\n# Tech stack\n',
+          'docs/prds/features/f01_a/FEATURE.md': '# A\n',
+          'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
+          'docs/prds/features/f01_a/us01_b/fr01_c.md': '# C\n',
+          'docs/specs/topics/labelled.md':
+              '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and FR-09.\n',
+          charterLayerFile: charterLayer,
+          'lib/a.dart': '// See F-01 US-01 and FR-01\nint a = 0;\n',
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          contains('  number labels: 1 rewrites in 1 files; left: 1\n'),
+        );
+        expect(
+          _read(root, 'docs/specs/topics/labelled.md'),
+          contains(
+            'See [a/b/c](../../prds/features/f01_a/us01_b/fr01_c.md) and '
+            'FR-09.\n',
+          ),
+        );
+        expect(
+          _read(root, 'docs/specs/topics/labelled.md').split('\n')[8],
+          contains('FR-09'),
+        );
+        expect(
+          _read(root, 'lib/a.dart'),
+          '// See F-01 US-01 and FR-01\nint a = 0;\n',
+        );
+        final committed = _gitOut(root, [
+          'show',
+          '--name-only',
+          '--format=',
+          'HEAD',
+        ]);
+        expect(committed, isNot(contains('lib/a.dart')));
+        expect(committed, contains('docs/specs/topics/labelled.md'));
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+    });
+
+    group('item limit', () {
+      test('the upgrade keeps an over-limit invariant as one '
+          'item, and the first check reports it with waitsFor owner', () async {
+        const domainPath = 'docs/specs/f01_a/RULES.md';
+        final invariant = '- **INV-1** ${'A long rule'.padRight(15600, '.')}';
+        final domain =
+            '# A domain\n\n## Entities\n\n'
+            '| Entity | Kind | Identity | Owns | Notes |\n'
+            '| --- | --- | --- | --- | --- |\n'
+            '| Account | Aggregate root | id | balance | - |\n\n'
+            '## Invariants\n\n$invariant\n'
+            '  - **Enforcer:** Ledger\n'
+            '  - **Consistency:** eventual\n';
+        Future<List<Map<String, Object?>>> overLimit(
+          Directory root,
+          Directory home,
+        ) async {
+          final check = await _run(root, home, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return [
+            for (final finding in report['findings']! as List<Object?>)
+              if (finding case {'kind': 'item_over_limit'} && final item)
+                item as Map<String, Object?>,
+          ];
+        }
+
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: _ignoreFile,
+          'docs/prds/features/f01_a/FEATURE.md': '# A\n',
+          _rulesLayerFile: _rulesLayer,
+          domainPath: domain,
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          _read(root, '.specstone/config.yaml'),
+          '${shippedPinsConfig()}$_stamp',
+        );
+        final lines = _read(root, domainPath).split('\n');
+        expect(lines.where((line) => line.startsWith('- **INV-')), [invariant]);
+        expect(lines, contains('  - **Enforcer:** Ledger'));
+        expect(lines, contains('  - **Consistency:** eventual'));
+        final after = await overLimit(root, home);
+        expect(after, hasLength(1));
+        expect(after.single, containsPair('section', 'invariants'));
+        expect(after.single, containsPair('id', 'INV-1'));
+        expect(after.single, containsPair('waitsFor', 'owner'));
+        expect(after.single, containsPair('limit', 600));
+        expect(after.single, containsPair('actual', invariant.length));
+      });
+    });
+
+    group('stamp pass', () {
+      test('the first check after the upgrade of a 1.1.0 tree '
+          'raises no suspect and no approval_stale', () async {
+        const table =
+            '### Scenario 1 — [happy] Table\n| Item | Count |\n| --- | --- |\n'
+            '| apple | 2 |';
+        const storyPath = 'docs/prds/features/f01_a/us01_b/USER_STORY.md';
+        const frPath = 'docs/prds/features/f01_a/us01_b/fr01_c.md';
+        const draftPath = 'docs/prds/features/f01_a/us01_b/fr02_d.md';
+        final docs = {
+          storyPath:
+              '---\napproved: true\n---\n# B\n\n'
+              '## Acceptance Criteria\n\n$table\n',
+          frPath:
+              '---\ntraced_from: [S1]\nconfirmed:\n'
+              '  - S1 ${legacyFingerprintOf(table)}\n---\n# C\n',
+          draftPath: '---\ndraft: true\ntraced_from: [S1]\n---\n# D\n',
+        };
+        Future<List<Object?>> findings(Directory root, Directory home) async {
+          final check = await _run(root, home, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return report['findings']! as List<Object?>;
+        }
+
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+          _gitignore: _ignoreFile,
+          ...docs,
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          contains('stamps: 2 approval hashes, 1 fingerprints'),
+        );
+        expect(_read(root, frPath), contains('S1 ${fingerprintOf(table)}\n'));
+        expect(_read(root, draftPath), docs[draftPath]);
+        final kinds = [
+          for (final finding in await findings(root, home))
+            if (finding case {'kind': final String kind}) kind,
+        ];
+        expect(kinds, isNot(contains('suspect')));
+        expect(kinds, isNot(contains('approval_stale')));
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+      });
+    });
+
+    group('status and code paths move into records', () {
+      const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+      const storyPath =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+      const frPath =
+          'docs/prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const story =
+          '---\nstatus: implemented\nimplements:\n'
+          '  - app/lib/login/sign_in.dart:SignIn\n---\n# Email login\n';
+      const fr = '---\nstatus: planned\n---\n# Validate credentials\n';
+
+      Future<Directory> home() => writeTree({
+        '.specstone/packs/acme/pack.yaml': _pack(
+          '1.2.0',
+          'migrations:\n'
+              '  - from: 1.0.0\n'
+              '    steps:\n'
+              '      - move_to_record: {doc_types: [user_story, fr], '
+              'fields: [status, implements], to: implementation}\n',
+        ),
+        '.specstone/packs/acme/implementation.yaml': recordLayer,
+      });
+
+      Future<Directory> project({
+        String storyText = story,
+        String frText = fr,
+      }) => _project(
+        files: {featurePath: '# Login\n', storyPath: storyText, frPath: frText},
+      );
+
+      // Approved as the shipped pack stood before the step: the type still
+      // declared `implements`, a field the hash leaves out.
+      String approved(String text, String docTypeId) => withApprovalHash(
+        text,
+        typeBeforeMoves(
+          TemplateResolver()
+              .resolveCarried(
+                packNames: const ['prd-core', 'software-tech'],
+                homeDirectory: null,
+              )
+              .lookup(docTypeId)!,
+          [
+            MoveToRecord(
+              docTypes: [docTypeId],
+              fields: const ['status', 'implements'],
+              to: 'implementation',
+            ),
+          ],
+        ),
+        statusesOutside: shippedStatusesOutside,
+      );
+
+      String planHash(String dryOut) {
+        final lines = dryOut.split('\n');
+        return lines[lines.length - 3].substring('plan '.length);
+      }
+
+      test('the dry run lists the record, and the run writes it '
+          'as a draft with the values the docs held', () async {
+        final h = await home();
+        final root = await project();
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            'from 1.0.0: move_to_record user_story, fr status, implements '
+            '-> implementation: 2 docs\n',
+          ),
+        );
+        expect(
+          dry.out,
+          contains('commit 2, creates:\n  specs/f01_login/IMPLEMENTATION.md '),
+        );
+        expect(File('${root.path}/$recordPath').existsSync(), isFalse);
+
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          planHash(dry.out),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        final record = _read(root, recordPath);
+        expect(record, contains('draft: true'));
+        expect(record, contains('email_login:implemented'));
+        expect(record, contains('email_login/validate_credentials:planned'));
+        expect(
+          record,
+          contains('email_login:app/lib/login/sign_in.dart:SignIn'),
+        );
+        for (final path in [storyPath, frPath]) {
+          expect(_read(root, path), isNot(contains('status:')));
+          expect(_read(root, path), isNot(contains('implements:')));
+        }
+        expect(_subjects(root).first, 'upgrade pack pins');
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+
+      test('a story and an FR approved before the run are still '
+          'approved after it', () async {
+        final h = await home();
+        final root = await project(
+          storyText: approved(story, 'user_story'),
+          frText: approved(fr, 'fr'),
+        );
+
+        final result = await _run(root, h, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        for (final path in [storyPath, frPath]) {
+          expect(_read(root, path), contains('approved: "'));
+        }
+        final check = await _run(root, h, ['check', '--json']);
+        final report = jsonDecode(check.out) as Map<String, Object?>;
+        final stale = [
+          for (final finding in report['findings']! as List<Object?>)
+            if (finding case {
+              'kind': 'approval_stale',
+              'path': final String docPath,
+            })
+              docPath,
+        ];
+        expect(stale, isNot(contains(storyPath.substring('docs/'.length))));
+        expect(stale, isNot(contains(frPath.substring('docs/'.length))));
+      });
+
+      test('a spec doc list field moves into the record of its feature, '
+          'and the doc stays approved', () async {
+        const architecturePath = 'docs/specs/f01_login/ARCHITECTURE.md';
+        final h = await writeTree({
+          '.specstone/packs/acme/pack.yaml': _pack(
+            '1.2.0',
+            'migrations:\n'
+                '  - from: 1.0.0\n'
+                '    steps:\n'
+                '      - move_to_record: {doc_types: [architecture], '
+                'fields: [covers], to: implementation}\n',
+          ),
+          '.specstone/packs/acme/implementation.yaml':
+              '$recordLayer'
+              '  - id: covers\n'
+              '    type: output_ref\n'
+              '    list: true\n'
+              '    pointer: prefix\n',
+        });
+        final root = await _project(
+          files: {
+            featurePath: '# Login\n',
+            // The hash leaves `covers` out, as the architecture type of the
+            // pin did, which held it outside the approval hash.
+            architecturePath: withApprovalHash(
+              '# Architecture\n',
+              TemplateResolver()
+                  .resolveCarried(
+                    packNames: const ['prd-core', 'software-tech'],
+                    homeDirectory: null,
+                  )
+                  .lookup('architecture'),
+              statusesOutside: shippedStatusesOutside,
+            ).replaceFirst('---\n', '---\ncovers:\n  - app/lib/login\n'),
+          },
+        );
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            'from 1.0.0: move_to_record architecture covers '
+            '-> implementation: 1 docs\n',
+          ),
+        );
+        final applied = await _run(root, h, ['migrate'], console: _owner());
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(_read(root, recordPath), contains('app/lib/login'));
+        expect(_read(root, architecturePath), isNot(contains('covers:')));
+        expect(_read(root, architecturePath), contains('approved: "'));
+        final check = await _run(root, h, ['check', '--json']);
+        expect(
+          _findingKinds(
+            check.out,
+            docPath: architecturePath.substring('docs/'.length),
+          ),
+          isNot(contains('approval_stale')),
+        );
+      });
+
+      test('a record override the plan lists lands in '
+          'commit 2 with the pins', () async {
+        final h = await home();
+        final root = await _project(
+          files: {
+            featurePath: '# Login\n',
+            '.specstone/templates/architecture.yaml':
+                'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
+          },
+        );
+
+        final result = await _run(root, h, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          contains('commit 2, creates:\n  .specstone/templates/'),
+        );
+        expect(
+          _read(root, '.specstone/templates/implementation.yaml'),
+          'path: specs/{slug}/f{nn}_{slug}/IMPLEMENTATION.md\n',
+        );
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          contains('.specstone/templates/implementation.yaml'),
+        );
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+
+      test('a value no record entry takes refuses on the dry '
+          'run and the bare run alike, and writes nothing', () async {
+        final h = await home();
+        final root = await project(
+          storyText: '---\nstatus: wip\n---\n# Email login\n',
+        );
+        final before = _head(root);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+        final bare = await _run(root, h, ['migrate'], console: _owner());
+
+        for (final result in [dry, bare]) {
+          expect(result.status, 65, reason: result.err);
+          expect(
+            result.err,
+            startsWith('${storyPath.substring('docs/'.length)}: status: '),
+          );
+        }
+        expect(_head(root), before);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        expect(File('${root.path}/$recordPath').existsSync(), isFalse);
+      });
+    });
+
+    group('code fingerprints on the upgrade to software-tech 1.7.0', () {
+      const signIn = 'app/lib/login/sign_in.dart';
+      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const movedRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      const architecturePath = 'docs/specs/f01_login/ARCHITECTURE.md';
+
+      test('the first check after the upgrade finds no code link to compare '
+          'and no stale approval', () async {
+        final types = TemplateResolver().resolveCarried(
+          packNames: const ['prd-core', 'software-tech'],
+          homeDirectory: null,
+        );
+        // Approved under the 1.6.0 pin, whose hash still counts statuses.
+        String approved(String text, String docTypeId) => withApprovalHash(
+          text,
+          types.lookup(docTypeId),
+          statusesOutside: false,
+        );
+        final h = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.6.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          'docs/prds/features/f01_login/FEATURE.md': approved(
+            '# Login\n',
+            'feature',
+          ),
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              approved('# Email login\n', 'user_story'),
+          recordPath: approved(
+            "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+                "  - 'email_login:$signIn:SignIn'\n---\n\n# Login record\n",
+            'implementation',
+          ),
+          // The 1.6.0 architecture type held `covers` outside the hash.
+          architecturePath: approved(
+            '# Login architecture\n',
+            'architecture',
+          ).replaceFirst('---\n', '---\ncovers:\n  - app/lib/\n'),
+          signIn: 'class SignIn {}\n',
+        });
+        Future<List<String>> kinds() async {
+          final check = await _run(root, h, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return [
+            for (final finding in report['findings']! as List<Object?>)
+              if (finding case {'kind': final String kind}) kind,
+          ];
+        }
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            '  from 1.6.0: stamp_code_fingerprints: 1 docs; 2 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(_read(root, movedRecordPath), contains('$signIn:SignIn '));
+        expect(_read(root, movedRecordPath), isNot(contains('draft')));
+        final after = await kinds();
+        expect(after, isNot(contains('code_suspect')));
+        expect(after, isNot(contains('code_unconfirmed')));
+        expect(after, isNot(contains('approval_stale')));
+      });
+
+      test('a code file changed after the dry run refuses the planned '
+          'hash and writes nothing', () async {
+        final h = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.6.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              '# Email login\n',
+          recordPath:
+              "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+              "  - 'email_login:$signIn:SignIn'\n---\n\n# Login record\n",
+          signIn: 'class SignIn {}\n',
+        });
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+        expect(dry.status, 0, reason: dry.err);
+        final lines = dry.out.split('\n');
+        final hash = lines[lines.length - 3].substring('plan '.length);
+        File('${root.path}/$signIn').writeAsStringSync('class SignIn {} \n');
+        commitAll(root, 'edit the code');
+        final before = _head(root);
+
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          hash,
+        ]);
+
+        expect(applied.status, 75, reason: applied.out);
+        expect(
+          applied.err,
+          startsWith('the plan is not the one the Owner saw'),
+        );
+        expect(_head(root), before);
+        expect(_read(root, recordPath), isNot(contains('$signIn:SignIn ')));
+      });
+    });
+
+    group('code links restamped under the comment-free fingerprint', () {
+      const signIn = 'app/lib/login/sign_in.dart';
+      const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+      const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+      final current = fileCodeFingerprint(
+        utf8.encode(signInCode),
+        path: signIn,
+      );
+
+      Future<Directory> home() => writeTree({
+        '.specstone/packs/acme/pack.yaml': _pack(
+          '1.1.0',
+          'migrations:\n'
+              '  - from: 1.0.0\n'
+              '    steps:\n'
+              '      - restamp_code_fingerprints: {}\n',
+        ),
+      });
+
+      Future<Directory> project(String recorded) => _project(
+        files: {
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              '# Email login\n',
+          recordPath:
+              "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+              "  - 'email_login:$signIn:SignIn $recorded'\n"
+              '---\n\n# Login record\n',
+          signIn: signInCode,
+        },
+      );
+
+      test('the run writes commit 2 with the new fingerprint of a link '
+          'stamped under the old rule', () async {
+        final h = await home();
+        final root = await project(legacy);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            '  from 1.0.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(
+          _read(root, recordPath),
+          contains("  - 'email_login:$signIn:SignIn $current'\n"),
+        );
+        expect(_read(root, recordPath), isNot(contains('draft')));
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          contains(recordPath),
+        );
+      });
+
+      test('a dry run leaves the tree as it was', () async {
+        final h = await home();
+        final root = await project(legacy);
+        final before = _read(root, recordPath);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(_read(root, recordPath), before);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+    });
+
+    group('the shipped software-tech record', () {
+      const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+      const storyPath =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+      const frPath =
+          'docs/prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+      Future<Directory> project(String storyText) => gitFixture({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.4.0\n',
+        _gitignore: _ignoreFile,
+        featurePath: '# Login\n',
+        storyPath: storyText,
+        frPath: '---\nstatus: planned\n---\n# Validate credentials\n',
+      });
+
+      test('a 1.4.0 project moves its values into a draft '
+          'record of the shipped implementation type, with no one-time '
+          'pass and the skill and agent files written once', () async {
+        final h = await writeTree({});
+        final root = await project(
+          '---\nstatus: implemented\nimplements:\n'
+          '  - app/lib/login/sign_in.dart:SignIn\n---\n# Email login\n',
+        );
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            'software-tech 1.4.0 -> ${shippedPackVersions()['software-tech']}',
+          ),
+        );
+        expect(
+          dry.out,
+          contains(
+            'from 1.4.0: move_to_record user_story, fr status, implements '
+            '-> implementation: 2 docs\n',
+          ),
+        );
+        expect(dry.out, isNot(contains('renumber ids:')));
+        // The move crosses the cite rule's version, so the run writes the skill
+        // and agent files alone.
+        expect(dry.out, contains('  agent files: $skillFileCount files\n'));
+
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        final record = _read(root, recordPath);
+        expect(record, contains('draft: true'));
+        expect(record, contains('email_login:implemented'));
+        expect(
+          record,
+          contains('email_login:app/lib/login/sign_in.dart:SignIn'),
+        );
+        expect(_read(root, storyPath), isNot(contains('status:')));
+        expect(_read(root, frPath), isNot(contains('status:')));
+        final check = await _run(root, h, ['check', '--json']);
+        final kinds = [
+          for (final finding
+              in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                  as List<Object?>)
+            (finding! as Map<String, Object?>)['kind'],
+        ];
+        expect(kinds, isNot(contains('field_undeclared')));
+        expect(kinds, isNot(contains('requirement_status_written')));
+      });
+
+      test('a 1.7.0 project moves its record under .specstone/records/ in '
+          'commit 1, restamps its code link in commit 2, and the first check '
+          'reads it there', () async {
+        final h = await writeTree({});
+        const oldPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+        const signIn = 'app/lib/login/sign_in.dart';
+        const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+        final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+        final current = fileCodeFingerprint(
+          utf8.encode(signInCode),
+          path: signIn,
+        );
+        String record(String fingerprint) =>
+            "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+            "  - 'email_login:$signIn:SignIn $fingerprint'\n---\n\n"
+            '# Login implementation\n';
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.7.0\n',
+          _gitignore: _ignoreFile,
+          featurePath: '# Login\n',
+          storyPath: '# Email login\n',
+          oldPath: record(legacy),
+          signIn: signInCode,
+        });
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            'commit 1, moves:\n'
+            '  specs/f01_login/IMPLEMENTATION.md -> $recordPath\n',
+          ),
+        );
+        expect(
+          dry.out,
+          contains(
+            '  from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(File('${root.path}/$oldPath').existsSync(), isFalse);
+        expect(_read(root, recordPath), record(current));
+        expect(
+          _gitOut(root, [
+            'show',
+            '--name-status',
+            '--format=',
+            '-M',
+            'HEAD~1',
+          ]).trim(),
+          'R100\t$oldPath\t$recordPath',
+        );
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          contains(recordPath),
+        );
+        final check = await _run(root, h, ['check', '--json']);
+        final kinds = [
+          for (final finding
+              in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                  as List<Object?>)
+            (finding! as Map<String, Object?>)['kind'],
+        ];
+        expect(kinds, isNot(contains('untyped_doc')));
+        expect(_gitOut(root, ['status', '--porcelain']), isEmpty);
+      });
+
+      test(
+        'a 1.7.0 project moves the record of a sub-feature beside its '
+        "feature's record and restamps both, with no untyped doc left",
+        () async {
+          final h = await writeTree({});
+          const oldPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+          const oldNested = 'docs/specs/f01_login/f01_sso/IMPLEMENTATION.md';
+          const nestedPath =
+              '.specstone/records/f01_login/f01_sso/IMPLEMENTATION.md';
+          const signIn = 'app/lib/login/sign_in.dart';
+          const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+          final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+          final current = fileCodeFingerprint(
+            utf8.encode(signInCode),
+            path: signIn,
+          );
+          String record(String fingerprint) =>
+              "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+              "  - 'email_login:$signIn:SignIn $fingerprint'\n---\n\n"
+              '# Login implementation\n';
+          final root = await gitFixture({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+                '  software-tech: 1.7.0\n',
+            _gitignore: _ignoreFile,
+            featurePath: '# Login\n',
+            storyPath: '# Email login\n',
+            'docs/prds/features/f01_login/f01_sso/FEATURE.md': '# SSO\n',
+            'docs/prds/features/f01_login/f01_sso/us01_email_login/'
+                    'USER_STORY.md':
+                '# Email login\n',
+            oldPath: record(legacy),
+            oldNested: record(legacy),
+            signIn: signInCode,
+          });
+
+          final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+          expect(dry.status, 0, reason: dry.err);
+          expect(
+            dry.out,
+            contains(
+              '  specs/f01_login/f01_sso/IMPLEMENTATION.md -> $nestedPath\n',
+            ),
+          );
+          final lines = dry.out.split('\n');
+          final applied = await _run(root, h, [
+            'migrate',
+            '--yes',
+            '--plan',
+            lines[lines.length - 3].substring('plan '.length),
+          ]);
+
+          expect(applied.status, 0, reason: applied.err);
+          expect(File('${root.path}/$oldPath').existsSync(), isFalse);
+          expect(File('${root.path}/$oldNested').existsSync(), isFalse);
+          expect(_read(root, recordPath), record(current));
+          expect(_read(root, nestedPath), record(current));
+          final check = await _run(root, h, ['check', '--json']);
+          final kinds = [
+            for (final finding
+                in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                    as List<Object?>)
+              (finding! as Map<String, Object?>)['kind'],
+          ];
+          expect(kinds, isNot(contains('untyped_doc')));
+          expect(_gitOut(root, ['status', '--porcelain']), isEmpty);
+        },
+      );
+
+      test(
+        'a second code target moves a record under .specstone/records/ '
+        'into the first target folder and leaves no empty folder behind',
+        () async {
+          final h = await writeTree({});
+          const text =
+              "---\nstatuses:\n  - 'email_login:planned'\n---\n\n"
+              '# Login implementation\n';
+          final root = await gitFixture({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+                '  software-tech: 1.7.0\n'
+                'targets:\n  flutter:\n    code_root: app\n'
+                '  jaspr:\n    code_root: web\n',
+            _gitignore: _ignoreFile,
+            featurePath: '# Login\n',
+            storyPath: '# Email login\n',
+            recordPath: text,
+          });
+
+          final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+          expect(dry.status, 0, reason: dry.err);
+          final lines = dry.out.split('\n');
+          final applied = await _run(root, h, [
+            'migrate',
+            '--yes',
+            '--plan',
+            lines[lines.length - 3].substring('plan '.length),
+          ]);
+
+          expect(applied.status, 0, reason: applied.err);
+          expect(
+            _read(
+              root,
+              '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
+            ),
+            text,
+          );
+          expect(
+            Directory('${root.path}/.specstone/records/f01_login').existsSync(),
+            isFalse,
+          );
+        },
+      );
+
+      test('a status no entry takes refuses the shipped run '
+          'and writes nothing', () async {
+        final h = await writeTree({});
+        final root = await project('---\nstatus: wip\n---\n# Email login\n');
+        final before = _head(root);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 65, reason: dry.err);
+        expect(
+          dry.err,
+          startsWith('${storyPath.substring('docs/'.length)}: status: '),
+        );
+        expect(_head(root), before);
+        expect(File('${root.path}/$recordPath').existsSync(), isFalse);
+      });
+    });
+
+    group('a second code target over a one-target spec tree', () {
+      const featurePath = 'docs/prds/features/f02_feedback/FEATURE.md';
+      const oldArch = 'docs/specs/f02_feedback/ARCHITECTURE.md';
+      const newArch = 'docs/specs/flutter/f02_feedback/ARCHITECTURE.md';
+      const oldTech = 'docs/specs/TECH_STACK.md';
+      const newTech = 'docs/specs/flutter/TECH_STACK.md';
+
+      String approvedAs(String docTypeId, String text) => withApprovalHash(
+        text,
+        TemplateResolver()
+            .resolveCarried(
+              packNames: const ['prd-core', 'software-tech'],
+              homeDirectory: null,
+            )
+            .lookup(docTypeId),
+        statusesOutside: shippedStatusesOutside,
+      );
+
+      Future<Directory> project() => gitFixture({
+        '.specstone/config.yaml': twinConfig(),
+        _gitignore: _ignoreFile,
+        featurePath: approvedAs(
+          'feature',
+          '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
+        ),
+        oldArch: approvedAs(
+          'architecture',
+          '# Architecture\n\n[f](../../prds/features/f02_feedback/FEATURE.md)\n',
+        ),
+        oldTech: '---\ndraft: true\n---\n# Tech stack\n',
+      });
+
+      test('a first commit that only moves the spec docs under '
+          "the first target's folder, a second that rewrites their links, and "
+          'every approval kept', () async {
+        final home = await writeTree({});
+        final root = await project();
+        final before = _subjects(root);
+
+        final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          startsWith('pack upgrade: pins unchanged, spec tree to flutter\n'),
+        );
+        expect(File('${root.path}/$newArch').existsSync(), isFalse);
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_subjects(root), hasLength(before.length + 2));
+        final commit1 = _gitOut(root, [
+          'show',
+          '--name-status',
+          '--format=',
+          'HEAD~1',
+        ]).trim().split('\n');
+        expect(commit1, hasLength(2));
+        expect(commit1, everyElement(startsWith('R100\t')));
+        expect(
+          commit1.join('\n'),
+          allOf(contains('$oldArch\t$newArch'), contains('$oldTech\t$newTech')),
+        );
+        final commit2 = _gitOut(root, [
+          'show',
+          '--name-only',
+          '--format=',
+          'HEAD',
+        ]).trim().split('\n').toSet();
+        expect(commit2, {featurePath, newArch});
+        expect(File('${root.path}/$oldArch').existsSync(), isFalse);
+        expect(
+          _read(root, featurePath),
+          contains('](../../../specs/flutter/f02_feedback/ARCHITECTURE.md)'),
+        );
+        expect(
+          _read(root, newArch),
+          contains('](../../../prds/features/f02_feedback/FEATURE.md)'),
+        );
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        for (final path in [featurePath, newArch]) {
+          expect(_read(root, path), contains('approved: "'));
+        }
+        final check = await _run(root, home, ['check', '--json']);
+        final stale = [
+          for (final finding
+              in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                  as List<Object?>)
+            if (finding case {
+              'kind': 'approval_stale',
+              'path': final String docPath,
+            })
+              docPath,
+        ];
+        expect(stale, isEmpty);
+        final again = await _run(root, home, ['migrate'], console: _owner());
+        expect(again.out, 'nothing to migrate\n');
+      });
+
+      test('a tree move onto a path a doc already holds refuses with exit 65 '
+          'and leaves the tree unwritten', () async {
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml': twinConfig(),
+          _gitignore: _ignoreFile,
+          featurePath: approvedAs(
+            'feature',
+            '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
+          ),
+          oldArch: approvedAs(
+            'architecture',
+            '# Architecture\n\n[f](../../prds/features/f02_feedback/FEATURE.md)\n',
+          ),
+          newArch: approvedAs(
+            'architecture',
+            '# Architecture\n\n[f](../../../prds/features/f02_feedback/FEATURE.md)\n',
+          ),
+        });
+        final before = _bytesUnder(root);
+        final head = _head(root);
+
+        for (final args in [
+          ['migrate', '--dry-run'],
+          ['migrate'],
+        ]) {
+          final result = await _run(root, home, args, console: _owner());
+
+          expect(result.status, 65, reason: args.join(' '));
+          expect(result.out, isEmpty, reason: args.join(' '));
+          expect(
+            result.err,
+            startsWith('specs/f02_feedback/ARCHITECTURE.md: '),
+            reason: args.join(' '),
+          );
+          expect(
+            result.err,
+            contains('specs/flutter/f02_feedback/ARCHITECTURE.md'),
+            reason: args.join(' '),
+          );
+        }
+        expect(_bytesUnder(root), before);
+        expect(_head(root), head);
+      });
+    });
+
+    group('test-name pass', () {
+      const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+      const storyPath =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+      const frPath =
+          'docs/prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      const testPath = 'app/test/auth_test.dart';
+      const otherPath = 'app/vendor/test/dep_test.dart';
+
+      String source(String name) =>
+          "void main() {\n  test('$name', () {});\n}\n";
+
+      test(
+        'a project pinned before the release gets each '
+        'requirement test file in its record, the test names keep their '
+        'words, and the plan counts the name in another repository left',
+        () async {
+          final home = await writeTree({});
+          final root = await gitFixture({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+                '  software-tech: 1.4.0\ncode_root: app\n'
+                'agent_file_roots:\n  - app/vendor\n',
+            _gitignore: _ignoreFile,
+            '.gitignore': 'app/vendor/\n',
+            featurePath: '# Login\n',
+            storyPath: '# Email login\n',
+            frPath: '# Validate credentials\n',
+            testPath: source('f01/us01/fr01 rejects a wrong password'),
+          });
+          final vendor = Directory('${root.path}/app/vendor')
+            ..createSync(recursive: true);
+          File('${root.path}/$otherPath')
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync(source('f01/us01/fr01 dep'));
+          commitRepo(vendor);
+
+          final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+          expect(dry.status, 0, reason: dry.err);
+          expect(
+            dry.out,
+            contains(
+              '  tests: 2 lines in 1 records; names: 1 rewritten in 1 files; '
+              'left: 1\n',
+            ),
+          );
+          expect(
+            dry.out,
+            contains(
+              '  .specstone/records/f01_login/IMPLEMENTATION.md (draft)',
+            ),
+          );
+          final json = await _run(root, home, [
+            'migrate',
+            '--dry-run',
+            '--json',
+          ]);
+          expect(json.status, 0, reason: json.err);
+          final tests =
+              (jsonDecode(json.out) as Map<String, Object?>)['tests']!
+                  as Map<String, Object?>;
+          expect(tests['written'], hasLength(2));
+          expect(tests['rewritten'], hasLength(1));
+          expect(tests['left'], hasLength(1));
+          final lines = dry.out.split('\n');
+          final applied = await _run(root, home, [
+            'migrate',
+            '--yes',
+            '--plan',
+            lines[lines.length - 3].substring('plan '.length),
+          ]);
+
+          expect(applied.status, 0, reason: applied.err);
+          final record = _read(root, recordPath);
+          expect(record, contains('draft: true'));
+          expect(
+            record,
+            contains('email_login/validate_credentials:test/auth_test.dart'),
+          );
+          expect(
+            record,
+            contains(
+              'email_login/validate_credentials:vendor/test/dep_test.dart',
+            ),
+          );
+          expect(_read(root, testPath), source('rejects a wrong password'));
+          expect(_read(root, otherPath), source('f01/us01/fr01 dep'));
+        },
+      );
+
+      test('a test file in a nested repository gets no commit, and only the '
+          "project's repository does", () async {
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.4.0\ncode_root: app\n'
+              'agent_file_roots:\n  - app/vendor\n',
+          _gitignore: _ignoreFile,
+          '.gitignore': 'app/vendor/\n',
+          featurePath: '# Login\n',
+          storyPath: '# Email login\n',
+          frPath: '# Validate credentials\n',
+          testPath: source('f01/us01/fr01 rejects a wrong password'),
+        });
+        final vendor = Directory('${root.path}/app/vendor')
+          ..createSync(recursive: true);
+        File('${root.path}/$otherPath')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(source('f01/us01/fr01 dep'));
+        commitRepo(vendor);
+        final vendorHead = _head(vendor);
+        final projectCommits = _subjects(root).length;
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_subjects(root).length, greaterThan(projectCommits));
+        expect(_head(vendor), vendorHead);
+        expect(_gitOut(vendor, ['status', '--porcelain']).trim(), isEmpty);
+        expect(_read(root, otherPath), source('f01/us01/fr01 dep'));
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          isNot(contains('vendor')),
+        );
+      });
+    });
+
+    group('cite pass', () {
+      const storyPath =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+      const frPath =
+          'docs/prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      const topicPath = 'docs/specs/topics/cites.md';
+      const scenario =
+          '### Scenario 1 — [happy] Sign in\n\n'
+          '- **Given** the rule `rules:login` INV-6\n';
+
+      test('a release '
+          'that brings the cite rule links each cite that names one part, '
+          'counts the rest, keeps every approval, and runs once', () async {
+        final layers = {
+          _rulesLayerFile: _rulesLayer,
+          charterLayerFile: charterLayer,
+        };
+        final types = TemplateResolver().resolveCarried(
+          packNames: const ['prd-core', 'software-tech'],
+          homeDirectory: null,
+          projectLayers: parseOverrides(layers),
+        );
+        // Approved under the 1.6.0 pin, whose hash still counts statuses.
+        String approved(String text, String docTypeId) => withApprovalHash(
+          text,
+          types.lookup(docTypeId),
+          statusesOutside: false,
+        );
+        Future<List<Map<String, Object?>>> findings(
+          Directory root,
+          Directory home,
+        ) async {
+          final check = await _run(root, home, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return [
+            for (final finding in report['findings']! as List<Object?>)
+              finding! as Map<String, Object?>,
+          ];
+        }
+
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n',
+          _gitignore: _ignoreFile,
+          ...layers,
+          'docs/prds/features/f01_login/FEATURE.md': approved(
+            '# Login\n',
+            'feature',
+          ),
+          storyPath: approved(
+            '# Email login\n\n## Acceptance Criteria\n\n$scenario',
+            'user_story',
+          ),
+          frPath: approved(
+            '---\ntraced_from:\n  - S1\nconfirmed:\n'
+                '  - S1 ${fingerprintOf(scenario)}\n---\n\n# Validate\n',
+            'fr',
+          ),
+          'docs/specs/f01_login/RULES.md': approved(
+            '# Login rules\n\n## Invariants\n\n- **INV-6** One email.\n',
+            'rules',
+          ),
+          'docs/prds/features/f01_login/f01_sso/FEATURE.md': approved(
+            '# Single sign-on\n',
+            'feature',
+          ),
+          'docs/specs/f01_login/f01_sso/RULES.md': approved(
+            '# SSO rules\n',
+            'rules',
+          ),
+          topicPath: approved(
+            '# Cites\n\n## Rules\n\n'
+                'See `rules:login` INV-6 and `login/sso`.\n',
+            'charter',
+          ),
+        });
+
+        final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(json.status, 0, reason: json.err);
+        final plan = jsonDecode(json.out) as Map<String, Object?>;
+        expect(plan['cites'], {
+          'rewritten': [
+            'prds/features/f01_login/us01_email_login/USER_STORY.md',
+            'specs/topics/cites.md',
+          ],
+          'left': [matches(RegExp(r'^specs/topics/cites\.md:\d+ login/sso$'))],
+        });
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          contains('  cites: 2 rewrites in 2 docs; left: 1\n'),
+        );
+        expect(
+          _read(root, storyPath),
+          contains(
+            '- **Given** the rule '
+            '[INV-6](../../../../specs/f01_login/RULES.md#invariants)\n',
+          ),
+        );
+        expect(
+          _read(root, topicPath),
+          contains(
+            'See [INV-6](../f01_login/RULES.md#invariants) and `login/sso`.\n',
+          ),
+        );
+        final after = await findings(root, home);
+        final kinds = [for (final finding in after) finding['kind']];
+        expect(kinds, isNot(contains('approval_stale')));
+        expect(kinds, isNot(contains('suspect')));
+        expect(
+          [
+            for (final finding in after)
+              if (finding['kind'] == 'cite_unlinked') finding['path'],
+          ],
+          [topicPath.substring('docs/'.length)],
+        );
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+      });
+    });
+  }, skip: hasGit ? null : 'git is not available');
+
+  group('migrate --add, in the built CLI', () {
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    Future<ProcessResult> migrate(
+      Directory workingDirectory,
+      List<String> args, {
+      Directory? home,
+    }) => runSpecstone(
+      binary,
+      ['migrate', ...args],
+      workingDirectory: workingDirectory.path,
+      environment: {
+        'HOME': (home ?? testHome()).path,
+        'USERPROFILE': (home ?? testHome()).path,
+      },
+    );
+
+    test('an add value outside kebab-case exits 64 before any project is '
+        'found', () async {
+      final bare = await writeTree({'keep.txt': ''});
+
+      final result = await migrate(bare, ['--add', 'My_Pack']);
+
+      expect(result.exitCode, 64, reason: '${result.stdout}\n${result.stderr}');
+      expect(
+        result.stderr,
+        startsWith('--add takes a pack name in kebab-case\n'),
+      );
+    });
+
+    test(
+      'an add value holding a comma exits 64 as outside kebab-case',
+      () async {
+        final bare = await writeTree({'keep.txt': ''});
+
+        final result = await migrate(bare, ['--add', 'a,b']);
+
+        expect(
+          result.exitCode,
+          64,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect(
+          result.stderr,
+          startsWith('--add takes a pack name in kebab-case\n'),
+        );
+      },
+    );
+
+    test('a personal pack in the home folder passes the name '
+        'checks', () async {
+      final project = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+      final home = await writeTree({
+        '.specstone/packs/mine/pack.yaml': 'name: mine\nversion: 1.0.0\n',
+      });
+
+      final result = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'mine',
+      ], home: home);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(
+        result.stdout,
+        startsWith('pack upgrade: mine 1.0.0 (added)\ncommit 2, rewrites:\n'),
+      );
+      expect(result.stdout, contains('dry run: nothing written'));
+    });
+
+    Future<Directory> pinProject() => gitFixture({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      _gitignore: _ignoreFile,
+    });
+
+    final planLine = RegExp(r'^plan ([0-9a-f]+)$', multiLine: true);
+    final skills = shippedPackVersions()['agent-skills'];
+
+    test('a dry run with an add prints its plan and hash and writes '
+        'nothing', () async {
+      final project = await pinProject();
+      final before = _bytesUnder(project);
+
+      final result = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'agent-skills',
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(
+        result.stdout,
+        startsWith('pack upgrade: agent-skills $skills (added)\n'),
+      );
+      expect(
+        result.stdout,
+        contains('  .specstone/config.yaml: agent-skills $skills (added)\n'),
+      );
+      expect(planLine.hasMatch(result.stdout as String), isTrue);
+      expect(result.stdout, contains('dry run: nothing written'));
+      expect(_bytesUnder(project), before);
+    });
+
+    test('a json dry run with an add carries addedPins', () async {
+      final project = await pinProject();
+
+      final result = await migrate(project, [
+        '--dry-run',
+        '--json',
+        '--add',
+        'agent-skills',
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      final plan = jsonDecode(result.stdout as String) as Map<String, Object?>;
+      expect(plan['addedPins'], [
+        {'pack': 'agent-skills', 'version': skills},
+      ]);
+    });
+
+    test('applying agent-skills over an untyped skill spec file leaves it a '
+        'draft', () async {
+      final project = await gitFixture({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        'docs/specs/skills/review.md': '# Review\n\n## Purpose\n\nReviews.\n',
+        _gitignore: _ignoreFile,
+      });
+      final dry = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'agent-skills',
+      ]);
+      expect(dry.stdout, contains('  typed by the add: 1 docs\n'));
+      final hash = planLine.firstMatch(dry.stdout as String)!.group(1)!;
+
+      final applied = await migrate(project, [
+        '--yes',
+        '--plan',
+        hash,
+        '--add',
+        'agent-skills',
+      ]);
+
+      expect(
+        applied.exitCode,
+        0,
+        reason: '${applied.stdout}\n${applied.stderr}',
+      );
+      final text = _read(project, 'docs/specs/skills/review.md');
+      expect(text, startsWith('---\ndraft: true\n---\n'));
+      expect(text, isNot(contains('approved:')));
+    });
+
+    test('the apply with the same adds pins agent-skills at the shipped '
+        'version', () async {
+      final project = await pinProject();
+      final dry = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'agent-skills',
+      ]);
+      final hash = planLine.firstMatch(dry.stdout as String)!.group(1)!;
+
+      final applied = await migrate(project, [
+        '--yes',
+        '--plan',
+        hash,
+        '--add',
+        'agent-skills',
+      ]);
+
+      expect(
+        applied.exitCode,
+        0,
+        reason: '${applied.stdout}\n${applied.stderr}',
+      );
+      expect(
+        _read(project, '.specstone/config.yaml'),
+        contains(
+          '  software-tech: ${shippedPackVersions()['software-tech']}\n'
+          '  agent-skills: $skills\n',
+        ),
+      );
+      expect(_subjects(project).first, 'upgrade pack pins');
+      expect(_gitOut(project, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('adds in another order give the same hash, a repeated name '
+        'included', () async {
+      final project = await pinProject();
+      final orders = [
+        ['--add', 'marketing', '--add', 'agent-skills'],
+        ['--add', 'agent-skills', '--add', 'marketing'],
+        [
+          '--add',
+          'agent-skills',
+          '--add',
+          'agent-skills',
+          '--add',
+          'marketing',
+        ],
+      ];
+
+      final outputs = [
+        for (final order in orders)
+          (await migrate(project, ['--dry-run', ...order])).stdout as String,
+      ];
+
+      expect(planLine.hasMatch(outputs.first), isTrue);
+      expect(
+        outputs.first,
+        startsWith(
+          'pack upgrade: agent-skills $skills (added), marketing '
+          '${shippedPackVersions()['marketing']} (added)\n',
+        ),
+      );
+      expect(outputs[1], outputs.first);
+      expect(outputs[2], outputs.first);
+    });
+
+    test('the apply with a different add list is plan_mismatch', () async {
+      final project = await pinProject();
+      final dry = await migrate(project, [
+        '--dry-run',
+        '--add',
+        'agent-skills',
+      ]);
+      final hash = planLine.firstMatch(dry.stdout as String)!.group(1)!;
+      final before = _bytesUnder(project);
+
+      final applied = await migrate(project, [
+        '--yes',
+        '--plan',
+        hash,
+        '--add',
+        'marketing',
+      ]);
+
+      expect(
+        applied.exitCode,
+        75,
+        reason: '${applied.stdout}\n${applied.stderr}',
+      );
+      expect(
+        applied.stderr,
+        startsWith('the plan is not the one the Owner saw in the dry run'),
+      );
+      expect(_bytesUnder(project), before);
+    });
+  });
+}

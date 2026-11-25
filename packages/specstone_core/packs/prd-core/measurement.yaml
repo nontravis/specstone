@@ -1,0 +1,93 @@
+id: measurement
+description: |-
+  A measurement: the evidence for one project goal, kept as a log of runs.
+  Title it `# <the goal's short name>`, with no number. The folder name, the goal's short name in `snake_case`, is its identity.
+  Put one markdown link in the head, the text between the title and the first section, to the measured goal's `### PG-` heading in GOAL.
+  Make its text the goal's short name and its anchor the heading's, such as `#pg-01--grounding-cost-per-feature`.
+  Measure one goal, never a vision; the goal's `**Metric:**` line links back to this doc.
+  Results is a log: a run adds its row on top and never edits an older row.
+  Every other section states the present truth. Open causes holds the latest run's causes alone, rewritten each run.
+  Name no other goal's runs as this goal's own in the Metric, Results, or Open causes text.
+  Keep each file a Method step runs or a Source cell links in this measurement's folder.
+  Make none a `.md` file, since a `.md` file there is an untyped doc.
+  Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
+  Keep a bound in the item it limits, never in the prose.
+path: measurements/{slug}/MEASUREMENT.md
+summary_for: [project, goal]
+sections:
+  - id: scope
+    header: Scope
+    required: true
+    summary: true
+    description: |-
+      State what is measured, the runs, projects, agents, or channels, as a table or a list.
+    template: |-
+      - <what is measured>
+    lint:
+      banned_patterns:
+        - id: history
+          pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+          message: history prose; state the present truth only
+          in: text
+  - id: method
+    header: Method
+    required: true
+    description: |-
+      Write numbered steps, one per action, that a reader repeats to take one run.
+    template: |-
+      1. <one step of a run>
+    lint:
+      banned_patterns:
+        - id: history
+          pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+          message: history prose; state the present truth only
+          in: text
+        - id: method_numbered
+          # \S skips a blank line and an indented wrapped line; the lookahead's second branch skips the section header line.
+          # The engine reads one line at a time, so an unindented lazy continuation of a step is flagged; indent a wrapped line.
+          pattern: '^(?!\d+\. |## )\S.*$'
+          message: 'Method line does not open with a step number; guide line: Write numbered steps, one per action'
+          in: all
+  - id: baseline
+    header: Baseline
+    description: |-
+      Leave the section out when no figure from before the first run exists.
+    template: |-
+      | Metric | Run | Value | Date | Source |
+      |---|---|---|---|---|
+      | <metric> | <run> | <value> | <date> | <source> |
+    lint:
+      banned_patterns:
+        - id: history
+          pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+          message: history prose; state the present truth only
+          in: text
+  - id: results
+    header: Results
+    required: true
+    summary_rows: 1
+    description: |-
+      Put the version or commit in the Version column, and one column per metric.
+      Leave the table with no body row for a goal not yet measured.
+    template: |-
+      Newest first. Met: <the goal's pass condition>.
+
+      | Date | Version | Run | <metric> | Met |
+      |---|---|---|---|---|
+  - id: open_causes
+    header: Open causes
+    required: true
+    description: |-
+      Write `N/A` when none.
+    template: |-
+      <the causes of the latest run, or N/A>
+    lint:
+      banned_patterns:
+        - id: history
+          pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+          message: history prose; state the present truth only
+          in: text
+lint:
+  title_no_number: true
+  max_lines: 400
+  max_chars: 20000

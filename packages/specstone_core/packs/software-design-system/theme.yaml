@@ -1,0 +1,18 @@
+id: theme
+description: |-
+  The theme doc: the themes and how each maps the tokens.
+title: Themes
+path: specs/design_system/foundations/THEME.md
+sections:
+  - id: themes
+    header: Themes
+    required: true
+    description: |-
+      List each theme with its name and when it applies.
+  - id: token_mapping
+    header: Token mapping
+    required: true
+    description: |-
+      Write one table: a row per token, a column per theme, each cell the value that theme gives the token.
+lint:
+  title_no_number: true

@@ -1,0 +1,66 @@
+id: project_architecture
+extends: architecture
+description: |-
+  The project's architecture, the primary architecture doc, holding the context, containers, deployment, data, and risks every feature runs on.
+  Title it `# <Project name> architecture`, such as `# Specstone architecture`, with no number.
+  A feature's ARCHITECTURE.md is an optional delta on it.
+  Write no code samples or skill and agent steps; code holds the implementation.
+  Write no design rationale here; a decision's why goes in its `decision` doc, linked from here.
+  The project's SECURITY may cite the project's ARCHITECTURE by a section link, such as `[Specstone architecture](ARCHITECTURE.md#technical-diagram)`.
+  Write one rule per ID: one Components row per component.
+path: specs/ARCHITECTURE.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: overrides
+    disabled: true
+  - id: covers
+    type: output_ref
+    list: true
+    pointer: prefix
+    root: project
+    description: |-
+      Lists code paths from the project root, such as `src/billing/`; a folder covers the files under it.
+      An entry may end in one space and its code fingerprint.
+sections:
+  - id: technical_diagram
+    description: |-
+      Write Mermaid blocks alone, no prose: one or more component diagrams, then each other view only when its line says, in the order below; any view may repeat.
+      Open each diagram with a `title:` that starts with its view name, such as `title: Deployment — production`.
+      Type every box as `Name (technology)`, such as `A["Formatter (Dart)"]`, and label every arrow with its intent and protocol; write no bare `Uses`. Quote a label holding a bracket, parenthesis, or brace, and write `"` inside it as `#quot;`.
+      Keep each diagram to 12 boxes or 12 messages, and split past that; write no `classDef` or `style`, and no `stateDiagram-v2`, `erDiagram`, `classDiagram`, gantt, or pie.
+      Name each box and participant a Component or System name or a `feature:` mention, and each `actor` a role; put a flow's explanation in the FR it serves when users see it, else in a `decision` doc.
+      Technical context view, a `flowchart`; always, citing the business context of FEATURES and never copying it.
+      Component view, a `flowchart` of exactly the Components rows; always.
+      Deployment view, a `flowchart` with one `subgraph` per runtime node, the components inside it, and each link between nodes labelled with its protocol, no Why; when components run on more than one runtime node or environment.
+      Data flow view, a `flowchart`; when data passes three or more stages that change its shape.
+      Dependency view, a `flowchart`; when a rule fixes which component may depend on which.
+      Sequence view, one `sequenceDiagram` per scenario, its scenario name in its `title:`; when a flow crosses three or more components, runs async, or fails on a path unlike its happy path.
+  - id: deployment
+    description: |-
+      Write it only when every feature runs somewhere the tech stack doc does not say.
+      Write a table of where each component runs, one row per component, such as process, container, edge, or browser.
+      Add a one-clause Why on each row, saying why it runs there, no design decision's rationale.
+      Write no link between runtime nodes; the Deployment view draws them.
+      Split the table per environment only when environments differ.
+  - id: external_systems
+    header: External systems
+    description: |-
+      Write a table with the columns System, Purpose, Protocol, Owned by; list every outside system the project calls.
+      Write Purpose as why the project calls the system, and Protocol such as REST, gRPC, webhook, or event.
+      Write Owned by as an internal team or a vendor.
+  - id: contract_per_system
+    header: Contract per system
+    description: |-
+      Write one `###` per system, with Endpoints used as a table of Direction, Method / Event, Purpose.
+      Write Credentials as location and rotation only, never a value.
+      Write Failure handling in numbers: connect and request timeouts, the one layer that retries, backoff with jitter,
+      max attempts, and a circuit breaker when used; add provider rate limits as an optional row.
+      Write Idempotency as key source, duplicate behavior, and expiry.
+  - id: crosscutting_concepts
+    header: Crosscutting concepts
+    prefix_id: CC-
+    description: |-
+      Write one item per rule two or more features share and none owns, as `- **CC-<N>** <rule>`; IDs are append-only, never reused.
+      Write each rule so a reviewer can check it against a diff, with numbers, not adjectives.
+      Nest a `- **Binds:** <feature links>` line naming each feature it binds.

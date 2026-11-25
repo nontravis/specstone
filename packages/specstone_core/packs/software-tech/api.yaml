@@ -1,0 +1,167 @@
+id: api
+description: |-
+  One feature's API: its operations, how each is called, and where the source of truth declares it.
+  Title it `# <Feature name> API`, such as `# Rendering API`, with no number.
+  Copy no request or response schema; the source of truth owns it.
+  Put no stack trace or internals in any error body.
+  A fact whose change breaks a caller's code goes in this doc's operation, not in the FR. Every other fact of that operation stays in its FR.
+  Write one rule per ID: one `###` per operation, filled as Operations gives; state every other rule in one sentence.
+  Put a rule every feature uses in the project's API doc.
+path: specs/f{nn}_{slug}/API.md
+parent: feature
+per_target: true
+fields:
+  - id: confirmed
+    type: string
+    list: true
+    description: |-
+      Records one `<FR ref> <fingerprint>` per FR trace row, the ref as its FR cell writes it, such as `email_login/validate_credentials 5d1e0c4b7a92`; it counts once the Owner approves the doc.
+sections:
+  - id: source_of_truth
+    header: Source-of-truth
+    description: |-
+      Write a table of Format, Path, Purpose for the project's OpenAPI, OpenRPC, `.proto`, GraphQL SDL, or AsyncAPI file; it is absent for a CLI or a library without one.
+      Write each Path relative to this file, naming a real file.
+  - id: fr_trace
+    header: FR trace
+    required: true
+    description: |-
+      Write a table of FR and Operation, one row per FR, so an operation proving two FRs takes two rows.
+      Put the `operationId` or command in Operation, a pointer, never a copy.
+      Name each FR by its path below this API's feature, `<story slug>/<fr slug>` such as `email_login/validate_credentials`,
+      or `<sub-feature slug>/<story slug>/<fr slug>` in a sub-feature.
+  - id: operations
+    header: Operations
+    required: true
+    description: |-
+      Write one `###` per operation, headed `` `<operation>` `` alone with no FR label, then the lines of its style below, each only when it applies, then the lines every operation takes.
+      With a source of truth, point to the operation in that file and keep the lines every operation takes and only what the file cannot hold: auth scope, effect, and limits. Without one, write the inputs and the output, each field with its type, required mark, and range, and optionally one request and one response example.
+      Write Auth as `**Auth:** <scope or none>`, `**Idempotent:**` on every mutating operation as `yes` with the key or `no`, and `**Limits:**` only when the operation departs from the default limits of the project API conventions.
+      Write one Errors line, `**Errors:** <codes>; see <links>`. List every code the operation returns as a code span, then one link per catalog that owns them: the `errors` section here, or the project API `error_model` for a shared code. Hold no per-code text, and hand off to no other operation's list. Write `**Errors:** none` when the operation returns no code. When the codes would pass the sentence word cap, name in place of its codes each catalog group the operation returns whole: ``**Errors:** the `<group>` codes, `<code>`, …; see <links>``.
+      Write no Why line; a legacy Why's reason goes to the traced FR's `Rationale`.
+      REST: `<operationId>`; **Call:** the method and path. **Input:** a table of Name, In, Type, Required, Constraint. **Output:** the status and a schema name or field table. **Effect:** read-only, creates, updates, or deletes. **Deprecated:** the date and the successor.
+      JSON-RPC: `<method>`; **Params:** by-name or by-position, a table of Name, Type, Required, Constraint. **Result:** a type, or none for a notification. **Effect** and **Deprecated** as in REST.
+      gRPC: `<Service>.<Rpc>`; **Call:** the `rpc` line and its standard method, or custom. **Input:** the request's fields, a table of Name, Number, Type, Required, Constraint. **Output:** the response or the resource. **Effect** and **Deprecated** as in REST.
+      GraphQL: `Query.<field>`, `Mutation.<field>`, or `Subscription.<field>`; **Args:** a table of Name, Type, Default. **Returns:** the type with its nullability. **Deprecated** as in REST.
+      Events: `<event type>`; **Direction:** send or receive. **Channel:** the address and its parameters. **Message:** its name, its headers, and a payload table of Name, Type, Required. **Reply:** a message and its channel, or none. **Delivery:** at-least-once or at-most-once, with a dedup key only when it departs from the project rule.
+      CLI: `<command> <subcommand>`; **Synopsis:** the call line. **Options:** a table of Flag, Argument, Default, Effect. **Operands / Stdin:** what each holds. **Stdout:** the format, the `--json` shape included. **Files written:** the paths, or none. **Exit:** each status and its condition. **Env:** the variables only this command reads.
+      MCP tools: `<tool name>`; **Input:** the `inputSchema` fields, a table of Name, Type, Required, Constraint. **Output:** the `outputSchema` fields or the content kind. **Hints:** readOnly, destructive, idempotent, openWorld. **Handle:** only for a stateful tool.
+      Library: `<symbol>`; **Signature:** the declaration. **Params:** a table of Name, Type, and the meaning of null or a default. **Returns:** the type and what it holds. **Panics:** when it applies.
+    lint:
+      banned_patterns:
+        - id: operation_heading
+          pattern: '^### `[^`]+`\s*\S'
+          message: 'operation heading has text after its code span; guide line: alone with no FR label'
+          in: all
+        - id: why_line
+          pattern: '^(?:- )?\*\*Why:\*\*'
+          message: 'operation holds a Why line; guide line: Write no Why line'
+          in: all
+      required_patterns:
+        - id: errors_line
+          pattern: '^(?:- )?\*\*Errors:\*\*'
+          message: 'no Errors line in the colon form; guide line: Write one Errors line'
+          per_subsection: true
+        - id: auth_line
+          pattern: '^(?:- )?\*\*Auth:\*\*'
+          message: 'no Auth line in the colon form; guide line: **Auth:** <scope or none>'
+          per_subsection: true
+      max_code_blocks:
+        count: 2
+        per_subsection: true
+  - id: errors
+    header: Errors
+    description: |-
+      Write a table with the columns Code, Status or exit, Condition, Client action, Retryable, and an optional Group column: a slug naming codes several operations return together, such as `template_fault`, unique in the catalog; no check reads it.
+      Write one row per error code the feature adds beyond the project's shared codes. Keep codes stable, never reused for a different error.
+      Write Condition as the general condition that raises the code, such as a flag out of range; list no raising site there. Write Client action as one line: the action the client takes, not user copy.
+      Restate neither the project's error envelope nor its retry rule. To depart from an `API-E<N>` item, write `Overrides: [API-E<N>](…) — <how it departs>` under this section.
+    lint:
+      catalog:
+        column: Code
+      max_sentences:
+        - count: 1
+          column: Condition
+        - count: 1
+          column: Client action
+  - id: compatibility
+    header: Compatibility
+    description: |-
+      Write only the feature's departures from the project's compatibility rule, and its deprecations with dates.
+lint:
+  title_no_number: true
+  max_chars: 50000
+  max_lines: 300
+reference:
+  - title: OpenAPI Specification 3.2.1
+    url: https://spec.openapis.org/oas/v3.2.1.html
+    locator: Operation Object (operationId); Working with Examples
+  - title: Microsoft Azure REST API Guidelines
+    url: https://github.com/microsoft/api-guidelines/blob/vNext/azure/Guidelines.md
+    locator: Exactly Once Behavior; Handling Errors
+  - title: Google AIP-121, Resource-oriented design
+    url: https://google.aip.dev/121
+    locator: Guidance
+  - title: JSON-RPC 2.0 Specification
+    url: https://www.jsonrpc.org/specification
+    locator: Request object; Response object; Notification; Error object
+  - title: OpenRPC Specification
+    url: https://spec.open-rpc.org/
+    locator: Method Object; Content Descriptor Object; Error Object
+  - title: Protocol Buffers Language Guide (proto3)
+    url: https://protobuf.dev/programming-guides/proto3/
+    locator: Defining a Message Type; Assigning Field Numbers; Reserved Fields; Defining Services
+  - title: Google AIP-180, Backwards compatibility
+    url: https://google.aip.dev/180
+    locator: Guidance (source, wire, semantic compatibility)
+  - title: Google AIP-192, Documentation
+    url: https://google.aip.dev/192
+    locator: Guidance (comments, Deprecated prefix)
+  - title: GraphQL Specification
+    url: https://spec.graphql.org/draft/
+    locator: 3 Type System (schema, root operation types, arguments, deprecation)
+  - title: GraphQL Learn, Schema Change Management
+    url: https://graphql.org/learn/governance-versioning/
+    locator: Deprecation; Breaking changes
+  - title: GraphQL Learn, Error Handling
+    url: https://graphql.org/learn/error-handling/
+    locator: Top-level errors; Errors as data
+  - title: AsyncAPI Specification 3.1.0
+    url: https://www.asyncapi.com/docs/reference/specification/v3.1.0
+    locator: Channel Object; Operation Object; Message Object; Operation Reply Object
+  - title: Standard Webhooks
+    url: https://www.standardwebhooks.com/
+    locator: Payload structure; Event types; Signatures; Retry and status handling
+  - title: POSIX.1-2024 XCU 1.4, Utility Description Defaults
+    url: https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap01.html
+    locator: 1.4 Utility Description Defaults (SYNOPSIS through EXIT STATUS)
+  - title: POSIX.1-2024 XBD 12, Utility Conventions
+    url: https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap12.html
+    locator: 12.1 Utility Argument Syntax; 12.2 Utility Syntax Guidelines
+  - title: Command Line Interface Guidelines
+    url: https://clig.dev/
+    locator: Output; Errors; Configuration; Future-proofing
+  - title: MCP Specification 2026-07-28, Tools
+    url: https://modelcontextprotocol.io/specification/2026-07-28/server/tools
+    locator: Tool; Output Schema; Error Handling
+  - title: Semantic Versioning 2.0.0
+    url: https://semver.org/spec/v2.0.0.html
+    locator: Summary; Specification items 1 to 8
+  - title: Rust API Guidelines, Documentation
+    url: https://rust-lang.github.io/api-guidelines/documentation.html
+    locator: C-FAILURE (Errors, Panics, Safety sections); C-EXAMPLE
+  - title: man-pages(7)
+    url: https://man7.org/linux/man-pages/man7/man-pages.7.html
+    locator: Sections within a manual page (SYNOPSIS, RETURN VALUE, ERRORS)
+  - title: RFC 9457, Problem Details for HTTP APIs
+    url: https://www.rfc-editor.org/rfc/rfc9457
+    locator: 3.1 Members; 4 Defining New Problem Types; 5 Security Considerations
+  - title: Google AIP-193, Errors
+    url: https://google.aip.dev/193
+    locator: ErrorInfo (reason, domain, metadata); Changing error messages
+  - title: Google AIP-194, Automatic retry configuration
+    url: https://google.aip.dev/194
+    locator: Guidance
+  - title: gRPC status codes
+    url: https://grpc.io/docs/guides/status-codes/
+    locator: The full list of status codes

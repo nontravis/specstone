@@ -1,0 +1,257 @@
+import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:test/test.dart';
+
+void main() {
+  test(
+    'a base is the first 12 hex characters of the SHA-256 of the UTF-8 text',
+    () {
+      expect(baseHashOf(''), 'e3b0c44298fc');
+      expect(emptyBaseHash, baseHashOf(''));
+      expect(baseHashOf('abc'), 'ba7816bf8f01');
+      expect(baseHashOf('ค้นหา\n'), 'caa1446653a9');
+    },
+  );
+
+  const doc = '---\na: 1\nb: 2\n---\n\n# T\n\n## A\nold\n\n## B\nb\n';
+  test(
+    'a body is replaced, its header and spacing kept, a final newline added',
+    () {
+      expect(
+        withSectionBody(doc, 0, 'new'),
+        '---\na: 1\nb: 2\n---\n\n# T\n\n## A\nnew\n\n## B\nb\n',
+      );
+      expect(
+        withSectionBody(doc, 1, 'x'),
+        '---\na: 1\nb: 2\n---\n\n# T\n\n## A\nold\n\n## B\nx\n',
+      );
+    },
+  );
+  test('a section is removed through the line before the next header', () {
+    expect(withoutSection(doc, 0), '---\na: 1\nb: 2\n---\n\n# T\n\n## B\nb\n');
+    expect(
+      withoutSection(doc, 1),
+      '---\na: 1\nb: 2\n---\n\n# T\n\n## A\nold\n',
+    );
+  });
+  test('the last section removed leaves exactly one final newline', () {
+    expect(withoutSection('# T\n\n## A\na\n', 0), '# T\n');
+    const blanks = '# T\n\n## A\na\n\n\n## B\nb';
+    expect(withoutSection(blanks, 1), '# T\n\n## A\na\n');
+    const bare = '---\na: 1\n---\n\n## A\na\n';
+    expect(withoutSection(bare, 0), '---\na: 1\n---\n');
+  });
+  test('a section is added before a later one, or at the end', () {
+    expect(
+      withSectionAdded(doc, headerLine: '## R', body: 'r', before: 1),
+      '---\na: 1\nb: 2\n---\n\n# T\n\n## A\nold\n\n## R\nr\n\n## B\nb\n',
+    );
+    expect(
+      withSectionAdded('# T\n\n## A\na', headerLine: '## R', body: 'r\n'),
+      '# T\n\n## A\na\n\n## R\nr\n',
+    );
+  });
+  test('a section added at the end of a doc ending in a blank line follows '
+      'exactly one blank line', () {
+    expect(
+      withSectionAdded('# T\n\n## A\na\n\n', headerLine: '## R', body: 'r'),
+      '# T\n\n## A\na\n\n## R\nr\n',
+    );
+    expect(
+      withSectionAdded('# T\n\n## A\na\n\n\n', headerLine: '## R', body: 'r'),
+      '# T\n\n## A\na\n\n## R\nr\n',
+    );
+  });
+  test(
+    'trailing blank lines go from the first newline of the whitespace tail',
+    () {
+      expect(withoutTrailingBlankLines('a\n \n\t'), 'a');
+      expect(withoutTrailingBlankLines('a  \n'), 'a  ');
+      expect(withoutTrailingBlankLines('a'), 'a');
+      expect(withoutTrailingBlankLines('  \n '), '  ');
+      expect(withoutTrailingBlankLines('\n'), '');
+      expect(withoutTrailingBlankLines('a\t'), 'a\t');
+    },
+  );
+  test('a ## line inside a fence is no section, so no splice lands on it', () {
+    const fenced = '# T\n\n## A\n```\n## B\n```\n\n## B\nreal\n';
+    final parsed = Doc.parse(fenced);
+    expect(parsed.sectionLineIndexes, [2, 7]);
+    expect(
+      withSectionBody(fenced, 1, 'x\n'),
+      '# T\n\n## A\n```\n## B\n```\n\n## B\nx\n',
+    );
+    expect(
+      withSectionAdded(fenced, headerLine: '## R', body: 'r\n', before: 1),
+      '# T\n\n## A\n```\n## B\n```\n\n## R\nr\n\n## B\nreal\n',
+    );
+  });
+  test('a key block is replaced, added after the last one, or removed', () {
+    expect(
+      withKeyBlock(doc, 'a', 'a: 9\n'),
+      '---\na: 9\nb: 2\n---\n\n# T\n\n## A\nold\n\n## B\nb\n',
+    );
+    expect(
+      withKeyBlock(doc, 'c', 'c:\n  - x\n'),
+      '---\na: 1\nb: 2\nc:\n  - x\n---\n\n# T\n\n## A\nold\n\n## B\nb\n',
+    );
+    expect(
+      withKeyBlock(doc, 'a', null),
+      '---\nb: 2\n---\n\n# T\n\n## A\nold\n\n## B\nb\n',
+    );
+  });
+  test(
+    'a doc with no frontmatter gains one and one blank line before its text',
+    () {
+      expect(
+        withKeyBlock('# T\n', 'draft', 'draft: true\n'),
+        '---\ndraft: true\n---\n\n# T\n',
+      );
+      expect(
+        withKeyBlock('## A\nx\n', 'draft', 'draft: true\n'),
+        '---\ndraft: true\n---\n\n## A\nx\n',
+      );
+      expect(
+        withKeyBlock('\n# T\n', 'draft', 'draft: true\n'),
+        '---\ndraft: true\n---\n\n# T\n',
+      );
+      expect(
+        withKeyBlock('', 'draft', 'draft: true\n'),
+        '---\ndraft: true\n---\n',
+      );
+      expect(withKeyBlock('# T\n', 'draft', null), '# T\n');
+    },
+  );
+  test('withKeyBlock replaces a quoted block by its name', () {
+    const quoted = '---\n"a": 1\nb: 2\n---\n# T\n';
+    expect(withKeyBlock(quoted, 'a', 'a: 9\n'), '---\na: 9\nb: 2\n---\n# T\n');
+    expect(withKeyBlock(quoted, 'a', null), '---\nb: 2\n---\n# T\n');
+  });
+  test(
+    'removing the only key block keeps the delimiters with nothing between',
+    () {
+      expect(
+        withKeyBlock('---\ndraft: true\n---\n# T\n', 'draft', null),
+        '---\n---\n# T\n',
+      );
+    },
+  );
+  test('a block is added to frontmatter that holds no key', () {
+    expect(
+      withKeyBlock('---\n---\n# T\n', 'approved', 'approved: true\n'),
+      '---\napproved: true\n---\n# T\n',
+    );
+  });
+  test(
+    'the title text is replaced, or a title line added after the frontmatter',
+    () {
+      expect(
+        withTitle(doc, 'New'),
+        '---\na: 1\nb: 2\n---\n\n# New\n\n## A\nold\n\n## B\nb\n',
+      );
+      expect(
+        withTitle('---\na: 1\n---\n\n## A\nx\n', 'New'),
+        '---\na: 1\n---\n# New\n\n## A\nx\n',
+      );
+    },
+  );
+
+  test('a lead is replaced, the title line and the blank line before the first '
+      'header kept', () {
+    const text =
+        '---\ndraft: true\n---\n\n# GNFR\n\nLead [x](a.md).\n\n## P\nfast\n';
+    expect(
+      withLead(text, 'New lead.\n'),
+      '---\ndraft: true\n---\n\n# GNFR\nNew lead.\n\n## P\nfast\n',
+    );
+    expect(
+      withLead(text, '\nNew lead.\n'),
+      '---\ndraft: true\n---\n\n# GNFR\n\nNew lead.\n\n## P\nfast\n',
+    );
+  });
+
+  test('an empty body empties the lead and keeps the rest', () {
+    const text = '# GNFR\n\nLead.\n\n## A\nx\n';
+    expect(withLead(text, ''), '# GNFR\n\n## A\nx\n');
+    expect(withLead('# GNFR\n\n## A\nx\n', ''), '# GNFR\n\n## A\nx\n');
+  });
+
+  test('a doc with no title line has its whole head replaced', () {
+    expect(
+      withLead('---\na: 1\n---\n\nOld.\n\n## A\nx\n', 'New.\n'),
+      '---\na: 1\n---\nNew.\n\n## A\nx\n',
+    );
+  });
+
+  test('text before the title line stays byte-equal', () {
+    expect(
+      withLead('before\n# T\nold\n\n## A\nx\n', 'new\n'),
+      'before\n# T\nnew\n\n## A\nx\n',
+    );
+  });
+
+  test('a lead is written into a doc with no section', () {
+    expect(withLead('# T\nold\n', 'new\n'), '# T\nnew\n');
+    expect(withLead('# T', 'new\n'), '# T\nnew\n');
+  });
+
+  test(
+    'with fieldOrder an absent key lands at its slot and no block moves',
+    () {
+      const text = '---\nb: 1\nd: 2\n---\n';
+      const order = ['a', 'b', 'c', 'd'];
+      expect(
+        withKeyBlock(text, 'c', 'c: 3\n', fieldOrder: order),
+        '---\nb: 1\nc: 3\nd: 2\n---\n',
+      );
+      expect(
+        withKeyBlock(text, 'a', 'a: 0\n', fieldOrder: order),
+        '---\na: 0\nb: 1\nd: 2\n---\n',
+      );
+      expect(
+        withKeyBlock(text, 'z', 'z: 9\n', fieldOrder: order),
+        '---\nb: 1\nd: 2\nz: 9\n---\n',
+      );
+    },
+  );
+  test(
+    'with fieldOrder a key follows the keyless block if no earlier key is held',
+    () {
+      expect(
+        withKeyBlock(
+          '---\nstray line\nd: 2\n---\n',
+          'a',
+          'a: 0\n',
+          fieldOrder: ['a', 'd'],
+        ),
+        '---\nstray line\na: 0\nd: 2\n---\n',
+      );
+    },
+  );
+  test('with fieldOrder an existing key is replaced in place', () {
+    expect(
+      withKeyBlock(
+        '---\nb: 1\nd: 2\n---\n',
+        'b',
+        'b: 7\n',
+        fieldOrder: ['d', 'b'],
+      ),
+      '---\nb: 7\nd: 2\n---\n',
+    );
+  });
+
+  test('a fingerprint is 12 lowercase hex characters and nothing else', () {
+    expect(isFingerprint(baseHashOf('abc')), isTrue);
+    for (final text in [
+      '',
+      '3f9a1c0b7e2',
+      '3f9a1c0b7e2d9',
+      '3F9A1C0B7E2D',
+      '3f9a1c0b7e2g',
+      ' 3f9a1c0b7e2d',
+      '3f9a1c0b7e2d\n',
+    ]) {
+      expect(isFingerprint(text), isFalse, reason: text);
+    }
+  });
+}

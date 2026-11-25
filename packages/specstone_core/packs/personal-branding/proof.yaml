@@ -1,0 +1,25 @@
+id: proof
+description: |-
+  The proof doc: the results, testimonials, and credentials that earn trust.
+title: Proof
+path: specs/marketing/PROOF.md
+sections:
+  - id: results
+    header: Results
+    description: |-
+      List the outcomes the person produced, each with its number or its client.
+  - id: testimonials
+    header: Testimonials
+    description: |-
+      Quote what others say about working with the person, each with its source.
+  - id: credentials
+    header: Credentials
+    description: |-
+      List the titles, certificates, and published work that back the person's claims.
+lint:
+  title_no_number: true
+reference:
+  - title: Swiftbio, personal branding guide
+    url: https://swiftbio.io/blog/personal-branding-guide
+  - title: NMS Consulting, personal branding
+    url: https://nmsconsulting.com/personal-branding-meaning-strategy-examples-frameworks-and-how-to-build-yours/

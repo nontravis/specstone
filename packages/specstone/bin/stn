@@ -1,0 +1,3 @@
+#!/bin/sh
+# Runs the specstone beside this file, arguments and streams passed through.
+exec "$(dirname "$0")/specstone" "$@"

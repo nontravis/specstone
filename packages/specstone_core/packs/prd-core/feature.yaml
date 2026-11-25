@@ -1,0 +1,172 @@
+id: feature
+description: |-
+  A feature delivers value to a persona, meets one need, and fits one planning interval.
+  Title it `# <Name>`, with no number.
+  Name the feature by its outcome for the persona, so the name implies its boundary.
+  Pair the problem with a shaped solution: a problem alone is unshaped, a solution alone has no test of fit.
+  Narrow a grab-bag, such as "X 2.0" or "redesign Y", to one problem with a clear done.
+  Split off a sibling feature for a candidate serving another goal or primary persona.
+  Keep the doc lean; never specify everything before work starts.
+  Keep prose at reader altitude: no class, function, file path, error code, plan, or ruling.
+  Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
+  Keep a bound in the item it limits, and the trace in `vision:` and `goals:`, never in the prose.
+  Place a new requirement by three questions, stating each answer when proposing the place:
+  1. Does it use an entity, invariant, or rule an existing feature owns (in its domain doc, if any)? No: a new top feature.
+  2. Yes: how many stories does it yield? One: a new story in the deepest such feature that holds stories.
+  3. Several: do they own entities or invariants the feature's other stories do not use? Yes: a new sub-feature. No: new stories in that feature.
+  A sub-feature holds at least 2 stories or sub-features; a lone story never starts one.
+  A feature with sub-features holds no story; a lone story whose only spec is such a parent goes to its closest sub-feature, and the proposal says so.
+  The parent keeps only what all its sub-features share.
+  When `check` reports `chars_over_limit` or `lines_over_limit` on a laid-out feature doc, propose to the Owner a sub-feature split by the three questions, as a move plan file.
+  Under 4 stories, say why no split applies: a split needs 2 or more sub-features.
+  `item_over_limit` and `item_lines_over_limit` take the item shape, never a split, which shrinks no item.
+  Cut no text to pass a size, but edge cases the `fr` rules leave out.
+path: prds/features/f{nn}_{slug}/FEATURE.md
+max_depth: 3
+fields:
+  - id: summary
+    type: string
+    required: true
+    description: |-
+      States in one sentence what the feature does for its persona.
+    lint:
+      max_sentences: 1
+      max_sentence_words: {default: 15, ko: 10}
+      max_sentence_chars: {default: 60, th: 60, ja: 36, zh: 27}
+  - id: vision
+    type: string
+    list: true
+    description: |-
+      Lists the PROJECT vision IDs (`PV-*`) the feature serves.
+  - id: goals
+    type: string
+    list: true
+    description: |-
+      Lists the GOAL goal IDs (`PG-*`) the feature serves.
+  - id: persona
+    type: doc_ref
+    list: true
+    doc_types: [persona]
+    description: |-
+      Names the personas served, never "everyone"; leave it out for an Agent-only feature.
+  - id: system
+    type: string
+    description: |-
+      Names a row of the Systems table in FEATURES.
+  - id: depends_on
+    type: doc_ref
+    list: true
+    doc_types: [feature]
+    description: |-
+      Names the features to build first; leave it out when none.
+  - id: patterns
+    type: string
+    list: true
+    description: |-
+      Names the feature patterns it follows, ids from `specstone guide --pattern`; leave it out when none fits.
+sections:
+  - id: problem
+    header: Problem
+    required: true
+    description: |-
+      Tell one specific story, from the persona's view, of why the current way fails.
+    template: |-
+      <One specific story, from the persona's view, that shows why the current way fails.>
+    query: true
+  - id: benefit_hypothesis
+    header: Benefit hypothesis
+    required: true
+    description: |-
+      State the outcome as a behavior change, never as the thing shipped.
+      Test value assumptions before feasibility ones.
+    template: |-
+      We believe <outcome> will be achieved if <persona> attains <benefit> with <feature>.
+  - id: success_measures
+    header: Success measures
+    required: true
+    description: |-
+      Make each measure collectable by the solution.
+      Separate business outcomes (revenue, cost) from product outcomes (behavior in the product).
+      Measure the moment value is created, not the easiest proxy before it.
+      The feature is done when its impact appears, not when it ships.
+    template: |-
+      - <behavior change> — <target> by <date>
+  - id: current_alternatives
+    header: Current alternatives
+    required: true
+    description: |-
+      Include manual workarounds.
+    template: |-
+      - <What the personas do today> — <why this feature beats it>
+  - id: flow
+    header: Feature flow
+    required: true
+    description: |-
+      Sketch the solution's core elements as a Mermaid diagram; leave layout and visual detail to design.
+      Quote a node label holding any of `()[]{}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
+    template: |-
+      ```mermaid
+      flowchart LR
+        <Step1> --> <Step2> --> <Step3>
+      ```
+    lint:
+      diagram: {}
+  - id: out_of_scope
+    header: Out-of-scope
+    required: true
+    description: |-
+      List the use cases left out to fit the appetite or keep the problem tractable.
+      Write each line as `<thing> — <owning feature | not planned>`.
+      Write a pattern item's skip line as `<pattern>/<item>` in a code span, ` — `, then the reason.
+    template: |-
+      - <thing> — <owning feature | not planned>
+      - `<pattern>/<item>` — <why the feature skips the item>
+    query: true
+    lint:
+      max_item_lines: 1
+      banned_patterns:
+        - id: out_of_scope_owner
+          pattern: '^[-*] (?!.* — )'
+          message: 'bullet names no owner; guide line: Write each line as `<thing> — <owning feature | not planned>`'
+          in: all
+  - id: appetite
+    header: Appetite
+    description: |-
+      State the time budget; let it cut scope instead of estimating scope.
+    template: |-
+      <The time budget that constrains the scope.>
+  - id: assumptions
+    header: Assumptions & rabbit holes
+    description: |-
+      Write it for a risky feature: what must hold and the top reasons it could fail.
+      List each rabbit hole (technical unknown, unsolved design problem, interdependency) and its patch.
+    template: |-
+      - **Assumption:** <what must hold>
+      - **Rabbit hole:** <the unknown> — <how it is patched>
+  - id: open_questions
+    header: Open questions
+    description: |-
+      Track each question until it is closed.
+    template: |-
+      - <Question> — <decide | research>
+  - id: faq
+    header: FAQ
+    description: |-
+      Add it when personas or the team will ask predictable questions.
+    template: |-
+      - **<Question>** <Answer>
+lint:
+  title_no_number: true
+  required_field_groups:
+    - [vision, goals]
+  max_lines: 400
+  max_chars: 20000
+reference:
+  - title: Bryar & Carr, PR/FAQ Instructions & Template
+    url: https://workingbackwards.com/resources/working-backwards-pr-faq/
+  - title: "SAFe Fellow blog, Crafting Clarity: Feature Templates (2024)"
+    url: https://framework.scaledagile.com/blog/crafting-clarity-using-feature-templates-to-shape-and-communicate-intent/
+  - title: Shape Up, Write the Pitch
+    url: https://basecamp.com/shapeup/1.5-chapter-06
+  - title: Marty Cagan, Assessing Product Opportunities
+    url: https://www.svpg.com/assessing-product-opportunities/

@@ -1,0 +1,115 @@
+# Frozen at software-tech 1.20.0, the last version that shipped this doc type,
+# with the shared fields that reached it. Only the steps that run on DOMAIN.md
+# docs before the 1.20.0 merge_doc step folds them read it.
+id: domain
+description: |-
+  One feature's domain model: its concepts, their shapes, and the invariants that hold.
+  Title it `# <Feature name> domain`, such as `# Rendering domain`, with no number.
+  Write one rule per ID: one bullet per invariant.
+  Cite this feature's ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#components)`.
+  Put a rule every feature uses in the project's DOMAIN doc.
+path: specs/f{nn}_{slug}/DOMAIN.md
+parent: feature
+per_target: true
+fields:
+  - id: overrides
+    type: string
+    list: true
+    description: |-
+      Records one `<doc type>:<name>#<ID> <fingerprint>` per `Overrides:` line link, such as `project_domain:domain#INV-3 3f9a1c0b7e2d`, counted once the Owner approves the doc.
+  - id: tasks
+    type: task_ref
+    list: true
+    description: |-
+      Lists the doc's tasks as `<item>:<task>`, or `<task>` for the whole doc, such as `INV-4:ENG-42`; `specstone-sync-sdd` drops one once its finishing commit, holding a closing word such as `Closes ENG-42`, syncs.
+sections:
+  - id: entities
+    header: Entities
+    required: true
+    description: |-
+      Write one table of Entity, Kind, Identity, Owns, an optional Refers to (by id) naming another aggregate, and Notes, one row per entity.
+      Write Kind as Aggregate root, Entity, Service, or Repository.
+    lint:
+      banned_patterns:
+        - id: entity_kind
+          pattern: '^\|[^|]*\|(?! *(?:Kind|Aggregate root|Entity|Service|Repository|:?-+:?) *\|)[^|]*\|'
+          message: 'Kind is not an allowed value; guide line: Write Kind as Aggregate root, Entity, Service, or Repository'
+          in: all
+  - id: value_objects
+    header: Value objects
+    description: |-
+      Write a table of VO, Backed by, Validation.
+      Make each value object immutable; state its shape in Validation, and link an invariant for a rule on it two or more FRs rely on; a rule one FR states stays in that FR.
+  - id: invariants
+    header: Invariants
+    required: true
+    prefix_id: INV-
+    description: |-
+      Write each invariant as `- **INV-<N>** <rule>`, never a numbered item; IDs are append-only, never reused.
+      Write an invariant only for a rule two or more FRs rely on; a behavior one FR states stays there. Delete an existing invariant one FR's Statement or edge case states; one no single FR states is kept.
+      Keep a bound (`timeout 10 s`) in the invariant it bounds; a lock, retry, or parser mechanism the rule still needs moves to ARCHITECTURE, an unhandled case to `known_limits`. A skill's or agent's step order is code, never an invariant.
+      Nest a field as `- **<field>:** <text>`. The default enforcer is the one Aggregate root of the entities table, else the one Service; nest `- **Enforcer:** <entity>` only off it, and under every invariant when there is none. Nest `- **Consistency:** eventual` and `- **Corrective policy:** <how the system restores the rule>` only for an eventual rule; no Consistency line means immediate.
+      Write no trace tag, since `reference` holds the trace; a cite or ownership note may close an invariant.
+    lint:
+      max_sentences:
+        - count: 1
+      item_fields:
+        - field: Enforcer
+          default_from: entities
+        - field: Consistency
+          values: [eventual]
+          optional: true
+        - field: Corrective policy
+          when:
+            field: Consistency
+            value: eventual
+      banned_patterns:
+        - id: numbered_invariant
+          pattern: '^\d+[.)] '
+          message: 'invariant is a numbered item; guide line: never a numbered item'
+          in: all
+  - id: known_limits
+    header: Known limits
+    description: |-
+      Write one bullet per unhandled case, saying what happens then.
+      Keep a bound an invariant enforces in that invariant.
+  - id: lifecycle
+    header: Lifecycle
+    description: |-
+      Write a Mermaid `stateDiagram-v2` alone, no prose, only when an entity has a status with 4 or more states.
+    lint:
+      banned_patterns:
+        - id: lifecycle_prose
+          pattern: '^(?!## |\s*(?:- )?Overrides:)\s*\S'
+          message: 'Lifecycle holds a line outside the Mermaid fence; guide line: Write a Mermaid `stateDiagram-v2` alone, no prose'
+          in: all
+  - id: data_touch
+    header: Data touch
+    description: |-
+      Write a table of Table, Operation, Field / Change, one row per table the feature touches.
+      Copy no column definitions; the schema file owns them.
+  - id: commands_and_events
+    header: Commands and events
+    description: |-
+      Write one table of Command, Aggregate, Event emitted.
+  - id: terms
+    header: Terms
+    description: |-
+      List only the terms beyond the project glossary.
+lint:
+  title_no_number: true
+  max_chars: 50000
+  max_lines: 300
+reference:
+  - title: Eric Evans, Domain-Driven Design Reference (2015)
+    url: https://www.domainlanguage.com/wp-content/uploads/2016/05/DDD_Reference_2015-03.pdf
+    locator: Ubiquitous Language; Entities; Value Objects; Domain Events; Aggregates
+  - title: Vaughn Vernon, Effective Aggregate Design, Part I
+    url: https://www.dddcommunity.org/wp-content/uploads/files/pdf_articles/Vernon_2011_1.pdf
+    locator: Rule - Model True Invariants in Consistency Boundaries; Rule - Design Small Aggregates
+  - title: Vaughn Vernon, Effective Aggregate Design, Part II
+    url: https://www.dddcommunity.org/wp-content/uploads/files/pdf_articles/Vernon_2011_2.pdf
+    locator: Rule - Reference Other Aggregates By Identity; Rule - Use Eventual Consistency Outside the Boundary
+  - title: DDD Crew, Aggregate Design Canvas
+    url: https://github.com/ddd-crew/aggregate-design-canvas
+    locator: How to Use, sections 3-7

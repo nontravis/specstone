@@ -1,0 +1,133 @@
+id: nf
+description: |-
+  A story-level non-functional requirement: one quantified quality target a single story tightens, relaxes, or adds.
+  Title it `# <Name>`, with no number.
+  Write one NFR per file; never restate an unchanged GNFR item, since every GNFR item applies to every story.
+  Write the statement in fr's form, with one "shall" and a quantified value.
+  Avoid -ly and -ize words beyond the banned list.
+  Write one rule per ID, keep its bound in the Statement, and leave mechanics to the spec docs.
+  Keep the trace in `traced_from` alone, never in the Statement.
+  Write only what differs from the GNFR item `overrides` names; the entry controls for this story.
+  When several stories need the same `add`, move it to GNFR.
+path: prds/features/f{nn}_{slug}/us{nn}_{slug}/nf{nn}_{slug}.md
+parent: user_story
+fields:
+  - id: kind
+    type: enum
+    enum: [tighten, relax, add]
+    required: true
+    description: |-
+      Names how the NFR relates to GNFR.
+      `tighten` sets a stricter value than GNFR and needs `overrides`; `relax` sets a looser value and needs `overrides`
+      and the Owner's approval; `add` is a new NFR only this story needs and takes no `overrides`.
+  - id: overrides
+    type: string
+    description: |-
+      Names the GNFR NFR id the entry replaces for this story, such as `NFR-P01`.
+      Write it for `tighten` and `relax`; leave it out for `add`.
+  - id: traced_from
+    type: string
+    list: true
+    description: |-
+      Names the source of the NFR: a PG id, a stakeholder expectation, a standard, or `self-derived`.
+      Write it for `add` only; `tighten` and `relax` trace through `overrides`.
+  - id: verify_method
+    type: enum
+    enum: [test, analysis, inspection, demonstration]
+    required: true
+    description: |-
+      Names how the requirement is proven; set it with the statement.
+      `test` runs the product and checks measured output; `analysis` reasons or calculates.
+      `inspection` examines the artifact, such as code or a document; `demonstration` shows it working unmeasured.
+  - id: owner
+    type: string
+    description: |-
+      Names who writes the requirement and approves its changes; blank when the PROJECT owner holds it.
+  - id: confirmed
+    type: string
+    list: true
+    description: |-
+      Records one `<link> <fingerprint>` entry per tracked link, such as `NFR-P01 9a1c03be55d2`.
+      Copy the fingerprint `specstone check` prints; the entry counts once the Owner approves the doc.
+sections:
+  - id: statement
+    header: Statement
+    required: true
+    description: |-
+      Use one "shall" and a positive form; give every value a unit and a tolerance (<, ≥, ±). Use no EARS keywords.
+    template: |-
+      The <product> shall <verb> <object> <value ± tolerance> <condition>.
+    summary: true
+    lint:
+      banned_patterns:
+        - id: trace_outside_field
+          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
+          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          message: 'trace in the Statement; guide line: Keep the trace in `traced_from` alone, never in the Statement'
+          in: all
+      banned_words:
+        - flexible
+        - easy
+        - sufficient
+        - safe
+        - ad hoc
+        - adequate
+        - accommodate
+        - user-friendly
+        - usable
+        - when required
+        - if required
+        - appropriate
+        - fast
+        - portable
+        - light-weight
+        - small
+        - large
+        - maximize
+        - minimize
+        - robust
+        - quickly
+        - easily
+        - clearly
+        - this
+        - these
+        - as appropriate
+        - etc.
+        - and/or
+        - but not limited to
+  - id: rationale
+    header: Rationale
+    required: true
+    description: |-
+      Give the reason, the assumptions, and the related requirements.
+      For `tighten`, say why the stricter value is needed; it is a derived requirement.
+      For `relax`, say why the waiver is acceptable, and record the Owner's approval.
+    template: |-
+      <reason; for kind relax, why the waiver is acceptable>
+  - id: verification
+    header: Verification
+    required: true
+    description: |-
+      Give as pass criteria the observable condition that shows the requirement holds, apart from the statement.
+      Give the proof level, such as unit, integration, or end to end.
+    template: |-
+      - **Pass criteria:** <what shows the requirement holds>
+      - **Level:** <level>
+  - id: tbr
+    header: TBR
+    description: |-
+      Write it when a value is still open; avoid TBD and give a best estimate marked TBR.
+    template: |-
+      - **Value:** <best estimate>
+      - **Why:** <reason>
+      - **Close action:** <what resolves it>
+      - **Who:** <name>
+      - **By when:** <date or milestone>
+lint:
+  title_no_number: true
+  max_lines: 400
+  max_chars: 20000
+reference:
+  - title: NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2
+    url: https://www.nasa.gov/reference/systems-engineering-handbook/
+    locator: Appendix C and section 4.2

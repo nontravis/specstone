@@ -1,0 +1,26 @@
+id: retention
+description: a program that keeps existing customers buying
+items:
+  - id: retention_goal
+    text: The program states one retention goal with a number, such as the share of customers who buy again.
+  - id: lapse_definition
+    text: The program defines when a customer counts as lapsed and what message follows.
+  - id: owned_channels
+    text: Messages go through owned channels the customer already uses, and each channel states its cadence.
+  - id: advocacy_path
+    text: Loyal customers are offered a way to advocate, such as a referral or a review, so retention feeds new customers.
+  - id: feedback_loop
+    text: Customer feedback reaches the team, and each learning edits the doc it corrects.
+  - id: cohort_retention
+    text: The program measures retention by cohort and compares it with the goal.
+reference:
+  - title: Anthropic marketing plugin, campaign-plan
+    url: https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/marketing/skills/campaign-plan/SKILL.md
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md
+  - title: Amplitude, AARRR pirate metrics
+    url: https://amplitude.com/blog/pirate-metrics-framework
+  - title: Ortto, Marketing funnel explained
+    url: https://ortto.com/learn/marketing-funnel-explained/
+  - title: Extole, Reward brand advocates
+    url: https://www.extole.com/blog/how-to-reward-brand-advocates-effectively-rewards-tiers-and-community-programs/

@@ -1,0 +1,213 @@
+import 'dart:io';
+
+import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/doc_model/models/spec_child.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart' show docNameOf;
+import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
+
+final _slugShape = RegExp(r'^[a-z0-9_]+$');
+
+/// Returns [n] zero-padded to two digits; a number past 99 keeps its digits.
+String padNumber(int n) => n.toString().padLeft(2, '0');
+
+/// Throws [IndexFault] `argument_invalid` unless [slug] is lowercase letters,
+/// digits, and `_`.
+void checkSlug(String slug) {
+  if (_slugShape.hasMatch(slug)) return;
+  throw IndexFault(
+    IndexFaultCode.argumentInvalid,
+    '$slug is no slug: use lowercase letters, digits, and _',
+  );
+}
+
+/// Whether [own], an entry that fits [shape]'s own segment, holds the doc.
+///
+/// A folder with no doc file under it is no sibling: only docs count. A
+/// file, or a doc file name with placeholders, is taken as is.
+bool _holdsDoc(DocPathShape shape, FileSystemEntity own) {
+  if (shape.ownIsFile) return true;
+  final rest = shape.segments.sublist(shape.ownIndex + 1);
+  if (shape.belowOwnHasPlaceholder) return true;
+  return File([own.path, ...rest].join(Platform.pathSeparator)).existsSync();
+}
+
+/// One folder or file of a doc type's own segment on disk.
+final class SiblingEntry {
+  const new({required this.name, required this.number, required this.slug});
+
+  /// The folder or file name.
+  final String name;
+
+  /// The `{nn}` value; null when the segment holds none.
+  final int? number;
+
+  /// The `{slug}` value; null when the segment holds none.
+  final String? slug;
+}
+
+/// Returns the siblings of [shape]'s own segment under [parentValues], sorted
+/// by number, then name.
+///
+/// They are the folders that hold the doc file, or for a file segment the
+/// files, of the container whose name matches the segment. Empty when the
+/// container is absent.
+/// Throws [RenderFault] `output_not_writable` when the container is unreadable.
+List<SiblingEntry> siblingsOnDisk(
+  DocsProject project,
+  DocPathShape shape,
+  List<String> parentValues,
+) {
+  final containerDocPath = shape.containerOf(parentValues);
+  final folder = containerDocPath
+      .split('/')
+      .where((segment) => segment.isNotEmpty)
+      .join(Platform.pathSeparator);
+  final root = rootOfDocPath(
+    containerDocPath,
+    docsRoot: project.docsRoot,
+    projectRoot: project.projectRoot,
+  );
+  final container = Directory('${root.path}${Platform.pathSeparator}$folder');
+  if (!container.existsSync()) return const [];
+  final entries = <SiblingEntry>[];
+  final List<FileSystemEntity> children;
+  try {
+    children = container.listSync(followLinks: false);
+  } on FileSystemException catch (error) {
+    throw cannotRead(folder.replaceAll(Platform.pathSeparator, '/'), error);
+  }
+  for (final entity in children) {
+    final isOwn = shape.ownIsFile ? entity is File : entity is Directory;
+    if (!isOwn) continue;
+    final name = entity.path.split(Platform.pathSeparator).last;
+    final match = shape.matchOwn(name);
+    if (match == null || !_holdsDoc(shape, entity)) continue;
+    entries.add(
+      SiblingEntry(name: name, number: match.number, slug: match.slug),
+    );
+  }
+  return entries..sort((a, b) {
+    final byNumber = (a.number ?? 0).compareTo(b.number ?? 0);
+    return byNumber != 0 ? byNumber : a.name.compareTo(b.name);
+  });
+}
+
+/// A child doc type of a spec folder, and the code target it is per, if any.
+final class _ChildFolderKey {
+  const new({required this.childTypeId, required this.target});
+
+  final String childTypeId;
+  final String? target;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _ChildFolderKey &&
+      other.childTypeId == childTypeId &&
+      other.target == target;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(childTypeId, target);
+}
+
+/// Returns the spec folder moves that follow [docType]'s doc from
+/// [oldValues] to [newValues], each folder paired with the one its child type
+/// holds after the move, sorted by old folder; an unchanged one is left out.
+///
+/// A per-target child's folder moves once per name of [targetNames].
+///
+/// - [depth], [newDepth]: nesting depths before and after; null keeps [depth].
+List<PathMove> specFolderMovesOf(
+  MergedSet set,
+  MergedDocType docType,
+  List<String> oldValues,
+  List<String> newValues, {
+  int depth = 0,
+  int? newDepth,
+  List<String> targetNames = const [],
+}) {
+  final oldShape = DocPathShape.of(docType, set, depth: depth);
+  final newShape = DocPathShape.of(docType, set, depth: newDepth ?? depth);
+  if (oldShape == null || newShape == null) return const [];
+  Map<_ChildFolderKey, String> foldersAt(
+    DocPathShape shape,
+    List<String> values,
+  ) => {
+    for (final SpecChild(docType: child, :folder, :target) in specChildrenOf(
+      set,
+      docType,
+      shape,
+      values,
+      targetNames: targetNames,
+    ))
+      _ChildFolderKey(childTypeId: child.id, target: target): folder,
+  };
+  final newFolders = foldersAt(newShape, newValues);
+  final moves = <String, PathMove>{};
+  for (final MapEntry(:key, value: from) in foldersAt(
+    oldShape,
+    oldValues,
+  ).entries) {
+    final to = newFolders[key];
+    if (to == null || to == from) continue;
+    moves[from] = PathMove(from: from, to: to);
+  }
+  return [for (final key in moves.keys.toList()..sort()) moves[key]!];
+}
+
+/// Throws [WriteFault] `doc_exists` when a sibling doc of [docType] carries
+/// [slug], naming that doc, or a path on disk is where one of [moves] lands,
+/// naming [newDocPath] with that path as its `file`.
+void checkNoClash(
+  WriteSession session,
+  MergedDocType docType,
+  DocPathShape shape,
+  List<String> parentValues,
+  List<SiblingEntry> siblings, {
+  required String slug,
+  required String newDocPath,
+  required List<PathMove> moves,
+}) {
+  for (final sibling in siblings) {
+    if (sibling.slug != slug) continue;
+    final docPath = [
+      '${shape.containerOf(parentValues)}${sibling.name}',
+      ...shape.segments.skip(shape.ownIndex + 1),
+    ].join('/');
+    if (session.fileOf(docPath).existsSync()) {
+      throw existsFault(docType, docPath, docPath);
+    }
+  }
+  for (final move in moves) {
+    if (isOnDisk(session, move.to)) {
+      throw existsFault(docType, newDocPath, move.to);
+    }
+  }
+}
+
+/// Whether a file or folder sits at [docPath], a folder's ending in `/`.
+bool isOnDisk(WriteSession session, String docPath) {
+  final path = docPath.endsWith('/')
+      ? docPath.substring(0, docPath.length - 1)
+      : docPath;
+  final onDisk = session.fileOf(path).path;
+  return FileSystemEntity.typeSync(onDisk) != FileSystemEntityType.notFound;
+}
+
+/// Returns the `doc_exists` fault naming the [docType] doc at [named], its
+/// envelope `file` [file].
+WriteFault existsFault(MergedDocType docType, String named, String file) =>
+    WriteFault(
+      WriteFaultCode.docExists,
+      'a ${docType.id} named ${docNameOf(named, docType)} exists',
+      file: file,
+    );

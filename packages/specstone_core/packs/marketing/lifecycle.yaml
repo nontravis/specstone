@@ -1,0 +1,19 @@
+id: lifecycle
+description: |-
+  The lifecycle doc: a customer's stages from awareness to loyalty, and what moves the customer on.
+title: Lifecycle
+path: specs/marketing/LIFECYCLE.md
+sections:
+  - id: stages
+    header: Stages
+    description: |-
+      List the stages from awareness to loyalty, in order.
+  - id: triggers
+    header: Triggers
+    description: |-
+      Write what moves a customer from one stage to the next.
+lint:
+  title_no_number: true
+reference:
+  - title: marketingskills, product-marketing
+    url: https://raw.githubusercontent.com/coreyhaines31/marketingskills/main/skills/product-marketing/SKILL.md

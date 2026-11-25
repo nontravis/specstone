@@ -1,0 +1,13 @@
+id: color
+description: |-
+  The color doc: the color roles and their usage; it links the tokens doc and writes no token value.
+title: Color
+path: specs/design_system/foundations/COLOR.md
+sections:
+  - id: color_roles
+    header: Color roles
+    required: true
+    description: |-
+      Write one row per color role: its name, its use, and a link to its row in the tokens doc.
+lint:
+  title_no_number: true

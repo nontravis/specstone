@@ -1,0 +1,2450 @@
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/doc_type_merger.dart';
+import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/shared_entry.dart';
+import 'package:specstone_core/src/templates/shared_merge.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:test/test.dart';
+
+const _projectFile = '.specstone/templates/feature.yaml';
+const _shippedFile = 'packs/prd-core/feature.yaml';
+const _personalFile = '~/.specstone/packs/prd-core/feature.yaml';
+
+const _shippedFeature = '''
+description: A feature
+path: docs/prds/{slug}/FEATURE.md
+sections:
+  - id: goal
+    header: Feature goal
+  - id: scope
+    header: Out-of-scope
+fields:
+  - id: owner
+    type: string
+''';
+
+final class _NoFiles implements LayerFiles {
+  const new();
+
+  @override
+  bool exists(String layerRelativePath) => false;
+}
+
+const merger = DocTypeMerger();
+
+DocTypeLayer layer(
+  String text, {
+  LayerKind kind = LayerKind.shipped,
+  String docTypeId = 'feature',
+}) {
+  final file = switch (kind) {
+    LayerKind.shipped => _shippedFile,
+    LayerKind.personal => _personalFile,
+    LayerKind.project => _projectFile,
+  };
+  return DocTypeLayer.parse(
+    text,
+    file: file,
+    docTypeId: docTypeId,
+    kind: kind,
+    files: const _NoFiles(),
+  );
+}
+
+MergedDocType shipped() =>
+    merger.apply(merger.builtInBase('feature'), layer(_shippedFeature));
+
+MergedDocType project(MergedDocType base, String text) =>
+    merger.apply(base, layer(text, kind: LayerKind.project));
+
+TypeMatcher<TemplateFault> fault(
+  FaultCode code,
+  String key, {
+  String? message,
+  String file = _projectFile,
+}) {
+  final matcher = isA<TemplateFault>()
+      .having((f) => f.code, 'code', code)
+      .having((f) => f.file, 'file', file)
+      .having((f) => f.key, 'key', key);
+  return message == null
+      ? matcher
+      : matcher.having((f) => f.message, 'message', message);
+}
+
+/// A [fault] that also carries the exit status 78 of every template fault.
+TypeMatcher<TemplateFault> refusal(
+  FaultCode code,
+  String key, {
+  String? message,
+  String file = _projectFile,
+}) => fault(
+  code,
+  key,
+  message: message,
+  file: file,
+).having((f) => f.exitStatus, 'exit status', 78);
+
+List<String> ids(Iterable<Object> entries) => [
+  for (final e in entries)
+    switch (e) {
+      MergedField(:final id) => id,
+      MergedSection(:final id) => id,
+      _ => throw ArgumentError(e),
+    },
+];
+
+void main() {
+  group('DocTypeMerger.builtInBase', () {
+    test('retired id list is built in and locked on every doc type', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: retired_ids, description: Left the doc}]',
+      );
+      final retired = merged.fields.singleWhere((f) => f.id == retiredIdsField);
+
+      expect(retired.type, FieldType.string);
+      expect(retired.list, isTrue);
+      expect(retired.isBuiltIn, isTrue);
+      expect(retired.description, 'Left the doc');
+      expect(
+        () => project(shipped(), 'fields: [{id: retired_ids, list: false}]'),
+        throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.retired_ids')),
+      );
+    });
+
+    test('a doc type with no fields still holds the seven built-ins in '
+        'order', () {
+      final merged = merger.apply(
+        merger.builtInBase('runbook'),
+        layer('description: Runbook\n', docTypeId: 'runbook'),
+      );
+
+      expect(ids(merged.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'retrim',
+        'retired_ids',
+      ]);
+      expect(merged.fields.map((f) => f.type), [
+        FieldType.string,
+        FieldType.enumType,
+        FieldType.boolean,
+        FieldType.string,
+        FieldType.docRef,
+        FieldType.string,
+        FieldType.string,
+      ]);
+      expect(merged.fields.map((f) => f.list), [
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+      ]);
+      expect(merged.fields[1].enumValues, [
+        'planned',
+        'implemented',
+        'deprecated',
+      ]);
+    });
+
+    test('every merged doc type carries retrim as a built-in string list', () {
+      final retrim = merger
+          .builtInBase('x')
+          .fields
+          .singleWhere((f) => f.id == 'retrim');
+
+      expect(retrim.type, FieldType.string);
+      expect(retrim.list, isTrue);
+      expect(retrim.isBuiltIn, isTrue);
+
+      final newProjectType = merger.apply(
+        merger.builtInBase('runbook'),
+        layer(
+          'description: Runbook\n',
+          kind: LayerKind.project,
+          docTypeId: 'runbook',
+        ),
+      );
+      expect(ids(newProjectType.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'retrim',
+        'retired_ids',
+      ]);
+    });
+  });
+
+  group('DocTypeMerger.apply', () {
+    test('an incomplete new section is '
+        'override_id_not_found', () {
+      expect(
+        () => project(shipped(), 'sections: [{id: goal_typo, description: x}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.goal_typo',
+            message:
+                'no section "goal_typo" in the merged doc type and no '
+                'header to add it',
+          ),
+        ),
+      );
+    });
+
+    test('a disabled entry for a missing section is '
+        'override_id_not_found', () {
+      expect(
+        () => project(
+          shipped(),
+          'sections: [{id: nope, header: N, disabled: true}]',
+        ),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.nope',
+            message: 'no section "nope" in the merged doc type to disable',
+          ),
+        ),
+      );
+    });
+
+    test('a disabled entry for a missing field is '
+        'override_id_not_found', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: nope, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'fields.nope',
+            message: 'no field "nope" in the merged doc type to disable',
+          ),
+        ),
+      );
+    });
+
+    test('a field with no type on a new doc type is '
+        'override_id_not_found', () {
+      expect(
+        () => merger.apply(
+          merger.builtInBase('runbook'),
+          DocTypeLayer.parse(
+            'description: Runbook\nfields: [{id: size}]',
+            file: _projectFile,
+            docTypeId: 'runbook',
+            kind: LayerKind.project,
+            files: const _NoFiles(),
+          ),
+        ),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'fields.size',
+            message:
+                'no field "size" in the merged doc type and no type to '
+                'add it',
+          ),
+        ),
+      );
+    });
+
+    test('a second layer disabling a section a lower layer disabled keeps the '
+        'doc type as it is', () {
+      final once = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+      final twice = project(once, 'sections: [{id: scope, disabled: true}]');
+
+      expect(ids(twice.sections), ['goal']);
+    });
+
+    test('a second layer disabling a field a lower layer disabled keeps the '
+        'doc type as it is', () {
+      final once = project(shipped(), 'fields: [{id: owner, disabled: true}]');
+      final twice = project(once, 'fields: [{id: owner, disabled: true}]');
+
+      expect(ids(twice.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'retrim',
+        'retired_ids',
+      ]);
+    });
+
+    test('a section disabled in a doc type it builds on is disabled again '
+        'without a fault', () {
+      final target = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+      final extending = merger.apply(
+        target.copyWith(extendsId: 'feature'),
+        layer(
+          'sections: [{id: scope, disabled: true}]',
+          docTypeId: 'project_feature',
+        ),
+      );
+
+      expect(ids(extending.sections), ['goal']);
+    });
+
+    test('a field disabled in a doc type it builds on is disabled again '
+        'without a fault', () {
+      final target = project(
+        shipped(),
+        'fields: [{id: owner, disabled: true}]',
+      );
+      final extending = merger.apply(
+        target.copyWith(extendsId: 'feature'),
+        layer(
+          'fields: [{id: owner, disabled: true}]',
+          docTypeId: 'project_feature',
+        ),
+      );
+
+      expect(ids(extending.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'retrim',
+        'retired_ids',
+      ]);
+    });
+
+    test(
+      'a section added back after it was disabled can be disabled again',
+      () {
+        final off = project(
+          shipped(),
+          'sections: [{id: scope, disabled: true}]',
+        );
+        final back = project(off, 'sections: [{id: scope, header: Back}]');
+        final offAgain = project(
+          back,
+          'sections: [{id: scope, disabled: true}]',
+        );
+
+        expect(ids(back.sections), ['goal', 'scope']);
+        expect(ids(offAgain.sections), ['goal']);
+      },
+    );
+
+    test('a section no lower layer defined is still override_id_not_found '
+        'after another section was disabled', () {
+      final once = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+
+      expect(
+        () =>
+            project(once, 'sections: [{id: nope, header: N, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.nope',
+            message: 'no section "nope" in the merged doc type to disable',
+          ),
+        ),
+      );
+    });
+
+    test('a field no lower layer defined is still override_id_not_found '
+        'after another field was disabled', () {
+      final once = project(shipped(), 'fields: [{id: owner, disabled: true}]');
+
+      expect(
+        () => project(once, 'fields: [{id: nope, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'fields.nope',
+            message: 'no field "nope" in the merged doc type to disable',
+          ),
+        ),
+      );
+    });
+
+    test('an entry the merged base lacks, with no header on a section or no '
+        'type on a field, is override_id_not_found naming the file and the id, '
+        'exit 78', () {
+      expect(
+        () => project(shipped(), 'sections: [{id: goal_typo, description: x}]'),
+        throwsA(refusal(FaultCode.overrideIdNotFound, 'sections.goal_typo')),
+      );
+      expect(
+        () => project(shipped(), 'fields: [{id: size, description: x}]'),
+        throwsA(refusal(FaultCode.overrideIdNotFound, 'fields.size')),
+      );
+    });
+
+    test('disabled: true on an id the merged base lacks is refused in every '
+        'layer, shipped or not, naming the file and the id, exit 78', () {
+      for (final (kind, file) in [
+        (LayerKind.shipped, _shippedFile),
+        (LayerKind.personal, _personalFile),
+        (LayerKind.project, _projectFile),
+      ]) {
+        expect(
+          () => merger.apply(
+            shipped(),
+            layer('sections: [{id: nope, disabled: true}]', kind: kind),
+          ),
+          throwsA(
+            refusal(FaultCode.overrideIdNotFound, 'sections.nope', file: file),
+          ),
+          reason: '$kind section',
+        );
+        expect(
+          () => merger.apply(
+            shipped(),
+            layer('fields: [{id: nope, disabled: true}]', kind: kind),
+          ),
+          throwsA(
+            refusal(FaultCode.overrideIdNotFound, 'fields.nope', file: file),
+          ),
+          reason: '$kind field',
+        );
+      }
+    });
+
+    test('disabled: true drops a section', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+
+      expect(ids(merged.sections), ['goal']);
+    });
+
+    test('a complete new field is added last', () {
+      final merged = project(shipped(), 'fields: [{id: size, type: integer}]');
+
+      expect(ids(merged.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'retrim',
+        'retired_ids',
+        'owner',
+        'size',
+      ]);
+      expect(merged.fields.last.type, FieldType.integer);
+    });
+
+    test('a complete new section is added last', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: risks, header: Risks, required: true}]',
+      );
+
+      expect(ids(merged.sections), ['goal', 'scope', 'risks']);
+      expect(merged.sections.last.header, 'Risks');
+      expect(merged.sections.last.required, isTrue);
+    });
+
+    test('an added section lands right after the '
+        'section its after names', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: risks, header: Risks, after: goal}]',
+      );
+
+      expect(ids(merged.sections), ['goal', 'risks', 'scope']);
+    });
+
+    test('an added section with no after goes last', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: risks, header: Risks}]',
+      );
+
+      expect(ids(merged.sections), ['goal', 'scope', 'risks']);
+    });
+
+    test('after on a held section moves it and keeps '
+        'merging its other properties', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, after: scope, description: D}]',
+      );
+
+      expect(ids(merged.sections), ['scope', 'goal']);
+      final goal = merged.sections.last;
+      expect(goal.description, 'D');
+      expect(goal.header, 'Feature goal');
+    });
+
+    test('after naming the section itself leaves it in '
+        'place', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, after: goal, description: D}]',
+      );
+
+      expect(ids(merged.sections), ['goal', 'scope']);
+      expect(merged.sections.first.description, 'D');
+    });
+
+    test('an added section after a missing '
+        'id is after_id_not_found', () {
+      expect(
+        () => project(
+          shipped(),
+          'sections: [{id: risks, header: Risks, after: nope}]',
+        ),
+        throwsA(fault(FaultCode.afterIdNotFound, 'sections.risks.after')),
+      );
+    });
+
+    test('a held section moved after a missing id is '
+        'after_id_not_found', () {
+      expect(
+        () => project(shipped(), 'sections: [{id: goal, after: nope}]'),
+        throwsA(fault(FaultCode.afterIdNotFound, 'sections.goal.after')),
+      );
+    });
+
+    test('after naming an id the merged base lacks is after_id_not_found '
+        'naming the file and both ids, exit 78', () {
+      expect(
+        () => project(
+          shipped(),
+          'sections: [{id: risks, header: Risks, after: nope}]',
+        ),
+        throwsA(
+          refusal(
+            FaultCode.afterIdNotFound,
+            'sections.risks.after',
+            message:
+                'the section risks follows nope, which the lower layers and '
+                'earlier entries do not define',
+          ),
+        ),
+      );
+    });
+
+    test('entries of one layer place in file order, so a '
+        'later entry may follow an earlier one', () {
+      final merged = project(shipped(), '''
+sections:
+  - id: risks
+    header: Risks
+    after: goal
+  - id: notes
+    header: Notes
+    after: risks
+''');
+
+      expect(ids(merged.sections), ['goal', 'risks', 'notes', 'scope']);
+    });
+
+    test('an override changes only the '
+        'properties it writes', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, description: New}]',
+      );
+
+      final goal = merged.sections.first;
+      expect(goal.description, 'New');
+      expect(goal.header, 'Feature goal');
+    });
+
+    test('the highest layer wins a property three layers '
+        'write', () {
+      var merged = merger.apply(
+        merger.builtInBase('feature'),
+        layer('''
+sections:
+  - id: goal
+    header: Feature goal
+    description: A
+'''),
+      );
+      merged = merger.apply(
+        merged,
+        layer(
+          'sections: [{id: goal, description: B}]',
+          kind: LayerKind.personal,
+        ),
+      );
+      merged = project(merged, 'sections: [{id: goal, description: C}]');
+
+      expect(merged.sections.single.description, 'C');
+      expect(merged.files, [_shippedFile, _personalFile, _projectFile]);
+    });
+
+    test('doc-level description and path replace the base', () {
+      final merged = project(
+        shipped(),
+        'description: Other\npath: x/{slug}.md',
+      );
+
+      expect(merged.description, 'Other');
+      expect(merged.path, 'x/{slug}.md');
+    });
+
+    test('doc-level keys a layer leaves out keep the base '
+        'value', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, required: true}]',
+      );
+
+      expect(merged.description, 'A feature');
+      expect(merged.path, 'docs/prds/{slug}/FEATURE.md');
+    });
+
+    for (final id in [
+      'slug',
+      'status',
+      'draft',
+      'approved',
+      'reference',
+      'retrim',
+      'retired_ids',
+    ]) {
+      test('disabling the built-in $id is '
+          'locked_field_disabled', () {
+        expect(
+          () => project(shipped(), 'fields: [{id: $id, disabled: true}]'),
+          throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.$id')),
+        );
+      });
+    }
+
+    test('changing the type of a built-in is '
+        'locked_field_disabled', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: draft, type: string}]'),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.draft')),
+      );
+    });
+
+    test('a locked-field fault on slug names no approved clause', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: slug, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.lockedFieldDisabled,
+            'fields.slug',
+            message:
+                'the built-in field slug cannot be disabled or change its type',
+          ),
+        ),
+      );
+    });
+
+    for (final type in ['boolean', 'integer', 'date']) {
+      test('writing type $type on approved is locked_field_disabled', () {
+        expect(
+          () => project(shipped(), 'fields: [{id: approved, type: $type}]'),
+          throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+        );
+      });
+    }
+
+    test('approved is of type string, so writing type string is accepted', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: approved, type: string}]',
+      );
+
+      expect(
+        merged.fields.singleWhere((f) => f.id == 'approved').type,
+        FieldType.string,
+      );
+    });
+
+    test('writing enum values on approved is locked_field_disabled', () {
+      expect(
+        () => project(
+          shipped(),
+          'fields: [{id: approved, type: enum, enum: [a, b]}]',
+        ),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
+    test('writing list on approved is locked_field_disabled', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, list: true}]'),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
+    test('writing enum values with no type on approved is '
+        'locked_field_disabled', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, enum: [a, b]}]'),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
+    test('disabling any of the seven built-in fields is locked_field_disabled '
+        'naming the file and the field, exit 78', () {
+      for (final id in [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'retrim',
+        'retired_ids',
+      ]) {
+        expect(
+          () => project(shipped(), 'fields: [{id: $id, disabled: true}]'),
+          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.$id')),
+          reason: id,
+        );
+      }
+    });
+
+    test('writing another type on slug, status, or reference is '
+        'locked_field_disabled naming the file and the field, exit 78', () {
+      for (final (id, type) in [
+        ('slug', 'integer'),
+        ('status', 'string'),
+        ('reference', 'string'),
+      ]) {
+        expect(
+          () => project(shipped(), 'fields: [{id: $id, type: $type}]'),
+          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.$id')),
+          reason: id,
+        );
+      }
+    });
+
+    test('writing type boolean on approved is locked_field_disabled naming '
+        'the file and the field, exit 78', () {
+      expect(
+        () => project(shipped(), 'fields: [{id: approved, type: boolean}]'),
+        throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.approved')),
+      );
+    });
+
+    test('writing enum values or list on approved is locked_field_disabled '
+        'naming the file and the field, exit 78', () {
+      for (final entry in [
+        '{id: approved, enum: [a, b]}',
+        '{id: approved, list: true}',
+      ]) {
+        expect(
+          () => project(shipped(), 'fields: [$entry]'),
+          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.approved')),
+          reason: entry,
+        );
+      }
+    });
+
+    test('a layer that disables retrim, changes its type, or writes list or '
+        'enum on it is refused', () {
+      for (final entry in [
+        '{id: retrim, disabled: true}',
+        '{id: retrim, type: integer}',
+        '{id: retrim, list: true}',
+        '{id: retrim, enum: [a]}',
+      ]) {
+        expect(
+          () => project(shipped(), 'fields: [$entry]'),
+          throwsA(refusal(FaultCode.lockedFieldDisabled, 'fields.retrim')),
+          reason: entry,
+        );
+      }
+    });
+
+    test('a layer that changes the description of retrim is accepted', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: retrim, description: Sections marked for a trim}]',
+      );
+
+      final retrim = merged.fields.singleWhere((f) => f.id == 'retrim');
+      expect(retrim.description, 'Sections marked for a trim');
+      expect(retrim.type, FieldType.string);
+      expect(retrim.list, isTrue);
+    });
+
+    test('a layer that declares retrim as a string field merges as an '
+        'override', () {
+      final merged = project(shipped(), 'fields: [{id: retrim, type: string}]');
+
+      final retrim = merged.fields.singleWhere((f) => f.id == 'retrim');
+      expect(retrim.type, FieldType.string);
+      expect(retrim.list, isTrue);
+    });
+
+    test('clearing a parent the base has is '
+        'locked_field_disabled', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('parent: project\n'),
+      );
+
+      expect(
+        () => project(base, 'parent:\n'),
+        throwsA(fault(FaultCode.lockedFieldDisabled, 'parent')),
+      );
+    });
+
+    test('a layer may change the parent to another doc '
+        'type', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('parent: project\n'),
+      );
+
+      expect(project(base, 'parent: epic\n').parent, 'epic');
+    });
+
+    test('a layer that does not write parent keeps the base '
+        'parent', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('parent: project\n'),
+      );
+
+      expect(project(base, 'description: Other\n').parent, 'project');
+    });
+
+    test('a layer may change the enum values '
+        'of status', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: status, enum: [planned, implemented]}]',
+      );
+
+      final status = merged.fields.firstWhere((f) => f.id == 'status');
+      expect(status.enumValues, ['planned', 'implemented']);
+      expect(status.type, FieldType.enumType);
+    });
+
+    test('a layer may describe a built-in without '
+        'changing its type', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: slug, description: Search aliases}]',
+      );
+
+      final slug = merged.fields.first;
+      expect(slug.description, 'Search aliases');
+      expect(slug.type, FieldType.string);
+      expect(slug.list, isTrue);
+    });
+
+    test('changing enum to string drops the enum list', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('fields: [{id: kind, type: enum, enum: [a, b]}]'),
+      );
+
+      final merged = project(base, 'fields: [{id: kind, type: string}]');
+
+      final kind = merged.fields.singleWhere((f) => f.id == 'kind');
+      expect(kind.type, FieldType.string);
+      expect(kind.enumValues, isNull);
+    });
+
+    test('changing doc_ref to string drops doc_types', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('fields: [{id: parent, type: doc_ref, doc_types: [epic]}]'),
+      );
+
+      final merged = project(base, 'fields: [{id: parent, type: string}]');
+
+      final parent = merged.fields.singleWhere((f) => f.id == 'parent');
+      expect(parent.type, FieldType.string);
+      expect(parent.docTypes, isNull);
+    });
+
+    test('changing a type keeps the lists the layer writes', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('fields: [{id: kind, type: string}]'),
+      );
+
+      final merged = project(
+        base,
+        'fields: [{id: kind, type: enum, enum: [x, y]}]',
+      );
+
+      final kind = merged.fields.singleWhere((f) => f.id == 'kind');
+      expect(kind.enumValues, ['x', 'y']);
+    });
+
+    test('a layer that leaves the type alone keeps the lists', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('fields: [{id: kind, type: enum, enum: [a, b]}]'),
+      );
+
+      final merged = project(base, 'fields: [{id: kind, description: Kind}]');
+
+      final kind = merged.fields.singleWhere((f) => f.id == 'kind');
+      expect(kind.enumValues, ['a', 'b']);
+      expect(kind.description, 'Kind');
+    });
+
+    test('writing the built-in type again is not a change', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: draft, type: boolean, description: Hidden}]',
+      );
+
+      expect(merged.fields[2].description, 'Hidden');
+    });
+
+    test('a new output_ref field keeps its '
+        'pointer', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, list: true, pointer: prefix}]',
+      );
+
+      expect(merged.fields.last.pointer, PointerKind.prefix);
+    });
+
+    test('an override that writes only pointer changes the '
+        'kind', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, pointer: exact}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.type, FieldType.outputRef);
+      expect(covers.pointer, PointerKind.exact);
+    });
+
+    test('an override that writes no pointer keeps the lower '
+        'layer kind', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, required: true}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.type, FieldType.outputRef);
+      expect(covers.required, isTrue);
+      expect(covers.pointer, PointerKind.prefix);
+    });
+
+    test('a typeless override with a pointer other than '
+        'exact or prefix over an output_ref field is unknown_value', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      expect(
+        () => project(base, 'fields: [{id: covers, pointer: glob}]'),
+        throwsA(fault(FaultCode.unknownValue, 'fields.covers.pointer')),
+      );
+    });
+
+    test('a typeless override with a non-string pointer '
+        'over an output_ref field is unknown_value', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      expect(
+        () => project(base, 'fields: [{id: covers, pointer: 3}]'),
+        throwsA(fault(FaultCode.unknownValue, 'fields.covers.pointer')),
+      );
+    });
+
+    test('a pointer on a field of another type has no '
+        'effect, whatever its kind', () {
+      final added = project(
+        shipped(),
+        'fields: [{id: size, type: string, pointer: glob}]',
+      );
+      final overridden = project(
+        shipped(),
+        'fields: [{id: owner, pointer: glob}]',
+      );
+
+      expect(added.fields.last.pointer, isNull);
+      expect(
+        overridden.fields.singleWhere((f) => f.id == 'owner').pointer,
+        isNull,
+      );
+    });
+
+    test('bundle_with on a doc_ref field merges, and a higher layer '
+        'replaces it', () {
+      final added = project(
+        shipped(),
+        'fields: [{id: links, type: doc_ref, bundle_with: true}]',
+      );
+      final kept = project(
+        added,
+        'fields: [{id: links, required: true}]',
+      ).fields.singleWhere((f) => f.id == 'links');
+      final replaced = project(
+        added,
+        'fields: [{id: links, bundle_with: false}]',
+      ).fields.singleWhere((f) => f.id == 'links');
+
+      expect(added.fields.last.bundleWith, isTrue);
+      expect(kept.bundleWith, isTrue);
+      expect(replaced.bundleWith, isFalse);
+    });
+
+    test('bundle_with on an output_ref field is ignored', () {
+      final added = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact, '
+        'bundle_with: true}]',
+      );
+
+      expect(added.fields.last.bundleWith, isNull);
+    });
+
+    test('a field turned from output_ref to another type '
+        'drops its pointer', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: prefix}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, type: string}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.pointer, isNull);
+    });
+  });
+
+  group('DocTypeMerger.apply root', () {
+    test('a higher layer root replaces a lower one', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact, '
+        'root: project}]',
+      );
+      MergedField covers(MergedDocType type) =>
+          type.fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers(base).root, PointerRoot.project);
+      expect(
+        covers(project(base, 'fields: [{id: covers, root: code}]')).root,
+        PointerRoot.code,
+      );
+      expect(
+        covers(project(base, 'fields: [{id: covers, required: true}]')).root,
+        PointerRoot.project,
+      );
+    });
+
+    test('an output_ref field with no root reads null, which means code', () {
+      final covers = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.root, isNull);
+    });
+
+    test('a root on a field of another type is ignored', () {
+      final added = project(
+        shipped(),
+        'fields: [{id: size, type: string, root: project}]',
+      );
+      final overridden = project(
+        shipped(),
+        'fields: [{id: slug, root: project}]',
+      );
+
+      expect(added.fields.singleWhere((f) => f.id == 'size').root, isNull);
+      expect(overridden.fields.singleWhere((f) => f.id == 'slug').root, isNull);
+    });
+
+    test('a typeless override with a root other than code or project over an '
+        'output_ref field is unknown_value', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact}]',
+      );
+
+      for (final bad in ['repo', '3']) {
+        expect(
+          () => project(base, 'fields: [{id: covers, root: $bad}]'),
+          throwsA(fault(FaultCode.unknownValue, 'fields.covers.root')),
+          reason: bad,
+        );
+      }
+    });
+
+    test('a field turned from output_ref to another type drops its root', () {
+      final base = project(
+        shipped(),
+        'fields: [{id: covers, type: output_ref, pointer: exact, '
+        'root: project}]',
+      );
+
+      final covers = project(
+        base,
+        'fields: [{id: covers, type: string}]',
+      ).fields.singleWhere((f) => f.id == 'covers');
+
+      expect(covers.root, isNull);
+    });
+  });
+
+  group('DocTypeMerger.apply lint', () {
+    MergedDocType withBannedWords() =>
+        project(shipped(), 'lint: {banned_words: [fast, robust]}');
+
+    test('add and remove change a lower '
+        'word list', () {
+      final merged = project(
+        withBannedWords(),
+        'lint: {banned_words: {add: [simply], remove: [fast]}}',
+      );
+
+      expect(merged.lint.bannedWords, ['robust', 'simply']);
+    });
+
+    test('removing a word the base lacks is '
+        'lint_word_not_found', () {
+      expect(
+        () => project(
+          withBannedWords(),
+          'lint: {banned_words: {remove: [quick]}}',
+        ),
+        throwsA(fault(FaultCode.lintWordNotFound, 'lint.banned_words')),
+      );
+    });
+
+    test('removing an allowed word the base lacks names '
+        'lint.allowed_words', () {
+      expect(
+        () => project(shipped(), 'lint: {allowed_words: {remove: [API]}}'),
+        throwsA(fault(FaultCode.lintWordNotFound, 'lint.allowed_words')),
+      );
+    });
+
+    test('removing a word the lower list lacks is lint_word_not_found naming '
+        'the file and the word, exit 78', () {
+      expect(
+        () => project(
+          withBannedWords(),
+          'lint: {banned_words: {remove: [quick]}}',
+        ),
+        throwsA(
+          refusal(
+            FaultCode.lintWordNotFound,
+            'lint.banned_words',
+            message:
+                'cannot remove quick from lint.banned_words; no lower layer '
+                'holds it',
+          ),
+        ),
+      );
+    });
+
+    test('a plain list over a defined list is '
+        'list_override_needs_add_remove', () {
+      expect(
+        () => project(withBannedWords(), 'lint: {banned_words: [x]}'),
+        throwsA(
+          fault(FaultCode.listOverrideNeedsAddRemove, 'lint.banned_words'),
+        ),
+      );
+    });
+
+    test('a plain allowed_words list over a defined list '
+        'names lint.allowed_words', () {
+      final base = project(shipped(), 'lint: {allowed_words: [API]}');
+
+      expect(
+        () => project(base, 'lint: {allowed_words: [UI]}'),
+        throwsA(
+          fault(FaultCode.listOverrideNeedsAddRemove, 'lint.allowed_words'),
+        ),
+      );
+    });
+
+    test(
+      'a plain word list above the layer that first defines it is '
+      'list_override_needs_add_remove naming the file and the key, exit 78',
+      () {
+        expect(
+          () => project(withBannedWords(), 'lint: {banned_words: [x]}'),
+          throwsA(
+            refusal(FaultCode.listOverrideNeedsAddRemove, 'lint.banned_words'),
+          ),
+        );
+        final allowed = project(shipped(), 'lint: {allowed_words: [API]}');
+        expect(
+          () => project(allowed, 'lint: {allowed_words: [UI]}'),
+          throwsA(
+            refusal(FaultCode.listOverrideNeedsAddRemove, 'lint.allowed_words'),
+          ),
+        );
+      },
+    );
+
+    test('a plain lint list is accepted where no lower layer defines '
+        'it', () {
+      final merged = project(shipped(), 'lint: {allowed_words: [API]}');
+
+      expect(merged.lint.allowedWords, ['API']);
+      expect(merged.lint.bannedWords, isNull);
+    });
+
+    test('add on an undefined list starts from empty', () {
+      final merged = project(shipped(), 'lint: {banned_words: {add: [fast]}}');
+
+      expect(merged.lint.bannedWords, ['fast']);
+    });
+
+    test('a layer max_lines replaces the base and keeps the '
+        'other limit', () {
+      final base = project(
+        shipped(),
+        'lint: {max_chars: 12000, max_lines: 300}',
+      );
+
+      final merged = project(base, 'lint: {max_lines: 200}');
+
+      expect(merged.lint.maxChars, 12000);
+      expect(merged.lint.maxLines, 200);
+    });
+
+    test('a layer max_chars replaces the base and keeps the '
+        'other limit', () {
+      final base = project(
+        shipped(),
+        'lint: {max_chars: 12000, max_lines: 300}',
+      );
+
+      final merged = project(base, 'lint: {max_chars: 8000}');
+
+      expect(merged.lint.maxChars, 8000);
+      expect(merged.lint.maxLines, 300);
+    });
+
+    test('a project max_item_chars sets that doc type; every other keeps '
+        'the 600 default', () {
+      final security = merger.apply(
+        merger.builtInBase('security'),
+        layer(
+          'description: A security doc\npath: security.md\n',
+          docTypeId: 'security',
+        ),
+      );
+
+      final merged = merger.apply(
+        security,
+        layer(
+          'lint: {max_item_chars: 900}',
+          kind: LayerKind.project,
+          docTypeId: 'security',
+        ),
+      );
+
+      expect(merged.lint.maxItemChars, 900);
+      expect(merged.lint.itemCharLimit, 900);
+      expect(defaultMaxItemChars, 600);
+      expect(security.lint.maxItemChars, isNull);
+      expect(security.lint.itemCharLimit, 600);
+      expect(shipped().lint.itemCharLimit, 600);
+      expect(merger.builtInBase('feature').lint.itemCharLimit, 600);
+    });
+
+    test('Override lint settings '
+        'Input: an upper layer max_item_chars replaces the lower one and a '
+        'layer without it keeps it', () {
+      final base = project(shipped(), 'lint: {max_item_chars: 900}');
+
+      expect(
+        project(base, 'lint: {max_item_chars: 300}').lint.maxItemChars,
+        300,
+      );
+      expect(project(base, 'lint: {max_chars: 50}').lint.maxItemChars, 900);
+    });
+
+    test('a doc-level lint key outside the list is unknown_key, and '
+        'max_item_chars is inside it', () {
+      expect(
+        () => project(shipped(), 'lint: {max_words: 3}'),
+        throwsA(fault(FaultCode.unknownKey, 'lint.max_words')),
+      );
+      expect(
+        project(shipped(), 'lint: {max_item_chars: 1}').lint.maxItemChars,
+        1,
+      );
+    });
+
+    test('no layer writes caps gives built-in maps and null fields', () {
+      final lint = shipped().lint;
+
+      expect(lint.maxSentenceWords, isNull);
+      expect(lint.maxSentenceChars, isNull);
+      expect(lint.traceNoteLast, isNull);
+      expect(lint.sentenceWordCaps.entries, {'default': 25, 'ko': 17});
+      expect(lint.sentenceCharCaps.entries, {
+        'default': 100,
+        'th': 100,
+        'ja': 60,
+        'zh': 45,
+      });
+      expect(lint.isTraceNoteLast, isTrue);
+      expect(lint.sentenceWordCaps.capFor('ko'), 17);
+      expect(lint.sentenceWordCaps.capFor('ar'), 25);
+      expect(lint.sentenceCharCaps.capFor('zh'), 45);
+      expect(lint.sentenceCharCaps.capFor('km'), 100);
+      expect(merger.builtInBase('feature').lint.maxSentenceWords, isNull);
+    });
+
+    test('upper entry replaces one language', () {
+      final merged = project(
+        shipped(),
+        'lint: {max_sentence_words: {default: 30}}',
+      );
+
+      expect(merged.lint.maxSentenceWords?.entries, {'default': 30, 'ko': 17});
+      expect(merged.lint.sentenceWordCaps.capFor('ko'), 17);
+      expect(merged.lint.sentenceWordCaps.capFor('fr'), 30);
+      expect(shipped().lint.sentenceWordCaps.capFor('fr'), 25);
+    });
+
+    test('chars entry keeps the other entries', () {
+      final merged = project(shipped(), 'lint: {max_sentence_chars: {ja: 50}}');
+
+      expect(merged.lint.maxSentenceChars?.entries, {
+        'default': 100,
+        'th': 100,
+        'ja': 50,
+        'zh': 45,
+      });
+      final again = project(
+        merged,
+        'lint: {max_sentence_chars: {zh: 40, km: 70}}',
+      );
+      expect(again.lint.maxSentenceChars?.entries, {
+        'default': 100,
+        'th': 100,
+        'ja': 50,
+        'zh': 40,
+        'km': 70,
+      });
+      expect(
+        project(again, 'lint: {max_chars: 9}').lint.maxSentenceChars?.entries,
+        again.lint.maxSentenceChars?.entries,
+      );
+    });
+
+    test('trace_note_last false replaces true', () {
+      final on = project(shipped(), 'lint: {trace_note_last: true}');
+      final off = project(on, 'lint: {trace_note_last: false}');
+
+      expect(on.lint.traceNoteLast, isTrue);
+      expect(off.lint.traceNoteLast, isFalse);
+      expect(off.lint.isTraceNoteLast, isFalse);
+      expect(project(off, 'lint: {max_chars: 9}').lint.traceNoteLast, isFalse);
+    });
+
+    test('project-own doc type keeps built-in caps', () {
+      final merged = merger.apply(
+        merger.builtInBase('runbook'),
+        layer(
+          'description: Runbook\npath: runbook.md\n'
+          'lint: {max_sentence_words: {ko: 12}}',
+          kind: LayerKind.project,
+          docTypeId: 'runbook',
+        ),
+      );
+
+      expect(merged.lint.sentenceWordCaps.entries, {'default': 25, 'ko': 12});
+      expect(merged.lint.sentenceCharCaps.entries, {
+        'default': 100,
+        'th': 100,
+        'ja': 60,
+        'zh': 45,
+      });
+      expect(merged.lint.isTraceNoteLast, isTrue);
+    });
+
+    test('a section keeps its own lint and an unwritten '
+        'one stays null', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, lint: {max_lines: 5}}]',
+      );
+
+      expect(merged.sections.firstWhere((s) => s.id == 'goal').maxLines, 5);
+      expect(
+        merged.sections.firstWhere((s) => s.id == 'scope').maxLines,
+        isNull,
+      );
+    });
+
+    test('a layer with no lint keeps the base lint', () {
+      final base = project(withBannedWords(), 'lint: {max_chars: 100}');
+
+      final merged = project(base, 'description: Other\n');
+
+      expect(merged.lint.maxChars, 100);
+      expect(merged.lint.bannedWords, ['fast', 'robust']);
+    });
+  });
+
+  group('DocTypeMerger.apply reference', () {
+    MergedDocType withReferences() =>
+        project(shipped(), 'reference: [{title: A}, {title: B}]');
+
+    List<String> titles(MergedDocType type) => [
+      for (final entry in type.reference!) entry.title,
+    ];
+
+    test('add and remove change the lower '
+        'reference list', () {
+      final merged = project(
+        withReferences(),
+        'reference: {add: [{title: C}], remove: [A]}',
+      );
+
+      expect(titles(merged), ['B', 'C']);
+    });
+
+    test('removing a title the base lacks '
+        'is reference_title_not_found', () {
+      expect(
+        () => project(withReferences(), 'reference: {remove: [Z]}'),
+        throwsA(fault(FaultCode.referenceTitleNotFound, 'reference')),
+      );
+    });
+
+    test('removing a title the lower list lacks is reference_title_not_found '
+        'naming the file and the title, exit 78', () {
+      expect(
+        () => project(withReferences(), 'reference: {remove: [Z]}'),
+        throwsA(
+          refusal(
+            FaultCode.referenceTitleNotFound,
+            'reference',
+            message: 'cannot remove Z from reference; no lower layer holds it',
+          ),
+        ),
+      );
+    });
+
+    test('a layer with no reference keeps the base', () {
+      final merged = project(withReferences(), 'description: Other\n');
+
+      expect(titles(merged), ['A', 'B']);
+    });
+
+    test('a plain reference list over a defined list is '
+        'list_override_needs_add_remove', () {
+      expect(
+        () => project(withReferences(), 'reference: [{title: D}]'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'reference')),
+      );
+    });
+
+    test('a plain reference list above the layer that defines it is refused as '
+        'a plain word list is, with exit 78', () {
+      expect(
+        () => project(withReferences(), 'reference: [{title: D}]'),
+        throwsA(
+          refusal(
+            FaultCode.listOverrideNeedsAddRemove,
+            'reference',
+            message:
+                'a lower layer already defines reference; write add and '
+                'remove to change it',
+          ),
+        ),
+      );
+    });
+
+    test('a plain list is accepted where no lower layer '
+        'defines it', () {
+      expect(titles(withReferences()), ['A', 'B']);
+    });
+
+    test('add over a base with no reference list gives exactly '
+        'the added entries', () {
+      final merged = project(shipped(), 'reference: {add: [{title: C}]}');
+
+      expect(titles(merged), ['C']);
+    });
+  });
+
+  group('DocTypeMerger.apply generators', () {
+    test('a plain generators list over a lower one is '
+        'list_override_needs_add_remove', () {
+      final base = project(shipped(), 'generators: [a]\n');
+      expect(
+        () => project(base, 'generators: [b]\n'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'generators')),
+      );
+
+      final empty = project(shipped(), 'generators: []\n');
+      expect(empty.generators, isEmpty);
+      expect(
+        () => project(empty, 'generators: [b]\n'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'generators')),
+      );
+    });
+
+    test('a plain generators list above the layer that defines it is refused '
+        'as a plain word list is, with exit 78', () {
+      final base = project(shipped(), 'generators: [a]\n');
+
+      expect(
+        () => project(base, 'generators: [b]\n'),
+        throwsA(
+          refusal(
+            FaultCode.listOverrideNeedsAddRemove,
+            'generators',
+            message:
+                'a lower layer already defines generators; write add and '
+                'remove to change it',
+          ),
+        ),
+      );
+    });
+
+    test('a plain generators list over a base that sets none '
+        'is accepted', () {
+      final merged = project(shipped(), 'generators: [a, b]\n');
+      expect(merged.generators, ['a', 'b']);
+      expect(shipped().generators, isNull);
+      expect(shipped().listedGenerators, isEmpty);
+    });
+
+    test('add appends a kind and remove drops one, in list '
+        'order', () {
+      final base = project(shipped(), 'generators: [a, b]\n');
+      final merged = project(base, 'generators: {add: [c], remove: [a]}\n');
+      expect(merged.generators, ['b', 'c']);
+      expect(merged.listedGenerators, ['b', 'c']);
+    });
+
+    test('a removed kind the lower list lacks is '
+        'unknown_value', () {
+      final base = project(shipped(), 'generators: [a]\n');
+      expect(
+        () => project(base, 'generators: {remove: [z]}\n'),
+        throwsA(fault(FaultCode.unknownValue, 'generators')),
+      );
+    });
+  });
+
+  group('DocTypeMerger.apply bundle', () {
+    test('the first layer that writes bundle sets '
+        'it plain', () {
+      expect(project(shipped(), 'bundle: [implement, design]\n').bundle, [
+        'implement',
+        'design',
+      ]);
+    });
+
+    test('a plain bundle over a lower one is '
+        'list_override_needs_add_remove', () {
+      final base = project(shipped(), 'bundle: [query]\n');
+      expect(
+        () => project(base, 'bundle: [design]\n'),
+        throwsA(fault(FaultCode.listOverrideNeedsAddRemove, 'bundle')),
+      );
+    });
+
+    test('removing a mode the lower list lacks '
+        'is bundle_mode_not_found', () {
+      final base = project(shipped(), 'bundle: [query]\n');
+      expect(
+        () => project(base, 'bundle: {remove: [design]}\n'),
+        throwsA(
+          fault(
+            FaultCode.bundleModeNotFound,
+            'bundle',
+            message:
+                'cannot remove design from bundle; no lower layer holds '
+                'it',
+          ),
+        ),
+      );
+    });
+
+    test('add and remove change the lower list in order', () {
+      final base = project(shipped(), 'bundle: [query, implement]\n');
+      expect(
+        project(base, 'bundle: {add: [design], remove: [query]}\n').bundle,
+        ['implement', 'design'],
+      );
+    });
+
+    test('a section query set by one layer survives a layer that '
+        'leaves it out', () {
+      final withQuery = project(
+        shipped(),
+        'sections: [{id: goal, query: true}]\n',
+      );
+      final later = project(
+        withQuery,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      expect(later.sections.firstWhere((s) => s.id == 'goal').query, isTrue);
+    });
+
+    test('a section summary survives a layer that leaves '
+        'it out; a later false turns it off', () {
+      final on = project(shipped(), 'sections: [{id: goal, summary: true}]\n');
+      final kept = project(
+        on,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      expect(kept.sections.firstWhere((s) => s.id == 'goal').summary, isTrue);
+      final off = project(on, 'sections: [{id: goal, summary: false}]\n');
+      expect(off.sections.firstWhere((s) => s.id == 'goal').summary, isFalse);
+    });
+  });
+
+  group('DocTypeMerger.apply skeleton', () {
+    bool? skeletonOf(MergedDocType docType) =>
+        docType.sections.firstWhere((s) => s.id == 'goal').skeleton;
+
+    test("an upper layer's skeleton wins over the lower layer's", () {
+      final lower = project(
+        shipped(),
+        'sections: [{id: goal, skeleton: true}]\n',
+      );
+      final upper = project(lower, 'sections: [{id: goal, skeleton: false}]\n');
+      final silent = project(
+        lower,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      expect(skeletonOf(upper), isFalse);
+      expect(skeletonOf(silent), isTrue);
+    });
+  });
+
+  group('DocTypeMerger.apply output_ref', () {
+    bool outputRefOf(MergedDocType docType, String id) =>
+        docType.sections.firstWhere((s) => s.id == id).isOutputRef;
+
+    test("an upper layer's output_ref wins over the lower layer's, and an "
+        'upper layer that writes none keeps it', () {
+      final lower = project(
+        shipped(),
+        'sections: [{id: goal, output_ref: true}]\n',
+      );
+      final upper = project(
+        lower,
+        'sections: [{id: goal, output_ref: false}]\n',
+      );
+      final silent = project(
+        lower,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      final restored = project(
+        upper,
+        'sections: [{id: goal, output_ref: true}]\n',
+      );
+      expect(outputRefOf(lower, 'goal'), isTrue);
+      expect(outputRefOf(upper, 'goal'), isFalse);
+      expect(outputRefOf(silent, 'goal'), isTrue);
+      expect(outputRefOf(restored, 'goal'), isTrue);
+    });
+
+    test('an added section reads its output_ref, false when unwritten', () {
+      final added = project(
+        shipped(),
+        'sections:\n'
+        '  - {id: matrix, header: Matrix, output_ref: true}\n'
+        '  - {id: notes, header: Notes}\n',
+      );
+      expect(outputRefOf(added, 'matrix'), isTrue);
+      expect(outputRefOf(added, 'notes'), isFalse);
+      expect(outputRefOf(shipped(), 'goal'), isFalse);
+    });
+  });
+
+  group('DocTypeMerger.apply summary_rows and summary_for', () {
+    SummaryRows? rowsOf(MergedDocType docType) =>
+        docType.sections.firstWhere((s) => s.id == 'goal').summaryRows;
+
+    test('a later false turns summary_rows off on a summary section', () {
+      final on = project(
+        shipped(),
+        'sections: [{id: goal, summary: true, summary_rows: 1}]\n',
+      );
+      expect(rowsOf(on)?.count, 1);
+      final off = project(on, 'sections: [{id: goal, summary_rows: false}]\n');
+      expect(rowsOf(off), isNotNull);
+      expect(rowsOf(off)?.count, isNull);
+      final section = off.sections.firstWhere((s) => s.id == 'goal');
+      expect(section.summary, isTrue);
+      expect(section.summaryRowCount, isNull);
+    });
+
+    test('a later false turns summary_rows off on a plain section', () {
+      final on = project(
+        shipped(),
+        'sections: [{id: goal, summary_rows: 1}]\n',
+      );
+      final off = project(on, 'sections: [{id: goal, summary_rows: false}]\n');
+      expect(rowsOf(off), isNotNull);
+      expect(rowsOf(off)?.count, isNull);
+      expect(off.sections.firstWhere((s) => s.id == 'goal').summary, isNull);
+    });
+
+    test('summary_rows survives a layer that leaves it out', () {
+      final on = project(
+        shipped(),
+        'sections: [{id: goal, summary_rows: 2}]\n',
+      );
+      final kept = project(
+        on,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      expect(rowsOf(kept)?.count, 2);
+    });
+
+    test('a section a layer adds carries its summary_rows', () {
+      final added = project(
+        shipped(),
+        'sections: [{id: extra, header: Extra, summary_rows: 3}]\n',
+      );
+      expect(added.sections.last.summaryRows?.count, 3);
+    });
+
+    test('the top-most summary_for list wins', () {
+      final low = project(shipped(), 'summary_for: [project]\n');
+      expect(low.summaryFor, ['project']);
+      final high = project(low, 'summary_for: [feature]\n');
+      expect(high.summaryFor, ['feature']);
+      expect(project(high, 'path: f.md\n').summaryFor, ['feature']);
+    });
+  });
+
+  group('DocTypeMerger.apply result lists', () {
+    const richLayer = '''
+fields:
+  - id: kind
+    type: enum
+    enum: [a, b]
+  - id: link
+    type: doc_ref
+    doc_types: [epic]
+sections:
+  - id: risks
+    header: Risks
+lint:
+  banned_words: [fast]
+  allowed_words: [ok]
+reference: [{title: A}]
+''';
+
+    void expectFrozen(MergedDocType merged) {
+      final kind = merged.fields.firstWhere((f) => f.id == 'kind');
+      final link = merged.fields.firstWhere((f) => f.id == 'link');
+
+      expect(() => merged.fields.add(kind), throwsUnsupportedError);
+      expect(
+        () => merged.sections.add(merged.sections.first),
+        throwsUnsupportedError,
+      );
+      expect(() => merged.files.add('x'), throwsUnsupportedError);
+      expect(
+        () => merged.reference!.add(merged.reference!.first),
+        throwsUnsupportedError,
+      );
+      expect(() => merged.lint.bannedWords!.add('x'), throwsUnsupportedError);
+      expect(() => merged.lint.allowedWords!.add('x'), throwsUnsupportedError);
+      expect(() => kind.enumValues!.add('x'), throwsUnsupportedError);
+      expect(() => link.docTypes!.add('x'), throwsUnsupportedError);
+    }
+
+    test('lists of a doc type built from plain lists are unmodifiable', () {
+      expectFrozen(
+        merger.apply(merger.builtInBase('feature'), layer(richLayer)),
+      );
+    });
+
+    test('lists of a doc type built from add and remove are unmodifiable', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer(richLayer),
+      );
+
+      expectFrozen(
+        project(
+          base,
+          'lint: {banned_words: {add: [slow]}, allowed_words: {add: [fine]}}\n'
+          'reference: {add: [{title: B}]}',
+        ),
+      );
+    });
+  });
+
+  group('DocTypeMerger.apply guide-rule lint', () {
+    const lower = '''
+path: docs/specs/{slug}/DOMAIN.md
+sections:
+  - id: scope
+    header: Scope
+  - id: invariants
+    header: Invariants
+    lint:
+      min_lines: 2
+      catalog: {column: Code}
+      names_codes: true
+      item_fields:
+        - {field: Enforcer, values: [a, b]}
+        - {field: Consistency}
+      required_when: {section: scope, field: Kind, value: api}
+      diagram: {title: true, edge_labels: true, banned_labels: [x, y]}
+      max_sentences: [{count: 1}, {count: 2, column: Notes}]
+      item_count:
+        min: 1
+        max: 9
+        per_subsection: true
+        prefixes: [{line_prefix: "- **Why:**", count: 1}]
+lint: {title_no_number: true}
+''';
+
+    MergedDocType base() =>
+        merger.apply(merger.builtInBase('feature'), layer(lower));
+
+    MergedSection invariants(MergedDocType type) =>
+        type.sections.singleWhere((s) => s.id == 'invariants');
+
+    MergedDocType over(String lint) =>
+        project(base(), 'sections: [{id: invariants, lint: $lint}]');
+
+    test('a layer carries every guide-rule key into the merged section', () {
+      final section = invariants(base());
+      expect(section.minLines, 2);
+      expect(section.catalog?.column, 'Code');
+      expect(section.namesCodes, isTrue);
+      expect(section.itemFields?.map((f) => f.field), [
+        'Enforcer',
+        'Consistency',
+      ]);
+      expect(section.itemFields?.first.values, ['a', 'b']);
+      expect(section.requiredWhen?.section, 'scope');
+      expect(section.diagram?.bannedLabels, ['x', 'y']);
+      expect(section.maxSentences?.map((l) => l.count), [1, 2]);
+      expect(section.itemCount?.prefixes.single.count, 1);
+      expect(base().lint.titleNoNumber, isTrue);
+    });
+
+    test('a layer that writes none of the keys keeps the lower values', () {
+      final section = invariants(
+        project(base(), 'sections: [{id: invariants, description: New}]'),
+      );
+      expect(section.minLines, 2);
+      expect(section.catalog?.column, 'Code');
+      expect(section.itemFields, hasLength(2));
+      expect(section.itemCount?.max, 9);
+      expect(project(base(), 'description: New').lint.titleNoNumber, isTrue);
+    });
+
+    test('item_fields add replaces the lower entry of the same field and '
+        'keeps the others', () {
+      final fields = invariants(
+        over('{item_fields: {add: [{field: Enforcer, values: [c]}]}}'),
+      ).itemFields!;
+      expect(
+        {for (final f in fields) f.field: f.values},
+        {
+          'Enforcer': ['c'],
+          'Consistency': null,
+        },
+      );
+    });
+
+    test('item_fields remove drops the lower entry of that field', () {
+      final fields = invariants(over('{item_fields: {remove: [Consistency]}}'))
+          .itemFields!;
+      expect(fields.map((f) => f.field), ['Enforcer']);
+    });
+
+    test('item_fields remove of a field no lower layer holds is '
+        'override_id_not_found', () {
+      expect(
+        () => over('{item_fields: {remove: [Missing]}}'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.invariants.lint.item_fields',
+          ),
+        ),
+      );
+    });
+
+    test('a plain item_fields list over a lower one is '
+        'list_override_needs_add_remove', () {
+      expect(
+        () => over('{item_fields: [{field: Enforcer}]}'),
+        throwsA(
+          fault(
+            FaultCode.listOverrideNeedsAddRemove,
+            'sections.invariants.lint.item_fields',
+          ),
+        ),
+      );
+    });
+
+    test('the first layer to define item_fields writes it plain, or as a '
+        'change over nothing', () {
+      final plain = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: [{field: Why}]}}]',
+      );
+      final change = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '{add: [{field: Why}]}}}]',
+      );
+      for (final merged in [plain, change]) {
+        expect(
+          merged.sections
+              .firstWhere((s) => s.id == 'goal')
+              .itemFields
+              ?.map((f) => f.field),
+          ['Why'],
+        );
+      }
+    });
+
+    test('an item_fields entry keeps its when under an upper layer that adds '
+        'another field', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: P, when: {field: K, value: v}}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: {add: [{field: Q}]}}}]',
+      );
+      final fields = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!;
+      expect(fields.map((f) => f.field), ['P', 'Q']);
+      expect(fields.first.when?.field, 'K');
+      expect(fields.first.when?.value, 'v');
+    });
+
+    test('an item_fields add of the same field replaces the lower entry and '
+        'its when', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: P, when: {field: K, value: v}}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: {add: [{field: P}]}}}]',
+      );
+      final fields = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!;
+      expect(fields.single.field, 'P');
+      expect(fields.single.when, isNull);
+    });
+
+    test('an added Enforcer entry drops the shipped default_from', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: Enforcer, default_from: entities}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: '
+        '{add: [{field: Enforcer}]}}}]',
+      );
+      final entry = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!
+          .single;
+      expect(entry.when, isNull);
+      expect(entry.optional, isFalse);
+      expect(entry.defaultFrom, isNull);
+    });
+
+    test('an added Corrective policy entry drops the shipped when', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: Corrective policy, when: {field: Consistency, '
+        'value: eventual}}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: '
+        '{add: [{field: Corrective policy}]}}}]',
+      );
+      final entry = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!
+          .single;
+      expect(entry.when, isNull);
+      expect(entry.optional, isFalse);
+      expect(entry.defaultFrom, isNull);
+    });
+
+    test('an optional entry keeps its optional under an upper layer that adds '
+        'another field', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: P, optional: true}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: {add: [{field: Q}]}}}]',
+      );
+      final fields = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!;
+      expect(fields.first.optional, isTrue);
+      expect(fields.last.optional, isFalse);
+    });
+
+    test('a new section carries its guide-rule keys', () {
+      final merged = project(
+        base(),
+        'sections: [{id: notes, header: Notes, lint: {min_lines: 1, '
+        'max_item_lines: 4, '
+        'item_fields: [{field: Why}], diagram: {title: true}}}]',
+      );
+      final notes = merged.sections.singleWhere((s) => s.id == 'notes');
+      expect(notes.minLines, 1);
+      expect(notes.maxItemLines, 4);
+      expect(notes.itemFields?.single.field, 'Why');
+      expect(notes.diagram?.title, isTrue);
+    });
+
+    test('an upper diagram replaces the lower map whole, banned labels '
+        'with it', () {
+      final diagram = invariants(over('{diagram: {title: false}}')).diagram!;
+      expect(diagram.title, isFalse);
+      expect(diagram.edgeLabels, isFalse);
+      expect(diagram.bannedLabels, isEmpty);
+    });
+
+    test('an upper catalog, required_when, and item_count replace the lower '
+        'value whole', () {
+      final section = invariants(
+        over(
+          '{catalog: {column: Name}, '
+          'required_when: {section: scope, field: Other, value: z}, '
+          'item_count: {max: 3}}',
+        ),
+      );
+      expect(section.catalog?.column, 'Name');
+      expect(section.requiredWhen?.field, 'Other');
+      expect(section.itemCount?.min, isNull);
+      expect(section.itemCount?.max, 3);
+      expect(section.itemCount?.perSubsection, isFalse);
+      expect(section.itemCount?.prefixes, isEmpty);
+    });
+
+    test("an upper layer's max_item_lines wins the merge", () {
+      final lowerLimit = project(
+        base(),
+        'sections: [{id: invariants, lint: {max_item_lines: 6}}]',
+      );
+      expect(invariants(lowerLimit).maxItemLines, 6);
+      final upper = project(
+        lowerLimit,
+        'sections: [{id: invariants, lint: {max_item_lines: 3}}]',
+      );
+      expect(invariants(upper).maxItemLines, 3);
+      expect(invariants(base()).maxItemLines, isNull);
+      final sparse = project(
+        lowerLimit,
+        'sections: [{id: invariants, lint: {min_lines: 1}}]',
+      );
+      expect(invariants(sparse).maxItemLines, 6);
+    });
+
+    test('an upper max_code_blocks replaces the lower value whole', () {
+      final lower = project(
+        base(),
+        'sections: [{id: invariants, lint: {max_code_blocks: '
+        '{count: 2, per_subsection: true}}}]',
+      );
+      expect(invariants(lower).maxCodeBlocks?.perSubsection, isTrue);
+      final upper = project(
+        lower,
+        'sections: [{id: invariants, lint: {max_code_blocks: {count: 3}}}]',
+      );
+      expect(invariants(upper).maxCodeBlocks?.count, 3);
+      expect(invariants(upper).maxCodeBlocks?.perSubsection, isFalse);
+      final sparse = project(
+        lower,
+        'sections: [{id: invariants, lint: {min_lines: 1}}]',
+      );
+      expect(invariants(sparse).maxCodeBlocks?.count, 2);
+    });
+
+    test('an upper max_sentences list replaces the lower list whole', () {
+      final limits = invariants(over('{max_sentences: [{count: 5}]}'))
+          .maxSentences!;
+      expect(limits.map((l) => l.count), [5]);
+      expect(limits.single.column, isNull);
+    });
+
+    test('an upper scalar replaces the lower one, false and 0 included', () {
+      final section = invariants(over('{names_codes: false, min_lines: 0}'));
+      expect(section.namesCodes, isFalse);
+      expect(section.minLines, 0);
+      final doc = project(base(), 'lint: {title_no_number: false}');
+      expect(doc.lint.titleNoNumber, isFalse);
+    });
+
+    test('a doc-level lint key that is a section guide-rule key is '
+        'unknown_key', () {
+      for (final key in ['catalog', 'min_lines', 'item_fields']) {
+        expect(
+          () => layer('lint: {$key: {}}', kind: LayerKind.project),
+          throwsA(fault(FaultCode.unknownKey, 'lint.$key')),
+          reason: key,
+        );
+      }
+    });
+
+    test('a section lint key unknown to the format is unknown_key, and '
+        'title_no_number is one', () {
+      for (final key in ['max_item_chars', 'title_no_number', 'colour']) {
+        expect(
+          () => layer(
+            'sections: [{id: invariants, lint: {$key: 1}}]',
+            kind: LayerKind.project,
+          ),
+          throwsA(fault(FaultCode.unknownKey, 'sections.invariants.lint.$key')),
+          reason: key,
+        );
+      }
+    });
+  });
+
+  group('DocTypeMerger.apply section lint', () {
+    MergedDocType withSectionWords() => merger.apply(
+      merger.builtInBase('feature'),
+      layer('''
+path: docs/prds/{slug}/FEATURE.md
+sections:
+  - id: goal
+    header: Feature goal
+    lint: {banned_words: [fast, robust], line_prefix: "- **Statement:**"}
+  - id: scope
+    header: Out-of-scope
+lint: {banned_words: [simply]}
+'''),
+    );
+    MergedSection section(MergedDocType type, String id) =>
+        type.sections.firstWhere((s) => s.id == id);
+
+    test('removing a word changes that '
+        'section only', () {
+      final merged = project(
+        withSectionWords(),
+        'sections: [{id: goal, lint: {banned_words: '
+        '{add: [quickly], remove: [fast]}}}]',
+      );
+      expect(section(merged, 'goal').bannedWords, ['robust', 'quickly']);
+      expect(section(merged, 'scope').bannedWords, isNull);
+      expect(merged.lint.bannedWords, ['simply']);
+      expect(section(merged, 'goal').linePrefix, '- **Statement:**');
+    });
+
+    test('a removed section word the lower '
+        'list lacks is lint_word_not_found', () {
+      expect(
+        () => project(
+          withSectionWords(),
+          'sections: [{id: goal, lint: {banned_words: {remove: [quick]}}}]',
+        ),
+        throwsA(
+          fault(FaultCode.lintWordNotFound, 'sections.goal.lint.banned_words'),
+        ),
+      );
+    });
+
+    test('a plain section list over a lower one is '
+        'list_override_needs_add_remove', () {
+      expect(
+        () => project(
+          withSectionWords(),
+          'sections: [{id: goal, lint: {banned_words: [x]}}]',
+        ),
+        throwsA(
+          fault(
+            FaultCode.listOverrideNeedsAddRemove,
+            'sections.goal.lint.banned_words',
+          ),
+        ),
+      );
+    });
+
+    test('the first layer to define a section list writes '
+        'it plain', () {
+      final merged = project(
+        shipped(),
+        'sections: [{id: goal, lint: {allowed_words: [API]}}]',
+      );
+      expect(section(merged, 'goal').allowedWords, ['API']);
+      final added = project(
+        shipped(),
+        'sections: [{id: notes, header: Notes, lint: {banned_words: [x]}}]',
+      );
+      expect(section(added, 'notes').bannedWords, ['x']);
+    });
+
+    test('an upper line_prefix replaces the lower one', () {
+      final merged = project(
+        withSectionWords(),
+        'sections: [{id: goal, lint: {line_prefix: "- **Rule:**"}}]',
+      );
+      expect(section(merged, 'goal').linePrefix, '- **Rule:**');
+      expect(section(merged, 'goal').bannedWords, ['fast', 'robust']);
+    });
+
+    test('a higher layer max_depth replaces a lower one, '
+        '0 included', () {
+      final base = project(shipped(), 'max_depth: 3');
+      expect(base.maxDepth, 3);
+      expect(project(base, 'max_depth: 0').maxDepth, 0);
+      expect(project(base, 'description: Another').maxDepth, 3);
+    });
+
+    test('a higher layer title replaces a lower one; a layer that writes '
+        'none keeps the lower value', () {
+      final base = project(shipped(), 'title: Domain glossary');
+      expect(base.title, 'Domain glossary');
+      expect(project(base, 'title: Terms').title, 'Terms');
+      expect(project(base, 'description: Another').title, 'Domain glossary');
+      expect(shipped().title, isNull);
+    });
+
+    test('a higher layer replaces per_target; a layer that writes none '
+        'keeps the lower value', () {
+      final base = project(shipped(), 'per_target: true');
+      expect(base.isPerTarget, isTrue);
+      expect(project(base, 'per_target: false').isPerTarget, isFalse);
+      expect(project(base, 'description: Another').isPerTarget, isTrue);
+      expect(shipped().isPerTarget, isFalse);
+    });
+
+    test('a higher layer replaces fixed_numbers; a layer that writes none '
+        'keeps the lower value', () {
+      final base = project(shipped(), 'fixed_numbers: true');
+      expect(base.fixedNumbers, isTrue);
+      expect(project(base, 'fixed_numbers: false').fixedNumbers, isFalse);
+      expect(project(base, 'description: Another').fixedNumbers, isTrue);
+      expect(shipped().fixedNumbers, isFalse);
+    });
+
+    test('a later layer sets bundle_refs false', () {
+      final base = project(shipped(), 'bundle_refs: true');
+      expect(base.bundleRefs, isTrue);
+      expect(project(base, 'bundle_refs: false').bundleRefs, isFalse);
+      expect(project(base, 'description: Another').bundleRefs, isTrue);
+      expect(shipped().bundleRefs, isNull);
+    });
+
+    test('an '
+        'item_exact pointer survives the merge, and a record_status field '
+        'merges', () {
+      final merged = project(
+        shipped(),
+        'fields: [{id: implements, type: output_ref, pointer: item_exact}, '
+        '{id: entries, type: record_status}]',
+      );
+      expect(
+        merged.fields.singleWhere((f) => f.id == 'implements').pointer,
+        PointerKind.itemExact,
+      );
+      expect(
+        merged.fields.singleWhere((f) => f.id == 'entries').type,
+        FieldType.recordStatus,
+      );
+    });
+  });
+
+  group('DocTypeMerger.apply with a field lint', () {
+    const capped = '''
+fields:
+  - id: summary
+    type: string
+    lint:
+      max_sentences: 1
+      max_sentence_words: {default: 20, ko: 12}
+      max_sentence_chars: {default: 80, th: 70}
+''';
+
+    MergedField summaryOf(MergedDocType docType) =>
+        docType.fields.singleWhere((f) => f.id == 'summary');
+
+    MergedDocType cappedBase() =>
+        merger.apply(shipped(), layer(capped, kind: LayerKind.shipped));
+
+    test('a field with no lint is no prose field', () {
+      final field = shipped().fields.singleWhere((f) => f.id == 'owner');
+
+      expect(field.lint, isNull);
+      expect(field.isProse, isFalse);
+    });
+
+    test('a field that sets lint is a prose field', () {
+      final field = summaryOf(cappedBase());
+
+      expect(field.isProse, isTrue);
+      expect(field.lint?.maxSentences, 1);
+    });
+
+    test('an upper layer writing one key keeps the other two', () {
+      final merged = project(
+        cappedBase(),
+        'fields: [{id: summary, lint: {max_sentences: 2}}]',
+      );
+      final lint = summaryOf(merged).lint;
+
+      expect(lint?.maxSentences, 2);
+      expect(lint?.maxSentenceWords, {'default': 20, 'ko': 12});
+      expect(lint?.maxSentenceChars, {'default': 80, 'th': 70});
+    });
+
+    test('an upper map naming one language leaves no lower entry behind', () {
+      final merged = project(
+        cappedBase(),
+        'fields: [{id: summary, lint: {max_sentence_words: {default: 30}, '
+        'max_sentence_chars: {default: 90}}}]',
+      );
+      final lint = summaryOf(merged).lint;
+
+      expect(lint?.maxSentences, 1);
+      expect(lint?.maxSentenceWords, {'default': 30});
+      expect(lint?.maxSentenceChars, {'default': 90});
+    });
+
+    test('a layer that writes no lint keeps the lower lint', () {
+      final merged = project(
+        cappedBase(),
+        'fields: [{id: summary, description: One line.}]',
+      );
+
+      expect(summaryOf(merged).lint?.maxSentences, 1);
+    });
+
+    test('lint appears in the field JSON only when set', () {
+      expect(summaryOf(cappedBase()).toJson()['lint'], {
+        'maxSentences': 1,
+        'maxSentenceWords': {'default': 20, 'ko': 12},
+        'maxSentenceChars': {'default': 80, 'th': 70},
+      });
+      expect(
+        shipped().fields.singleWhere((f) => f.id == 'owner').toJson(),
+        isNot(contains('lint')),
+      );
+    });
+  });
+
+  group('DocTypeMerger.applyPatterns', () {
+    const packFile = 'packs/prd-core/pack.yaml';
+
+    MergedSharedPattern sharedPattern(
+      String id, {
+      SharedPatternKind kind = SharedPatternKind.banned,
+      List<String>? sections,
+      String message = 'Shared.',
+    }) => MergedSharedPattern(
+      entry: PatternEntry(id: id, pattern: 'x', message: message),
+      kind: kind,
+      forDocTypes: const ['feature'],
+      sections: sections,
+      declaringPack: 'prd-core',
+    );
+
+    List<String> ids(List<PatternEntry>? entries) => [
+      for (final entry in entries ?? const <PatternEntry>[]) entry.id,
+    ];
+
+    MergedSection sectionOf(MergedDocType docType, String id) =>
+        docType.sections.singleWhere((s) => s.id == id);
+
+    test('a banned pattern with no sections joins the doc-level list', () {
+      final merged = merger.applyPatterns(shipped(), [
+        sharedPattern('history'),
+      ], file: packFile);
+
+      expect(ids(merged.lint.bannedPatterns), ['history']);
+      expect(ids(sectionOf(merged, 'goal').bannedPatterns), isEmpty);
+    });
+
+    test('a pattern replaces the lower entry of its id and keeps the rest', () {
+      final base = project(
+        shipped(),
+        'lint: {banned_patterns: [{id: history, pattern: y, message: Own.}, '
+        '{id: tbd, pattern: TBD, message: Settle it.}]}',
+      );
+
+      final merged = merger.applyPatterns(base, [
+        sharedPattern('history'),
+      ], file: packFile);
+
+      expect(ids(merged.lint.bannedPatterns), ['tbd', 'history']);
+      expect(merged.lint.bannedPatterns!.last.message, 'Shared.');
+    });
+
+    test('a pattern with sections joins only the named sections held', () {
+      final merged = merger.applyPatterns(shipped(), [
+        sharedPattern('second_shall', sections: ['goal', 'absent']),
+        sharedPattern(
+          'then_line',
+          kind: SharedPatternKind.required,
+          sections: ['scope'],
+        ),
+      ], file: packFile);
+
+      expect(ids(sectionOf(merged, 'goal').bannedPatterns), ['second_shall']);
+      expect(ids(sectionOf(merged, 'goal').requiredPatterns), isEmpty);
+      expect(ids(sectionOf(merged, 'scope').bannedPatterns), isEmpty);
+      expect(ids(sectionOf(merged, 'scope').requiredPatterns), ['then_line']);
+      expect(merged.lint.bannedPatterns, isNull);
+      expect(merged.sections.map((s) => s.id), ['goal', 'scope']);
+    });
+  });
+}

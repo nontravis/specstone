@@ -1,0 +1,14 @@
+id: component_group
+description: |-
+  A component group: what its components share and when a reader looks in it.
+  Title it `# <Group name>`, with no number.
+path: specs/design_system/components/{slug}/GROUP.md
+sections:
+  - id: purpose
+    header: Purpose
+    required: true
+    summary: true
+    description: |-
+      Write what the group's components share and when a reader looks in it.
+lint:
+  title_no_number: true

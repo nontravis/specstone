@@ -1,0 +1,431 @@
+import 'dart:io';
+
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
+import 'package:specstone_core/src/journeys/journey_generators.dart';
+import 'package:specstone_core/src/journeys/journey_steps.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/format_run.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/rendering/html_build.dart';
+import 'package:specstone_core/src/rendering/mermaid_script.dart';
+import 'package:specstone_core/src/rendering/models/opened_resolver.dart';
+import 'package:specstone_core/src/setup_migration/cite_pass.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/check_fixture.dart';
+import '../../helpers/cold_node.dart';
+import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart' show shippedStatusesOutside;
+
+const _story = 'login/email_login';
+const _journeyKey = 'docs/prds/journeys/sign_in/JOURNEY.md';
+
+String _step(String number, String heading, String scenario, {String? after}) =>
+    '### $number. $heading\nstep: $_story $scenario\n'
+    '${after == null ? '' : 'after: $after\n'}';
+
+String _journey(List<String> steps, {String frontMatter = ''}) =>
+    '$frontMatter# Sign in\n\n## Goal\nReach the home page.\n\n## Flow\n\n'
+    '## Steps\n${steps.join('\n')}';
+
+final String _branched = _journey([
+  _step('1', 'Open', 'S1'),
+  _step('2', 'Type', 'S1'),
+  _step('3', 'Submit', 'S1'),
+  _step('4', 'Home', 'S1'),
+  _step('5', 'Done', 'S1'),
+  _step('3x', 'Wrong password', 'S2', after: '2'),
+]);
+
+Future<Directory> _project(String journey, {Map<String, String>? extra}) =>
+    writeCheckProject(extra: {_journeyKey: journey, ...?extra});
+
+DocsProject _open(Directory root) => DocsProject.open(
+  templates: TemplateResolver(),
+  workingDirectory: root,
+  homeDirectory: null,
+);
+
+FormatReport _format(Directory root, {bool check = false}) {
+  final project = _open(root);
+  return runFormat<DocIndex>(
+    project,
+    project.resolveTarget(
+      null,
+      workingDirectory: root,
+      defaultsToDocsRoot: true,
+    ),
+    check: check,
+    generators: GeneratorRun<DocIndex>(
+      registry: journeyGenerators(),
+      open: () {
+        final session = openSession(root);
+        return OpenedResolver(resolver: session.index, close: session.close);
+      },
+    ),
+  );
+}
+
+String _read(Directory root) =>
+    File.fromUri(root.uri.resolve(_journeyKey)).readAsStringSync();
+
+int _count(String text, String needle) => needle.allMatches(text).length;
+
+void main() {
+  useColdHostNode();
+
+  test('format draws two paths for a branched journey', () async {
+    final root = await _project(_branched);
+
+    _format(root);
+
+    final text = _read(root);
+    expect(text, contains('  s2 --> s3x'));
+    expect(text, contains('  s4 --> s5'));
+  });
+
+  test('a step added by hand gets its scenario text and its node', () async {
+    final root = await _project(
+      _journey([_step('1', 'Open', 'S1'), _step('2', 'Wrong', 'S2')]),
+    );
+
+    _format(root);
+
+    final text = _read(root);
+    expect(_count(text, generatedOpenMarker(journeyFlowKind)), 1);
+    expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 2);
+    expect(text, contains('  s1["1. Open"]'));
+    expect(text, contains('  s2["2. Wrong"]'));
+    expect(text, contains('- **When** the Agent signs in'));
+    expect(text, contains('- **When** the Agent types a'));
+  });
+
+  test('a story edit re-pastes '
+      'the copy on the next format, confirmed and draft unchanged', () async {
+    final root = await _project(
+      _journey(
+        [_step('1', 'Open', 'S1')],
+        frontMatter:
+            '---\nconfirmed:\n'
+            '  - $_story#S1 ${fingerprintFor(loginScenario1)}\n'
+            'draft: false\n---\n\n',
+      ),
+    );
+    _format(root);
+    final before = _read(root);
+    final storyFile = File.fromUri(root.uri.resolve('docs/$loginStory'));
+    storyFile.writeAsStringSync(
+      storyFile.readAsStringSync().replaceFirst(
+        '- **Then** the Agent sees the home page',
+        '- **Then** the Agent sees the dashboard',
+      ),
+    );
+
+    _format(root);
+
+    final after = _read(root);
+    expect(before, contains('sees the home page'));
+    expect(after, contains('sees the dashboard'));
+    expect(after, isNot(contains('sees the home page')));
+    expect(after.replaceAll('dashboard', 'home page'), before);
+    expect(after, contains('draft: false'));
+  });
+
+  test('a second format of a branched journey changes '
+      'nothing', () async {
+    final root = await _project(_branched);
+    _format(root);
+    final first = _read(root);
+
+    final report = _format(root);
+
+    expect(_read(root), first);
+    expect(report.exitStatus, 0);
+    expect(_format(root, check: true).exitStatus, 0);
+  });
+
+  test('an html build of a journey holds its flowchart '
+      'and no network source', () async {
+    final root = await _project(
+      _journey([_step('1', 'Open', 'S1'), _step('2', 'Type', 'S1')]),
+    );
+    _format(root);
+    final project = _open(root);
+
+    final build = buildHtml(
+      project,
+      project.resolveTarget(
+        null,
+        workingDirectory: root,
+        defaultsToDocsRoot: true,
+      ),
+    );
+
+    expect(build.html, contains('<pre class="mermaid">'));
+    expect(build.html, contains('flowchart TD'));
+    expect(build.html, contains('s1 --&gt; s2'));
+    expect(build.html, isNot(contains('src="http')));
+  });
+
+  test('an html build of a journey renders its flowchart with the pinned '
+      'inline script once', () async {
+    final root = await _project(
+      _journey([_step('1', 'Open', 'S1'), _step('2', 'Type', 'S1')]),
+    );
+    _format(root);
+    final project = _open(root);
+
+    final build = buildHtml(
+      project,
+      project.resolveTarget(
+        null,
+        workingDirectory: root,
+        defaultsToDocsRoot: true,
+      ),
+    );
+
+    expect(build.html, contains(mermaidScript));
+    expect(
+      build.html.indexOf(mermaidScript),
+      build.html.lastIndexOf(mermaidScript),
+    );
+    expect(
+      build.html.replaceAll(mermaidScript, ''),
+      isNot(contains('src="http')),
+    );
+    expect(build.html, contains('<pre class="mermaid">'));
+  });
+
+  test('a copy block under a step that names a missing scenario stays as it '
+      'stands', () async {
+    final root = await _project(
+      _journey([_step('1', 'Open', 'S1'), _step('2', 'Type', 'S1')]),
+    );
+    _format(root);
+    final file = File.fromUri(root.uri.resolve(_journeyKey));
+    final text = _read(root);
+    final second = text.lastIndexOf('step: $_story S1');
+    final edited = text.replaceRange(
+      second,
+      second + 'step: $_story S1'.length,
+      'step: $_story S9',
+    );
+    file.writeAsStringSync(edited);
+    expect(_count(edited, generatedOpenMarker(scenarioCopyKind)), 2);
+
+    _format(root);
+
+    expect(_read(root), edited);
+  });
+
+  test('prose a person writes inside a step survives format byte for '
+      'byte', () async {
+    const prose =
+        'Remember: the shopper may type a wrong password.\n\n'
+        '- a note line\n  with a wrapped line and a `code span`\n';
+    final root = await _project(
+      _journey([
+        '### 1. Open\nstep: $_story S1\n\n$prose',
+        _step('2', 'Type', 'S1'),
+      ]),
+    );
+
+    _format(root);
+
+    final text = _read(root);
+    expect(text, contains(prose));
+    expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 2);
+    _format(root);
+    expect(_read(root), text);
+  });
+
+  group('tracked step links after a format', () {
+    const label1 = '$_story#S1';
+    const label2 = '$_story#S2';
+    const journeyDocPath = 'prds/journeys/sign_in/JOURNEY.md';
+    final scenario1 = fingerprintOf(loginScenario1);
+    final scenario2 = fingerprintOf(loginScenario2);
+
+    String front(List<String> entries, {bool draft = false}) =>
+        '---\n${draft ? 'draft: true\n' : ''}confirmed:\n'
+        '${entries.map((e) => '  - $e\n').join()}---\n\n';
+
+    Future<List<Finding>> check(Directory root) async =>
+        (await checkOf(root, docPath: journeyDocPath)).findings;
+
+    void rewrite(Directory root, String Function(String) change) {
+      final file = File.fromUri(root.uri.resolve(_journeyKey));
+      file.writeAsStringSync(change(file.readAsStringSync()));
+    }
+
+    String withFront(String text, String frontMatter) =>
+        '$frontMatter${text.substring(text.indexOf('# Sign in'))}';
+
+    String approved(String text) => withApprovalHash(
+      text,
+      fixtureDocTypeOf(journeyDocPath),
+      statusesOutside: shippedStatusesOutside,
+    );
+
+    test('format re-pastes an edited '
+        'scenario and the journey stays suspect', () async {
+      final root = await _project(
+        _journey([
+          _step('1', 'Open', 'S1'),
+        ], frontMatter: front(['$label1 $scenario1'])),
+      );
+      final storyFile = File.fromUri(root.uri.resolve('docs/$loginStory'));
+      final edited = loginScenario1.replaceFirst('home page', 'dashboard');
+      storyFile.writeAsStringSync(
+        storyFile.readAsStringSync().replaceFirst(loginScenario1, edited),
+      );
+
+      _format(root);
+
+      expect(_read(root), contains('sees the dashboard'));
+      final suspect = (await check(root)).single;
+      expect(suspect.kind, FindingKind.suspect);
+      expect(suspect.toJson(), containsPair('link', label1));
+
+      final recorded = fingerprintOf(edited);
+      rewrite(
+        root,
+        (text) => withFront(text, front(['$label1 $recorded'], draft: true)),
+      );
+      final waiting = (await check(root)).single;
+      expect(waiting.kind, FindingKind.unconfirmed);
+      expect(waiting.message, contains("waits for the Owner's approve"));
+
+      rewrite(
+        root,
+        (text) => approved(withFront(text, front(['$label1 $recorded']))),
+      );
+      expect(await check(root), isEmpty);
+    });
+
+    test('format pastes links that '
+        'resolve from the journey, and a second format changes '
+        'nothing', () async {
+      const links =
+          '[problem](../FEATURE.md#problem) and '
+          '[criteria](#acceptance-criteria)';
+      final edited = loginScenario1.replaceFirst(
+        'home page',
+        'home page, $links',
+      );
+      final root = await _project(
+        _journey([
+          _step('1', 'Open', 'S1'),
+        ], frontMatter: front(['$label1 ${fingerprintOf(edited)}'])),
+        extra: edit(loginStory, [(loginScenario1, edited)]),
+      );
+
+      _format(root);
+      final first = _read(root);
+      final report = _format(root);
+
+      expect(
+        first,
+        contains(
+          '[problem](../../features/f01_login/FEATURE.md#problem) and '
+          '[criteria](../../features/f01_login/us01_email_login/USER_STORY.md'
+          '#acceptance-criteria)',
+        ),
+      );
+      final journey = report.files.singleWhere((f) => f.path == _journeyKey);
+      expect(journey.status, FileStatus.unchanged);
+      expect(_read(root), first);
+      expect(await check(root), isEmpty);
+    });
+
+    test('a cite the cite pass links in a story and in its pasted copy '
+        'stays as the next format pastes it', () async {
+      const storyKey = 'docs/$loginStory';
+      final cited = loginScenario1.replaceFirst(
+        'home page',
+        'home page of `feature:login`',
+      );
+      final root = await _project(
+        _journey([_step('1', 'Open', 'S1')]),
+        extra: edit(loginStory, [(loginScenario1, cited)]),
+      );
+      _format(root);
+      String lf(String key) =>
+          File.fromUri(root.uri.resolve(key)).readAsStringSync();
+      const docPaths = [loginFeature, loginStory, journeyDocPath];
+      final pass = CitePass.plan(
+        [
+          for (final docPath in docPaths)
+            (
+              docPath: docPath,
+              lf: lf('docs/$docPath'),
+              type: fixtureDocTypeOf(docPath),
+              target: null,
+            ),
+        ],
+        idPrefixes: itemIdPrefixesOf(docPaths.map(fixtureDocTypeOf)),
+        layoutPaths: const {},
+      );
+      for (final (docPath, key) in [
+        (loginStory, storyKey),
+        (journeyDocPath, _journeyKey),
+      ]) {
+        File.fromUri(root.uri.resolve(key))
+            .writeAsStringSync(pass.apply(docPath, lf(key)));
+      }
+      final linked = _read(root);
+
+      final report = _format(root);
+
+      expect(
+        linked,
+        contains('home page of [feature:login](../../features/f01_login/'),
+      );
+      final journey = report.files.singleWhere((f) => f.path == _journeyKey);
+      expect(journey.status, FileStatus.unchanged);
+      expect(_read(root), linked);
+    });
+
+    test('a step added by hand stays unconfirmed until the '
+        'Agent confirms it and the Owner approves', () async {
+      final root = await _project(
+        _journey([
+          _step('1', 'Open', 'S1'),
+        ], frontMatter: front(['$label1 $scenario1'])),
+      );
+      _format(root);
+      expect(await check(root), isEmpty);
+      rewrite(
+        root,
+        (text) => '${text.trimRight()}\n\n${_step('2', 'Wrong', 'S2')}',
+      );
+
+      _format(root);
+
+      // A step typed in an editor also leaves the approved doc changed.
+      final found = await check(root);
+      expect(found.map((f) => f.kind), [
+        FindingKind.approvalStale,
+        FindingKind.unconfirmed,
+      ]);
+      expect(found.last.toJson(), containsPair('link', label2));
+
+      final both = ['$label1 $scenario1', '$label2 $scenario2'];
+      rewrite(root, (text) => withFront(text, front(both, draft: true)));
+      expect(
+        (await check(root)).map((f) => f.kind),
+        everyElement(FindingKind.unconfirmed),
+      );
+      expect(await check(root), isNotEmpty);
+
+      rewrite(root, (text) => approved(withFront(text, front(both))));
+      expect(await check(root), isEmpty);
+    });
+  });
+}

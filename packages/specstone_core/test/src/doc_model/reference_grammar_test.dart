@@ -1,0 +1,897 @@
+import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
+import 'package:specstone_core/src/doc_model/models/destination_parts.dart';
+import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:test/test.dart';
+
+/// A default no test asserts on: lets `anchor: null` differ from "unchecked".
+const _sentinel = Object();
+
+void main() {
+  group('readDocAddress', () {
+    void check(
+      String text, {
+      String? typeId,
+      required String body,
+      String? sectionKey,
+      bool name = false,
+      bool referenceWithoutLookup = false,
+    }) {
+      test('reads $text', () {
+        final address = readDocAddress(text);
+        expect(address.typeId, typeId);
+        expect(address.body, body);
+        expect(address.sectionKey, sectionKey);
+        expect(address.isName, name);
+        expect(address.isReferenceWithoutLookup, referenceWithoutLookup);
+      });
+    }
+
+    check('gnfr', typeId: null, body: 'gnfr', name: true);
+    check('gnfr#_lead', body: 'gnfr', sectionKey: '_lead', name: true);
+    check(
+      'gnfr:gnfr#performance',
+      typeId: 'gnfr',
+      body: 'gnfr',
+      sectionKey: 'performance',
+      name: true,
+      referenceWithoutLookup: true,
+    );
+    check(
+      'login/email_login',
+      body: 'login/email_login',
+      name: true,
+      referenceWithoutLookup: true,
+    );
+    check(
+      'user_story:login/email_login',
+      typeId: 'user_story',
+      body: 'login/email_login',
+      name: true,
+      referenceWithoutLookup: true,
+    );
+    check('prds/GNFR.md', body: 'prds/GNFR.md', name: false);
+    check('docs/prds/GNFR.md', body: 'docs/prds/GNFR.md', name: false);
+    check(
+      'feature:prds/features/f01_login/FEATURE.md',
+      typeId: 'feature',
+      body: 'prds/features/f01_login/FEATURE.md',
+      name: false,
+    );
+    check('gnfr#', body: 'gnfr', sectionKey: '', name: true);
+    check('#x', body: '', sectionKey: 'x');
+    check('Grid:login', body: 'Grid:login');
+    check('check architecture:login', body: 'check architecture:login');
+    check(
+      'architecture:login',
+      typeId: 'architecture',
+      body: 'login',
+      name: true,
+      referenceWithoutLookup: true,
+    );
+    check(
+      'fr:a/b/c#x',
+      typeId: 'fr',
+      body: 'a/b/c',
+      sectionKey: 'x',
+      name: true,
+      referenceWithoutLookup: true,
+    );
+
+    test('a Name may hold 2 or more slugs, and a one-slug Name marks a '
+        'reference only when typed', () {
+      expect(
+        readDocAddress('feature:index_query').isReferenceWithoutLookup,
+        isTrue,
+      );
+      expect(
+        readDocAddress('affiliate_module/profile').isReferenceWithoutLookup,
+        isTrue,
+      );
+      expect(
+        readDocAddress('fr:index_query/read_doc_section/resolve_doc_name')
+            .isReferenceWithoutLookup,
+        isTrue,
+      );
+      expect(readDocAddress('user_id').isReferenceWithoutLookup, isFalse);
+      expect(readDocAddress('doc_model.dart').isName, isFalse);
+      expect(readDocAddress('parseDoc()').isName, isFalse);
+    });
+
+    test('docPart drops any section key', () {
+      expect(readDocAddress('gnfr:gnfr#performance').docPart, 'gnfr:gnfr');
+      expect(readDocAddress('login/email_login').docPart, 'login/email_login');
+      expect(readDocAddress('gnfr#_lead').docPart, 'gnfr');
+    });
+  });
+
+  group('isDocTypeIdShaped', () {
+    test('accepts a whole-string [a-z][a-z0-9_]* and nothing else', () {
+      for (final id in ['a', 'fr', 'user_story', 'a1_b2']) {
+        expect(isDocTypeIdShaped(id), isTrue, reason: id);
+      }
+      for (final id in ['', 'Grid', '1a', '_a', 'a-b', 'a b', 'a/b', 'a\n']) {
+        expect(isDocTypeIdShaped(id), isFalse, reason: id);
+      }
+    });
+  });
+
+  group('readItemId', () {
+    test('reads plain digits after the prefix', () {
+      final id = readItemId('RULE-7 x', 'RULE-');
+      expect(id, isA<ItemId>());
+      expect(id!.prefix, 'RULE-');
+      expect(id.digits, '7');
+      expect(id.written, 'RULE-7');
+      expect((id as ItemId).number, BigInt.from(7));
+    });
+
+    test('reads past one optional **', () {
+      final id = readItemId('**RULE-7** x', 'RULE-');
+      expect(id!.written, 'RULE-7');
+    });
+
+    test('a letter after the digits reads as a LetteredId, not an ItemId', () {
+      final id = readItemId('RULE-7a x', 'RULE-');
+      expect(id, isA<LetteredId>());
+      expect(id!.prefix, 'RULE-');
+      expect(id.digits, '7');
+      expect(id.written, 'RULE-7a');
+      expect((id as LetteredId).letters, 'a');
+    });
+
+    test('a digit after the digits stays in the digits', () {
+      final id = readItemId('RULE-12', 'RULE-');
+      expect(id, isA<ItemId>());
+      expect(id!.digits, '12');
+    });
+
+    test('an underscore after the digits ends them', () {
+      final id = readItemId('RULE-7_x', 'RULE-');
+      expect(id, isA<ItemId>());
+      expect(id!.digits, '7');
+    });
+
+    test('no digit after the prefix reads as null', () {
+      expect(readItemId('RULE- x', 'RULE-'), isNull);
+    });
+
+    test('a digit after the letter run reads as an UnreadableId '
+        'spanning the whole letter and digit run', () {
+      for (final (text, written) in const [
+        ('RULE-7a1 x', 'RULE-7a1'),
+        ('RULE-7a1b2, y', 'RULE-7a1b2'),
+        ('**RULE-7ab12** — z', 'RULE-7ab12'),
+      ]) {
+        final id = readItemId(text, 'RULE-');
+        expect(id, isA<UnreadableId>(), reason: text);
+        expect(id!.written, written, reason: text);
+        expect(id.digits, '7', reason: text);
+      }
+    });
+
+    test('a letter in the prefix position reads as null', () {
+      // NFR-P03 with prefix NFR- holds a letter P before the digits.
+      expect(readItemId('NFR-P03', 'NFR-'), isNull);
+    });
+
+    test('a pipe before the ID reads as null: the reader opens at the head '
+        'of its item, which a list item or heading keeps', () {
+      for (final text in const ['| E01 | one |', '|E01|one|', '| **E01** |']) {
+        expect(readItemId(text, 'E'), isNull, reason: text);
+      }
+    });
+  });
+
+  group('itemIdRunAt', () {
+    const prefixes = {'INV-', 'RULE-', 'E', 'NFR-P'};
+
+    /// The run's IDs as `at:written` for [line] from [from].
+    String runOf(String line, int from) => [
+      for (final it in itemIdRunAt(line, from, prefixes: prefixes))
+        '${it.at}:${it.id.written}',
+    ].join(' ');
+
+    test('reads a run of IDs, one per joiner', () {
+      expect(
+        runOf('X INV-1, INV-2 and INV-3 or INV-4, and INV-5', 1),
+        '2:INV-1 9:INV-2 19:INV-3 28:INV-4 39:INV-5',
+      );
+    });
+
+    test('reads a range by its range mark', () {
+      expect(runOf('X INV-1 to INV-4 end', 1), '2:INV-1 11:INV-4');
+    });
+
+    test('allows zero spaces and several spaces before the first ID', () {
+      expect(runOf('X`INV-1', 2), '2:INV-1');
+      expect(runOf('X   INV-1', 1), '4:INV-1');
+    });
+
+    test('stops at the first other word, so a later ID is not read', () {
+      expect(runOf('X INV-1 then INV-2', 1), '2:INV-1');
+      expect(runOf('X later INV-2', 1), '');
+    });
+
+    test('ends the run at a joiner with no ID after it', () {
+      expect(runOf('X INV-1, then INV-2', 1), '2:INV-1');
+    });
+
+    test('ends the run at a code span between the start and an ID', () {
+      expect(runOf('X `a` INV-1', 1), '');
+      expect(runOf('X INV-1 and `a` INV-2', 1), '2:INV-1');
+    });
+
+    test('joins a lettered ID and ends at an unreadable one', () {
+      expect(runOf('X RULE-7a and INV-2', 1), '2:RULE-7a 14:INV-2');
+      expect(runOf('X INV-1 and RULE-7a1 and INV-3', 1), '2:INV-1');
+    });
+
+    test('ends the run at a token of no prefix', () {
+      expect(runOf('X UTF-8, INV-1', 1), '');
+      expect(runOf('X INV-1, SHA256 and INV-2', 1), '2:INV-1');
+    });
+
+    test('reads no run from a column at or past the end of the line', () {
+      expect(runOf('X INV-1', 7), '');
+      expect(runOf('X INV-1', 40), '');
+    });
+
+    test('takes the longest prefix first', () {
+      expect(runOf('X NFR-P01 and E10', 1), '2:NFR-P01 14:E10');
+    });
+  });
+
+  group('readItemIdOfWrittenPrefix', () {
+    test('takes the letters and hyphens before the first digit as the '
+        'prefix, past one optional **', () {
+      for (final text in const ['NFR-U01 — x', '**NFR-U01** — x']) {
+        final id = readItemIdOfWrittenPrefix(text);
+        expect(id, isA<ItemId>(), reason: text);
+        expect(id!.prefix, 'NFR-U', reason: text);
+        expect(id.written, 'NFR-U01', reason: text);
+      }
+    });
+
+    test('reads a lettered and an unreadable form as the grammar does', () {
+      expect(readItemIdOfWrittenPrefix('NFR-U01a'), isA<LetteredId>());
+      expect(readItemIdOfWrittenPrefix('NFR-U1a1'), isA<UnreadableId>());
+    });
+
+    test('text with no letter-led prefix before a digit reads as null', () {
+      for (final text in const ['Usability', '01 first', '-U01', 'NFR- x']) {
+        expect(readItemIdOfWrittenPrefix(text), isNull, reason: text);
+      }
+    });
+  });
+
+  group('itemIdsInProse', () {
+    List<String> found(String prose, Set<String> prefixes) => [
+      for (final hit in itemIdsInProse(prose, prefixes: prefixes))
+        '${hit.at}:${hit.id.written}',
+    ];
+
+    test('finds each ID in order, the longest prefix first', () {
+      expect(
+        found('See NFR-U01 and FR-02, SHA256 then FR-03', const {
+          'NFR-U',
+          'FR-',
+          'NFR-',
+        }),
+        ['4:NFR-U01', '16:FR-02', '35:FR-03'],
+      );
+    });
+
+    test('finds an ID of a prefix that opens with a non-ASCII letter', () {
+      expect(found('See Ü-01 and FR-02', const {'Ü-', 'FR-'}), [
+        '4:Ü-01',
+        '13:FR-02',
+      ]);
+    });
+  });
+
+  group('readScenarioHeading', () {
+    test('reads ### Scenario <N>', () {
+      final id = readScenarioHeading('### Scenario 6 — x');
+      expect(id, isA<ItemId>());
+      expect(id!.prefix, 'Scenario ');
+      expect(id.digits, '6');
+      expect((id as ItemId).number, BigInt.from(6));
+    });
+
+    test('a lettered scenario number reads as a LetteredId', () {
+      final id = readScenarioHeading('### Scenario 6a — x');
+      expect(id, isA<LetteredId>());
+      expect(id!.written, 'Scenario 6a');
+    });
+
+    test('a digit after the letter of a scenario number reads as an '
+        'UnreadableId', () {
+      final id = readScenarioHeading('### Scenario 6a2 — x');
+      expect(id, isA<UnreadableId>());
+      expect(id!.written, 'Scenario 6a2');
+    });
+
+    test('a heading with no text still reads', () {
+      final id = readScenarioHeading('### Scenario 10');
+      expect(id, isA<ItemId>());
+      expect(id!.digits, '10');
+    });
+
+    test('#### Scenario 6 reads as null; only ### opens a scenario', () {
+      expect(readScenarioHeading('#### Scenario 6'), isNull);
+    });
+
+    test('no digit after the prefix reads as null', () {
+      expect(readScenarioHeading('### Scenario x'), isNull);
+    });
+  });
+
+  group('nextFreeIds', () {
+    test('digits past 64 bits read and count without a throw', () {
+      final ids = [
+        readItemId('RULE-1234567890123456789012345', 'RULE-')!,
+        readItemId('RULE-3a', 'RULE-')!,
+        readItemId('RULE-4b', 'RULE-')!,
+      ];
+
+      expect(nextFreeIds(ids), {
+        1: 'RULE-1234567890123456789012346',
+        2: 'RULE-1234567890123456789012347',
+      });
+    });
+
+    test('RULE-7a under highest RULE-30 gets RULE-31', () {
+      final ids = [
+        readItemId('**RULE-30** Rule text', 'RULE-')!,
+        readItemId('**RULE-7a** Rule text', 'RULE-')!,
+      ];
+      expect(nextFreeIds(ids), {1: 'RULE-31'});
+    });
+
+    test('next free number passes a retired number', () {
+      final ids = [
+        readItemId('**RULE-30** Rule text', 'RULE-')!,
+        readItemId('**RULE-7a** Rule text', 'RULE-')!,
+        readItemId('**RULE-7b** Rule text', 'RULE-')!,
+        readItemId('**BR-1** Rule text', 'BR-')!,
+        readItemId('**BR-1a** Rule text', 'BR-')!,
+      ];
+
+      expect(nextFreeIds(ids, retired: {'RULE-40', 'BR-010', 'x'}), {
+        1: 'RULE-41',
+        2: 'RULE-42',
+        4: 'BR-011',
+      });
+    });
+
+    test('next free number leaves edge cases and scenarios to '
+        'position', () {
+      final ids = [
+        readScenarioHeading('### Scenario 8')!,
+        readScenarioHeading('### Scenario 6a — [edge] Renew early')!,
+        readItemId('E03', 'E')!,
+        readItemId('E1a', 'E')!,
+      ];
+
+      expect(nextFreeIds(ids, retired: {'Scenario 9', 'E09'}), isEmpty);
+    });
+
+    test('each prefix counts only its own; zero-pad to the highest digits '
+        'count', () {
+      final ids = [
+        readItemId('BR-9', 'BR-')!,
+        readItemId('PV-099', 'PV-')!,
+        readItemId('BR-10a', 'BR-')!,
+        readItemId('PV-100a', 'PV-')!,
+      ];
+      expect(nextFreeIds(ids), {2: 'BR-10', 3: 'PV-100'});
+    });
+
+    test('FR-09 with one lettered FR-03a gives FR-10', () {
+      final ids = [readItemId('FR-09', 'FR-')!, readItemId('FR-03a', 'FR-')!];
+      expect(nextFreeIds(ids), {1: 'FR-10'});
+    });
+  });
+
+  group('readScenarioRef', () {
+    test('reads S<N> of the own story', () {
+      final ref = readScenarioRef('S1');
+      expect(ref, isNotNull);
+      expect(ref!.number.digits, '1');
+      expect(ref.number.prefix, 'S');
+      expect(ref.storyName, isNull);
+      expect(ref.scenario, BigInt.from(1));
+      expect(ref.label, 'S1');
+    });
+
+    test('S6a reads; its number names no scenario', () {
+      final ref = readScenarioRef('S6a');
+      expect(ref, isNotNull);
+      expect(ref!.number, isA<LetteredId>());
+      expect(ref.scenario, isNull);
+      expect(ref.label, 'S6a');
+    });
+
+    test('reads <story Name>#S<N> of another story', () {
+      final ref = readScenarioRef('login/reset_password#S3');
+      expect(ref, isNotNull);
+      expect(ref!.storyName, 'login/reset_password');
+      expect(ref.scenario, BigInt.from(3));
+      expect(ref.label, 'login/reset_password#S3');
+    });
+
+    test('Scenario 2 reads as null; only S<N> is a scenario ref', () {
+      expect(readScenarioRef('Scenario 2'), isNull);
+    });
+
+    test('login# reads as null; the story part is a Name', () {
+      expect(readScenarioRef('login#'), isNull);
+    });
+
+    test('#S3 reads as null; no empty story name', () {
+      expect(readScenarioRef('#S3'), isNull);
+    });
+
+    test('text after the ID reads as null; the ref is the whole text', () {
+      expect(readScenarioRef('S1 x'), isNull);
+      expect(readScenarioRef('login#S3 tail'), isNull);
+    });
+
+    test('a story name holding a space reads as null', () {
+      expect(readScenarioRef('login x#S3'), isNull);
+    });
+
+    test('an astral-plane letter after the digits reads as a LetteredId', () {
+      // U+104B0 DESERET CAPITAL LETTER LONG I: outside the BMP.
+      final id = readItemId('FR-9\u{104B0}', 'FR-');
+      expect(id, isA<LetteredId>());
+      expect((id! as LetteredId).letters, '\u{104B0}');
+      expect(readScenarioRef('S9\u{104B0}')!.number, isA<LetteredId>());
+    });
+  });
+
+  test('keyed unit address reads section key and key', () {
+    final block = readKeyedUnitAddress('api:shop#operations/additem')!;
+    expect(block.doc.docPart, 'api:shop');
+    expect(block.sectionKey, 'operations');
+    expect(block.key, 'additem');
+    final row = readKeyedUnitAddress('api:shop#fr_trace/cart/add_item/check');
+    expect(row!.sectionKey, 'fr_trace');
+    expect(row.key, 'cart/add_item/check');
+    for (final text in [
+      'rulebook:shop#INV-3',
+      'rulebook:shop',
+      'api:shop#operations/',
+      'api:shop#/additem',
+    ]) {
+      expect(readKeyedUnitAddress(text), isNull, reason: text);
+    }
+  });
+
+  group('readStepTargetValue', () {
+    test('reads <story Name> S<N>, one space between', () {
+      final ref = readStepTargetValue('login/reset_password S3');
+      expect(ref, isNotNull);
+      expect(ref!.storyName, 'login/reset_password');
+      expect(ref.scenario, BigInt.from(3));
+      expect(ref.label, 'login/reset_password#S3');
+    });
+
+    test('reads a lettered step number', () {
+      final ref = readStepTargetValue('setup_migration/set_up_new_project S1a');
+      expect(ref, isNotNull);
+      expect(ref!.scenario, isNull);
+      expect(ref.label, 'setup_migration/set_up_new_project#S1a');
+    });
+
+    test('two spaces read as null', () {
+      expect(readStepTargetValue('login/reset_password  S3'), isNull);
+    });
+  });
+
+  group('readLeadingLinkTarget', () {
+    test('reads the target of a link that opens the text', () {
+      expect(
+        readLeadingLinkTarget('[INV-3](../DOMAIN.md#invariants) — why'),
+        '../DOMAIN.md#invariants',
+      );
+    });
+
+    test('text that opens with no link reads as null', () {
+      expect(readLeadingLinkTarget('INV-3 — [x](a.md)'), isNull);
+    });
+  });
+
+  group('withoutTrailingLinkGroup', () {
+    test('drops the link group that closes the text and the space before', () {
+      expect(
+        withoutTrailingLinkGroup('`Account` ([rulebook:a](../DOMAIN.md)) '),
+        '`Account`',
+      );
+    });
+
+    test('keeps a link group that does not close the text', () {
+      expect(
+        withoutTrailingLinkGroup('Account ([a](b.md)) and more'),
+        'Account ([a](b.md)) and more',
+      );
+    });
+  });
+
+  group('readLinkLabel', () {
+    test('reads S<N>', () {
+      final label = readLinkLabel('S1');
+      expect(label, isA<ScenarioLabel>());
+      expect((label! as ScenarioLabel).ref.scenario, BigInt.from(1));
+      expect(label.written, 'S1');
+    });
+
+    test('reads an NFR id', () {
+      final label = readLinkLabel('NFR-P01');
+      expect(label, isA<NfrLabel>());
+      expect((label! as NfrLabel).id, 'NFR-P01');
+      expect(label.written, 'NFR-P01');
+    });
+
+    test('reads an FR ref, a Name of 2 or more slugs', () {
+      final label = readLinkLabel('login/email_login');
+      expect(label, isA<FrRefLabel>());
+      expect((label! as FrRefLabel).name, 'login/email_login');
+    });
+
+    test('reads a deeper FR ref and other NFR ids', () {
+      expect(
+        (readLinkLabel('cart/add_item/check_stock')! as FrRefLabel).name,
+        'cart/add_item/check_stock',
+      );
+      expect((readLinkLabel('NFR-P01')! as NfrLabel).id, 'NFR-P01');
+    });
+
+    test('an astral-plane letter in an NFR id reads as an NfrLabel', () {
+      // U+10428 DESERET SMALL LETTER LONG I: outside the BMP.
+      expect(readLinkLabel('NFR-\u{10428}01'), isA<NfrLabel>());
+    });
+
+    test('reads <story Name>#S<N>', () {
+      final label = readLinkLabel('login/reset_password#S3');
+      expect(label, isA<ScenarioLabel>());
+      expect((label! as ScenarioLabel).ref.storyName, 'login/reset_password');
+    });
+
+    test('a one-slug name reads as null', () {
+      expect(readLinkLabel('login'), isNull);
+    });
+
+    test('NFR- with no letters reads as null', () {
+      expect(readLinkLabel('NFR-01'), isNull);
+    });
+
+    test('plain digits read as null', () {
+      expect(readLinkLabel('01'), isNull);
+    });
+
+    test('an override address reads as an OverrideLabel with its doc address '
+        'and item id', () {
+      final label = readLinkLabel('project_rulebook:domain#INV-3');
+      expect(label, isA<OverrideLabel>());
+      final override = label! as OverrideLabel;
+      expect(override.address.typeId, 'project_rulebook');
+      expect(override.address.body, 'domain');
+      expect(override.itemId, 'INV-3');
+      expect(override.written, 'project_rulebook:domain#INV-3');
+    });
+
+    test('an item id with no doc address is no OverrideLabel', () {
+      expect(readLinkLabel('#INV-3'), isNull);
+      expect(readLinkLabel('domain#INV-3'), isNull);
+    });
+
+    test('a doc address with no item id is no OverrideLabel', () {
+      expect(readLinkLabel('project_rulebook:domain'), isNull);
+      expect(readLinkLabel('project_rulebook:domain#'), isNull);
+      expect(readLinkLabel('project_rulebook:domain#overview'), isNull);
+      expect(readLinkLabel('project_rulebook:domain#INV-3a'), isNull);
+    });
+
+    test(
+      'an override address identity ignores nothing but the written form',
+      () {
+        const text = 'project_rulebook:domain#INV-3';
+        expect(linkIdentityOf(text), text);
+        expect(linkIdentityOf(text), readLinkLabel(text)!.identity);
+        expect(linkIdentityOf('project_rulebook:domain#INV-03'), isNot(text));
+      },
+    );
+  });
+
+  group('linkIdentityOf', () {
+    test("a scenario label is its story Name and the number's value", () {
+      expect(linkIdentityOf('S06'), 'S6');
+      expect(linkIdentityOf('a/b#S09'), 'a/b#S9');
+      expect(linkIdentityOf('a/b#S9'), 'a/b#S9');
+    });
+
+    test('a lettered scenario, an NFR, an FR ref, and other text stay as '
+        'written', () {
+      for (final label in ['a/b#S6a', 'S06a', 'NFR-P01', 'login/a', 'x']) {
+        expect(linkIdentityOf(label), label);
+      }
+    });
+  });
+
+  group('readLinkTarget', () {
+    void check(
+      String href, {
+      required Matcher form,
+      String? scheme,
+      List<String>? segments,
+      Object? anchor = _sentinel,
+    }) {
+      test('reads $href', () {
+        final target = readLinkTarget(href);
+        expect(target, form);
+        if (target case SchemeLink()) expect(target.scheme, scheme);
+        if (target case RelativeLink()) {
+          if (segments != null) expect(target.segments, segments);
+          if (!identical(anchor, _sentinel)) expect(target.anchor, anchor);
+        }
+      });
+    }
+
+    test('rawAnchor is the text after the first # as written', () {
+      String? rawOf(String href) => switch (readLinkTarget(href)) {
+        RelativeLink(:final rawAnchor) => rawAnchor,
+        _ => 'not relative',
+      };
+      expect(rawOf('a/b.md#caf%C3%A9'), 'caf%C3%A9');
+      expect(rawOf('a/b.md#a#b'), 'a#b');
+      expect(rawOf('#'), '');
+      expect(rawOf('a/b.md'), isNull);
+    });
+
+    test('pathEnd is where ? or # begins in the href as written', () {
+      int? endOf(String href) => switch (readLinkTarget(href)) {
+        RelativeLink(:final pathEnd) => pathEnd,
+        _ => null,
+      };
+      expect(endOf('a/b.md?q#x'), 6);
+      expect(endOf('a/b.md#x'), 6);
+      expect(endOf('a/b.md#a?b'), 6);
+      expect(endOf('a/b.md'), 6);
+      expect(endOf('#x'), 0);
+      expect(endOf('?q'), 0);
+      expect(endOf('a%23b.md#x'), 8);
+    });
+
+    // R65: a scheme needs a letter first, so these are relative.
+    check('1:x.md', form: isA<RelativeLink>(), segments: ['1:x.md']);
+    check(':x.md', form: isA<RelativeLink>(), segments: [':x.md']);
+    check('HTTP://x/', form: isA<SchemeLink>(), scheme: 'http');
+    check('mailto:a@b', form: isA<SchemeLink>(), scheme: 'mailto');
+    check('//h/x.md', form: isA<AuthorityLink>());
+    check('/x.md', form: isA<RootedLink>());
+    check('#a%20b', form: isA<RelativeLink>(), segments: [], anchor: 'a b');
+    check(
+      'a.md?x=1#sec',
+      form: isA<RelativeLink>(),
+      segments: ['a.md'],
+      anchor: 'sec',
+    );
+    // RULE-7: a `%` two hex digits do not follow stays as written.
+    check('a%zz.md', form: isA<RelativeLink>(), segments: ['a%zz.md']);
+    // An escape that is not UTF-8 reads as U+FFFD.
+    check('%DB.md', form: isA<RelativeLink>(), segments: ['\u{FFFD}.md']);
+    // RULE-7: an encoded slash stays inside its segment, decoded, so one
+    // segment `a/b.md`, which `_resolveSegments` then rejects.
+    check('a%2Fb.md', form: isA<RelativeLink>(), segments: ['a/b.md']);
+
+    test('a query with no fragment keeps null anchor', () {
+      expect(readLinkTarget('a.md?x=1'), isA<RelativeLink>());
+      final target = readLinkTarget('a.md?x=1') as RelativeLink;
+      expect(target.segments, ['a.md']);
+      expect(target.anchor, isNull);
+    });
+
+    test('an empty fragment names the doc top', () {
+      final target = readLinkTarget('#') as RelativeLink;
+      expect(target.segments, const <String>[]);
+      expect(target.anchor, '');
+    });
+
+    test('a malformed absolute URL reads as a scheme link', () {
+      for (final href in [
+        'http://h:abc/x.md',
+        'http://',
+        'http://h:99999/',
+        'https://exa mple.com/x.md',
+      ]) {
+        expect(
+          readLinkTarget(href),
+          isA<SchemeLink>().having(
+            (l) => l.scheme,
+            'scheme',
+            startsWith('http'),
+          ),
+          reason: href,
+        );
+      }
+    });
+  });
+
+  group('destinationPartsOf', () {
+    DestinationParts inline(String written) =>
+        destinationPartsOf(written, DestinationKind.inline);
+
+    test('splits a written destination where its first ? or # is '
+        'written', () {
+      expect(
+        inline('a.md#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
+      expect(inline('#x'), const DestinationParts(pathEnd: 0, anchorStart: 1));
+      expect(
+        inline(r'f01\_a/A.md#x#y'),
+        const DestinationParts(pathEnd: 11, anchorStart: 12),
+      );
+      expect(
+        inline('a.md?q#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 7),
+      );
+      expect(
+        inline(r'../t_doc.md#a\)b'),
+        const DestinationParts(pathEnd: 11, anchorStart: 12),
+      );
+    });
+
+    test('a # or ? written as an escape or a character reference splits '
+        'where its text starts and ends', () {
+      expect(
+        inline(r'a.md\#x'),
+        const DestinationParts(pathEnd: 4, anchorStart: 6),
+      );
+      expect(
+        inline('USER_STORY.md&#35;s'),
+        const DestinationParts(pathEnd: 13, anchorStart: 18),
+      );
+      expect(
+        inline('a&#x23;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
+      expect(
+        inline('a&#X23;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
+      expect(
+        inline('a&num;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 6),
+      );
+      expect(
+        inline('a&#63;q'),
+        const DestinationParts(pathEnd: 1, anchorStart: null),
+      );
+      expect(
+        inline('a&quest;q#x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 10),
+      );
+      expect(
+        inline(r'a&\#35;x'),
+        const DestinationParts(pathEnd: 1, anchorStart: 7),
+      );
+    });
+
+    test('a character reference to another character, a percent escape, '
+        'and an unknown name split nothing', () {
+      expect(
+        inline('doc&#95;model.md#r'),
+        const DestinationParts(pathEnd: 16, anchorStart: 17),
+      );
+      expect(
+        inline('a.md#&#115;cenario'),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
+      expect(
+        inline('a%23b.md'),
+        const DestinationParts(pathEnd: 8, anchorStart: null),
+      );
+      expect(
+        inline('a&NUM;b'),
+        const DestinationParts(pathEnd: 7, anchorStart: null),
+      );
+      expect(
+        inline('a.md'),
+        const DestinationParts(pathEnd: 4, anchorStart: null),
+      );
+      expect(inline(''), const DestinationParts(pathEnd: 0, anchorStart: null));
+    });
+
+    test('an inline destination drops the backslash before a backslash '
+        'before the rest, as markdown reads it, and a definition does not', () {
+      const written = r'a&\\#35;x';
+
+      expect(
+        inline(written),
+        const DestinationParts(pathEnd: 1, anchorStart: 8),
+      );
+      expect(
+        destinationPartsOf(written, DestinationKind.angleInline),
+        const DestinationParts(pathEnd: 1, anchorStart: 8),
+      );
+      expect(
+        destinationPartsOf(written, DestinationKind.definition),
+        const DestinationParts(pathEnd: 4, anchorStart: 5),
+      );
+    });
+  });
+
+  group('itemKeyOf', () {
+    test('an item ID is held as written', () {
+      expect(
+        itemKeyOf(readItemId('E01 — a case', 'E')!, isScenario: false),
+        'E01',
+      );
+      expect(
+        itemKeyOf(readItemId('**E007** — a case', 'E')!, isScenario: false),
+        'E007',
+      );
+    });
+
+    test('a scenario heading is held by its number value', () {
+      final heading = readScenarioHeading('### Scenario 01 — [happy] a')!;
+
+      expect(itemKeyOf(heading, isScenario: true), 'Scenario 1');
+      expect(itemKeyOf(heading, isScenario: false), 'Scenario 01');
+    });
+
+    test('a lettered scenario number is held as written', () {
+      final heading = readScenarioHeading('### Scenario 6a — [happy] a')!;
+
+      expect(itemKeyOf(heading, isScenario: true), 'Scenario 6a');
+    });
+  });
+
+  group('proseTrimmedPath', () {
+    const cases = {
+      'a.md': 'a.md',
+      'a.md.': 'a.md',
+      'a.md;': 'a.md',
+      'a.md:': 'a.md',
+      'a.md:12': 'a.md',
+      'a.md:12:5': 'a.md',
+      'a.md:12.': 'a.md',
+      'a.md:x': 'a.md:x',
+      'a.md::1': 'a.md:',
+      ':1': '',
+      '': '',
+    };
+    for (final MapEntry(key: written, value: trimmed) in cases.entries) {
+      test('trims "$written" to "$trimmed"', () {
+        expect(proseTrimmedPath(written), trimmed);
+      });
+    }
+  });
+
+  group('readFixReference', () {
+    test('reads the doc name and section key of a fix line', () {
+      final ref = readFixReference('Fix: login/email_login#flow');
+      expect(ref?.docName, 'login/email_login');
+      expect(ref?.sectionKey, 'flow');
+    });
+
+    for (final line in [
+      'Fix: a',
+      'Fix: #k',
+      'Fix: a#',
+      'Fix: a#b#c',
+      'Fix: a b#k',
+      'Fix:  a#k',
+      'fix: a#k',
+      'Fix: a#k ',
+      'See Fix: a#k',
+    ]) {
+      test('reads "$line" as no fix reference', () {
+        expect(readFixReference(line), isNull);
+      });
+    }
+  });
+}

@@ -1,0 +1,24 @@
+id: messaging
+description: |-
+  The messaging doc: the core message of the project's product, its pillars with their proof, and how each audience hears it.
+  Write each pillar so no competitor could say it word for word.
+title: Messaging
+path: specs/marketing/MESSAGING.md
+sections:
+  - id: core_message
+    header: Core message
+    description: |-
+      Write the core value the product promises.
+  - id: pillars
+    header: Pillars
+    description: |-
+      Write each pillar with its proof, such as a number, a named customer, or a mechanism.
+  - id: per_audience
+    header: Per audience
+    description: |-
+      Write how the wording shifts for each audience, with the core message and pillars unchanged.
+lint:
+  title_no_number: true
+reference:
+  - title: Bare Strategy, B2B messaging house
+    url: https://barestrategy.com/blog/messaging-house-framework

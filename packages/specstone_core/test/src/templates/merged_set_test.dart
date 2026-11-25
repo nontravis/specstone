@@ -1,0 +1,267 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:specstone_core/src/templates/leftover_home.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/feature_pattern.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
+
+import '../../helpers/temp_tree.dart';
+
+MergedDocType _docType(
+  String id, {
+  String? pack,
+  String? description,
+  String? parent,
+  List<String> extendsChain = const [],
+}) => MergedDocType(
+  id: id,
+  pack: pack,
+  description: description,
+  parent: parent,
+  extendsChain: extendsChain,
+  fields: const [],
+  sections: const [],
+  lint: const MergedLint(),
+  files: const [],
+);
+
+FeaturePattern _pattern(String id) => FeaturePattern(
+  id: id,
+  pack: null,
+  extendsId: null,
+  description: 'A pattern',
+  items: const [],
+  reference: const [],
+);
+
+void main() {
+  group('MergedSet', () {
+    test('sorts doc types by id and freezes the list', () {
+      final given = [_docType('b'), _docType('a'), _docType('c')];
+
+      final merged = MergedSet(docTypes: given);
+
+      expect(merged.docTypes.map((docType) => docType.id), ['a', 'b', 'c']);
+      expect(given.map((docType) => docType.id), ['b', 'a', 'c']);
+      expect(() => merged.docTypes.add(_docType('d')), throwsUnsupportedError);
+    });
+
+    test('the upper pack entry wins when two entries name one section', () {
+      final homes = LeftoverHome.parseList(
+        loadYaml('''
+- doc_types: [architecture]
+  section: {id: details, header: Details}
+  to: [fr]
+  home: lower
+- doc_types: [architecture]
+  section: {id: details, header: Details}
+  to: [fr]
+  home: upper
+- path: 'notes/{slug}.md'
+  to: [fr]
+  home: lower path
+- path: 'notes/{slug}.md'
+  to: [fr]
+  home: upper path
+''') as YamlList,
+        file: 'p.yaml',
+      );
+      final merged = MergedSet(docTypes: const [], leftoverHomes: homes);
+
+      expect(
+        merged.leftoverForSection('architecture', 'Details')!.home,
+        'upper',
+      );
+      expect(merged.leftoverForPath('notes/a.md')!.home, 'upper path');
+    });
+
+    test('finds a doc type by id and misses an unknown id', () {
+      final merged = MergedSet(docTypes: [_docType('feature')]);
+
+      expect(merged.lookup('feature')!.id, 'feature');
+      expect(merged.lookup('runbook'), isNull);
+    });
+
+    test('a root type built on a type with a parent is a project spec '
+        'type', () {
+      final domain = _docType('domain', parent: 'feature');
+      final edge = _docType('edge_domain', extendsChain: ['domain']);
+      final merged = MergedSet(docTypes: [domain, edge]);
+
+      expect(merged.isProjectSpecType(edge), isTrue);
+      expect(merged.isProjectSpecType(domain), isFalse);
+    });
+
+    test('tech_stack and a plain project-layer singular type are no project '
+        'spec type', () {
+      final techStack = _docType('tech_stack');
+      final extra = _docType('extra', extendsChain: ['project']);
+      final merged = MergedSet(
+        docTypes: [techStack, extra, _docType('project')],
+      );
+
+      expect(merged.isProjectSpecType(techStack), isFalse);
+      expect(merged.isProjectSpecType(extra), isFalse);
+    });
+
+    test('holds no feature pattern when none is given', () {
+      final merged = MergedSet(docTypes: const []);
+
+      expect(merged.featurePatterns, isEmpty);
+      expect(merged.featurePattern('crud'), isNull);
+    });
+
+    test('sorts feature patterns by id, freezes the list, and finds one by '
+        'id', () {
+      final given = [_pattern('export'), _pattern('auth'), _pattern('crud')];
+
+      final merged = MergedSet(docTypes: const [], featurePatterns: given);
+
+      expect(merged.featurePatterns.map((p) => p.id), [
+        'auth',
+        'crud',
+        'export',
+      ]);
+      expect(given.map((p) => p.id), ['export', 'auth', 'crud']);
+      expect(
+        () => merged.featurePatterns.add(_pattern('x')),
+        throwsUnsupportedError,
+      );
+      expect(merged.featurePattern('crud')!.id, 'crud');
+      expect(merged.featurePattern('nope'), isNull);
+    });
+
+    test('listText prints one id per line', () {
+      final merged = MergedSet(
+        docTypes: [_docType('runbook'), _docType('feature')],
+      );
+
+      expect(merged.listText(), 'feature\nrunbook\n');
+      expect(MergedSet(docTypes: const []).listText(), '');
+    });
+
+    test('listJson matches the spec example', () {
+      final merged = MergedSet(
+        docTypes: [
+          _docType(
+            'runbook',
+            description: 'An operations runbook for one service.',
+          ),
+          _docType(
+            'feature',
+            pack: 'prd-core',
+            description: 'A feature groups the stories that serve one goal.',
+          ),
+        ],
+      );
+
+      final json = merged.listJson();
+
+      expect(json, [
+        {
+          'id': 'feature',
+          'pack': 'prd-core',
+          'description': 'A feature groups the stories that serve one goal.',
+        },
+        {
+          'id': 'runbook',
+          'description': 'An operations runbook for one service.',
+        },
+      ]);
+      expect(
+        jsonEncode(json),
+        '[{"id":"feature","pack":"prd-core","description":"A feature groups '
+        'the stories that serve one goal."},{"id":"runbook","description":"An '
+        'operations runbook for one service."}]',
+      );
+    });
+
+    test('lists the first line of a description that spans lines', () {
+      final inherited = _docType(
+        'story',
+        pack: 'prd-core',
+        description: 'First line.\nSecond line.',
+      ).copyWith(extendsId: 'base');
+
+      final json = MergedSet(docTypes: [inherited]).listJson();
+
+      expect(json.single['description'], 'First line.');
+    });
+
+    test('a doc type with extends and no description of '
+        'its own lists the first line of the target description', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/a.yaml': '''
+id: a
+description: |
+  First line of a.
+  Second line of a.
+path: a/{slug}.md
+''',
+        '.specstone/templates/b.yaml': '''
+id: b
+extends: a
+path: b/{slug}.md
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(
+        shippedFiles: {
+          'prd-core/pack.yaml': Uint8List.fromList(
+            utf8.encode('name: prd-core\nversion: 1.1.0\n'),
+          ),
+        },
+      );
+
+      final json = resolver
+          .resolve(workingDirectory: project, homeDirectory: home)
+          .listJson();
+
+      expect(json, [
+        {'id': 'a', 'description': 'First line of a.'},
+        {'id': 'b', 'description': 'First line of a.'},
+      ]);
+    });
+
+    test('an empty description lists as an empty string', () {
+      final json = MergedSet(docTypes: [_docType('a', description: '')])
+          .listJson();
+
+      expect(json, [
+        {'id': 'a', 'description': ''},
+      ]);
+    });
+
+    test('droppedDocTypes holds each drop_doc_type id of a loaded pack and is '
+        'empty with none', () async {
+      Future<MergedSet> resolveWith(String steps) async =>
+          TemplateResolver(
+            shippedFiles: {
+              'prd-core/pack.yaml': Uint8List.fromList(
+                utf8.encode('name: prd-core\nversion: 1.1.0\n$steps'),
+              ),
+            },
+          ).resolve(
+            workingDirectory: await writeTree({
+              '.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
+            }),
+            homeDirectory: await writeTree({}),
+          );
+
+      final dropped = await resolveWith(
+        'migrations:\n  - from: 1.0.0\n    steps:\n'
+        '      - drop_doc_type: {id: x, path: "xs/{slug}.md"}\n',
+      );
+      final none = await resolveWith('');
+
+      expect(dropped.droppedDocTypes, {'x'});
+      expect(dropped.foldedDocTypes, isEmpty);
+      expect(none.droppedDocTypes, isEmpty);
+    });
+  });
+}
